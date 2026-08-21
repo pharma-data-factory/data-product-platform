@@ -33,6 +33,7 @@ Open the public landing. Read the hero (**Keep the core standard**), then
 
 Expected:
 
+- Architecture principle: keep the core systems standard
 - Core systems stay standard (ERP, MES, LIMS, EWM)
 - Home does not lecture AAS, UNS, or the component registry
 - OEE is shown as an independent Data Product, not MES customization

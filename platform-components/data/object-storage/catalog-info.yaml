@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: object-storage
+  title: Object Storage
+  description: Object storage building block for files and documents. Platform Component, not a Data Product.
+  tags:
+    - platform-component
+    - data
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/category: data
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/platform-components/index
+      title: Documentation
+      icon: docs
+    - url: http://localhost:7007/platform-components/object-storage
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-capabilities

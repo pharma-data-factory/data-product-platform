@@ -229,7 +229,7 @@ export class MemoryAasRepository {
 
 export function defaultSeedPath(): string {
   const relative =
-    'platform-components/asset-semantic/aas-foundation/src/pdf_aas/data/filler-01.json';
+    'platform-components/asset-semantic/aas-foundation/examples/filler-01.json';
   const candidates = [
     path.resolve(process.cwd(), relative),
     path.resolve(process.cwd(), '..', relative),

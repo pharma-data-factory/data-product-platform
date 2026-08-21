@@ -1,4 +1,5 @@
-data/
+# Runtime databases and Python caches only.
+# Do not ignore the Time-Series component under data/timeseries.
 *.db
 .pytest_cache/
 __pycache__/

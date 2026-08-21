@@ -66,7 +66,7 @@ describe('Golden Path release foundation', () => {
   });
 
   it('labels Platform Edition and SaaS according to ROADMAP.md', () => {
-    const roadmap = fs.readFileSync(path.join(ROOT, '..', 'ROADMAP.md'), 'utf8');
+    const roadmap = fs.readFileSync(path.join(ROOT, 'ROADMAP.md'), 'utf8');
     const distribution = fs.readFileSync(
       path.join(ROOT, 'docs/engineering/distribution-channels.md'),
       'utf8',
