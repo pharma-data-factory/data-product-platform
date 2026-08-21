@@ -190,6 +190,7 @@ export function toDataProduct(entity: Entity): DataProduct {
     asStringArray(spec.dependsOn),
     parseCsv(annotations[`${ANNOTATION_PREFIX}/depends-on`]),
   );
+  const contractSource = providedApis[0] ?? consumedApis[0];
 
   return {
     name: entity.metadata.name,
@@ -245,11 +246,9 @@ export function toDataProduct(entity: Entity): DataProduct {
       annotations[`${ANNOTATION_PREFIX}/dataProductStandardVersion`],
     dataProductSdkVersion:
       annotations[`${ANNOTATION_PREFIX}/dataProductSdkVersion`],
-    contractLogicalName: providedApis[0]
-      ? logicalContractName(providedApis[0])
-      : consumedApis[0]
-        ? logicalContractName(consumedApis[0])
-        : undefined,
+    contractLogicalName: contractSource
+      ? logicalContractName(contractSource)
+      : undefined,
     entityRef: stringifyEntityRef(entity),
   };
 }

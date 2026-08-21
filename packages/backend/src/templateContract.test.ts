@@ -110,6 +110,40 @@ function walk(dir: string): string[] {
   });
 }
 
+function expectedComponentType(templateId: string): string {
+  if (templateId === 'unified-namespace') {
+    return 'platform-component';
+  }
+  if (
+    templateId === 'python-microservice' ||
+    templateId === 'nodejs-microservice'
+  ) {
+    return 'service';
+  }
+  return 'data-product';
+}
+
+function expectedCiPatterns(templateId: string): RegExp[] {
+  if (
+    templateId === 'mqtt-temperature-data-product' ||
+    templateId === 'rest-equipment-data-product' ||
+    templateId === 'machine-state-consumer-data-product' ||
+    templateId === 'oee-data-product'
+  ) {
+    return [
+      /Unit tests/i,
+      /Contract tests/i,
+      /Data quality tests/i,
+      /Compatibility tests/i,
+      /Security scan/i,
+    ];
+  }
+  if (templateId === 'python-microservice') {
+    return [/Security scan/i];
+  }
+  return [/Unit tests/i, /Build/i, /Security scan/i];
+}
+
 describe('template registration and generation contract', () => {
   it('registers the official templates', () => {
     for (const template of TEMPLATES) {
@@ -155,14 +189,7 @@ describe('template registration and generation contract', () => {
       expect(component.metadata.title).toBe('Demo Service');
       expect(component.metadata.description).toBe('Generated for contract tests');
       expect(component.spec.owner).toBe('group:default/platform-team');
-      expect(component.spec.type).toBe(
-        template.id === 'unified-namespace'
-          ? 'platform-component'
-          : template.id === 'python-microservice' ||
-              template.id === 'nodejs-microservice'
-            ? 'service'
-            : 'data-product',
-      );
+      expect(component.spec.type).toBe(expectedComponentType(template.id));
       expect(component.spec.lifecycle).toBe('experimental');
       expect(component.metadata.annotations['dataprod.platform/version']).toBe(
         '1.0.0',
@@ -207,23 +234,8 @@ describe('template registration and generation contract', () => {
     expect(workflow).toMatch(/Lint/i);
     expect(workflow).toMatch(/Tests/i);
     expect(workflow).toMatch(/Docker build/i);
-    if (
-      template.id === 'mqtt-temperature-data-product' ||
-      template.id === 'rest-equipment-data-product' ||
-      template.id === 'machine-state-consumer-data-product' ||
-      template.id === 'oee-data-product'
-    ) {
-      expect(workflow).toMatch(/Unit tests/i);
-      expect(workflow).toMatch(/Contract tests/i);
-      expect(workflow).toMatch(/Data quality tests/i);
-      expect(workflow).toMatch(/Compatibility tests/i);
-      expect(workflow).toMatch(/Security scan/i);
-    } else if (template.id === 'python-microservice') {
-      expect(workflow).toMatch(/Security scan/i);
-    } else {
-      expect(workflow).toMatch(/Unit tests/i);
-      expect(workflow).toMatch(/Build/i);
-      expect(workflow).toMatch(/Security scan/i);
+    for (const pattern of expectedCiPatterns(template.id)) {
+      expect(workflow).toMatch(pattern);
     }
   });
 });

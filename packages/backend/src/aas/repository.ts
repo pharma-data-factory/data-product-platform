@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { resolvePackagePath } from '@backstage/backend-plugin-api';
 import {
   AssetAdministrationShell,
   AssetCreate,
@@ -227,13 +228,13 @@ export class MemoryAasRepository {
 }
 
 export function defaultSeedPath(): string {
-  const relative = 'platform-components/asset-semantic/aas-foundation/src/pdf_aas/data/filler-01.json';
+  const relative =
+    'platform-components/asset-semantic/aas-foundation/src/pdf_aas/data/filler-01.json';
   const candidates = [
     path.resolve(process.cwd(), relative),
     path.resolve(process.cwd(), '..', relative),
     path.resolve(process.cwd(), '../..', relative),
-    path.resolve(__dirname, '../../../../', relative),
-    path.resolve(__dirname, '../../../../../', relative),
+    resolvePackagePath('backend', `../../${relative}`),
   ];
   const match = candidates.find(item => fs.existsSync(item));
   if (!match) {

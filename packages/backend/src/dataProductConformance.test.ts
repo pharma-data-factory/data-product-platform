@@ -99,15 +99,21 @@ describe('Data Product conformance', () => {
       );
 
       const main = read(contentDir, 'app/main.py');
-      if (template.id === 'oee-data-product') {
-        expect(main).toContain('create_rest_app');
-        expect(main).toContain('/health');
-        expect(main).toContain('@router.get("/quality")');
-        expect(main).toContain('@router.get("/platform-metadata")');
-      } else {
-        expect(main).toContain('"/health"');
-        expect(main).toContain('"/api/v1/quality"');
-        expect(main).toContain('"/api/v1/platform-metadata"');
+      const healthSnippets =
+        template.id === 'oee-data-product'
+          ? [
+              'create_rest_app',
+              '/health',
+              '@router.get("/quality")',
+              '@router.get("/platform-metadata")',
+            ]
+          : [
+              '"/health"',
+              '"/api/v1/quality"',
+              '"/api/v1/platform-metadata"',
+            ];
+      for (const snippet of healthSnippets) {
+        expect(main).toContain(snippet);
       }
       expect(main).toContain('platform_metadata');
 

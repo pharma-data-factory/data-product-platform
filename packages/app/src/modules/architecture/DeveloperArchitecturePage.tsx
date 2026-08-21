@@ -12,6 +12,16 @@ import { LandingI18nProvider } from '../identity/landingI18n';
 import { StoryStatusBadge } from '../identity/ArchitecturePrinciple';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
 
+const linkStyle = {
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: `1px solid ${C.border}`,
+  textDecoration: 'none',
+  color: PHARMA_NAVY,
+  fontSize: 13,
+  fontWeight: 600,
+} as const;
+
 export interface DeveloperArchitecturePageProps {
   onSignIn?: () => void;
   standalone?: boolean;
@@ -343,13 +353,3 @@ function Cta({ onSignIn }: Readonly<{ onSignIn?: () => void }>) {
     </section>
   );
 }
-
-const linkStyle = {
-  padding: '8px 12px',
-  borderRadius: 999,
-  border: `1px solid ${C.border}`,
-  textDecoration: 'none',
-  color: PHARMA_NAVY,
-  fontSize: 13,
-  fontWeight: 600,
-} as const;

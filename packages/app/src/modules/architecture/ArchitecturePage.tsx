@@ -28,6 +28,22 @@ import {
   LAYER_ROLE_CARDS,
 } from '../identity/platformStoryData';
 
+const archTh = {
+  textAlign: 'left' as const,
+  padding: '12px 14px',
+  borderBottom: `1px solid ${C.border}`,
+  color: PHARMA_TEAL,
+  fontSize: 12,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase' as const,
+};
+
+const archTd = {
+  padding: 14,
+  borderBottom: `1px solid ${C.border}`,
+  verticalAlign: 'top' as const,
+};
+
 export interface ArchitecturePageProps {
   onSignIn?: () => void;
   standalone?: boolean;
@@ -407,22 +423,6 @@ function ComparisonSection() {
     </section>
   );
 }
-
-const archTh = {
-  textAlign: 'left' as const,
-  padding: '12px 14px',
-  borderBottom: `1px solid ${C.border}`,
-  color: PHARMA_TEAL,
-  fontSize: 12,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase' as const,
-};
-
-const archTd = {
-  padding: 14,
-  borderBottom: `1px solid ${C.border}`,
-  verticalAlign: 'top' as const,
-};
 
 function DiagramSection({
   id,

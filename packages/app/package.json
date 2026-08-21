@@ -52,6 +52,7 @@
     "react-router-dom": "^6.30.2"
   },
   "devDependencies": {
+    "@backstage/catalog-model": "^1.7.6",
     "@backstage/frontend-test-utils": "^0.6.2",
     "@playwright/test": "^1.32.3",
     "@testing-library/dom": "^9.0.0",

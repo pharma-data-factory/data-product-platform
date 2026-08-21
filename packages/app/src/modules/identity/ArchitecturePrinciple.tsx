@@ -526,6 +526,16 @@ function LayerTitle({ children }: { children: ReactNode }) {
   );
 }
 
+function statusBadgeColor(certified: boolean, future: boolean): string {
+  if (certified) {
+    return PHARMA_TEAL_LIGHT;
+  }
+  if (future) {
+    return '#94A3B8';
+  }
+  return '#CBD5E1';
+}
+
 export function StoryStatusBadge({ status }: { status: CapabilityStatus | 'illustrative' }) {
   const certified = status === 'CERTIFIED';
   const future = status === 'FUTURE' || status === 'PLANNED' || status === 'illustrative';
@@ -542,7 +552,7 @@ export function StoryStatusBadge({ status }: { status: CapabilityStatus | 'illus
         padding: '3px 8px',
         borderRadius: 999,
         background: certified ? 'rgba(13,148,136,0.14)' : 'rgba(71,85,105,0.18)',
-        color: certified ? PHARMA_TEAL_LIGHT : future ? '#94A3B8' : '#CBD5E1',
+        color: statusBadgeColor(certified, future),
         border: certified
           ? '1px solid rgba(13,148,136,0.45)'
           : '1px solid rgba(148,163,184,0.28)',

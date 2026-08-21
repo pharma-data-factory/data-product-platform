@@ -306,18 +306,17 @@ export function ComposePage() {
     if (!preset) {
       return;
     }
-    const nextName =
-      preset.kind === 'design-example'
-        ? 'equipment-use-log'
-        : preset.kind === 'oee-reference'
-          ? 'oee-data-product-direct'
-          : undefined;
-    const nextDescription =
-      preset.kind === 'design-example'
-        ? 'DESIGN EXAMPLE ONLY. Not a Golden Path. Not AVAILABLE. Not CERTIFIED. The developer still owns usage sessions, duration, reason codes, and operator/equipment relationships.'
-        : preset.kind === 'oee-reference'
-          ? 'Reference composition loaded from OEE Mode A. Loading this example does not alter OEE.'
-          : undefined;
+    let nextName: string | undefined;
+    let nextDescription: string | undefined;
+    if (preset.kind === 'design-example') {
+      nextName = 'equipment-use-log';
+      nextDescription =
+        'DESIGN EXAMPLE ONLY. Not a Golden Path. Not AVAILABLE. Not CERTIFIED. The developer still owns usage sessions, duration, reason codes, and operator/equipment relationships.';
+    } else if (preset.kind === 'oee-reference') {
+      nextName = 'oee-data-product-direct';
+      nextDescription =
+        'Reference composition loaded from OEE Mode A. Loading this example does not alter OEE.';
+    }
     setDraft(current => ({
       ...current,
       name: nextName || current.name,

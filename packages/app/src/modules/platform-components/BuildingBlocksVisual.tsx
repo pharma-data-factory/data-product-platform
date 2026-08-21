@@ -77,12 +77,12 @@ function box(
   variant: 'solid' | 'teal' | 'dashed',
   key: string,
 ) {
-  const fill =
-    variant === 'teal'
-      ? PHARMA_TEAL
-      : variant === 'dashed'
-        ? 'rgba(255,255,255,0.06)'
-        : PHARMA_NAVY;
+  let fill = PHARMA_NAVY;
+  if (variant === 'teal') {
+    fill = PHARMA_TEAL;
+  } else if (variant === 'dashed') {
+    fill = 'rgba(255,255,255,0.06)';
+  }
   const stroke = variant === 'dashed' ? 'rgba(255,255,255,0.28)' : PHARMA_TEAL;
   return (
     <g key={key}>

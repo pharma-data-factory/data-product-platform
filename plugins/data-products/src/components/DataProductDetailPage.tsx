@@ -36,10 +36,12 @@ export function DataProductDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!name) {
-      return;
-    }
     let active = true;
+    if (!name) {
+      return () => {
+        active = false;
+      };
+    }
     setLoading(true);
     catalogApi
       .getEntities({ filter: { kind: ['Component', 'API'] } })

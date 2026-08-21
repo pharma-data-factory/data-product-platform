@@ -13,6 +13,23 @@ import {
 } from './platformStoryData';
 import { HeroArchitectureDiagram } from '../architecture/storyDiagrams';
 
+const thStyle: CSSProperties = {
+  textAlign: 'left',
+  padding: '12px 14px',
+  borderBottom: `1px solid ${C.border}`,
+  color: PHARMA_TEAL,
+  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+  fontSize: 12,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+};
+
+const tdStyle: CSSProperties = {
+  padding: '14px',
+  borderBottom: `1px solid ${C.border}`,
+  verticalAlign: 'top',
+};
+
 export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => void }>) {
   const { t } = useLandingI18n();
 
@@ -294,20 +311,3 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
     </section>
   );
 }
-
-const thStyle: CSSProperties = {
-  textAlign: 'left',
-  padding: '12px 14px',
-  borderBottom: `1px solid ${C.border}`,
-  color: PHARMA_TEAL,
-  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-  fontSize: 12,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-};
-
-const tdStyle: CSSProperties = {
-  padding: '14px',
-  borderBottom: `1px solid ${C.border}`,
-  verticalAlign: 'top',
-};
