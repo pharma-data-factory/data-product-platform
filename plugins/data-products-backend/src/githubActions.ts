@@ -176,12 +176,9 @@ function firstRun(body: unknown): GithubWorkflowRun | undefined {
     headBranch: typeof run.head_branch === 'string' ? run.head_branch : '',
     headSha: typeof run.head_sha === 'string' ? run.head_sha : '',
     htmlUrl: typeof run.html_url === 'string' ? run.html_url : '',
-    startedAt:
-      typeof run.run_started_at === 'string'
-        ? run.run_started_at
-        : typeof run.created_at === 'string'
-          ? run.created_at
-          : undefined,
+    startedAt: [run.run_started_at, run.created_at].find(
+      (value): value is string => typeof value === 'string',
+    ),
     completedAt:
       run.status === 'completed' && typeof run.updated_at === 'string'
         ? run.updated_at
