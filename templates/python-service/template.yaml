@@ -1,0 +1,101 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: python-microservice
+  title: Python Microservice
+  description: General FastAPI service template with tests, Docker, GitHub Actions, and catalog registration. Not a Data Product Golden Path.
+  tags:
+    - recommended
+    - python
+    - fastapi
+    - data-product
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: TESTED
+    dataprod.platform/category: Templates
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Python Microservice
+      required:
+        - name
+        - description
+        - owner
+        - repoUrl
+      properties:
+        name:
+          title: Service Name
+          type: string
+          description: Unique service name. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Short description of the service.
+          ui:widget: textarea
+        owner:
+          title: Catalog Owner
+          type: string
+          description: Owning user or group in the Backstage catalog. This is not the GitHub organization.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        repoUrl:
+          title: GitHub Organization and Repository
+          type: string
+          description: The repository is created in the pharma-data-factory organization by the backend GitHub App. Enter only the repository name, for example temperature-service-test. Guest login is enough; no GitHub OAuth token is requested.
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - pharma-data-factory
+  steps:
+    - id: fetch-base
+      name: Fetch Python microservice skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: data-platform
+          domain: platform
+          lifecycle: experimental
+          version: 1.0.0
+          destination:
+            host: github.com
+            owner: pharma-data-factory
+            repo: ${{ parameters.name }}
+          templateName: python-microservice
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

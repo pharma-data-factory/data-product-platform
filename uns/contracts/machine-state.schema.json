@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharma-data-factory.example/contracts/machine-state.schema.json",
+  "title": "Machine State",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "mode"],
+  "properties": {
+    "state": { "type": "string", "enum": ["running", "idle", "down", "setup"] },
+    "mode": { "type": "string", "enum": ["automatic", "manual"] }
+  }
+}

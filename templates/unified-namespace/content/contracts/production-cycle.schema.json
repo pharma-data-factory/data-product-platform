@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharma-data-factory.example/contracts/production-cycle.schema.json",
+  "title": "Production Cycle",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cycleId", "durationMs", "result"],
+  "properties": {
+    "cycleId": { "type": "string", "minLength": 1 },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "result": { "type": "string", "enum": ["good", "reject", "unknown"] }
+  }
+}

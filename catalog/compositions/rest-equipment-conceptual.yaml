@@ -1,0 +1,19 @@
+apiVersion: dataprod.platform/v1alpha1
+kind: GoldenPathComposition
+
+metadata:
+  name: rest-equipment-conceptual
+  title: REST Equipment (conceptual)
+  description: Documents which Platform Components the existing REST Equipment Golden Path uses conceptually. The runtime is not refactored.
+
+spec:
+  standardVersion: 1.0.0
+  components:
+    - ref: component:default/rest-source
+      version: 1.x
+    - ref: component:default/rest-api
+      version: 1.x
+    - ref: component:default/health
+      version: 1.x
+    - ref: component:default/observability
+      version: 1.x

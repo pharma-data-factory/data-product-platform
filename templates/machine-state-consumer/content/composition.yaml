@@ -1,0 +1,14 @@
+# Copy the composition into generated repositories for build-time validation.
+apiVersion: dataprod.platform/v1alpha1
+kind: GoldenPathComposition
+
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+
+spec:
+  standardVersion: 1.0.0
+  components:
+    - ref: ${{ values.unsComponent }}
+      version: 1.x

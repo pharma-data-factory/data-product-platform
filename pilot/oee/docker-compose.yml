@@ -1,0 +1,61 @@
+# OEE Pilot Integration Proof 1.0 — local/containerized fixture.
+# Topology: Test MES + Mosquitto + generated OEE Data Product.
+# Do not use Kubernetes. Do not add UNS, AAS, Grafana, or Kafka.
+#
+# Mosquitto anonymous mode is PILOT-LOCAL ONLY.
+# Plant / production brokers require credentials, TLS, and authorization.
+
+name: oee-pilot
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "41883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  test-mes:
+    build: ./test-mes
+    ports:
+      - "18090:8090"
+    environment:
+      TZ: UTC
+
+  oee:
+    build: ./generated/pilot-oee-line-01
+    depends_on:
+      - mosquitto
+      - test-mes
+    ports:
+      - "18080:8080"
+    environment:
+      SERVICE_NAME: pilot-oee-line-01
+      SERVICE_VERSION: 1.0.0
+      EQUIPMENT_ID: filler-01
+      DEFAULT_WINDOW: custom
+      TEMPLATE_NAME: oee-data-product
+      TEMPLATE_VERSION: 1.0.0
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC: pharma/oee/filler-01/+
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      SOURCE_API_URL: http://test-mes:8090/api/v1/production-context/filler-01
+      SOURCE_API_TIMEOUT: 2
+      SOURCE_API_RETRIES: 1
+      TIMESERIES_SQLITE_PATH: /app/data/oee.db
+    volumes:
+      - oee-pilot-data:/app/data
+
+  publisher:
+    build: ./publisher
+    profiles: ["tools"]
+    depends_on:
+      - mosquitto
+    environment:
+      TZ: UTC
+    command: ["--broker", "mosquitto", "--port", "1883", "--scenario", "PERFECT"]
+
+volumes:
+  oee-pilot-data:

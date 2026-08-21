@@ -1,0 +1,70 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: data-capabilities
+  title: Data Capabilities
+  description: Reusable data storage Platform Components. Not a Data Product system.
+spec:
+  owner: group:default/platform-team
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: operations-platform
+  title: Operations Platform
+  description: Reusable operations Platform Components. Not a Data Product system.
+spec:
+  owner: group:default/platform-team
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: intelligence-platform
+  title: Intelligence Platform
+  description: Planned intelligence Platform Components. Placeholders only. Not a Data Product system.
+spec:
+  owner: group:default/platform-team
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: asset-semantics
+  title: Asset Semantics
+  description: Asset Administration Shell and semantic identity Platform Components. Not a Data Product system.
+spec:
+  owner: group:default/platform-team
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: platform-component-library
+  description: Reusable Platform Components. Building blocks, not Data Products.
+spec:
+  type: file
+  targets:
+    - ./integration/rest-source/catalog-info.yaml
+    - ./integration/rest-api/catalog-info.yaml
+    - ./integration/mqtt-consumer/catalog-info.yaml
+    - ./integration/kafka-consumer/catalog-info.yaml
+    - ./integration/kafka-producer/catalog-info.yaml
+    - ./data/postgres/catalog-info.yaml
+    - ./data/timeseries/catalog-info.yaml
+    - ./data/object-storage/catalog-info.yaml
+    - ./operations/observability/catalog-info.yaml
+    - ./operations/health/catalog-info.yaml
+    - ./operations/audit/catalog-info.yaml
+    - ./asset-semantic/aas-foundation/catalog-info.yaml
+    - ./intelligence/document-loader/catalog-info.yaml
+    - ./intelligence/chunker/catalog-info.yaml
+    - ./intelligence/embeddings/catalog-info.yaml
+    - ./intelligence/vector-store/catalog-info.yaml
+    - ./intelligence/retriever/catalog-info.yaml
+    - ./intelligence/rag/catalog-info.yaml
+    - ./intelligence/llm-gateway/catalog-info.yaml
+    - ./intelligence/knowledge-graph/catalog-info.yaml
+    - ./examples/machine-metrics/catalog-info.yaml

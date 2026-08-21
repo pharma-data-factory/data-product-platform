@@ -1,0 +1,87 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: aas-asset
+  title: Asset Administration Shell
+  description: Administration scaffolding for an Asset Administration Shell. Does not create a GitHub repository or a Data Product.
+  tags:
+    - aas
+    - platform-component
+    - administration
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/category: Platform Components
+spec:
+  owner: group:default/platform-team
+  type: documentation
+  parameters:
+    - title: Asset Administration Shell
+      required:
+        - name
+        - assetId
+      properties:
+        name:
+          title: Asset Name
+          type: string
+        assetId:
+          title: Asset ID
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+        description:
+          title: Description
+          type: string
+        assetType:
+          title: Asset Type
+          type: string
+        globalAssetId:
+          title: Global Asset ID
+          type: string
+        manufacturer:
+          title: Manufacturer
+          type: string
+        model:
+          title: Model
+          type: string
+        serialNumber:
+          title: Serial Number
+          type: string
+        site:
+          title: Site
+          type: string
+        area:
+          title: Area
+          type: string
+        line:
+          title: Line
+          type: string
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        connectivityType:
+          title: Connectivity Type
+          type: string
+          enum:
+            - MQTT
+            - REST
+            - OPC_UA
+            - FILE_STREAM
+  steps:
+    - id: log
+      name: Open Assets & Sensors
+      action: debug:log
+      input:
+        message: >
+          Create this AAS in /assets. This template does not publish a GitHub
+          repository and does not register a Catalog Component per sensor.
+          assetId=${{ parameters.assetId }} name=${{ parameters.name }}
+  output:
+    links:
+      - title: Assets & Sensors
+        url: /assets

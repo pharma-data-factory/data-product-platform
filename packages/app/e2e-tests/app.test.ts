@@ -19,7 +19,14 @@ import { test, expect } from '@playwright/test';
 test('App should render the welcome page', async ({ page }) => {
   await page.goto('/');
 
-  const enterButton = page.getByRole('button', { name: 'Enter' });
+  await expect(
+    page.getByRole('heading', {
+      name: /Keep the core standard\.\s*Innovate through Data Products\./i,
+    }),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign In' }).first().click();
+  const enterButton = page.getByRole('button', { name: 'Continue as Guest' }).first();
   await expect(enterButton).toBeVisible();
   await enterButton.click();
 
@@ -28,6 +35,20 @@ test('App should render the welcome page', async ({ page }) => {
     nav.getByRole('link', { name: 'Catalog', exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'APIs', exact: true }),
+    nav.getByRole('link', { name: 'Marketplace', exact: true }),
+  ).toBeVisible();
+  await expect(
+    nav.getByRole('link', { name: 'Data Products', exact: true }),
+  ).toBeVisible();
+  await expect(
+    nav.getByRole('link', { name: 'Developer Hub', exact: true }),
+  ).toBeVisible();
+  await expect(
+    nav.getByRole('link', { name: 'Releases', exact: true }),
+  ).toBeVisible();
+
+  await nav.getByRole('link', { name: 'Marketplace', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: /MQTT Temperature Data Product/i }).first(),
   ).toBeVisible();
 });

@@ -1,0 +1,108 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - platform-component
+    - mqtt
+    - uns
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: integration
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/template: ${{ values.templateName }}
+    dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    dataprod.platform/interfaces: MQTT,REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/environment: ${{ values.environment }}
+    dataprod.platform/rootNamespace: ${{ values.rootNamespace }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+spec:
+  type: platform-component
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn: []
+  providesApis:
+    - ${{ values.name }}--production-cycle
+    - ${{ values.name }}--machine-state
+    - ${{ values.name }}--temperature-value
+    - ${{ values.name }}--equipment-status
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--production-cycle
+  title: Production Cycle Contract
+  annotations:
+    dataprod.platform/contract: production-cycle
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/production-cycle.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Production Cycle contract 1.0.0
+    Required payload: cycleId, durationMs, result
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--machine-state
+  title: Machine State Contract
+  annotations:
+    dataprod.platform/contract: machine-state
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/machine-state.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Machine State contract 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--temperature-value
+  title: Temperature Value Contract
+  annotations:
+    dataprod.platform/contract: temperature-value
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/temperature-value.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Demonstration temperature-value contract. Not the MQTT Temperature Golden Path.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--equipment-status
+  title: Equipment Status Contract
+  annotations:
+    dataprod.platform/contract: equipment-status
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/equipment-status.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Demonstration equipment-status contract. Not the REST Equipment Golden Path.

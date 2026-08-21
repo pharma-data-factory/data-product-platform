@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/machine-state-event.schema.json",
+  "title": "Machine State Event",
+  "description": "Published payload contract for machine-state-event 1.0.0.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state"],
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": ["RUNNING", "STOPPED", "IDLE", "MAINTENANCE"]
+    },
+    "reason": {
+      "type": ["string", "null"]
+    }
+  }
+}

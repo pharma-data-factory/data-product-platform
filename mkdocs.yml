@@ -1,0 +1,189 @@
+site_name: Pharma Data Factory
+site_description: Developer Hub and platform documentation
+
+nav:
+  - Overview: index.md
+  - Pilot:
+      - Pilot readiness: pilot-readiness.md
+      - Pilot hardening gate: pilot-hardening-gate.md
+      - Pilot exit gate: pilot-exit-gate.md
+      - MVP 1.0 baseline: mvp-1.0-baseline.md
+      - Status model: status-model.md
+      - Developer journey evidence: developer/mvp-journey-evidence.md
+      - Pilot runbook: operations/pilot-runbook.md
+      - Capability matrix: capability-matrix.md
+      - Catalog hygiene: catalog.md
+  - Developer Hub:
+      - Home: developer/index.md
+      - Quick Start: developer/quick-start.md
+      - Getting started: developer/getting-started.md
+      - First Data Product: developer/first-data-product.md
+      - Local development: developer/local-development.md
+      - GitHub integration test: developer/github-integration-test.md
+      - OEE GitHub integration test: developer/oee-github-integration-test.md
+      - Troubleshooting: developer/troubleshooting.md
+      - Ownership: developer/ownership.md
+      - Classification: developer/classification.md
+  - Fundamentals:
+      - Data Products: fundamentals/data-products.md
+      - System of Record: fundamentals/system-of-record.md
+      - Control Plane: fundamentals/control-plane.md
+      - Golden Paths: fundamentals/golden-paths.md
+  - Architecture:
+      - Platform: architecture/platform.md
+      - Data Product: architecture/data-product.md
+      - Integration: architecture/integration.md
+      - UNS Architecture: uns/architecture.md
+      - OEE via UNS: uns/oee-example.md
+      - Cold Chain via UNS: uns/cold-chain-example.md
+      - Identity: architecture/identity.md
+      - Deployment models: architecture/deployment-models.md
+      - Engineering notes: architecture.md
+  - Engineering:
+      - Standard: engineering/standard.md
+      - SDK: engineering/sdk.md
+      - Contracts: engineering/contracts.md
+      - Quality: engineering/quality.md
+      - Compatibility: engineering/compatibility.md
+      - CI/CD: engineering/ci-cd.md
+      - Docker: engineering/docker.md
+      - Certification: engineering/certification.md
+      - Source of truth: engineering/source-of-truth.md
+      - Security quality gate: engineering/security-gate.md
+      - Versioning: engineering/versioning.md
+      - Golden Path lifecycle: engineering/golden-path-lifecycle.md
+      - Release management: engineering/release-management.md
+      - Release checklist: engineering/release-checklist.md
+      - Deprecation: engineering/deprecation.md
+      - Distribution channels: engineering/distribution-channels.md
+      - Upgrade guide: engineering/upgrade-guide.md
+      - Golden Path documentation: engineering/golden-path-documentation.md
+      - Engineering contract: engineering-contract.md
+      - Template standard: data-product-template-standard.md
+  - Platform components:
+      - Library: platform-components/index.md
+      - Component model: platform-components/component-model.md
+      - Component standard: platform-components/component-standard.md
+      - Lifecycle: platform-components/certification.md
+      - Wave 1 certified components: platform-components/wave-1-certified.md
+      - Wave 1 baseline freeze: platform-components/wave-1-baseline.md
+      - Certification checklist: platform-components/certification-checklist.md
+      - Wave 1 conformance matrix: platform-components/wave-1-conformance.md
+      - Security limitations: platform-components/security.md
+      - Upgrade policy: platform-components/upgrade-policy.md
+      - Versioning: platform-components/versioning.md
+      - Composition: platform-components/composition.md
+      - Composition Builder: platform-components/composer.md
+      - Product model: platform-components/product-model.md
+      - Creating a component: platform-components/creating.md
+      - Using in Golden Paths: platform-components/using.md
+      - Browse the library: platform-components/browse.md
+      - Decision model: platform-components/decision-model.md
+      - Component vs Golden Path: platform-components/vs-golden-path.md
+      - Component vs Backstage Plugin: platform-components/vs-backstage-plugin.md
+      - Equipment Use Log example: platform-components/equipment-use-log-example.md
+      - Future Composer: platform-components/future-composer.md
+      - Vendoring: platform-components/vendoring.md
+      - Health: platform-components/health.md
+      - Observability: platform-components/observability.md
+      - REST API: platform-components/rest-api.md
+      - REST Source: platform-components/rest-source.md
+      - MQTT Consumer: platform-components/mqtt-consumer.md
+      - Time-Series Storage: platform-components/timeseries.md
+      - Build from components: platform-components/build-from-components.md
+      - Machine Metrics Reference: platform-components/machine-metrics.md
+      - Asset Administration Shell: platform-components/aas-foundation.md
+      - Unified Namespace: platform-components/unified-namespace.md
+      - Intelligence foundation: platform-components/intelligence.md
+      - OEE example: platform-components/oee-example.md
+      - OEE Definition of Ready: platform-components/oee-ready.md
+      - Standard (canonical): platform-component-standard.md
+      - Unified Namespace runtime: uns/index.md
+      - Namespace convention: uns/namespace.md
+      - Topic naming: uns/topic-naming.md
+      - Event envelope: uns/event-envelope.md
+      - Contracts: uns/contracts.md
+      - Governance: uns/governance.md
+  - AAS Foundation 1.0:
+      - What is AAS?: aas/index.md
+      - AAS vs Catalog: aas/vs-catalog.md
+      - AAS vs UNS: aas/vs-uns.md
+      - Administration: aas/administration.md
+      - Submodels: aas/submodels.md
+      - Semantic IDs: aas/semantic-ids.md
+      - Connectivity mapping: aas/connectivity.md
+      - Using AAS from a Data Product: aas/using-from-data-product.md
+      - AAS + OEE: aas/oee.md
+  - OEE Domain 1.0:
+      - Overview: oee/index.md
+      - Golden Path design: oee/golden-path-design.md
+      - Domain model: oee/domain-model.md
+      - Contracts: oee/contracts.md
+      - Calculation: oee/calculation.md
+      - Time windows: oee/time-windows.md
+      - Quality: oee/quality.md
+      - Edge cases: oee/edge-cases.md
+      - Edge-case matrix: oee/edge-case-matrix.md
+      - API: oee/api.md
+      - Storage: oee/storage.md
+      - Source mapping: oee/source-mapping.md
+      - Create and configuration: oee/create-and-config.md
+      - Composition: oee/composition.md
+      - Pilot limitations: oee/pilot-limitations.md
+      - Pilot integration proof: oee/pilot-integration.md
+      - Wave 1 vendoring assessment: oee/pilot-vendoring.md
+      - Decisions: oee/decisions.md
+      - Definition of Done: oee/definition-of-done.md
+      - MVP boundary: oee/mvp-boundary.md
+  - How-to:
+      - MQTT Temperature: how-to/mqtt-temperature.md
+      - REST Equipment: how-to/rest-equipment.md
+      - OEE Data Product: how-to/oee.md
+      - OEE Pilot Integration: how-to/oee-pilot.md
+      - UNS MQTT setup: uns/mqtt-setup.md
+      - UNS local development: uns/local-development.md
+      - UNS producer guide: uns/producer-guide.md
+      - UNS consumer guide: uns/consumer-guide.md
+      - Compose with UNS: how-to/compose-uns.md
+      - UNS troubleshooting: uns/troubleshooting.md
+      - Contract change: how-to/contract-change.md
+      - Breaking change: how-to/breaking-change.md
+      - CI failures: how-to/ci-failure.md
+      - Register in Catalog: how-to/register-catalog.md
+      - Publish TechDocs: how-to/publish-techdocs.md
+      - Release a Golden Path: how-to/release-golden-path.md
+  - Releases:
+      - MQTT Temperature 1.0.0: releases/mqtt-temperature-1.0.0.md
+      - REST Equipment 1.0.0: releases/rest-equipment-1.0.0.md
+      - OEE Data Product 1.0.0: releases/oee-1.0.0.md
+      - OEE 1.0.0: releases/oee-1.0.0.md
+      - GitHub setup: github-setup.md
+      - Hosted login: developer/hosted-login.md
+      - Platform repository: github/platform-repository.md
+      - Portainer: deployment/portainer.md
+      - Control Plane hosting: operations/control-plane-hosting.md
+  - Identity and RBAC: identity-and-rbac.md
+  - Commercial:
+      - Architecture: commercial-architecture.md
+      - Entitlements vs RBAC: entitlements-vs-rbac.md
+      - AWS Marketplace integration: aws-marketplace-integration.md
+      - AWS Marketplace test listing: aws-marketplace-test-listing.md
+      - REST Equipment packaging: golden-paths/rest-equipment-packaging.md
+      - Generated legal placeholders: legal/generated-placeholders.md
+      - Product IDs: commercial-product-ids.md
+      - Template Edition: template-edition.md
+      - Platform Edition: platform-edition.md
+      - Future SaaS: future-saas.md
+      - Local simulation: local-marketplace-simulation.md
+  - Templates: templates.md
+  - Marketplace: marketplace.md
+  - Data Products: data-products.md
+  - Temperature Event Contract: contracts/temperature-event.md
+  - Equipment Event Contract: contracts/equipment-event.md
+  - Versioning policy: versioning-policy.md
+  - Compatibility matrix: compatibility-matrix.md
+  - API identity: api-identity.md
+  - MVP 1.0 baseline: mvp-1.0-baseline.md
+
+plugins:
+  - techdocs-core

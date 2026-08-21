@@ -1,0 +1,7 @@
+site_name: MQTT Temperature Data Product Template
+
+nav:
+  - Overview: index.md
+
+plugins:
+  - techdocs-core

@@ -1,0 +1,8 @@
+site_name: Unified Namespace
+site_description: Governed MQTT namespace platform component
+
+nav:
+  - Overview: index.md
+
+plugins:
+  - techdocs-core

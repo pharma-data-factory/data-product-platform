@@ -1,0 +1,9 @@
+# Automatically loaded by `yarn start` when present.
+# Keep secrets out of this file. Use `.env` for credentials.
+#
+# GitHub App / OAuth configuration is opt-in. When you have credentials,
+# start the backend with an extra config file:
+#   yarn start --config app-config.yaml --config app-config.github.yaml
+
+app:
+  title: Pharma Data Factory

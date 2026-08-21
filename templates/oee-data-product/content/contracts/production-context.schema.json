@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/production-context.schema.json",
+  "title": "Production Context",
+  "description": "OEE 1.0 production-context document. Domain names only; not SAP/MES field names. Typically fetched via REST Source.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contextId",
+    "equipmentId",
+    "plannedStart",
+    "plannedEnd",
+    "idealCycleTimeSeconds",
+    "timestamp"
+  ],
+  "properties": {
+    "contextId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Idempotent identity of this context document."
+    },
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orderId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional production order. Required only when windowKind is order."
+    },
+    "materialId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plannedStart": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "plannedEnd": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idealCycleTimeSeconds": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Seconds per unit. Source of Performance ideal cycle time."
+    },
+    "targetQuantity": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Context only. Not used in OEE 1.0 formulas."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event time of this context document (when the plan was issued or last updated)."
+    },
+    "site": {
+      "type": "string"
+    },
+    "area": {
+      "type": "string"
+    },
+    "line": {
+      "type": "string"
+    },
+    "shiftId": {
+      "type": "string",
+      "description": "Optional shift label. Does not imply a platform shift calendar."
+    },
+    "plannedDowntime": {
+      "type": "array",
+      "description": "Scheduled downtime intervals. Unioned with MAINTENANCE state. Do not double-subtract.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start", "end"],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

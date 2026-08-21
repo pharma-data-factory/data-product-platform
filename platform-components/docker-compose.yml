@@ -1,0 +1,19 @@
+services:
+  aas-foundation:
+    build:
+      context: .
+      dockerfile: asset-semantic/aas-foundation/Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      AAS_SQLITE_PATH: /tmp/aas.sqlite
+      AAS_SEED: "true"
+  machine-metrics:
+    build:
+      context: .
+      dockerfile: examples/machine-metrics/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      MQTT_HOST: ""
+      TIMESERIES_SQLITE_PATH: /tmp/metrics.db

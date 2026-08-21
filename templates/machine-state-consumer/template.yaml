@@ -1,0 +1,132 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: machine-state-consumer-data-product
+  title: Machine State Consumer Data Product
+  description: Composition proof Data Product that consumes machine-state events from Unified Namespace. Not an OEE Golden Path.
+  tags:
+    - recommended
+    - python
+    - mqtt
+    - fastapi
+    - data-product
+    - uns
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/category: Data Products
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: data-product
+  parameters:
+    - title: Machine State Consumer Data Product
+      description: |
+        Composition proof · Unified Namespace · machine-state-event · REST latest state.
+
+        This product depends on Unified Namespace. It does not calculate OEE.
+      required:
+        - name
+        - description
+        - owner
+        - domain
+        - unsComponent
+        - topicPattern
+        - repoUrl
+      properties:
+        name:
+          title: Data Product Name
+          type: string
+          description: Unique data product name. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Short description of the machine-state consumer.
+          ui:widget: textarea
+        owner:
+          title: Owner
+          type: string
+          description: Owning user or group for this Data Product.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        domain:
+          title: Domain
+          type: string
+          default: manufacturing
+        unsComponent:
+          title: UNS Component
+          type: string
+          description: Catalog reference of the Unified Namespace platform component.
+          default: component:default/unified-namespace
+        topicPattern:
+          title: Topic Pattern
+          type: string
+          description: MQTT subscription for machine-state events. Use + as a single-level wildcard.
+          default: pharma/+/+/+/+/machine/state
+        repoUrl:
+          title: GitHub Repository
+          type: string
+          description: The repository is created in the pharma-data-factory organization. Enter only the repository name.
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - pharma-data-factory
+  steps:
+    - id: fetch-base
+      name: Fetch Machine State Consumer skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/data-product-quality.yml
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          domain: ${{ parameters.domain }}
+          unsComponent: ${{ parameters.unsComponent }}
+          topicPattern: ${{ parameters.topicPattern }}
+          system: data-platform
+          lifecycle: experimental
+          version: 1.0.0
+          destination:
+            host: github.com
+            owner: pharma-data-factory
+            repo: ${{ parameters.name }}
+          templateName: machine-state-consumer-data-product
+          templateVersion: 1.0.0
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register Data Product
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: View Data Product
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

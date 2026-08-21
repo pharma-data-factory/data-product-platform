@@ -1,0 +1,23 @@
+apiVersion: dataprod.platform/v1alpha1
+kind: GoldenPathComposition
+
+metadata:
+  name: equipment-use-log
+  title: Equipment Use Log (design example)
+  description: >
+    DOCUMENTATION / DESIGN EXAMPLE ONLY. No Equipment Use Log runtime
+    exists. Developers implement the usage-session domain model and reuse
+    Wave 1 Platform Components. REST Source and Time-Series Storage are
+    OPTIONAL and are not in this required composition.
+
+spec:
+  standardVersion: 1.0.0
+  components:
+    - ref: component:default/health
+      version: "1.x"
+    - ref: component:default/observability
+      version: "1.x"
+    - ref: component:default/mqtt-consumer
+      version: "1.x"
+    - ref: component:default/rest-api
+      version: "1.x"

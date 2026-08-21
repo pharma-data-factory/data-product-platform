@@ -3,11 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#071426" />
     <meta
       name="description"
-      content="Backstage is an open source framework for building developer portals"
+      content="Pharma Data Factory — discover, create, govern, and publish manufacturing data products."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body,
+      #root {
+        background: #071426;
+      }
+    </style>
     <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
@@ -17,6 +30,7 @@
       href="<%= publicPath %>/manifest.json"
       crossorigin="use-credentials"
     />
+    <link rel="icon" href="<%= publicPath %>/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="<%= publicPath %>/favicon.ico" />
     <link rel="shortcut icon" href="<%= publicPath %>/favicon.ico" />
     <link
@@ -39,9 +53,9 @@
     <link
       rel="mask-icon"
       href="<%= publicPath %>/safari-pinned-tab.svg"
-      color="#5bbad5"
+      color="#0D9488"
     />
-    <title><%= config.getOptionalString('app.title') ?? 'Backstage' %></title>
+    <title><%= config.getOptionalString('app.title') ?? 'Pharma Data Factory' %></title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

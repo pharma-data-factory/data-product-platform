@@ -1,0 +1,35 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: machine-metrics-reference
+  title: Machine Metrics Reference
+  description: Reference composition of MQTT Consumer, Health, Observability, Time-Series Storage, and REST API. Generic machine metrics only. Not OEE.
+  tags:
+    - data-product
+    - example
+    - reference-composition
+  annotations:
+    dataprod.platform/kind: data-product
+    dataprod.platform/catalog-class: REFERENCE
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/certification-status: TESTED
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/domain: manufacturing
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/platform-components/machine-metrics
+      title: Documentation
+      icon: docs
+    - url: http://localhost:7007/catalog-graph?rootEntityRefs=component:default/machine-metrics-reference
+      title: Catalog Graph
+      icon: catalog
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/mqtt-consumer
+    - component:default/health
+    - component:default/observability
+    - component:default/timeseries
+    - component:default/rest-api

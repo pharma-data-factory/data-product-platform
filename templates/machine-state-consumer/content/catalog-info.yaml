@@ -1,0 +1,82 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - data-product
+    - python
+    - mqtt
+    - uns
+    - machine-state
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: ${{ values.domain }}
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: ${{ values.templateName }}
+    dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    dataprod.platform/source-systems: mqtt,uns
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/data-contracts: machine-state-event-v1
+    dataprod.platform/dataContract: contracts/machine-state-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: eventId_not_empty,timestamp_iso8601,source_metadata_required,state_enum,contract_schema,eventId_unique
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: /catalog-graph?rootEntityRefs=component:default/${{ values.name }}
+      title: Catalog Graph
+      icon: catalog
+spec:
+  type: data-product
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn:
+    - ${{ values.unsComponent }}
+  consumesApis:
+    - unified-namespace--machine-state-event
+  providesApis:
+    - ${{ values.name }}--machine-state-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--machine-state-event
+  title: Machine State Event Contract
+  description: JSON Schema payload contract for UNS machine-state-event 1.0.0.
+  tags:
+    - contract
+    - machine-state
+    - uns
+  annotations:
+    dataprod.platform/contract: machine-state-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/machine-state-event.schema.json
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Machine State Event contract 1.0.0
+    Envelope: standard UNS event envelope
+    Payload required field: state
+    Payload optional field: reason
+    States: RUNNING, STOPPED, IDLE, MAINTENANCE

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataprod"
+version = "1.0.0"
+description = "Generic Data Product quality, contract, and compatibility helpers."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Data Product Platform" }]
+dependencies = [
+  "pydantic>=2.9.0",
+  "jsonschema[format]>=4.23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["dataprod*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

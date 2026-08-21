@@ -1,0 +1,10 @@
+{
+  "consumers": [
+    {
+      "name": "equipment-dashboard-consumer",
+      "consumesContract": "equipment-event",
+      "compatibleVersions": ["1.x"],
+      "active": true
+    }
+  ]
+}

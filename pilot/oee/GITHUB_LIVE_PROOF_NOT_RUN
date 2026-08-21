@@ -1,0 +1,10 @@
+GITHUB_LIVE_PROOF_NOT_RUN
+
+Automated CI in this repository does not publish to GitHub and does not
+run GitHub Actions against a live organization.
+
+Use docs/developer/oee-github-integration-test.md in a controlled test
+organization when a GitHub App with repository create, contents, and
+Actions Read-only is available.
+
+Do not treat this marker as a CI pass.

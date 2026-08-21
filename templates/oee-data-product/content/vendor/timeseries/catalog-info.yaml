@@ -1,0 +1,28 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: timeseries
+  title: Time-Series Storage
+  description: Generic time-series point store (SQLite MVP). Adapter seam for TimescaleDB, InfluxDB, and Timestream. Not an OEE schema.
+  tags:
+    - platform-component
+    - data
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/category: data
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: /docs/default/component/data-product-platform/platform-components/timeseries
+      title: Documentation
+      icon: docs
+    - url: /platform-components/timeseries
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: production
+  owner: group:default/platform-team
+  system: data-capabilities
+  dependsOn:
+    - component:default/observability

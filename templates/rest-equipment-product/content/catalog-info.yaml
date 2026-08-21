@@ -1,0 +1,76 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - data-product
+    - python
+    - rest
+    - equipment
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: ${{ values.domain }}
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: ${{ values.templateName }}
+    dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    dataprod.platform/source-systems: rest
+    dataprod.platform/interfaces: REST
+    dataprod.platform/dataContract: contracts/equipment-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: equipmentId_not_empty,equipmentId_unique,name_not_empty,site_not_empty,status_allowed,updatedAt_iso8601,contract_schema
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn: []
+  providesApis:
+    - ${{ values.name }}--equipment-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--equipment-event
+  title: Equipment Event Contract
+  description: JSON Schema contract for equipment master data, version 1.0.0.
+  tags:
+    - contract
+    - equipment
+    - rest
+  annotations:
+    dataprod.platform/contract: equipment-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/equipment-event.schema.json
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/contracts/equipment-event.schema.json
+      title: Data Contract Schema
+      icon: docs
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Equipment Event contract 1.0.0
+    Required fields: equipmentId, name, site, status, updatedAt

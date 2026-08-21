@@ -1,0 +1,10 @@
+{
+  "consumers": [
+    {
+      "name": "oee-dashboard-consumer",
+      "consumesContract": "oee-result",
+      "compatibleVersions": ["1.x"],
+      "active": true
+    }
+  ]
+}

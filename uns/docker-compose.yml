@@ -1,0 +1,23 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  uns:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      SERVICE_NAME: unified-namespace
+      SERVICE_VERSION: 1.0.0
+      UNS_ROOT_TOPIC: ${UNS_ROOT_TOPIC:-pharma}
+      UNS_MQTT_HOST: mosquitto
+      UNS_MQTT_PORT: "1883"
+      UNS_MQTT_USERNAME: ${UNS_MQTT_USERNAME:-}
+      UNS_MQTT_PASSWORD: ${UNS_MQTT_PASSWORD:-}
+      UNS_MQTT_ENABLED: "true"
+    depends_on:
+      - mosquitto

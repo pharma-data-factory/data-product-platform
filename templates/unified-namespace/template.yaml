@@ -1,0 +1,121 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: unified-namespace
+  title: Unified Namespace
+  description: Reusable Unified Namespace platform component with MQTT, topic contracts, and catalog registration.
+  tags:
+    - recommended
+    - python
+    - mqtt
+    - platform-component
+    - uns
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/category: Platform Components
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: platform-component
+  parameters:
+    - title: Unified Namespace
+      required:
+        - name
+        - description
+        - owner
+        - rootNamespace
+        - environment
+        - repoUrl
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique component name. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Short description of this Unified Namespace instance.
+          ui:widget: textarea
+        owner:
+          title: Owner
+          type: string
+          description: Owning user or group in the catalog.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        rootNamespace:
+          title: Root Namespace
+          type: string
+          description: First topic segment. Default is pharma. Do not hard-code a site name here.
+          default: pharma
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+        environment:
+          title: Environment
+          type: string
+          default: development
+          enum:
+            - development
+            - test
+            - production
+        repoUrl:
+          title: GitHub Organization and Repository
+          type: string
+          description: Repository created in pharma-data-factory. Enter only the repository name.
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - pharma-data-factory
+  steps:
+    - id: fetch-base
+      name: Fetch Unified Namespace skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: integration-platform
+          domain: integration
+          lifecycle: experimental
+          version: 1.0.0
+          rootNamespace: ${{ parameters.rootNamespace }}
+          environment: ${{ parameters.environment }}
+          destination:
+            host: github.com
+            owner: pharma-data-factory
+            repo: ${{ parameters.name }}
+          templateName: unified-namespace
+          templateVersion: 1.0.0
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

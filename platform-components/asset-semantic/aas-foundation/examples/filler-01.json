@@ -1,0 +1,156 @@
+{
+  "id": "filler-01",
+  "idShort": "Filler01",
+  "displayName": "Filler 01",
+  "description": "Reference packaging filler for AAS Foundation 1.0.",
+  "revision": 1,
+  "active": true,
+  "assetInformation": {
+    "assetKind": "Instance",
+    "globalAssetId": "urn:pdf:asset:filler-01",
+    "assetType": "Filler",
+    "specificAssetIds": [
+      { "name": "manufacturer", "value": "Example OEM" },
+      { "name": "model", "value": "F-100" },
+      { "name": "serialNumber", "value": "SN-001" }
+    ]
+  },
+  "context": {
+    "site": "basel",
+    "area": "packaging",
+    "line": "line-01"
+  },
+  "submodels": [
+    {
+      "id": "urn:pdf:submodel:filler-01:identification",
+      "idShort": "Identification",
+      "semanticId": {
+        "type": "ExternalReference",
+        "keys": [{ "type": "GlobalReference", "value": "https://admin-shell.io/idta/Identification/1/0" }]
+      },
+      "submodelElements": []
+    },
+    {
+      "id": "urn:pdf:submodel:filler-01:technical-data",
+      "idShort": "TechnicalData",
+      "semanticId": {
+        "type": "ExternalReference",
+        "keys": [{ "type": "GlobalReference", "value": "https://admin-shell.io/ZVEI/TechnicalData/1/2" }]
+      },
+      "submodelElements": []
+    },
+    {
+      "id": "urn:pdf:submodel:filler-01:operational-data-definition",
+      "idShort": "OperationalDataDefinition",
+      "semanticId": null,
+      "submodelElements": []
+    },
+    {
+      "id": "urn:pdf:submodel:filler-01:sensors",
+      "idShort": "Sensors",
+      "semanticId": null,
+      "submodelElements": []
+    },
+    {
+      "id": "urn:pdf:submodel:filler-01:connectivity",
+      "idShort": "Connectivity",
+      "semanticId": null,
+      "submodelElements": []
+    }
+  ],
+  "properties": [
+    {
+      "id": "temperature",
+      "idShort": "Temperature",
+      "name": "Temperature",
+      "description": "Product temperature at the filler",
+      "semanticId": {
+        "type": "ExternalReference",
+        "keys": [{ "type": "GlobalReference", "value": "https://example.org/semantics/temperature" }]
+      },
+      "dataType": "number",
+      "unit": "Cel",
+      "minValue": 0,
+      "maxValue": 120,
+      "connectivity": {
+        "protocol": "MQTT",
+        "topic": "pharma/basel/packaging/line-01/filler-01/temperature/value",
+        "endpoint": null,
+        "contract": "temperature-value",
+        "contractVersion": "1.0.0"
+      }
+    },
+    {
+      "id": "pressure",
+      "idShort": "Pressure",
+      "name": "Pressure",
+      "description": "Filler head pressure",
+      "semanticId": {
+        "type": "ExternalReference",
+        "keys": [{ "type": "GlobalReference", "value": "https://example.org/semantics/pressure" }]
+      },
+      "dataType": "number",
+      "unit": "bar",
+      "minValue": 0,
+      "maxValue": 10,
+      "connectivity": {
+        "protocol": "MQTT",
+        "topic": "pharma/basel/packaging/line-01/filler-01/pressure/value",
+        "endpoint": null,
+        "contract": "pressure-value",
+        "contractVersion": "1.0.0"
+      }
+    },
+    {
+      "id": "speed",
+      "idShort": "Speed",
+      "name": "Rotational Speed",
+      "description": "Filler rotational speed",
+      "semanticId": {
+        "type": "ExternalReference",
+        "keys": [{ "type": "GlobalReference", "value": "https://example.org/semantics/rotational-speed" }]
+      },
+      "dataType": "number",
+      "unit": "rpm",
+      "minValue": 0,
+      "maxValue": 6000,
+      "connectivity": {
+        "protocol": "MQTT",
+        "topic": "pharma/basel/packaging/line-01/filler-01/speed/value",
+        "endpoint": null,
+        "contract": "speed-value",
+        "contractVersion": "1.0.0"
+      }
+    },
+    {
+      "id": "machine-state",
+      "idShort": "MachineState",
+      "name": "Machine State",
+      "description": "Canonical machine state (RUNNING, STOPPED, IDLE, MAINTENANCE)",
+      "semanticId": {
+        "type": "ExternalReference",
+        "keys": [{ "type": "GlobalReference", "value": "https://dataprod.platform/contracts/machine-state-event" }]
+      },
+      "dataType": "string",
+      "unit": null,
+      "minValue": null,
+      "maxValue": null,
+      "connectivity": {
+        "protocol": "MQTT",
+        "topic": "pharma/basel/packaging/line-01/filler-01/machine/state",
+        "endpoint": null,
+        "contract": "machine-state-event",
+        "contractVersion": "1.0.0"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "id": "line-01-contains-filler-01",
+      "idShort": "containedByLine01",
+      "semanticId": "contains",
+      "firstAssetId": "line-01",
+      "secondAssetId": "filler-01"
+    }
+  ]
+}

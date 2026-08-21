@@ -1,0 +1,10 @@
+generated/
+.pytest_cache/
+__pycache__/
+*.pyc
+data/
+*.sqlite
+*.sqlite-journal
+.env
+results/*.json
+!results/.gitkeep

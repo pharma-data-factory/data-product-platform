@@ -1,0 +1,85 @@
+app:
+  title: Pharma Data Factory
+  baseUrl: http://localhost:7007
+
+backend:
+  baseUrl: http://localhost:7007
+  listen: ':7007'
+  cors:
+    origin: http://localhost:7007
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: pg
+    connection:
+      host: ${POSTGRES_HOST}
+      port: ${POSTGRES_PORT}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+      database: ${POSTGRES_DATABASE}
+
+auth:
+  # Shared Docker / Compose is not single-user local development.
+  # Guest is forbidden here. GitHub OAuth is required. Unknown GitHub
+  # users must exist as approved Catalog Users.
+  # Must be visible to the frontend so a merged Guest provider cannot
+  # reappear as a Sign In button.
+  # @visibility frontend
+  environment: production
+  providers:
+    github:
+      production:
+        # @visibility frontend
+        clientId: ${AUTH_GITHUB_CLIENT_ID}
+        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+        callbackUrl: ${AUTH_GITHUB_CALLBACK_URL:-http://localhost:7007/api/auth/github/handler/frame}
+        signIn:
+          resolvers:
+            - resolver: usernameMatchingUserEntityName
+
+catalog:
+  locations:
+    - type: file
+      target: ./catalog/entities.yaml
+    - type: file
+      target: ./platform-components/catalog.yaml
+    - type: file
+      target: ./catalog/org.yaml
+      rules:
+        - allow: [User, Group]
+    - type: file
+      target: ./templates/python-service/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/node-service/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/mqtt-connector/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/mqtt-temperature-product/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/rest-equipment-product/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/unified-namespace/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/machine-state-consumer/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/oee-data-product/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/aas-asset/template.yaml
+      rules:
+        - allow: [Template]

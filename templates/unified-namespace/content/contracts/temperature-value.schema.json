@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharma-data-factory.example/contracts/temperature-value.schema.json",
+  "title": "Temperature Value",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["value", "unit"],
+  "properties": {
+    "value": { "type": "number" },
+    "unit": { "type": "string", "enum": ["C", "K"] }
+  }
+}

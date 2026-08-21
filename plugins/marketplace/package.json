@@ -1,0 +1,52 @@
+{
+  "name": "@internal/plugin-marketplace",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "backstage": {
+    "role": "frontend-plugin",
+    "pluginId": "marketplace",
+    "pluginPackages": [
+      "@internal/plugin-marketplace"
+    ]
+  },
+  "sideEffects": false,
+  "scripts": {
+    "start": "backstage-cli package start",
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean"
+  },
+  "dependencies": {
+    "@backstage/catalog-model": "^1.7.6",
+    "@backstage/core-components": "^0.18.12",
+    "@backstage/core-plugin-api": "^1.12.8",
+    "@backstage/frontend-plugin-api": "^0.17.3",
+    "@backstage/plugin-catalog-react": "^1.21.6",
+    "@internal/platform-common": "workspace:^",
+    "@internal/plugin-data-products": "workspace:^",
+    "@material-ui/core": "^4.12.2",
+    "@material-ui/icons": "^4.9.1"
+  },
+  "peerDependencies": {
+    "react": "^18.0.2",
+    "react-dom": "^18.0.2",
+    "react-router-dom": "^6.3.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "^0.36.4",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^14.0.0",
+    "@types/react": "^18",
+    "jest": "~30.2.0",
+    "react": "^18.0.2",
+    "react-dom": "^18.0.2",
+    "react-router-dom": "^6.30.2"
+  },
+  "files": [
+    "dist"
+  ]
+}

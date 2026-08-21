@@ -1,0 +1,681 @@
+# SAMPLE / DEMO / PLANNED catalog entities.
+# Loaded only by local development (app-config.yaml).
+# Not loaded by app-config.production.yaml or app-config.docker.yaml.
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-orders-product
+  title: Sample Orders Product
+  description: Example data product used to demonstrate the Data Products UI.
+  tags:
+    - data-product
+    - example
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    backstage.io/techdocs-ref: dir:../../docs
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: commerce
+    dataprod.platform/certification-status: TESTED
+    dataprod.platform/source-systems: erp
+    dataprod.platform/interfaces: REST
+    dataprod.platform/data-contracts: orders-v1
+    dataprod.platform/qualityStatus: DEVELOPMENT
+    dataprod.platform/deployment: docker-compose
+    dataprod.platform/template: python-microservice
+  links:
+    - url: https://github.com/example/sample-orders-product
+      title: Repository
+      icon: github
+    - url: https://github.com/example/sample-orders-product/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn: []
+  providesApis:
+    - sample-orders-product-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-mqtt-temperature-product
+  title: MQTT Temperature Data Product
+  description: Example MQTT temperature data product used to demonstrate quality status in the portal.
+  tags:
+    - data-product
+    - mqtt
+    - temperature
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    backstage.io/techdocs-ref: dir:../../docs
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/source-systems: mqtt
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/data-contracts: temperature-event-v1
+    dataprod.platform/dataContract: contracts/temperature-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: deviceId_not_empty,eventId_not_empty,timestamp_iso8601,temperature_within_limits,unit_allowed,contract_schema
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: mqtt-temperature-data-product
+    dataprod.platform/templateVersion: 1.0.0
+  links:
+    - url: https://github.com/example/sample-mqtt-temperature-product
+      title: Repository
+      icon: github
+    - url: https://github.com/example/sample-mqtt-temperature-product/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn: []
+  providesApis:
+    - sample-mqtt-temperature-product--temperature-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: temperature-dashboard-consumer
+  title: Temperature Dashboard Consumer
+  description: Sample consumer of the temperature-event contract (compatible with 1.x).
+  tags:
+    - data-product
+    - consumer
+    - temperature
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    backstage.io/techdocs-ref: dir:../../docs
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/qualityStatus: DEVELOPMENT
+    dataprod.platform/compatibleVersions: 1.x
+    dataprod.platform/interfaces: REST
+  links:
+    - url: https://github.com/example/temperature-dashboard-consumer
+      title: Repository
+      icon: github
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/sample-mqtt-temperature-product
+    - api:default/sample-mqtt-temperature-product--temperature-event
+  consumesApis:
+    - sample-mqtt-temperature-product--temperature-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-mqtt-temperature-product--temperature-event
+  title: Temperature Event Contract
+  description: JSON Schema contract for MQTT temperature events, version 1.1.0.
+  tags:
+    - contract
+    - temperature
+    - mqtt
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: temperature-event
+    dataprod.platform/contract-version: 1.1.0
+    dataprod.platform/dataContract: contracts/temperature-event.schema.json
+    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/source-location: url:https://github.com/example/sample-mqtt-temperature-product
+  links:
+    - url: https://github.com/example/sample-mqtt-temperature-product
+      title: Repository
+      icon: github
+    - url: https://github.com/example/sample-mqtt-temperature-product/blob/main/contracts/temperature-event.schema.json
+      title: Data Contract Schema
+      icon: docs
+    - url: https://github.com/example/sample-mqtt-temperature-product/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: |
+    Temperature Event contract 1.1.0
+    Provider: component:default/sample-mqtt-temperature-product
+    Consumer: component:default/temperature-dashboard-consumer
+    Required fields: eventId, deviceId, timestamp, temperature, unit
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-rest-equipment-product
+  title: REST Equipment Data Product
+  description: Example REST equipment data product used to demonstrate contract and quality metadata in the portal.
+  tags:
+    - data-product
+    - rest
+    - equipment
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    backstage.io/techdocs-ref: dir:../../docs
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/source-systems: rest
+    dataprod.platform/interfaces: REST
+    dataprod.platform/dataContract: contracts/equipment-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: equipmentId_not_empty,equipmentId_unique,name_not_empty,site_not_empty,status_allowed,updatedAt_iso8601,contract_schema
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: rest-equipment-data-product
+    dataprod.platform/templateVersion: 1.0.0
+  links:
+    - url: https://github.com/example/sample-rest-equipment-product
+      title: Repository
+      icon: github
+    - url: https://github.com/example/sample-rest-equipment-product/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn: []
+  providesApis:
+    - sample-rest-equipment-product--equipment-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: equipment-dashboard-consumer
+  title: Equipment Dashboard Consumer
+  description: Sample consumer of the equipment-event contract (compatible with 1.x).
+  tags:
+    - data-product
+    - consumer
+    - equipment
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    backstage.io/techdocs-ref: dir:../../docs
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/qualityStatus: DEVELOPMENT
+    dataprod.platform/compatibleVersions: 1.x
+    dataprod.platform/interfaces: REST
+  links:
+    - url: https://github.com/example/equipment-dashboard-consumer
+      title: Repository
+      icon: github
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/sample-rest-equipment-product
+    - api:default/sample-rest-equipment-product--equipment-event
+  consumesApis:
+    - sample-rest-equipment-product--equipment-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-rest-equipment-product--equipment-event
+  title: Equipment Event Contract
+  description: JSON Schema contract for REST equipment master data, version 1.0.0.
+  tags:
+    - contract
+    - equipment
+    - rest
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: equipment-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/equipment-event.schema.json
+    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/source-location: url:https://github.com/example/sample-rest-equipment-product
+  links:
+    - url: https://github.com/example/sample-rest-equipment-product
+      title: Repository
+      icon: github
+    - url: https://github.com/example/sample-rest-equipment-product/blob/main/contracts/equipment-event.schema.json
+      title: Data Contract Schema
+      icon: docs
+    - url: https://github.com/example/sample-rest-equipment-product/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: |
+    Equipment Event contract 1.0.0
+    Provider: component:default/sample-rest-equipment-product
+    Consumer: component:default/equipment-dashboard-consumer
+    Required fields: equipmentId, name, site, status, updatedAt
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-orders-product-api
+  title: Sample Orders API
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+    definition: |
+      openapi: 3.0.3
+      info:
+        title: Sample Orders API
+        version: 1.0.0
+      paths:
+        /health:
+          get:
+            responses:
+              '200':
+                description: Service is up
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: example-oee-data-product
+  title: Example OEE Data Product
+  description: Sample Mode B composition example that includes Unified Namespace. Not the official OEE 1.0 Golden Path (Mode A, CERTIFIED / RELEASED). This sample remains PLANNED / DEVELOPMENT and is not loaded in production Catalog.
+  tags:
+    - data-product
+    - example
+    - oee
+  annotations:
+    dataprod.platform/catalog-class: PLANNED
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 0.0.0
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/qualityStatus: DEVELOPMENT
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/unified-namespace
+    - component:default/rest-source
+    - component:default/mqtt-consumer
+    - component:default/timeseries
+    - component:default/rest-api
+    - component:default/health
+    - component:default/observability
+    - api:default/unified-namespace--production-cycle
+    - api:default/unified-namespace--machine-state
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: example-cold-chain-data-product
+  title: Example Cold Chain Data Product
+  description: Architectural placeholder showing dependsOn unified-namespace. Not an implemented Golden Path. No cold-chain business logic.
+  tags:
+    - data-product
+    - example
+    - cold-chain
+  annotations:
+    dataprod.platform/catalog-class: PLANNED
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 0.0.0
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/qualityStatus: DEVELOPMENT
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/unified-namespace
+    - api:default/unified-namespace--temperature-value
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-machine-state-consumer
+  title: Machine State Consumer Data Product
+  description: Composition proof that consumes machine-state-event from Unified Namespace. Not an OEE Golden Path.
+  tags:
+    - data-product
+    - mqtt
+    - uns
+    - machine-state
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    backstage.io/techdocs-ref: dir:../../docs
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/source-systems: mqtt,uns
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/data-contracts: machine-state-event-v1
+    dataprod.platform/dataContract: contracts/machine-state-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: machine-state-consumer-data-product
+    dataprod.platform/templateVersion: 1.0.0
+  links:
+    - url: /catalog-graph?rootEntityRefs=component:default/sample-machine-state-consumer
+      title: Catalog Graph
+      icon: catalog
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/unified-namespace
+  consumesApis:
+    - unified-namespace--machine-state-event
+  providesApis:
+    - sample-machine-state-consumer--machine-state-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-machine-state-consumer--machine-state-event
+  title: Machine State Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: machine-state-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/machine-state-event.schema.json
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: |
+    Machine State Event contract 1.0.0 consumed from Unified Namespace.
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-oee-data-product
+  title: Sample OEE Data Product
+  description: Sample Mode A OEE Data Product composing Wave 1 components. Technical CERTIFIED Golden Path only. Not GxP validated.
+  tags:
+    - data-product
+    - oee
+    - mqtt
+    - rest
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/source-systems: mqtt,rest
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/dataContract: contracts/oee-result.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: oee-data-product
+    dataprod.platform/templateVersion: 1.0.0
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/health
+    - component:default/observability
+    - component:default/mqtt-consumer
+    - component:default/rest-source
+    - component:default/timeseries
+    - component:default/rest-api
+  consumesApis:
+    - sample-oee-data-product--production-context
+    - sample-oee-data-product--machine-state-event
+    - sample-oee-data-product--production-count-event
+    - sample-oee-data-product--quality-count-event
+  providesApis:
+    - sample-oee-data-product--oee-result
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-oee-data-product--oee-result
+  title: OEE Result Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: oee-result
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: |
+    OEE Result contract 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-oee-data-product--production-context
+  title: Production Context Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: production-context
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: Production context 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-oee-data-product--machine-state-event
+  title: Machine State Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: machine-state-event
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: Reused machine-state-event 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-oee-data-product--production-count-event
+  title: Production Count Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: production-count-event
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: Cumulative production-count-event 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-oee-data-product--quality-count-event
+  title: Quality Count Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: quality-count-event
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: Cumulative quality-count-event 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: pilot-oee-line-01
+  title: PILOT / TEST — OEE Line 01
+  description: PILOT / TEST generated OEE Data Product used for integration proof. Not official template certification. Not GxP validated.
+  tags:
+    - data-product
+    - oee
+    - mqtt
+    - rest
+    - pilot
+    - test
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/source-systems: mqtt,rest
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/dataContract: contracts/oee-result.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: oee-data-product
+    dataprod.platform/templateVersion: 1.0.0
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  dependsOn:
+    - component:default/health
+    - component:default/observability
+    - component:default/mqtt-consumer
+    - component:default/rest-source
+    - component:default/timeseries
+    - component:default/rest-api
+  consumesApis:
+    - pilot-oee-line-01--production-context
+    - pilot-oee-line-01--machine-state-event
+    - pilot-oee-line-01--production-count-event
+    - pilot-oee-line-01--quality-count-event
+  providesApis:
+    - pilot-oee-line-01--oee-result
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: pilot-oee-line-01--oee-result
+  title: PILOT / TEST OEE Result Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: oee-result
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/oee-result.schema.json
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: PILOT / TEST OEE Result contract 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: pilot-oee-line-01--production-context
+  title: PILOT / TEST Production Context Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: production-context
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: PILOT / TEST production-context 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: pilot-oee-line-01--machine-state-event
+  title: PILOT / TEST Machine State Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: machine-state-event
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: PILOT / TEST machine-state-event 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: pilot-oee-line-01--production-count-event
+  title: PILOT / TEST Production Count Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: production-count-event
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: PILOT / TEST production-count-event 1.0.0
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: pilot-oee-line-01--quality-count-event
+  title: PILOT / TEST Quality Count Event Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: quality-count-event
+    dataprod.platform/contract-version: 1.0.0
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: PILOT / TEST quality-count-event 1.0.0
+

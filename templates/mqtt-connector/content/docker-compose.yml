@@ -1,0 +1,13 @@
+services:
+  ${{ values.name }}:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      SERVICE_NAME: ${{ values.name }}
+      SERVICE_VERSION: ${{ values.version }}
+      MQTT_ENABLED: "false"
+      MQTT_BROKER_HOST: localhost
+      MQTT_BROKER_PORT: "1883"
+      MQTT_TOPIC: ${{ values.defaultTopic }}
+      MQTT_CLIENT_ID: ${{ values.name }}

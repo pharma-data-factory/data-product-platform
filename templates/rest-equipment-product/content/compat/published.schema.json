@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/equipment-event.schema.json",
+  "title": "Equipment Event",
+  "description": "Canonical equipment master record for the REST Equipment Data Product.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["equipmentId", "name", "site", "status", "updatedAt"],
+  "properties": {
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique equipment identifier. Repeated ingest updates the record."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Non-empty equipment name."
+    },
+    "site": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Non-empty site identifier."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ACTIVE", "INACTIVE", "MAINTENANCE"],
+      "description": "Equipment operating status."
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 datetime of the last source update."
+    }
+  }
+}

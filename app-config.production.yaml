@@ -1,19 +1,16 @@
 app:
-  # Should be the same as backend.baseUrl when using the `app-backend` plugin.
-  baseUrl: http://localhost:7007
+  baseUrl: ${APP_BASE_URL}
 
 backend:
-  # Note that the baseUrl should be the URL that the browser and other clients
-  # should use when communicating with the backend, i.e. it needs to be
-  # reachable not just from within the backend host, but from all of your
-  # callers. When its value is "http://localhost:7007", it's strictly private
-  # and can't be reached by others.
-  baseUrl: http://localhost:7007
-  # The listener can also be expressed as a single <host>:<port> string. In this case we bind to
-  # all interfaces, the most permissive setting. The right value depends on your specific deployment.
+  baseUrl: ${BACKEND_BASE_URL}
   listen: ':7007'
-
-  # config options: https://node-postgres.com/apis/client
+  cors:
+    origin: ${APP_BASE_URL}
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  auth:
+    keys:
+      - secret: ${BACKEND_SECRET}
   database:
     client: pg
     connection:
@@ -21,35 +18,93 @@ backend:
       port: ${POSTGRES_PORT}
       user: ${POSTGRES_USER}
       password: ${POSTGRES_PASSWORD}
-      # https://node-postgres.com/features/ssl
-      # you can set the sslmode configuration option via the `PGSSLMODE` environment variable
-      # see https://www.postgresql.org/docs/current/libpq-ssl.html Table 33.1. SSL Mode Descriptions (e.g. require)
-      # ssl:
-      #   ca: # if you have a CA file and want to verify it you can uncomment this section
-      #     $file: <file-path>/ca/server.crt
+      database: ${POSTGRES_DATABASE}
+
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'local'
+  publisher:
+    type: 'local'
 
 auth:
+  # Must be visible to the frontend so Guest cannot appear after config merge.
+  # @visibility frontend
+  environment: production
   providers:
-    guest: {}
+    github:
+      production:
+        # @visibility frontend
+        clientId: ${AUTH_GITHUB_CLIENT_ID}
+        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+        callbackUrl: ${AUTH_GITHUB_CALLBACK_URL}
+        signIn:
+          resolvers:
+            # Production requires an approved Catalog User. Do not grant
+            # unknown GitHub identities Viewer access.
+            - resolver: usernameMatchingUserEntityName
 
 catalog:
-  # Overrides the default list locations from app-config.yaml as these contain example data.
-  # See https://backstage.io/docs/features/software-catalog/#adding-components-to-the-catalog for more details
-  # on how to get entities into the catalog.
+  rules:
+    - allow: [Component, System, API, Resource, Location, Template]
   locations:
-    # Local example data, replace this with your production config, these are intended for demo use only.
-    # File locations are relative to the backend process, typically in a deployed context, such as in a Docker container, this will be the root
     - type: file
-      target: ./examples/entities.yaml
-
-    # Local example template
+      target: ./catalog/entities.yaml
     - type: file
-      target: ./examples/template/template.yaml
+      target: ./platform-components/catalog.yaml
+    - type: file
+      target: ./catalog/org.yaml
+      rules:
+        - allow: [User, Group]
+    - type: file
+      target: ./templates/python-service/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/node-service/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/mqtt-connector/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/mqtt-temperature-product/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/rest-equipment-product/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/unified-namespace/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/machine-state-consumer/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/oee-data-product/template.yaml
       rules:
         - allow: [Template]
 
-    # Local example organizational data
-    - type: file
-      target: ./examples/org.yaml
-      rules:
-        - allow: [User, Group]
+# Technical-pilot commercial profile. LocalEntitlementProvider is intentional
+# until an AWS Marketplace listing exists. This is NOT AWS production.
+# If entitlementProvider is aws, verification is fail-closed and these
+# localEntitlements are not used. Never mix environment: local with
+# entitlementProvider: aws (MIXED_CONFIGURATION denies all grants).
+commercial:
+  environment: local
+  organizationId: internal
+  edition: internal
+  entitlementProvider: local
+  legalDistributionStatus: ${LEGAL_DISTRIBUTION_STATUS:-BLOCKED}
+  localEntitlements:
+    internal:
+      - golden-path.mqtt-temperature
+      - golden-path.rest-equipment
+      - platform.core
+  awsMarketplace:
+    region: ${AWS_MARKETPLACE_REGION:-}
+    productCode: ${AWS_MARKETPLACE_PRODUCT_CODE:-}

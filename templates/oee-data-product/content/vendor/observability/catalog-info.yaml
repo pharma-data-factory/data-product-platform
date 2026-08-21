@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: observability
+  title: Observability
+  description: Structured logging, correlation IDs, and in-process metrics. Platform Component, not a Data Product.
+  tags:
+    - platform-component
+    - operations
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/category: operations
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: /docs/default/component/data-product-platform/platform-components/observability
+      title: Documentation
+      icon: docs
+    - url: /platform-components/observability
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: production
+  owner: group:default/platform-team
+  system: operations-platform

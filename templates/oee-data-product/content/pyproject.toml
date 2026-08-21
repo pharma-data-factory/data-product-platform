@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oee-data-product"
+version = "1.0.0"
+description = "OEE Data Product runtime"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Data Product Platform" }]
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
+  "paho-mqtt>=2.1.0",
+  "httpx>=0.27.0",
+  "jsonschema[format]>=4.23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*", "dataprod*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+  ".",
+  "vendor/health/src",
+  "vendor/observability/src",
+  "vendor/rest-api/src",
+  "vendor/rest-source/src",
+  "vendor/mqtt-consumer/src",
+  "vendor/timeseries/src",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/production-count-event.schema.json",
+  "title": "Production Count Event",
+  "description": "OEE 1.0 production-count-event payload. Counts are cumulative per equipmentId.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "equipmentId", "timestamp", "totalCount"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Idempotent event identity. First accepted eventId wins."
+    },
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timezone-aware event time."
+    },
+    "totalCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Cumulative units produced at timestamp (good and reject)."
+    }
+  }
+}

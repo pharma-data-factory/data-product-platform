@@ -1,0 +1,120 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: mqtt-temperature-data-product
+  title: MQTT Temperature Data Product
+  description: Certified Golden Path for MQTT temperature ingestion with Data Contract, Quality Gate, CI/CD, and TechDocs.
+  tags:
+    - recommended
+    - python
+    - mqtt
+    - fastapi
+    - data-product
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/category: Templates
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: data-product
+  parameters:
+    - title: MQTT Temperature Data Product
+      description: |
+        Certified Golden Path · MQTT · Data Contract · Quality Gate · CI/CD · TechDocs
+
+        Domain is manufacturing. Enter Data Product Name, Description, Owner,
+        and GitHub Repository. The repository is created in pharma-data-factory.
+      required:
+        - name
+        - description
+        - owner
+        - mqttTopic
+        - repoUrl
+      properties:
+        name:
+          title: Data Product Name
+          type: string
+          description: Unique data product name. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Short description of the temperature data product.
+          ui:widget: textarea
+        owner:
+          title: Owner
+          type: string
+          description: Owning user or group for this Data Product. This is not the GitHub organization.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        mqttTopic:
+          title: MQTT Topic
+          type: string
+          description: MQTT subscription topic. Use + as a single-level wildcard.
+          default: pharma/temperature/+
+        repoUrl:
+          title: GitHub Repository
+          type: string
+          description: The repository is created in the pharma-data-factory organization by the platform GitHub App. Enter only the repository name.
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - pharma-data-factory
+  steps:
+    - id: fetch-base
+      name: Fetch MQTT temperature data product skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/data-product-quality.yml
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          mqttTopic: ${{ parameters.mqttTopic }}
+          system: data-platform
+          domain: manufacturing
+          lifecycle: experimental
+          version: 1.0.0
+          destination:
+            host: github.com
+            owner: pharma-data-factory
+            repo: ${{ parameters.name }}
+          templateName: mqtt-temperature-data-product
+          templateVersion: 1.0.0
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register Data Product
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: View Data Product
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

@@ -1,0 +1,21 @@
+# Golden Path GitHub App configuration for *repository publishing*.
+# This is not GitHub user login. User OAuth client values live in
+# app-config.yaml / app-config.production.yaml (AUTH_GITHUB_*).
+# Do not put AUTH_GITHUB_* values here.
+#
+# Local: yarn start:github after `.env` contains real GitHub App values.
+# Hosted: the production image loads this file. Do not use yarn start:github
+# inside the production container.
+#
+# GitHub Apps can create organization repositories, not personal-account
+# repositories. Install the App on pharma-data-factory. Do not commit secrets.
+
+integrations:
+  github:
+    - host: github.com
+      apps:
+        - appId: ${GITHUB_APP_ID}
+          clientId: ${GITHUB_CLIENT_ID}
+          clientSecret: ${GITHUB_CLIENT_SECRET}
+          privateKey: ${GITHUB_PRIVATE_KEY}
+          webhookSecret: ${GITHUB_WEBHOOK_SECRET:-}

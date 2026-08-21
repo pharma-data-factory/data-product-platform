@@ -1,0 +1,29 @@
+site_name: ${{ values.title }}
+site_description: ${{ values.description }}
+
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - UNS Dependency: uns-dependency.md
+  - Topic Contract: topic-contract.md
+  - Event Envelope: event-envelope.md
+  - Prerequisites: prerequisites.md
+  - Create: create.md
+  - Configuration: configuration.md
+  - Local MQTT Development: local-mqtt.md
+  - Broker-Free Testing: broker-free-testing.md
+  - Local Development: local-development.md
+  - API: api.md
+  - Data Contract: data-contract.md
+  - Quality Rules: quality-rules.md
+  - Compatibility: compatibility.md
+  - Testing: testing.md
+  - CI/CD: ci-cd.md
+  - Docker: docker.md
+  - Deployment: deployment.md
+  - Operations: operations.md
+  - Troubleshooting: troubleshooting.md
+  - Release Notes: release-notes.md
+
+plugins:
+  - techdocs-core

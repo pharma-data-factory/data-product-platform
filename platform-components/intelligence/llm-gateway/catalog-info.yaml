@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: llm-gateway
+  title: LLM Gateway
+  description: Planned LLM gateway. Catalog placeholder only. No model provider integration.
+  tags:
+    - platform-component
+    - intelligence
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 0.0.0
+    dataprod.platform/category: intelligence
+    dataprod.platform/certification-status: PLANNED
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/platform-components/index
+      title: Documentation
+      icon: docs
+    - url: http://localhost:7007/platform-components/llm-gateway
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: intelligence-platform

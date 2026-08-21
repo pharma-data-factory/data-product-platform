@@ -1,0 +1,29 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: mqtt-consumer
+  title: MQTT Consumer
+  description: Generic MQTT subscribe/reconnect client with health and observability hooks. Not the MQTT Temperature Golden Path.
+  tags:
+    - platform-component
+    - integration
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/category: integration
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/platform-components/mqtt-consumer
+      title: Documentation
+      icon: docs
+    - url: http://localhost:7007/platform-components/mqtt-consumer
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: production
+  owner: group:default/platform-team
+  system: integration-platform
+  dependsOn:
+    - component:default/health
+    - component:default/observability

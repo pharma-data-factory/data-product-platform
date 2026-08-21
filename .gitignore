@@ -11,6 +11,12 @@ yarn-error.log*
 # Coverage directory generated when running tests with coverage
 coverage
 
+# Python bytecode / packaging
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
 # Dependencies
 node_modules/
 
@@ -28,7 +34,8 @@ node_modules/
 
 # dotenv environment variables file
 .env
-.env.test
+.env.*
+!.env.example
 
 # Build output
 dist
@@ -42,6 +49,7 @@ site
 
 # Local configuration files
 *.local.yaml
+!app-config.local.yaml
 
 # Sensitive credentials
 *-credentials.yaml
@@ -54,3 +62,22 @@ e2e-test-report/
 
 # Cache
 .cache/
+
+# Local template dry-runs
+.tmp/
+
+# Generated OEE pilot artifact (recreated by pilot/oee/generate.py)
+pilot/oee/generated/
+
+# Runtime certification overlay. Catalog annotations remain canonical.
+catalog/certification-overrides.json
+
+# Local Marketplace organization-link table (customer identifiers)
+var/
+.runtime/
+*.marketplace-links.json
+.sqlite/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

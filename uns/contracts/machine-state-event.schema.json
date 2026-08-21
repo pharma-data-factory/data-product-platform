@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharma-data-factory.example/contracts/machine-state-event.schema.json",
+  "title": "Machine State Event",
+  "description": "UNS payload contract for machine-state-event 1.0.0. Envelope is the standard UNS envelope.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state"],
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": ["RUNNING", "STOPPED", "IDLE", "MAINTENANCE"],
+      "description": "Current machine state."
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "Optional reason for the state."
+    }
+  }
+}

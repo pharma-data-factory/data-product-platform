@@ -1,0 +1,78 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - data-product
+    - python
+    - mqtt
+    - temperature
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: ${{ values.domain }}
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: ${{ values.templateName }}
+    dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    dataprod.platform/source-systems: mqtt
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/data-contracts: temperature-event-v1
+    dataprod.platform/dataContract: contracts/temperature-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: deviceId_not_empty,eventId_not_empty,timestamp_iso8601,temperature_within_limits,unit_allowed,contract_schema
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn: []
+  providesApis:
+    - ${{ values.name }}--temperature-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--temperature-event
+  title: Temperature Event Contract
+  description: JSON Schema contract for MQTT temperature events, version 1.1.0.
+  tags:
+    - contract
+    - temperature
+    - mqtt
+  annotations:
+    dataprod.platform/contract: temperature-event
+    dataprod.platform/contract-version: 1.1.0
+    dataprod.platform/dataContract: contracts/temperature-event.schema.json
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/contracts/temperature-event.schema.json
+      title: Data Contract Schema
+      icon: docs
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Temperature Event contract 1.1.0
+    Required fields: eventId, deviceId, timestamp, temperature, unit

@@ -1,0 +1,114 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: rest-equipment-data-product
+  title: REST Equipment Data Product
+  description: Golden Path data product for REST equipment master data, validation, SQLite storage, and a REST API.
+  tags:
+    - recommended
+    - python
+    - rest
+    - fastapi
+    - data-product
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/category: Templates
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: data-product
+  parameters:
+    - title: REST Equipment Data Product
+      required:
+        - name
+        - description
+        - owner
+        - domain
+        - repoUrl
+      properties:
+        name:
+          title: Data Product Name
+          type: string
+          description: Unique data product name. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Short description of the equipment data product.
+          ui:widget: textarea
+        owner:
+          title: Catalog Owner
+          type: string
+          description: Owning user or group in the Backstage catalog. This is not the GitHub organization.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        domain:
+          title: Domain
+          type: string
+          description: Business domain for this data product.
+          default: manufacturing
+        repoUrl:
+          title: GitHub Repository
+          type: string
+          description: The repository is created in the pharma-data-factory organization by the backend GitHub App. Enter only the repository name. Guest login is enough; no GitHub OAuth token is requested.
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - pharma-data-factory
+  steps:
+    - id: fetch-base
+      name: Fetch REST equipment data product skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/data-product-quality.yml
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: data-platform
+          domain: ${{ parameters.domain }}
+          lifecycle: experimental
+          version: 1.0.0
+          destination:
+            host: github.com
+            owner: pharma-data-factory
+            repo: ${{ parameters.name }}
+          templateName: rest-equipment-data-product
+          templateVersion: 1.0.0
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

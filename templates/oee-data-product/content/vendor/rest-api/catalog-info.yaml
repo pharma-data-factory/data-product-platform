@@ -1,0 +1,29 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: rest-api
+  title: REST API
+  description: Reusable FastAPI host with health, observability, validation, and OpenAPI. No business endpoints.
+  tags:
+    - platform-component
+    - integration
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/category: integration
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: /docs/default/component/data-product-platform/platform-components/rest-api
+      title: Documentation
+      icon: docs
+    - url: /platform-components/rest-api
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: production
+  owner: group:default/platform-team
+  system: integration-platform
+  dependsOn:
+    - component:default/health
+    - component:default/observability

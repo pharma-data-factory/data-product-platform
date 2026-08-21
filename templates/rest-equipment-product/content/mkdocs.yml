@@ -1,0 +1,25 @@
+site_name: ${{ values.title }}
+site_description: ${{ values.description }}
+
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - Prerequisites: prerequisites.md
+  - Create: create.md
+  - REST Source Integration: rest-source.md
+  - Configuration: configuration.md
+  - Local Development: local-development.md
+  - API: api.md
+  - Data Contract: data-contract.md
+  - Quality Rules: quality-rules.md
+  - Compatibility: compatibility.md
+  - Testing: testing.md
+  - CI/CD: ci-cd.md
+  - Docker: docker.md
+  - Deployment: deployment.md
+  - Operations: operations.md
+  - Troubleshooting: troubleshooting.md
+  - Release Notes: release-notes.md
+
+plugins:
+  - techdocs-core

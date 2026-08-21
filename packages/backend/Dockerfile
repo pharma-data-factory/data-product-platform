@@ -60,11 +60,23 @@ RUN tar xzf skeleton.tar.gz && rm skeleton.tar.gz
 RUN --mount=type=cache,target=/home/node/.cache/yarn,sharing=locked,uid=1000,gid=1000 \
     yarn workspaces focus --all --production && rm -rf "$(yarn cache clean)"
 
-# This will include the examples, if you don't need these simply remove this line
 COPY --chown=node:node examples ./examples
+COPY --chown=node:node templates ./templates
+COPY --chown=node:node catalog ./catalog
+COPY --chown=node:node platform-components ./platform-components
+COPY --chown=node:node uns ./uns
+COPY --chown=node:node docs ./docs
+COPY --chown=node:node mkdocs.yml ./
 
 # Then copy the rest of the backend bundle, along with any other files we might want.
 COPY --chown=node:node packages/backend/dist/bundle.tar.gz app-config*.yaml ./
 RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
 
-CMD ["node", "packages/backend", "--config", "app-config.yaml", "--config", "app-config.production.yaml"]
+EXPOSE 7007
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# Hosted Control Plane: production overlay + GitHub App publishing.
+# Do not use yarn start or the repository-root development Dockerfile.
+CMD ["node", "packages/backend", "--config", "app-config.yaml", "--config", "app-config.production.yaml", "--config", "app-config.github.yaml"]

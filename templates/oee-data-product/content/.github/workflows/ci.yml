@@ -1,0 +1,13 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    uses: ./.github/workflows/data-product-quality.yml
+    with:
+      unit-tests: pytest tests/test_health.py tests/test_model.py tests/test_scenarios.py tests/test_edges.py tests/test_api.py tests/test_platform_metadata.py tests/test_independence.py
+      image-name: ${{ values.name }}

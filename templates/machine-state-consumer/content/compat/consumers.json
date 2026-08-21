@@ -1,0 +1,10 @@
+{
+  "consumers": [
+    {
+      "name": "machine-state-dashboard-consumer",
+      "consumesContract": "machine-state-event",
+      "compatibleVersions": ["1.x"],
+      "active": true
+    }
+  ]
+}

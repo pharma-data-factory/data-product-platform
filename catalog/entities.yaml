@@ -1,0 +1,143 @@
+# PRODUCTION / PILOT catalog entities.
+# Sample, demo, and planned placeholder Data Products are in catalog/samples/.
+# Production and Docker Compose must not load catalog/samples/.
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: data-platform
+  title: Data Platform
+  description: Default system for generated data products
+spec:
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: integration-platform
+  title: Integration Platform
+  description: Reusable integration and namespace capabilities. Not a Data Product system.
+spec:
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: unified-namespace
+  title: Unified Namespace
+  description: Governed MQTT Unified Namespace. Platform component, not a Data Product.
+  tags:
+    - platform-component
+    - mqtt
+    - uns
+  annotations:
+    backstage.io/techdocs-ref: dir:../uns
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/category: integration
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/compatible-standard-versions: 1.x
+    dataprod.platform/interfaces: MQTT,REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/rootNamespace: pharma
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/uns
+      title: Documentation
+      icon: docs
+spec:
+  type: platform-component
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  providesApis:
+    - unified-namespace--production-cycle
+    - unified-namespace--machine-state
+    - unified-namespace--temperature-value
+    - unified-namespace--equipment-status
+    - unified-namespace--machine-state-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: unified-namespace--production-cycle
+  title: Production Cycle Contract
+  annotations:
+    dataprod.platform/contract: production-cycle
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/production-cycle.schema.json
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  definition: |
+    Production Cycle contract 1.0.0 referenced by the Unified Namespace.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: unified-namespace--machine-state
+  title: Machine State Contract
+  annotations:
+    dataprod.platform/contract: machine-state
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/machine-state.schema.json
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  definition: |
+    Machine State contract 1.0.0 referenced by the Unified Namespace.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: unified-namespace--temperature-value
+  title: Temperature Value Contract
+  annotations:
+    dataprod.platform/contract: temperature-value
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/temperature-value.schema.json
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  definition: |
+    Demonstration UNS temperature-value contract. Not the MQTT Temperature Golden Path.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: unified-namespace--equipment-status
+  title: Equipment Status Contract
+  annotations:
+    dataprod.platform/contract: equipment-status
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/equipment-status.schema.json
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  definition: |
+    Demonstration UNS equipment-status contract. Not the REST Equipment Golden Path.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: unified-namespace--machine-state-event
+  title: Machine State Event Contract
+  annotations:
+    dataprod.platform/contract: machine-state-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/machine-state-event.schema.json
+spec:
+  type: contract
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  definition: |
+    Composition-proof machine-state-event 1.0.0. Distinct from the demonstration machine-state contract.

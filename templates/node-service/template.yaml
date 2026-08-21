@@ -1,0 +1,141 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: nodejs-microservice
+  title: Node.js Microservice
+  description: Production-quality TypeScript Express microservice with tests, Docker, CI, and catalog registration.
+  tags:
+    - recommended
+    - node
+    - typescript
+    - data-product
+    - certified-template
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: TESTED
+    dataprod.platform/category: Templates
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Service details
+      required:
+        - name
+        - owner
+        - title
+        - description
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique component name. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        title:
+          title: Title
+          type: string
+        description:
+          title: Description
+          type: string
+          ui:widget: textarea
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        system:
+          title: System
+          type: string
+          default: data-platform
+        domain:
+          title: Domain
+          type: string
+          default: platform
+        lifecycle:
+          title: Lifecycle
+          type: string
+          default: experimental
+          enum:
+            - experimental
+            - production
+            - deprecated
+        version:
+          title: Version
+          type: string
+          default: 1.0.0
+        sourceSystems:
+          title: Source systems
+          type: string
+          default: none
+        interfaces:
+          title: Interfaces
+          type: string
+          default: REST
+        dataContracts:
+          title: Data contracts
+          type: string
+          default: health-v1
+        dependsOn:
+          title: Dependencies
+          type: string
+          default: ''
+    - title: GitHub repository
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+  steps:
+    - id: fetch-base
+      name: Fetch Node.js microservice skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.title }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: ${{ parameters.system }}
+          domain: ${{ parameters.domain }}
+          lifecycle: ${{ parameters.lifecycle }}
+          version: ${{ parameters.version }}
+          sourceSystems: ${{ parameters.sourceSystems }}
+          interfaces: ${{ parameters.interfaces }}
+          dataContracts: ${{ parameters.dataContracts }}
+          dependsOn: ${{ parameters.dependsOn }}
+          destination: ${{ parameters.repoUrl | parseRepoUrl }}
+          templateName: nodejs-microservice
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: ${{ parameters.repoUrl }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

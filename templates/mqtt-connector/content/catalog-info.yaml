@@ -1,0 +1,66 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - data-product
+    - python
+    - mqtt
+    - connector
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: ${{ values.domain }}
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/source-systems: ${{ values.sourceSystems }}
+    dataprod.platform/interfaces: ${{ values.interfaces }}
+    dataprod.platform/data-contracts: ${{ values.dataContracts }}
+    dataprod.platform/depends-on: ${{ values.dependsOn }}
+    dataprod.platform/deployment: docker-compose
+    dataprod.platform/template: ${{ values.templateName }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn: []
+  providesApis:
+    - ${{ values.name }}-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}-api
+  title: ${{ values.title }} API
+  description: Control and health API for ${{ values.name }}
+  annotations:
+    dataprod.platform/kind: interface
+spec:
+  type: openapi
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: ${{ values.title }} API
+      version: ${{ values.version }}
+    paths:
+      /health:
+        get:
+          summary: Health check
+          responses:
+            '200':
+              description: Service is up

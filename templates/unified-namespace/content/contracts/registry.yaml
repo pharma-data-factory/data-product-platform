@@ -1,0 +1,36 @@
+- topic: ${{ values.rootNamespace }}/site-a/packaging/line-01/filler-01/production/cycle
+  contract: production-cycle
+  contractVersion: 1.0.0
+  schema: production-cycle.schema.json
+  producer: filler-01
+  owner: manufacturing-data-team
+  domain: production
+  qualityStatus: DEVELOPMENT
+  eventType: cycle
+- topic: ${{ values.rootNamespace }}/site-a/packaging/line-01/filler-01/production/state
+  contract: machine-state
+  contractVersion: 1.0.0
+  schema: machine-state.schema.json
+  producer: filler-01
+  owner: manufacturing-data-team
+  domain: production
+  qualityStatus: DEVELOPMENT
+  eventType: state
+- topic: ${{ values.rootNamespace }}/site-b/cold-chain/chamber-07/sensor-07/temperature/value
+  contract: temperature-value
+  contractVersion: 1.0.0
+  schema: temperature-value.schema.json
+  producer: sensor-07
+  owner: manufacturing-data-team
+  domain: temperature
+  qualityStatus: DEVELOPMENT
+  eventType: value
+- topic: ${{ values.rootNamespace }}/site-a/packaging/line-01/filler-01/equipment/status
+  contract: equipment-status
+  contractVersion: 1.0.0
+  schema: equipment-status.schema.json
+  producer: filler-01
+  owner: manufacturing-data-team
+  domain: equipment
+  qualityStatus: DEVELOPMENT
+  eventType: status

@@ -1,0 +1,18 @@
+{
+  "standard": "1.0.0",
+  "sdk": "1.0.0",
+  "templates": {
+    "mqtt-temperature-data-product": "1.0.0",
+    "rest-equipment-data-product": "1.0.0",
+    "machine-state-consumer-data-product": "1.0.0"
+  },
+  "compatible": {
+    "standard": "1.0.x",
+    "sdk": "1.x",
+    "templates": {
+      "mqtt-temperature-data-product": "1.x",
+      "rest-equipment-data-product": "1.x",
+      "machine-state-consumer-data-product": "1.x"
+    }
+  }
+}

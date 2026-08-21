@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/oee-result.schema.json",
+  "title": "OEE Result",
+  "description": "OEE 1.0 output contract. Ratios may be null when calculation guards apply.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "equipmentId",
+    "windowKind",
+    "windowStart",
+    "windowEnd",
+    "availability",
+    "performance",
+    "quality",
+    "oee",
+    "totalCount",
+    "goodCount",
+    "rejectCount",
+    "runtimeSeconds",
+    "downtimeSeconds",
+    "plannedProductionSeconds",
+    "completeness",
+    "calculationStatus",
+    "reconciliationStatus"
+  ],
+  "properties": {
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "const": "oee-result"
+        },
+        "version": {
+          "const": "1.0.0"
+        }
+      }
+    },
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "windowKind": {
+      "type": "string",
+      "enum": ["shift", "hour", "day", "order", "custom"]
+    },
+    "windowStart": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "windowEnd": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "orderId": {
+      "type": ["string", "null"]
+    },
+    "availability": {
+      "type": ["number", "null"]
+    },
+    "performance": {
+      "type": ["number", "null"]
+    },
+    "quality": {
+      "type": ["number", "null"]
+    },
+    "oee": {
+      "type": ["number", "null"]
+    },
+    "totalCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "goodCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rejectCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "runtimeSeconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "downtimeSeconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "plannedProductionSeconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "idealCycleTimeSeconds": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "completeness": {
+      "type": "string",
+      "enum": ["COMPLETE", "PARTIAL", "INCOMPLETE"],
+      "description": "Input completeness for the window. Independent of calculationStatus."
+    },
+    "calculationStatus": {
+      "type": "string",
+      "enum": [
+        "VALID",
+        "INCOMPLETE",
+        "INVALID_INPUT",
+        "NO_PRODUCTION",
+        "PENDING_LATE_DATA"
+      ],
+      "description": "Consumer-facing calculation state. OEE 0.0 with VALID or NO_PRODUCTION is not the same as oee null."
+    },
+    "reconciliationStatus": {
+      "type": "string",
+      "enum": ["ALIGNED", "COUNT_MISMATCH", "COUNTS_UNAVAILABLE"]
+    },
+    "calculatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

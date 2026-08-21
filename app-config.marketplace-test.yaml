@@ -1,0 +1,23 @@
+# Limited AWS Marketplace test overlay.
+#
+# Do NOT use for local development or production customers.
+# Do NOT commit AWS keys, registration tokens, or customer identifiers.
+#
+# Load explicitly, for example:
+#   yarn start --config app-config.yaml --config app-config.marketplace-test.yaml
+#
+# This overlay does not create a listing, offer, metering record, or tenant.
+
+commercial:
+  environment: test-marketplace
+  entitlementProvider: aws
+  legalDistributionStatus: ${LEGAL_DISTRIBUTION_STATUS:-BLOCKED}
+  edition: template
+  awsMarketplace:
+    region: ${AWS_MARKETPLACE_REGION}
+    productCode: ${AWS_MARKETPLACE_PRODUCT_CODE}
+    linkStorePath: ${AWS_MARKETPLACE_LINK_STORE:-}
+    organizationLinks:
+      - organizationId: internal
+        customerAwsAccountId: ${AWS_MARKETPLACE_CUSTOMER_ACCOUNT:-}
+        licenseArn: ${AWS_MARKETPLACE_LICENSE_ARN:-}

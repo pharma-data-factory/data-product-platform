@@ -1,0 +1,27 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: unified-namespace
+  title: Unified Namespace
+  description: Governed MQTT Unified Namespace platform component.
+  tags:
+    - platform-component
+    - mqtt
+    - uns
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 1.0.0
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/interfaces: MQTT,REST
+    dataprod.platform/protocol: MQTT
+spec:
+  type: platform-component
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform
+  providesApis:
+    - unified-namespace--production-cycle
+    - unified-namespace--machine-state
+    - unified-namespace--temperature-value
+    - unified-namespace--equipment-status

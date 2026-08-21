@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharma-data-factory.example/contracts/equipment-status.schema.json",
+  "title": "Equipment Status",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "alarm"],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "warning", "fault"] },
+    "alarm": { "type": "boolean" }
+  }
+}

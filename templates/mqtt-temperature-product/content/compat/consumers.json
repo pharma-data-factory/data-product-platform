@@ -1,0 +1,10 @@
+{
+  "consumers": [
+    {
+      "name": "temperature-dashboard-consumer",
+      "consumesContract": "temperature-event",
+      "compatibleVersions": ["1.x"],
+      "active": true
+    }
+  ]
+}

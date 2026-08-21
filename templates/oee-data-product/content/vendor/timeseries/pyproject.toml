@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf-timeseries"
+version = "1.0.0"
+description = "Reusable Time-Series Storage platform component"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.9.0", "pydantic-settings>=2.6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.0", "ruff>=0.7.0"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]

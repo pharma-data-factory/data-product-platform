@@ -1,0 +1,146 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - data-product
+    - python
+    - oee
+    - mqtt
+    - rest
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: ${{ values.domain }}
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: ${{ values.templateName }}
+    dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    dataprod.platform/source-systems: mqtt,rest
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: MQTT
+    dataprod.platform/data-contracts: oee-result-v1
+    dataprod.platform/dataContract: contracts/oee-result.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: machine_state_valid,timestamp_valid,counts_non_negative,ideal_cycle_time,window_bounds,contract_schema
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn:
+    - component:default/health
+    - component:default/observability
+    - component:default/mqtt-consumer
+    - component:default/rest-source
+    - component:default/timeseries
+    - component:default/rest-api
+  consumesApis:
+    - ${{ values.name }}--production-context
+    - ${{ values.name }}--machine-state-event
+    - ${{ values.name }}--production-count-event
+    - ${{ values.name }}--quality-count-event
+  providesApis:
+    - ${{ values.name }}--oee-result
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--oee-result
+  title: OEE Result Contract
+  description: JSON Schema contract for oee-result 1.0.0.
+  annotations:
+    dataprod.platform/contract: oee-result
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/oee-result.schema.json
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    OEE Result contract 1.0.0
+    calculationStatus distinguishes VALID oee 0 from INCOMPLETE oee null
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--production-context
+  title: Production Context Contract
+  annotations:
+    dataprod.platform/contract: production-context
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/production-context.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Production context 1.0.0. Typically MES via REST Source.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--machine-state-event
+  title: Machine State Event Contract
+  annotations:
+    dataprod.platform/contract: machine-state-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/machine-state-event.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Reused machine-state-event 1.0.0. States RUNNING STOPPED IDLE MAINTENANCE.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--production-count-event
+  title: Production Count Event Contract
+  annotations:
+    dataprod.platform/contract: production-count-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/production-count-event.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Cumulative production-count-event 1.0.0.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--quality-count-event
+  title: Quality Count Event Contract
+  annotations:
+    dataprod.platform/contract: quality-count-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/quality-count-event.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Cumulative quality-count-event 1.0.0.

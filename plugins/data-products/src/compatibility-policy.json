@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "removed_required_field",
+      "when": "required_property_removed",
+      "result": "BREAKING_CHANGE",
+      "message": "Required field \"{field}\" was removed"
+    },
+    {
+      "id": "changed_field_type",
+      "when": "field_type_changed",
+      "result": "BREAKING_CHANGE",
+      "message": "Field \"{field}\" type changed from {previousType} to {nextType}"
+    },
+    {
+      "id": "new_optional_field",
+      "when": "optional_property_added",
+      "result": "COMPATIBLE",
+      "message": "New optional field \"{field}\" was added"
+    },
+    {
+      "id": "new_required_field",
+      "when": "required_property_added",
+      "result": "BREAKING_CHANGE",
+      "message": "New required field \"{field}\" was added"
+    },
+    {
+      "id": "major_version_change",
+      "when": "major_version_changed",
+      "result": "BREAKING_CHANGE",
+      "note": "potentially breaking",
+      "message": "Major version change {previousVersion} → {nextVersion} is potentially breaking"
+    },
+    {
+      "id": "minor_or_patch_version_change",
+      "when": "same_major_version_changed",
+      "result": "COMPATIBLE",
+      "message": "Patch/minor change {previousVersion} → {nextVersion} stays inside the same major version"
+    },
+    {
+      "id": "consumer_version_mismatch",
+      "when": "consumer_compatible_versions_unsatisfied",
+      "result": "BREAKING_CHANGE",
+      "message": "{name} accepts {ranges} but contract is {nextVersion}"
+    }
+  ]
+}

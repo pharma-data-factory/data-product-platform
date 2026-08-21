@@ -1,0 +1,28 @@
+site_name: ${{ values.title }}
+site_description: ${{ values.description }}
+
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - OEE Model: oee-model.md
+  - Prerequisites: prerequisites.md
+  - Create: create.md
+  - Configuration: configuration.md
+  - Local Development: local-development.md
+  - Event Simulator: event-simulator.md
+  - API: api.md
+  - Input Contracts: input-contracts.md
+  - Result Contract: result-contract.md
+  - Data Contract: data-contract.md
+  - Quality Rules: quality-rules.md
+  - Compatibility: compatibility.md
+  - Testing: testing.md
+  - CI/CD: ci-cd.md
+  - Docker: docker.md
+  - Deployment: deployment.md
+  - Operations: operations.md
+  - Troubleshooting: troubleshooting.md
+  - Release Notes: release-notes.md
+
+plugins:
+  - techdocs-core

@@ -1,0 +1,80 @@
+# Commercial product identifiers. Version-controlled mapping only.
+# Do not store Marketplace customer data, tokens, or AWS credentials here.
+#
+# productId values are stable entitlement keys. Do not use UI labels as keys.
+
+products:
+  mqtt-temperature:
+    productId: golden-path.mqtt-temperature
+    displayName: MQTT Temperature Data Product
+    productType: GOLDEN_PATH
+    catalogRef: template:default/mqtt-temperature-data-product
+    marketplaceId: mqtt-temperature-data-product
+    templateId: mqtt-temperature-data-product
+    edition:
+      - TEMPLATE
+      - PLATFORM
+      - SAAS
+    distribution:
+      - INTERNAL
+      - AWS_MARKETPLACE
+    availability: AVAILABLE
+
+  rest-equipment:
+    productId: golden-path.rest-equipment
+    displayName: REST Equipment Data Product
+    productType: GOLDEN_PATH
+    catalogRef: template:default/rest-equipment-data-product
+    marketplaceId: rest-equipment-data-product
+    templateId: rest-equipment-data-product
+    edition:
+      - TEMPLATE
+      - PLATFORM
+      - SAAS
+    distribution:
+      - INTERNAL
+      - AWS_MARKETPLACE
+    availability: AVAILABLE
+
+  platform-core:
+    productId: platform.core
+    displayName: Pharma Data Factory Control Plane
+    productType: PLATFORM
+    catalogRef: component:default/data-product-platform
+    edition:
+      - PLATFORM
+      - SAAS
+    distribution:
+      - INTERNAL
+      - AWS_MARKETPLACE
+    availability: PLANNED
+
+  platform-components:
+    productId: platform.components
+    displayName: Platform Components
+    productType: PLATFORM_COMPONENT
+    catalogRef: component:default/unified-namespace
+    edition:
+      - PLATFORM
+      - SAAS
+    distribution:
+      - INTERNAL
+      - AWS_MARKETPLACE
+    availability: PLANNED
+
+  oee:
+    # Technical Golden Path is CERTIFIED / RELEASED. Commercial SKU stays FUTURE.
+    productId: future.golden-path.oee
+    displayName: OEE Data Product
+    productType: GOLDEN_PATH
+    marketplaceId: oee-data-product
+    templateId: oee-data-product
+    catalogRef: template:default/oee-data-product
+    edition:
+      - TEMPLATE
+      - PLATFORM
+      - SAAS
+    distribution:
+      - INTERNAL
+      - AWS_MARKETPLACE
+    availability: FUTURE

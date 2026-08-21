@@ -1,0 +1,85 @@
+# Hosted Control Plane stack for Portainer / Docker Compose.
+# This is NOT local development. Do not use the repository-root Dockerfile
+# or `yarn start`. Pull a GHCR image built from packages/backend/Dockerfile.
+#
+# Required Portainer/stack environment: see deploy/portainer.env.example
+# and docs/deployment/portainer.md.
+#
+# Reverse proxy (Traefik, Nginx Proxy Manager, or existing) stays outside
+# this file. Point HTTPS <domain> at control-plane:7007.
+
+name: pharma-data-factory
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DATABASE:?POSTGRES_DATABASE is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  control-plane:
+    image: ${CONTROL_PLANE_IMAGE:-ghcr.io/pharma-data-factory/data-product-platform:mvp-1.0}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${CONTROL_PLANE_PORT:-7007}:7007"
+    environment:
+      NODE_ENV: production
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:?BACKEND_BASE_URL is required}
+      BACKEND_SECRET: ${BACKEND_SECRET:?BACKEND_SECRET is required}
+      AUTH_GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:?AUTH_GITHUB_CLIENT_ID is required}
+      AUTH_GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:?AUTH_GITHUB_CLIENT_SECRET is required}
+      AUTH_GITHUB_CALLBACK_URL: ${AUTH_GITHUB_CALLBACK_URL:?AUTH_GITHUB_CALLBACK_URL is required}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:?GITHUB_APP_ID is required}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?GITHUB_CLIENT_ID is required}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?GITHUB_CLIENT_SECRET is required}
+      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY:?GITHUB_PRIVATE_KEY is required}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_ORG: ${GITHUB_ORG:-pharma-data-factory}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE:?POSTGRES_DATABASE is required}
+      LEGAL_DISTRIBUTION_STATUS: ${LEGAL_DISTRIBUTION_STATUS:-BLOCKED}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  postgres_data:

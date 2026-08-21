@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/quality-count-event.schema.json",
+  "title": "Quality Count Event",
+  "description": "OEE 1.0 quality-count-event payload. Counts are cumulative per equipmentId, aligned with production-count-event.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "equipmentId", "timestamp", "goodCount", "rejectCount"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Idempotent event identity. First accepted eventId wins."
+    },
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timezone-aware event time."
+    },
+    "goodCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rejectCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "totalCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional cumulative total. When present must be >= goodCount and >= rejectCount. Prefer production-count-event for Performance totalCount."
+    }
+  }
+}
