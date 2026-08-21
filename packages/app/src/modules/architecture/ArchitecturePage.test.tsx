@@ -30,6 +30,9 @@ describe('ArchitecturePage', () => {
     });
     expect(image).toHaveAttribute('src', ARCHITECTURE_OVERVIEW_IMAGE_SRC);
     expect(image).toHaveAttribute('loading', 'eager');
+    expect(
+      screen.queryByRole('img', { name: /Nexora control plane around Golden Paths/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('renders the system architecture diagram', () => {

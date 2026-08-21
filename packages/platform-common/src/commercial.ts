@@ -87,7 +87,7 @@ export const PRODUCT_EDITIONS: readonly ProductEdition[] = [
     statusLabel: 'AVAILABLE FOR PILOT',
     availability: 'available',
     description:
-      'Certified Pharma Data Factory Golden Paths for a controlled pilot. Not commercially distributable until counsel approves LICENSE/NOTICE gates.',
+      'Certified Nexora Golden Paths for a controlled pilot. Not commercially distributable until counsel approves LICENSE/NOTICE gates.',
     bestFor: 'Ideal for teams with an existing engineering platform',
     priceLabel: 'Per template',
     priceHint: 'License or subscription',
@@ -113,7 +113,7 @@ export const PRODUCT_EDITIONS: readonly ProductEdition[] = [
     statusLabel: 'PLANNED',
     availability: 'planned',
     description:
-      "A complete Pharma Data Factory Control Plane deployed into the customer's own cloud environment.",
+      "A complete Nexora Control Plane deployed into the customer's own cloud environment.",
     bestFor: 'Ideal for organizations wanting their own Control Plane',
     priceLabel: "Let's talk",
     priceHint: 'Annual platform license',
@@ -140,7 +140,7 @@ export const PRODUCT_EDITIONS: readonly ProductEdition[] = [
     statusLabel: 'FUTURE',
     availability: 'future',
     description:
-      'Fully managed Pharma Data Factory operated as a service.',
+      'Fully managed Nexora operated as a service.',
     bestFor: 'Ideal for organizations wanting Data Product Factory as a Service',
     priceLabel: 'Coming later',
     priceHint: 'Managed subscription',

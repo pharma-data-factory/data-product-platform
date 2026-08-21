@@ -11,17 +11,21 @@ import {
   PHARMA_PAPER,
   PHARMA_SURFACE,
   PHARMA_TEAL,
+  PHARMA_TEAL_DARK,
   PHARMA_TEAL_LIGHT,
   PHARMA_TEXT,
 } from './tokens';
 
 export {
+  BRAND_NAME,
+  BRAND_WORDMARK,
   C,
   PHARMA_NAVY,
   PHARMA_NAVY_DARK,
   PHARMA_PAPER,
   PHARMA_SURFACE,
   PHARMA_TEAL,
+  PHARMA_TEAL_DARK,
   PHARMA_TEAL_LIGHT,
   PHARMA_TEXT,
 } from './tokens';
@@ -43,7 +47,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
     },
     secondary: {
       main: PHARMA_TEAL,
-      dark: '#0F766E',
+      dark: PHARMA_TEAL_DARK,
       light: PHARMA_TEAL_LIGHT,
       contrastText: '#FFFFFF',
     },

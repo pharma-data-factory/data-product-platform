@@ -11,7 +11,6 @@ import {
   LAYER_COMPARISON,
   LAYER_ROLE_CARDS,
 } from './platformStoryData';
-import { HeroArchitectureDiagram } from '../architecture/storyDiagrams';
 
 const thStyle: CSSProperties = {
   textAlign: 'left',
@@ -35,7 +34,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
 
   return (
     <section
-      aria-label="How Pharma Data Factory fits together"
+      aria-label="How Nexora fits together"
       style={{ padding: '96px 24px', background: C.paper, color: C.text }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -64,23 +63,11 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
           Keep core systems standard. Compose digital capabilities. Deliver governed Data Products.
         </h2>
         <p style={{ marginTop: 16, fontSize: 17, lineHeight: 1.7, color: C.muted, maxWidth: 760 }}>
-          Pharma Data Factory is not a replacement for ERP, MES, LIMS, EWM, CMO
+          Nexora is not a replacement for ERP, MES, LIMS, EWM, CMO
           platforms or other IT/OT systems. Those systems of record stay
           authoritative. The Control Plane governs how Data Products are built
           around them.
         </p>
-
-        <figure
-          style={{
-            margin: '40px 0 0',
-            borderRadius: 16,
-            overflow: 'hidden',
-            border: `1px solid ${C.border}`,
-            background: '#071525',
-          }}
-        >
-          <HeroArchitectureDiagram />
-        </figure>
 
         <h3
           className="pdf-display"

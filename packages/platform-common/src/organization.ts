@@ -9,7 +9,7 @@
 
 export const DEFAULT_ORGANIZATION_ID = 'internal';
 export const DEFAULT_ORGANIZATION_SLUG = 'internal';
-export const DEFAULT_ORGANIZATION_NAME = 'Pharma Data Factory';
+export const DEFAULT_ORGANIZATION_NAME = 'Nexora';
 export const LEGACY_ORGANIZATION_ID = 'default';
 
 export type OrganizationIsolationMode =

@@ -1,13 +1,12 @@
 import { useId } from 'react';
+import { PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 
-const CLOUD = '#0B1F3A';
-const FACTORY = '#0D9488';
-const DX = '#14B8A6';
-const FILL = '#071525';
+const HEX =
+  'M24 6 L39.5 14.75 L39.5 33.25 L24 42 L8.5 33.25 L8.5 14.75 Z';
 
 export function BrandMark({ size = 34 }: Readonly<{ size?: number }>) {
   const uid = useId().replaceAll(':', '');
-  const gradientId = `pdf-lg-${uid}`;
+  const gradientId = `nexora-lg-${uid}`;
 
   return (
     <svg
@@ -19,50 +18,41 @@ export function BrandMark({ size = 34 }: Readonly<{ size?: number }>) {
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="48" y2="48">
-          <stop offset="0%" stopColor={CLOUD} />
-          <stop offset="55%" stopColor={FACTORY} />
-          <stop offset="100%" stopColor={DX} />
+          <stop offset="0%" stopColor={PHARMA_NAVY} />
+          <stop offset="55%" stopColor={PHARMA_TEAL} />
+          <stop offset="100%" stopColor={PHARMA_TEAL_LIGHT} />
         </linearGradient>
       </defs>
-      <circle
-        cx="24"
-        cy="24"
-        r="20"
-        stroke={`url(#${gradientId})`}
-        strokeWidth="2"
-        opacity="0.5"
-      />
       <path
-        d="M24 10 L36 20 L32 34 L16 34 L12 20 Z"
+        d={HEX}
         stroke={`url(#${gradientId})`}
         strokeWidth="2"
-        fill="none"
+        fill={PHARMA_NAVY_DARK}
         strokeLinejoin="round"
       />
       <path
-        d="M24 10 L24 22 M12 20 L24 22 M36 20 L24 22 M16 34 L24 22 M32 34 L24 22"
-        stroke={`url(#${gradientId})`}
-        strokeWidth="1.4"
-        opacity="0.6"
+        d="M16 32.5 V15.5 M32 15.5 V32.5 M16 15.5 L32 32.5"
+        stroke={PHARMA_TEAL}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       {[
-        [24, 10],
-        [36, 20],
-        [32, 34],
-        [16, 34],
-        [12, 20],
+        [16, 15.5],
+        [16, 32.5],
+        [32, 15.5],
+        [32, 32.5],
       ].map(([x, y]) => (
         <circle
           key={`${x}-${y}`}
           cx={x}
           cy={y}
-          r="3.2"
-          fill={FILL}
-          stroke={`url(#${gradientId})`}
-          strokeWidth="2"
+          r="2.2"
+          fill={PHARMA_NAVY_DARK}
+          stroke={PHARMA_TEAL_LIGHT}
+          strokeWidth="1.6"
         />
       ))}
-      <circle cx="24" cy="22" r="3.6" fill={`url(#${gradientId})`} />
     </svg>
   );
 }

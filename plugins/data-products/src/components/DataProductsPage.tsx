@@ -72,7 +72,7 @@ export function DataProductsPage() {
     <Page themeId="tool">
       <Header
         title="Data Products"
-        subtitle="Governed Data Products you can operate from Pharma Data Factory"
+        subtitle="Governed Data Products you can operate from Nexora"
       />
       <Content>
         {loading && <Progress />}

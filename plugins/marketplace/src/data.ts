@@ -88,7 +88,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'General service template (FastAPI). Not an official Data Product Golden Path.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, Docker, GitHub',
     status: 'available',
     certificationStatus: 'TESTED',
@@ -102,7 +102,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'TypeScript Express microservice with Vitest, ESLint, Docker, and GitHub Actions.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Node.js 20+, Docker, GitHub',
     status: 'available',
     certificationStatus: 'TESTED',
@@ -116,7 +116,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'Demonstration MQTT connector with environment-based broker configuration.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, MQTT 3.1.1, Docker',
     status: 'available',
     certificationStatus: 'DEVELOPMENT',
@@ -130,7 +130,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'MQTT temperature data product with a versioned temperature-event contract.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, MQTT 3.1.1, Docker',
     status: 'available',
     certificationStatus: 'DEVELOPMENT',
@@ -144,7 +144,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'REST equipment data product with a versioned equipment-event contract.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, REST, Docker',
     status: 'available',
     certificationStatus: 'DEVELOPMENT',
@@ -158,7 +158,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'Reusable MQTT Unified Namespace. Platform component, not a Data Product.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, MQTT 3.1.1, Docker',
     status: 'available',
     certificationStatus: 'DEVELOPMENT',
@@ -173,7 +173,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'AAS Foundation prototype for asset and sensor semantics. Platform component, not a Data Product. Control Plane persistence is in-memory.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, SQLite, REST',
     status: 'preview',
     certificationStatus: 'DEVELOPMENT',
@@ -188,7 +188,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'Composition / reference proof that consumes machine-state events from Unified Namespace. Not an official RELEASED Data Product Golden Path. Not OEE.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, MQTT, Docker, Unified Namespace',
     status: 'available',
     certificationStatus: 'DEVELOPMENT',
@@ -205,7 +205,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '1.0.0',
     description:
       'OEE Golden Path 1.0. Availability × Performance × Quality from MES REST and machine MQTT. Technical CERTIFIED only; not GxP validated. Not listed on AWS Marketplace.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Python 3.12+, MQTT, REST, Docker, Wave 1 components',
     status: 'available',
     certificationStatus: 'CERTIFIED',
@@ -219,7 +219,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '0.1.0',
     description:
       'Catalog placeholder for a reusable REST connector. Template coming in a later release.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'HTTP APIs',
     status: 'preview',
     certificationStatus: 'DEVELOPMENT',
@@ -232,7 +232,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     version: '0.1.0',
     description:
       'Catalog placeholder only. Snowflake integration is out of scope for the MVP.',
-    provider: 'Pharma Data Factory',
+    provider: 'Nexora',
     compatibility: 'Future release',
     status: 'preview',
     certificationStatus: 'DEVELOPMENT',

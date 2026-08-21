@@ -178,7 +178,7 @@ export function SystemArchitectureDiagram() {
           ))}
         </Layer>
         <Arrow />
-        <Layer title="Pharma Data Factory">
+        <Layer title="Nexora">
           {FACTORY_CAPABILITIES.map(label => (
             <Node key={label} label={label} tone="factory" />
           ))}
@@ -238,7 +238,7 @@ export function DataProductRuntimeDiagram() {
 }
 
 function stepTone(step: string): NodeTone {
-  if (step === 'Pharma Data Factory') {
+  if (step === 'Nexora') {
     return 'factory';
   }
   if (step === 'Certified Golden Path') {

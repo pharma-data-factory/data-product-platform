@@ -298,7 +298,7 @@ export const COMMERCIAL_EDITION_STORY = [
   {
     id: 'platform',
     title: 'PLATFORM EDITION',
-    body: 'Customer runs its own Pharma Data Factory Control Plane.',
+    body: 'Customer runs its own Nexora Control Plane.',
     status: 'PLANNED' as const,
   },
   {

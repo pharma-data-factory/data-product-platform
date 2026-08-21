@@ -12,7 +12,7 @@ describe('FitsTogetherSection', () => {
   it('renders layer explanation cards', () => {
     render(<FitsTogetherSection onSignIn={() => undefined} />);
 
-    expect(screen.getByLabelText('How Pharma Data Factory fits together')).toBeInTheDocument();
+    expect(screen.getByLabelText('How Nexora fits together')).toBeInTheDocument();
     const layers = screen.getByLabelText('What each layer does');
     for (const card of LAYER_ROLE_CARDS) {
       expect(within(layers).getByText(card.title)).toBeInTheDocument();
@@ -83,12 +83,13 @@ describe('FitsTogetherSection', () => {
     }
   });
 
-  it('renders the hero architecture diagram with an accessible label', () => {
+  it('explains the stack in text instead of the hero architecture diagram', () => {
     const { container } = render(<FitsTogetherSection />);
+
     expect(
-      screen.getByRole('img', { name: /Pharma Data Factory control plane/i }),
-    ).toBeInTheDocument();
-    expect(container.querySelector('svg')).not.toBeNull();
-    expect(container.textContent).toMatch(/remain systems of record/i);
+      screen.queryByRole('img', { name: /Nexora control plane/i }),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeNull();
+    expect(screen.getByText(/Those systems of record stay/i)).toBeInTheDocument();
   });
 });

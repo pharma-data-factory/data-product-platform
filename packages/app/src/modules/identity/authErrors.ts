@@ -1,5 +1,5 @@
 export const ACCESS_DENIED_MESSAGE =
-  'Your GitHub identity was authenticated successfully, but you do not currently have access to this Pharma Data Factory environment.';
+  'Your GitHub identity was authenticated successfully, but you do not currently have access to this Nexora environment.';
 
 const SECRET_PATTERN =
   /client.?secret|private.?key|AUTH_GITHUB_CLIENT_SECRET|GITHUB_PRIVATE_KEY|GITHUB_CLIENT_SECRET|bearer\s+[a-z0-9._-]+|ghp_[a-z0-9]+|ghs_[a-z0-9]+|token[=:]\s*\S+/i;

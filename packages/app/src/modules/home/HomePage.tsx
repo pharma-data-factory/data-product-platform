@@ -115,7 +115,7 @@ export function HomePage() {
   return (
     <Page themeId="home">
       <Header
-        title="Pharma Data Factory"
+        title="Nexora"
         subtitle="DATA PRODUCTS. BUILT FOR PHARMA."
       />
       <Content>

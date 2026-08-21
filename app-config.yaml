@@ -1,5 +1,5 @@
 app:
-  title: Pharma Data Factory
+  title: Nexora
   baseUrl: http://localhost:3000
 
   # Enable all packages by default, this will discover packages from packages/app/package.json
@@ -14,7 +14,7 @@ app:
     - search-result-list-item:techdocs: false
 
 organization:
-  name: Pharma Data Factory
+  name: Nexora
 
 backend:
   # Used for enabling authentication, secret is shared by all backend plugins

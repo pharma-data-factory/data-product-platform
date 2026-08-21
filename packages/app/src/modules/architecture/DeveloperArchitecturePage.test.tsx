@@ -26,7 +26,7 @@ describe('DeveloperArchitecturePage', () => {
 
     expect(
       screen.getByRole('img', {
-        name: /Developer architecture: Pharma Data Factory Control Plane/i,
+        name: /Developer architecture: Nexora Control Plane/i,
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Catalog')).toBeInTheDocument();

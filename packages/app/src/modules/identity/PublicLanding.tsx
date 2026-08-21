@@ -17,13 +17,13 @@ import MenuIcon from '@material-ui/icons/Menu';
 import { PRODUCT_EDITIONS } from '@internal/platform-common';
 import { LEGAL_NAV } from '../legal/constants';
 import { BrandMark } from '../nav/BrandMark';
-import { KeepCoreDiagram, OeeProofDiagram } from './HomeGraphics';
+import { OeeProofDiagram } from './HomeGraphics';
 import {
   LANDING_LOCALES,
   LandingI18nProvider,
   useLandingI18n,
 } from './landingI18n';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL } from './landingTokens';
+import { C, BRAND_NAME, BRAND_WORDMARK, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL } from './landingTokens';
 
 const NAV_ITEMS = [
   { id: 'platform', href: '/platform/architecture' },
@@ -51,8 +51,8 @@ export const LandingStyles = () => (
     .pdf-muted { color: ${C.muted}; }
     .pdf-grid-bg {
       background-image:
-        linear-gradient(rgba(20,184,166,0.10) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(20,184,166,0.10) 1px, transparent 1px);
+        linear-gradient(rgba(0,194,217,0.10) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,194,217,0.10) 1px, transparent 1px);
       background-size: 44px 44px;
       mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
       -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
@@ -85,7 +85,7 @@ export const LandingStyles = () => (
       text-transform: none !important;
       border-radius: 12px !important;
     }
-    .pdf-btn-ghost:hover { border-color: ${PHARMA_TEAL} !important; background: rgba(13,148,136,0.08) !important; }
+    .pdf-btn-ghost:hover { border-color: ${PHARMA_TEAL} !important; background: rgba(0,194,217,0.08) !important; }
     .pdf-btn-hero-primary {
       background: ${PHARMA_TEAL} !important;
       color: #fff !important;
@@ -94,7 +94,7 @@ export const LandingStyles = () => (
       font-weight: 600 !important;
       border-radius: 12px !important;
     }
-    .pdf-btn-hero-primary:hover { background: #0F766E !important; }
+    .pdf-btn-hero-primary:hover { background: #0098AB !important; }
     .pdf-btn-hero-ghost {
       border: 1px solid rgba(255,255,255,0.35) !important;
       color: #fff !important;
@@ -540,7 +540,7 @@ export function LandingNav({
         >
           <BrandMark />
           <span className="pdf-display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.2 }}>
-            pharma-data-factory
+            {BRAND_WORDMARK}
           </span>
         </a>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 18 }} className="pdf-desktop-nav">
@@ -668,67 +668,50 @@ function Hero({ error }: Pick<PublicLandingProps, 'error'>) {
       />
       <div
         style={{
-          maxWidth: 1280,
+          maxWidth: 920,
           margin: '0 auto',
           position: 'relative',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 56,
-          alignItems: 'center',
         }}
       >
-        <div>
-          <Reveal>
-            <p className="pdf-mono" style={{ color: PHARMA_TEAL, fontSize: 13, fontWeight: 700, letterSpacing: 2, margin: '0 0 20px' }}>
-              {t.hero.eyebrow}
-            </p>
-          </Reveal>
-          <Reveal delay={80}>
-            <h1
-              className="pdf-display"
-              style={{
-                fontSize: 'clamp(36px, 5.4vw, 64px)',
-                fontWeight: 700,
-                lineHeight: 1.08,
-                margin: 0,
-                maxWidth: 920,
-                whiteSpace: 'pre-line',
-              }}
-            >
-              {t.hero.title}
-            </h1>
-          </Reveal>
-          <Reveal delay={160}>
-            <p style={{ marginTop: 24, fontSize: 18, lineHeight: 1.7, maxWidth: 640, color: '#CBD5E1' }}>
-              {t.hero.sub}
-            </p>
-          </Reveal>
-          <Reveal delay={240}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 36 }}>
-              <Button className="pdf-btn-hero-primary pdf-focus" variant="contained" href="#how-it-works">
-                {t.hero.primary} <ArrowForwardIcon style={{ fontSize: 17, marginLeft: 6 }} />
-              </Button>
-              <Button className="pdf-btn-hero-ghost pdf-focus" variant="outlined" href="#golden-paths">
-                {t.hero.secondary}
-              </Button>
-            </div>
-          </Reveal>
-          {error && (
-            <p role="alert" style={{ color: '#FECACA', marginTop: 16 }}>
-              {error}
-            </p>
-          )}
-        </div>
-        <Reveal delay={200}>
-          <KeepCoreDiagram
-            ariaLabel={t.preview.systems}
-            systems={t.preview.systems}
-            governed={t.preview.governed}
-            components={t.preview.components}
-            goldenPaths={t.preview.goldenPaths}
-            products={t.preview.products}
-          />
+        <Reveal>
+          <p className="pdf-mono" style={{ color: PHARMA_TEAL, fontSize: 13, fontWeight: 700, letterSpacing: 2, margin: '0 0 20px' }}>
+            {t.hero.eyebrow}
+          </p>
         </Reveal>
+        <Reveal delay={80}>
+          <h1
+            className="pdf-display"
+            style={{
+              fontSize: 'clamp(36px, 5.4vw, 64px)',
+              fontWeight: 700,
+              lineHeight: 1.08,
+              margin: 0,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {t.hero.title}
+          </h1>
+        </Reveal>
+        <Reveal delay={160}>
+          <p style={{ marginTop: 24, fontSize: 18, lineHeight: 1.7, maxWidth: 640, color: '#CBD5E1' }}>
+            {t.hero.sub}
+          </p>
+        </Reveal>
+        <Reveal delay={240}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 36 }}>
+            <Button className="pdf-btn-hero-primary pdf-focus" variant="contained" href="#how-it-works">
+              {t.hero.primary} <ArrowForwardIcon style={{ fontSize: 17, marginLeft: 6 }} />
+            </Button>
+            <Button className="pdf-btn-hero-ghost pdf-focus" variant="outlined" href="#golden-paths">
+              {t.hero.secondary}
+            </Button>
+          </div>
+        </Reveal>
+        {error && (
+          <p role="alert" style={{ color: '#FECACA', marginTop: 16 }}>
+            {error}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -739,7 +722,7 @@ function Why() {
   const cards = [
     { title: t.why.systemOfRecord, body: 'ERP · MES · LIMS · EWM' },
     { title: t.why.dataProduct, body: t.preview.products },
-    { title: t.why.controlPlane, body: 'Pharma Data Factory' },
+    { title: t.why.controlPlane, body: BRAND_NAME },
   ];
   return (
     <section aria-label={t.why.eyebrow} style={{ padding: '96px 24px', background: C.section }}>
@@ -818,7 +801,7 @@ function Proof() {
             borderRadius: 16,
             overflow: 'hidden',
             border: `1px solid ${C.border}`,
-            background: '#071525',
+            background: '#05101C',
           }}
         >
           <OeeProofDiagram
@@ -1141,7 +1124,7 @@ export function LandingFooter({
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <BrandMark size={30} />
               <span className="pdf-display" style={{ fontWeight: 600, fontSize: 14 }}>
-                pharma-data-factory
+                {BRAND_WORDMARK}
               </span>
             </div>
             <p className="pdf-muted" style={{ fontSize: 14, lineHeight: 1.7, margin: 0 }}>
@@ -1168,7 +1151,7 @@ export function LandingFooter({
             ))}
           </nav>
           <p className="pdf-mono pdf-muted" style={{ fontSize: 12, margin: 0 }}>
-            © 2026 Pharma Data Factory
+            © 2026 {BRAND_NAME}
           </p>
         </div>
       </div>

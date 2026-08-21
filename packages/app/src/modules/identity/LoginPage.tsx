@@ -1,6 +1,6 @@
 import { Button } from '@material-ui/core';
 import { BrandMark } from '../nav/BrandMark';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
+import { BRAND_NAME, BRAND_WORDMARK, C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 
 export interface LoginPageProps {
   guestEnabled?: boolean;
@@ -61,7 +61,7 @@ export function LoginPage({
               color: PHARMA_NAVY,
             }}
           >
-            pharma-data-factory
+            {BRAND_WORDMARK}
           </p>
           <p
             style={{
@@ -184,7 +184,7 @@ export function LoginPage({
               textDecoration: 'underline',
             }}
           >
-            Back to Pharma Data Factory
+            Back to {BRAND_NAME}
           </button>
         )}
       </div>

@@ -214,7 +214,7 @@ export function DeveloperHubPage() {
           <h1 className={classes.heroTitle}>Developer Hub</h1>
           <p className={classes.heroCopy}>
             Keep core systems standard. Innovate through Data Products. This
-            hub is the authenticated starting point for Pharma Data Factory
+            hub is the authenticated starting point for Nexora
             documentation. Pages are published with TechDocs and indexed by
             the existing Search plugin.
           </p>

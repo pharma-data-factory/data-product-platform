@@ -61,7 +61,7 @@ describe('LandingSignInPage', () => {
       },
     });
 
-    expect(screen.getAllByText('pharma-data-factory').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('NEXORA').length).toBeGreaterThan(0);
     expect(
       screen.getByText(
         /Keep the core standard\.\s*Innovate through Data Products\./i,
@@ -278,7 +278,7 @@ describe('LandingSignInPage', () => {
     expect(await screen.findByText('Access not granted')).toBeInTheDocument();
     expect(screen.getByText('GitHub login: new-github-user')).toBeInTheDocument();
     expect(screen.getByRole('status').textContent).toMatch(
-      /do not currently have access to this Pharma Data Factory environment/i,
+      /do not currently have access to this Nexora environment/i,
     );
     expect(onSignInSuccess).not.toHaveBeenCalled();
 

@@ -78,7 +78,7 @@ export function resolveMarketplaceOrganization(input: {
     return {
       status: 'UNKNOWN_ORGANIZATION',
       reason:
-        'No verified mapping from Marketplace identity to a Pharma Data Factory organization',
+        'No verified mapping from Marketplace identity to a Nexora organization',
     };
   }
 

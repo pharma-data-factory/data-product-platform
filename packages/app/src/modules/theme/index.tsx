@@ -8,7 +8,7 @@ const pharmaThemeExtension = ThemeBlueprint.make({
   params: {
     theme: {
       id: 'pharma-data-factory',
-      title: 'Pharma Data Factory',
+      title: 'Nexora',
       variant: 'light',
       Provider: ({ children }) => (
         <UnifiedThemeProvider theme={pharmaDataFactoryTheme}>

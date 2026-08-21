@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { LoginPage } from './LoginPage';
 
 describe('LoginPage', () => {
-  it('renders the Pharma Data Factory login card with GitHub sign-in', () => {
+  it('renders the Nexora login card with GitHub sign-in', () => {
     render(
       <LoginPage
         onGitHubSignIn={() => undefined}
@@ -10,7 +10,7 @@ describe('LoginPage', () => {
       />,
     );
 
-    expect(screen.getByText('pharma-data-factory')).toBeInTheDocument();
+    expect(screen.getByText('NEXORA')).toBeInTheDocument();
     expect(
       screen.getByText('DATA PRODUCTS. BUILT FOR PHARMA.'),
     ).toBeInTheDocument();

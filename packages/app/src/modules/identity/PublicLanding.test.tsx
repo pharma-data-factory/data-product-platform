@@ -7,10 +7,10 @@ describe('public landing', () => {
     window.localStorage.removeItem(LANDING_LOCALE_STORAGE_KEY);
   });
 
-  it('renders the Pharma Data Factory commercial experience when unauthenticated', () => {
+  it('renders the Nexora commercial experience when unauthenticated', () => {
     render(<PublicLanding onSignIn={() => undefined} />);
 
-    expect(screen.getAllByText('pharma-data-factory').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('NEXORA').length).toBeGreaterThan(0);
     expect(
       screen.getByText('DATA PRODUCTS. BUILT FOR PHARMA.'),
     ).toBeInTheDocument();
@@ -172,11 +172,14 @@ describe('public landing', () => {
     ).toHaveAttribute('href', '/platform/architecture');
     expect(screen.getByLabelText('Product editions')).toBeInTheDocument();
     expect(screen.queryByLabelText('Architecture principle')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('How Pharma Data Factory fits together')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('How Nexora fits together')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('img', {
-        name: /Pharma Data Factory control plane around Golden Paths/i,
+        name: /Nexora control plane around Golden Paths/i,
       }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('img', { name: /ERP · MES · LIMS · EWM · PLC/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Learn')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Platform capabilities')).not.toBeInTheDocument();

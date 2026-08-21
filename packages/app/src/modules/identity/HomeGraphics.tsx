@@ -1,79 +1,5 @@
 import { PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from './landingTokens';
 
-export function KeepCoreDiagram({
-  ariaLabel,
-  systems,
-  governed,
-  components,
-  goldenPaths,
-  products,
-}: Readonly<{
-  ariaLabel: string;
-  systems: string;
-  governed: string;
-  components: string;
-  goldenPaths: string;
-  products: string;
-}>) {
-  const layers = [
-    { label: systems, fill: 'rgba(255,255,255,0.06)', stroke: 'rgba(255,255,255,0.16)' },
-    { label: governed, fill: 'rgba(13,148,136,0.16)', stroke: PHARMA_TEAL },
-    { label: components, fill: 'rgba(255,255,255,0.06)', stroke: 'rgba(255,255,255,0.16)' },
-    { label: goldenPaths, fill: 'rgba(255,255,255,0.06)', stroke: 'rgba(255,255,255,0.16)' },
-    { label: products, fill: PHARMA_NAVY, stroke: PHARMA_TEAL },
-  ];
-
-  return (
-    <svg
-      viewBox="0 0 640 420"
-      role="img"
-      aria-label={ariaLabel}
-      style={{ width: '100%', height: 'auto', display: 'block' }}
-    >
-      <rect width="640" height="420" rx="16" fill="#071525" />
-      {layers.map((layer, index) => {
-        const y = 24 + index * 78;
-        return (
-          <g key={layer.label}>
-            <rect
-              x="48"
-              y={y}
-              width="544"
-              height="56"
-              rx="12"
-              fill={layer.fill}
-              stroke={layer.stroke}
-            />
-            <text
-              x="320"
-              y={y + 35}
-              textAnchor="middle"
-              fill="#F8FAFC"
-              fontSize="16"
-              fontWeight={700}
-              fontFamily="Space Grotesk, Inter, sans-serif"
-            >
-              {layer.label}
-            </text>
-            {index < layers.length - 1 ? (
-              <text
-                x="320"
-                y={y + 70}
-                textAnchor="middle"
-                fill={PHARMA_TEAL_LIGHT}
-                fontSize="16"
-                aria-hidden="true"
-              >
-                ↓
-              </text>
-            ) : null}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
 export function OeeProofDiagram({
   ariaLabel,
   mes,
@@ -100,7 +26,7 @@ export function OeeProofDiagram({
       aria-label={ariaLabel}
       style={{ width: '100%', height: 'auto', display: 'block' }}
     >
-      <rect width="640" height="360" rx="16" fill="#071525" />
+      <rect width="640" height="360" rx="16" fill="#05101C" />
       <Box x={64} y={24} width={200} height={44} label={mes} />
       <Box x={376} y={24} width={200} height={44} label={machine} />
       <line x1="164" y1="68" x2="164" y2="96" stroke={PHARMA_TEAL} strokeWidth="2" />

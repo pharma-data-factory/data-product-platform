@@ -1,52 +1,196 @@
-# Pharma Data Factory
+<p align="center">
+  <img src="docs/brand/nexora-lockup.svg" alt="Nexora — Pharma Data Factory" width="480" />
+</p>
 
-A standalone commercial Control Plane for small and mid-sized companies that
-need a Data Product factory without building their own Internal Developer
-Platform.
+<h1 align="center">Nexora</h1>
 
-The product is **Pharma Data Factory**. It is built on
-[Backstage](https://backstage.io) 1.53 (Apache-2.0 open-source framework).
+<p align="center">
+  <strong>Pharma Data Factory</strong> Control Plane for governed Data Products
+  in pharmaceutical manufacturing.
+</p>
 
-This repository is independent. It does not reuse or connect to any other
-internal platform.
+**Nexora** is the product name. **NEXORA** is the wordmark. **Pharma Data
+Factory** is the product line: a commercial Control Plane for small and
+mid-sized pharma, biotech, and CDMO/CMO teams. Developers discover, create,
+and operate Data Products around existing ERP, MES, LIMS, EWM, and other
+IT/OT systems of record — without building an Internal Developer Platform
+from scratch.
 
-## Product vision
+The Control Plane is built on [Backstage](https://backstage.io) **1.53.0**
+(Apache-2.0). Backstage is the framework, not the product. Generated Data
+Products run independently of the Control Plane.
 
-A developer should be able to:
+| | |
+| --- | --- |
+| Product name | Nexora |
+| Wordmark | NEXORA |
+| Product line | Pharma Data Factory |
+| Brand mark | Hexagonal N mark (`docs/brand/nexora-lockup.svg`, `packages/app/public/favicon.svg`) |
+| Baseline | MVP 1.0 |
+| Technical status | TECHNICAL_MVP_COMPLETE |
+| Commercial distribution | BLOCKED pending counsel-approved LICENSE / NOTICE |
+| GxP / CSV | Not validated. CERTIFIED is technical conformance only. |
 
-1. Open the portal
-2. Browse available templates
-3. Select a template
-4. Enter a few parameters
-5. Generate a new project
-6. Automatically create a GitHub repository
-7. Generate source code, Docker, tests, and GitHub Actions
-8. Register the component in Backstage
-9. View documentation, ownership, dependencies, and technical metadata
+This repository is standalone. It does not reuse or connect to unrelated
+corporate platforms.
 
-The long-term product includes a richer marketplace, certified partner
-templates, impact analysis, quality gates, and managed platform capabilities.
-Those are intentionally out of scope for this MVP.
+---
 
-## Architecture
+## What the platform does
 
-Backstage is the foundation. Custom product behavior is implemented as
-Backstage plugins and official software templates.
+Nexora keeps core systems standard, composes certified capabilities, and
+delivers independently versioned Data Products.
+
+| Capability | What you get |
+| --- | --- |
+| **Discover** | Catalog, Marketplace, TechDocs, ownership, APIs, dependencies |
+| **Create** | Golden Path templates, GitHub repository, source, Docker, tests, CI |
+| **Deliver** | GitHub Actions quality gate, contracts, compatibility, versioning |
+| **Operate** | Lifecycle metadata, documentation, RBAC, certification status |
+
+Official Golden Path:
 
 ```text
-Discover → Choose → Configure → Create → Build → Test → Deploy → Operate
+Marketplace → MQTT Temperature, REST Equipment, or OEE
+  → Configure parameters → Generate → GitHub repository
+  → GitHub Actions → Tests → Docker build
+  → Catalog → Data Products → Contract / TechDocs / CI quality gate
 ```
 
-See [docs/architecture.md](docs/architecture.md).
+ERP, MES, LIMS, EWM, historians, and similar systems remain the systems of
+record. The Control Plane does not replace them and does not connect to
+those databases directly.
 
-## Local setup
+---
 
-Prerequisites:
+## Official Golden Paths
 
-- Node.js 22 or 24
-- Yarn 4 via Corepack
-- Docker and Docker Compose for the primary startup path
-- GitHub credentials only if you want the factory to create repositories
+| Golden Path | Catalog name | Technical status | Commercial availability |
+| --- | --- | --- | --- |
+| MQTT Temperature Data Product | `mqtt-temperature-data-product` | CERTIFIED / RELEASED | Pilot (legal gates OPEN) |
+| REST Equipment Data Product | `rest-equipment-data-product` | CERTIFIED / RELEASED | Pilot (legal gates OPEN) |
+| OEE Data Product | `oee-data-product` | CERTIFIED / RELEASED | FUTURE |
+
+CERTIFIED means the template conforms to Data Product Standard 1.0.x. It
+is not GxP validation and not a sales SKU.
+
+Python Microservice, Node.js Microservice, and MQTT Connector are general
+service templates, not Data Product Golden Paths.
+
+---
+
+## Create parameters
+
+Create collects a small set of business fields. Secrets and runtime URLs
+are never entered in the form. They belong in the generated service
+environment after publish.
+
+### Shared (all official Data Product templates)
+
+| Parameter | Required | Meaning |
+| --- | --- | --- |
+| **Data Product Name** | Yes | Lowercase letters, digits, and dashes (`^[a-z0-9]+(-[a-z0-9]+)*$`). Becomes the GitHub repository name. |
+| **Description** | Yes | Short product description. |
+| **Owner** | Yes | Catalog User or Group. Not the GitHub organization. |
+| **GitHub Repository** | Yes | Created in `pharma-data-factory` by the platform GitHub App. Enter the repository name only. |
+
+Fixed by the template (not asked on Create): GitHub host `github.com`,
+organization `pharma-data-factory`, private repository, default branch
+`main`, system `data-platform`, initial version `1.0.0`.
+
+### MQTT Temperature
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| **MQTT Topic** | `pharma/temperature/+` | Subscription topic. `+` is a single-level wildcard. |
+
+Domain is manufacturing.
+
+### REST Equipment
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| **Domain** | `manufacturing` | Business domain for catalog metadata. |
+
+The REST source URL is a runtime environment variable on the generated
+service, not a Create field.
+
+### OEE Data Product
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| **Domain** | `manufacturing` | Business domain. |
+| **Equipment Identifier** | `filler-01` | Canonical `equipmentId` on every OEE input and result. |
+| **Default Time Window** | `hour` | `hour`, `day`, `shift`, `order`, or `custom`. `CURRENT_SHIFT` requires from/to at query time. |
+| **MQTT Topic Pattern** | `pharma/oee/+/+` | Machine, count, and quality events. |
+| **Production Context URL Reference** | `SOURCE_API_URL` | **Name** of the env var that will hold the MES REST URL. Do not paste the URL or a secret. |
+
+OEE architecture is fixed: counter convention CUMULATIVE; Wave 1 MQTT
+Consumer and REST Source; OEE contract 1.0.0.
+
+### Python Microservice (not a Golden Path)
+
+Service Name, Description, Owner, GitHub repository name. Same naming
+rules as Data Products.
+
+Full template notes: [docs/templates.md](docs/templates.md).
+
+---
+
+## Runtime and Control Plane parameters
+
+Copy `.env.example` to `.env`. Never commit `.env`.
+
+| Variable group | Purpose |
+| --- | --- |
+| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` / `AUTH_GITHUB_CALLBACK_URL` | GitHub **OAuth App** for human login (`Ov23…`). Callback: `{backend}/api/auth/github/handler/frame`. |
+| `GITHUB_APP_ID` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_PRIVATE_KEY` / `GITHUB_WEBHOOK_SECRET` | GitHub **App** for publishing generated repositories (`Iv23…`). Do not mix with OAuth login. |
+| `GITHUB_ORG` | Target organization (default `pharma-data-factory`). |
+| `APP_BASE_URL` / `BACKEND_BASE_URL` / `BACKEND_SECRET` | Hosted Control Plane URLs and backend cookie secret. Leave empty for local `yarn start`. |
+| `POSTGRES_*` | Docker Compose / hosted PostgreSQL. Local Compose uses documented local-only defaults. |
+| `AWS_MARKETPLACE_*` | Optional procurement integration. Empty for local development. Not a public listing. |
+| `LEGAL_DISTRIBUTION_STATUS` | Operational flag. Default **BLOCKED** until counsel approves LICENSE / NOTICE. |
+
+OAuth App client IDs start with `Ov23`. GitHub App client IDs start with
+`Iv23`. Mixing them breaks login or publish.
+
+Local: [docs/github-setup.md](docs/github-setup.md),
+[docs/identity-and-rbac.md](docs/identity-and-rbac.md).  
+Hosted: [docs/deployment/portainer.md](docs/deployment/portainer.md).
+
+---
+
+## License and third-party notices
+
+**This product is not open source.** Custom Control Plane code (plugins,
+UI, templates, `platform-common`, generated-product SDK) is declared
+`UNLICENSED` / private. There is no outbound `LICENSE`, `NOTICE`, or
+`THIRD_PARTY_NOTICES.md` in this repository yet.
+
+Counsel review is required before commercial distribution, Template
+Edition packaging, or publishing final legal pages.
+
+| Layer | Status |
+| --- | --- |
+| Nexora original code | Proprietary. `license: UNLICENSED`. Distribution blocked until counsel approves outbound terms. Nexora and Pharma Data Factory are product names, not an open-source grant. |
+| Backstage 1.53.0 | [Apache License 2.0](https://github.com/backstage/backstage/blob/master/LICENSE). Apache-2.0 does not grant trademark rights in Backstage®. |
+| Upstream NOTICE | [The Backstage Authors](https://github.com/backstage/backstage/blob/master/NOTICE) plus third-party portions. |
+| Generated Data Products | Independent FastAPI services. Outbound LICENSE / NOTICE / third-party notices are counsel-gated placeholders, not invented here. |
+| Public legal pages | `/legal`, `/privacy`, `/terms`, `/open-source` are review placeholders, not binding terms. |
+
+Required OSS attribution will be published after Phase 0 counsel gates
+are APPROVED. Until then, do not treat this README as a license grant.
+
+Commercial editions (Template / Platform / SaaS): [docs/commercial-model.md](docs/commercial-model.md).
+List prices are not published.
+
+---
+
+## Getting started
+
+Prerequisites: Node.js 22 or 24, Yarn 4 (Corepack), Docker Compose for the
+primary path. GitHub credentials only if you want Create to publish
+repositories.
 
 ```bash
 corepack enable
@@ -56,75 +200,28 @@ yarn tsc
 yarn start
 ```
 
-Open http://localhost:3000. Unauthenticated users see the public landing.
-Click **Sign in**, then **Continue with GitHub** when `AUTH_GITHUB_*` is
-configured, or **Continue as Guest** for local development only.
+Open http://localhost:3000. Sign in with GitHub when `AUTH_GITHUB_*` is
+set, or **Continue as Guest** for local development only. Guest is not
+available in production.
 
-`yarn start` loads `.env`, then runs the frontend on port 3000 and the backend
-on port 7007. GitHub sign-in needs `AUTH_GITHUB_*` in that file. Do not start
-only `yarn workspace backend start` without `.env` loaded — the portal will
-show that GitHub sign-in is not configured.
+`yarn start` loads `.env`, frontend **3000**, backend **7007**. Do not
+start only `yarn workspace backend start` without `.env`.
 
-### GitHub user login (OAuth App)
-
-Create a dedicated OAuth App named **Pharma Data Factory Login**:
-
-- Homepage URL: `http://localhost:3000`
-- Authorization callback URL:
-  `http://localhost:7007/api/auth/github/handler/frame`
-
-Set `AUTH_GITHUB_CLIENT_ID` and `AUTH_GITHUB_CLIENT_SECRET` in `.env`.
-OAuth App client IDs usually start with `Ov23`. Copy the value from the
-OAuth App, not the GitHub App. Do not paste the GitHub App client ID
-(`Iv23…`, used for repository publishing) into `AUTH_GITHUB_*`.
-Do not reuse GitHub App publishing credentials. Production requires an
-approved Catalog User. Add the GitHub login to `catalog/org.yaml` and a
-platform group before the user can enter. Unknown GitHub users are denied
-in production and do not receive Viewer access.
-
-See [docs/identity-and-rbac.md](docs/identity-and-rbac.md).
-
-## Docker setup
-
-Primary startup method:
+### Docker
 
 ```bash
 copy .env.example .env
 docker compose up --build
 ```
 
-Compose starts PostgreSQL and the Pharma Data Factory Control Plane
-(`pharma-data-factory` image). The UI is available at
-http://localhost:3000 and the backend at http://localhost:7007.
+Compose starts PostgreSQL and the Control Plane. UI:
+http://localhost:3000 — backend: http://localhost:7007.
 
-Local development without Docker is supported with `yarn start`. That path uses
-SQLite from `app-config.yaml`.
+Local `yarn start` without Docker uses SQLite from `app-config.yaml`.
+Do not deploy the root `Dockerfile` as production. Production image:
+`packages/backend/Dockerfile`. Hosted: [Portainer](docs/deployment/portainer.md).
 
-Hosted Portainer / HTTPS: [Portainer](docs/deployment/portainer.md).
-Do not deploy the root `Dockerfile` as production.
-
-## GitHub configuration
-
-Never commit secrets. Use `.env` or your secret manager.
-
-Required to publish templates:
-
-- A GitHub App installed on the target organization
-- `.env` filled from `.env.example`
-- `yarn start:github`
-
-GitHub *user* login is separate. Set `AUTH_GITHUB_CLIENT_ID` and
-`AUTH_GITHUB_CLIENT_SECRET` for portal authentication. Do not reuse GitHub App
-publishing credentials for user sign-in unless you deliberately choose to.
-
-See [docs/github-setup.md](docs/github-setup.md) for permissions and the
-end-to-end test procedure.
-See [docs/identity-and-rbac.md](docs/identity-and-rbac.md) for roles.
-
-Without GitHub credentials the portal still runs with `yarn start`. Template
-**Create** will fail at the publish step until the App is configured.
-
-## Backstage configuration
+### Configuration files
 
 | File | Purpose |
 | --- | --- |
@@ -132,118 +229,71 @@ Without GitHub credentials the portal still runs with `yarn start`. Template
 | `app-config.local.yaml` | Safe local overrides, no secrets |
 | `app-config.github.yaml` | Opt-in GitHub App for repository publishing |
 | `app-config.docker.yaml` | Compose / container paths and PostgreSQL |
-| `app-config.production.yaml` | Production-like PostgreSQL, GitHub user login, no Guest |
+| `app-config.production.yaml` | Production-like PostgreSQL, GitHub login, no Guest |
 
-Enabled foundation features:
+Without GitHub App credentials the portal still runs. **Create** fails at
+publish until the App is installed on the organization.
 
-- Software Catalog
-- Software Templates / Scaffolder
-- TechDocs
-- Search
-- GitHub App integration for publish
-- GitHub user authentication when `AUTH_GITHUB_*` is configured
-- Guest login for local development only
-- Permission Framework with Viewer / Developer / Owner / Admin
+---
 
-## Templates
-
-Official templates in `templates/`:
-
-- **Python Microservice** — FastAPI, Pydantic, pytest, Docker, GitHub Actions
-- **MQTT Temperature Data Product** — MQTT ingestion, canonical temperature model, SQLite, REST API
-- **Node.js Microservice** — TypeScript, Express, Vitest, ESLint, Docker
-- **MQTT Data Connector** — demonstration connector, env-based MQTT config
-
-Every official template follows [docs/engineering-contract.md](docs/engineering-contract.md).
-
-## Marketplace
-
-The Marketplace plugin lists templates, connectors, data products, and
-solutions. MVP entries are static and catalog-driven. There is no billing or
-partner onboarding.
-
-## Data Products
-
-The Data Products plugin lists catalog Components with
-`spec.type: data-product`. The model extends Backstage Components through
-`dataprod.platform/*` annotations. It does not replace the Software Catalog.
-
-## CI/CD
-
-Generated repositories include GitHub Actions:
-
-Pull Request → Lint → Unit Tests → Build → Docker Build → Security Scan → Success
-
-The platform repository has its own workflow in `.github/workflows/ci.yml`.
-
-## Testing
+## Testing and CI
 
 ```bash
 yarn test:all --watchAll=false
 ```
 
-Covered in the MVP:
+Platform workflow: `.github/workflows/ci.yml`. Generated repositories
+run lint, unit tests, contract/quality tests, Docker build, and a
+security scan.
 
-1. Backstage backend plugin registration and startup contract
-2. Official template registration
-3. Python, Node.js, and MQTT template dry-run generation
-4. `catalog-info.yaml` generation
-5. Marketplace data
-6. Data Product model and filtering
+---
 
-Template dry-runs render skeletons without calling GitHub.
+## Security
+
+- No secrets in git. Credentials only via environment variables.
+- Least-privilege GitHub App permissions.
+- OAuth login credentials are separate from GitHub App publishing credentials.
+- Permission checks run in the backend policy, not only in the UI.
+- Generated services must not log tokens or MQTT passwords.
+- Production requires an approved Catalog User. Unknown GitHub users are denied.
+
+---
+
+## Documentation
+
+Authenticated starting point: **Developer Hub** (`/developer`).
+
+- [MVP 1.0 baseline](docs/mvp-1.0-baseline.md)
+- [Architecture](docs/architecture.md)
+- [Engineering contract](docs/engineering-contract.md)
+- [Demo guide](docs/demo-guide.md)
+- [Capability matrix](docs/capability-matrix.md)
+
+---
 
 ## Project structure
 
 ```text
 data-product-platform/
 ├── app-config.yaml
-├── app-config.local.yaml
 ├── docker-compose.yml
-├── Dockerfile
-├── package.json
-├── README.md
-├── packages/
-│   ├── app/
-│   ├── backend/
-│   └── data-product-sdk/
-├── plugins/
-│   ├── marketplace/
-│   └── data-products/
-├── templates/
-│   ├── python-service/
-│   ├── mqtt-temperature-product/
-│   ├── rest-equipment-product/
-│   ├── node-service/
-│   └── mqtt-connector/
+├── packages/            # app, backend, data-product-sdk, platform-common
+├── plugins/             # marketplace, data-products, entitlements
+├── templates/           # Golden Paths and service templates
+├── platform-components/ # Wave 1 building blocks
 ├── catalog/
 ├── docs/
 └── .github/workflows/
 ```
 
-## Security
+---
 
-- No secrets in git
-- Credentials only through environment variables
-- Least-privilege GitHub App permissions
-- Guest auth is for local development, not a production shortcut
-- GitHub user OAuth credentials are separate from GitHub App publishing credentials
-- Permission checks run in the backend policy, not only in the UI
-- Generated services do not log tokens or MQTT passwords
+## Out of scope for this MVP
 
-## Future roadmap
+Kubernetes, Terraform, production AWS/Azure packaging, Snowflake, SAP,
+Neo4j, Kafka infrastructure, payments, partner marketplace, AI/LLM/RAG,
+GxP validation claims, customer multi-tenancy, and enterprise SSO beyond
+GitHub OAuth.
 
-Not in this MVP:
-
-- Kubernetes, Terraform, AWS, Azure
-- Snowflake or SAP integrations
-- Neo4j / dedicated graph database
-- Kafka
-- Payments and partner marketplace
-- AI agents, LLM, RAG
-- GxP validation
-- Customer multi-tenancy and enterprise SSO
-
-Recommended next step after the MVP factory flow works: GitHub catalog
-discovery for customer organizations, then quality gates on generated
-pipelines.
+SaaS Edition is future. Platform Edition is planned. Do not treat the
+current internal Control Plane as a generally available customer-cloud SKU.

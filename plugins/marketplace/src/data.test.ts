@@ -71,7 +71,7 @@ describe('marketplace data', () => {
       expect(item.category).toBeTruthy();
       expect(item.version).toBeTruthy();
       expect(item.description).toBeTruthy();
-      expect(item.provider).toBe('Pharma Data Factory');
+      expect(item.provider).toBe('Nexora');
       expect(item.compatibility).toBeTruthy();
       expect(['available', 'preview']).toContain(item.status);
       expect(['DEVELOPMENT', 'TESTED', 'CERTIFIED']).toContain(

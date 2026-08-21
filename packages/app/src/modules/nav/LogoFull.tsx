@@ -1,4 +1,5 @@
 import { BrandMark } from './BrandMark';
+import { BRAND_NAME, BRAND_WORDMARK } from '../theme/tokens';
 
 export const LogoFull = () => {
   return (
@@ -8,16 +9,16 @@ export const LogoFull = () => {
         color: '#F2F6FC',
         display: 'flex',
         fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
-        fontSize: 14,
-        fontWeight: 600,
+        fontSize: 15,
+        fontWeight: 700,
         gap: 10,
-        letterSpacing: '-0.02em',
+        letterSpacing: '0.08em',
         whiteSpace: 'nowrap',
       }}
-      aria-label="pharma-data-factory"
+      aria-label={BRAND_NAME}
     >
       <BrandMark size={28} />
-      pharma-data-factory
+      {BRAND_WORDMARK}
     </div>
   );
 };

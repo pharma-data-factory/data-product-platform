@@ -942,7 +942,7 @@ export function ArchitecturePrinciple() {
 
           <div
             className={`pdf-arch-layer${factoryOn ? ' pdf-arch-on' : ''}`}
-            aria-label="Pharma Data Factory"
+            aria-label={t.principle.layers.factory}
           >
             <LayerLabel>{t.principle.layers.factory}</LayerLabel>
             <div className="pdf-arch-factory pdf-arch-panel">
@@ -956,7 +956,7 @@ export function ArchitecturePrinciple() {
                   fontWeight: 600,
                 }}
               >
-                Pharma Data Factory
+                {t.principle.layers.factory}
               </div>
               <div className="pdf-arch-gov">
                 {FACTORY_CAPABILITIES.map(label => (

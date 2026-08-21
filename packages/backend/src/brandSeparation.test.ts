@@ -9,7 +9,7 @@ function readPublic(name: string): string {
 }
 
 describe('Phase 1 brand separation', () => {
-  it('uses Pharma Data Factory names in the PWA shell, not Backstage', () => {
+  it('uses Nexora names in the PWA shell, not Backstage', () => {
     const html = readPublic('index.html');
     const manifest = JSON.parse(readPublic('manifest.json')) as {
       name: string;
@@ -19,15 +19,15 @@ describe('Phase 1 brand separation', () => {
     };
 
     expect(html).toContain(
-      "config.getOptionalString('app.title') ?? 'Pharma Data Factory'",
+      "config.getOptionalString('app.title') ?? 'Nexora'",
     );
     expect(html).not.toContain("?? 'Backstage'");
-    expect(html).toContain('color="#0D9488"');
+    expect(html).toContain('color="#00C2D9"');
     expect(html).not.toContain('#5bbad5');
     expect(html).toContain('/favicon.svg');
-    expect(manifest.name).toBe('Pharma Data Factory');
+    expect(manifest.name).toBe('Nexora');
     expect(manifest.short_name).not.toMatch(/Backstage/i);
-    expect(manifest.theme_color).toBe('#071426');
+    expect(manifest.theme_color).toBe('#05101C');
     expect(manifest.background_color).toBe('#F4F6F8');
   });
 
@@ -35,12 +35,14 @@ describe('Phase 1 brand separation', () => {
     const safari = readPublic('safari-pinned-tab.svg');
     const favicon = readPublic('favicon.svg');
 
-    expect(safari).toContain('M24 10');
-    expect(safari).toContain('cx="24" cy="22"');
+    expect(safari).toContain('M24 6');
+    expect(safari).toContain('M15.2 33.2');
     expect(safari).not.toMatch(/Backstage/i);
-    expect(favicon).toContain('#0D9488');
-    expect(favicon).toContain('#0B1F3A');
-    expect(favicon).toContain('M24 10 L36 20 L32 34 L16 34 L12 20 Z');
+    expect(favicon).toContain('#00C2D9');
+    expect(favicon).toContain('#0A1929');
+    expect(favicon).toContain(
+      'M24 6 L39.5 14.75 L39.5 33.25 L24 42 L8.5 33.25 L8.5 14.75 Z',
+    );
   });
 
   it('ships the favicon files referenced by index.html', () => {

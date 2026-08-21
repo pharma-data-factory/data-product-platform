@@ -44,7 +44,7 @@ const COPY: Record<
     title: 'Open source',
     body: [
       'REVIEW PLACEHOLDER — NOTICE and THIRD_PARTY_NOTICES text is not counsel-approved yet.',
-      'Pharma Data Factory is a commercial product. Backstage is the open-source framework (Apache-2.0). Apache-2.0 does not grant trademark rights in Backstage®.',
+      'Nexora is a commercial product. Backstage is the open-source framework (Apache-2.0). Apache-2.0 does not grant trademark rights in Backstage®.',
       'Required OSS attribution will be published here after counsel completes the Phase 0 gates. This page does not replace LICENSE or NOTICE files.',
     ],
   },

@@ -377,13 +377,13 @@ export function registrationHtml(result: MarketplaceRegistrationResult): string 
   const next = '/';
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Pharma Data Factory</title></head>
+<head><meta charset="utf-8"><title>Nexora</title></head>
 <body>
   <h1>Marketplace registration</h1>
   <p>${body}</p>
   <p>Status: ${result.status}</p>
   <p>Sign in is required. This step does not create a tenant or grant application access.</p>
-  <p><a href="${next}">Continue to Pharma Data Factory</a></p>
+  <p><a href="${next}">Continue to Nexora</a></p>
 </body>
 </html>`;
 }

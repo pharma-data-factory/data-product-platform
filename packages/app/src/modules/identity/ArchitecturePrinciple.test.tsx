@@ -110,11 +110,11 @@ describe('ArchitecturePrinciple', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('renders the Pharma Data Factory enablement layer', () => {
+  it('renders the Nexora enablement layer', () => {
     render(<ArchitecturePrinciple />);
-    const factory = screen.getByLabelText('Pharma Data Factory');
+    const factory = screen.getByLabelText('Nexora');
 
-    expect(within(factory).getAllByText('Pharma Data Factory').length).toBeGreaterThan(0);
+    expect(within(factory).getAllByText('Nexora').length).toBeGreaterThan(0);
     for (const capability of FACTORY_CAPABILITIES) {
       expect(within(factory).getByText(capability)).toBeInTheDocument();
     }
@@ -165,7 +165,7 @@ describe('ArchitecturePrinciple', () => {
     expect(screen.getByLabelText('Governed interfaces')).toBeInTheDocument();
     expect(screen.getByLabelText('Asset Administration Shell')).toBeInTheDocument();
     expect(screen.getByLabelText('Platform Components')).toBeInTheDocument();
-    expect(screen.getByLabelText('Pharma Data Factory')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nexora')).toBeInTheDocument();
     expect(screen.getByLabelText('Temperature Data Product')).toBeInTheDocument();
     expect(screen.getByText('v1.1')).toBeInTheDocument();
     expect(

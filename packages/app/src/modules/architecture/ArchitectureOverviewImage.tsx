@@ -22,7 +22,7 @@ export function ArchitectureOverviewImage({
         height: 'auto',
         aspectRatio: '1376 / 768',
         objectFit: 'contain',
-        background: '#071525',
+        background: '#05101C',
       }}
     />
   );

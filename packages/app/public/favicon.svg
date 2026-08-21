@@ -1,18 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
   <defs>
-    <linearGradient id="pdf-mark" x1="0" y1="0" x2="48" y2="48">
-      <stop offset="0%" stop-color="#0B1F3A"/>
-      <stop offset="55%" stop-color="#0D9488"/>
-      <stop offset="100%" stop-color="#14B8A6"/>
+    <linearGradient id="nexora-mark" x1="0" y1="0" x2="48" y2="48">
+      <stop offset="0%" stop-color="#0A1929"/>
+      <stop offset="55%" stop-color="#00C2D9"/>
+      <stop offset="100%" stop-color="#5EE4F0"/>
     </linearGradient>
   </defs>
-  <circle cx="24" cy="24" r="20" stroke="url(#pdf-mark)" stroke-width="2" opacity="0.5"/>
-  <path d="M24 10 L36 20 L32 34 L16 34 L12 20 Z" stroke="url(#pdf-mark)" stroke-width="2" fill="none" stroke-linejoin="round"/>
-  <path d="M24 10 L24 22 M12 20 L24 22 M36 20 L24 22 M16 34 L24 22 M32 34 L24 22" stroke="url(#pdf-mark)" stroke-width="1.4" opacity="0.6"/>
-  <circle cx="24" cy="10" r="3.2" fill="#071525" stroke="url(#pdf-mark)" stroke-width="2"/>
-  <circle cx="36" cy="20" r="3.2" fill="#071525" stroke="url(#pdf-mark)" stroke-width="2"/>
-  <circle cx="32" cy="34" r="3.2" fill="#071525" stroke="url(#pdf-mark)" stroke-width="2"/>
-  <circle cx="16" cy="34" r="3.2" fill="#071525" stroke="url(#pdf-mark)" stroke-width="2"/>
-  <circle cx="12" cy="20" r="3.2" fill="#071525" stroke="url(#pdf-mark)" stroke-width="2"/>
-  <circle cx="24" cy="22" r="3.6" fill="url(#pdf-mark)"/>
+  <path d="M24 6 L39.5 14.75 L39.5 33.25 L24 42 L8.5 33.25 L8.5 14.75 Z" stroke="url(#nexora-mark)" stroke-width="2" fill="#05101C" stroke-linejoin="round"/>
+  <path d="M16 32.5 V15.5 M32 15.5 V32.5 M16 15.5 L32 32.5" stroke="#00C2D9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="16" cy="15.5" r="2.2" fill="#05101C" stroke="#5EE4F0" stroke-width="1.6"/>
+  <circle cx="16" cy="32.5" r="2.2" fill="#05101C" stroke="#5EE4F0" stroke-width="1.6"/>
+  <circle cx="32" cy="15.5" r="2.2" fill="#05101C" stroke="#5EE4F0" stroke-width="1.6"/>
+  <circle cx="32" cy="32.5" r="2.2" fill="#05101C" stroke="#5EE4F0" stroke-width="1.6"/>
 </svg>

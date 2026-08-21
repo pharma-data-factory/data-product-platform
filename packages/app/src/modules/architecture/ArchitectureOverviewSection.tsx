@@ -69,7 +69,7 @@ export function ArchitectureOverviewSection() {
             overflow: 'hidden',
             border: `1px solid ${C.border}`,
             boxShadow: '0 16px 48px rgba(11, 31, 58, 0.10)',
-            background: '#071525',
+            background: '#05101C',
           }}
         >
           <ArchitectureOverviewImage />

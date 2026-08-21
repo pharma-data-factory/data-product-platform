@@ -15,7 +15,7 @@ describe('ArchitectureOverviewSection', () => {
     expect(screen.getByLabelText('Architecture overview')).toBeInTheDocument();
     expect(screen.getByText('FROM PRINCIPLE TO ARCHITECTURE')).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'How Pharma Data Factory works' }),
+      screen.getByRole('heading', { name: 'How Nexora works' }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/governed engineering layer for building/i),

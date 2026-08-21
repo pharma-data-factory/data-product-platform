@@ -102,7 +102,7 @@ function Hero() {
           How a developer builds a Data Product.
         </h1>
         <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
-          The public architecture story explains why Pharma Data Factory exists.
+          The public architecture story explains why Nexora exists.
           This page explains how a developer uses Catalog, Marketplace, Create,
           Golden Paths and Platform Components to ship an independently running
           Data Product.
@@ -153,7 +153,7 @@ function DiagramSection() {
             borderRadius: 16,
             overflow: 'hidden',
             border: `1px solid ${C.border}`,
-            background: '#071525',
+            background: '#05101C',
           }}
         >
           <DeveloperArchitectureDiagram />

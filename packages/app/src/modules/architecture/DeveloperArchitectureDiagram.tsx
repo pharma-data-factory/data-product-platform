@@ -60,10 +60,10 @@ export function DeveloperArchitectureDiagram() {
     <svg
       viewBox="0 0 920 720"
       role="img"
-      aria-label="Developer architecture: Pharma Data Factory Control Plane with Catalog, Marketplace and Create leading to a Golden Path, composition manifest, Platform Components, generated Data Product and independent runtime"
+      aria-label="Developer architecture: Nexora Control Plane with Catalog, Marketplace and Create leading to a Golden Path, composition manifest, Platform Components, generated Data Product and independent runtime"
       style={{ width: '100%', height: 'auto', display: 'block' }}
     >
-      <rect width="920" height="720" fill="#071525" />
+      <rect width="920" height="720" fill="#05101C" />
       <Box
         x={200}
         y={20}

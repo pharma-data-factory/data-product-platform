@@ -289,7 +289,7 @@ const en: LandingCopy = {
   why: {
     eyebrow: 'Why it exists',
     title: 'Do not customize the operational core.',
-    body: 'ERP, MES, LIMS and EWM remain systems of record, close to standard. Pharma Data Factory is the governed layer where Data Products evolve independently.',
+    body: 'ERP, MES, LIMS and EWM remain systems of record, close to standard. Nexora is the governed layer where Data Products evolve independently.',
     forWhom:
       'Designed for pharmaceutical, biotech, and CDMO teams that need Data Products without a large platform-engineering organization.',
     systemOfRecord: 'System of record',
@@ -369,8 +369,8 @@ const en: LandingCopy = {
   },
   overview: {
     eyebrow: 'FROM PRINCIPLE TO ARCHITECTURE',
-    title: 'How Pharma Data Factory works',
-    body: 'Pharma Data Factory creates a governed engineering layer for building, operating and discovering Data Products around existing ERP, MES, LIMS, EWM, Historian, CMO and other IT/OT platforms.',
+    title: 'How Nexora works',
+    body: 'Nexora creates a governed engineering layer for building, operating and discovering Data Products around existing ERP, MES, LIMS, EWM, Historian, CMO and other IT/OT platforms.',
     cta: 'Explore the Architecture',
     concepts: EN_CONCEPTS,
   },
@@ -380,7 +380,7 @@ const en: LandingCopy = {
     body1:
       'Keep ERP, MES, LIMS, EWM, CMO platforms and other IT/OT systems stable and close to standard.',
     body2:
-      'Pharma Data Factory adds a governed digital layer around those systems: assets are described semantically, operational data flows through governed interfaces, reusable components provide technical capabilities, and Golden Paths turn them into independently evolving Data Products.',
+      'Nexora adds a governed digital layer around those systems: assets are described semantically, operational data flows through governed interfaces, reusable components provide technical capabilities, and Golden Paths turn them into independently evolving Data Products.',
     finale: 'Keep core systems standard.\nCompose digital capabilities.\nDeliver governed Data Products.',
     benefits: EN_ARCHITECTURE_BENEFITS,
     certified: 'Certified',
@@ -393,7 +393,7 @@ const en: LandingCopy = {
     sectionLabel: 'Architecture principle',
     benefitsLabel: 'Architecture benefits',
     srOnly:
-      'Systems of record remain ERP, MES, LIMS, EWM, historian, CMO platforms, PLC, SCADA and other IT/OT. AAS explains what an asset is and what its data means. Unified Namespace governs where operational data flows. Certified Platform Components provide reusable capabilities. Golden Paths compose them into independently evolving Data Products. Pharma Data Factory is the Control Plane. It does not replace source systems, does not store time-series in AAS, and does not process all operational data.',
+      'Systems of record remain ERP, MES, LIMS, EWM, historian, CMO platforms, PLC, SCADA and other IT/OT. AAS explains what an asset is and what its data means. Unified Namespace governs where operational data flows. Certified Platform Components provide reusable capabilities. Golden Paths compose them into independently evolving Data Products. Nexora is the Control Plane. It does not replace source systems, does not store time-series in AAS, and does not process all operational data.',
     mapsTo: 'maps to',
     dataProductKind: 'Data Product',
     layers: {
@@ -403,7 +403,7 @@ const en: LandingCopy = {
       components: 'Platform Components',
       goldenPaths: 'Golden Paths',
       products: 'Data products',
-      factory: 'Pharma Data Factory',
+      factory: 'Nexora',
     },
     captions: {
       stableCore: 'Standard & stable IT/OT core',
@@ -509,7 +509,7 @@ const de: LandingCopy = {
   why: {
     eyebrow: 'Warum es existiert',
     title: 'Den operativen Kern nicht anpassen.',
-    body: 'ERP, MES, LIMS und EWM bleiben Systeme of Record, nah am Standard. Pharma Data Factory ist die gesteuerte Schicht, in der Data Products unabhängig entstehen.',
+    body: 'ERP, MES, LIMS und EWM bleiben Systeme of Record, nah am Standard. Nexora ist die gesteuerte Schicht, in der Data Products unabhängig entstehen.',
     forWhom:
       'Für Pharma-, Biotech- und CDMO-Teams, die Data Products brauchen — ohne große Platform-Engineering-Organisation.',
     systemOfRecord: 'System of Record',
@@ -665,8 +665,8 @@ const de: LandingCopy = {
   },
   overview: {
     eyebrow: 'VOM PRINZIP ZUR ARCHITEKTUR',
-    title: 'So arbeitet Pharma Data Factory',
-    body: 'Pharma Data Factory schafft eine gesteuerte Engineering-Schicht zum Bauen, Betreiben und Finden von Data Products rund um bestehende ERP-, MES-, LIMS-, EWM-, Historian-, CMO- und andere IT/OT-Plattformen.',
+    title: 'So arbeitet Nexora',
+    body: 'Nexora schafft eine gesteuerte Engineering-Schicht zum Bauen, Betreiben und Finden von Data Products rund um bestehende ERP-, MES-, LIMS-, EWM-, Historian-, CMO- und andere IT/OT-Plattformen.',
     cta: 'Architektur ansehen',
     concepts: {
       'standard-core': {
@@ -689,7 +689,7 @@ const de: LandingCopy = {
     body1:
       'Halten Sie ERP, MES, LIMS, EWM, CMO-Plattformen und andere IT/OT-Systeme stabil und nah am Standard.',
     body2:
-      'Pharma Data Factory ergänzt eine gesteuerte digitale Schicht um diese Systeme: Assets werden semantisch beschrieben, Betriebsdaten fließen über gesteuerte Schnittstellen, wiederverwendbare Komponenten liefern technische Fähigkeiten, und Golden Paths machen daraus unabhängig evolvierende Data Products.',
+      'Nexora ergänzt eine gesteuerte digitale Schicht um diese Systeme: Assets werden semantisch beschrieben, Betriebsdaten fließen über gesteuerte Schnittstellen, wiederverwendbare Komponenten liefern technische Fähigkeiten, und Golden Paths machen daraus unabhängig evolvierende Data Products.',
     finale: 'Kernsysteme standardisiert halten.\nDigitale Fähigkeiten kombinieren.\nGesteuerte Data Products liefern.',
     benefits: [
       'Weniger unnötige Kernanpassungen',
@@ -709,7 +709,7 @@ const de: LandingCopy = {
     sectionLabel: 'Architekturprinzip',
     benefitsLabel: 'Architekturnutzen',
     srOnly:
-      'Systeme of Record bleiben ERP, MES, LIMS, EWM, Historian, CMO-Plattformen, PLC, SCADA und andere IT/OT. AAS erklärt, was ein Asset ist und was seine Daten bedeuten. Unified Namespace steuert, wo Betriebsdaten fließen. Zertifizierte Platform Components liefern wiederverwendbare Fähigkeiten. Golden Paths kombinieren sie zu unabhängig evolvierenden Data Products. Pharma Data Factory ist die Control Plane. Sie ersetzt keine Quellsysteme, speichert keine Zeitreihen in AAS und verarbeitet nicht alle Betriebsdaten.',
+      'Systeme of Record bleiben ERP, MES, LIMS, EWM, Historian, CMO-Plattformen, PLC, SCADA und andere IT/OT. AAS erklärt, was ein Asset ist und was seine Daten bedeuten. Unified Namespace steuert, wo Betriebsdaten fließen. Zertifizierte Platform Components liefern wiederverwendbare Fähigkeiten. Golden Paths kombinieren sie zu unabhängig evolvierenden Data Products. Nexora ist die Control Plane. Sie ersetzt keine Quellsysteme, speichert keine Zeitreihen in AAS und verarbeitet nicht alle Betriebsdaten.',
     mapsTo: 'entspricht',
     dataProductKind: 'Data Product',
     layers: {
@@ -719,7 +719,7 @@ const de: LandingCopy = {
       components: 'Platform Components',
       goldenPaths: 'Golden Paths',
       products: 'Data Products',
-      factory: 'Pharma Data Factory',
+      factory: 'Nexora',
     },
     captions: {
       stableCore: 'Standardisiertes, stabiles IT/OT-Kernsystem',

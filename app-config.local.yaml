@@ -6,4 +6,4 @@
 #   yarn start --config app-config.yaml --config app-config.github.yaml
 
 app:
-  title: Pharma Data Factory
+  title: Nexora

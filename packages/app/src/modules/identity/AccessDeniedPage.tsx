@@ -1,6 +1,6 @@
 import { Button } from '@material-ui/core';
 import { BrandMark } from '../nav/BrandMark';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
+import { BRAND_WORDMARK, C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import { ACCESS_DENIED_MESSAGE } from './authErrors';
 
 export interface AccessDeniedPageProps {
@@ -50,7 +50,7 @@ export function AccessDeniedPage({
             color: PHARMA_NAVY,
           }}
         >
-          pharma-data-factory
+          {BRAND_WORDMARK}
         </p>
         <p
           style={{

@@ -83,7 +83,7 @@ const useStyles = makeStyles({
     padding: '10px 14px',
   },
   pre: {
-    background: '#0B1F3A',
+    background: '#0A1929',
     borderRadius: 12,
     color: '#E2E8F0',
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",

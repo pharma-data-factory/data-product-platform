@@ -27,7 +27,7 @@
     {
       "key": "platform-core",
       "productId": "platform.core",
-      "displayName": "Pharma Data Factory Control Plane",
+      "displayName": "Nexora Control Plane",
       "productType": "PLATFORM",
       "catalogRef": "component:default/data-product-platform",
       "editions": ["PLATFORM", "SAAS"],

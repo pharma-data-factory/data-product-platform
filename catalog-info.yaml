@@ -2,7 +2,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: data-product-platform
-  title: Pharma Data Factory
+  title: Nexora
   description: Standalone Data Product Factory built on Backstage.
   annotations:
     backstage.io/techdocs-ref: dir:.

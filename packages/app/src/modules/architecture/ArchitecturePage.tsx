@@ -14,7 +14,6 @@ import {
   FullPlatformStackDiagram,
   FutureIntelligenceDiagram,
   GoldenPathLifecycleDiagram,
-  HeroArchitectureDiagram,
   PlatformComponentCompositionDiagram,
   StoryDataProductCards,
   SystemOfRecordToConsumerDiagram,
@@ -125,7 +124,7 @@ export function ArchitecturePage({
         eyebrow="CONTROL PLANE VS DATA PLANE"
         title="Governance around independently running products"
         diagram={<ControlPlaneVsDataPlaneDiagram />}
-        what="Pharma Data Factory is the Control Plane for build, release, discovery and operation metadata."
+        what="Nexora is the Control Plane for build, release, discovery and operation metadata."
         why="Engineering governance must not become a second operational runtime."
         how="Catalog, Create, Marketplace, Golden Paths, contracts, quality, CI/CD, TechDocs, Search, RBAC and Developer Hub sit in the Control Plane."
         decoupled="Operational data stays on governed interfaces and in Data Product runtimes. The Control Plane does not replace ERP, MES, LIMS or EWM."
@@ -145,10 +144,10 @@ export function ArchitecturePage({
         eyebrow="SYSTEM ARCHITECTURE"
         title="From core systems to Data Products"
         diagram={<SystemArchitectureDiagram />}
-        what="It shows how operational systems, governed interfaces, the Pharma Data Factory control plane, and Data Products sit in layers."
+        what="It shows how operational systems, governed interfaces, the Nexora control plane, and Data Products sit in layers."
         why="Manufacturing IT needs a clear picture of where innovation happens without changing the system of record."
         how="Core systems expose controlled APIs, events, MQTT, REST, files and streams. The control plane applies Golden Paths, contracts, quality, compatibility, CI/CD, catalog and governance. Data Products consume those interfaces."
-        decoupled="ERP, MES, LIMS, EWM, historians and CMO platforms remain the systems of record. Pharma Data Factory does not replace them or read their databases directly."
+        decoupled="ERP, MES, LIMS, EWM, historians and CMO platforms remain the systems of record. Nexora does not replace them or read their databases directly."
       />
       <DiagramSection
         id="data-product-runtime"
@@ -167,7 +166,7 @@ export function ArchitecturePage({
         diagram={<DeveloperFlowDiagram />}
         what="A developer starts from a certified Golden Path, generates a GitHub repository, and gets CI/CD, contract tests, quality tests, compatibility tests, Docker, catalog registration and documentation by default."
         why="Teams without a large platform-engineering organization still need a repeatable, governed path to production-quality Data Products."
-        how="Pharma Data Factory provisions the Golden Path. GitHub holds source and pipelines. Catalog and TechDocs make the product discoverable after tests pass."
+        how="Nexora provisions the Golden Path. GitHub holds source and pipelines. Catalog and TechDocs make the product discoverable after tests pass."
         decoupled="Generated Data Products run independently of the control plane. Governance metadata lives with the product, not inside the source system."
       />
       <DiagramSection
@@ -246,7 +245,7 @@ function OverviewHero() {
           Innovate Through Data Products.
         </h1>
         <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
-          Pharma Data Factory does not replace ERP, MES, LIMS, EWM, Historians,
+          Nexora does not replace ERP, MES, LIMS, EWM, Historians,
           CMO platforms or other operational IT/OT systems.
         </p>
         <p style={{ marginTop: 12, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
@@ -259,18 +258,7 @@ function OverviewHero() {
             borderRadius: 16,
             overflow: 'hidden',
             border: '1px solid rgba(255,255,255,0.12)',
-            background: '#071525',
-          }}
-        >
-          <HeroArchitectureDiagram />
-        </figure>
-        <figure
-          style={{
-            margin: '24px 0 0',
-            borderRadius: 16,
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: '#071525',
+            background: '#05101C',
           }}
         >
           <ArchitectureOverviewImage priority />
@@ -284,7 +272,7 @@ function BoundarySection() {
   const items = [
     {
       title: 'SYSTEM OF RECORD',
-      body: 'ERP, MES, LIMS, EWM, historians and CMO platforms remain the operational source. They stay stable and close to standard. Pharma Data Factory does not own that data and does not connect to those databases directly.',
+      body: 'ERP, MES, LIMS, EWM, historians and CMO platforms remain the operational source. They stay stable and close to standard. Nexora does not own that data and does not connect to those databases directly.',
     },
     {
       title: 'DATA PRODUCT',
@@ -492,7 +480,7 @@ function ArchitectureCta({ onSignIn }: { onSignIn?: () => void }) {
       <p style={{ margin: '16px auto 0', maxWidth: 560, color: '#CBD5E1', lineHeight: 1.7 }}>
         {onSignIn
           ? 'Continue to Golden Paths, return to the public landing, or sign in to the Control Plane.'
-          : 'Return to the public landing to continue exploring Pharma Data Factory.'}
+          : 'Return to the public landing to continue exploring Nexora.'}
       </p>
       <div
         style={{
