@@ -130,9 +130,9 @@ Expected CI Quality Gate values from the latest GitHub Actions workflow:
 - RUNNING
 - CANCELLED
 - UNKNOWN
+- **Actions: Read-only**
 
-UNKNOWN means the GitHub App cannot read Actions (missing **Actions:
-Read-only**) or GitHub is unavailable. That is not a product quality failure.
+UNKNOWN means the GitHub App cannot read Actions (missing **Actions: Read-only**) or GitHub is unavailable. That is not a product quality failure.
 
 Reference repository used in earlier demos:
 `pharma-data-factory/cold-room-temperature`.

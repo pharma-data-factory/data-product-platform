@@ -43,7 +43,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Python SDK
-        run: python -m pip install -e packages/data-product-sdk
+        run: python -m pip install pydantic 'jsonschema[format]' -e packages/data-product-sdk
 
       - name: Unit tests
         run: yarn test:all --watchAll=false

@@ -228,14 +228,16 @@ export class MemoryAasRepository {
 }
 
 export function defaultSeedPath(): string {
-  const relative =
-    'platform-components/asset-semantic/aas-foundation/examples/filler-01.json';
-  const candidates = [
+  const relatives = [
+    'platform-components/asset-semantic/aas-foundation/src/pdf_aas/data/filler-01.json',
+    'platform-components/asset-semantic/aas-foundation/examples/filler-01.json',
+  ];
+  const candidates = relatives.flatMap(relative => [
     path.resolve(process.cwd(), relative),
     path.resolve(process.cwd(), '..', relative),
     path.resolve(process.cwd(), '../..', relative),
     resolvePackagePath('backend', `../../${relative}`),
-  ];
+  ]);
   const match = candidates.find(item => fs.existsSync(item));
   if (!match) {
     throw new Error('AAS seed file filler-01.json was not found');
