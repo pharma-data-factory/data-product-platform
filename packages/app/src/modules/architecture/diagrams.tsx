@@ -15,12 +15,12 @@ type NodeTone = 'core' | 'interface' | 'factory' | 'product' | 'consumer' | 'ste
 
 const TONE: Record<NodeTone, { bg: string; border: string; color: string }> = {
   core: { bg: '#F8FAFC', border: C.border, color: PHARMA_NAVY },
-  interface: { bg: 'rgba(13,148,136,0.08)', border: 'rgba(13,148,136,0.35)', color: PHARMA_NAVY },
+  interface: { bg: 'rgba(0,194,217,0.08)', border: 'rgba(0,194,217,0.35)', color: PHARMA_NAVY },
   factory: { bg: PHARMA_NAVY, border: PHARMA_NAVY, color: '#F8FAFC' },
-  product: { bg: '#FFFFFF', border: 'rgba(13,148,136,0.45)', color: PHARMA_NAVY },
+  product: { bg: '#FFFFFF', border: 'rgba(0,194,217,0.45)', color: PHARMA_NAVY },
   consumer: { bg: '#EEF2F6', border: C.border, color: PHARMA_NAVY },
   step: { bg: '#FFFFFF', border: C.border, color: PHARMA_NAVY },
-  ok: { bg: 'rgba(13,148,136,0.10)', border: PHARMA_TEAL, color: PHARMA_NAVY },
+  ok: { bg: 'rgba(0,194,217,0.10)', border: PHARMA_TEAL, color: PHARMA_NAVY },
   break: { bg: '#FEF2F2', border: '#FECACA', color: '#7F1D1D' },
 };
 
@@ -34,6 +34,18 @@ export function ArchitectureDiagramStyles() {
         border-radius: 16px;
         padding: 24px;
         overflow: hidden;
+      }
+      .pdf-diag-compact {
+        padding: 16px;
+      }
+      .pdf-diag-compact .pdf-diag-layer {
+        padding: 12px 14px;
+      }
+      .pdf-diag-compact .pdf-diag-layer-title {
+        margin: 0 0 8px;
+      }
+      .pdf-diag-compact .pdf-diag-stack {
+        gap: 8px;
       }
       .pdf-diag-stack {
         display: flex;
@@ -355,7 +367,7 @@ export function DiagramExplanation({
       }}
     >
       {items.map(([title, body]) => (
-        <div key={title} className="pdf-card" style={{ padding: 20, margin: 0 }}>
+        <div key={title} className="pdf-card" style={{ padding: 16, margin: 0 }}>
           <dt
             className="pdf-mono"
             style={{

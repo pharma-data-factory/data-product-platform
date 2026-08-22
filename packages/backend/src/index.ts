@@ -30,6 +30,7 @@ backend.add(import('@internal/plugin-data-products-backend'));
 backend.add(catalogModuleCertificationOverlay);
 backend.add(aasPlugin);
 backend.add(import('@internal/plugin-entitlements-backend'));
+backend.add(import('@internal/plugin-nexora-backend'));
 
 backend.add(import('@backstage/plugin-search-backend'));
 backend.add(import('@backstage/plugin-search-backend-module-catalog'));

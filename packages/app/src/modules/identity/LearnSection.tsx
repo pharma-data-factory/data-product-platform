@@ -22,8 +22,8 @@ function AssemblyDiagram() {
             <span
               className="pdf-diag-node"
               style={{
-                background: index === t.learn.assemblySteps.length - 1 ? '#FFFFFF' : 'rgba(13,148,136,0.08)',
-                border: `1px solid ${index === t.learn.assemblySteps.length - 1 ? 'rgba(13,148,136,0.45)' : 'rgba(13,148,136,0.35)'}`,
+                background: index === t.learn.assemblySteps.length - 1 ? '#FFFFFF' : 'rgba(0,194,217,0.08)',
+                border: `1px solid ${index === t.learn.assemblySteps.length - 1 ? 'rgba(0,194,217,0.45)' : 'rgba(0,194,217,0.35)'}`,
                 color: PHARMA_NAVY,
               }}
             >
@@ -42,7 +42,7 @@ function AssemblyDiagram() {
             className="pdf-diag-node"
             style={{
               background: '#FFFFFF',
-              border: '1px solid rgba(13,148,136,0.45)',
+              border: '1px solid rgba(0,194,217,0.45)',
               color: PHARMA_NAVY,
             }}
           >

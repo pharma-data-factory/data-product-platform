@@ -4,7 +4,8 @@ OEE Data Product. Calculates Availability × Performance × Quality per equipmen
 from MES production context (REST) and machine events (MQTT).
 
 This runtime does **not** require Backstage. CERTIFIED on the Golden Path is
-technical platform status only. It is not GxP validation.
+technical platform status only. It is not GxP validation. MES remains System
+of Record. See `PRODUCT.md`.
 
 Pilot limitations: single instance, SQLite, no HA, no UNS/AAS dependency, no Kafka, no AI.
 
@@ -29,4 +30,4 @@ python examples/simulate.py --scenario A
 ```
 
 Inspect `GET /api/v1/oee/filler-01?window=custom&from=2026-08-21T08:00:00Z&to=2026-08-21T09:00:00Z`,
-`GET /api/v1/quality`, and `GET /api/v1/platform-metadata`.
+`GET /api/v1/losses`, `GET /api/v1/quality`, and `GET /api/v1/platform-metadata`.

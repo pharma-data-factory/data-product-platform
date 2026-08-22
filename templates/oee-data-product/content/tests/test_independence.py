@@ -5,7 +5,7 @@ APP = Path(__file__).resolve().parents[1] / "app"
 
 
 def test_domain_does_not_import_wave1_or_backstage() -> None:
-    for path in DOMAIN.glob("*.py"):
+    for path in DOMAIN.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert "pdf_" not in text
         assert "sqlite3" not in text

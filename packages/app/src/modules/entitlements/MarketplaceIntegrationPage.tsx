@@ -117,7 +117,8 @@ export function MarketplaceIntegrationPage() {
               create tenants or choose an organization from an untrusted
               browser POST.
             </Typography>
-            <Table>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+            <Table style={{ minWidth: 640 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Status</TableCell>
@@ -179,6 +180,7 @@ export function MarketplaceIntegrationPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </InfoCard>
         )}
       </Content>

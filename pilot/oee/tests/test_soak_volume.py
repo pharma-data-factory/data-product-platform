@@ -80,7 +80,7 @@ def test_accelerated_soak_eight_hours_event_time(oee_client: TestClient) -> None
         assert result.status_code == 200
         body = result.json()
         assert body["oee"] == 1.0
-        assert body["calculationStatus"] == "VALID"
+        assert body["calculationStatus"] == "COMPLETE"
     assert published == SOAK_HOURS * 5
     from app.main import ingest
 

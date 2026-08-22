@@ -72,7 +72,13 @@ function PlatformSidebar({ navItems }: NavContentComponentProps) {
           {nav.take('page:app/platform-components')}
           {nav.take('page:app/compose')}
           {nav.take('page:app/assets')}
+          {nav.take('page:nexora-assets')}
+          {nav.take('page:nexora-assets/detail')}
           {nav.take('page:data-products')}
+          {nav.take('page:nexora-contracts')}
+          {nav.take('page:nexora-contracts/detail')}
+          {nav.take('page:nexora-quality')}
+          {nav.take('page:nexora-quality/detail')}
           {nav.take('page:app/my-access')}
           {canExecuteScaffolder(role) ? createItem : null}
           <SidebarDivider />

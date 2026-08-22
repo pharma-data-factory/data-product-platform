@@ -204,7 +204,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     category: 'Data Products',
     version: '1.0.0',
     description:
-      'OEE Golden Path 1.0. Availability × Performance × Quality from MES REST and machine MQTT. Technical CERTIFIED only; not GxP validated. Not listed on AWS Marketplace.',
+      'Overall Equipment Effectiveness for one equipment and time window. Availability × Performance × Quality from MES production context (REST) and machine events (MQTT). Published as oee-result 1.0.0. Technical CERTIFIED only; not GxP validated.',
     provider: 'Nexora',
     compatibility: 'Python 3.12+, MQTT, REST, Docker, Wave 1 components',
     status: 'available',
@@ -218,7 +218,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     category: 'Connectors',
     version: '0.1.0',
     description:
-      'Catalog placeholder for a reusable REST connector. Template coming in a later release.',
+      'Reusable REST ingest building block: poll a governed HTTP source, validate a contract, and feed Data Products. Template not generated in this release; REST Equipment already proves the pattern.',
     provider: 'Nexora',
     compatibility: 'HTTP APIs',
     status: 'preview',
@@ -231,7 +231,7 @@ export const marketplaceItems: MarketplaceItem[] = [
     category: 'Connectors',
     version: '0.1.0',
     description:
-      'Catalog placeholder only. Snowflake integration is out of scope for the MVP.',
+      'Warehouse product: certified plant contracts (temperature, equipment, OEE) would land in Snowflake as versioned tables. No live Snowflake connectivity and no Create template in this release.',
     provider: 'Nexora',
     compatibility: 'Future release',
     status: 'preview',

@@ -59,6 +59,13 @@ const useStyles = makeStyles({
     gap: 8,
     marginBottom: 16,
   },
+  tableWrap: {
+    overflowX: 'auto',
+    width: '100%',
+  },
+  table: {
+    minWidth: 640,
+  },
 });
 
 export function ReleaseCatalogPage() {
@@ -79,8 +86,9 @@ export function ReleaseCatalogPage() {
           <p className={classes.copy}>
             Official Golden Path versions from version-controlled release
             metadata. CERTIFIED means technical conformance. RELEASED means
-            approved for consumption. Neither is GxP validation. Distribution
-            is not entitlement.
+            approved for consumption. Technical certification — not GMP
+            validation. Neither is GxP validation. Distribution is not
+            entitlement. Platform validation status remains NOT_VALIDATED.
           </p>
         </section>
         <div className={classes.card}>
@@ -105,18 +113,15 @@ export function ReleaseCatalogPage() {
           </div>
           <Grid container>
             <Grid item xs={12}>
-              <Table>
+              <div className={classes.tableWrap}>
+              <Table className={classes.table}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Golden Path</TableCell>
                     <TableCell>Version</TableCell>
                     <TableCell>Lifecycle</TableCell>
                     <TableCell>Certification</TableCell>
-                    <TableCell>Standard</TableCell>
-                    <TableCell>SDK</TableCell>
-                    <TableCell>Release Date</TableCell>
                     <TableCell>Distribution</TableCell>
-                    <TableCell>Upgrade Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -134,15 +139,12 @@ export function ReleaseCatalogPage() {
                       </TableCell>
                       <TableCell>{row.lifecycle}</TableCell>
                       <TableCell>{row.certification}</TableCell>
-                      <TableCell>{row.standard}</TableCell>
-                      <TableCell>{row.sdk}</TableCell>
-                      <TableCell>{row.releaseDate}</TableCell>
                       <TableCell>{row.distribution}</TableCell>
-                      <TableCell>{row.upgradeStatus}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </Grid>
           </Grid>
         </div>

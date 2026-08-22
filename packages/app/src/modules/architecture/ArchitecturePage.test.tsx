@@ -122,6 +122,15 @@ describe('ArchitecturePage', () => {
     expect(screen.getAllByText('HOW IT CONNECTS').length).toBe(12);
     expect(screen.getAllByText('WHAT REMAINS DECOUPLED').length).toBe(12);
     expect(screen.getByLabelText('Architectural boundary')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Internal Developer Platform fundamentals'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Platform and architecture features'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('SELF-SERVICE')).toBeInTheDocument();
+    expect(screen.getByText('DISCOVER')).toBeInTheDocument();
+    expect(screen.getByText('CREATE')).toBeInTheDocument();
     expect(screen.getByLabelText('Compatible contract change')).toBeInTheDocument();
     expect(screen.getByLabelText('Breaking contract change')).toBeInTheDocument();
   });

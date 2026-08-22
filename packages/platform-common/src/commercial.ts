@@ -54,11 +54,49 @@ export interface PricingModel {
 
 export type GoldenPathAvailability = 'current' | 'future';
 
+export const GOLDEN_PATH_CATEGORIES = [
+  'Telemetry',
+  'Equipment',
+  'Performance',
+  'Integration',
+] as const;
+
+export type GoldenPathCategory = (typeof GOLDEN_PATH_CATEGORIES)[number];
+
 export interface GoldenPathShowcaseItem {
   id: string;
   name: string;
   statusLabel: string;
   availability: GoldenPathAvailability;
+  category: GoldenPathCategory;
+  version?: string;
+}
+
+export function filterGoldenPaths(
+  paths: readonly GoldenPathShowcaseItem[],
+  query: string,
+  category: GoldenPathCategory | 'All',
+  extraText: Record<string, string> = {},
+): GoldenPathShowcaseItem[] {
+  const needle = query.trim().toLowerCase();
+  return paths.filter(path => {
+    if (category !== 'All' && path.category !== category) {
+      return false;
+    }
+    if (!needle) {
+      return true;
+    }
+    const haystack = [
+      path.id,
+      path.name,
+      path.category,
+      path.statusLabel,
+      extraText[path.id] ?? '',
+    ]
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
 }
 
 export const LEGAL_DISTRIBUTION_STATUS = {
@@ -180,18 +218,24 @@ export const CERTIFIED_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
     name: 'MQTT Temperature Data Product',
     statusLabel: 'CERTIFIED',
     availability: 'current',
+    category: 'Telemetry',
+    version: '1.0',
   },
   {
     id: 'rest-equipment',
     name: 'REST Equipment Data Product',
     statusLabel: 'CERTIFIED',
     availability: 'current',
+    category: 'Equipment',
+    version: '1.0',
   },
   {
     id: 'oee',
     name: 'OEE Data Product',
     statusLabel: 'CERTIFIED',
     availability: 'current',
+    category: 'Performance',
+    version: '1.0',
   },
 ];
 
@@ -201,19 +245,27 @@ export const FUTURE_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
     name: 'Snowflake',
     statusLabel: 'PLANNED / FUTURE',
     availability: 'future',
+    category: 'Integration',
   },
   {
     id: 'sap',
     name: 'SAP',
     statusLabel: 'PLANNED / FUTURE',
     availability: 'future',
+    category: 'Integration',
   },
   {
     id: 'cold-chain',
     name: 'Cold Chain',
     statusLabel: 'PLANNED / FUTURE',
     availability: 'future',
+    category: 'Telemetry',
   },
+];
+
+export const SHOWCASE_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
+  ...CERTIFIED_GOLDEN_PATHS,
+  ...FUTURE_GOLDEN_PATHS,
 ];
 
 export const PLATFORM_CAPABILITIES = [

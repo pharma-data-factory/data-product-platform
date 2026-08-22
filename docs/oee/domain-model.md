@@ -188,7 +188,7 @@ Guards:
 
 Do **not** silently clamp Availability, Quality, or Performance.
 Availability and Quality outside `[0, 1]` after valid inputs indicate a
-bug (fail the calculation as `INVALID_INPUT`). Performance **may exceed
+bug (fail the calculation as `INSUFFICIENT_OBSERVATION`). Performance **may exceed
 1.0**. Invalid source data is rejected by quality checks, not rewritten.
 
 Published ratios: 4 decimal places, round half up, on the output

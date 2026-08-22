@@ -7,7 +7,6 @@ GET "/api/v1/quality" and GET "/api/v1/platform-metadata".
 """
 
 from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -18,13 +17,18 @@ from pdf_rest_api import create_rest_app
 from pdf_rest_source import RestSource, RestSourceSettings
 from pdf_timeseries import SqliteTimeSeriesStore, TimeSeriesSettings
 
+from app.capabilities import capability_registry
 from app.config import settings
 from app.domain import calculate_oee
-from app.domain.models import OeeInputs
+from app.domain.losses import context_matches, merge_context
+from app.domain.models import MachineStateEvent, OeeInputs, ProductionContextFilter
 from app.domain.quality import now_utc, window_is_valid
-from app.domain.windows import default_window, ensure_utc, parse_window_kind
+from app.domain.windows import default_window, parse_window_kind
 from app.ingest import IngestService
+from app.loss_routes import bind_loss_routes
+from app.loss_service import LossService
 from app.quality import evaluate
+from app.query import context_filter, parse_time
 from app.store import OeeEventStore
 from dataprod.metadata import platform_metadata
 
@@ -36,12 +40,41 @@ ts_store = SqliteTimeSeriesStore(
 events = OeeEventStore(ts_store)
 rest_source = RestSource(RestSourceSettings(), observability=obs)
 ingest = IngestService(events, rest_source, obs)
-mqtt = MqttConsumer(
-    MqttConsumerSettings(topic=settings.mqtt_topic, client_id=settings.service_name),
-    on_message=ingest.ingest_mqtt,
-    observability=obs,
-)
+loss_service = LossService(events)
+
+
+def _usable_topic(value: str | None) -> bool:
+    return bool(value) and not str(value).startswith("${{")
+
+
+def mqtt_topics() -> list[str]:
+    topics: list[str] = []
+    for value in (settings.machine_state_topic, settings.counter_topic, settings.mqtt_topic):
+        if _usable_topic(value) and value not in topics:
+            topics.append(value)
+    if not topics:
+        topics.append(settings.mqtt_topic or "#")
+    return topics
+
+
+mqtt_consumers = [
+    MqttConsumer(
+        MqttConsumerSettings(topic=topic, client_id=f"{settings.service_name}-{index}"),
+        on_message=ingest.ingest_mqtt,
+        observability=obs,
+    )
+    for index, topic in enumerate(mqtt_topics())
+]
+mqtt = mqtt_consumers[0]
 router = APIRouter()
+
+
+def _mqtt_health() -> HealthCheckResult:
+    results = [consumer.health_check() for consumer in mqtt_consumers]
+    down = next((item for item in results if item.status == "DOWN"), None)
+    if down is not None:
+        return HealthCheckResult(name="mqtt", status="DOWN", detail=down.detail)
+    return results[0]
 
 
 def _storage_health() -> HealthCheckResult:
@@ -58,16 +91,6 @@ def _rest_health() -> HealthCheckResult:
     return HealthCheckResult(name="rest-source", status="UP")
 
 
-def _parse_time(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
-    try:
-        return ensure_utc(datetime.fromisoformat(normalized))
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail="invalid from/to") from error
-
-
 def _compute(
     equipment_id: str,
     *,
@@ -75,24 +98,38 @@ def _compute(
     from_time: str | None,
     to_time: str | None,
     order_id: str | None,
+    filters: ProductionContextFilter | None = None,
 ) -> dict[str, Any]:
     if events.storage_error:
         raise HTTPException(status_code=503, detail="timeseries_unavailable")
     kind = parse_window_kind(window or settings.default_window)
     if kind is None:
         raise HTTPException(status_code=400, detail="invalid window")
-    start = _parse_time(from_time)
-    end = _parse_time(to_time)
+    start = parse_time(from_time)
+    end = parse_time(to_time)
     if start is not None and end is not None and not window_is_valid(start, end):
         raise HTTPException(status_code=400, detail="invalid window bounds")
-    if kind == "shift" and (start is None or end is None):
+    if kind == "SHIFT" and (start is None or end is None):
         raise HTTPException(
             status_code=400,
-            detail="CURRENT_SHIFT requires explicit from/to bounds",
+            detail="SHIFT requires explicit start/end bounds",
         )
     context = events.load_context(equipment_id)
-    if kind == "order" and order_id and context and context.order_id != order_id:
+    if kind == "ORDER" and order_id and context and context.order_id != order_id:
         context = None
+    if context and filters and not context_matches(
+        merge_context(
+            MachineStateEvent(
+                event_id="ctx",
+                equipment_id=equipment_id,
+                timestamp=start or now_utc(),
+                state="RUNNING",
+            ),
+            context,
+        ),
+        filters,
+    ):
+        raise HTTPException(status_code=404, detail="equipment_unknown")
     bounds = default_window(
         kind,
         now=now_utc(),
@@ -122,25 +159,83 @@ def _compute(
         )
     )
     payload = result.as_payload()
+    context_payload = payload.setdefault("context", {})
+    for key, value in (
+        ("site", settings.site),
+        ("area", settings.area),
+        ("line", settings.line),
+    ):
+        if not context_payload.get(key) and _usable_topic(value):
+            context_payload[key] = value
     events.save_result(payload)
     return payload
+
+
+def _resolve_window(
+    window: str | None,
+    window_type: str | None,
+    from_time: str | None,
+    to_time: str | None,
+    start: str | None,
+    end: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    return window or window_type, from_time or start, to_time or end
+
+
+def _filters(
+    site: str | None = None,
+    area: str | None = None,
+    line: str | None = None,
+    order_id: str | None = None,
+    batch_id: str | None = None,
+    material_id: str | None = None,
+    product: str | None = None,
+    shift_id: str | None = None,
+    recipe_id: str | None = None,
+) -> ProductionContextFilter:
+    return context_filter(
+        site=site,
+        area=area,
+        line=line,
+        order_id=order_id,
+        batch_id=batch_id,
+        material_id=material_id,
+        product=product,
+        shift_id=shift_id,
+        recipe_id=recipe_id,
+    )
 
 
 @router.get("/oee")
 def list_oee(
     equipmentId: str | None = None,
     window: str | None = None,
+    windowType: str | None = None,
     orderId: str | None = None,
     from_time: str | None = Query(default=None, alias="from"),
     to_time: str | None = Query(default=None, alias="to"),
+    start: str | None = None,
+    end: str | None = None,
+    site: str | None = None,
+    area: str | None = None,
+    line: str | None = None,
+    batchId: str | None = None,
+    materialId: str | None = None,
+    product: str | None = None,
+    shiftId: str | None = None,
+    recipeId: str | None = None,
 ) -> list[dict[str, Any]]:
     target = equipmentId or settings.equipment_id
+    resolved_window, resolved_from, resolved_to = _resolve_window(
+        window, windowType, from_time, to_time, start, end
+    )
     payload = _compute(
         target,
-        window=window,
-        from_time=from_time,
-        to_time=to_time,
+        window=resolved_window,
+        from_time=resolved_from,
+        to_time=resolved_to,
         order_id=orderId,
+        filters=_filters(site, area, line, orderId, batchId, materialId, product, shiftId, recipeId),
     )
     return [payload]
 
@@ -149,16 +244,31 @@ def list_oee(
 def get_oee(
     equipment_id: str,
     window: str | None = None,
+    windowType: str | None = None,
     orderId: str | None = None,
     from_time: str | None = Query(default=None, alias="from"),
     to_time: str | None = Query(default=None, alias="to"),
+    start: str | None = None,
+    end: str | None = None,
+    site: str | None = None,
+    area: str | None = None,
+    line: str | None = None,
+    batchId: str | None = None,
+    materialId: str | None = None,
+    product: str | None = None,
+    shiftId: str | None = None,
+    recipeId: str | None = None,
 ) -> dict[str, Any]:
+    resolved_window, resolved_from, resolved_to = _resolve_window(
+        window, windowType, from_time, to_time, start, end
+    )
     return _compute(
         equipment_id,
-        window=window,
-        from_time=from_time,
-        to_time=to_time,
+        window=resolved_window,
+        from_time=resolved_from,
+        to_time=resolved_to,
         order_id=orderId,
+        filters=_filters(site, area, line, orderId, batchId, materialId, product, shiftId, recipeId),
     )
 
 
@@ -169,6 +279,14 @@ def current_oee(
     orderId: str | None = None,
     from_time: str | None = Query(default=None, alias="from"),
     to_time: str | None = Query(default=None, alias="to"),
+    site: str | None = None,
+    area: str | None = None,
+    line: str | None = None,
+    batchId: str | None = None,
+    materialId: str | None = None,
+    product: str | None = None,
+    shiftId: str | None = None,
+    recipeId: str | None = None,
 ) -> dict[str, Any]:
     return _compute(
         equipment_id,
@@ -176,6 +294,7 @@ def current_oee(
         from_time=from_time,
         to_time=to_time,
         order_id=orderId,
+        filters=_filters(site, area, line, orderId, batchId, materialId, product, shiftId, recipeId),
     )
 
 
@@ -186,7 +305,11 @@ def history_oee(equipment_id: str, window: str | None = None) -> list[dict[str, 
     rows = events.load_results(equipment_id)
     if window:
         kind = parse_window_kind(window)
-        rows = [row for row in rows if row.get("windowKind") == kind]
+        rows = [
+            row
+            for row in rows
+            if (row.get("window") or {}).get("type") == kind or row.get("windowKind") == kind
+        ]
     if not rows:
         raise HTTPException(status_code=404, detail="equipment_unknown")
     return rows
@@ -224,21 +347,23 @@ def quality() -> dict[str, Any]:
                 "timestamp": item.timestamp.isoformat(),
                 "goodCount": item.good_count,
                 "rejectCount": item.reject_count,
+                "reworkCount": item.rework_count,
             }
         )
     context = events.load_context(settings.equipment_id)
     if context:
-        payloads.append(
-            {
-                "kind": "context",
-                "contextId": context.context_id,
-                "equipmentId": context.equipment_id,
-                "plannedStart": context.planned_start.isoformat(),
-                "plannedEnd": context.planned_end.isoformat(),
-                "idealCycleTimeSeconds": context.ideal_cycle_time_seconds,
-                "timestamp": context.timestamp.isoformat(),
-            }
-        )
+        context_payload: dict[str, Any] = {
+            "kind": "context",
+            "contextId": context.context_id,
+            "equipmentId": context.equipment_id,
+            "idealCycleTimeSeconds": context.ideal_cycle_time_seconds,
+            "timestamp": context.timestamp.isoformat(),
+        }
+        if context.planned_start:
+            context_payload["plannedStart"] = context.planned_start.isoformat()
+        if context.planned_end:
+            context_payload["plannedEnd"] = context.planned_end.isoformat()
+        payloads.append(context_payload)
     payloads.extend(ingest.rejected)
     results = events.load_results(settings.equipment_id)
     last_reconciliation = results[0].get("reconciliationStatus") if results else None
@@ -247,6 +372,11 @@ def quality() -> dict[str, Any]:
         settings.data_contract_version,
         last_reconciliation=last_reconciliation,
     ).model_dump()
+
+
+@router.get("/capabilities")
+def get_capabilities() -> dict[str, Any]:
+    return capability_registry()
 
 
 @router.get("/platform-metadata")
@@ -278,21 +408,23 @@ def create_app():
     async def lifespan(_app):
         ingest.refresh_context()
         try:
-            mqtt.start()
+            for consumer in mqtt_consumers:
+                consumer.start()
         except Exception as error:  # noqa: BLE001
             obs.error("mqtt_connect_failed", error=str(error))
         try:
             yield
         finally:
-            mqtt.stop()
+            for consumer in mqtt_consumers:
+                consumer.stop()
 
     return create_rest_app(
         service=settings.service_name,
         version=settings.service_version,
         title=settings.service_name,
         description="${{ values.description }}",
-        routers=[router],
-        checkers=[mqtt.health_check, _rest_health, _storage_health],
+        routers=[router, bind_loss_routes(events, ingest, loss_service)],
+        checkers=[_mqtt_health, _rest_health, _storage_health],
         observability=obs,
         lifespan=lifespan,
     )

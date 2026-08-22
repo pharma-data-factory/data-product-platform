@@ -4,7 +4,7 @@ import { BRAND_NAME } from '../theme/tokens';
 export const LogoIcon = () => {
   return (
     <div aria-label={BRAND_NAME}>
-      <BrandMark size={28} />
+      <BrandMark size={36} />
     </div>
   );
 };

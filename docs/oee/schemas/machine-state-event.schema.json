@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/machine-state-event.schema.json",
+  "title": "Machine State Event",
+  "description": "OEE 1.0 machine-state-event. reasonCode is diagnostic metadata and must not change Availability, Performance, Quality, or OEE.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["equipmentId", "state", "timestamp"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": ["RUNNING", "STOPPED", "IDLE", "MAINTENANCE"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reasonCode": {
+      "type": ["string", "null"],
+      "description": "Optional diagnostic reason. Does not affect OEE 1.0 calculation."
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "Alias of reasonCode for compatibility."
+    }
+  }
+}

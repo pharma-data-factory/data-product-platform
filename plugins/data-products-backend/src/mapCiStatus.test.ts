@@ -131,6 +131,7 @@ describe('public CI payload', () => {
     const published = publicCiStatus(leaked as never);
     expect(published).toEqual({
       status: 'PASSED',
+      representation: 'PASSED',
       workflowName: 'CI',
     });
     expect(JSON.stringify(published)).not.toContain('ghs_');
@@ -140,5 +141,16 @@ describe('public CI payload', () => {
 
   it('shortens commit SHAs to 7 characters', () => {
     expect(shortSha('a82f921abc1234567890')).toBe('a82f921');
+  });
+
+  it('represents UNKNOWN as DEGRADED / UNVERIFIED and never as PASSED', () => {
+    const published = publicCiStatus({
+      status: 'UNKNOWN',
+      message: 'Not available',
+      representation: 'PASSED',
+    } as never);
+    expect(published.status).toBe('UNKNOWN');
+    expect(published.representation).toBe('DEGRADED / UNVERIFIED');
+    expect(published.representation).not.toBe('PASSED');
   });
 });

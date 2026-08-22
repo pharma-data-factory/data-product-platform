@@ -12,6 +12,8 @@ metadata:
     - oee
     - fastapi
     - data-product
+    - manufacturing
+    - industrial
   annotations:
     dataprod.platform/kind: template
     dataprod.platform/certification-status: CERTIFIED
@@ -28,9 +30,17 @@ spec:
       description: |
         Certified Golden Path · OEE 1.0.0 · MQTT + REST · Data Contract · Quality Gate · CI/CD · TechDocs
 
+        The platform owns Availability × Performance × Quality. Create only collects
+        deployable identity and integration settings. Do not design OEE formulas here.
+
         Fixed architecture: Counter convention CUMULATIVE. MQTT mode Wave 1 MQTT Consumer.
         REST mode Wave 1 REST Source. OEE contract 1.0.0. Domain is manufacturing by default.
         CERTIFIED is technical platform status only. It is not GxP validation.
+
+        Included: Quality Loss. Foundation (read-only): stop classification, reason codes
+        (diagnostic only), unknown/unobserved time, speed loss, changeover type metadata,
+        context. Planned (not configured here): Microstops, Pareto, MTBF/MTTR, reason
+        hierarchy, SMED analytics.
       required:
         - name
         - description
@@ -38,7 +48,8 @@ spec:
         - domain
         - equipmentId
         - defaultWindow
-        - mqttTopic
+        - machineStateTopic
+        - counterTopic
         - contextUrlRef
         - repoUrl
       properties:
@@ -63,31 +74,60 @@ spec:
               kind:
                 - Group
                 - User
+        system:
+          title: System
+          type: string
+          description: Catalog system this Data Product belongs to.
+          default: data-platform
         domain:
           title: Domain
           type: string
           description: Business domain.
           default: manufacturing
+        site:
+          title: Site
+          type: string
+          description: Optional site label stored as default context. Not required to calculate OEE.
+          default: ""
+        area:
+          title: Area
+          type: string
+          description: Optional area label stored as default context.
+          default: ""
+        line:
+          title: Line
+          type: string
+          description: Optional line label stored as default context.
+          default: ""
         equipmentId:
           title: Equipment Identifier
           type: string
           description: Canonical equipmentId used on every OEE input and result.
           default: filler-01
         defaultWindow:
-          title: Default Time Window
+          title: Default Calculation Window
           type: string
-          description: Default calculation window. CURRENT_SHIFT requires from/to at query time.
-          default: hour
+          description: Explicit interval type. SHIFT and ORDER require from/to or production context bounds at query time. Formulas are not configurable.
+          default: HOUR
           enum:
-            - hour
-            - day
-            - shift
-            - order
-            - custom
-        mqttTopic:
-          title: MQTT Topic Pattern
+            - HOUR
+            - SHIFT
+            - ORDER
+            - CUSTOM
+        machineStateTopic:
+          title: MQTT Machine State Topic
           type: string
-          description: MQTT subscription topic for machine, count, and quality events.
+          description: Subscription topic for RUNNING / STOPPED / IDLE / MAINTENANCE events.
+          default: pharma/oee/+/state
+        counterTopic:
+          title: MQTT Counter Topic
+          type: string
+          description: Subscription topic for cumulative total/good/reject counters.
+          default: pharma/oee/+/count
+        mqttTopic:
+          title: Additional MQTT Subscription
+          type: string
+          description: Optional extra subscription pattern. Leave the default if the two topics above are enough.
           default: pharma/oee/+/+
         contextUrlRef:
           title: Production Context URL Reference
@@ -118,11 +158,16 @@ spec:
           description: ${{ parameters.description }}
           owner: ${{ parameters.owner }}
           domain: ${{ parameters.domain }}
+          site: ${{ parameters.site }}
+          area: ${{ parameters.area }}
+          line: ${{ parameters.line }}
           equipmentId: ${{ parameters.equipmentId }}
           defaultWindow: ${{ parameters.defaultWindow }}
+          machineStateTopic: ${{ parameters.machineStateTopic }}
+          counterTopic: ${{ parameters.counterTopic }}
           mqttTopic: ${{ parameters.mqttTopic }}
           contextUrlRef: ${{ parameters.contextUrlRef }}
-          system: data-platform
+          system: ${{ parameters.system }}
           lifecycle: experimental
           version: 1.0.0
           destination:

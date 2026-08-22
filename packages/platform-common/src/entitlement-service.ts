@@ -7,6 +7,11 @@ import {
   type CommercialProductCatalog,
 } from './commercial-products';
 import {
+  FileCreateAuthorizationAuditStore,
+  isCreateAuthorizationAuditEvent,
+  type CreateAuthorizationAuditStore,
+} from './create-authorization-audit-store';
+import {
   createDefaultEntitlementContext,
   createEntitlementAuditEvent,
   createEntitlementContext,
@@ -109,16 +114,26 @@ export interface PlatformEntitlementServiceOptions {
   organizationId?: string;
   releases?: readonly GoldenPathRelease[];
   legalDistributionStatus?: LegalDistributionStatus;
+  auditStore?: CreateAuthorizationAuditStore;
+  createAuthorizationAuditPath?: string;
 }
 
 export class PlatformEntitlementService implements EntitlementService {
   private readonly events: EntitlementAuditEvent[] = [];
   private readonly catalog: CommercialProductCatalog;
   private readonly source: EntitlementSource;
+  private readonly auditStore?: CreateAuthorizationAuditStore;
 
   constructor(private readonly options: PlatformEntitlementServiceOptions) {
     this.catalog = options.catalog ?? loadCommercialProductCatalog();
     this.source = options.source ?? (options.provider.id === 'aws' ? 'AWS_MARKETPLACE' : 'INTERNAL');
+    this.auditStore =
+      options.auditStore ??
+      (options.createAuthorizationAuditPath
+        ? new FileCreateAuthorizationAuditStore(
+            options.createAuthorizationAuditPath,
+          )
+        : undefined);
   }
 
   async getEntitlements(organizationId: string): Promise<EntitlementContext> {
@@ -193,28 +208,14 @@ export class PlatformEntitlementService implements EntitlementService {
       result.reason = 'RBAC';
       result.message =
         'Your role can browse this Golden Path but cannot create Data Products.';
-      this.record('ACCESS_DENIED', input.organizationId, input.actor, productId, 'RBAC');
-      this.record(
-        'marketplace.create.denied',
-        input.organizationId,
-        input.actor,
-        productId,
-        'RBAC',
-      );
+      this.recordCreateAuthorization(input, result);
       return result;
     }
     if (!releaseEligible) {
       result.reason = 'RELEASE';
       result.message =
         'Create uses an approved RELEASED Golden Path version. Retired and unreleased versions are not offered to commercial customers.';
-      this.record('ACCESS_DENIED', input.organizationId, input.actor, productId, 'RELEASE');
-      this.record(
-        'marketplace.create.denied',
-        input.organizationId,
-        input.actor,
-        productId,
-        'RELEASE',
-      );
+      this.recordCreateAuthorization(input, result);
       return result;
     }
     if (requiresEntitlement && !entitled) {
@@ -232,14 +233,7 @@ export class PlatformEntitlementService implements EntitlementService {
           'EXPIRED',
         );
       }
-      this.record('ACCESS_DENIED', input.organizationId, input.actor, productId, 'ENTITLEMENT');
-      this.record(
-        'marketplace.create.denied',
-        input.organizationId,
-        input.actor,
-        productId,
-        'ENTITLEMENT',
-      );
+      this.recordCreateAuthorization(input, result);
       return result;
     }
     if (
@@ -249,27 +243,13 @@ export class PlatformEntitlementService implements EntitlementService {
       result.reason = 'LEGAL';
       result.message =
         'LEGAL DISTRIBUTION STATUS: BLOCKED. Internal generation remains available. Customer artifact handoff is not approved.';
-      this.record('ACCESS_DENIED', input.organizationId, input.actor, productId, 'LEGAL');
-      this.record(
-        'marketplace.create.denied',
-        input.organizationId,
-        input.actor,
-        productId,
-        'LEGAL',
-      );
+      this.recordCreateAuthorization(input, result);
       return result;
     }
 
     result.allowed = true;
     result.message = 'Create is allowed.';
-    this.record('ACCESS_GRANTED', input.organizationId, input.actor, productId, input.templateId);
-    this.record(
-      'marketplace.create.allowed',
-      input.organizationId,
-      input.actor,
-      productId,
-      input.templateId,
-    );
+    this.recordCreateAuthorization(input, result);
     return result;
   }
 
@@ -352,8 +332,23 @@ export class PlatformEntitlementService implements EntitlementService {
     return rejectSaasRegistration();
   }
 
+  createAuthorizationAuditStore() {
+    return this.auditStore;
+  }
+
   auditTrail(): readonly EntitlementAuditEvent[] {
-    return [...this.events];
+    if (!this.auditStore) {
+      return [...this.events];
+    }
+    const durable = this.auditStore.list();
+    const ephemeral = this.events.filter(
+      event => !isCreateAuthorizationAuditEvent(event),
+    );
+    return [...durable, ...ephemeral];
+  }
+
+  auditIssues() {
+    return this.auditStore?.issues() ?? [];
   }
 
   recordEvent(
@@ -366,24 +361,81 @@ export class PlatformEntitlementService implements EntitlementService {
     this.record(type, organizationId, actor, productId, detail);
   }
 
+  private recordCreateAuthorization(
+    input: {
+      organizationId: string;
+      templateId: string;
+      role: PlatformRole;
+      actor: string;
+      handoff?: 'internal' | 'customer';
+    },
+    result: CreateAuthorization,
+  ) {
+    const decision = result.allowed ? 'GRANT' : 'DENY';
+    const extras: Pick<
+      EntitlementAuditEvent,
+      'action' | 'decision' | 'authorizationContext'
+    > = {
+      action: 'authorizeCreate',
+      decision,
+      authorizationContext: {
+        reason: result.reason,
+        templateId: input.templateId,
+        role: input.role,
+        handoff: input.handoff ?? 'internal',
+        rbacAllowed: result.rbacAllowed,
+        entitled: result.entitled,
+        releaseEligible: result.releaseEligible,
+        legalDistributionStatus: result.legalDistributionStatus,
+      },
+    };
+    const type = result.allowed ? 'ACCESS_GRANTED' : 'ACCESS_DENIED';
+    const marketplaceType = result.allowed
+      ? 'marketplace.create.allowed'
+      : 'marketplace.create.denied';
+    this.record(
+      type,
+      input.organizationId,
+      input.actor,
+      result.productId,
+      result.reason,
+      extras,
+    );
+    this.record(
+      marketplaceType,
+      input.organizationId,
+      input.actor,
+      result.productId,
+      result.reason,
+      extras,
+    );
+  }
+
   private record(
     type: EntitlementAuditEvent['type'],
     organizationId: string,
     actor: string,
     productId?: string,
     detail?: string,
+    extras?: Pick<
+      EntitlementAuditEvent,
+      'action' | 'decision' | 'authorizationContext'
+    >,
   ) {
-    this.events.push(
-      createEntitlementAuditEvent({
-        type,
-        actor,
-        organizationId,
-        productId,
-        detail,
-      }),
-    );
+    const event = createEntitlementAuditEvent({
+      type,
+      actor,
+      organizationId,
+      productId,
+      detail,
+      ...extras,
+    });
+    this.events.push(event);
     if (this.events.length > 200) {
       this.events.shift();
+    }
+    if (this.auditStore && isCreateAuthorizationAuditEvent(event)) {
+      this.auditStore.append(event);
     }
   }
 }

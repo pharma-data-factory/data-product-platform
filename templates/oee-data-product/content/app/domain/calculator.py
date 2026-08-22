@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 
+from app.domain.calculation.availability import availability as availability_ratio
+from app.domain.calculation.calculation_status import resolve_calculation_status
+from app.domain.calculation.oee import oee as oee_product
+from app.domain.calculation.performance import performance as performance_ratio
+from app.domain.calculation.quality import quality as quality_ratio
 from app.domain.counters import cumulative_produced, first_accepted
 from app.domain.models import (
     CalculationStatus,
@@ -12,7 +16,7 @@ from app.domain.models import (
     ReconciliationStatus,
 )
 from app.domain.rounding import publish_ratio
-from app.domain.timeline import build_timeline, union_intervals
+from app.domain.timeline import build_timeline, union_intervals, unobserved_seconds
 from app.domain.windows import ensure_utc, window_seconds
 
 
@@ -27,7 +31,7 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
             window_start,
             window_end,
             calculated_at,
-            status=CalculationStatus.INVALID_INPUT,
+            status=CalculationStatus.INSUFFICIENT_OBSERVATION,
         )
 
     states = [item for item in inputs.states if item.equipment_id == inputs.equipment_id]
@@ -42,7 +46,8 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
     )
     quality_events = sorted(quality_events, key=lambda item: (item.timestamp, item.event_id))
 
-    intervals, unobserved = build_timeline(states, window_start, window_end)
+    intervals, unobserved_gaps = build_timeline(states, window_start, window_end)
+    unobserved = unobserved_seconds(unobserved_gaps)
     excluded = union_intervals(
         [
             *[(start, end) for start, end, state in intervals if state == "MAINTENANCE"],
@@ -50,11 +55,9 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
                 (ensure_utc(item.start), ensure_utc(item.end))
                 for item in (inputs.context.planned_downtime if inputs.context else ())
             ],
+            *unobserved_gaps,
         ]
     )
-    if unobserved > 0:
-        first_observed = intervals[0][0] if intervals else window_end
-        excluded = union_intervals([*excluded, (window_start, first_observed)])
 
     planned = _duration(window_start, window_end, excluded)
     runtime = 0.0
@@ -71,12 +74,12 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
         window_start,
         window_end,
     )
-    good, _ = cumulative_produced(
+    good_delta, _ = cumulative_produced(
         [(item.timestamp, item.good_count) for item in quality_events],
         window_start,
         window_end,
     )
-    reject, _ = cumulative_produced(
+    reject_delta, _ = cumulative_produced(
         [(item.timestamp, item.reject_count) for item in quality_events],
         window_start,
         window_end,
@@ -84,49 +87,42 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
 
     has_production = bool(production)
     has_quality = bool(quality_events)
-    if has_production and has_quality:
+    total_count: int | None
+    if has_production:
         total_count = total_from_production
-        reconciliation = (
-            ReconciliationStatus.ALIGNED
-            if good + reject == total_count
-            else ReconciliationStatus.COUNT_MISMATCH
-        )
-        quality_den = good + reject
     elif has_quality:
-        total_count = good + reject
-        reconciliation = ReconciliationStatus.ALIGNED
-        quality_den = total_count
-    elif has_production:
-        total_count = total_from_production
-        good, reject = 0, 0
-        reconciliation = ReconciliationStatus.COUNTS_UNAVAILABLE
-        quality_den = 0
+        total_count = good_delta + reject_delta
     else:
-        total_count = 0
-        good, reject = 0, 0
+        total_count = None
+
+    good: int | None
+    reject: int | None
+    if has_quality:
+        good = good_delta
+        reject = reject_delta
+        if has_production and good_delta + reject_delta == total_from_production:
+            reconciliation = ReconciliationStatus.ALIGNED
+        elif has_production:
+            reconciliation = ReconciliationStatus.COUNT_MISMATCH
+        else:
+            reconciliation = ReconciliationStatus.ALIGNED
+    else:
+        good = None
+        reject = None
         reconciliation = ReconciliationStatus.COUNTS_UNAVAILABLE
-        quality_den = 0
 
     cycle = (
-        Decimal(str(inputs.context.ideal_cycle_time_seconds))
-        if inputs.context and inputs.context.ideal_cycle_time_seconds > 0
+        float(inputs.context.ideal_cycle_time_seconds)
+        if inputs.context
+        and inputs.context.ideal_cycle_time_seconds is not None
+        and inputs.context.ideal_cycle_time_seconds > 0
         else None
     )
 
-    availability = _ratio(runtime, planned)
-    performance: Decimal | None
-    if cycle is None or runtime == 0:
-        performance = None
-    else:
-        performance = (cycle * Decimal(total_count)) / Decimal(str(runtime))
-
-    quality: Decimal | None
-    if quality_den <= 0:
-        quality = None
-    else:
-        quality = Decimal(good) / Decimal(quality_den)
-
-    oee = _oee(availability, performance, quality, total_count, runtime, planned)
+    availability = availability_ratio(runtime, planned)
+    performance = performance_ratio(cycle, total_count, runtime)
+    quality = quality_ratio(good, total_count)
+    oee = oee_product(availability, performance, quality)
 
     completeness = Completeness.COMPLETE
     if not intervals:
@@ -135,19 +131,22 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
         oee = None
     elif unobserved > 0:
         completeness = Completeness.PARTIAL
-    if cycle is None and performance is None and completeness == Completeness.COMPLETE and oee is None:
-        completeness = Completeness.INCOMPLETE
 
-    status = _status(
-        window_end=window_end,
-        calculated_at=calculated_at,
-        planned=planned,
+    status = resolve_calculation_status(
+        invalid_input=False,
+        has_machine_state=bool(intervals),
+        has_context=inputs.context is not None,
+        has_ideal_cycle=cycle is not None,
+        has_counter_data=has_production or (has_quality and total_count is not None),
+        has_quality_data=has_quality,
+        planned_production_seconds=planned,
         total_count=total_count,
-        oee=oee,
-        completeness=completeness,
         availability=availability,
+        oee=oee,
+        quality=quality,
     )
 
+    context = inputs.context
     return OeeResult(
         equipment_id=inputs.equipment_id,
         window_kind=inputs.window_kind,
@@ -167,10 +166,14 @@ def calculate_oee(inputs: OeeInputs) -> OeeResult:
         calculation_status=status,
         reconciliation_status=reconciliation,
         calculated_at=calculated_at,
-        order_id=inputs.context.order_id if inputs.context else None,
-        ideal_cycle_time_seconds=(
-            inputs.context.ideal_cycle_time_seconds if inputs.context else None
-        ),
+        order_id=context.order_id if context else None,
+        ideal_cycle_time_seconds=cycle,
+        site=context.site if context else None,
+        area=context.area if context else None,
+        line=context.line if context else None,
+        batch_id=context.batch_id if context else None,
+        product_id=(context.product_id or context.material_id) if context else None,
+        shift_id=context.shift_id if context else None,
     )
 
 
@@ -191,48 +194,6 @@ def _duration(
     return max(total - removed, 0.0)
 
 
-def _ratio(numerator: float, denominator: float) -> Decimal | None:
-    if denominator == 0:
-        return None
-    return Decimal(str(numerator)) / Decimal(str(denominator))
-
-
-def _oee(
-    availability: Decimal | None,
-    performance: Decimal | None,
-    quality: Decimal | None,
-    total_count: int,
-    runtime: float,
-    planned: float,
-) -> Decimal | None:
-    if runtime > 0 and total_count == 0 and availability is not None:
-        return Decimal(0)
-    if runtime == 0 and total_count == 0 and planned > 0 and availability == 0:
-        return Decimal(0)
-    if availability is None or performance is None or quality is None:
-        return None
-    return availability * performance * quality
-
-
-def _status(
-    *,
-    window_end: datetime,
-    calculated_at: datetime,
-    planned: float,
-    total_count: int,
-    oee: Decimal | None,
-    completeness: Completeness,
-    availability: Decimal | None,
-) -> CalculationStatus:
-    if window_end > calculated_at:
-        return CalculationStatus.PENDING_LATE_DATA
-    if planned > 0 and total_count == 0 and oee is not None:
-        return CalculationStatus.NO_PRODUCTION
-    if oee is None or completeness == Completeness.INCOMPLETE or availability is None:
-        return CalculationStatus.INCOMPLETE
-    return CalculationStatus.VALID
-
-
 def _empty(
     inputs: OeeInputs,
     window_start: datetime,
@@ -241,6 +202,8 @@ def _empty(
     *,
     status: CalculationStatus,
 ) -> OeeResult:
+
+    context = inputs.context
     return OeeResult(
         equipment_id=inputs.equipment_id,
         window_kind=inputs.window_kind,
@@ -250,16 +213,22 @@ def _empty(
         performance=None,
         quality=None,
         oee=None,
-        total_count=0,
-        good_count=0,
-        reject_count=0,
-        runtime_seconds=0,
-        downtime_seconds=0,
-        planned_production_seconds=0,
+        total_count=None,
+        good_count=None,
+        reject_count=None,
+        runtime_seconds=None,
+        downtime_seconds=None,
+        planned_production_seconds=None,
         completeness=Completeness.INCOMPLETE,
         calculation_status=status,
         reconciliation_status=ReconciliationStatus.COUNTS_UNAVAILABLE,
         calculated_at=calculated_at,
-        order_id=inputs.context.order_id if inputs.context else None,
+        order_id=context.order_id if context else None,
         ideal_cycle_time_seconds=None,
+        site=context.site if context else None,
+        area=context.area if context else None,
+        line=context.line if context else None,
+        batch_id=context.batch_id if context else None,
+        product_id=(context.product_id or context.material_id) if context else None,
+        shift_id=context.shift_id if context else None,
     )

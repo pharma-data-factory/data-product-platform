@@ -12,6 +12,7 @@ describe('sanitizeCiStatus', () => {
       }),
     ).toEqual({
       status: 'PASSED',
+      representation: 'PASSED',
       workflowName: 'CI',
     });
   });
@@ -49,6 +50,7 @@ describe('DataProductCiClient', () => {
       client.getCiStatus('component:default/cold-room-temperature'),
     ).resolves.toEqual({
       status: 'PASSED',
+      representation: 'PASSED',
       workflowName: 'CI',
     });
   });

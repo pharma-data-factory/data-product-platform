@@ -1,10 +1,13 @@
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { PolicyQueryUser } from '@backstage/plugin-permission-node';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import {
   dataProductCertificationManagePermission,
   dataProductCreatePermission,
+  entitlementAdminPermission,
+  FileCreateAuthorizationAuditStore,
   goldenPathReleaseManagePermission,
   marketplaceViewPermission,
   aasReadPermission,
@@ -133,6 +136,15 @@ describe('PlatformPermissionPolicy', () => {
     ).resolves.toEqual({ result: AuthorizeResult.DENY });
     await expect(
       policy.handle({ permission: dataProductCreatePermission }, viewer),
+    ).resolves.toEqual({ result: AuthorizeResult.DENY });
+    await expect(
+      policy.handle(
+        { permission: dataProductCertificationManagePermission },
+        viewer,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.DENY });
+    await expect(
+      policy.handle({ permission: entitlementAdminPermission }, viewer),
     ).resolves.toEqual({ result: AuthorizeResult.DENY });
   });
 
@@ -264,7 +276,11 @@ describe('PlatformPermissionPolicy', () => {
     expect(src).toContain('decidePermission');
     expect(src).toContain('resolvePlatformRole');
     expect(src).toContain('hasEntitlement');
+    expect(src).toContain('auditStore');
     expect(src).toContain('isGenerallyAvailableRelease');
+    expect(fs.readFileSync(path.join(__dirname, 'module.ts'), 'utf8')).toContain(
+      'createAuthorizationAuditStore',
+    );
     expect(src).toContain('commercialProductForTemplate');
     expect(src).not.toContain('createDefaultOrganizationContext');
   });
@@ -303,5 +319,65 @@ describe('PlatformPermissionPolicy', () => {
         developer,
       ),
     ).resolves.toEqual({ result: AuthorizeResult.ALLOW });
+  });
+
+  it('records the Scaffolder Create policy decision on the durable store', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-create-audit-'));
+    const filePath = path.join(dir, 'create-authorization-audit.jsonl');
+    const store = new FileCreateAuthorizationAuditStore(filePath);
+    const audited = new PlatformPermissionPolicy({
+      organizationId: 'internal',
+      hasEntitlement: async () => true,
+      auditStore: store,
+    });
+
+    await audited.handle(
+      {
+        permission: {
+          name: 'scaffolder.task.create',
+          attributes: { action: 'create' },
+          type: 'basic',
+        },
+      },
+      viewer,
+    );
+    await audited.handle(
+      {
+        permission: {
+          name: 'scaffolder.task.create',
+          attributes: { action: 'create' },
+          type: 'basic',
+        },
+      },
+      developer,
+    );
+    await audited.handle(
+      {
+        permission: {
+          name: 'catalog.entity.read',
+          attributes: { action: 'read' },
+          type: 'basic',
+        },
+      },
+      viewer,
+    );
+
+    const restarted = new FileCreateAuthorizationAuditStore(filePath);
+    const retained = restarted.list();
+    expect(retained).toHaveLength(2);
+    expect(retained[0]).toMatchObject({
+      actor: 'user:default/viewer',
+      action: 'scaffolder.task.create',
+      decision: 'DENY',
+      authorizationContext: { reason: 'RBAC', permission: 'scaffolder.task.create' },
+    });
+    expect(retained[1]).toMatchObject({
+      actor: 'user:default/developer',
+      action: 'scaffolder.task.create',
+      decision: 'GRANT',
+      authorizationContext: { reason: 'OK', permission: 'scaffolder.task.create' },
+    });
+    expect(retained[0].at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

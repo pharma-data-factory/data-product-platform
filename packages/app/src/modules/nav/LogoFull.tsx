@@ -9,15 +9,15 @@ export const LogoFull = () => {
         color: '#F2F6FC',
         display: 'flex',
         fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
-        fontSize: 15,
+        fontSize: 18,
         fontWeight: 700,
-        gap: 10,
+        gap: 12,
         letterSpacing: '0.08em',
         whiteSpace: 'nowrap',
       }}
       aria-label={BRAND_NAME}
     >
-      <BrandMark size={28} />
+      <BrandMark size={36} />
       {BRAND_WORDMARK}
     </div>
   );

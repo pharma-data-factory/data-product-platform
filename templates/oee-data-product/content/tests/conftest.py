@@ -29,6 +29,7 @@ def client() -> TestClient:
     events.store.delete_before(datetime(9999, 1, 1, tzinfo=UTC))
     events.forget_event_ids()
     events.storage_error = None
+    events.ensure_default_catalog()
     ingest.rejected.clear()
     ingest.duplicate_count = 0
     ingest.rest_error = None

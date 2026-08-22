@@ -110,3 +110,7 @@ stays a generic subscribe.
 - plant shift calendar
 - GxP validation
 - commercial OEE SKU (remains FUTURE until product decides otherwise)
+
+OEE 1.1 Loss & Microstop APIs live in the generated Data Product. They
+do not expand this Wave 1 composition and do not change OEE 1.0 formulas.
+See [Loss management](losses.md).

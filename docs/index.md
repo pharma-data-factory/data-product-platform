@@ -37,6 +37,7 @@ These pages are published with Backstage TechDocs. There is no second wiki.
 - [Asset Administration Shell](aas/index.md)
 - [Build a Data Product from Platform Components](platform-components/build-from-components.md)
 - [Unified Namespace](uns/index.md)
+- [Nexora Industrial Plugin Suite](nexora/index.md)
 - [Data Products](data-products.md)
 - [Demo guide](demo-guide.md)
 - [Pilot readiness](pilot-readiness.md)

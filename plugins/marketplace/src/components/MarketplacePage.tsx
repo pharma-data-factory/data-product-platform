@@ -21,6 +21,7 @@ import {
   TextField,
   Typography,
 } from '@material-ui/core';
+import { makeStyles } from '@material-ui/core/styles';
 import {
   CertificationChip,
   JourneyState,
@@ -45,7 +46,23 @@ import {
   marketplaceOfferingKind,
 } from '../data';
 
+const useStyles = makeStyles({
+  tableWrap: {
+    overflowX: 'auto',
+    width: '100%',
+  },
+  table: {
+    minWidth: 720,
+  },
+  nameCell: {
+    fontWeight: 600,
+    minWidth: 200,
+    whiteSpace: 'normal',
+  },
+});
+
 export function MarketplacePage() {
+  const classes = useStyles();
   const navigate = useNavigate();
   const catalogApi = useApi(catalogApiRef);
   const entitlementApi = useApi(entitlementApiRef);
@@ -184,25 +201,16 @@ export function MarketplacePage() {
           {visible.length > 0 && (
             <Grid item xs={12}>
               <InfoCard title={`${visible.length} entries`}>
-                <Table>
+                <div className={classes.tableWrap}>
+                <Table className={classes.table}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Name</TableCell>
                     <TableCell>Category</TableCell>
                     <TableCell>Version</TableCell>
-                    <TableCell>Lifecycle</TableCell>
-                    <TableCell>Standard</TableCell>
-                    <TableCell>SDK</TableCell>
-                    <TableCell>Distribution</TableCell>
-                    <TableCell>Contract</TableCell>
-                    <TableCell>Contract version</TableCell>
                     <TableCell>Quality</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Provider</TableCell>
-                    <TableCell>Status</TableCell>
                     <TableCell>Certification</TableCell>
-                    <TableCell>Commercial</TableCell>
-                    <TableCell>Template</TableCell>
+                    <TableCell>Create</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -213,7 +221,7 @@ export function MarketplacePage() {
                       style={{ cursor: 'pointer' }}
                       onClick={() => navigate(`/marketplace/${item.id}`)}
                     >
-                      <TableCell>
+                      <TableCell className={classes.nameCell}>
                         {item.name}
                         {marketplaceOfferingKind(item) === 'BUILDING BLOCK' && (
                           <Chip
@@ -225,24 +233,6 @@ export function MarketplacePage() {
                       </TableCell>
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.version}</TableCell>
-                      <TableCell>{item.releaseStatus || '—'}</TableCell>
-                      <TableCell>
-                        {item.dataProductStandardVersion || '—'}
-                      </TableCell>
-                      <TableCell>{item.dataProductSdkVersion || '—'}</TableCell>
-                      <TableCell>
-                        {item.distribution?.length
-                          ? item.distribution
-                              .map(channel =>
-                                channel === 'INTERNAL'
-                                  ? 'Internal'
-                                  : 'Template Edition',
-                              )
-                              .join(', ')
-                          : '—'}
-                      </TableCell>
-                      <TableCell>{item.contractName || '—'}</TableCell>
-                      <TableCell>{item.contractVersion || '—'}</TableCell>
                       <TableCell>
                         {item.qualityStatus ? (
                           <QualityChip status={item.qualityStatus} />
@@ -250,18 +240,8 @@ export function MarketplacePage() {
                           '—'
                         )}
                       </TableCell>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell>{item.provider}</TableCell>
-                      <TableCell>{item.status}</TableCell>
                       <TableCell>
                         <CertificationChip status={item.certificationStatus} />
-                      </TableCell>
-                      <TableCell>
-                        {item.commercialStatus ? (
-                          <Chip size="small" label={item.commercialStatus} />
-                        ) : (
-                          '—'
-                        )}
                       </TableCell>
                       <TableCell>
                         {item.templateReference && marketplaceCreateAllowed(
@@ -284,6 +264,7 @@ export function MarketplacePage() {
                   ))}
                 </TableBody>
                 </Table>
+                </div>
               </InfoCard>
             </Grid>
           )}

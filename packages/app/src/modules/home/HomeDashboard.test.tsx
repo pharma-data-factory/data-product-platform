@@ -45,6 +45,12 @@ describe('authenticated home', () => {
     expect(screen.getByText('Browse Data Products')).toBeInTheDocument();
     expect(screen.getByText('Search Documentation')).toBeInTheDocument();
     expect(screen.getByText('Release Catalog')).toBeInTheDocument();
+    expect(screen.getByText('Golden Paths (6)')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search Golden Paths...' })).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-category-filter')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore MQTT Temperature' })).toBeInTheDocument();
+    expect(screen.getByText('What it is')).toBeInTheDocument();
+    expect(screen.getByText('Why it exists as a product')).toBeInTheDocument();
     expect(screen.queryByText('Create Data Product')).not.toBeInTheDocument();
     expect(screen.getByText('My Data Products')).toBeInTheDocument();
     expect(screen.getByText('Recent activity')).toBeInTheDocument();

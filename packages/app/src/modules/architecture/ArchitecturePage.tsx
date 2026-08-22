@@ -24,8 +24,8 @@ import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from
 import {
   AUTHENTICATED_ARCHITECTURE_LINKS,
   LAYER_COMPARISON,
-  LAYER_ROLE_CARDS,
 } from '../identity/platformStoryData';
+import { IDP_PILLARS, PLATFORM_FEATURES } from './constants';
 
 const archTh = {
   textAlign: 'left' as const,
@@ -56,128 +56,129 @@ export function ArchitecturePage({
     <>
       <ArchitectureDiagramStyles />
       <OverviewHero />
+      <IdpFundamentalsSection />
+      <PlatformFeaturesSection />
       <BoundarySection />
-      <LayerRolesSection />
       <ComparisonSection />
       <DiagramSection
         id="full-stack"
         eyebrow="PLATFORM STACK"
         title="How the layers fit together"
         diagram={<FullPlatformStackDiagram />}
-        what="It shows Control Plane, Golden Paths, Platform Components, AAS, Unified Namespace, Data Products and systems of record as distinct layers."
-        why="Customers need a business picture in seconds and an architecture picture without collapsing all layers into one box."
-        how="Each layer has a job: meaning, data flow, reusable capability, composition, domain value, or governance."
-        decoupled="Systems of record stay authoritative. Data Products run independently. The Control Plane does not process all operational data."
+        what="Control Plane, Golden Paths, Platform Components, AAS, UNS, Data Products and systems of record as separate layers."
+        why="The IDP and the shopfloor must stay readable as distinct jobs."
+        how="Each layer owns one job: meaning, transport, capability, composition, domain value or governance."
+        decoupled="Systems of record stay authoritative. Products run independently."
       />
       <DiagramSection
         id="aas-semantics"
         eyebrow="AAS AND ASSET SEMANTICS"
         title="AAS explains what an asset is"
         diagram={<AasVsUnsDiagram />}
-        what="Asset Administration Shell holds asset registry, equipment, sensors, submodels, semantic IDs, units, relationships and endpoint mapping."
-        why="Operational values are useless without a governed meaning for the asset and property."
-        how="Filler 01 exposes Temperature, Pressure, Speed and Machine State as semantic properties, not as a historian."
-        decoupled="AAS does not store time-series values. Unified Namespace does not own asset semantics."
+        what="AAS holds asset identity, properties, units and endpoint mapping."
+        why="A value is useless without a governed meaning."
+        how="Filler 01 exposes Temperature, Pressure, Speed and Machine State as properties — not as a historian."
+        decoupled="UNS does not own asset semantics."
       />
       <DiagramSection
         id="unified-namespace"
         eyebrow="UNIFIED NAMESPACE"
         title="UNS governs operational data flow"
         diagram={<SystemOfRecordToConsumerDiagram />}
-        what="Unified Namespace provides governed MQTT, REST, events and files/streams. OPC UA and Kafka are planned."
-        why="Teams need a stable place for operational paths without custom point-to-point wiring."
-        how="AAS property speed on filler-01 maps to pharma/basel/packaging/line-01/filler-01/speed/value."
-        decoupled="UNS transports values. It does not replace MES or own the meaning of the asset."
+        what="Governed MQTT, REST, events and files. OPC UA and Kafka are planned."
+        why="Operational paths should not be one-off point-to-point wiring."
+        how="AAS property speed on filler-01 maps to a stable UNS path."
+        decoupled="UNS transports values. It does not replace MES."
       />
       <DiagramSection
         id="platform-components"
         eyebrow="PLATFORM COMPONENTS"
         title="Reusable technical building blocks"
         diagram={<PlatformComponentCompositionDiagram />}
-        what="Integration, data and operations components can be composed. Wave 1 Health, Observability, REST API, REST Source, MQTT Consumer and Time-Series Storage are CERTIFIED."
-        why="Golden Paths should reuse certified capabilities instead of copying connectors."
-        how="Catalog type platform-component tracks version and lifecycle. Unified Namespace and AAS Foundation are DEVELOPMENT."
-        decoupled="Intelligence components (RAG, LLM Gateway, Knowledge Graph, Vector Store) are planned and not implemented."
+        what="Reusable integration, data and operations blocks. Wave 1 Health, Observability, REST and MQTT pieces are CERTIFIED."
+        why="Golden Paths reuse certified capabilities instead of copying connectors."
+        how="Catalog type platform-component tracks version and lifecycle."
+        decoupled="RAG, LLM Gateway, Knowledge Graph and Vector Store are planned, not implemented."
       />
       <DiagramSection
         id="golden-path-composition"
         eyebrow="GOLDEN PATH COMPOSITION"
         title="Golden Paths compose certified capabilities"
         diagram={<GoldenPathLifecycleDiagram />}
-        what="A Golden Path is a certified composition pattern. MQTT Temperature, REST Equipment and OEE Data Product are official examples."
-        why="Composition keeps domain logic small and technical capabilities reusable."
-        how="OEE Golden Path 1.0 composes REST Source, MQTT Consumer, Time-Series Storage, REST API, Health, Observability and OEE domain logic. Technical CERTIFIED only, not GxP."
-        decoupled="Cold Chain, Quality, Energy and AI Assistant are future. Generated Data Products do not require the Control Plane at runtime."
+        what="A certified composition. Official paths: MQTT Temperature, REST Equipment, OEE."
+        why="Domain logic stays small. Technical capabilities stay reusable."
+        how="OEE 1.0 composes REST, MQTT, storage, API, health and OEE logic. Technical CERTIFIED, not GxP."
+        decoupled="A generated product does not require the Control Plane at runtime."
       />
       <DiagramSection
         id="data-products-story"
         eyebrow="DATA PRODUCT LAYER"
         title="Independently governed Data Products"
         diagram={<StoryDataProductCards />}
-        what="A Data Product contains domain value, contract, quality, compatibility, CI/CD, version and owner."
-        why="Business capabilities must evolve without changing the system of record."
-        how="Temperature, Equipment and OEE are certified examples. Cold Chain and Quality are future."
-        decoupled="A generated Data Product runs independently. It does not require the Control Plane at runtime."
+        what="Domain value plus contract, quality, version and owner."
+        why="Capabilities evolve without changing the system of record."
+        how="Temperature, Equipment and OEE are certified examples."
+        decoupled="A generated Data Product runs independently."
       />
       <DiagramSection
         id="control-plane-data-plane"
         eyebrow="CONTROL PLANE VS DATA PLANE"
         title="Governance around independently running products"
         diagram={<ControlPlaneVsDataPlaneDiagram />}
-        what="Nexora is the Control Plane for build, release, discovery and operation metadata."
-        why="Engineering governance must not become a second operational runtime."
-        how="Catalog, Create, Marketplace, Golden Paths, contracts, quality, CI/CD, TechDocs, Search, RBAC and Developer Hub sit in the Control Plane."
-        decoupled="Operational data stays on governed interfaces and in Data Product runtimes. The Control Plane does not replace ERP, MES, LIMS or EWM."
+        what="Build, release, discovery and operation metadata — the IDP control plane."
+        why="Governance must not become a second operational runtime."
+        how="Catalog, Create, Marketplace, Golden Paths, contracts, quality, CI/CD and TechDocs sit here."
+        decoupled="Operational data stays on product runtimes. The Control Plane does not replace ERP or MES."
       />
       <DiagramSection
         id="future-intelligence"
         eyebrow="FUTURE INTELLIGENCE"
         title="RAG and Knowledge Graph remain planned"
         diagram={<FutureIntelligenceDiagram />}
-        what="Intelligence components would consume governed Data Products, not source-system internals."
-        why="AI assistants need contracts and semantics before they are productized."
-        how="A future composition would combine RAG, LLM Gateway, Knowledge Graph and Vector Store around certified products."
-        decoupled="RAG, Knowledge Graph, LLM Gateway and Vector Store are planned. They are not available."
+        what="Future assistants would consume governed Data Products, not source internals."
+        why="AI needs contracts and semantics before it is productized."
+        how="A later composition would combine RAG, LLM Gateway, Knowledge Graph and Vector Store."
+        decoupled="These components are planned. They are not available."
       />
       <DiagramSection
         id="system-architecture"
         eyebrow="SYSTEM ARCHITECTURE"
         title="From core systems to Data Products"
         diagram={<SystemArchitectureDiagram />}
-        what="It shows how operational systems, governed interfaces, the Nexora control plane, and Data Products sit in layers."
-        why="Manufacturing IT needs a clear picture of where innovation happens without changing the system of record."
-        how="Core systems expose controlled APIs, events, MQTT, REST, files and streams. The control plane applies Golden Paths, contracts, quality, compatibility, CI/CD, catalog and governance. Data Products consume those interfaces."
-        decoupled="ERP, MES, LIMS, EWM, historians and CMO platforms remain the systems of record. Nexora does not replace them or read their databases directly."
+        what="Core systems, governed interfaces, the Control Plane and Data Products in layers."
+        why="Innovation happens around the system of record, not inside it."
+        how="Core systems expose MQTT, REST and events. The Control Plane applies Golden Paths and catalog. Products consume the interfaces."
+        decoupled="ERP, MES, LIMS and historians remain systems of record."
       />
       <DiagramSection
         id="data-product-runtime"
         eyebrow="DATA PRODUCT RUNTIME"
         title="How an individual Data Product works"
         diagram={<DataProductRuntimeDiagram />}
-        what="A Data Product ingests from a source or sensor, validates against its contract and quality rules, stores product data, and serves consumers through its own API."
-        why="Each product must be independently operable, testable, and versioned."
-        how="MQTT or REST carries events into ingestion. Schema and quality checks run before product storage. Dashboards, analytics, AI / ML and applications consume the product API."
-        decoupled="Source systems keep operational data. Consumers do not bind to core-system internals. The control plane does not store all enterprise data."
+        what="Ingest, validate against contract and quality, store, serve via its own API."
+        why="Each product must be independently operable and versioned."
+        how="MQTT or REST in. Schema and quality checks. Dashboards and apps consume the product API."
+        decoupled="Source systems keep operational data. Consumers bind to the contract."
       />
       <DiagramSection
         id="developer-flow"
         eyebrow="DEVELOPER FLOW"
         title="Build once. Govern by default."
         diagram={<DeveloperFlowDiagram />}
-        what="A developer starts from a certified Golden Path, generates a GitHub repository, and gets CI/CD, contract tests, quality tests, compatibility tests, Docker, catalog registration and documentation by default."
-        why="Teams without a large platform-engineering organization still need a repeatable, governed path to production-quality Data Products."
-        how="Nexora provisions the Golden Path. GitHub holds source and pipelines. Catalog and TechDocs make the product discoverable after tests pass."
-        decoupled="Generated Data Products run independently of the control plane. Governance metadata lives with the product, not inside the source system."
+        what="Golden Path → GitHub repo → CI/CD, tests, Docker, catalog and TechDocs by default."
+        why="Teams without a large platform-engineering group still need a paved road."
+        how="Nexora provisions the path. GitHub holds source. Catalog and TechDocs follow passing tests."
+        decoupled="Generated products run independently of the Control Plane."
       />
       <DiagramSection
         id="contracts-consumers"
         eyebrow="CONTRACTS AND CONSUMERS"
         title="Contracts keep providers and consumers aligned"
         diagram={<ContractConsumerDiagram />}
-        what="A provider Data Product publishes a data contract. Consumers bind to that contract. Catalog relationships record Provides, Consumes, Depends On and Used By."
-        why="Independent versioning only works when compatibility is explicit."
-        how="An optional field from v1.1 to v1.2 stays compatible. A breaking schema change from v1.x to v2.0 is a breaking change and must be treated as such."
-        decoupled="Consumers depend on the contract, not on the provider's storage or the core system of record."
+        what="The provider publishes a contract. Consumers bind to it. Catalog records Provides / Consumes."
+        why="Independent versioning needs explicit compatibility."
+        how="An optional field is compatible. A breaking schema change is v2.0."
+        decoupled="Consumers depend on the contract, not on provider storage."
       />
       <ArchitectureCta onSignIn={onSignIn} />
       <AuthenticatedLinksSection />
@@ -244,13 +245,11 @@ function OverviewHero() {
           <br />
           Innovate Through Data Products.
         </h1>
-        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
-          Nexora does not replace ERP, MES, LIMS, EWM, Historians,
-          CMO platforms or other operational IT/OT systems.
-        </p>
-        <p style={{ marginTop: 12, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
-          It provides the engineering and governance control plane for
-          independently managed Data Products around those systems.
+        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: '#CBD5E1', maxWidth: 720 }}>
+          Nexora is the Internal Developer Platform for industrial Data
+          Products. It does not replace ERP, MES, LIMS, EWM, Historians
+          or other IT/OT systems of record — it is the control plane
+          around them.
         </p>
         <figure
           style={{
@@ -272,15 +271,15 @@ function BoundarySection() {
   const items = [
     {
       title: 'SYSTEM OF RECORD',
-      body: 'ERP, MES, LIMS, EWM, historians and CMO platforms remain the operational source. They stay stable and close to standard. Nexora does not own that data and does not connect to those databases directly.',
+      body: 'ERP, MES, LIMS, EWM and historians stay the operational source. Nexora does not own that data and does not connect to those databases directly.',
     },
     {
       title: 'DATA PRODUCT',
-      body: 'A Data Product is an independently versioned service with its own contract, quality gates, API, tests and documentation. It evolves around the core, not inside it.',
+      body: 'An independently versioned service with contract, quality gates, API and owner. It evolves around the core, not inside it.',
     },
     {
       title: 'PHARMA DATA FACTORY CONTROL PLANE',
-      body: 'The control plane is the governed engineering layer: Golden Paths, catalog, contracts, quality, compatibility, CI/CD and technical certification. It does not replace source systems and does not store all enterprise data.',
+      body: 'Golden Paths, catalog, contracts, quality, CI/CD and certification. It does not replace source systems and does not store all enterprise data.',
     },
   ];
 
@@ -333,16 +332,31 @@ function BoundarySection() {
   );
 }
 
-function LayerRolesSection() {
+function CardGrid({
+  label,
+  title,
+  lead,
+  items,
+  background,
+}: {
+  label: string;
+  title: string;
+  lead: string;
+  items: ReadonlyArray<{ id: string; title: string; body: string }>;
+  background: string;
+}) {
   return (
-    <section aria-label="What each layer does" style={{ padding: '56px 24px', background: C.section }}>
+    <section aria-label={label} style={{ padding: '56px 24px', background }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2
           className="pdf-display"
-          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 24px', color: PHARMA_NAVY }}
+          style={{ fontSize: 28, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}
         >
-          What each layer does
+          {title}
         </h2>
+        <p style={{ margin: '12px 0 24px', fontSize: 16, lineHeight: 1.55, color: C.muted, maxWidth: 720 }}>
+          {lead}
+        </p>
         <div
           style={{
             display: 'grid',
@@ -350,8 +364,8 @@ function LayerRolesSection() {
             gap: 16,
           }}
         >
-          {LAYER_ROLE_CARDS.map(card => (
-            <article key={card.id} className="pdf-card" style={{ padding: 20 }}>
+          {items.map(item => (
+            <article key={item.id} className="pdf-card" style={{ padding: 20 }}>
               <h3
                 className="pdf-mono"
                 style={{
@@ -362,16 +376,40 @@ function LayerRolesSection() {
                   fontWeight: 600,
                 }}
               >
-                {card.title}
+                {item.title}
               </h3>
-              <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.6, color: C.text }}>
-                {card.body}
+              <p style={{ margin: '10px 0 0', fontSize: 15, lineHeight: 1.5, color: C.text }}>
+                {item.body}
               </p>
             </article>
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function IdpFundamentalsSection() {
+  return (
+    <CardGrid
+      label="Internal Developer Platform fundamentals"
+      title="What makes an Internal Developer Platform"
+      lead="An IDP is a product for developers: self-service, a catalog of what exists, and guardrails so every team does not rebuild CI/CD, contracts and docs. Nexora applies that model to industrial Data Products."
+      items={IDP_PILLARS}
+      background={C.paper}
+    />
+  );
+}
+
+function PlatformFeaturesSection() {
+  return (
+    <CardGrid
+      label="Platform and architecture features"
+      title="Platform and architecture features"
+      lead="The Control Plane is the IDP. Architecture keeps systems of record, Data Products and governance as separate layers."
+      items={PLATFORM_FEATURES}
+      background={C.section}
+    />
   );
 }
 

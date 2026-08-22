@@ -8,11 +8,15 @@
 #
 # This overlay does not create a listing, offer, metering record, or tenant.
 
+permission:
+  enabled: true
+
 commercial:
   environment: test-marketplace
   entitlementProvider: aws
   legalDistributionStatus: ${LEGAL_DISTRIBUTION_STATUS:-BLOCKED}
   edition: template
+  createAuthorizationAuditPath: ${CREATE_AUTHORIZATION_AUDIT_PATH:-.runtime/create-authorization-audit.jsonl}
   awsMarketplace:
     region: ${AWS_MARKETPLACE_REGION}
     productCode: ${AWS_MARKETPLACE_PRODUCT_CODE}

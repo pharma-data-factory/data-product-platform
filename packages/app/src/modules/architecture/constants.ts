@@ -114,3 +114,59 @@ export const CATALOG_RELATIONSHIPS = [
   'Depends On',
   'Used By',
 ] as const;
+
+export const IDP_PILLARS = [
+  {
+    id: 'self-service',
+    title: 'SELF-SERVICE',
+    body: 'Teams create from a Golden Path. They do not wait for a platform ticket.',
+  },
+  {
+    id: 'catalog',
+    title: 'SOFTWARE CATALOG',
+    body: 'Products, owners, APIs, docs and dependencies are discoverable in one place.',
+  },
+  {
+    id: 'paved-road',
+    title: 'PAVED ROAD',
+    body: 'The standard way is encoded. Golden Paths carry CI/CD, tests and structure.',
+  },
+  {
+    id: 'guardrails',
+    title: 'GUARDRAILS BY DEFAULT',
+    body: 'Contracts, quality, compatibility and TechDocs ship with the product.',
+  },
+] as const;
+
+export const PLATFORM_FEATURES = [
+  {
+    id: 'discover',
+    title: 'DISCOVER',
+    body: 'Catalog, Marketplace, Search, TechDocs and ownership.',
+  },
+  {
+    id: 'create',
+    title: 'CREATE',
+    body: 'Golden Paths, templates and GitHub repository generation.',
+  },
+  {
+    id: 'deliver',
+    title: 'DELIVER',
+    body: 'GitHub Actions, contract tests, quality gates and Docker.',
+  },
+  {
+    id: 'operate',
+    title: 'OPERATE',
+    body: 'Lifecycle, health, contracts, compatibility and versioning.',
+  },
+  {
+    id: 'control-plane',
+    title: 'CONTROL PLANE',
+    body: 'Engineering and governance around products. Not a second MES.',
+  },
+  {
+    id: 'data-plane',
+    title: 'DATA PLANE',
+    body: 'Products run independently. Operational data stays on governed interfaces.',
+  },
+] as const;

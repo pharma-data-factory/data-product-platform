@@ -1,6 +1,7 @@
 import {
   CERTIFIED_GOLDEN_PATHS,
   ENTERPRISE_PRICING_CTA,
+  SHOWCASE_GOLDEN_PATHS,
   FUTURE_GOLDEN_PATHS,
   HOW_IT_WORKS_STEPS,
   INTERNAL_OPERATING_EDITION,
@@ -12,6 +13,7 @@ import {
   PLATFORM_CAPABILITIES,
   PRICING_MODELS,
   PRODUCT_EDITIONS,
+  filterGoldenPaths,
   learnTopicHref,
 } from './commercial';
 
@@ -85,17 +87,30 @@ describe('commercial edition model', () => {
       'rest-equipment',
       'oee',
     ]);
-    expect(CERTIFIED_GOLDEN_PATHS.every(path => path.statusLabel === 'CERTIFIED')).toBe(
-      true,
+    expect(CERTIFIED_GOLDEN_PATHS.map(path => path.category)).toEqual([
+      'Telemetry',
+      'Equipment',
+      'Performance',
+    ]);
+    expect(CERTIFIED_GOLDEN_PATHS.map(path => path.version)).toEqual(['1.0', '1.0', '1.0']);
+    expect(FUTURE_GOLDEN_PATHS.every(path => path.version === undefined)).toBe(true);
+    expect(filterGoldenPaths(CERTIFIED_GOLDEN_PATHS, 'oee', 'All').map(path => path.id)).toEqual([
+      'oee',
+    ]);
+    expect(filterGoldenPaths(CERTIFIED_GOLDEN_PATHS, '', 'Telemetry').map(path => path.id)).toEqual([
+      'mqtt-temperature',
+    ]);
+    expect(filterGoldenPaths(CERTIFIED_GOLDEN_PATHS, 'filler', 'All', { oee: 'filler-01' }).map(path => path.id)).toEqual(
+      ['oee'],
     );
+    expect(filterGoldenPaths(CERTIFIED_GOLDEN_PATHS, 'snowflake', 'All')).toEqual([]);
     expect(FUTURE_GOLDEN_PATHS.map(path => path.name)).toEqual([
       'Snowflake',
       'SAP',
       'Cold Chain',
     ]);
-    expect(
-      FUTURE_GOLDEN_PATHS.every(path => path.availability === 'future'),
-    ).toBe(true);
+    expect(SHOWCASE_GOLDEN_PATHS).toHaveLength(6);
+    expect(SHOWCASE_GOLDEN_PATHS.filter(path => path.availability === 'future')).toHaveLength(3);
     expect(HOW_IT_WORKS_STEPS).toEqual([
       'Discover',
       'Create',

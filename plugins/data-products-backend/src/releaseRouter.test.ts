@@ -30,6 +30,9 @@ describe('Golden Path release router', () => {
       catalog: catalog as never,
       httpAuth: httpAuth as never,
       github,
+      permissions: {
+        authorize: async () => [{ result: AuthorizeResult.ALLOW }],
+      } as never,
     });
     const server = express();
     server.use(router);

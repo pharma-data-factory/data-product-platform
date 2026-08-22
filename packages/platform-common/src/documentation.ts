@@ -1595,6 +1595,42 @@ export const DOCUMENTATION_PAGES: DocumentationPage[] = [
     owner: 'Platform Team',
     section: 'HOW-TO',
   }),
+  page({
+    id: 'nexora-industrial',
+    title: 'Nexora Industrial Plugin Suite',
+    path: '/nexora/index',
+    kind: 'Platform Documentation',
+    audience: 'INTERNAL_ENGINEERING',
+    owner: 'Platform Team',
+    section: 'INDUSTRIAL',
+  }),
+  page({
+    id: 'nexora-asset-explorer',
+    title: 'Asset & Equipment Explorer',
+    path: '/nexora/asset-explorer',
+    kind: 'Platform Documentation',
+    audience: 'INTERNAL_ENGINEERING',
+    owner: 'Platform Team',
+    section: 'INDUSTRIAL',
+  }),
+  page({
+    id: 'nexora-contract-explorer',
+    title: 'Data Product & Contract Explorer',
+    path: '/nexora/contract-explorer',
+    kind: 'Platform Documentation',
+    audience: 'INTERNAL_ENGINEERING',
+    owner: 'Platform Team',
+    section: 'INDUSTRIAL',
+  }),
+  page({
+    id: 'nexora-quality-connectivity',
+    title: 'Data Quality & Connectivity',
+    path: '/nexora/quality-connectivity',
+    kind: 'Platform Documentation',
+    audience: 'INTERNAL_ENGINEERING',
+    owner: 'Platform Team',
+    section: 'INDUSTRIAL',
+  }),
 ];
 
 export const FIRST_DAY_STEPS: FirstDayStep[] = [

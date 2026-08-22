@@ -88,7 +88,8 @@ export function EntitlementsAdminPage() {
             </Grid>
             <Grid item xs={12} md={8}>
               <InfoCard title="Entitlements">
-                <Table>
+                <div style={{ overflowX: 'auto', width: '100%' }}>
+                <Table style={{ minWidth: 640 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Organization</TableCell>
@@ -116,6 +117,7 @@ export function EntitlementsAdminPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </InfoCard>
             </Grid>
           </Grid>

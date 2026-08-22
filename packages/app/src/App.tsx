@@ -2,6 +2,10 @@ import { createApp } from '@backstage/frontend-defaults';
 import catalogPlugin from '@backstage/plugin-catalog/alpha';
 import dataProductsPlugin from '@internal/plugin-data-products';
 import marketplacePlugin from '@internal/plugin-marketplace';
+import { nexoraCommonPlugin } from '@internal/plugin-nexora-common';
+import { nexoraAssetsPlugin } from '@internal/plugin-nexora-assets';
+import { nexoraContractsPlugin } from '@internal/plugin-nexora-contracts';
+import { nexoraQualityPlugin } from '@internal/plugin-nexora-quality';
 import { architectureModule } from './modules/architecture';
 import { legalModule } from './modules/legal';
 import { developerHubModule } from './modules/developer-hub';
@@ -36,5 +40,9 @@ export default createApp({
     navModule,
     dataProductsPlugin,
     marketplacePlugin,
+    nexoraCommonPlugin,
+    nexoraAssetsPlugin,
+    nexoraContractsPlugin,
+    nexoraQualityPlugin,
   ],
 });

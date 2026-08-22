@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/counter-event.schema.json",
+  "title": "Counter Event",
+  "description": "Cumulative equipment counters for an OEE 1.0 interval. One MQTT message is not a complete calculation window.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["equipmentId", "timestamp", "totalCount", "goodCount", "rejectCount"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "equipmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "totalCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "goodCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rejectCount": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

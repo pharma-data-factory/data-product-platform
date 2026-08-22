@@ -19,8 +19,15 @@ export const QUALITY_STAGES = [
 
 export type QualityStage = (typeof QUALITY_STAGES)[number];
 
+export const CI_UNKNOWN_REPRESENTATION = 'DEGRADED / UNVERIFIED';
+
+export function ciStatusRepresentation(status: PlatformCiStatus): string {
+  return status === 'UNKNOWN' ? CI_UNKNOWN_REPRESENTATION : status;
+}
+
 export interface DataProductCiStatus {
   status: PlatformCiStatus;
+  representation?: string;
   workflowName?: string;
   githubStatus?: string;
   conclusion?: string;
@@ -86,10 +93,13 @@ export function publicCiStatus(
       )
     : undefined;
 
+  const normalized = PLATFORM_CI_STATUSES.includes(status.status as PlatformCiStatus)
+    ? status.status
+    : 'UNKNOWN';
+
   return {
-    status: PLATFORM_CI_STATUSES.includes(status.status as PlatformCiStatus)
-      ? status.status
-      : 'UNKNOWN',
+    status: normalized,
+    representation: ciStatusRepresentation(normalized),
     ...(status.workflowName ? { workflowName: status.workflowName } : {}),
     ...(status.githubStatus ? { githubStatus: status.githubStatus } : {}),
     ...(status.conclusion ? { conclusion: status.conclusion } : {}),

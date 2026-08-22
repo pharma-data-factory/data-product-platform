@@ -2,18 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dataprod.platform/contracts/production-context.schema.json",
   "title": "Production Context",
-  "description": "OEE 1.0 production-context document. Domain names only; not SAP/MES field names. Typically fetched via REST Source.",
+  "description": "OEE 1.0 production-context document from a governed REST interface. MES remains System of Record. Optional fields are not required to calculate OEE.",
   "version": "1.0.0",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "contextId",
-    "equipmentId",
-    "plannedStart",
-    "plannedEnd",
-    "idealCycleTimeSeconds",
-    "timestamp"
-  ],
+  "required": ["equipmentId"],
   "properties": {
     "contextId": {
       "type": "string",
@@ -46,6 +39,11 @@
       "exclusiveMinimum": 0,
       "description": "Seconds per unit. Source of Performance ideal cycle time."
     },
+    "idealCycleSeconds": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Alias of idealCycleTimeSeconds."
+    },
     "targetQuantity": {
       "type": "integer",
       "minimum": 0,
@@ -69,9 +67,19 @@
       "type": "string",
       "description": "Optional shift label. Does not imply a platform shift calendar."
     },
+    "batchId": {
+      "type": "string"
+    },
+    "productId": {
+      "type": "string",
+      "description": "Optional product identity. Alias of materialId when the context source uses that name."
+    },
+    "recipeId": {
+      "type": "string"
+    },
     "plannedDowntime": {
       "type": "array",
-      "description": "Scheduled downtime intervals. Unioned with MAINTENANCE state. Do not double-subtract.",
+      "description": "Scheduled downtime intervals. Reduces planned production time. Not a STOPPED machine state. Type CHANGEOVER is informational only.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -87,6 +95,10 @@
           },
           "kind": {
             "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "Informational planned-downtime class such as CHANGEOVER. Does not introduce a separate SMED formula."
           }
         }
       }

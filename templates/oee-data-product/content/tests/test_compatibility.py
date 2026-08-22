@@ -11,10 +11,10 @@ from app.compatibility import (
 
 BASE_SCHEMA = {
     "version": "1.0.0",
-    "required": ["equipmentId", "windowKind", "oee", "calculationStatus"],
+    "required": ["equipmentId", "window", "oee", "calculationStatus"],
     "properties": {
         "equipmentId": {"type": "string"},
-        "windowKind": {"type": "string"},
+        "window": {"type": "object"},
         "oee": {"type": ["number", "null"]},
         "calculationStatus": {"type": "string"},
     },

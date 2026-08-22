@@ -572,9 +572,12 @@ export function ComposePage() {
                 ))}
               </div>
               <p className={classes.meta} data-testid="certification-summary">
-                Component status {validation.certifiedCount} CERTIFIED.
-                Composition status {validation.validated ? 'VALIDATED' : 'NOT VALIDATED'}.
+                Component status {validation.certifiedCount} CERTIFIED
+                (technical certification — not GMP validation).
+                Composition status {validation.validated ? 'VALIDATED' : 'NOT VALIDATED'}
+                (technical composition check — not GMP validation).
                 A validated composition is not a CERTIFIED Golden Path.
+                Platform validation status remains NOT_VALIDATED.
               </p>
               {selected.length > 0 && (
                 <div style={{ marginTop: 12 }}>

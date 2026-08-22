@@ -2,12 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dataprod.platform/contracts/oee-result.schema.json",
   "title": "OEE Result",
-  "description": "OEE 1.0 output contract. Ratios may be null when calculation guards apply.",
+  "description": "OEE 1.0 output contract. Ratios and inputSummary counts are null when the corresponding input is missing. Nested window/context/inputSummary are the 1.0 identity; flat fields remain for existing consumers.",
   "version": "1.0.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "equipmentId",
+    "window",
     "windowKind",
     "windowStart",
     "windowEnd",
@@ -15,15 +16,7 @@
     "performance",
     "quality",
     "oee",
-    "totalCount",
-    "goodCount",
-    "rejectCount",
-    "runtimeSeconds",
-    "downtimeSeconds",
-    "plannedProductionSeconds",
-    "completeness",
-    "calculationStatus",
-    "reconciliationStatus"
+    "calculationStatus"
   ],
   "properties": {
     "contract": {
@@ -31,96 +24,96 @@
       "additionalProperties": false,
       "required": ["name", "version"],
       "properties": {
-        "name": {
-          "const": "oee-result"
-        },
-        "version": {
-          "const": "1.0.0"
-        }
+        "name": { "const": "oee-result" },
+        "version": { "const": "1.0.0" }
       }
     },
-    "equipmentId": {
-      "type": "string",
-      "minLength": 1
-    },
+    "equipmentId": { "type": "string", "minLength": 1 },
     "windowKind": {
       "type": "string",
       "enum": ["shift", "hour", "day", "order", "custom"]
     },
-    "windowStart": {
-      "type": "string",
-      "format": "date-time"
+    "windowStart": { "type": "string", "format": "date-time" },
+    "windowEnd": { "type": "string", "format": "date-time" },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "start", "end"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["HOUR", "SHIFT", "ORDER", "CUSTOM"]
+        },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
+      }
     },
-    "windowEnd": {
-      "type": "string",
-      "format": "date-time"
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "site": { "type": ["string", "null"] },
+        "area": { "type": ["string", "null"] },
+        "line": { "type": ["string", "null"] },
+        "orderId": { "type": ["string", "null"] },
+        "batchId": { "type": ["string", "null"] },
+        "productId": { "type": ["string", "null"] },
+        "shiftId": { "type": ["string", "null"] }
+      }
     },
-    "orderId": {
-      "type": ["string", "null"]
-    },
-    "availability": {
-      "type": ["number", "null"]
-    },
+    "orderId": { "type": ["string", "null"] },
+    "availability": { "type": ["number", "null"] },
     "performance": {
-      "type": ["number", "null"]
+      "type": ["number", "null"],
+      "description": "Not capped at 1.0."
     },
-    "quality": {
-      "type": ["number", "null"]
-    },
+    "quality": { "type": ["number", "null"] },
     "oee": {
-      "type": ["number", "null"]
+      "type": ["number", "null"],
+      "description": "Null when calculation cannot be completed."
     },
-    "totalCount": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "goodCount": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "rejectCount": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "runtimeSeconds": {
-      "type": "number",
-      "minimum": 0
-    },
-    "downtimeSeconds": {
-      "type": "number",
-      "minimum": 0
-    },
-    "plannedProductionSeconds": {
-      "type": "number",
-      "minimum": 0
-    },
+    "totalCount": { "type": ["integer", "null"], "minimum": 0 },
+    "goodCount": { "type": ["integer", "null"], "minimum": 0 },
+    "rejectCount": { "type": ["integer", "null"], "minimum": 0 },
+    "runtimeSeconds": { "type": ["number", "null"], "minimum": 0 },
+    "downtimeSeconds": { "type": ["number", "null"], "minimum": 0 },
+    "plannedProductionSeconds": { "type": ["number", "null"], "minimum": 0 },
     "idealCycleTimeSeconds": {
       "type": ["number", "null"],
       "exclusiveMinimum": 0
     },
+    "inputSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plannedProductionSeconds": { "type": ["number", "null"], "minimum": 0 },
+        "runtimeSeconds": { "type": ["number", "null"], "minimum": 0 },
+        "idealCycleSeconds": { "type": ["number", "null"] },
+        "totalCount": { "type": ["integer", "null"], "minimum": 0 },
+        "goodCount": { "type": ["integer", "null"], "minimum": 0 },
+        "rejectCount": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
     "completeness": {
       "type": "string",
-      "enum": ["COMPLETE", "PARTIAL", "INCOMPLETE"],
-      "description": "Input completeness for the window. Independent of calculationStatus."
+      "enum": ["COMPLETE", "PARTIAL", "INCOMPLETE"]
     },
     "calculationStatus": {
       "type": "string",
       "enum": [
-        "VALID",
-        "INCOMPLETE",
-        "INVALID_INPUT",
-        "NO_PRODUCTION",
-        "PENDING_LATE_DATA"
-      ],
-      "description": "Consumer-facing calculation state. OEE 0.0 with VALID or NO_PRODUCTION is not the same as oee null."
+        "COMPLETE",
+        "MISSING_PRODUCTION_CONTEXT",
+        "MISSING_MACHINE_STATE",
+        "MISSING_IDEAL_CYCLE",
+        "MISSING_COUNTER_DATA",
+        "MISSING_QUALITY_DATA",
+        "INSUFFICIENT_OBSERVATION"
+      ]
     },
     "reconciliationStatus": {
       "type": "string",
       "enum": ["ALIGNED", "COUNT_MISMATCH", "COUNTS_UNAVAILABLE"]
     },
-    "calculatedAt": {
-      "type": "string",
-      "format": "date-time"
-    }
+    "calculatedAt": { "type": "string", "format": "date-time" }
   }
 }

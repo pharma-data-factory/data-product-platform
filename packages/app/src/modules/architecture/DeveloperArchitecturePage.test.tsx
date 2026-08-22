@@ -23,12 +23,12 @@ describe('DeveloperArchitecturePage', () => {
 
   it('renders the developer architecture diagram', () => {
     render(<DeveloperArchitecturePage />);
+    const diagram = screen.getByRole('group', {
+      name: /Developer architecture: Nexora Control Plane/i,
+    });
 
-    expect(
-      screen.getByRole('img', {
-        name: /Developer architecture: Nexora Control Plane/i,
-      }),
-    ).toBeInTheDocument();
+    expect(diagram).toHaveClass('pdf-diag');
+    expect(diagram.querySelector('svg')).toBeNull();
     expect(screen.getByText('Catalog')).toBeInTheDocument();
     expect(screen.getByText('Marketplace')).toBeInTheDocument();
     expect(screen.getByText('Create')).toBeInTheDocument();

@@ -225,6 +225,51 @@ describe('AWS Marketplace adapter', () => {
     expect(runtime.diagnostics().status).toBe('ERROR');
   });
 
+  it('does not grant INTERNAL or local default entitlements when AWS lookup fails', async () => {
+    const runtime = createEntitlementRuntime({
+      config: new ConfigReader({
+        commercial: {
+          environment: 'test-marketplace',
+          entitlementProvider: 'aws',
+          localEntitlements: {
+            internal: [
+              'golden-path.mqtt-temperature',
+              'golden-path.rest-equipment',
+              'platform.core',
+            ],
+          },
+          awsMarketplace: {
+            region: 'us-east-1',
+            productCode: 'example',
+            organizationLinks: [restLink],
+          },
+        },
+      }),
+      awsClients: {
+        getEntitlements: async () => {
+          throw new Error('simulated AWS failure ETIMEDOUT');
+        },
+        resolveCustomer: async () => ({}),
+      },
+    });
+    expect(runtime.config.failClosed).toBe(true);
+    expect(
+      await runtime.service.hasEntitlement(
+        'internal',
+        'golden-path.mqtt-temperature',
+      ),
+    ).toBe(false);
+    const decision = await runtime.service.authorizeCreate({
+      organizationId: 'internal',
+      templateId: 'mqtt-temperature-data-product',
+      role: 'DEVELOPER',
+      actor: 'user:default/developer',
+    });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe('ENTITLEMENT');
+    expect(decision.entitled).toBe(false);
+  });
+
   it('returns no entitlements for an unknown organization', async () => {
     const provider = new AwsMarketplaceEntitlementProvider({
       organizationId: 'internal',

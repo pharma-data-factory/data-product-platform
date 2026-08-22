@@ -16,21 +16,45 @@ describe('public landing', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
-        name: /Keep the core standard\.\s*Innovate through Data Products\./i,
+        name: /Keep core systems standardized\.\s*Deliver Data Products around them\./i,
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/without turning the operational core into a customization layer/i),
+      screen.getByText(
+        /open platform for Data Products and integrations in pharmaceutical and industrial environments/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Sign In/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /See how it works/i })).toHaveAttribute(
       'href',
       '#how-it-works',
     );
-    expect(screen.getAllByRole('link', { name: /See Golden Paths/i })[0]).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: /Explore platform/i })[0]).toHaveAttribute(
       'href',
       '#golden-paths',
     );
+    expect(screen.getAllByRole('link', { name: /Book a Demo/i })[0]).toHaveAttribute(
+      'href',
+      '#contact',
+    );
+    expect(screen.getByLabelText(/How Data Products are consumed/i)).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByLabelText(/Nexora Control Plane beside ERP, MES, LIMS/i),
+      ).getByText('NEXORA'),
+    ).toBeInTheDocument();
+    for (const protocol of ['APIs', 'Events', 'MQTT', 'REST', 'Files / Streams']) {
+      expect(screen.getAllByText(protocol).length).toBeGreaterThan(0);
+    }
+    for (const system of ['ERP', 'MES', 'LIMS', 'EWM', 'Historian', 'CMO']) {
+      expect(screen.getAllByText(system).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByText('Protect the standard')).toBeInTheDocument();
+    expect(screen.getByText('Secure & compliant')).toBeInTheDocument();
+    expect(screen.getByText(/This is not GxP, CSV, or regulatory validation/i)).toBeInTheDocument();
+    expect(screen.getByText('32')).toBeInTheDocument();
+    expect(screen.getByText('267')).toBeInTheDocument();
+    expect(screen.queryByText(/Data Products: 32/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Continue as Guest')).not.toBeInTheDocument();
     expect(screen.queryByText('Continue with GitHub')).not.toBeInTheDocument();
     expect(screen.queryByText(/Backstage/i)).not.toBeInTheDocument();
@@ -64,19 +88,13 @@ describe('public landing', () => {
     render(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getByLabelText('How it works')).toBeInTheDocument();
-    for (const step of [
-      'Connect',
-      'Understand',
-      'Compose',
-      'Build',
-      'Govern',
-      'Consume',
-    ]) {
+    for (const step of ['Keep the core', 'Generate the product', 'Consume the contract']) {
       expect(screen.getByRole('heading', { name: step })).toBeInTheDocument();
     }
     expect(
-      screen.getByText('REST, MQTT, and IT/OT stay at the edge.'),
-    ).toBeInTheDocument();
+      screen.getAllByText(/ERP, MES, LIMS and EWM stay systems of record/i).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText('Connect')).not.toBeInTheDocument();
     expect(screen.queryByText('Discover')).not.toBeInTheDocument();
     expect(screen.queryByText('Publish')).not.toBeInTheDocument();
   });
@@ -137,31 +155,83 @@ describe('public landing', () => {
     render(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getByLabelText('Golden Path showcase')).toBeInTheDocument();
+    expect(screen.getByText('Golden Paths (6)')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search Golden Paths...' })).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-category-filter')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'OEE Data Product' })).toBeInTheDocument();
     expect(
-      screen.getByText('Built as an independent Data Product — not an MES customization.'),
+      within(screen.getByRole('heading', { name: 'OEE Data Product' }).closest('article')!).getByLabelText(
+        'Version 1.0',
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'MQTT Temperature Data Product' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Overall Equipment Effectiveness for one asset and one time window/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('heading', { name: 'MQTT Temperature Data Product' }).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'REST Equipment Data Product' })).toBeInTheDocument();
+    expect(screen.getByText('What it is')).toBeInTheDocument();
+    expect(screen.getByText('Why it exists as a product')).toBeInTheDocument();
     expect(screen.getAllByText('CERTIFIED').length).toBeGreaterThanOrEqual(3);
-    expect(screen.queryByText('Snowflake')).not.toBeInTheDocument();
-    expect(screen.queryByText('SAP')).not.toBeInTheDocument();
-    expect(screen.queryByText('Cold Chain')).not.toBeInTheDocument();
+    expect(screen.getAllByText('PLANNED').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByRole('button', { name: 'Explore MQTT Temperature' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore REST Equipment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore OEE' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore Snowflake' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore SAP' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore Cold Chain' })).toBeInTheDocument();
     expect(screen.queryByText(/Planned \/ future Golden Paths/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Explore OEE' }));
+    const detail = screen.getByLabelText('OEE Data Product details');
+    expect(within(detail).getByLabelText('Version 1.0')).toBeInTheDocument();
+    expect(within(detail).getByText('What it is')).toBeInTheDocument();
+    expect(within(detail).getByText('Why it exists as a product')).toBeInTheDocument();
+    expect(within(detail).getByText('How the path works')).toBeInTheDocument();
+    expect(within(detail).getByText('Typical plant use')).toBeInTheDocument();
+    expect(
+      within(detail).getByText(/Overall Equipment Effectiveness/i),
+    ).toBeInTheDocument();
+    expect(within(detail).getByText('Availability')).toBeInTheDocument();
+    expect(within(detail).getByText('Performance')).toBeInTheDocument();
+    expect(within(detail).getByText('Quality')).toBeInTheDocument();
+    expect(
+      within(detail).getByText(/ideal cycle time from production context/i),
+    ).toBeInTheDocument();
+    expect(
+      within(detail).getByText(/Plants still compute OEE inside MES customizing/i),
+    ).toBeInTheDocument();
+    expect(
+      within(detail).getByText(/Hourly OEE for a filling or packaging line/i),
+    ).toBeInTheDocument();
+    expect(within(detail).getByText('Loss analysis')).toBeInTheDocument();
+    expect(within(detail).getByText('Microstops')).toBeInTheDocument();
+    expect(within(detail).getByText('Reason Hierarchy')).toBeInTheDocument();
+    expect(within(detail).getByText('MTBF / MTTR')).toBeInTheDocument();
+    expect(within(detail).getByText('Quality Loss')).toBeInTheDocument();
+    expect(within(detail).getByText('IN 1.0')).toBeInTheDocument();
+    expect(within(detail).getAllByText('FOUNDATION').length).toBeGreaterThan(0);
+    expect(
+      within(detail).getByText(/not a Six Big Losses, SMED, or GxP model/i),
+    ).toBeInTheDocument();
+    expect(within(detail).getByText(/not GxP/i)).toBeInTheDocument();
   });
 
   it('keeps a short Home story and sends depth to existing pages', () => {
     render(<PublicLanding onSignIn={() => undefined} />);
 
-    expect(screen.getByLabelText('Why it exists')).toBeInTheDocument();
-    expect(screen.getByText(/Do not customize the operational core/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Why Nexora')).toBeInTheDocument();
+    expect(screen.getByText(/Digital value without rewriting MES/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/pharmaceutical, biotech, and CDMO teams/i),
+      screen.getByText(/pharma, biotech, and CDMO who need Temperature, Equipment and OEE products/i),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('How it works')).toBeInTheDocument();
     expect(screen.getByLabelText('Golden Path showcase')).toBeInTheDocument();
     expect(
-      screen.getByText('Focus on domain value. Not platform plumbing.'),
+      screen.getByText('Your team writes the domain logic. Nexora ships the rest.'),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'How developers build' }),
@@ -208,14 +278,19 @@ describe('public landing', () => {
     fireEvent.click(within(languageMenu).getByRole('menuitemradio', { name: 'Deutsch' }));
 
     expect(screen.getAllByRole('link', { name: 'Demo vereinbaren' })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Plattform entdecken' })[0]).toHaveAttribute(
+      'href',
+      '#golden-paths',
+    );
+    expect(screen.getByText('Standard schützen')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Anmelden' }).length).toBeGreaterThan(0);
     expect(
       screen.getByRole('heading', {
-        name: /Kernsysteme standardisiert halten\.\s*Über Data Products innovieren\./i,
+        name: /Kernsysteme standardisiert halten\.\s*Data Products darum herum liefern\./i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Den operativen Kern nicht anpassen.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Verbinden' })).toBeInTheDocument();
+    expect(screen.getByText('Digitaler Nutzen, ohne MES umzuschreiben.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Kern halten' })).toBeInTheDocument();
     expect(screen.getByText('Template, Platform oder SaaS')).toBeInTheDocument();
     expect(screen.queryByText('Connect')).not.toBeInTheDocument();
     expect(screen.queryByText('What is a Data Product?')).not.toBeInTheDocument();

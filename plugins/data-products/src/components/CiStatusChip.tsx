@@ -1,5 +1,5 @@
 import { Chip } from '@material-ui/core';
-import { PlatformCiStatus } from '../ciStatus';
+import { ciStatusRepresentation, PlatformCiStatus } from '../ciStatus';
 
 const STYLES: Record<PlatformCiStatus, { backgroundColor: string; color: string }> =
   {
@@ -14,7 +14,7 @@ export function CiStatusChip({ status }: { status: PlatformCiStatus }) {
   return (
     <Chip
       size="small"
-      label={status}
+      label={ciStatusRepresentation(status)}
       style={STYLES[status]}
       title="Latest GitHub Actions quality-gate result. Not GxP or regulatory validation."
     />

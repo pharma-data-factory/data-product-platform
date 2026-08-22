@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/brand/nexora-lockup.svg" alt="Nexora — Pharma Data Factory" width="480" />
+  <img src="docs/brand/nexora-lockup.svg" alt="Nexora — Pharma Data Factory" width="640" />
 </p>
 
 <h1 align="center">Nexora</h1>

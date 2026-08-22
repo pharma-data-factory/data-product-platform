@@ -16,8 +16,13 @@ describe('MVP 1.1 pilot hardening', () => {
     const samples = read('catalog/samples/entities.yaml');
 
     expect(local).toContain('catalog/samples/entities.yaml');
+    expect(local).toContain('catalog/samples/industrial.yaml');
     expect(production).not.toContain('catalog/samples');
     expect(docker).not.toContain('catalog/samples');
+    expect(read('catalog/samples/industrial.yaml')).toContain(
+      "dataprod.platform/version: '1.0'",
+    );
+    expect(read('catalog/entities.yaml')).not.toContain('name: filler-01');
     expect(entities).not.toContain('sample-orders-product');
     expect(entities).not.toContain('example-oee-data-product');
     expect(entities).not.toContain('github.com/example');

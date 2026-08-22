@@ -10,4 +10,13 @@ describe('pharma-data-factory theme', () => {
     expect(palette?.secondary?.main).toBe(PHARMA_TEAL);
     expect(palette?.navigation?.background).toBe(PHARMA_NAVY);
   });
+
+  it('gives table cells readable padding without changing brand colors', () => {
+    const overrides = (
+      pharmaDataFactoryTheme.getTheme('v4') as
+        | { overrides?: { MuiTableCell?: { root?: { padding?: string } } } }
+        | undefined
+    )?.overrides;
+    expect(overrides?.MuiTableCell?.root?.padding).toBe('14px 16px');
+  });
 });

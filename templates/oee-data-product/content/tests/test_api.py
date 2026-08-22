@@ -78,7 +78,7 @@ def test_perfect_oee_via_api(client: TestClient) -> None:
     assert body["performance"] == 1.0
     assert body["quality"] == 1.0
     assert body["oee"] == 1.0
-    assert body["calculationStatus"] == "VALID"
+    assert body["calculationStatus"] == "COMPLETE"
     assert body["oee"] != None
 
 
@@ -110,8 +110,8 @@ def test_zero_is_not_incomplete(client: TestClient) -> None:
             "to": "2026-08-20T09:00:00Z",
         },
     ).json()
-    assert body["oee"] == 0.0
-    assert body["calculationStatus"] == "NO_PRODUCTION"
+    assert body["oee"] is None
+    assert body["calculationStatus"] == "MISSING_QUALITY_DATA"
 
 
 def test_invalid_window_is_400(client: TestClient) -> None:
@@ -216,7 +216,7 @@ def test_rest_unavailable_is_incomplete_not_zero(client: TestClient) -> None:
     assert body["availability"] == 1.0
     assert body["performance"] is None
     assert body["oee"] is None
-    assert body["calculationStatus"] == "INCOMPLETE"
+    assert body["calculationStatus"] == "MISSING_PRODUCTION_CONTEXT"
 
 
 def test_mqtt_unavailable_health_is_down(client: TestClient) -> None:

@@ -336,6 +336,18 @@ export const ENTITLEMENT_AUDIT_EVENTS = [
 
 export type EntitlementAuditEventType = (typeof ENTITLEMENT_AUDIT_EVENTS)[number];
 
+export interface EntitlementAuditAuthorizationContext {
+  reason?: string;
+  templateId?: string;
+  role?: string;
+  handoff?: string;
+  permission?: string;
+  rbacAllowed?: boolean;
+  entitled?: boolean;
+  releaseEligible?: boolean;
+  legalDistributionStatus?: string;
+}
+
 export interface EntitlementAuditEvent {
   type: EntitlementAuditEventType;
   at: string;
@@ -343,6 +355,9 @@ export interface EntitlementAuditEvent {
   organizationId: string;
   productId?: string;
   detail?: string;
+  action?: string;
+  decision?: 'GRANT' | 'DENY';
+  authorizationContext?: EntitlementAuditAuthorizationContext;
 }
 
 export function createEntitlementAuditEvent(

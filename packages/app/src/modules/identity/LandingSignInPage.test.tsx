@@ -63,9 +63,9 @@ describe('LandingSignInPage', () => {
 
     expect(screen.getAllByText('NEXORA').length).toBeGreaterThan(0);
     expect(
-      screen.getByText(
-        /Keep the core standard\.\s*Innovate through Data Products\./i,
-      ),
+      screen.getByRole('heading', {
+        name: /Keep core systems standardized\.\s*Deliver Data Products around them\./i,
+      }),
     ).toBeInTheDocument();
     expect(screen.getAllByText('Sign In').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /See how it works/i }).length).toBeGreaterThan(0);
@@ -287,9 +287,9 @@ describe('LandingSignInPage', () => {
       expect(signOut).toHaveBeenCalled();
     });
     expect(
-      screen.getByText(
-        /Keep the core standard\.\s*Innovate through Data Products\./i,
-      ),
+      screen.getByRole('heading', {
+        name: /Keep core systems standardized\.\s*Deliver Data Products around them\./i,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -349,7 +349,7 @@ describe('LandingSignInPage', () => {
       ).toBeInTheDocument();
       expect(
         screen.queryByText(
-          /without turning the operational core into a customization layer/i,
+          /open platform for Data Products and integrations in pharmaceutical and industrial environments/i,
         ),
       ).not.toBeInTheDocument();
     } finally {
@@ -378,7 +378,7 @@ describe('LandingSignInPage', () => {
       expect(screen.getByText('composition manifest')).toBeInTheDocument();
       expect(
         screen.queryByText(
-          /without turning the operational core into a customization layer/i,
+          /open platform for Data Products and integrations in pharmaceutical and industrial environments/i,
         ),
       ).not.toBeInTheDocument();
     } finally {

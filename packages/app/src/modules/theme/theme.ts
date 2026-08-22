@@ -75,7 +75,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
       pending: '#64748B',
     },
     link: PHARMA_TEAL,
-    linkHover: '#0F766E',
+    linkHover: PHARMA_TEAL_DARK,
     tabbar: {
       indicator: PHARMA_TEAL,
     },
@@ -167,6 +167,18 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
       styleOverrides: {
         root: {
           backgroundImage: 'none',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          padding: '14px 16px',
+          verticalAlign: 'middle',
+        },
+        head: {
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
         },
       },
     },

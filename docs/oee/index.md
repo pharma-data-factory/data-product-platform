@@ -45,6 +45,7 @@ and AAS are optional.
 | [Decisions](decisions.md) | Product questions |
 | [Definition of Done](definition-of-done.md) | Implementation gate |
 | [MVP boundary](mvp-boundary.md) | Approved pilot constraints |
+| [Loss management](losses.md) | OEE 1.1 microstops, reasons, loss APIs |
 
 Do not implement from this pack:
 

@@ -178,6 +178,12 @@ describe('Composition Builder', () => {
     expect(screen.getByTestId('certification-summary')).toHaveTextContent(
       'not a CERTIFIED Golden Path',
     );
+    expect(screen.getByTestId('certification-summary')).toHaveTextContent(
+      'not GMP validation',
+    );
+    expect(screen.getByTestId('certification-summary')).toHaveTextContent(
+      'NOT_VALIDATED',
+    );
     expect(screen.getByTestId('custom-composition')).toHaveTextContent(
       'CUSTOM COMPOSITION',
     );

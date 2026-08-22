@@ -19,8 +19,15 @@ export const QUALITY_STAGES = [
 
 export type QualityStage = (typeof QUALITY_STAGES)[number];
 
+export const CI_UNKNOWN_REPRESENTATION = 'DEGRADED / UNVERIFIED';
+
+export function ciStatusRepresentation(status: PlatformCiStatus): string {
+  return status === 'UNKNOWN' ? CI_UNKNOWN_REPRESENTATION : status;
+}
+
 export interface DataProductCiStatus {
   status: PlatformCiStatus;
+  representation?: string;
   workflowName?: string;
   githubStatus?: string;
   conclusion?: string;
@@ -38,6 +45,7 @@ export function unknownCiStatus(
 ): DataProductCiStatus {
   return {
     status: 'UNKNOWN',
+    representation: CI_UNKNOWN_REPRESENTATION,
     message,
   };
 }
@@ -58,6 +66,7 @@ export function sanitizeCiStatus(data: unknown): DataProductCiStatus {
 
   return {
     status,
+    representation: ciStatusRepresentation(status),
     ...(typeof raw.workflowName === 'string'
       ? { workflowName: raw.workflowName }
       : {}),

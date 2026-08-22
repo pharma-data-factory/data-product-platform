@@ -42,7 +42,7 @@ def test_scenario_a_perfect_via_api(oee_client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     _assert_expected(body, SCENARIOS["PERFECT"]["expected"])
-    assert body["calculationStatus"] == "VALID"
+    assert body["calculationStatus"] == "COMPLETE"
 
 
 def test_scenario_b_downtime_via_api(oee_client: TestClient) -> None:

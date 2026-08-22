@@ -133,6 +133,10 @@ catalog:
     - type: file
       target: ../../catalog/samples/entities.yaml
 
+    # Industrial plugin fixtures only. Not live shopfloor data.
+    - type: file
+      target: ../../catalog/samples/industrial.yaml
+
     - type: file
       target: ../../platform-components/catalog.yaml
 
@@ -201,6 +205,18 @@ permission:
   # setting this to `false` will disable permissions
   enabled: true
 
+# Nexora industrial providers. mock uses in-memory fixtures for local
+# development. Remote base URLs are server-side only. Never put credentials here.
+nexora:
+  providers:
+    mode: mock
+    connectivity:
+      baseUrl: ${NEXORA_CONNECTIVITY_URL:-}
+    dataQuality:
+      baseUrl: ${NEXORA_DATA_QUALITY_URL:-}
+    contracts:
+      baseUrl: ${NEXORA_CONTRACTS_URL:-}
+
 # Technical certification overlay. Catalog annotation remains canonical.
 dataProducts:
   certification:
@@ -223,6 +239,9 @@ commercial:
       - golden-path.mqtt-temperature
       - golden-path.rest-equipment
       - platform.core
+  # Durable Create-authorization records (URS-AUD-001). Not Part 11.
+  # Survives process restart. Not a substitute for PostgreSQL Backstage state.
+  createAuthorizationAuditPath: ${CREATE_AUTHORIZATION_AUDIT_PATH:-.runtime/create-authorization-audit.jsonl}
   awsMarketplace:
     region: ${AWS_MARKETPLACE_REGION:-}
     productCode: ${AWS_MARKETPLACE_PRODUCT_CODE:-}

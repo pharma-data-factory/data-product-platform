@@ -60,6 +60,11 @@ nav:
       - Golden Path documentation: engineering/golden-path-documentation.md
       - Engineering contract: engineering-contract.md
       - Template standard: data-product-template-standard.md
+  - Industrial plugins:
+      - Overview: nexora/index.md
+      - Asset Explorer: nexora/asset-explorer.md
+      - Contract Explorer: nexora/contract-explorer.md
+      - Quality & Connectivity: nexora/quality-connectivity.md
   - Platform components:
       - Library: platform-components/index.md
       - Component model: platform-components/component-model.md

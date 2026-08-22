@@ -87,7 +87,7 @@ def evaluate(
         run_check(
             "machine_state_payload",
             [item for item in events if item.get("kind") == "state"],
-            lambda item: payload_matches_schema({"state": item.get("state"), "reason": item.get("reason")}, state_schema),
+            lambda item: payload_matches_schema(without_kind(item), state_schema),
             "payload must match machine-state-event 1.0.0",
         ),
         run_check(

@@ -151,6 +151,7 @@ export async function createRouter(
       source: context.source,
       entitlements: context.entitlements,
       audit: runtime.service.auditTrail(),
+      auditIssues: runtime.service.auditIssues(),
     });
   });
 

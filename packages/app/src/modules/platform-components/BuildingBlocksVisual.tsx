@@ -50,7 +50,7 @@ function chip(x: number, y: number, width: number, label: string) {
         width={width}
         height="28"
         rx="7"
-        fill="rgba(20,184,166,0.16)"
+        fill="rgba(0,194,217,0.16)"
         stroke={PHARMA_TEAL}
       />
       <text
@@ -154,7 +154,7 @@ export function BuildingBlocksVisual() {
           width="580"
           height="96"
           rx="12"
-          fill="rgba(13,148,136,0.08)"
+          fill="rgba(0,194,217,0.08)"
           stroke={PHARMA_TEAL}
         />
         <text

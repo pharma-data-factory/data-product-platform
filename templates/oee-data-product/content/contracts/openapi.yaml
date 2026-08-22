@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: ${{ values.title }}
+  version: "1.0.0"
+  description: |
+    OEE Data Product 1.0 result API.
+    OEE = Availability × Performance × Quality for one equipmentId and an explicit interval.
+    Missing inputs yield calculationStatus and null ratios. Never guessed.
+    CERTIFIED on the Golden Path is technical platform status only. It is not GxP validation.
+    MES remains System of Record. This API does not access MES/ERP/LIMS/EWM databases.
+servers:
+  - url: /
+paths:
+  /health:
+    get:
+      summary: Liveness
+      responses:
+        "200":
+          description: Service process is up
+  /health/ready:
+    get:
+      summary: Readiness including MQTT, REST source, and storage
+      responses:
+        "200":
+          description: Ready or degraded checks
+  /api/v1/oee:
+    get:
+      summary: Calculate OEE for the configured or requested equipment
+      parameters:
+        - $ref: "#/components/parameters/equipmentId"
+        - $ref: "#/components/parameters/window"
+        - $ref: "#/components/parameters/windowType"
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+        - $ref: "#/components/parameters/start"
+        - $ref: "#/components/parameters/end"
+      responses:
+        "200":
+          description: One OEE result wrapped in a list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OeeResult"
+        "400":
+          description: Invalid window
+        "404":
+          description: Unknown equipment
+        "503":
+          description: Storage unavailable
+  /api/v1/oee/{equipmentId}:
+    get:
+      summary: Calculate OEE for one named equipment and explicit interval
+      parameters:
+        - name: equipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/window"
+        - $ref: "#/components/parameters/windowType"
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+        - $ref: "#/components/parameters/start"
+        - $ref: "#/components/parameters/end"
+      responses:
+        "200":
+          description: OEE result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OeeResult"
+components:
+  parameters:
+    equipmentId:
+      name: equipmentId
+      in: query
+      schema:
+        type: string
+    window:
+      name: window
+      in: query
+      schema:
+        type: string
+        enum: [hour, shift, order, custom, HOUR, SHIFT, ORDER, CUSTOM]
+    windowType:
+      name: windowType
+      in: query
+      schema:
+        type: string
+        enum: [HOUR, SHIFT, ORDER, CUSTOM, hour, shift, order, custom]
+    from:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    to:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    start:
+      name: start
+      in: query
+      schema:
+        type: string
+        format: date-time
+    end:
+      name: end
+      in: query
+      schema:
+        type: string
+        format: date-time
+  schemas:
+    OeeResult:
+      type: object
+      required: [equipmentId, calculationStatus]
+      properties:
+        equipmentId:
+          type: string
+        window:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [HOUR, SHIFT, ORDER, CUSTOM]
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        context:
+          type: object
+          description: Optional production context. Not all fields are required to calculate OEE.
+          properties:
+            site: { type: string, nullable: true }
+            area: { type: string, nullable: true }
+            line: { type: string, nullable: true }
+            orderId: { type: string, nullable: true }
+            batchId: { type: string, nullable: true }
+            productId: { type: string, nullable: true }
+            shiftId: { type: string, nullable: true }
+        availability: { type: number, nullable: true }
+        performance:
+          type: number
+          nullable: true
+          description: Not capped at 1.0
+        quality: { type: number, nullable: true }
+        oee:
+          type: number
+          nullable: true
+          description: Null when calculation cannot be completed
+        calculationStatus:
+          type: string
+          enum:
+            - COMPLETE
+            - MISSING_PRODUCTION_CONTEXT
+            - MISSING_MACHINE_STATE
+            - MISSING_IDEAL_CYCLE
+            - MISSING_COUNTER_DATA
+            - MISSING_QUALITY_DATA
+            - INSUFFICIENT_OBSERVATION
+        inputSummary:
+          type: object
+          properties:
+            plannedProductionSeconds: { type: number, nullable: true }
+            runtimeSeconds: { type: number, nullable: true }
+            idealCycleSeconds: { type: number, nullable: true }
+            totalCount: { type: integer, nullable: true }
+            goodCount: { type: integer, nullable: true }
+            rejectCount: { type: integer, nullable: true }

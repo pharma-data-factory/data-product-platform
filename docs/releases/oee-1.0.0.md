@@ -18,7 +18,7 @@ None.
 ### New capabilities
 
 - OEE Golden Path Mode A composing Wave 1 Health, Observability, MQTT Consumer, REST Source, Time-Series Storage, and REST API
-- oee-result 1.0.0 with VALID zero distinguished from INCOMPLETE null
+- oee-result 1.0.0 with COMPLETE zero distinguished from null plus explicit `MISSING_*` / `INSUFFICIENT_OBSERVATION` statuses
 - Quality gates, CI/CD, Docker, TechDocs, and a local event simulator
 
 ### Fixes

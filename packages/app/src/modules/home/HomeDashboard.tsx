@@ -15,6 +15,8 @@ import {
 } from '@internal/plugin-data-products';
 import type { DataProduct } from '@internal/plugin-data-products';
 import { C } from '../theme/tokens';
+import { LandingI18nProvider } from '../identity/landingI18n';
+import { GoldenPathShowcase } from '../identity/GoldenPathShowcase';
 
 const useStyles = makeStyles({
   welcome: {
@@ -160,6 +162,11 @@ export function HomeDashboard({
             </Typography>
           </div>
         </div>
+      </Grid>
+      <Grid item xs={12}>
+        <LandingI18nProvider>
+          <GoldenPathShowcase compact marketplaceLinks />
+        </LandingI18nProvider>
       </Grid>
       <Grid item xs={12}>
         <div className={classes.card}>

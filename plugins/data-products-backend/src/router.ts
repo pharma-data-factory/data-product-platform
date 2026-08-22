@@ -11,6 +11,7 @@ import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import {
   dataProductCertificationManagePermission,
   dataProductCreatePermission,
+  dataProductViewPermission,
   goldenPathReleaseManagePermission,
   isGoldenPathLifecycle,
   LIFECYCLE_TRANSITIONS,
@@ -49,12 +50,22 @@ export async function createRouter(
   router.get('/ci-status', async (req, res) => {
     const entityRef = String(req.query.entityRef ?? '').trim();
     if (!entityRef) {
-      res.json(unknownCiStatus('Not available'));
+      res.json(publicCiStatus(unknownCiStatus('Not available')));
       return;
     }
 
     try {
       const credentials = await httpAuth.credentials(req);
+      if (!permissions) {
+        throw new NotAllowedError('Permission service is not configured');
+      }
+      const [decision] = await permissions.authorize(
+        [{ permission: dataProductViewPermission }],
+        { credentials },
+      );
+      if (decision.result !== AuthorizeResult.ALLOW) {
+        throw new NotAllowedError();
+      }
       const status = await resolveCiStatus({
         entityRef,
         catalog,
@@ -64,12 +75,16 @@ export async function createRouter(
       });
       res.json(publicCiStatus(status));
     } catch (error) {
+      if (error instanceof NotAllowedError) {
+        res.status(403).json({ error: 'Not allowed' });
+        return;
+      }
       logger.warn(
         `CI status request failed for ${entityRef}: ${
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
-      res.json(unknownCiStatus('Not available'));
+      res.json(publicCiStatus(unknownCiStatus('Not available')));
     }
   });
 
@@ -156,7 +171,17 @@ export async function createRouter(
 
   router.get('/releases', async (req, res) => {
     try {
-      await httpAuth.credentials(req, { allow: ['user'] });
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      if (!permissions) {
+        throw new NotAllowedError('Permission service is not configured');
+      }
+      const [decision] = await permissions.authorize(
+        [{ permission: dataProductViewPermission }],
+        { credentials },
+      );
+      if (decision.result !== AuthorizeResult.ALLOW) {
+        throw new NotAllowedError();
+      }
       const releases = releaseOverlay?.mergedReleases() ?? loadGoldenPathReleases();
       res.json({
         releases,

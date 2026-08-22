@@ -1,0 +1,94 @@
+product: oee
+version: "1.0"
+
+capabilities:
+  quality-loss:
+    label: Quality Loss
+    status: included
+    description: quality = goodCount / totalCount. Reject count is supported. Not GxP disposition.
+
+  stop-classification:
+    label: Stop Classification
+    status: foundation
+    supportedStates:
+      - RUNNING
+      - STOPPED
+      - IDLE
+      - MAINTENANCE
+    description: State language exists. Planned downtime is modeled separately. No MICROSTOP machine state.
+
+  reason-codes:
+    label: Reason Codes
+    status: foundation
+    affectsCalculation: false
+    description: Optional diagnostic metadata on machine-state events. Does not change A, P, Q, or OEE.
+
+  unknown-losses:
+    label: Unknown Losses
+    status: foundation
+    description: Unobserved time is excluded or returns INSUFFICIENT_OBSERVATION. It is never invented as STOPPED.
+
+  speed-loss:
+    label: Speed Loss
+    status: foundation
+    description: Performance already reflects slower-than-ideal operation. No separate speed-loss formula in 1.0.
+
+  changeover-loss:
+    label: Changeover Loss
+    status: foundation
+    description: Planned downtime may carry type CHANGEOVER. No separate SMED calculation in 1.0.
+
+  context:
+    label: Context
+    status: foundation
+    description: Every result is bound to equipmentId and an explicit window. Site/area/line/order/batch/product/shift are optional.
+
+  microstops:
+    label: Microstops
+    status: planned
+    description: No duration threshold in 1.0. STOPPED and IDLE are unplanned availability losses without a microstop class.
+
+  reason-hierarchy:
+    label: Reason Hierarchy
+    status: planned
+    description: Do not embed site-specific MES reason maps in this Golden Path.
+
+  automatic-reason-detection:
+    label: Automatic Reason Detection
+    status: planned
+    description: Do not infer site-specific reasons from PLC/MES signals in 1.0.
+
+  manual-reason-assignment:
+    label: Manual Reason Assignment
+    status: planned
+    description: No operator UI in 1.0.
+
+  pareto-analysis:
+    label: Pareto Analysis
+    status: planned
+    description: No Pareto dashboard or analytics in OEE 1.0.
+
+  frequency-analysis:
+    label: Frequency Analysis
+    status: planned
+    description: No histograms in 1.0.
+
+  duration-analysis:
+    label: Duration Analysis
+    status: planned
+    description: No mean duration analytics in 1.0.
+
+  mtbf-mttr:
+    label: MTBF / MTTR
+    status: planned
+    description: Not part of oee-result. Belongs in a later reliability contract.
+
+  minor-stops:
+    label: Minor Stops
+    status: planned
+    description: No Minor Stop machine state in 1.0.
+
+  startup-loss:
+    label: Startup Loss
+    status: planned
+    description: No startup-loss inference in 1.0.

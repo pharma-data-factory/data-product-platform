@@ -147,17 +147,7 @@ function DiagramSection() {
         >
           Catalog, Marketplace and Create feed a Golden Path
         </h2>
-        <figure
-          style={{
-            margin: 0,
-            borderRadius: 16,
-            overflow: 'hidden',
-            border: `1px solid ${C.border}`,
-            background: '#05101C',
-          }}
-        >
-          <DeveloperArchitectureDiagram />
-        </figure>
+        <DeveloperArchitectureDiagram />
         <p style={{ margin: '20px 0 0', fontSize: 15, lineHeight: 1.7, color: C.muted, maxWidth: 760 }}>
           A Golden Path is a certified composition. Its composition manifest
           names Platform Components. Create generates a GitHub repository.
@@ -235,15 +225,14 @@ function ManifestSection() {
         </p>
         <pre
           aria-label="MQTT Temperature composition manifest"
+          className="pdf-diag pdf-diag-compact"
           style={{
             marginTop: 24,
-            padding: 20,
-            borderRadius: 14,
-            background: PHARMA_NAVY,
-            color: '#E2E8F0',
+            padding: 16,
+            color: C.text,
             overflowX: 'auto',
-            fontSize: 13,
-            lineHeight: 1.6,
+            fontSize: 12,
+            lineHeight: 1.55,
           }}
         >
           {MQTT_TEMPERATURE_COMPOSITION.yaml}

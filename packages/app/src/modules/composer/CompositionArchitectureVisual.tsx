@@ -62,7 +62,7 @@ export function CompositionArchitectureVisual(props: {
               width={width}
               height={boxH}
               rx="8"
-              fill={dashed ? 'rgba(255,255,255,0.06)' : 'rgba(20,184,166,0.16)'}
+              fill={dashed ? 'rgba(255,255,255,0.06)' : 'rgba(0,194,217,0.16)'}
               stroke={dashed ? 'rgba(255,255,255,0.28)' : PHARMA_TEAL}
               strokeDasharray={dashed ? '4 4' : undefined}
             />
@@ -93,7 +93,7 @@ export function CompositionArchitectureVisual(props: {
               width={width}
               height={boxH}
               rx="8"
-              fill="rgba(20,184,166,0.10)"
+              fill="rgba(0,194,217,0.10)"
               stroke={PHARMA_TEAL}
             />
             <text

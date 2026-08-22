@@ -1,0 +1,56 @@
+asyncapi: 2.6.0
+info:
+  title: ${{ values.title }} MQTT inputs
+  version: "1.0.0"
+  description: |
+    Incoming machine events for OEE Data Product 1.0.
+    Topics are configured in Create. Do not hardcode a site topic.
+    One MQTT message is not a complete calculation window.
+channels:
+  machineState:
+    address: ${{ values.machineStateTopic }}
+    subscribe:
+      summary: Machine state events
+      message:
+        name: machine-state-event
+        payload:
+          type: object
+          required: [equipmentId, state, timestamp]
+          properties:
+            equipmentId:
+              type: string
+            state:
+              type: string
+              enum: [RUNNING, STOPPED, IDLE, MAINTENANCE]
+            timestamp:
+              type: string
+              format: date-time
+            reasonCode:
+              type: string
+              description: Diagnostic only. Does not change A, P, Q, or OEE.
+            reason:
+              type: string
+  counters:
+    address: ${{ values.counterTopic }}
+    subscribe:
+      summary: Cumulative counter events
+      message:
+        name: counter-event
+        payload:
+          type: object
+          required: [equipmentId, timestamp, totalCount]
+          properties:
+            equipmentId:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            totalCount:
+              type: integer
+              minimum: 0
+            goodCount:
+              type: integer
+              minimum: 0
+            rejectCount:
+              type: integer
+              minimum: 0

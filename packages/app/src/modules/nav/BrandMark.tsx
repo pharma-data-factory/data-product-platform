@@ -4,9 +4,14 @@ import { PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '.
 const HEX =
   'M24 6 L39.5 14.75 L39.5 33.25 L24 42 L8.5 33.25 L8.5 14.75 Z';
 
-export function BrandMark({ size = 34 }: Readonly<{ size?: number }>) {
+export function BrandMark({
+  size = 34,
+  tone = 'default',
+}: Readonly<{ size?: number; tone?: 'default' | 'onDark' }>) {
   const uid = useId().replaceAll(':', '');
   const gradientId = `nexora-lg-${uid}`;
+  const glowId = `nexora-glow-${uid}`;
+  const onDark = tone === 'onDark';
 
   return (
     <svg
@@ -22,18 +27,30 @@ export function BrandMark({ size = 34 }: Readonly<{ size?: number }>) {
           <stop offset="55%" stopColor={PHARMA_TEAL} />
           <stop offset="100%" stopColor={PHARMA_TEAL_LIGHT} />
         </linearGradient>
+        {onDark ? (
+          <filter id={glowId} x="-35%" y="-35%" width="170%" height="170%">
+            <feDropShadow
+              dx="0"
+              dy="0"
+              stdDeviation="1.6"
+              floodColor={PHARMA_TEAL}
+              floodOpacity="0.7"
+            />
+          </filter>
+        ) : null}
       </defs>
       <path
         d={HEX}
         stroke={`url(#${gradientId})`}
-        strokeWidth="2"
-        fill={PHARMA_NAVY_DARK}
+        strokeWidth={onDark ? 2.4 : 2}
+        fill={onDark ? '#071828' : PHARMA_NAVY_DARK}
         strokeLinejoin="round"
+        filter={onDark ? `url(#${glowId})` : undefined}
       />
       <path
         d="M16 32.5 V15.5 M32 15.5 V32.5 M16 15.5 L32 32.5"
-        stroke={PHARMA_TEAL}
-        strokeWidth="2.2"
+        stroke={onDark ? PHARMA_TEAL_LIGHT : PHARMA_TEAL}
+        strokeWidth={onDark ? 2.6 : 2.2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -47,10 +64,10 @@ export function BrandMark({ size = 34 }: Readonly<{ size?: number }>) {
           key={`${x}-${y}`}
           cx={x}
           cy={y}
-          r="2.2"
-          fill={PHARMA_NAVY_DARK}
+          r={onDark ? 2.5 : 2.2}
+          fill={onDark ? '#071828' : PHARMA_NAVY_DARK}
           stroke={PHARMA_TEAL_LIGHT}
-          strokeWidth="1.6"
+          strokeWidth={onDark ? 1.8 : 1.6}
         />
       ))}
     </svg>

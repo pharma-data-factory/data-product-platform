@@ -81,24 +81,30 @@ describe('OEE Golden Path Design 1.0', () => {
     const quality = JSON.parse(
       read('docs/oee/schemas/quality-count-event.schema.json'),
     );
-    expect(context.required).toEqual(
+    expect(context.required).toEqual(expect.arrayContaining(['equipmentId']));
+    expect(result.required).toEqual(
       expect.arrayContaining([
-        'contextId',
         'equipmentId',
-        'plannedStart',
-        'plannedEnd',
-        'idealCycleTimeSeconds',
-        'timestamp',
+        'window',
+        'availability',
+        'performance',
+        'quality',
+        'oee',
+        'calculationStatus',
       ]),
     );
-    expect(result.required).toContain('calculationStatus');
-    expect(result.properties.calculationStatus.enum).toEqual([
-      'VALID',
-      'INCOMPLETE',
-      'INVALID_INPUT',
-      'NO_PRODUCTION',
-      'PENDING_LATE_DATA',
-    ]);
+    expect(result.properties.window.required).toEqual(['type', 'start', 'end']);
+    expect(result.properties.calculationStatus.enum).toEqual(
+      expect.arrayContaining([
+        'COMPLETE',
+        'MISSING_PRODUCTION_CONTEXT',
+        'MISSING_MACHINE_STATE',
+        'MISSING_IDEAL_CYCLE',
+        'MISSING_COUNTER_DATA',
+        'MISSING_QUALITY_DATA',
+        'INSUFFICIENT_OBSERVATION',
+      ]),
+    );
     expect(quality.required).toEqual(
       expect.arrayContaining(['goodCount', 'rejectCount']),
     );

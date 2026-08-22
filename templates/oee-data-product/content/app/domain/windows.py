@@ -21,6 +21,10 @@ def window_seconds(start: datetime, end: datetime) -> float:
     return (end - start).total_seconds()
 
 
+def to_iso(value: datetime) -> str:
+    return ensure_utc(value).isoformat().replace("+00:00", "Z")
+
+
 def default_window(
     kind: WindowKind,
     *,
@@ -33,20 +37,17 @@ def default_window(
     now = ensure_utc(now)
     if from_time is not None and to_time is not None:
         start, end = ensure_utc(from_time), ensure_utc(to_time)
-        if kind == "order" and planned_start and planned_end:
+        if kind == "ORDER" and planned_start and planned_end:
             start = max(start, ensure_utc(planned_start))
             end = min(end, ensure_utc(planned_end))
         return start, end
-    if kind == "shift":
+    if kind == "SHIFT":
         return None
-    if kind == "order":
+    if kind == "ORDER":
         if planned_start is None or planned_end is None:
             return None
         return ensure_utc(planned_start), ensure_utc(planned_end)
-    if kind == "hour":
+    if kind == "HOUR":
         start = now.replace(minute=0, second=0, microsecond=0)
         return start, start + timedelta(hours=1)
-    if kind == "day":
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        return start, start + timedelta(days=1)
     return now - timedelta(hours=1), now

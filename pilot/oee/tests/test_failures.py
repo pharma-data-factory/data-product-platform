@@ -170,4 +170,12 @@ def test_restart_sqlite_persists(oee_client: TestClient) -> None:
     }
     assert oee_client.post("/api/v1/ingest", json=extra).status_code == 200
     again = get_oee(oee_client).json()
-    assert again["calculationStatus"] in {"VALID", "NO_PRODUCTION", "INCOMPLETE", "PENDING_LATE_DATA"}
+    assert again["calculationStatus"] in {
+        "COMPLETE",
+        "MISSING_PRODUCTION_CONTEXT",
+        "MISSING_MACHINE_STATE",
+        "MISSING_IDEAL_CYCLE",
+        "MISSING_COUNTER_DATA",
+        "MISSING_QUALITY_DATA",
+        "INSUFFICIENT_OBSERVATION",
+    }

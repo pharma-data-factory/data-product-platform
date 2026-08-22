@@ -37,6 +37,9 @@ auth:
           resolvers:
             - resolver: usernameMatchingUserEntityName
 
+permission:
+  enabled: true
+
 catalog:
   locations:
     - type: file

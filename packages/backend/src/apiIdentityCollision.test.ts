@@ -83,8 +83,10 @@ describe('API identity collision avoidance', () => {
       expect(first.api.metadata.name).toBe(expectedFirst);
       expect(second.api.metadata.name).toBe(expectedSecond);
       expect(first.api.metadata.name).not.toBe(second.api.metadata.name);
-      expect(first.component.spec.providesApis).toEqual([expectedFirst]);
-      expect(second.component.spec.providesApis).toEqual([expectedSecond]);
+      expect(first.component.spec.providesApis[0]).toBe(expectedFirst);
+      expect(first.component.spec.providesApis).toContain(expectedFirst);
+      expect(second.component.spec.providesApis[0]).toBe(expectedSecond);
+      expect(second.component.spec.providesApis).toContain(expectedSecond);
       expect(
         first.component.metadata.annotations['dataprod.platform/providesContract'],
       ).toBeUndefined();

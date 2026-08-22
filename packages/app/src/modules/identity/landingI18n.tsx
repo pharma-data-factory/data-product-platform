@@ -44,6 +44,31 @@ export interface LandingCopy {
     sub: string;
     primary: string;
     secondary: string;
+    discover: string;
+    sceneLabel: string;
+    protocolLabel: string;
+    overlayTitle: string;
+    overlayRows: readonly { label: string; value: string }[];
+    headlinePrimary: string;
+    headlineAccent: string;
+    demo: string;
+    coreLabel: string;
+    dashboardNav: readonly string[];
+    metrics: readonly { label: string; value: string; hint: string }[];
+    orbit: Record<
+      | 'erp'
+      | 'mes'
+      | 'lims'
+      | 'ewm'
+      | 'historian'
+      | 'cdmo'
+      | 'apis'
+      | 'events'
+      | 'mqtt'
+      | 'rest'
+      | 'files',
+      string
+    >;
   };
   why: {
     eyebrow: string;
@@ -51,8 +76,12 @@ export interface LandingCopy {
     body: string;
     forWhom: string;
     systemOfRecord: string;
+    systemOfRecordBody: string;
     dataProduct: string;
+    dataProductBody: string;
     controlPlane: string;
+    controlPlaneBody: string;
+    pillars: readonly { title: string; body: string }[];
   };
   developer: {
     eyebrow: string;
@@ -89,6 +118,7 @@ export interface LandingCopy {
     api: string;
     mqttCard: string;
     restCard: string;
+    footnote: string;
   };
   learn: {
     eyebrow: string;
@@ -203,7 +233,40 @@ export interface LandingCopy {
     kindPlanned: string;
     explore: string;
     unavailable: string;
-    items: Record<string, { description: string }>;
+    problemLabel: string;
+    logicLabel: string;
+    definitionLabel: string;
+    factorsLabel: string;
+    useCasesLabel: string;
+    byProvider: string;
+    heading: string;
+    searchPlaceholder: string;
+    categoryFilter: string;
+    categoryAll: string;
+    empty: string;
+    plannedNote: string;
+    lossLabel: string;
+    statusIn10: string;
+    statusFoundation: string;
+    statusPlanned: string;
+    categoryLabels: Record<string, string>;
+    items: Record<
+      string,
+      {
+        description: string;
+        definition?: string;
+        factors?: readonly { name: string; meaning: string }[];
+        lossIntro?: string;
+        lossFeatures?: readonly {
+          name: string;
+          meaning: string;
+          status: 'in-1.0' | 'foundation' | 'planned';
+        }[];
+        problem?: string;
+        logic?: string;
+        useCases?: readonly string[];
+      }
+    >;
   };
   finalCta: {
     title: string;
@@ -240,21 +303,15 @@ const EN_CONCEPTS = Object.fromEntries(
 );
 
 const EN_HOW_IT_WORKS_STEPS = [
-  'Connect',
-  'Understand',
-  'Compose',
-  'Build',
-  'Govern',
-  'Consume',
+  'Keep the core',
+  'Generate the product',
+  'Consume the contract',
 ] as const;
 
 const EN_HOW_IT_WORKS_SENTENCES = [
-  'REST, MQTT, and IT/OT stay at the edge.',
-  'Assets and meaning stay governed.',
-  'Reusable capabilities are certified once.',
-  'Golden Paths generate the Data Product.',
-  'Quality, compatibility, and CI/CD are default.',
-  'APIs and applications bind to the contract.',
+  'ERP, MES, LIMS and EWM stay systems of record. Nexora does not replace them or read their databases.',
+  'A certified Golden Path creates the repository, contract, tests, Docker image and catalog entry.',
+  'Applications bind to a versioned API — not to a one-off extract or an MES customization.',
 ] as const;
 
 const EN_ARCHITECTURE_BENEFITS = [
@@ -281,25 +338,87 @@ const en: LandingCopy = {
   },
   hero: {
     eyebrow: 'DATA PRODUCTS. BUILT FOR PHARMA.',
-    title: 'Keep the core standard.\nInnovate through Data Products.',
-    sub: 'Build governed industrial Data Products around ERP, MES, LIMS, EWM and IT/OT systems without turning the operational core into a customization layer.',
+    title: 'Keep core systems standardized.\nDeliver Data Products around them.',
+    headlinePrimary: 'Keep core systems standardized.',
+    headlineAccent: 'Deliver Data Products around them.',
+    sub: 'Nexora is the open platform for Data Products and integrations in pharmaceutical and industrial environments.',
     primary: 'See how it works',
     secondary: 'See Golden Paths',
+    discover: 'Explore platform',
+    demo: 'Book a demo',
+    coreLabel: 'Platform',
+    sceneLabel: 'Nexora Control Plane beside ERP, MES, LIMS, EWM, historian, CMO platforms and product interfaces',
+    protocolLabel: 'How Data Products are consumed',
+    overlayTitle: 'OVERVIEW',
+    overlayRows: [
+      { label: 'Golden Paths', value: '3 CERTIFIED · MQTT · REST · OEE' },
+      { label: 'Create', value: 'Temperature · Equipment · OEE' },
+      { label: 'Runtime', value: 'Independent of the Control Plane' },
+    ],
+    dashboardNav: [
+      'Overview',
+      'Data Products',
+      'Integrations',
+      'Pipelines',
+      'Catalog',
+      'Quality',
+      'Workflows',
+    ],
+    metrics: [
+      { label: 'Data Products', value: '32', hint: 'Active' },
+      { label: 'Integrations', value: '48', hint: 'Connected' },
+      { label: 'Data flows', value: '267', hint: 'Live' },
+      { label: 'Systems', value: '12', hint: 'Core systems' },
+    ],
+    orbit: {
+      erp: 'ERP',
+      mes: 'MES',
+      lims: 'LIMS',
+      ewm: 'EWM',
+      historian: 'Historian',
+      cdmo: 'CMO',
+      apis: 'APIs',
+      events: 'Events',
+      mqtt: 'MQTT',
+      rest: 'REST',
+      files: 'Files / Streams',
+    },
   },
   why: {
-    eyebrow: 'Why it exists',
-    title: 'Do not customize the operational core.',
-    body: 'ERP, MES, LIMS and EWM remain systems of record, close to standard. Nexora is the governed layer where Data Products evolve independently.',
+    eyebrow: 'Why Nexora',
+    title: 'Digital value without rewriting MES.',
+    body: 'Plant IT should not customize ERP, MES, LIMS or EWM every time the business needs a new data offering. Those systems stay close to standard. Nexora is the governed layer beside them.',
     forWhom:
-      'Designed for pharmaceutical, biotech, and CDMO teams that need Data Products without a large platform-engineering organization.',
-    systemOfRecord: 'System of record',
-    dataProduct: 'Data Product',
-    controlPlane: 'Control Plane',
+      'For manufacturing and digital teams in pharma, biotech, and CDMO who need Temperature, Equipment and OEE products — not another integration project.',
+    systemOfRecord: 'Your systems stay standard',
+    systemOfRecordBody: 'ERP, MES, LIMS and EWM remain the systems of record. Nexora does not replace them and does not connect to those databases directly.',
+    dataProduct: 'Products move independently',
+    dataProductBody: 'Each Data Product is a versioned service with its own contract, quality gate, CI/CD and owner. It can evolve without a core release.',
+    controlPlane: 'Nexora runs the factory',
+    controlPlaneBody: 'Catalog, Golden Paths, Marketplace, TechDocs and RBAC govern how products are created and discovered. The Control Plane is not the shop-floor runtime.',
+    pillars: [
+      {
+        title: 'Protect the standard',
+        body: 'Core systems stay stable and updateable.',
+      },
+      {
+        title: 'Integrate quickly',
+        body: 'Prefabricated connectors and Golden Paths.',
+      },
+      {
+        title: 'Deliver value faster',
+        body: 'Data Products in weeks, not months.',
+      },
+      {
+        title: 'Secure & compliant',
+        body: 'Governance, audit and quality built in. This is not GxP, CSV, or regulatory validation.',
+      },
+    ],
   },
   developer: {
-    eyebrow: 'Developer value',
+    eyebrow: 'For your developers',
     title: 'Focus on domain value. Not platform plumbing.',
-    headline: 'Focus on domain value. Not platform plumbing.',
+    headline: 'Your team writes the domain logic. Nexora ships the rest.',
     platformLabel: 'Platform provides',
     developerLabel: 'Developer provides',
     resultLabel: 'Governed Data Product',
@@ -318,7 +437,7 @@ const en: LandingCopy = {
   preview: {
     eyebrow: 'Architecture',
     title: 'A governed layer around the systems you already run.',
-    body: 'Explore how assets, operational flow, reusable capabilities and Golden Paths fit together.',
+    body: 'Want the engineering picture? See how assets, operational flow, reusable capabilities and Golden Paths fit together — without collapsing MES into the Control Plane.',
     cta: 'Explore Architecture',
     systems: 'ERP · MES · LIMS · EWM · PLC',
     governed: 'Governed layer',
@@ -327,9 +446,10 @@ const en: LandingCopy = {
     products: 'Data Products',
   },
   proof: {
-    eyebrow: 'Proof',
-    title: 'Certified Golden Paths you can run today.',
-    oeeCaption: 'Built as an independent Data Product — not an MES customization.',
+    eyebrow: 'What you can run today',
+    title: 'Three certified Golden Paths. One factory.',
+    oeeCaption:
+      'Overall Equipment Effectiveness per asset and time window — Availability × Performance × Quality — as a product, not an MES report.',
     oee: 'OEE Data Product',
     mes: 'MES',
     machine: 'Machine',
@@ -337,8 +457,9 @@ const en: LandingCopy = {
     mqtt: 'MQTT',
     formula: 'A × P × Q',
     api: 'REST API',
-    mqttCard: 'MQTT ingest to a governed temperature product.',
-    restCard: 'Equipment state over REST as a governed product.',
+    mqttCard: 'Turn MQTT temperature telemetry into a governed product with a contract, quality gate and REST API.',
+    restCard: 'Publish equipment state over REST as a versioned Data Product — reusable across lines, not a one-off extract.',
+    footnote: 'CERTIFIED is technical platform status. It is not GxP, CSV, or regulatory validation.',
   },
   learn: {
     eyebrow: 'Learn',
@@ -350,9 +471,9 @@ const en: LandingCopy = {
     assemblySteps: LEARN_ASSEMBLY_STEPS,
   },
   pricing: {
-    eyebrow: 'Editions',
+    eyebrow: 'How to start',
     title: 'Template, Platform, or SaaS',
-    sub: 'Template is available as a controlled pilot. Platform is planned. SaaS is a future offering and is not available today.',
+    sub: 'Start with certified templates in a controlled pilot. Add the Control Plane when you want the factory in your cloud. SaaS is a future offering and is not available today.',
     customerHosted: 'Customer-hosted',
     managed: 'Managed',
     includes: 'Includes:',
@@ -435,8 +556,8 @@ const en: LandingCopy = {
   },
   howItWorks: {
     eyebrow: 'How it works',
-    title: 'From source systems to consumption',
-    sub: 'One industrial path. One short sentence per stage.',
+    title: 'From plant systems to a product you can consume',
+    sub: 'Three steps. No platform department required.',
     journey: 'Product journey',
     steps: EN_HOW_IT_WORKS_STEPS,
     sentences: EN_HOW_IT_WORKS_SENTENCES,
@@ -453,36 +574,248 @@ const en: LandingCopy = {
     kindPlanned: 'Planned template',
     explore: 'Explore',
     unavailable: 'Not available',
+    problemLabel: 'Why it exists as a product',
+    logicLabel: 'How the path works',
+    definitionLabel: 'What it is',
+    factorsLabel: 'Availability × Performance × Quality',
+    useCasesLabel: 'Typical plant use',
+    byProvider: 'by Nexora',
+    heading: 'Golden Paths',
+    searchPlaceholder: 'Search Golden Paths...',
+    categoryFilter: 'Categories Filter',
+    categoryAll: 'All',
+    empty: 'No Golden Paths match this search or category.',
+    plannedNote:
+      'Specified so manufacturing and digital teams can plan. Not generated today, no live connectivity, and not available in Create.',
+    lossLabel: 'Loss analysis',
+    statusIn10: 'IN 1.0',
+    statusFoundation: 'FOUNDATION',
+    statusPlanned: 'PLANNED',
+    categoryLabels: {
+      Telemetry: 'Telemetry',
+      Equipment: 'Equipment',
+      Performance: 'Performance',
+      Integration: 'Integration',
+    },
     items: {
       'mqtt-temperature': {
         description:
-          'Ingest MQTT temperature telemetry, persist a governed time series, and expose a REST contract with health checks, tests, Docker, and catalog metadata.',
+          'A versioned temperature product from MQTT telemetry — contract, quality gate and REST API, independent of the broker.',
+        definition:
+          'Temperature readings from shop-floor or utility sensors become a governed Data Product: one contract, one time series, one REST API. Consumers subscribe to the product, not to an MQTT topic or a historian extract.',
+        problem:
+          'Temperature stays in brokers, historians or one-off scripts. Each line rebuilds ingest. Dashboards have no stable contract and no quality gate.',
+        logic:
+          'The generated service subscribes to a configured MQTT topic, validates temperature-event 1.1.0, persists a governed series, and exposes REST, health, tests, Docker and catalog metadata. It runs without the Control Plane.',
+        useCases: [
+          'Filling or packaging line temperature as a reusable product',
+          'Room or utility sensors with a versioned API for operations dashboards',
+          'A governed feed that later analytics can consume without changing MES',
+        ],
       },
       'rest-equipment': {
         description:
-          'Poll equipment state over REST and publish a governed equipment Data Product with contract, tests, CI, and documentation.',
+          'Canonical equipment identity and state over REST — one equipmentId that lines, dashboards and OEE can share.',
+        definition:
+          'Equipment is a first-class product: a stable equipmentId, current state, and location context published over a versioned REST contract. It is the identity other products, including OEE, can depend on.',
+        problem:
+          'Identity and state live in MES screens or ad-hoc endpoints. Every consumer writes another poller. Names, IDs and quality drift from line to line.',
+        logic:
+          'The generated service polls a governed REST source (or the local mock), validates equipment-event 1.0.0, upserts unique equipmentId records, and serves a product API with CI, TechDocs and catalog registration.',
+        useCases: [
+          'Shared equipment registry for packaging and filling lines',
+          'Machine state for operations views without MES customizing',
+          'Stable identity that an OEE product can join to production context',
+        ],
       },
       oee: {
         description:
-          'Compose MES production context and machine MQTT events into Availability, Performance, Quality, and OEE. Mode A. Technical certification only, not GxP.',
+          'Overall Equipment Effectiveness for one asset and one time window: Availability × Performance × Quality, published as a contract — MES stays the system of record.',
+        definition:
+          'OEE (Overall Equipment Effectiveness) answers a single question for one named asset, such as filler-01: of the time we intended to produce, how effectively did this equipment deliver good units at the intended rate? The result is always one equipmentId and one explicit interval — hour, shift, order, or a custom range. It is not a site roll-up, not a MES report, and not a GxP claim.',
+        factors: [
+          {
+            name: 'Availability',
+            meaning:
+              'Of planned production time in the window, how long the equipment was actually running. Planned downtime and unobserved time are excluded; they are not treated as unplanned stops.',
+          },
+          {
+            name: 'Performance',
+            meaning:
+              'Of that running time, how close output was to the ideal cycle time from production context (seconds per unit). Slow cycles reduce Performance, not Availability.',
+          },
+          {
+            name: 'Quality',
+            meaning:
+              'Of units counted in the window, how many were good versus rejected. OEE is the product of the three ratios; a missing input yields a declared calculation status, not a guessed number.',
+          },
+        ],
+        lossIntro:
+          'This product publishes Availability × Performance × Quality and the machine states that feed it. It is not a Six Big Losses, SMED, or GxP model. The list below is the language plants use for losses. The badge on each card is the scope: IN 1.0 is on the contract today. FOUNDATION has the raw signal. PLANNED is specified so teams can plan — it does not change the formulas and is not in Create.',
+        lossFeatures: [
+          {
+            name: 'Microstops',
+            status: 'planned',
+            meaning:
+              'Detect very short stops automatically, typically 2–30 seconds. STOPPED and IDLE are unplanned availability loss with no duration class. A later optional threshold would be compatible configuration, not a formula change.',
+          },
+          {
+            name: 'Stop Classification',
+            status: 'foundation',
+            meaning:
+              'Classifies RUNNING, STOPPED, IDLE and MAINTENANCE, plus plannedDowntime on production context. Named classes such as Microstop, Downtime, Planned Stop and Changeover are planned; they are not separate states today.',
+          },
+          {
+            name: 'Reason Codes',
+            status: 'foundation',
+            meaning:
+              'A reason may already travel on machine-state-event. It is diagnostic only and does not change A, P or Q. A governed catalog (sensor, jam, material missing, operator) is planned.',
+          },
+          {
+            name: 'Reason Hierarchy',
+            status: 'planned',
+            meaning:
+              'A structured tree such as Packaging → Labeler → Jam → Label stuck. Site-specific MES reason maps are out of this Golden Path so it stays reusable across plants.',
+          },
+          {
+            name: 'Automatic Reason Detection',
+            status: 'planned',
+            meaning:
+              'Derive a reason from PLC or MES signals instead of operator entry. The product consumes state and counts; it does not infer a site reason model from those signals.',
+          },
+          {
+            name: 'Manual Reason Assignment',
+            status: 'planned',
+            meaning:
+              'An operator later confirms or corrects the reason. This product has no shop-floor UI and no dashboard; assignment would be a later product on top of the contract.',
+          },
+          {
+            name: 'Unknown Losses',
+            status: 'foundation',
+            meaning:
+              'Unobserved time is already excluded so silence is not invented as downtime. A published “unknown reason” bucket for classified stops without a code is planned. Missing data yields calculationStatus, not a guessed OEE.',
+          },
+          {
+            name: 'Pareto Analysis',
+            status: 'planned',
+            meaning:
+              'Top-10 disruption reasons by duration, frequency or lost units. That is an analytics consumer of classified stops, not part of the OEE result row. No OEE dashboard ships in this release.',
+          },
+          {
+            name: 'Frequency Analysis',
+            status: 'planned',
+            meaning:
+              'How often each fault occurs in a window. Requires classified stop events; the product publishes one OEE row per equipment and interval, not a fault histogram.',
+          },
+          {
+            name: 'Duration Analysis',
+            status: 'planned',
+            meaning:
+              'Average and distribution of how long a given fault lasts. Same dependency: classified stops with timestamps, not the A × P × Q row alone.',
+          },
+          {
+            name: 'MTBF / MTTR',
+            status: 'planned',
+            meaning:
+              'Mean Time Between Failures and Mean Time To Repair from classified failure and restore events. Not computed on this path. Reliability metrics would be a later contract, not a silent extra field on oee-result.',
+          },
+          {
+            name: 'Speed Loss',
+            status: 'foundation',
+            meaning:
+              'The machine runs, but slower than the ideal cycle. This is already encoded in Performance: (idealCycleTime × totalCount) / runtime. A named speed-loss event class is planned; Performance may exceed 100% and is not clamped.',
+          },
+          {
+            name: 'Minor Stops',
+            status: 'planned',
+            meaning:
+              'Short interruptions that plants do not treat as classic downtime. IDLE is treated as unplanned availability loss, not as a minor-stop class. Aligns with Microstops once a duration policy exists.',
+          },
+          {
+            name: 'Changeover Loss',
+            status: 'foundation',
+            meaning:
+              'Product, batch or format change. plannedDowntime kinds such as CHANGEOVER can be recorded as information only; they do not yet split Availability versus Performance. A dedicated changeover / SMED bucket is planned.',
+          },
+          {
+            name: 'Startup Loss',
+            status: 'planned',
+            meaning:
+              'Loss while the line ramps to rate after a stop or changeover. Not a current state. Would be classified from RUNNING below ideal cycle plus context (startup window), without rewriting MES.',
+          },
+          {
+            name: 'Quality Loss',
+            status: 'in-1.0',
+            meaning:
+              'Rejects versus good units in the window. Quality = goodCount / totalCount. Rework as a separate workflow is not included; reject count is. This is not a GxP disposition.',
+          },
+          {
+            name: 'Context',
+            status: 'foundation',
+            meaning:
+              'Every result is bound to equipmentId and an explicit window (hour, shift, order, custom), with site/area/line on production context. Joining every loss event to machine, order, batch, product and shift as a first-class analysis grain is planned.',
+          },
+        ],
+        problem:
+          'Plants still compute OEE inside MES customizing, historian reports or spreadsheets. The definition of planned time, the window (hour vs shift vs order), and the formula are trapped in one line project. A second filler copies the logic by hand. Digital and quality teams cannot version the KPI independently of MES, and every dashboard re-implements Availability, Performance and Quality.',
+        logic:
+          'MES remains the system of record. The generated product reads production context over REST — planned interval, ideal cycle time, target quantity, order identity — and machine events over MQTT: running or stopped state, cumulative counts, quality rejects. For each equipmentId and window it computes Availability × Performance × Quality and publishes oee-result over REST, with health, tests, Docker and catalog metadata. Direct database access to MES, ERP, LIMS or EWM is out of scope. CERTIFIED means this path is technically complete; it is not GxP validation.',
+        useCases: [
+          'Hourly OEE for a filling or packaging line, with a declared calculation window',
+          'Shift or production-order OEE for operations review without rewriting MES reports',
+          'A versioned OEE API that BI, LIMS or a later dashboard can consume while MES stays standard',
+        ],
       },
       snowflake: {
         description:
-          'Planned warehouse connector Golden Path. Not implemented in this release. No live Snowflake connectivity.',
+          'A governed warehouse product: certified plant contracts land in Snowflake as versioned tables — without a one-off ELT script per line.',
+        definition:
+          'Snowflake is the analytics store, not a second MES. This Golden Path would publish selected Data Product contracts — temperature series, equipment identity, OEE results — into Snowflake with the same version and quality status the plant product already has. MES, ERP, LIMS and EWM stay systems of record. There is no live Snowflake account, no warehouse load, and no Create template in this release.',
+        problem:
+          'Analytics teams copy historian extracts and MES reports into the warehouse. The schema is local to one plant project. When the OEE window or equipmentId changes, BI breaks. There is no contract version, no quality gate, and no catalog entry for what landed.',
+        logic:
+          'Intended path, not generated today: consume an already certified Data Product API (REST + contract) → map fields to a Snowflake-facing schema → load with declared version and calculationStatus → register the warehouse object in the Catalog. Direct database access to SAP, MES or LIMS remains out of scope. No Snowflake credentials are collected at Create.',
+        useCases: [
+          'Cross-line OEE and temperature history in the site BI model',
+          'Equipment master data for analytics without a second poller into MES',
+          'A versioned warehouse feed that QA or supply-chain reporting can trust later',
+        ],
       },
       sap: {
         description:
-          'Planned SAP connectivity Golden Path. Not implemented in this release. No live SAP connectivity.',
+          'Selected SAP manufacturing and logistics objects as a versioned Data Product — without RFC sprawl or reading SAP tables from the product.',
+        definition:
+          'SAP remains the system of record for orders, batches, materials and movements. This Golden Path would expose a narrow, named contract — for example production-order context or batch identity — that OEE, quality or warehouse products can consume. It is not an SAP replacement, not a full IDoc hub, and not live SAP connectivity in this release.',
+        problem:
+          'Every dashboard, MES interface and data lake invents another SAP extract. Z-tables and undocumented RFCs leak into line projects. When the SAP release changes, each consumer breaks separately. Digital teams cannot version “what we took from SAP” independently of the core.',
+        logic:
+          'Intended path, not generated today: a governed SAP-facing adapter (official API or event, not a database read) → validate a versioned contract → upsert by stable business key → REST product with health, tests, Docker and catalog metadata. No RFC hard-coding in the generated service, no SAP GUI automation, no live system in this MVP.',
+        useCases: [
+          'Production-order context (ideal cycle, target quantity, planned interval) for OEE',
+          'Batch or material identity that a later quality product can join',
+          'Goods-movement events for equipment-use or inventory products — SAP stays standard',
+        ],
       },
       'cold-chain': {
         description:
-          'Planned cold-chain monitoring Golden Path. Not implemented and not available in the current MVP.',
+          'Temperature integrity for storage and transport: a declared band, excursion events, and a time series as a contract — not a logger PDF.',
+        definition:
+          'Cold Chain is a temperature-integrity product for a named storage unit or shipment lane. It answers whether the asset stayed inside an allowed temperature band for a declared interval, and it publishes excursion events when it did not. It reuses the temperature-ingest idea of MQTT Temperature, but adds lane or chamber identity and threshold logic. It is not GxP validation of the cold chain, not a 21 CFR Part 11 claim, and not generated in this release.',
+        problem:
+          'Evidence still lives in USB loggers, warehouse screens and PDF attachments. QA cannot subscribe to a versioned excursion API. Each depot copies alarm logic. When a shipment is questioned, teams reconstruct the series by hand instead of reading a contract.',
+        logic:
+          'Intended path, not generated today: sensor or logger readings plus shipment or chamber identity → validate a temperature-band contract → persist a governed series → emit excursion events and a REST result for the interval. Builds on the certified Temperature ingest pattern (contract, quality gate, catalog). No live logger integration and no Create template in this MVP.',
+        useCases: [
+          'Warehouse fridge or freezer chamber against a declared band',
+          'A shipment lane from plant to depot, with excursion events for later review',
+          'A governed feed that a future quality product can consume without reading logger files',
+        ],
       },
     },
   },
   finalCta: {
-    title: 'See the factory',
-    sub: 'Book a demo or sign in to the Control Plane.',
+    title: 'See Temperature, Equipment and OEE on your terms.',
+    sub: 'Book a walkthrough of the factory — or sign in if your organization already has access.',
   },
 };
 
@@ -501,25 +834,87 @@ const de: LandingCopy = {
   },
   hero: {
     eyebrow: 'DATA PRODUCTS. BUILT FOR PHARMA.',
-    title: 'Kernsysteme standardisiert halten.\nÜber Data Products innovieren.',
-    sub: 'Bauen Sie gesteuerte industrielle Data Products um ERP, MES, LIMS, EWM und IT/OT — ohne den operativen Kern zur Customizing-Schicht zu machen.',
+    title: 'Kernsysteme standardisiert halten.\nData Products darum herum liefern.',
+    headlinePrimary: 'Kernsysteme standardisiert halten.',
+    headlineAccent: 'Data Products darum herum liefern.',
+    sub: 'Nexora ist die offene Plattform für Data Products und Integrationen in pharmazeutischen und industriellen Umgebungen.',
     primary: 'So funktioniert es',
     secondary: 'Golden Paths ansehen',
+    discover: 'Plattform entdecken',
+    demo: 'Demo vereinbaren',
+    coreLabel: 'Plattform',
+    sceneLabel: 'Nexora Control Plane neben ERP, MES, LIMS, EWM, Historian, CMO-Plattformen und Product-Schnittstellen',
+    protocolLabel: 'So werden Data Products genutzt',
+    overlayTitle: 'ÜBERSICHT',
+    overlayRows: [
+      { label: 'Golden Paths', value: '3 CERTIFIED · MQTT · REST · OEE' },
+      { label: 'Create', value: 'Temperature · Equipment · OEE' },
+      { label: 'Runtime', value: 'Unabhängig von der Control Plane' },
+    ],
+    dashboardNav: [
+      'Übersicht',
+      'Data Products',
+      'Integrationen',
+      'Pipelines',
+      'Katalog',
+      'Qualität',
+      'Workflows',
+    ],
+    metrics: [
+      { label: 'Data Products', value: '32', hint: 'Aktiv' },
+      { label: 'Integrationen', value: '48', hint: 'Verbunden' },
+      { label: 'Datenflüsse', value: '267', hint: 'Live' },
+      { label: 'Systeme', value: '12', hint: 'Kernsysteme' },
+    ],
+    orbit: {
+      erp: 'ERP',
+      mes: 'MES',
+      lims: 'LIMS',
+      ewm: 'EWM',
+      historian: 'Historian',
+      cdmo: 'CMO',
+      apis: 'APIs',
+      events: 'Events',
+      mqtt: 'MQTT',
+      rest: 'REST',
+      files: 'Files / Streams',
+    },
   },
   why: {
-    eyebrow: 'Warum es existiert',
-    title: 'Den operativen Kern nicht anpassen.',
-    body: 'ERP, MES, LIMS und EWM bleiben Systeme of Record, nah am Standard. Nexora ist die gesteuerte Schicht, in der Data Products unabhängig entstehen.',
+    eyebrow: 'Warum Nexora',
+    title: 'Digitaler Nutzen, ohne MES umzuschreiben.',
+    body: 'Die Werk-IT sollte ERP, MES, LIMS oder EWM nicht bei jedem neuen Datenangebot anpassen. Diese Systeme bleiben nah am Standard. Nexora ist die gesteuerte Schicht daneben.',
     forWhom:
-      'Für Pharma-, Biotech- und CDMO-Teams, die Data Products brauchen — ohne große Platform-Engineering-Organisation.',
-    systemOfRecord: 'System of Record',
-    dataProduct: 'Data Product',
-    controlPlane: 'Control Plane',
+      'Für Fertigungs- und Digital-Teams in Pharma, Biotech und CDMO, die Temperatur-, Equipment- und OEE-Produkte brauchen — kein weiteres Integrationsprojekt.',
+    systemOfRecord: 'Ihre Systeme bleiben Standard',
+    systemOfRecordBody: 'ERP, MES, LIMS und EWM bleiben Systeme of Record. Nexora ersetzt sie nicht und verbindet sich nicht direkt mit diesen Datenbanken.',
+    dataProduct: 'Products entwickeln sich unabhängig',
+    dataProductBody: 'Jedes Data Product ist ein versionierter Service mit Contract, Quality Gate, CI/CD und Owner. Es evolviert ohne Core-Release.',
+    controlPlane: 'Nexora betreibt die Factory',
+    controlPlaneBody: 'Katalog, Golden Paths, Marketplace, TechDocs und RBAC steuern, wie Products entstehen und gefunden werden. Die Control Plane ist nicht die Shop-Floor-Runtime.',
+    pillars: [
+      {
+        title: 'Standard schützen',
+        body: 'Kernsysteme bleiben stabil und updatefähig.',
+      },
+      {
+        title: 'Schnell integrieren',
+        body: 'Vorgefertigte Konnektoren und Golden Paths.',
+      },
+      {
+        title: 'Wert schneller liefern',
+        body: 'Data Products in Wochen statt Monaten.',
+      },
+      {
+        title: 'Sicher & compliant',
+        body: 'Governance, Audit und Qualität eingebaut. Das ist keine GxP-, CSV- oder regulatorische Validierung.',
+      },
+    ],
   },
   developer: {
-    eyebrow: 'Nutzen für Entwickler',
+    eyebrow: 'Für Ihre Entwickler',
     title: 'Fokus auf Domain-Nutzen. Nicht auf Plattform-Plumbing.',
-    headline: 'Fokus auf Domain-Nutzen. Nicht auf Plattform-Plumbing.',
+    headline: 'Ihr Team schreibt die Domain-Logik. Nexora liefert den Rest.',
     platformLabel: 'Die Plattform liefert',
     developerLabel: 'Der Entwickler liefert',
     resultLabel: 'Gesteuertes Data Product',
@@ -538,7 +933,7 @@ const de: LandingCopy = {
   preview: {
     eyebrow: 'Architektur',
     title: 'Eine gesteuerte Schicht um die Systeme, die Sie bereits betreiben.',
-    body: 'Sehen Sie, wie Assets, Betriebsdaten, wiederverwendbare Fähigkeiten und Golden Paths zusammenpassen.',
+    body: 'Möchten Sie das Engineering-Bild? Sehen Sie, wie Assets, Betriebsdaten, wiederverwendbare Fähigkeiten und Golden Paths zusammenpassen — ohne MES in die Control Plane zu ziehen.',
     cta: 'Architektur ansehen',
     systems: 'ERP · MES · LIMS · EWM · PLC',
     governed: 'Gesteuerte Schicht',
@@ -547,9 +942,10 @@ const de: LandingCopy = {
     products: 'Data Products',
   },
   proof: {
-    eyebrow: 'Nachweis',
-    title: 'Zertifizierte Golden Paths, die Sie heute nutzen können.',
-    oeeCaption: 'Als unabhängiges Data Product gebaut — nicht als MES-Customizing.',
+    eyebrow: 'Was Sie heute nutzen können',
+    title: 'Drei zertifizierte Golden Paths. Eine Factory.',
+    oeeCaption:
+      'Overall Equipment Effectiveness je Asset und Zeitfenster — Verfügbarkeit × Leistung × Qualität — als Product, nicht als MES-Report.',
     oee: 'OEE Data Product',
     mes: 'MES',
     machine: 'Maschine',
@@ -557,8 +953,9 @@ const de: LandingCopy = {
     mqtt: 'MQTT',
     formula: 'A × P × Q',
     api: 'REST API',
-    mqttCard: 'MQTT-Ingest zu einem gesteuerten Temperatur-Product.',
-    restCard: 'Equipment-Zustand per REST als gesteuertes Product.',
+    mqttCard: 'MQTT-Temperatur-Telemetrie wird zum gesteuerten Product mit Contract, Quality Gate und REST-API.',
+    restCard: 'Equipment-Zustand per REST als versioniertes Data Product — wiederverwendbar über Linien, kein einmaliger Extract.',
+    footnote: 'CERTIFIED ist technischer Plattformstatus. Das ist keine GxP-, CSV- oder regulatorische Validierung.',
   },
   learn: {
     eyebrow: 'Wissen',
@@ -600,9 +997,9 @@ const de: LandingCopy = {
     ],
   },
   pricing: {
-    eyebrow: 'Editionen',
+    eyebrow: 'So starten Sie',
     title: 'Template, Platform oder SaaS',
-    sub: 'Template ist als kontrollierter Pilot verfügbar. Platform ist geplant. SaaS ist ein zukünftiges Angebot und heute nicht verfügbar.',
+    sub: 'Starten Sie mit zertifizierten Templates im kontrollierten Pilot. Ergänzen Sie die Control Plane, wenn die Factory in Ihre Cloud soll. SaaS ist ein zukünftiges Angebot und heute nicht verfügbar.',
     customerHosted: 'Kundenbetrieben',
     managed: 'Verwaltet',
     includes: 'Enthalten:',
@@ -776,17 +1173,14 @@ const de: LandingCopy = {
   },
   howItWorks: {
     eyebrow: 'So funktioniert es',
-    title: 'Von den Quellsystemen bis zum Verbrauch',
-    sub: 'Ein industrieller Pfad. Ein kurzer Satz je Stufe.',
+    title: 'Von den Anlagensystemen zum nutzbaren Product',
+    sub: 'Drei Schritte. Keine Platform-Abteilung nötig.',
     journey: 'Product-Pfad',
-    steps: ['Verbinden', 'Verstehen', 'Kombinieren', 'Bauen', 'Steuern', 'Nutzen'],
+    steps: ['Kern halten', 'Product erzeugen', 'Contract nutzen'],
     sentences: [
-      'REST, MQTT und IT/OT bleiben am Rand.',
-      'Assets und Bedeutung bleiben gesteuert.',
-      'Wiederverwendbare Fähigkeiten werden einmal zertifiziert.',
-      'Golden Paths erzeugen das Data Product.',
-      'Qualität, Compatibility und CI/CD sind Standard.',
-      'APIs und Anwendungen binden sich an den Contract.',
+      'ERP, MES, LIMS und EWM bleiben Systeme of Record. Nexora ersetzt sie nicht und liest ihre Datenbanken nicht.',
+      'Ein zertifizierter Golden Path erzeugt Repository, Contract, Tests, Docker-Image und Katalogeintrag.',
+      'Anwendungen binden sich an eine versionierte API — nicht an einen einmaligen Extract oder MES-Customizing.',
     ],
   },
   goldenPaths: {
@@ -801,36 +1195,248 @@ const de: LandingCopy = {
     kindPlanned: 'Geplantes Template',
     explore: 'Ansehen',
     unavailable: 'Nicht verfügbar',
+    problemLabel: 'Warum es ein eigenes Product ist',
+    logicLabel: 'So arbeitet der Pfad',
+    definitionLabel: 'Was es ist',
+    factorsLabel: 'Verfügbarkeit × Leistung × Qualität',
+    useCasesLabel: 'Typischer Einsatz in der Anlage',
+    byProvider: 'von Nexora',
+    heading: 'Golden Paths',
+    searchPlaceholder: 'Golden Paths suchen...',
+    categoryFilter: 'Kategoriefilter',
+    categoryAll: 'Alle',
+    empty: 'Keine Golden Paths passen zu Suche oder Kategorie.',
+    plannedNote:
+      'Spezifiziert, damit Fertigungs- und Digital-Teams planen können. Heute nicht erzeugt, keine Live-Anbindung, nicht in Create verfügbar.',
+    lossLabel: 'Verlustanalyse',
+    statusIn10: 'IN 1.0',
+    statusFoundation: 'FUNDAMENT',
+    statusPlanned: 'GEPLANT',
+    categoryLabels: {
+      Telemetry: 'Telemetrie',
+      Equipment: 'Equipment',
+      Performance: 'Performance',
+      Integration: 'Integration',
+    },
     items: {
       'mqtt-temperature': {
         description:
-          'MQTT-Temperatur-Telemetrie aufnehmen, eine gesteuerte Zeitreihe speichern und einen REST-Contract mit Health, Tests, Docker und Katalogmetadaten bereitstellen.',
+          'Versioniertes Temperatur-Product aus MQTT-Telemetrie — Contract, Quality Gate und REST-API, unabhängig vom Broker.',
+        definition:
+          'Temperaturwerte von Linien- oder Utility-Sensoren werden zum gesteuerten Data Product: ein Contract, eine Zeitreihe, eine REST-API. Verbraucher nutzen das Product, nicht das MQTT-Topic oder einen Historian-Extract.',
+        problem:
+          'Temperatur bleibt in Brokern, Historians oder Einmalskripten. Jede Linie baut den Ingest neu. Dashboards haben keinen stabilen Contract und kein Quality Gate.',
+        logic:
+          'Der erzeugte Service abonniert ein konfiguriertes MQTT-Topic, prüft temperature-event 1.1.0, speichert eine gesteuerte Zeitreihe und stellt REST, Health, Tests, Docker und Katalog bereit. Er läuft ohne Control Plane.',
+        useCases: [
+          'Temperatur an Abfüll- oder Packlinien als wiederverwendbares Product',
+          'Raum- oder Utility-Sensoren mit versionierter API für Betriebs-Dashboards',
+          'Gesteuerter Feed, den Analytics später nutzen — ohne MES zu ändern',
+        ],
       },
       'rest-equipment': {
         description:
-          'Equipment-Zustand per REST abfragen und als gesteuertes Equipment Data Product mit Contract, Tests, CI und Dokumentation veröffentlichen.',
+          'Kanonische Equipment-Identität und Zustand per REST — eine equipmentId, die Linien, Dashboards und OEE teilen können.',
+        definition:
+          'Equipment ist ein eigenständiges Product: stabile equipmentId, aktueller Zustand und Ortskontext über einen versionierten REST-Contract. Darauf können andere Products, einschließlich OEE, aufbauen.',
+        problem:
+          'Identität und Zustand liegen in MES-Masken oder Ad-hoc-Endpunkten. Jeder Verbraucher schreibt einen weiteren Poller. Namen, IDs und Qualität driften von Linie zu Linie.',
+        logic:
+          'Der erzeugte Service fragt eine gesteuerte REST-Quelle (oder den lokalen Mock) ab, prüft equipment-event 1.0.0, upsertet eindeutige equipmentId-Sätze und liefert eine Product-API mit CI, TechDocs und Katalog.',
+        useCases: [
+          'Gemeinsames Equipment-Register für Pack- und Abfülllinien',
+          'Maschinenzustand für Betriebsansichten ohne MES-Customizing',
+          'Stabile Identität, die ein OEE-Product mit Produktionskontext verknüpfen kann',
+        ],
       },
       oee: {
         description:
-          'MES-Produktionskontext und Maschinen-MQTT zu Availability, Performance, Quality und OEE zusammensetzen. Mode A. Nur technische Zertifizierung, keine GxP.',
+          'Overall Equipment Effectiveness für ein Asset und ein Zeitfenster: Verfügbarkeit × Leistung × Qualität, als Contract veröffentlicht — MES bleibt System of Record.',
+        definition:
+          'OEE (Overall Equipment Effectiveness) beantwortet eine Frage für ein benanntes Asset, zum Beispiel filler-01: Von der Zeit, die für Produktion vorgesehen war — wie wirksam hat diese Anlage Gutteile in der vorgesehenen Kadenz geliefert? Ein Ergebnis gilt immer für eine equipmentId und ein explizites Intervall — Stunde, Schicht, Auftrag oder ein frei gewählter Bereich. Das ist keine Werks-Aggregation, kein MES-Report und kein GxP-Anspruch.',
+        factors: [
+          {
+            name: 'Verfügbarkeit',
+            meaning:
+              'Von der geplanten Produktionszeit im Fenster: wie lange lief die Anlage tatsächlich? Geplante Stillstände und unbeobachtete Zeit werden ausgeschlossen; sie gelten nicht als ungeplante Stops.',
+          },
+          {
+            name: 'Leistung',
+            meaning:
+              'Von dieser Laufzeit: wie nah lag der Ausstoß am Idealzyklus aus dem Produktionskontext (Sekunden pro Stück)? Langsame Zyklen senken die Leistung, nicht die Verfügbarkeit.',
+          },
+          {
+            name: 'Qualität',
+            meaning:
+              'Von den gezählten Einheiten im Fenster: wie viele waren gut, wie viele Ausschuss? OEE ist das Produkt der drei Verhältnisse. Fehlende Inputs ergeben einen ausgewiesenen Berechnungsstatus, keine geschätzte Zahl.',
+          },
+        ],
+        lossIntro:
+          'Dieses Product veröffentlicht Verfügbarkeit × Leistung × Qualität und die Maschinenzustände, die dafür nötig sind. Das ist kein Six-Big-Losses-, SMED- oder GxP-Modell. Die Liste unten ist die Sprache der Anlage. Das Badge auf jeder Karte ist der Scope: IN 1.0 steht heute im Contract. FUNDAMENT hat das Rohsignal. GEPLANT ist spezifiziert zum Planen — es ändert die Formeln nicht und ist nicht in Create.',
+        lossFeatures: [
+          {
+            name: 'Microstops',
+            status: 'planned',
+            meaning:
+              'Sehr kurze Stopps automatisch erkennen, typisch 2–30 Sekunden. STOPPED und IDLE sind ungeplante Verfügbarkeitsverluste ohne Dauerklasse. Ein späterer optionaler Schwellwert wäre kompatible Konfiguration, keine Formeländerung.',
+          },
+          {
+            name: 'Stop Classification',
+            status: 'foundation',
+            meaning:
+              'Unterscheidet RUNNING, STOPPED, IDLE und MAINTENANCE plus plannedDowntime im Produktionskontext. Benannte Klassen wie Microstop, Downtime, Planned Stop und Changeover sind geplant — keine eigenen Zustände heute.',
+          },
+          {
+            name: 'Reason Codes',
+            status: 'foundation',
+            meaning:
+              'Ein Grund kann schon auf machine-state-event mitlaufen. Er ist nur diagnostisch und ändert A, P oder Q nicht. Ein gesteuerter Katalog (Sensor, Stau, Material fehlt, Operator) ist geplant.',
+          },
+          {
+            name: 'Reason Hierarchy',
+            status: 'planned',
+            meaning:
+              'Eine Struktur wie Packaging → Labeler → Jam → Label stuck. Standort-spezifische MES-Reason-Maps gehören nicht zu diesem Pfad, damit er über Werke wiederverwendbar bleibt.',
+          },
+          {
+            name: 'Automatic Reason Detection',
+            status: 'planned',
+            meaning:
+              'Gründe aus PLC- oder MES-Signalen ableiten statt über Operator-Eingabe. Das Product nimmt Zustand und Zähler entgegen; es leitet kein Standort-Reason-Modell daraus ab.',
+          },
+          {
+            name: 'Manual Reason Assignment',
+            status: 'planned',
+            meaning:
+              'Der Operator ergänzt oder korrigiert den Grund nachträglich. Dieses Product hat keine Shop-Floor-UI und kein Dashboard; Zuweisung wäre ein späteres Product auf dem Contract.',
+          },
+          {
+            name: 'Unknown Losses',
+            status: 'foundation',
+            meaning:
+              'Unbeobachtete Zeit wird ausgeschlossen, damit Stille nicht als Downtime erfunden wird. Ein ausgewiesener „unbekannter Grund“ für klassifizierte Stopps ohne Code ist geplant. Fehlende Daten ergeben calculationStatus, keine geschätzte OEE.',
+          },
+          {
+            name: 'Pareto Analysis',
+            status: 'planned',
+            meaning:
+              'Top-10-Störgründe nach Dauer, Häufigkeit oder Verlustmenge. Das ist ein Analytics-Verbraucher klassifizierter Stopps, nicht die OEE-Zeile. In diesem Release gibt es kein OEE-Dashboard.',
+          },
+          {
+            name: 'Frequency Analysis',
+            status: 'planned',
+            meaning:
+              'Wie oft tritt welcher Fehler im Fenster auf? Dafür braucht es klassifizierte Stopp-Events. Das Product liefert eine OEE-Zeile je Equipment und Intervall, kein Fehlerhistogramm.',
+          },
+          {
+            name: 'Duration Analysis',
+            status: 'planned',
+            meaning:
+              'Wie lange dauern bestimmte Fehler im Mittel? Dieselbe Voraussetzung: klassifizierte Stopps mit Zeitstempeln, nicht allein die A×P×Q-Zeile.',
+          },
+          {
+            name: 'MTBF / MTTR',
+            status: 'planned',
+            meaning:
+              'Mean Time Between Failures und Mean Time To Repair aus klassifizierten Ausfall- und Wiederanlauf-Events. Auf diesem Pfad nicht berechnet. Zuverlässigkeitskennzahlen wären ein späterer Contract, kein stilles Extrafeld auf oee-result.',
+          },
+          {
+            name: 'Speed Loss',
+            status: 'foundation',
+            meaning:
+              'Die Maschine läuft, aber langsamer als der Idealzyklus. Das steckt in der Leistung: (Idealzyklus × Stückzahl) / Laufzeit. Eine benannte Speed-Loss-Klasse ist geplant; Leistung darf über 100 % liegen und wird nicht geklemmt.',
+          },
+          {
+            name: 'Minor Stops',
+            status: 'planned',
+            meaning:
+              'Kleine Unterbrechungen, die die Anlage nicht als klassische Downtime führt. IDLE gilt als ungeplanter Verfügbarkeitsverlust, nicht als Minor-Stop-Klasse. Geht mit Microstops zusammen, sobald eine Dauerregel existiert.',
+          },
+          {
+            name: 'Changeover Loss',
+            status: 'foundation',
+            meaning:
+              'Produkt-, Batch- oder Formatwechsel. plannedDowntime-Arten wie CHANGEOVER können nur informativ geführt werden; sie trennen Verfügbarkeit und Leistung noch nicht. Ein eigener Changeover-/SMED-Bucket ist geplant.',
+          },
+          {
+            name: 'Startup Loss',
+            status: 'planned',
+            meaning:
+              'Verluste beim Hochfahren nach Stopp oder Wechsel. Kein heutiger Zustand. Später klassifizierbar aus RUNNING unter Idealzyklus plus Kontext (Hochfahrfenster), ohne MES umzuschreiben.',
+          },
+          {
+            name: 'Quality Loss',
+            status: 'in-1.0',
+            meaning:
+              'Ausschuss gegenüber Gutteilen im Fenster. Qualität = Gutmenge / Gesamtmenge. Rework als eigener Workflow ist nicht enthalten; Reject-Zähler schon. Das ist keine GxP-Disposition.',
+          },
+          {
+            name: 'Context',
+            status: 'foundation',
+            meaning:
+              'Jedes Ergebnis ist an equipmentId und ein explizites Fenster (Stunde, Schicht, Auftrag, custom) gebunden, mit site/area/line am Produktionskontext. Jeden Verlust mit Maschine, Auftrag, Batch, Produkt und Schicht als Analyse-Korn zu verbinden ist geplant.',
+          },
+        ],
+        problem:
+          'OEE wird weiterhin im MES-Customizing, in Historian-Reports oder in Tabellen gerechnet. Die Definition der geplanten Zeit, das Fenster (Stunde, Schicht, Auftrag) und die Formel stecken in einem Linienprojekt. Ein zweiter Filler kopiert die Logik von Hand. Digital- und Qualitätsteams können die Kennzahl nicht unabhängig vom MES versionieren; jedes Dashboard implementiert Verfügbarkeit, Leistung und Qualität erneut.',
+        logic:
+          'MES bleibt System of Record. Das erzeugte Product liest Produktionskontext per REST — geplantes Intervall, Idealzyklus, Zielmenge, Auftragsidentität — und Maschinen-Events per MQTT: Lauf- oder Stoppzustand, kumulierte Zähler, Qualitätsausschuss. Je equipmentId und Fenster berechnet es Verfügbarkeit × Leistung × Qualität und veröffentlicht oee-result per REST, mit Health, Tests, Docker und Katalog. Direkter Datenbankzugriff auf MES, ERP, LIMS oder EWM ist ausgeschlossen. CERTIFIED heißt: dieser Pfad ist technisch vollständig — das ist keine GxP-Validierung.',
+        useCases: [
+          'Stündliche OEE an einer Abfüll- oder Packlinie, mit festgelegtem Berechnungsfenster',
+          'Schicht- oder Auftrags-OEE für das Betriebsreview, ohne MES-Reports umzuschreiben',
+          'Versionierte OEE-API, die BI, LIMS oder ein späteres Dashboard nutzen — MES bleibt Standard',
+        ],
       },
       snowflake: {
         description:
-          'Geplantes Warehouse-Connector-Golden-Path. In diesem Release nicht implementiert. Keine echte Snowflake-Anbindung.',
+          'Gesteuertes Warehouse-Product: zertifizierte Anlagen-Contracts landen in Snowflake als versionierte Tabellen — ohne ein ELT-Skript pro Linie.',
+        definition:
+          'Snowflake ist der Analytics-Speicher, kein zweites MES. Dieses Golden Path würde ausgewählte Data-Product-Contracts — Temperaturreihen, Equipment-Identität, OEE-Ergebnisse — mit derselben Version und demselben Quality-Status ins Warehouse bringen. MES, ERP, LIMS und EWM bleiben Systeme of Record. In diesem Release gibt es kein Snowflake-Konto, keinen Load und kein Create-Template.',
+        problem:
+          'Analytics-Teams kopieren Historian-Extracts und MES-Reports ins Warehouse. Das Schema gehört zu einem Linienprojekt. Ändert sich das OEE-Fenster oder die equipmentId, bricht BI. Es gibt keine Contract-Version, kein Quality Gate und keinen Katalogeintrag für das, was gelandet ist.',
+        logic:
+          'Vorgesehener Pfad, heute nicht erzeugt: zertifizierte Data-Product-API (REST + Contract) nutzen → Felder auf ein Snowflake-Schema abbilden → mit ausgewiesener Version und calculationStatus laden → Warehouse-Objekt im Katalog registrieren. Direkter Datenbankzugriff auf SAP, MES oder LIMS bleibt ausgeschlossen. Create sammelt keine Snowflake-Credentials.',
+        useCases: [
+          'Linienübergreifende OEE- und Temperaturhistorie im BI-Modell des Standorts',
+          'Equipment-Stammdaten für Analytics ohne zweiten Poller ins MES',
+          'Versionierter Warehouse-Feed, den QA oder Supply-Chain-Reporting später nutzen kann',
+        ],
       },
       sap: {
         description:
-          'Geplantes SAP-Connectivity-Golden-Path. In diesem Release nicht implementiert. Keine echte SAP-Anbindung.',
+          'Ausgewählte SAP-Fertigungs- und Logistikobjekte als versioniertes Data Product — ohne RFC-Wildwuchs und ohne SAP-Tabellen aus dem Product zu lesen.',
+        definition:
+          'SAP bleibt System of Record für Aufträge, Chargen, Material und Bewegungen. Dieses Golden Path würde einen engen, benannten Contract bereitstellen — etwa Produktionsauftragskontext oder Chargenidentität — den OEE, Qualität oder Warehouse-Products nutzen. Das ist kein SAP-Ersatz, kein vollständiger IDoc-Hub und in diesem Release keine Live-SAP-Anbindung.',
+        problem:
+          'Jedes Dashboard, jede MES-Schnittstelle und jedes Data Lake inventiert einen weiteren SAP-Extract. Z-Tabellen und undokumentierte RFCs sickern in Linienprojekte. Nach einem SAP-Release bricht jeder Verbraucher einzeln. Digital-Teams können „was wir aus SAP genommen haben“ nicht unabhängig vom Kern versionieren.',
+        logic:
+          'Vorgesehener Pfad, heute nicht erzeugt: gesteuerter SAP-Adapter (offizielle API oder Event, kein Datenbankzugriff) → versionierten Contract prüfen → nach stabilem Business Key upserten → REST-Product mit Health, Tests, Docker und Katalog. Kein RFC-Hardcoding im erzeugten Service, keine SAP-GUI-Automation, kein Live-System in diesem MVP.',
+        useCases: [
+          'Produktionsauftragskontext (Idealzyklus, Zielmenge, geplantes Intervall) für OEE',
+          'Chargen- oder Materialidentität, die ein späteres Qualitäts-Product verknüpfen kann',
+          'Warenbewegungen für Equipment-Use oder Inventar — SAP bleibt Standard',
+        ],
       },
       'cold-chain': {
         description:
-          'Geplantes Cold-Chain-Monitoring-Golden-Path. Nicht implementiert und im aktuellen MVP nicht verfügbar.',
+          'Temperaturintegrität für Lager und Transport: deklariertes Band, Exkursions-Events und Zeitreihe als Contract — kein Logger-PDF.',
+        definition:
+          'Cold Chain ist ein Temperaturintegritäts-Product für eine benannte Lagereinheit oder Sendungsstrecke. Es beantwortet, ob das Asset in einem erlaubten Temperaturband geblieben ist, und veröffentlicht Exkursions-Events, wenn nicht. Es nutzt die Idee des Temperatur-Ingests, ergänzt um Lane- oder Kammer-Identität und Schwellwertlogik. Das ist keine GxP-Validierung der Kühlkette, kein 21-CFR-Part-11-Anspruch und in diesem Release nicht erzeugt.',
+        problem:
+          'Nachweise liegen in USB-Loggern, Warehouse-Masken und PDF-Anhängen. QA kann keine versionierte Exkursions-API abonnieren. Jedes Depot kopiert Alarmlogik. Wird eine Sendung hinterfragt, rekonstruiert das Team die Reihe von Hand statt einen Contract zu lesen.',
+        logic:
+          'Vorgesehener Pfad, heute nicht erzeugt: Sensor- oder Loggerwerte plus Sendungs- oder Kammeridentität → Temperaturband-Contract prüfen → gesteuerte Zeitreihe speichern → Exkursions-Events und REST-Ergebnis für das Intervall. Baut auf dem zertifizierten Temperatur-Ingest auf (Contract, Quality Gate, Katalog). Keine Live-Logger-Anbindung und kein Create-Template in diesem MVP.',
+        useCases: [
+          'Kühl- oder Tiefkühlkammer im Lager gegen ein deklariertes Band',
+          'Sendungsstrecke Werk–Depot mit Exkursions-Events für die spätere Prüfung',
+          'Gesteuerter Feed, den ein späteres Qualitäts-Product nutzen kann — ohne Logger-Dateien',
+        ],
       },
     },
   },
   finalCta: {
-    title: 'Die Factory sehen',
-    sub: 'Vereinbaren Sie eine Demo oder melden Sie sich an der Control Plane an.',
+    title: 'Temperature, Equipment und OEE auf Ihre Bedingungen sehen.',
+    sub: 'Vereinbaren Sie einen Rundgang durch die Factory — oder melden Sie sich an, wenn Ihre Organisation bereits Zugang hat.',
   },
 };
 

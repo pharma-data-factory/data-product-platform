@@ -19,7 +19,7 @@ def _inputs(**overrides) -> OeeInputs:
         "equipment_id": EQUIPMENT,
         "window_start": WINDOW_START,
         "window_end": WINDOW_END,
-        "window_kind": "custom",
+        "window_kind": "CUSTOM",
         "calculated_at": CALCULATED_AT,
         "context": context(),
     }
@@ -45,7 +45,7 @@ def test_scenario_a_perfect() -> None:
     assert result.performance == 1.0
     assert result.quality == 1.0
     assert result.oee == 1.0
-    assert result.calculation_status == CalculationStatus.VALID
+    assert result.calculation_status == CalculationStatus.COMPLETE
     assert result.runtime_seconds == 3600
 
 
@@ -69,7 +69,7 @@ def test_scenario_b_downtime() -> None:
     assert result.performance == 1.0
     assert result.quality == 1.0
     assert result.oee == 0.9167
-    assert result.calculation_status == CalculationStatus.VALID
+    assert result.calculation_status == CalculationStatus.COMPLETE
 
 
 def test_scenario_c_slow() -> None:
@@ -130,4 +130,4 @@ def test_scenario_e_mixed() -> None:
     assert result.performance == 0.5
     assert result.quality == 0.9
     assert result.oee == 0.4125
-    assert result.calculation_status == CalculationStatus.VALID
+    assert result.calculation_status == CalculationStatus.COMPLETE

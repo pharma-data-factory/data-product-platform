@@ -147,6 +147,7 @@ export {
 export type {
   CommercialEnvironment,
   Entitlement,
+  EntitlementAuditAuthorizationContext,
   EntitlementAuditEvent,
   EntitlementAuditEventType,
   EntitlementContext,
@@ -210,6 +211,18 @@ export type {
 } from './entitlement-service';
 
 export {
+  CREATE_AUTHORIZATION_AUDIT_TYPES,
+  FileCreateAuthorizationAuditStore,
+  MemoryCreateAuthorizationAuditStore,
+  isCreateAuthorizationAuditEvent,
+} from './create-authorization-audit-store';
+export type {
+  CreateAuthorizationAuditIssue,
+  CreateAuthorizationAuditIssueReason,
+  CreateAuthorizationAuditStore,
+} from './create-authorization-audit-store';
+
+export {
   createIdentityContext,
   createMvpPlatformContext,
 } from './identity-context';
@@ -221,9 +234,12 @@ export type {
 
 export {
   CERTIFIED_GOLDEN_PATHS,
+  FUTURE_GOLDEN_PATHS,
+  SHOWCASE_GOLDEN_PATHS,
+  GOLDEN_PATH_CATEGORIES,
+  filterGoldenPaths,
   DEPLOYMENT_OPTIONS,
   ENTERPRISE_PRICING_CTA,
-  FUTURE_GOLDEN_PATHS,
   HOW_IT_WORKS_STEPS,
   LEARN_ASSEMBLY_EXAMPLES,
   LEARN_ASSEMBLY_STEPS,
@@ -240,6 +256,7 @@ export type {
   DeploymentKind,
   EditionAvailability,
   GoldenPathAvailability,
+  GoldenPathCategory,
   GoldenPathShowcaseItem,
   LearnTopic,
   LegalDistributionStatus,
@@ -424,3 +441,69 @@ export type {
   GoldenPathComposition,
   GoldenPathCompositionComponent,
 } from './composition';
+
+export {
+  NEXORA_ANNOTATION_PREFIX,
+  NEXORA_ANNOTATIONS,
+  EQUIPMENT_COMPONENT_TYPE,
+  EQUIPMENT_PATH,
+  INDUSTRIAL_CONTRACTS_PATH,
+  INDUSTRIAL_QUALITY_PATH,
+  CONNECTIVITY_STATUSES,
+  CONNECTIVITY_KINDS,
+  HEALTH_STATES,
+  EQUIPMENT_STATES,
+  CONTRACT_COMPATIBILITY,
+  CAPABILITY_LEVELS,
+  apiDocsPath,
+  catalogEntityPath,
+  entityNameFromRef,
+  entityRefOf,
+  equipmentPath,
+  filterAssets,
+  filterIndustrialProducts,
+  groupAssetsByHierarchy,
+  hasIndustrialAnnotation,
+  industrialContractPath,
+  industrialQualityPath,
+  interfaceLabels,
+  isEquipmentEntity,
+  isIndustrialDataProduct,
+  okResult,
+  parseCapabilityLevel,
+  parseCompatibility,
+  parseConnectivityStatus,
+  parseEquipmentState,
+  parseHealthState,
+  relatedDataProducts,
+  relatedResources,
+  toIndustrialDataProduct,
+  toNexoraAsset,
+  unconfiguredResult,
+  unavailableResult,
+  uniqueValues,
+} from './nexora-industrial';
+export type {
+  AssetFilters,
+  CapabilityGroup,
+  CapabilityItem,
+  CapabilityLevel,
+  ConnectivityInterface,
+  ConnectivityKind,
+  ConnectivityStatus,
+  ContractCompatibility,
+  ContractHistoryEntry,
+  ContractView,
+  DataProductHealth,
+  DataProductRef,
+  EquipmentRuntimeState,
+  EquipmentStateView,
+  HealthCheck,
+  HealthState,
+  IndustrialDataProduct,
+  MetricValue,
+  NexoraAsset,
+  ProductFilters,
+  ProviderResult,
+  ProviderResultStatus,
+} from './nexora-industrial';

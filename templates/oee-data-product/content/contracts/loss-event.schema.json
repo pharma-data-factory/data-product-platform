@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/loss-event.schema.json",
+  "title": "OEE Loss Event",
+  "description": "OEE 1.1 classified production loss interval. Does not change oee-result 1.0.0 formulas.",
+  "version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lossId",
+    "equipmentId",
+    "classification",
+    "start",
+    "end",
+    "durationSeconds",
+    "reasonCodeId",
+    "assignmentSource"
+  ],
+  "properties": {
+    "lossId": { "type": "string", "minLength": 1 },
+    "equipmentId": { "type": "string", "minLength": 1 },
+    "classification": {
+      "type": "string",
+      "enum": [
+        "MICROSTOP",
+        "UNPLANNED_DOWNTIME",
+        "PLANNED_DOWNTIME",
+        "CHANGEOVER",
+        "IDLE_TIME",
+        "EQUIPMENT_FAILURE",
+        "MATERIAL_STARVATION",
+        "QUALITY_STOP",
+        "UNKNOWN_STOP"
+      ]
+    },
+    "start": { "type": "string", "format": "date-time" },
+    "end": { "type": "string", "format": "date-time" },
+    "durationSeconds": { "type": "number", "minimum": 0 },
+    "state": { "type": "string" },
+    "reasonCodeId": { "type": "string" },
+    "reasonPath": { "type": "array", "items": { "type": "string" } },
+    "assignmentSource": { "type": "string", "enum": ["AUTOMATIC", "MANUAL"] },
+    "originalReasonCodeId": { "type": ["string", "null"] },
+    "previousReasonCodeId": { "type": ["string", "null"] },
+    "assignedBy": { "type": ["string", "null"] },
+    "assignedAt": { "type": ["string", "null"], "format": "date-time" },
+    "signal": { "type": ["string", "null"] },
+    "eventId": { "type": ["string", "null"] },
+    "site": { "type": ["string", "null"] },
+    "area": { "type": ["string", "null"] },
+    "line": { "type": ["string", "null"] },
+    "orderId": { "type": ["string", "null"] },
+    "batchId": { "type": ["string", "null"] },
+    "materialId": { "type": ["string", "null"] },
+    "shiftId": { "type": ["string", "null"] },
+    "recipeId": { "type": ["string", "null"] },
+    "lostQuantity": { "type": ["number", "null"] },
+    "oeeImpact": { "type": ["number", "null"] }
+  }
+}

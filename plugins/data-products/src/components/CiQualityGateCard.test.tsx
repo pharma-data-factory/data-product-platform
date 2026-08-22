@@ -84,7 +84,7 @@ describe('CI Quality Gate UI', () => {
     expect(screen.getByText('Unit Tests')).toBeInTheDocument();
   });
 
-  it('renders UNKNOWN when CI is not available', () => {
+  it('renders UNKNOWN as DEGRADED / UNVERIFIED and never as PASSED', () => {
     render(
       <MemoryRouter>
         <CiQualityGateView
@@ -93,17 +93,23 @@ describe('CI Quality Gate UI', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('UNKNOWN')).toBeInTheDocument();
+    expect(screen.getByText('DEGRADED / UNVERIFIED')).toBeInTheDocument();
+    expect(screen.queryByText('PASSED')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not available').length).toBeGreaterThan(0);
   });
 
-  it.each(['RUNNING', 'PASSED', 'FAILED', 'CANCELLED', 'UNKNOWN'] as const)(
+  it.each(['RUNNING', 'PASSED', 'FAILED', 'CANCELLED'] as const)(
     'renders the %s CI badge',
     status => {
       render(<CiStatusChip status={status} />);
       expect(screen.getByText(status)).toBeInTheDocument();
     },
   );
+
+  it('renders the UNKNOWN CI badge as DEGRADED / UNVERIFIED', () => {
+    render(<CiStatusChip status="UNKNOWN" />);
+    expect(screen.getByText('DEGRADED / UNVERIFIED')).toBeInTheDocument();
+  });
 });
 
 describe('Quality & Contract card', () => {

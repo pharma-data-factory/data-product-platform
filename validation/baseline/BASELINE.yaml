@@ -1,0 +1,99 @@
+# Platform Core Validation Baseline v1.0
+# REQUIREMENTS BASELINE — not a validated release.
+# No human signature is recorded here.
+
+baseline_id: PDF-PC-VAL-BL-1.0
+name: Platform Core Validation Baseline
+version: "1.0"
+status: BASELINED
+validation_status: NOT_VALIDATED
+part_11_status: NOT_CLAIMED
+gxp_status: NOT_VALIDATED
+created_on: 2026-08-22
+created_from:
+  - validation/baseline/URS.md  # Phase 2 PROPOSED, then human decisions applied
+  - validation/reviews/URS-Human-Review.md
+  - validation/reviews/Validation-Decisions.md
+  - platform-inventory.yaml
+  - architecture-model.yaml
+  - validation-gap-analysis.md
+
+scope:
+  system: Platform Core / Control Plane
+  decision: DEC-SCOPE-001 ACCEPT
+  includes:
+    - Backstage as configured (SOUP; not itself validated)
+    - custom plugins and packages/platform-common
+    - authentication, RBAC, entitlements
+    - legal gate for defined commercial/customer-handoff operations
+    - Catalog, Scaffolder, GitHub interfaces
+    - Core persistence and durable Create-authorization records (requirement)
+  excludes:
+    - Golden Path template content
+    - generated Data Products
+    - Wave 1 libraries as runtime
+    - pilot harnesses
+    - UNS
+    - AAS
+    - OEE live GitHub proof (DEC-OEE-001)
+    - Part 11 ER/ES (DEC-P11-001)
+
+governance_decisions:
+  DEC-SCOPE-001: ACCEPT
+  DEC-SOUP-001: ACCEPT
+  DEC-GUEST-001: ACCEPT
+  DEC-AUDIT-001: ACCEPT_WITH_MODIFICATION
+  DEC-LEGAL-001: MODIFY
+  DEC-LEGAL-002: ACCEPT
+  DEC-CI-001: MODIFY
+  DEC-OEE-001: ACCEPT
+  DEC-P11-001: ACCEPT
+  DEC-REVIEW-001: DEFINE
+
+requirement_count: 38
+rejected_requirement_count: 1
+rejected_ids:
+  - URS-AUTH-005
+open_policy_items: []
+closed_policy_items:
+  - id: OPEN-LEG-001
+    related_urs: URS-LEG-001
+    state: CLOSED
+    closed_on: 2026-08-22
+    decision: DEC-LEGAL-002
+    detail: Legal Gate applies to commercial/customer transfer, provisioning or activation. Internal development Create is not legally gated. RC1 implements Customer Handoff only; other listed commercial operations are NOT_APPLICABLE_CURRENT_RELEASE.
+
+requirement_states_used:
+  - BASELINED
+  - REJECTED
+  - OPEN_POLICY_DEFINITION
+
+implementation_states_used:
+  - IMPLEMENTED
+  - PARTIALLY_IMPLEMENTED
+  - NOT_IMPLEMENTED
+  - NOT_VERIFIED
+
+verification_states_used:
+  - NOT_EXECUTED
+  - PASSED
+  - FAILED
+  - BLOCKED
+
+counts:
+  implemented: 24
+  partially_implemented: 10
+  not_implemented: 0
+  not_verified: 4
+  verification_executed: 0
+
+notes:
+  - Acceptance of a URS means intended Platform Core behavior, not implementation or verification.
+  - Guest authentication is DEVELOPMENT_ONLY; production Guest is prohibited.
+  - CI status UNKNOWN must never be interpreted as PASS; it is DEGRADED / UNVERIFIED.
+  - No e-signature requirement is introduced by this baseline.
+  - Human signatures are not fabricated.
+
+signature:
+  recorded: false
+  reason: Do not fabricate a human signature.

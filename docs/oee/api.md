@@ -19,9 +19,20 @@ Implemented by the OEE Data Product Golden Path using REST API 1.x
 | GET | `/api/v1/oee/{equipmentId}/current` | Open or latest closed window |
 | GET | `/api/v1/oee/{equipmentId}/history` | Closed windows |
 | GET | `/api/v1/quality` | Quality-report (existing Golden Path semantics) |
+| POST | `/api/v1/equipment-states` | Capture a state interval (OEE 1.1) |
+| GET | `/api/v1/equipment-states` | Closed state intervals with duration |
+| GET | `/api/v1/losses` | Classified production losses |
+| PATCH | `/api/v1/losses/{lossId}/reason` | Manual reason correction |
+| GET / POST / PATCH | `/api/v1/reason-codes` | Reason catalog |
+| GET / PUT | `/api/v1/loss-config` | Microstop thresholds and classification rules |
+| GET | `/api/v1/loss-tree` | Structured loss tree |
+| GET | `/api/v1/losses/pareto` | Ranked losses |
+| GET | `/api/v1/reliability/{equipmentId}` | MTBF / MTTR |
+| GET | `/api/v1/oee/{equipmentId}/history-with-losses` | OEE 1.0 result plus losses |
 
 Do not add per-factor endpoints (`/availability`, `/performance`).
-Those values live on `oee-result`.
+Those values live on `oee-result`. Loss APIs are additive. See
+[Loss management](losses.md).
 
 ## Query parameters
 

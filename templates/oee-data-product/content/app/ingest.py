@@ -11,6 +11,7 @@ from app.ingestion.mappings import (
     classify_event,
     parse_mqtt_message,
     to_context,
+    to_counter_event,
     to_production_count,
     to_quality_count,
     to_state_event,
@@ -42,11 +43,11 @@ class IngestService:
             raise ValueError("invalid_schema") from error
         self.ingest_payload(mapped)
 
-    def ingest_payload(self, payload: dict[str, Any]) -> str:
+    def ingest_payload(self, payload: dict[str, Any], *, enforce_equipment: bool = True) -> str:
         if self.store.storage_error:
             raise RuntimeError("timeseries_unavailable")
         try:
-            return self._ingest_payload(payload)
+            return self._ingest_payload(payload, enforce_equipment=enforce_equipment)
         except RuntimeError:
             raise
         except ValueError:
@@ -56,31 +57,38 @@ class IngestService:
                 raise RuntimeError("timeseries_unavailable") from None
             raise
 
-    def _ingest_payload(self, payload: dict[str, Any]) -> str:
+    def _ingest_payload(self, payload: dict[str, Any], *, enforce_equipment: bool = True) -> str:
         kind = classify_event(payload)
         if kind == "context":
             return self._ingest_context(payload)
+        normalized = dict(payload)
+        if "timestamp" not in normalized and "start" in normalized:
+            normalized["timestamp"] = normalized["start"]
+        if normalized.get("state") == "PLANNED_STOP":
+            normalized["state"] = "MAINTENANCE"
         failures = event_quality_failures(
-            payload,
+            normalized,
             calculated_at=now_utc(),
-            expected_equipment_id=settings.equipment_id,
+            expected_equipment_id=settings.equipment_id if enforce_equipment else None,
         )
         if failures:
-            self._reject(payload, failures)
+            self._reject(normalized, failures)
             raise ValueError(failures[0])
-        event_id = str(payload.get("eventId") or "")
+        event_id = str(normalized.get("eventId") or "")
         if event_id and self.store.has_event(event_id):
             self.duplicate_count += 1
             self.obs.info("oee_duplicate_event", eventId=event_id)
             return "duplicate"
         if kind == "state":
-            self.store.save_state(to_state_event(payload))
+            self.store.save_state(to_state_event(normalized))
         elif kind == "production":
-            self.store.save_production(to_production_count(payload))
+            self.store.save_production(to_production_count(normalized))
         elif kind == "quality":
-            self.store.save_quality(to_quality_count(payload))
+            self.store.save_quality(to_quality_count(normalized))
+        elif kind == "counter":
+            self.store.save_counter(to_counter_event(normalized))
         else:
-            self._reject(payload, ["unknown_event"])
+            self._reject(normalized, ["unknown_event"])
             raise ValueError("unknown_event")
         self.obs.info("oee_event_stored", kind=kind, eventId=event_id)
         return "stored"

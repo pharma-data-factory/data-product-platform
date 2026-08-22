@@ -1,0 +1,278 @@
+# SAMPLE industrial shopfloor entities for the Nexora plugin suite.
+# Loaded only by local development (app-config.yaml).
+# Not loaded by app-config.production.yaml or app-config.docker.yaml.
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: packaging-line-04
+  title: Packaging Line 04
+  description: Basel packaging line used by the industrial plugin fixtures.
+  annotations:
+    nexora.io/site: basel
+    nexora.io/area: packaging
+    nexora.io/line: line-04
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: mes
+  title: MES
+  description: Sample manufacturing execution system of record.
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: historian
+  title: Historian
+  description: Sample process historian. Not a Data Product.
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: mqtt-factory-broker
+  title: MQTT
+  description: Sample factory MQTT broker. Credentials are never stored here.
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  type: MQTT
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rest-context-api
+  title: REST
+  description: Sample production context API.
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  type: REST
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: opcua-dispenser
+  title: OPC UA
+  description: Sample dispensing OPC UA endpoint. No connection string.
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  type: OPC UA
+  owner: group:default/platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: filler-01
+  title: FILLER-01
+  description: Packaging line filler
+  tags:
+    - equipment
+    - packaging
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    nexora.io/equipment-id: filler-01
+    nexora.io/site: basel
+    nexora.io/area: packaging
+    nexora.io/line: line-04
+    nexora.io/equipment-type: filler
+    nexora.io/manufacturer: example-oem
+    nexora.io/model: FILL-400
+    nexora.io/connectivity-api: /api/v1/connectivity
+    nexora.io/metrics-api: /api/v1/metrics
+    nexora.io/oee-api: /api/v1/oee
+    nexora.io/equipment-state-api: /api/v1/state
+spec:
+  type: equipment
+  lifecycle: production
+  owner: group:default/platform-team
+  system: packaging-line-04
+  dependsOn:
+    - resource:default/mqtt-factory-broker
+    - resource:default/rest-context-api
+    - system:default/mes
+    - system:default/historian
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: dispenser-01
+  title: DISPENSER-01
+  description: Weigh and dispense equipment
+  tags:
+    - equipment
+    - weighing
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    nexora.io/equipment-id: dispenser-01
+    nexora.io/site: basel
+    nexora.io/area: packaging
+    nexora.io/line: line-04
+    nexora.io/equipment-type: dispenser
+    nexora.io/connectivity-api: /api/v1/connectivity
+    nexora.io/metrics-api: /api/v1/metrics
+    nexora.io/equipment-state-api: /api/v1/state
+spec:
+  type: equipment
+  lifecycle: production
+  owner: group:default/platform-team
+  system: packaging-line-04
+  dependsOn:
+    - resource:default/opcua-dispenser
+    - system:default/mes
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: filler-01-oee
+  title: OEE Data Product
+  description: Sample OEE Data Product for FILLER-01. Calculation stays in the product.
+  tags:
+    - data-product
+    - oee
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: '1.0'
+    dataprod.platform/domain: manufacturing
+    nexora.io/equipment-id: filler-01
+    nexora.io/product-type: oee
+    nexora.io/oee-api: /api/v1/oee
+    nexora.io/data-quality-api: /api/v1/quality
+    nexora.io/capabilities-api: /api/v1/capabilities
+    nexora.io/contract-api: /api/v1/contracts
+spec:
+  type: data-product
+  lifecycle: production
+  owner: group:default/platform-team
+  system: packaging-line-04
+  dependsOn:
+    - component:default/filler-01
+  providesApis:
+    - filler-01-oee-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: filler-01-oee-api
+  title: OEE Result Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: oee-result
+    dataprod.platform/contract-version: '1.0'
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/platform-team
+  system: packaging-line-04
+  definition: |
+    OEE result contract 1.0. Fields: equipmentId, window, availability,
+    performance, quality, oee, calculationStatus.
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: dispenser-01-weighing
+  title: Weighing Data Product
+  description: Sample weigh-and-dispense Data Product. Business logic stays in the product.
+  tags:
+    - data-product
+    - weighing
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: '1.0'
+    dataprod.platform/domain: manufacturing
+    nexora.io/equipment-id: dispenser-01
+    nexora.io/product-type: weighing
+    nexora.io/data-quality-api: /api/v1/quality
+    nexora.io/metrics-api: /api/v1/metrics
+    nexora.io/contract-api: /api/v1/contracts
+spec:
+  type: data-product
+  lifecycle: production
+  owner: group:default/platform-team
+  system: packaging-line-04
+  dependsOn:
+    - component:default/dispenser-01
+  providesApis:
+    - dispenser-01-weighing-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: dispenser-01-weighing-api
+  title: Weigh Result Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: weigh-result
+    dataprod.platform/contract-version: '1.0'
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/platform-team
+  system: packaging-line-04
+  definition: |
+    Weigh result contract 1.0. Fields: equipmentId, weight, target, tolerance, material, batch, order.
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: line04-equipment-state
+  title: Equipment State Data Product
+  description: Sample line equipment-state product.
+  tags:
+    - data-product
+    - equipment-state
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: '1.0'
+    dataprod.platform/domain: manufacturing
+    nexora.io/line: line-04
+    nexora.io/product-type: equipment-state
+    nexora.io/data-quality-api: /api/v1/quality
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: packaging-line-04
+  dependsOn:
+    - component:default/filler-01
+    - component:default/dispenser-01
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: operations-dashboard
+  title: Operations Dashboard
+  description: Sample consumer of the OEE Data Product.
+  tags:
+    - consumer
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    nexora.io/product-type: consumer
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: packaging-line-04
+  dependsOn:
+    - component:default/filler-01-oee
+    - api:default/filler-01-oee-api

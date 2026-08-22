@@ -6,6 +6,7 @@ from app.domain.models import MachineState, MachineStateEvent
 from app.domain.windows import ensure_utc
 
 Interval = tuple[datetime, datetime, MachineState]
+Unobserved = tuple[datetime, datetime]
 
 
 def first_accepted_by_event_id(events: list[MachineStateEvent]) -> list[MachineStateEvent]:
@@ -59,35 +60,50 @@ def overlap_seconds(
     return max(total - removed, 0.0)
 
 
+def unobserved_seconds(intervals: list[Unobserved]) -> float:
+    return sum(max((end - start).total_seconds(), 0.0) for start, end in intervals)
+
+
 def build_timeline(
     events: list[MachineStateEvent],
     window_start: datetime,
     window_end: datetime,
-) -> tuple[list[Interval], float]:
-    """Return clipped (start, end, state) intervals and unobserved seconds."""
+) -> tuple[list[Interval], list[Unobserved]]:
+    """Return clipped (start, end, state) intervals and unobserved gaps.
+
+    Unobserved time is unknown. It is not STOPPED.
+    """
     window_start = ensure_utc(window_start)
     window_end = ensure_utc(window_end)
     unique = _state_at_same_timestamp(first_accepted_by_event_id(events))
     unique = [item for item in unique if item.timestamp <= window_end]
     if not unique:
-        return [], (window_end - window_start).total_seconds()
+        return [], [(window_start, window_end)]
 
     before = [item for item in unique if item.timestamp <= window_start]
     inside = [item for item in unique if window_start < item.timestamp < window_end]
     ordered = ([before[-1]] if before else []) + inside
 
-    unobserved = 0.0
+    unobserved: list[Unobserved] = []
     if not before:
         first_ts = ordered[0].timestamp if ordered else window_end
-        unobserved = max((min(first_ts, window_end) - window_start).total_seconds(), 0.0)
+        gap_end = min(first_ts, window_end)
+        if gap_end > window_start:
+            unobserved.append((window_start, gap_end))
 
     intervals: list[Interval] = []
     for index, event in enumerate(ordered):
         start = max(window_start, event.timestamp)
         if index + 1 < len(ordered):
-            end = ordered[index + 1].timestamp
+            natural_end = ordered[index + 1].timestamp
         else:
-            end = window_end
+            natural_end = window_end
+        end = natural_end
+        if event.end_timestamp is not None:
+            explicit = ensure_utc(event.end_timestamp)
+            end = min(end, explicit)
         if end > start:
             intervals.append((start, end, event.state))
+        if event.end_timestamp is not None and end < natural_end:
+            unobserved.append((end, natural_end))
     return intervals, unobserved

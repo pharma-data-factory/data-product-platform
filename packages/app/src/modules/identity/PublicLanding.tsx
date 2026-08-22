@@ -7,7 +7,6 @@ import {
   useState,
 } from 'react';
 import { Button } from '@material-ui/core';
-import ArrowForwardIcon from '@material-ui/icons/ArrowForward';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import CloseIcon from '@material-ui/icons/Close';
 import CheckIcon from '@material-ui/icons/Check';
@@ -17,13 +16,16 @@ import MenuIcon from '@material-ui/icons/Menu';
 import { PRODUCT_EDITIONS } from '@internal/platform-common';
 import { LEGAL_NAV } from '../legal/constants';
 import { BrandMark } from '../nav/BrandMark';
-import { OeeProofDiagram } from './HomeGraphics';
+import { GoldenPathShowcase } from './GoldenPathShowcase';
+import { HeroSection } from './home/HeroSection';
+import { HomeStyles } from './home/HomeStyles';
+import { WhyNexoraSection } from './home/WhyNexoraSection';
 import {
   LANDING_LOCALES,
   LandingI18nProvider,
   useLandingI18n,
 } from './landingI18n';
-import { C, BRAND_NAME, BRAND_WORDMARK, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL } from './landingTokens';
+import { C, BRAND_NAME, BRAND_WORDMARK, LANDING, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
 
 const NAV_ITEMS = [
   { id: 'platform', href: '/platform/architecture' },
@@ -87,14 +89,14 @@ export const LandingStyles = () => (
     }
     .pdf-btn-ghost:hover { border-color: ${PHARMA_TEAL} !important; background: rgba(0,194,217,0.08) !important; }
     .pdf-btn-hero-primary {
-      background: ${PHARMA_TEAL} !important;
+      background: ${LANDING.teal} !important;
       color: #fff !important;
       text-transform: none !important;
       box-shadow: none !important;
       font-weight: 600 !important;
       border-radius: 12px !important;
     }
-    .pdf-btn-hero-primary:hover { background: #0098AB !important; }
+    .pdf-btn-hero-primary:hover { background: ${PHARMA_TEAL_DARK} !important; }
     .pdf-btn-hero-ghost {
       border: 1px solid rgba(255,255,255,0.35) !important;
       color: #fff !important;
@@ -127,8 +129,8 @@ export const LandingStyles = () => (
     .pdf-focus:focus-visible { outline: 2px solid ${PHARMA_TEAL}; outline-offset: 3px; border-radius: 8px; }
     .pdf-home-steps {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
     }
     .pdf-home-editions {
       display: grid;
@@ -150,14 +152,11 @@ export const LandingStyles = () => (
       color: ${PHARMA_TEAL};
     }
     @media (max-width: 1100px) {
-      .pdf-home-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .pdf-home-equation { grid-template-columns: 1fr; }
       .pdf-home-op { transform: rotate(90deg); padding: 4px 0; }
     }
     @media (max-width: 800px) {
       .pdf-home-editions { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 700px) {
       .pdf-home-steps { grid-template-columns: 1fr; }
     }
   `}</style>
@@ -265,8 +264,8 @@ function StatusPill({
   tone: 'available' | 'planned' | 'future' | 'certified';
 }) {
   const colors = {
-    available: { bg: `${PHARMA_TEAL}14`, color: '#0F766E', border: `${PHARMA_TEAL}55` },
-    certified: { bg: `${PHARMA_TEAL}14`, color: '#0F766E', border: `${PHARMA_TEAL}55` },
+    available: { bg: `${PHARMA_TEAL}14`, color: PHARMA_TEAL_DARK, border: `${PHARMA_TEAL}55` },
+    certified: { bg: `${PHARMA_TEAL}14`, color: PHARMA_TEAL_DARK, border: `${PHARMA_TEAL}55` },
     planned: { bg: 'rgba(11,31,58,0.08)', color: PHARMA_NAVY, border: 'rgba(11,31,58,0.18)' },
     future: { bg: 'rgba(71,85,105,0.10)', color: '#475569', border: 'rgba(71,85,105,0.22)' },
   }[tone];
@@ -519,7 +518,7 @@ export function LandingNav({
           maxWidth: 1280,
           margin: '0 auto',
           padding: '0 24px',
-          height: 68,
+          height: 80,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -532,14 +531,14 @@ export function LandingNav({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            gap: 14,
             color: onDark ? '#F8FAFC' : C.text,
             textDecoration: 'none',
             flexShrink: 0,
           }}
         >
-          <BrandMark />
-          <span className="pdf-display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.2 }}>
+          <BrandMark size={48} />
+          <span className="pdf-display" style={{ fontWeight: 700, fontSize: 22, letterSpacing: '0.08em', lineHeight: 1.2 }}>
             {BRAND_WORDMARK}
           </span>
         </a>
@@ -647,105 +646,6 @@ export function LandingNav({
   );
 }
 
-function Hero({ error }: Pick<PublicLandingProps, 'error'>) {
-  const { t } = useLandingI18n();
-  return (
-    <section
-      id="top"
-      className="pdf-grid-bg"
-      style={{
-        position: 'relative',
-        padding: '148px 24px 96px',
-        overflow: 'hidden',
-        background: `linear-gradient(165deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 55%, #123152 100%)`,
-        color: '#F8FAFC',
-      }}
-    >
-      <div className="pdf-hero-glow" style={{ width: 420, height: 420, top: 20, left: -80, background: PHARMA_TEAL }} />
-      <div
-        className="pdf-hero-glow"
-        style={{ width: 360, height: 360, top: 180, right: -40, background: '#1E3A5F', animationDelay: '-8s' }}
-      />
-      <div
-        style={{
-          maxWidth: 920,
-          margin: '0 auto',
-          position: 'relative',
-        }}
-      >
-        <Reveal>
-          <p className="pdf-mono" style={{ color: PHARMA_TEAL, fontSize: 13, fontWeight: 700, letterSpacing: 2, margin: '0 0 20px' }}>
-            {t.hero.eyebrow}
-          </p>
-        </Reveal>
-        <Reveal delay={80}>
-          <h1
-            className="pdf-display"
-            style={{
-              fontSize: 'clamp(36px, 5.4vw, 64px)',
-              fontWeight: 700,
-              lineHeight: 1.08,
-              margin: 0,
-              whiteSpace: 'pre-line',
-            }}
-          >
-            {t.hero.title}
-          </h1>
-        </Reveal>
-        <Reveal delay={160}>
-          <p style={{ marginTop: 24, fontSize: 18, lineHeight: 1.7, maxWidth: 640, color: '#CBD5E1' }}>
-            {t.hero.sub}
-          </p>
-        </Reveal>
-        <Reveal delay={240}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 36 }}>
-            <Button className="pdf-btn-hero-primary pdf-focus" variant="contained" href="#how-it-works">
-              {t.hero.primary} <ArrowForwardIcon style={{ fontSize: 17, marginLeft: 6 }} />
-            </Button>
-            <Button className="pdf-btn-hero-ghost pdf-focus" variant="outlined" href="#golden-paths">
-              {t.hero.secondary}
-            </Button>
-          </div>
-        </Reveal>
-        {error && (
-          <p role="alert" style={{ color: '#FECACA', marginTop: 16 }}>
-            {error}
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function Why() {
-  const { t } = useLandingI18n();
-  const cards = [
-    { title: t.why.systemOfRecord, body: 'ERP · MES · LIMS · EWM' },
-    { title: t.why.dataProduct, body: t.preview.products },
-    { title: t.why.controlPlane, body: BRAND_NAME },
-  ];
-  return (
-    <section aria-label={t.why.eyebrow} style={{ padding: '96px 24px', background: C.section }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <SectionHeading eyebrow={t.why.eyebrow} color={PHARMA_TEAL} title={t.why.title} sub={t.why.body} />
-        <p className="pdf-muted" style={{ margin: '-24px 0 32px', fontSize: 16, lineHeight: 1.7, maxWidth: 720 }}>
-          {t.why.forWhom}
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-          {cards.map(card => (
-            <article key={card.title} className="pdf-card" style={{ padding: 24 }}>
-              <h3 className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.12em' }}>
-                {card.title}
-              </h3>
-              <p style={{ margin: '12px 0 0', fontSize: 16, fontWeight: 600 }}>{card.body}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function HowItWorks() {
   const { t } = useLandingI18n();
   return (
@@ -773,81 +673,6 @@ function HowItWorks() {
               </article>
             </Reveal>
           ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Proof() {
-  const { t } = useLandingI18n();
-  return (
-    <section
-      id="golden-paths"
-      aria-label="Golden Path showcase"
-      style={{ padding: '96px 24px', background: C.section }}
-    >
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <SectionHeading eyebrow={t.proof.eyebrow} color={PHARMA_TEAL} title={t.proof.title} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <h3 className="pdf-display" style={{ margin: 0, fontSize: 22 }}>
-            OEE Data Product
-          </h3>
-          <StatusPill label="CERTIFIED" tone="certified" />
-        </div>
-        <figure
-          style={{
-            margin: 0,
-            borderRadius: 16,
-            overflow: 'hidden',
-            border: `1px solid ${C.border}`,
-            background: '#05101C',
-          }}
-        >
-          <OeeProofDiagram
-            ariaLabel={t.proof.oeeCaption}
-            mes={t.proof.mes}
-            machine={t.proof.machine}
-            rest={t.proof.rest}
-            mqtt={t.proof.mqtt}
-            product={t.proof.oee}
-            formula={t.proof.formula}
-            api={t.proof.api}
-          />
-        </figure>
-        <p style={{ margin: '16px 0 0', fontSize: 16, fontWeight: 600, maxWidth: 640 }}>
-          {t.proof.oeeCaption}
-        </p>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 16,
-            marginTop: 28,
-          }}
-        >
-          <article className="pdf-card" style={{ padding: 24 }}>
-            <h3 className="pdf-display" style={{ margin: 0, fontSize: 18 }}>
-              MQTT Temperature Data Product
-            </h3>
-            <div style={{ marginTop: 10 }}>
-              <StatusPill label="CERTIFIED" tone="certified" />
-            </div>
-            <p className="pdf-muted" style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.6 }}>
-              {t.proof.mqttCard}
-            </p>
-          </article>
-          <article className="pdf-card" style={{ padding: 24 }}>
-            <h3 className="pdf-display" style={{ margin: 0, fontSize: 18 }}>
-              REST Equipment Data Product
-            </h3>
-            <div style={{ marginTop: 10 }}>
-              <StatusPill label="CERTIFIED" tone="certified" />
-            </div>
-            <p className="pdf-muted" style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.6 }}>
-              {t.proof.restCard}
-            </p>
-          </article>
         </div>
       </div>
     </section>
@@ -900,7 +725,7 @@ function DeveloperValue() {
           </div>
           <article
             className="pdf-card"
-            style={{ padding: 24, borderColor: 'rgba(13,148,136,0.45)', background: 'rgba(13,148,136,0.06)' }}
+            style={{ padding: 24, borderColor: 'rgba(0,194,217,0.45)', background: 'rgba(0,194,217,0.06)' }}
           >
             <h3 className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.12em' }}>
               {t.developer.resultLabel}
@@ -980,7 +805,7 @@ function EditionCard({
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          borderColor: available ? 'rgba(13,148,136,0.45)' : C.border,
+          borderColor: available ? 'rgba(0,194,217,0.45)' : C.border,
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start' }}>
@@ -1122,8 +947,8 @@ export function LandingFooter({
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 40 }}>
           <div style={{ maxWidth: 360 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <BrandMark size={30} />
-              <span className="pdf-display" style={{ fontWeight: 600, fontSize: 14 }}>
+              <BrandMark size={40} />
+              <span className="pdf-display" style={{ fontWeight: 700, fontSize: 18, letterSpacing: '0.08em' }}>
                 {BRAND_WORDMARK}
               </span>
             </div>
@@ -1169,11 +994,12 @@ export function PublicLanding(props: PublicLandingProps) {
     <LandingI18nProvider>
       <main className="pdf-root">
         <LandingStyles />
+        <HomeStyles />
         <LandingNav onSignIn={startCreate} />
-        <Hero error={props.error} />
-        <Why />
+        <HeroSection error={props.error} />
+        <WhyNexoraSection />
         <HowItWorks />
-        <Proof />
+        <GoldenPathShowcase />
         <DeveloperValue />
         <ArchitecturePreview />
         <ProductEditions />

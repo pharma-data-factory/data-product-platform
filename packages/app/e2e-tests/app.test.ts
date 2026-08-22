@@ -21,7 +21,7 @@ test('App should render the welcome page', async ({ page }) => {
 
   await expect(
     page.getByRole('heading', {
-      name: /Keep the core standard\.\s*Innovate through Data Products\./i,
+      name: /Keep core systems standardized\.\s*Deliver Data Products around them\./i,
     }),
   ).toBeVisible();
 

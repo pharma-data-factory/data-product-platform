@@ -1,0 +1,103 @@
+# Platform Core 1.0-RC1 — formal verification candidate
+# Creating this file does NOT technically enforce a git or repository freeze.
+# Validation status is not a validated release.
+
+product: Platform Core
+product_ui_name: Nexora
+candidate_version: 1.0-RC1
+requirements_baseline: PDF-PC-VAL-BL-1.0
+validation_status: NOT_VALIDATED
+part_11_status: NOT_CLAIMED
+gxp_status: NOT_VALIDATED
+formal_iq_oq_uat: NOT_EXECUTED
+created_on: 2026-08-22
+
+git:
+  repository_path: data-product-platform
+  branch: main
+  tracks: origin/main
+  commit: d96ab0cbd97ea86314ddcbd468ff5faf756df212
+  commit_subject: Present Nexora as the product identity and simplify the public landing.
+  commit_date: 2026-08-21T21:05:42+02:00
+  worktree_status: DIRTY
+  worktree_note: >-
+    HEAD does not uniquely identify the candidate. Uncommitted and untracked
+    changes exist, including P0/P1 remediation, Nexora identity, and OEE
+    template work. Validation package lives beside this repo (IDP/validation),
+    not inside the product git root.
+  validation_package_git: NOT_ESTABLISHED
+
+code_freeze:
+  candidate_label: Platform Core 1.0-RC1
+  documented: true
+  technically_enforced: false
+  allowed_after_rc1:
+    - formal verification findings
+    - security-critical defects
+    - validation-blocking defects
+  required_for_product_code_change:
+    - change record
+    - impact assessment
+    - affected URS/SYS/TDS/tests
+    - regression assessment
+    - new candidate version if applicable
+  feature_development_on_this_candidate: forbidden
+
+build_runtime:
+  node_observed: v22.12.0
+  node_engines: "22 || 24"
+  package_manager: yarn@4.13.0
+  package_manager_observed: "4.13.0"
+  typescript: "~5.8.0"
+  backstage_cli_declared: "^0.36.4"
+  backstage_backend_defaults_declared: "^0.17.5"
+  backstage_resolved_lockfile_versions: NOT_ESTABLISHED
+  python_generated_services: "3.12+ (templates; out of Core validation scope)"
+
+database_runtime:
+  hosted: PostgreSQL 16 (docker-compose image postgres:16-alpine)
+  local_development: file-backed SQLite (app-config.yaml)
+  create_authorization_audit: JSONL file (commercial.createAuthorizationAuditPath)
+  sbom: NOT_ESTABLISHED
+
+configuration_files:
+  - data-product-platform/app-config.yaml
+  - data-product-platform/app-config.docker.yaml
+  - data-product-platform/app-config.production.yaml
+  - data-product-platform/app-config.github.yaml
+  - data-product-platform/app-config.marketplace-test.yaml
+  - data-product-platform/app-config.local.yaml
+  - data-product-platform/docker-compose.yml
+  - data-product-platform/Dockerfile
+
+included_custom_plugins:
+  in_scope_core:
+    - "@internal/platform-common"
+    - "@internal/plugin-data-products"
+    - "@internal/plugin-data-products-backend"
+    - "@internal/plugin-entitlements-backend"
+    - "@internal/plugin-marketplace"
+  loaded_but_out_of_core_validation_scope:
+    - "@internal/plugin-nexora-backend (industrial/AAS-adjacent; DEC-SCOPE-001)"
+    - plugins/nexora-assets
+    - plugins/nexora-common
+    - plugins/nexora-contracts
+    - plugins/nexora-quality
+    - aasPlugin in packages/backend/src/index.ts
+
+soup:
+  framework: Backstage (SOUP; DEC-SOUP-001)
+  lockfile: data-product-platform/yarn.lock
+  inventory: NOT_ESTABLISHED as a signed SOUP assessment
+  vulnerability_scan: NOT_ESTABLISHED
+  upgrade_impact_assessment: NOT_ESTABLISHED
+
+reviews:
+  p0_independent: validation/reviews/P0-Independent-Review.md
+  p1_independent: validation/reviews/P1-Independent-Review.md
+  open_leg_001: CLOSED
+
+notes:
+  - This manifest is a verification candidate identity, not a validated release.
+  - Do not treat CERTIFIED or RELEASED as GMP validation.
+  - Golden Path template content is outside Platform Core validation scope.

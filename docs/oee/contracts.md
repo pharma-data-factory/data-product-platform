@@ -23,6 +23,8 @@ Results remain `COMPATIBLE`, `BREAKING_CHANGE`, and `UNKNOWN`.
 | `quality-count-event` | 1.0.0 | New | [schemas/quality-count-event.schema.json](schemas/quality-count-event.schema.json) |
 | `production-context` | 1.0.0 | New | [schemas/production-context.schema.json](schemas/production-context.schema.json) |
 | `oee-result` | 1.0.0 | Output | [schemas/oee-result.schema.json](schemas/oee-result.schema.json) |
+| `loss-event` | 1.0.0 | OEE 1.1 output | `templates/oee-data-product/content/contracts/loss-event.schema.json` |
+| `reason-code` | 1.0.0 | OEE 1.1 catalog | `templates/oee-data-product/content/contracts/reason-code.schema.json` |
 
 Do not create a second machine-state contract. OEE consumes
 `machine-state-event` 1.0.0 as published by Unified Namespace and the
@@ -132,7 +134,8 @@ valid. Changing the default from cumulative to delta is
 Optional `totalCount` is cumulative and, when present, must satisfy
 `goodCount <= totalCount` and `rejectCount <= totalCount`.
 Window Quality uses `goodCount / (goodCount + rejectCount)` from the
-quality stream when both fields exist after deltas.
+quality stream when both fields exist after deltas. Optional `reworkCount`
+is stored when present and is not an OEE 1.0 formula input.
 
 `goodCount + rejectCount` should equal the production counter when both
 streams are present.
@@ -184,7 +187,7 @@ Required: `contextId`, `equipmentId`, `plannedStart`, `plannedEnd`,
 `idealCycleTimeSeconds`, `timestamp`.
 
 Optional: `orderId`, `materialId`, `targetQuantity`, `site`, `area`,
-`line`, `shiftId`, `plannedDowntime`.
+`line`, `shiftId`, `batchId`, `recipeId`, `plannedDowntime`.
 `orderId` is required for the request when `windowKind` is `order`.
 
 Source responsibility: typically **MES via REST Source**. The adapter
@@ -219,7 +222,7 @@ be `> 0`. `targetQuantity` is not used in 1.0 formulas.
   "plannedProductionSeconds": 3600,
   "idealCycleTimeSeconds": 1.0,
   "completeness": "COMPLETE",
-  "calculationStatus": "VALID",
+  "calculationStatus": "COMPLETE",
   "reconciliationStatus": "ALIGNED",
   "calculatedAt": "2026-08-21T09:00:05Z"
 }
@@ -232,8 +235,9 @@ Nullable numeric fields use JSON `null` when a guard applies
 
 `completeness`: `COMPLETE` | `PARTIAL` | `INCOMPLETE` (input coverage).
 
-`calculationStatus`: `VALID` | `INCOMPLETE` | `INVALID_INPUT` |
-`NO_PRODUCTION` | `PENDING_LATE_DATA`. See [Quality](quality.md).
+`calculationStatus`: `COMPLETE` | `MISSING_PRODUCTION_CONTEXT` |
+`MISSING_MACHINE_STATE` | `MISSING_IDEAL_CYCLE` | `MISSING_COUNTER_DATA` |
+`MISSING_QUALITY_DATA` | `INSUFFICIENT_OBSERVATION`. See [Quality](quality.md).
 
 `reconciliationStatus`: `ALIGNED` | `COUNT_MISMATCH` | `COUNTS_UNAVAILABLE`.
 

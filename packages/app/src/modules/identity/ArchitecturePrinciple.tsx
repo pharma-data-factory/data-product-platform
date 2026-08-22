@@ -305,9 +305,9 @@ function ArchitectureStyles() {
       .pdf-arch-products .pdf-arch-dp:nth-child(odd) { margin-top: 0; }
       .pdf-arch-products .pdf-arch-dp:nth-child(even) { margin-top: 22px; }
       .pdf-arch-dp.pdf-arch-evolve {
-        border-color: rgba(13,148,136,0.55);
-        box-shadow: 0 0 0 1px rgba(13,148,136,0.28), 0 12px 40px rgba(13,148,136,0.16);
-        background: rgba(13,148,136,0.08);
+        border-color: rgba(0,194,217,0.55);
+        box-shadow: 0 0 0 1px rgba(0,194,217,0.28), 0 12px 40px rgba(0,194,217,0.16);
+        background: rgba(0,194,217,0.08);
       }
       .pdf-arch-ver {
         display: inline-flex;
@@ -551,10 +551,10 @@ export function StoryStatusBadge({ status }: { status: CapabilityStatus | 'illus
         textTransform: 'uppercase',
         padding: '3px 8px',
         borderRadius: 999,
-        background: certified ? 'rgba(13,148,136,0.14)' : 'rgba(71,85,105,0.18)',
+        background: certified ? 'rgba(0,194,217,0.14)' : 'rgba(71,85,105,0.18)',
         color: statusBadgeColor(certified, future),
         border: certified
-          ? '1px solid rgba(13,148,136,0.45)'
+          ? '1px solid rgba(0,194,217,0.45)'
           : '1px solid rgba(148,163,184,0.28)',
       }}
     >
@@ -583,9 +583,9 @@ function ProductChip({
         textTransform: 'uppercase',
         padding: '3px 8px',
         borderRadius: 999,
-        background: certified ? 'rgba(13,148,136,0.14)' : 'rgba(71,85,105,0.18)',
+        background: certified ? 'rgba(0,194,217,0.14)' : 'rgba(71,85,105,0.18)',
         color: certified ? PHARMA_TEAL_LIGHT : '#94A3B8',
-        border: certified ? '1px solid rgba(13,148,136,0.45)' : '1px solid rgba(148,163,184,0.28)',
+        border: certified ? '1px solid rgba(0,194,217,0.45)' : '1px solid rgba(148,163,184,0.28)',
       }}
     >
       {certified ? `${protocol} · ${t.principle.certified}` : t.principle.illustrative}

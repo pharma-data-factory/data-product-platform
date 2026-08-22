@@ -22,6 +22,7 @@ export const permissionModulePlatformPolicy = createBackendModule({
             organizationId: runtime.config.organizationId,
             hasEntitlement: (organizationId, productId) =>
               runtime.service.hasEntitlement(organizationId, productId),
+            auditStore: runtime.service.createAuthorizationAuditStore(),
           }),
         );
       },

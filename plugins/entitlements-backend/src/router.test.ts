@@ -17,6 +17,7 @@ async function request(
     const response = await fetch(`http://127.0.0.1:${port}${urlPath}`, init);
     return {
       status: response.status,
+      headers: response.headers,
       body: await response.json(),
     };
   } finally {
@@ -170,6 +171,9 @@ describe('entitlements router', () => {
     expect(JSON.stringify(runtime.service.auditTrail())).not.toContain(
       'super-secret-registration-token',
     );
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(response.body.tenantCreated).toBe(false);
+    expect(response.body.accessGranted).toBe(false);
   });
 
   it('never exposes AWS credentials on the integration status page', async () => {

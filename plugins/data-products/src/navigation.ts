@@ -36,5 +36,15 @@ export function dataProductDiscoverLinks(product: DataProduct): DiscoverLink[] {
   if (contractPath) {
     links.push({ id: 'api', label: 'API / Contract', to: contractPath });
   }
+  links.push({
+    id: 'industrial-contract',
+    label: 'Industrial contract',
+    to: `/contracts/${product.name}`,
+  });
+  links.push({
+    id: 'industrial-quality',
+    label: 'Quality & connectivity',
+    to: `/quality/${product.name}`,
+  });
   return links;
 }

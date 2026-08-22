@@ -72,6 +72,7 @@ describe('data-products router', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       status: 'UNKNOWN',
+      representation: 'DEGRADED / UNVERIFIED',
       message: 'Not available',
     });
   });
@@ -131,6 +132,73 @@ describe('data-products router', () => {
       );
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('denies technical certification writes without manage permission', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cert-deny-'));
+    const overlay = new FileCertificationOverlay(
+      path.join(dir, 'certification-overrides.json'),
+    );
+    const router = await createRouter({
+      logger: {
+        warn: jest.fn(),
+        info: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+        child: jest.fn(),
+      } as never,
+      catalog: catalog as never,
+      httpAuth: httpAuth as never,
+      github,
+      permissions: {
+        authorize: async () => [{ result: AuthorizeResult.DENY }],
+      } as never,
+      certificationOverlay: overlay,
+    });
+    const server = express();
+    server.use(router);
+    const listener = server.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => listener.once('listening', () => resolve()));
+    try {
+      const { port } = listener.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${port}/certification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityRef: 'component:default/cold-room',
+          status: 'CERTIFIED',
+        }),
+      });
+      expect(response.status).toBe(403);
+      expect(overlay.getStatus('component:default/cold-room')).toBeUndefined();
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        listener.close(error => (error ? reject(error) : resolve())),
+      );
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('denies CI status reads without data-product view permission', async () => {
+    const router = await createRouter({
+      logger: {
+        warn: jest.fn(),
+        info: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+        child: jest.fn(),
+      } as never,
+      catalog: catalog as never,
+      httpAuth: httpAuth as never,
+      github,
+      permissions: {
+        authorize: async () => [{ result: AuthorizeResult.DENY }],
+      } as never,
+    });
+    const server = express();
+    server.use(router);
+    const response = await get(server, '/ci-status?entityRef=component:default/cold-room');
+    expect(response.status).toBe(403);
   });
 
   it('returns UNKNOWN when GitHub credentials cannot be established', async () => {

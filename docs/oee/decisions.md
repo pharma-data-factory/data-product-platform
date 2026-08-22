@@ -20,7 +20,7 @@ implementation.
 | Who owns ideal cycle time | DECISION REQUIRED | Production context (MES via REST), not PLC and not AAS in MVP | Moving to AAS master data is optional later |
 | Order-based vs equipment-based | DECISION REQUIRED | Equipment grain; order is a **window kind** | Mixing both in one row is out of scope |
 | Performance > 100% | DECISION REQUIRED | **Allowed** (not clamped) | Clamping later is `BREAKING_CHANGE` for `oee-result` |
-| Micro-stops | DECISION REQUIRED | `IDLE` and `STOPPED` both unplanned availability loss; no separate micro-stop class | A duration threshold would be COMPATIBLE optional config |
+| Micro-stops | IMPLEMENTED (1.1 additive) | `IDLE` and `STOPPED` still unplanned availability loss on `oee-result` 1.0. Optional duration thresholds classify microstops on loss APIs without changing A/P/Q | Changing 1.0 Availability to exclude microstops would be `BREAKING_CHANGE` |
 | Site-local hour/day vs UTC | DECISION REQUIRED | UTC windows unless optional context timezone is added later | Timezone field is COMPATIBLE |
 | `orderId` required on context | DECISION REQUIRED | **Optional** except `window=order` | Making it always required is `BREAKING_CHANGE` |
 | Treat some IDLE as planned | DECISION REQUIRED | No in 1.0; `reason` is diagnostic only | Optional context flags later, COMPATIBLE |

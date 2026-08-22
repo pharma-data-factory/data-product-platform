@@ -1,3 +1,7 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { FileCreateAuthorizationAuditStore } from './create-authorization-audit-store';
 import { LocalEntitlementProvider, PlatformEntitlementService } from './entitlement-service';
 import { createEntitlementRecord } from './entitlements';
 
@@ -277,5 +281,46 @@ describe('PlatformEntitlementService', () => {
     });
     expect(result.allowed).toBe(true);
     expect(result.reason).toBe('OK');
+  });
+
+  it('retains Create authorization records after a new service instance reads the same store', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'create-auth-audit-'));
+    const filePath = path.join(dir, 'create-authorization-audit.jsonl');
+    const first = new PlatformEntitlementService({
+      provider: new LocalEntitlementProvider(),
+      organizationId: 'internal',
+      auditStore: new FileCreateAuthorizationAuditStore(filePath),
+    });
+    await first.authorizeCreate({
+      organizationId: 'internal',
+      templateId: 'mqtt-temperature-data-product',
+      role: 'VIEWER',
+      actor: 'user:default/viewer',
+    });
+
+    const restarted = new PlatformEntitlementService({
+      provider: new LocalEntitlementProvider({ productIds: [] }),
+      organizationId: 'internal',
+      auditStore: new FileCreateAuthorizationAuditStore(filePath),
+    });
+    const retained = restarted
+      .auditTrail()
+      .filter(event => event.type === 'ACCESS_DENIED');
+    expect(retained.length).toBeGreaterThan(0);
+    expect(retained[0]).toMatchObject({
+      actor: 'user:default/viewer',
+      action: 'authorizeCreate',
+      decision: 'DENY',
+      organizationId: 'internal',
+      productId: 'golden-path.mqtt-temperature',
+      authorizationContext: {
+        reason: 'RBAC',
+        templateId: 'mqtt-temperature-data-product',
+        role: 'VIEWER',
+        rbacAllowed: false,
+      },
+    });
+    expect(retained[0].at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

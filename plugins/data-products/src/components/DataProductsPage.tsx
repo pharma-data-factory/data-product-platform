@@ -20,6 +20,7 @@ import {
   TextField,
   Typography,
 } from '@material-ui/core';
+import { makeStyles } from '@material-ui/core/styles';
 import { formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
 import {
   DataProduct,
@@ -28,12 +29,26 @@ import {
   toRelatedDataProducts,
 } from '../model';
 import { CertificationChip } from './CertificationChip';
-import { CompatibilityChip } from './CompatibilityChip';
 import { JourneyState } from './JourneyState';
 import { QualityChip } from './QualityChip';
-import { UpgradeChip } from './UpgradeChip';
+
+const useStyles = makeStyles({
+  tableWrap: {
+    overflowX: 'auto',
+    width: '100%',
+  },
+  table: {
+    minWidth: 720,
+  },
+  nameCell: {
+    fontWeight: 600,
+    minWidth: 200,
+    whiteSpace: 'normal',
+  },
+});
 
 export function DataProductsPage() {
+  const classes = useStyles();
   const catalogApi = useApi(catalogApiRef);
   const navigate = useNavigate();
   const [products, setProducts] = useState<DataProduct[]>([]);
@@ -117,23 +132,17 @@ export function DataProductsPage() {
             {visible.length > 0 && (
             <Grid item xs={12}>
               <InfoCard title={`${visible.length} data products`}>
-                <Table>
+                <div className={classes.tableWrap}>
+                <Table className={classes.table}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Data Product</TableCell>
                       <TableCell>Owner</TableCell>
                       <TableCell>Lifecycle</TableCell>
                       <TableCell>Version</TableCell>
-                      <TableCell>Template version</TableCell>
-                      <TableCell>Standard</TableCell>
-                      <TableCell>SDK</TableCell>
-                      <TableCell>Contract version</TableCell>
                       <TableCell>Quality</TableCell>
                       <TableCell>Certification</TableCell>
-                      <TableCell>Upgrade</TableCell>
-                      <TableCell>Compatibility</TableCell>
-                      <TableCell>Repository</TableCell>
-                      <TableCell>Documentation</TableCell>
+                      <TableCell>Docs</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -146,7 +155,7 @@ export function DataProductsPage() {
                           navigate(`/data-products/${product.name}`)
                         }
                       >
-                        <TableCell>
+                        <TableCell className={classes.nameCell}>
                           {product.title}
                           {catalogClassLabel(product)
                             ? ` · ${catalogClassLabel(product)}`
@@ -155,16 +164,6 @@ export function DataProductsPage() {
                         <TableCell>{product.owner}</TableCell>
                         <TableCell>{product.lifecycle}</TableCell>
                         <TableCell>{product.version}</TableCell>
-                        <TableCell>{product.templateVersion || '—'}</TableCell>
-                        <TableCell>
-                          {product.dataProductStandardVersion || '—'}
-                        </TableCell>
-                        <TableCell>
-                          {product.dataProductSdkVersion || '—'}
-                        </TableCell>
-                        <TableCell>
-                          {product.dataContractVersion || '—'}
-                        </TableCell>
                         <TableCell>
                           <QualityChip status={product.qualityStatus} />
                         </TableCell>
@@ -172,27 +171,6 @@ export function DataProductsPage() {
                           <CertificationChip
                             status={product.certificationStatus}
                           />
-                        </TableCell>
-                        <TableCell>
-                          {product.upgrade ? (
-                            <UpgradeChip status={product.upgrade.overall} />
-                          ) : (
-                            '—'
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <CompatibilityChip
-                            status={product.compatibilityStatus}
-                          />
-                        </TableCell>
-                        <TableCell onClick={event => event.stopPropagation()}>
-                          {product.repository ? (
-                            <Link to={product.repository}>
-                              {product.repository}
-                            </Link>
-                          ) : (
-                            '—'
-                          )}
                         </TableCell>
                         <TableCell onClick={event => event.stopPropagation()}>
                           {product.documentation ? (
@@ -205,6 +183,7 @@ export function DataProductsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </InfoCard>
             </Grid>
             )}

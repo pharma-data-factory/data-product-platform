@@ -27,7 +27,7 @@ Dependencies → Catalog Graph → Documentation → Platform Compliance
 
 ### 1. Public Home (about 1 minute)
 
-Open the public landing. Read the hero (**Keep the core standard**), then
+Open the public landing. Read the hero (**Keep core systems standardized**), then
 **Why**, **How it works**, and the OEE proof. Optionally open
 **Explore Architecture** (`/platform/architecture`) or **How developers build**.
 

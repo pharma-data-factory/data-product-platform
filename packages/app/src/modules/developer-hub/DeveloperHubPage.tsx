@@ -88,7 +88,7 @@ const useStyles = makeStyles({
     padding: '8px 14px',
     textDecoration: 'none',
     '&:hover': {
-      background: 'rgba(20,184,166,0.16)',
+      background: 'rgba(0,194,217,0.16)',
       textDecoration: 'none',
     },
   },

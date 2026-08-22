@@ -43,6 +43,7 @@ export interface CommercialRuntimeConfig {
   awsProductCode?: string;
   organizationLinks: readonly MarketplaceOrganizationLink[];
   linkStorePath?: string;
+  createAuthorizationAuditPath?: string;
 }
 
 export interface EntitlementDiagnostics {
@@ -138,6 +139,9 @@ export function loadCommercialConfig(config: Config): CommercialRuntimeConfig {
     linkStorePath:
       commercial?.getOptionalString('awsMarketplace.linkStorePath')?.trim() ||
       undefined,
+    createAuthorizationAuditPath:
+      commercial?.getOptionalString('createAuthorizationAuditPath')?.trim() ||
+      undefined,
   };
 }
 
@@ -211,6 +215,7 @@ export function createEntitlementRuntime(options: {
     organizationId: commercial.organizationId,
     source: provider.id === 'aws' ? 'AWS_MARKETPLACE' : 'INTERNAL',
     legalDistributionStatus: commercial.legalDistributionStatus,
+    createAuthorizationAuditPath: commercial.createAuthorizationAuditPath,
   });
 
   const registration = new MarketplaceRegistrationService({

@@ -9,5 +9,6 @@ jobs:
   quality-gate:
     uses: ./.github/workflows/data-product-quality.yml
     with:
-      unit-tests: pytest tests/test_health.py tests/test_model.py tests/test_scenarios.py tests/test_edges.py tests/test_api.py tests/test_platform_metadata.py tests/test_independence.py
+      lint-command: ruff check app tests dataprod && python -m compileall -q app
+      unit-tests: pytest tests/test_health.py tests/test_model.py tests/test_scenarios.py tests/test_edges.py tests/test_calculation.py tests/test_oee_1_0.py tests/test_api.py tests/test_platform_metadata.py tests/test_independence.py
       image-name: ${{ values.name }}

@@ -42,27 +42,35 @@ Window-level `goodCount` (quality stream) `>` production `totalCount` is
 
 ## calculationStatus
 
-Consumers must distinguish **OEE = 0** from **OEE cannot be calculated**.
+Consumers must distinguish **OEE cannot be calculated** (`oee: null`) from a
+calculated value, including `0`.
 
 | Status | Meaning | `oee` field |
 | --- | --- | --- |
-| `VALID` | Inputs sufficient; ratios published | Number (may be `0` or `> 1` if Performance `> 1`) |
-| `NO_PRODUCTION` | Planned production exists and window `totalCount = 0` | `0` when Availability is defined; else `null` |
-| `INCOMPLETE` | Missing context, cycle time, or entire state timeline | `null` |
-| `INVALID_INPUT` | Mandatory quality failed for the request (bad window, failed context) | `null`; HTTP 400 on explicit bad query |
-| `PENDING_LATE_DATA` | Window still open (`windowEnd > calculatedAt`) | Number or `null` as of now; not final |
+| `COMPLETE` | Inputs sufficient; A × P × Q published | Number (may be `0` or `> 1` if Performance `> 1`) |
+| `MISSING_PRODUCTION_CONTEXT` | No production-context document | `null` |
+| `MISSING_MACHINE_STATE` | No observed machine-state intervals | `null` |
+| `MISSING_IDEAL_CYCLE` | Context present without a positive ideal cycle | `null` |
+| `MISSING_COUNTER_DATA` | No counter / production counts | `null` |
+| `MISSING_QUALITY_DATA` | No quality counts, or Quality undefined (`totalCount = 0`) | `null` |
+| `INSUFFICIENT_OBSERVATION` | Bad window, or no usable planned production time after excluding unobserved time | `null` |
+
+Missing inputs are never estimated and never defaulted to 0 or 1.
 
 Precedence when several apply:
 
-1. `INVALID_INPUT`
-2. `PENDING_LATE_DATA` (open window)
-3. `NO_PRODUCTION`
-4. `INCOMPLETE`
-5. `VALID`
+1. `INSUFFICIENT_OBSERVATION` for invalid windows
+2. `MISSING_MACHINE_STATE`
+3. `INSUFFICIENT_OBSERVATION` when planned production time is 0
+4. `COMPLETE` when `oee` is not null
+5. `MISSING_PRODUCTION_CONTEXT`
+6. `MISSING_IDEAL_CYCLE`
+7. `MISSING_COUNTER_DATA`
+8. `MISSING_QUALITY_DATA`
 
 `completeness` (`COMPLETE` / `PARTIAL` / `INCOMPLETE`) remains input
-coverage. It can be `PARTIAL` on a `VALID` result (some unobserved time
-already subtracted).
+coverage. It can be `PARTIAL` on a `COMPLETE` result (unobserved time
+already excluded from the basis).
 
 ## Quality endpoint
 

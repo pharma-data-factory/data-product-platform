@@ -60,9 +60,12 @@ describe('Data Product conformance', () => {
       const api = catalogDocs.find(doc => doc.kind === 'API');
 
       expect(component.spec.type).toBe('data-product');
-      expect(component.spec.providesApis).toEqual([
+      expect(component.spec.providesApis[0]).toBe(
         `\${{ values.name }}--${template.contractLogicalName}`,
-      ]);
+      );
+      expect(component.spec.providesApis).toContain(
+        `\${{ values.name }}--${template.contractLogicalName}`,
+      );
       expect(
         component.metadata.annotations['dataprod.platform/providesContract'],
       ).toBeUndefined();

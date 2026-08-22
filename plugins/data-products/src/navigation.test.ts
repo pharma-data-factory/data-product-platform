@@ -47,6 +47,8 @@ describe('data product discover navigation', () => {
       'techdocs',
       'catalog-graph',
       'api',
+      'industrial-contract',
+      'industrial-quality',
     ]);
     expect(links.find(link => link.id === 'api')?.to).toBe(
       '/catalog/default/api/temperature-event',
@@ -67,6 +69,10 @@ describe('data product discover navigation', () => {
       repository: undefined,
       techDocsUrl: undefined,
     });
-    expect(links.map(link => link.id)).toEqual(['catalog-graph']);
+    expect(links.map(link => link.id)).toEqual([
+      'catalog-graph',
+      'industrial-contract',
+      'industrial-quality',
+    ]);
   });
 });

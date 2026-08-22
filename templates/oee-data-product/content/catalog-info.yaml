@@ -6,10 +6,12 @@ metadata:
   description: ${{ values.description }}
   tags:
     - data-product
-    - python
     - oee
+    - manufacturing
     - mqtt
     - rest
+    - industrial
+    - python
   annotations:
     github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
     backstage.io/techdocs-ref: dir:.
@@ -54,8 +56,11 @@ spec:
     - ${{ values.name }}--machine-state-event
     - ${{ values.name }}--production-count-event
     - ${{ values.name }}--quality-count-event
+    - ${{ values.name }}--counter-event
   providesApis:
     - ${{ values.name }}--oee-result
+    - ${{ values.name }}--loss-event
+    - ${{ values.name }}--reason-code
 ---
 apiVersion: backstage.io/v1alpha1
 kind: API
@@ -75,7 +80,24 @@ spec:
   system: ${{ values.system }}
   definition: |
     OEE Result contract 1.0.0
-    calculationStatus distinguishes VALID oee 0 from INCOMPLETE oee null
+    calculationStatus distinguishes COMPLETE oee values from null when inputs are missing
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--counter-event
+  title: Counter Event Contract
+  annotations:
+    dataprod.platform/contract: counter-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/counter-event.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Cumulative counter-event 1.0.0 with totalCount, goodCount, and rejectCount.
 ---
 apiVersion: backstage.io/v1alpha1
 kind: API
@@ -144,3 +166,38 @@ spec:
   system: ${{ values.system }}
   definition: |
     Cumulative quality-count-event 1.0.0.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--loss-event
+  title: OEE Loss Event Contract
+  annotations:
+    dataprod.platform/contract: loss-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/loss-event.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    OEE 1.1 classified loss-event. Does not change oee-result 1.0.0.
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--reason-code
+  title: OEE Reason Code Contract
+  annotations:
+    dataprod.platform/contract: reason-code
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/reason-code.schema.json
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Hierarchical reason-code catalog for OEE 1.1 loss management.
+

@@ -3,6 +3,7 @@ site_description: ${{ values.description }}
 
 nav:
   - Overview: index.md
+  - Product: product.md
   - Architecture: architecture.md
   - OEE Model: oee-model.md
   - Prerequisites: prerequisites.md
@@ -11,6 +12,7 @@ nav:
   - Local Development: local-development.md
   - Event Simulator: event-simulator.md
   - API: api.md
+  - Loss Management: losses.md
   - Input Contracts: input-contracts.md
   - Result Contract: result-contract.md
   - Data Contract: data-contract.md

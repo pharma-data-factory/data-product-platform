@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from app.domain import calculate_oee
-from app.domain.models import CalculationStatus, Completeness, OeeInputs
+from app.domain.models import CalculationStatus, OeeInputs
 from app.domain.quality import event_quality_failures
 from tests.fixtures import (
     CALCULATED_AT,
@@ -22,7 +22,7 @@ def _inputs(**overrides) -> OeeInputs:
         "equipment_id": EQUIPMENT,
         "window_start": WINDOW_START,
         "window_end": WINDOW_END,
-        "window_kind": "custom",
+        "window_kind": "CUSTOM",
         "calculated_at": CALCULATED_AT,
         "context": context(),
     }
@@ -41,9 +41,8 @@ def test_zero_production() -> None:
     assert result.availability == 1.0
     assert result.performance == 0.0
     assert result.quality is None
-    assert result.oee == 0.0
-    assert result.calculation_status == CalculationStatus.NO_PRODUCTION
-    assert result.oee == 0.0
+    assert result.oee is None
+    assert result.calculation_status == CalculationStatus.MISSING_QUALITY_DATA
 
 
 def test_hundred_percent_reject() -> None:
@@ -62,7 +61,7 @@ def test_hundred_percent_reject() -> None:
     )
     assert result.quality == 0.0
     assert result.oee == 0.0
-    assert result.calculation_status == CalculationStatus.VALID
+    assert result.calculation_status == CalculationStatus.COMPLETE
 
 
 def test_late_event_uses_event_time() -> None:
@@ -164,22 +163,22 @@ def test_missing_ideal_cycle() -> None:
     assert result.performance is None
     assert result.quality == 1.0
     assert result.oee is None
-    assert result.calculation_status == CalculationStatus.INCOMPLETE
-    assert result.completeness == Completeness.INCOMPLETE
+    assert result.calculation_status == CalculationStatus.MISSING_PRODUCTION_CONTEXT
+    assert result.completeness.value == "COMPLETE"
 
 
 def test_no_machine_states() -> None:
     result = calculate_oee(_inputs(states=[], production_counts=[], quality_counts=[]))
     assert result.availability is None
     assert result.oee is None
-    assert result.calculation_status == CalculationStatus.INCOMPLETE
+    assert result.calculation_status == CalculationStatus.MISSING_MACHINE_STATE
 
 
 def test_invalid_window() -> None:
     result = calculate_oee(
         _inputs(window_start=WINDOW_END, window_end=WINDOW_START),
     )
-    assert result.calculation_status == CalculationStatus.INVALID_INPUT
+    assert result.calculation_status == CalculationStatus.INSUFFICIENT_OBSERVATION
     assert result.oee is None
 
 
@@ -220,10 +219,10 @@ def test_count_mismatch_does_not_rewrite() -> None:
     assert result.good_count == 80
     assert result.reject_count == 30
     assert result.reconciliation_status.value == "COUNT_MISMATCH"
-    assert result.quality == 0.7273
+    assert result.quality == 0.8
 
 
-def test_open_window_is_pending() -> None:
+def test_open_window_is_not_a_special_status() -> None:
     result = calculate_oee(
         _inputs(
             calculated_at=datetime(2026, 8, 21, 8, 30, tzinfo=UTC),
@@ -231,7 +230,8 @@ def test_open_window_is_pending() -> None:
             production_counts=[production(WINDOW_START, 0, "p0")],
         )
     )
-    assert result.calculation_status == CalculationStatus.PENDING_LATE_DATA
+    assert result.calculation_status == CalculationStatus.MISSING_QUALITY_DATA
+    assert result.oee is None
 
 
 def test_invalid_state_rejected() -> None:

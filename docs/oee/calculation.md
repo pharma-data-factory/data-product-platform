@@ -103,7 +103,7 @@ Shared fixture unless a scenario overrides it:
 - No planned downtime, fully observed
 - `idealCycleTimeSeconds = 1.0`
 - `windowKind = custom`
-- `calculationStatus = VALID` unless a scenario overrides it
+- `calculationStatus = COMPLETE` unless a scenario overrides it
 - `completeness = COMPLETE` unless a scenario overrides it
 
 Ratios below are the published 4-decimal values.
@@ -183,9 +183,9 @@ Ratios below are the published 4-decimal values.
 | `availability` | 1.0000 |
 | `performance` | 0.0000 |
 | `quality` | `null` |
-| `oee` | 0.0000 |
+| `oee` | `null` |
 | `completeness` | `COMPLETE` |
-| `calculationStatus` | `NO_PRODUCTION` |
+| `calculationStatus` | `MISSING_QUALITY_DATA` |
 
 ### 6. Late event
 
@@ -248,7 +248,7 @@ Scenario 1 inputs without `idealCycleTimeSeconds` on context.
 | `quality` | 1.0000 |
 | `oee` | `null` |
 | `completeness` | `INCOMPLETE` |
-| `calculationStatus` | `INCOMPLETE` |
+| `calculationStatus` | `MISSING_IDEAL_CYCLE` |
 
 ### 10. Mixed loss (Scenario E)
 
@@ -265,7 +265,7 @@ Scenario 1 inputs without `idealCycleTimeSeconds` on context.
 | `performance` | 0.5000 |
 | `quality` | 0.9000 |
 | `oee` | 0.4125 |
-| `calculationStatus` | `VALID` |
+| `calculationStatus` | `COMPLETE` |
 
 `0.9167 × 0.5 × 0.9 = 0.412515` → `0.4125`.
 
@@ -282,7 +282,7 @@ Scenario 1 inputs without `idealCycleTimeSeconds` on context.
 | `performance` | 1.0000 |
 | `quality` | 0.0000 |
 | `oee` | 0.0000 |
-| `calculationStatus` | `VALID` |
+| `calculationStatus` | `COMPLETE` |
 
 This is **not** “cannot calculate”.
 
@@ -295,7 +295,7 @@ No cached `production-context`. States and counts as scenario 1.
 | `availability` | 1.0000 |
 | `performance` | `null` |
 | `oee` | `null` |
-| `calculationStatus` | `INCOMPLETE` |
+| `calculationStatus` | `MISSING_PRODUCTION_CONTEXT` |
 | Health | REST Source check DOWN |
 | API | 200 with nullable OEE, not 0 |
 
@@ -307,7 +307,7 @@ Broker down after scenario 1 was stored.
 | --- | --- |
 | Last stored result | Unchanged |
 | Health | MQTT Consumer DOWN |
-| Current open window | `PENDING_LATE_DATA` |
+| Current open window | Recalculate from stored events; missing inputs use explicit `MISSING_*` / `INSUFFICIENT_OBSERVATION`. Open windows are not a separate status. |
 
 ### 14. Storage unavailable
 
