@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-22  
 **Validation status:** NOT_VALIDATED  
-**Commit/tag:** not created  
+**Canonical identity:** annotated tag `platform-core-v1.0-rc1` (set in Phase 5A.2B)  
 
 ## Intended candidate
 
@@ -19,8 +19,8 @@ The candidate is **not** â€œa repository containing only validated Core files.â€
 
 ## Repository state
 
-- Branch `main`, dirty worktree, 240 uncommitted paths, 0 unexplained.
-- HEAD `d96ab0cbd97ea86314ddcbd468ff5faf756df212` is **not** the candidate until a clean commit exists.
+- Snapshot commit `20d221bd3887134250c033b7467035137919289e` plus 5A.2B branding (class C).
+- Validation package is in-repo. Canonical identifier is the annotated tag, not a self-SHA in the manifest.
 
 ## Platform Core validation boundary
 

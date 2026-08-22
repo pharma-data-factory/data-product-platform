@@ -59,6 +59,7 @@ Follow `Evidence-Conventions.md`. Do not fabricate executor, timestamps, screens
 | `RC1-Change-Reconciliation.md` | A–E classification of all 240 paths |
 | `RC1-Out-of-Scope-Register.md` | Allowed non-Core components |
 | `RC1-Reconciled-Candidate.md` | Snapshot candidate model |
+| `RC1-Finalization-Record.md` | Tagged candidate identity (SHA after tag) |
 | `SOUP-SBOM-Plan.md` | Inventory / SBOM approach |
 | `Formal-Environment-Prerequisites.md` | IQ/OQ/UAT env |
 | `Risk-Review-Gate.md` | RA review timing (not accepted) |

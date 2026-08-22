@@ -12,7 +12,7 @@ describe('LoginPage', () => {
 
     expect(screen.getByText('NEXORA')).toBeInTheDocument();
     expect(
-      screen.getByText('DATA PRODUCTS. BUILT FOR PHARMA.'),
+      screen.getByText('DATA PRODUCTS. BUILT FOR LIFE SCIENCE.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Sign in to continue')).toBeInTheDocument();
     expect(

@@ -12,7 +12,7 @@ describe('public landing', () => {
 
     expect(screen.getAllByText('NEXORA').length).toBeGreaterThan(0);
     expect(
-      screen.getByText('DATA PRODUCTS. BUILT FOR PHARMA.'),
+      screen.getByText('DATA PRODUCTS. BUILT FOR LIFE SCIENCE.'),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
@@ -21,7 +21,7 @@ describe('public landing', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /open platform for Data Products and integrations in pharmaceutical and industrial environments/i,
+        /open platform for Data Products and integrations in life science and industrial environments/i,
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Sign In/i }).length).toBeGreaterThan(0);
@@ -226,7 +226,7 @@ describe('public landing', () => {
     expect(screen.getByLabelText('Why Nexora')).toBeInTheDocument();
     expect(screen.getByText(/Digital value without rewriting MES/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/pharma, biotech, and CDMO who need Temperature, Equipment and OEE products/i),
+      screen.getByText(/life science — pharma, biotech, and CDMO — who need Temperature, Equipment and OEE products/i),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('How it works')).toBeInTheDocument();
     expect(screen.getByLabelText('Golden Path showcase')).toBeInTheDocument();

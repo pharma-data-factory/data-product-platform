@@ -105,7 +105,7 @@ describe('ArchitecturePage', () => {
     expect(screen.getAllByText('SYSTEM OF RECORD').length).toBeGreaterThan(0);
     expect(screen.getAllByText('DATA PRODUCT').length).toBeGreaterThan(0);
     expect(
-      screen.getAllByText('PHARMA DATA FACTORY CONTROL PLANE').length,
+      screen.getAllByText('NEXORA CONTROL PLANE').length,
     ).toBeGreaterThan(0);
     expect(screen.getByText(/does not connect to those databases directly/i)).toBeInTheDocument();
     expect(

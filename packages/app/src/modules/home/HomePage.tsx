@@ -116,7 +116,7 @@ export function HomePage() {
     <Page themeId="home">
       <Header
         title="Nexora"
-        subtitle="DATA PRODUCTS. BUILT FOR PHARMA."
+        subtitle="DATA PRODUCTS. BUILT FOR LIFE SCIENCE."
       />
       <Content>
         {loading && <Progress />}

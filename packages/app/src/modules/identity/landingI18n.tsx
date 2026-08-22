@@ -250,6 +250,7 @@ export interface LandingCopy {
     statusFoundation: string;
     statusPlanned: string;
     categoryLabels: Record<string, string>;
+    visuals: Record<string, { label: string; from: string; via: string; to: string }>;
     items: Record<
       string,
       {
@@ -337,11 +338,11 @@ const en: LandingCopy = {
     goldenPaths: 'Golden Paths',
   },
   hero: {
-    eyebrow: 'DATA PRODUCTS. BUILT FOR PHARMA.',
+    eyebrow: 'DATA PRODUCTS. BUILT FOR LIFE SCIENCE.',
     title: 'Keep core systems standardized.\nDeliver Data Products around them.',
     headlinePrimary: 'Keep core systems standardized.',
     headlineAccent: 'Deliver Data Products around them.',
-    sub: 'Nexora is the open platform for Data Products and integrations in pharmaceutical and industrial environments.',
+    sub: 'Nexora is the open platform for Data Products and integrations in life science and industrial environments.',
     primary: 'See how it works',
     secondary: 'See Golden Paths',
     discover: 'Explore platform',
@@ -389,7 +390,7 @@ const en: LandingCopy = {
     title: 'Digital value without rewriting MES.',
     body: 'Plant IT should not customize ERP, MES, LIMS or EWM every time the business needs a new data offering. Those systems stay close to standard. Nexora is the governed layer beside them.',
     forWhom:
-      'For manufacturing and digital teams in pharma, biotech, and CDMO who need Temperature, Equipment and OEE products — not another integration project.',
+      'For manufacturing and digital teams in life science — pharma, biotech, and CDMO — who need Temperature, Equipment and OEE products — not another integration project.',
     systemOfRecord: 'Your systems stay standard',
     systemOfRecordBody: 'ERP, MES, LIMS and EWM remain the systems of record. Nexora does not replace them and does not connect to those databases directly.',
     dataProduct: 'Products move independently',
@@ -485,7 +486,7 @@ const en: LandingCopy = {
   },
   footer: {
     tagline:
-      'DATA PRODUCTS. BUILT FOR PHARMA. Technical certification is platform status only. It is not GxP or regulatory validation.',
+      'DATA PRODUCTS. BUILT FOR LIFE SCIENCE. Technical certification is platform status only. It is not GxP or regulatory validation.',
     note: 'Single-organization Control Plane. SaaS multi-tenancy is future.',
   },
   overview: {
@@ -596,6 +597,44 @@ const en: LandingCopy = {
       Equipment: 'Equipment',
       Performance: 'Performance',
       Integration: 'Integration',
+    },
+    visuals: {
+      'mqtt-temperature': {
+        label: 'Sensor temperature travels over MQTT into a versioned Data Product',
+        from: 'Sensor',
+        via: 'MQTT',
+        to: 'Product',
+      },
+      'rest-equipment': {
+        label: 'Equipment state is polled over REST and published as a stable equipmentId',
+        from: 'Equipment',
+        via: 'REST',
+        to: 'Identity',
+      },
+      oee: {
+        label: 'OEE is Availability times Performance times Quality for one asset and window',
+        from: 'A',
+        via: 'P',
+        to: 'Q',
+      },
+      snowflake: {
+        label: 'Certified plant contracts would land in Snowflake as versioned warehouse tables',
+        from: 'Product',
+        via: 'Load',
+        to: 'Warehouse',
+      },
+      sap: {
+        label: 'Selected SAP objects would become a versioned Data Product without table reads',
+        from: 'SAP',
+        via: 'Adapter',
+        to: 'Product',
+      },
+      'cold-chain': {
+        label: 'Chamber or shipment temperature stays inside a declared band, or an excursion is published',
+        from: 'Chamber',
+        via: 'Band',
+        to: 'Integrity',
+      },
     },
     items: {
       'mqtt-temperature': {
@@ -833,11 +872,11 @@ const de: LandingCopy = {
     goldenPaths: 'Golden Paths',
   },
   hero: {
-    eyebrow: 'DATA PRODUCTS. BUILT FOR PHARMA.',
+    eyebrow: 'DATA PRODUCTS. BUILT FOR LIFE SCIENCE.',
     title: 'Kernsysteme standardisiert halten.\nData Products darum herum liefern.',
     headlinePrimary: 'Kernsysteme standardisiert halten.',
     headlineAccent: 'Data Products darum herum liefern.',
-    sub: 'Nexora ist die offene Plattform für Data Products und Integrationen in pharmazeutischen und industriellen Umgebungen.',
+    sub: 'Nexora ist die offene Plattform für Data Products und Integrationen in Life-Science- und industriellen Umgebungen.',
     primary: 'So funktioniert es',
     secondary: 'Golden Paths ansehen',
     discover: 'Plattform entdecken',
@@ -885,7 +924,7 @@ const de: LandingCopy = {
     title: 'Digitaler Nutzen, ohne MES umzuschreiben.',
     body: 'Die Werk-IT sollte ERP, MES, LIMS oder EWM nicht bei jedem neuen Datenangebot anpassen. Diese Systeme bleiben nah am Standard. Nexora ist die gesteuerte Schicht daneben.',
     forWhom:
-      'Für Fertigungs- und Digital-Teams in Pharma, Biotech und CDMO, die Temperatur-, Equipment- und OEE-Produkte brauchen — kein weiteres Integrationsprojekt.',
+      'Für Fertigungs- und Digital-Teams in Life Science — Pharma, Biotech und CDMO —, die Temperatur-, Equipment- und OEE-Produkte brauchen — kein weiteres Integrationsprojekt.',
     systemOfRecord: 'Ihre Systeme bleiben Standard',
     systemOfRecordBody: 'ERP, MES, LIMS und EWM bleiben Systeme of Record. Nexora ersetzt sie nicht und verbindet sich nicht direkt mit diesen Datenbanken.',
     dataProduct: 'Products entwickeln sich unabhängig',
@@ -1057,7 +1096,7 @@ const de: LandingCopy = {
   },
   footer: {
     tagline:
-      'DATA PRODUCTS. BUILT FOR PHARMA. Technische Zertifizierung ist nur Plattformstatus. Sie ist keine GxP- oder regulatorische Validierung.',
+      'DATA PRODUCTS. BUILT FOR LIFE SCIENCE. Technische Zertifizierung ist nur Plattformstatus. Sie ist keine GxP- oder regulatorische Validierung.',
     note: 'Control Plane für eine Organisation. SaaS-Mandantenfähigkeit ist Zukunft.',
   },
   overview: {
@@ -1217,6 +1256,44 @@ const de: LandingCopy = {
       Equipment: 'Equipment',
       Performance: 'Performance',
       Integration: 'Integration',
+    },
+    visuals: {
+      'mqtt-temperature': {
+        label: 'Sensortemperatur läuft über MQTT in ein versioniertes Data Product',
+        from: 'Sensor',
+        via: 'MQTT',
+        to: 'Product',
+      },
+      'rest-equipment': {
+        label: 'Equipment-Zustand wird per REST abgefragt und als stabile equipmentId veröffentlicht',
+        from: 'Equipment',
+        via: 'REST',
+        to: 'Identität',
+      },
+      oee: {
+        label: 'OEE ist Verfügbarkeit mal Leistung mal Qualität für ein Asset und ein Zeitfenster',
+        from: 'V',
+        via: 'L',
+        to: 'Q',
+      },
+      snowflake: {
+        label: 'Zertifizierte Plant-Contracts würden als versionierte Tabellen in Snowflake landen',
+        from: 'Product',
+        via: 'Load',
+        to: 'Warehouse',
+      },
+      sap: {
+        label: 'Ausgewählte SAP-Objekte würden ohne Tabellenlesung zum versionierten Data Product',
+        from: 'SAP',
+        via: 'Adapter',
+        to: 'Product',
+      },
+      'cold-chain': {
+        label: 'Kammer- oder Sendungstemperatur bleibt im deklarierten Band, sonst erscheint eine Exkursion',
+        from: 'Kammer',
+        via: 'Band',
+        to: 'Integrität',
+      },
     },
     items: {
       'mqtt-temperature': {

@@ -6,6 +6,7 @@ import {
   type GoldenPathCategory,
 } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
+import { GoldenPathVisual, GoldenPathVisualStyles } from './GoldenPathVisual';
 import { useLandingI18n } from './landingI18n';
 
 const MARKETPLACE_HREF: Record<string, string> = {
@@ -170,6 +171,7 @@ function ShowcaseBody({
       aria-label="Golden Path showcase"
       style={{ padding: compact ? 0 : '96px 24px', background: compact ? 'transparent' : C.section }}
     >
+      <GoldenPathVisualStyles />
       <div style={{ maxWidth: compact ? 'none' : 1280, margin: compact ? 0 : '0 auto' }}>
         {!compact ? (
           <>
@@ -309,11 +311,21 @@ function ShowcaseBody({
                   background: C.card,
                   border: `1px solid ${expanded ? 'rgba(0,194,217,0.45)' : C.border}`,
                   borderRadius: 16,
-                  padding: 24,
+                  padding: 0,
+                  overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
                 }}
               >
+                <GoldenPathVisual id={path.id} />
+                <div
+                  style={{
+                    padding: 24,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                  }}
+                >
                 <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                   <GoldenPathIcon id={path.id} />
                   <div style={{ minWidth: 0, flex: 1 }}>
@@ -399,6 +411,7 @@ function ShowcaseBody({
                 >
                   {t.goldenPaths.explore} {path.name.replace(' Data Product', '')}
                 </Button>
+                </div>
               </article>
             );
           })}

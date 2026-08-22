@@ -35,6 +35,21 @@ describe('Golden Path showcase filters', () => {
     expect(screen.getByRole('button', { name: 'Explore SAP' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Explore Cold Chain' })).toBeInTheDocument();
     expect(screen.getAllByText('PLANNED').length).toBeGreaterThanOrEqual(3);
+    expect(
+      screen.getByLabelText('Sensor temperature travels over MQTT into a versioned Data Product'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Equipment state is polled over REST and published as a stable equipmentId'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('OEE is Availability times Performance times Quality for one asset and window'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-mqtt-temperature')).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-rest-equipment')).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-oee')).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-snowflake')).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-sap')).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-cold-chain')).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Search Golden Paths...' }), {
       target: { value: 'mqtt' },

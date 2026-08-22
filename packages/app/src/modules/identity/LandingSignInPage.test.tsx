@@ -349,7 +349,7 @@ describe('LandingSignInPage', () => {
       ).toBeInTheDocument();
       expect(
         screen.queryByText(
-          /open platform for Data Products and integrations in pharmaceutical and industrial environments/i,
+          /open platform for Data Products and integrations in life science and industrial environments/i,
         ),
       ).not.toBeInTheDocument();
     } finally {
@@ -378,7 +378,7 @@ describe('LandingSignInPage', () => {
       expect(screen.getByText('composition manifest')).toBeInTheDocument();
       expect(
         screen.queryByText(
-          /open platform for Data Products and integrations in pharmaceutical and industrial environments/i,
+          /open platform for Data Products and integrations in life science and industrial environments/i,
         ),
       ).not.toBeInTheDocument();
     } finally {

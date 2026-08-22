@@ -6,12 +6,12 @@
 
 <p align="center">
   <strong>Pharma Data Factory</strong> Control Plane for governed Data Products
-  in pharmaceutical manufacturing.
+  in life science manufacturing.
 </p>
 
 **Nexora** is the product name. **NEXORA** is the wordmark. **Pharma Data
 Factory** is the product line: a commercial Control Plane for small and
-mid-sized pharma, biotech, and CDMO/CMO teams. Developers discover, create,
+mid-sized life science teams (pharma, biotech, and CDMO/CMO). Developers discover, create,
 and operate Data Products around existing ERP, MES, LIMS, EWM, and other
 IT/OT systems of record — without building an Internal Developer Platform
 from scratch.

@@ -278,7 +278,7 @@ function BoundarySection() {
       body: 'An independently versioned service with contract, quality gates, API and owner. It evolves around the core, not inside it.',
     },
     {
-      title: 'PHARMA DATA FACTORY CONTROL PLANE',
+      title: 'NEXORA CONTROL PLANE',
       body: 'Golden Paths, catalog, contracts, quality, CI/CD and certification. It does not replace source systems and does not store all enterprise data.',
     },
   ];

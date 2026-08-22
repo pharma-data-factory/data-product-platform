@@ -34,3 +34,27 @@ Components below **may remain** in the RC1 repository state. They are **not** pa
 | AAS still loaded from HEAD | Yes — pre-existing exclusion |
 
 Do not treat presence in the repo as a Core URS expansion.
+
+---
+
+## Phase 5A.2B branding drift (allowed)
+
+Post-snapshot copy and landing visuals. Class **C**. Not Core URS. Login/landing remain Core *surfaces* for claim-control wording only.
+
+| Path | Reason allowed |
+| --- | --- |
+| `README.md` | Product-line wording only |
+| `packages/app/src/modules/architecture/ArchitecturePage.tsx` | Diagram label |
+| `packages/app/src/modules/architecture/ArchitecturePage.test.tsx` | Label assertion |
+| `packages/app/src/modules/home/HomePage.tsx` | Header subtitle |
+| `packages/app/src/modules/identity/AccessDeniedPage.tsx` | Tagline |
+| `packages/app/src/modules/identity/LoginPage.tsx` | Tagline |
+| `packages/app/src/modules/identity/LoginPage.test.tsx` | Tagline assertion |
+| `packages/app/src/modules/identity/LandingSignInPage.test.tsx` | Landing copy assertion |
+| `packages/app/src/modules/identity/PublicLanding.test.tsx` | Landing copy assertion |
+| `packages/app/src/modules/identity/landingI18n.tsx` | i18n strings + visual captions |
+| `packages/app/src/modules/identity/GoldenPathShowcase.tsx` | Decorative card visuals |
+| `packages/app/src/modules/identity/GoldenPathShowcase.test.tsx` | Visual test ids |
+| `packages/app/src/modules/identity/GoldenPathVisual.tsx` | SVG presentation only |
+
+Loaded at runtime: yes (SPA). Influence on Core controls: no. Isolation: presentation modules only.

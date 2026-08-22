@@ -9,7 +9,9 @@
 | Prior result | RC1 READY TO FIX: NO (dirty tree) |
 | Principle | Identify the Core validation *boundary* inside a reproducible repo state. Do not strip legitimate out-of-scope work. |
 
-No file was edited, discarded, committed, or tagged.
+No file was edited, discarded, committed, or tagged in Phase 5A.1B.
+
+Phase 5A.2 created snapshot `20d221bd3887134250c033b7467035137919289e`. Phase 5A.2B records post-snapshot branding drift (see addendum). All still class **C**.
 
 ---
 
@@ -232,6 +234,39 @@ OEE **template.yaml** is listed in docker/production catalog locations (pre-exis
 4. **Shared `platform-common`** — industrial helpers exported from the Core library package.
 
 These are **not** E-class unexplained changes and are **not** automatic URS expansions.
+
+---
+
+## Phase 5A.2B — post-snapshot branding (class C)
+
+Inspected after snapshot `20d221bd3887134250c033b7467035137919289e`. Every listed change is presentation or copy. None alter authentication, authorization, entitlements, Legal Gate, Scaffolder, persistence, audit, CI status logic, Catalog behavior, or validation scope.
+
+### Original 10 dirty paths
+
+| Path | Change |
+| --- | --- |
+| `README.md` | “pharmaceutical manufacturing” → “life science manufacturing”; audience wording |
+| `packages/app/src/modules/architecture/ArchitecturePage.tsx` | Diagram label “PHARMA DATA FACTORY CONTROL PLANE” → “NEXORA CONTROL PLANE” |
+| `packages/app/src/modules/architecture/ArchitecturePage.test.tsx` | Matching assertion |
+| `packages/app/src/modules/home/HomePage.tsx` | Subtitle “BUILT FOR PHARMA” → “BUILT FOR LIFE SCIENCE” |
+| `packages/app/src/modules/identity/AccessDeniedPage.tsx` | Same tagline |
+| `packages/app/src/modules/identity/LoginPage.tsx` | Same tagline |
+| `packages/app/src/modules/identity/LoginPage.test.tsx` | Matching assertion |
+| `packages/app/src/modules/identity/LandingSignInPage.test.tsx` | Landing substring “pharmaceutical” → “life science” |
+| `packages/app/src/modules/identity/PublicLanding.test.tsx` | Same copy assertions |
+| `packages/app/src/modules/identity/landingI18n.tsx` | EN/DE hero, audience, footer; plus visual caption strings |
+
+### Additional branding that appeared before finalization
+
+Same class. Not discarded.
+
+| Path | Change |
+| --- | --- |
+| `packages/app/src/modules/identity/GoldenPathShowcase.tsx` | Renders decorative `GoldenPathVisual` on landing cards |
+| `packages/app/src/modules/identity/GoldenPathShowcase.test.tsx` | Asserts visual aria-labels / test ids |
+| `packages/app/src/modules/identity/GoldenPathVisual.tsx` | New SVG scenes only; no API or policy |
+
+Classification: **OUT_OF_VALIDATION_SCOPE_BUT_ALLOWED**. Claim-control UAT still walks landing copy.
 
 ---
 

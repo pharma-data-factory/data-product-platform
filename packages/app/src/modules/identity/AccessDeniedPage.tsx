@@ -63,7 +63,7 @@ export function AccessDeniedPage({
             fontWeight: 600,
           }}
         >
-          DATA PRODUCTS. BUILT FOR PHARMA.
+          DATA PRODUCTS. BUILT FOR LIFE SCIENCE.
         </p>
         <h1
           style={{

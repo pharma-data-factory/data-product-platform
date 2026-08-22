@@ -12,20 +12,26 @@ gxp_status: NOT_VALIDATED
 formal_iq_oq_uat: NOT_EXECUTED
 created_on: 2026-08-22
 
+validation_package_in_repo: true
+
 git:
   repository_path: data-product-platform
   branch: main
   tracks: origin/main
-  commit: d96ab0cbd97ea86314ddcbd468ff5faf756df212
-  commit_subject: Present Nexora as the product identity and simplify the public landing.
-  commit_date: 2026-08-21T21:05:42+02:00
-  worktree_status: DIRTY
+  tag: platform-core-v1.0-rc1
+  tag_is_canonical_candidate_identifier: true
+  previous_snapshot_commit: 20d221bd3887134250c033b7467035137919289e
+  previous_snapshot_subject: Platform Core 1.0 RC1 validation candidate
+  commit: USE_TAG
+  commit_subject: Finalize Platform Core 1.0 RC1 candidate
+  worktree_status: CLEAN
   worktree_note: >-
-    HEAD does not uniquely identify the candidate. Uncommitted and untracked
-    changes exist, including P0/P1 remediation, Nexora identity, and OEE
-    template work. Validation package lives beside this repo (IDP/validation),
-    not inside the product git root.
-  validation_package_git: NOT_ESTABLISHED
+    Canonical candidate identity is annotated tag platform-core-v1.0-rc1.
+    The finalize commit SHA is recorded in RC1-Finalization-Record.md after
+    the tag exists, not in this file, to avoid a self-referential commit.
+    previous_snapshot_commit is the 5A.2 snapshot before branding finalization.
+  validation_package_git: IN_REPO
+  validation_package_in_repo: true
 
 code_freeze:
   candidate_label: Platform Core 1.0-RC1
