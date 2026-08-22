@@ -1,7 +1,11 @@
 # IQ
 
-Installation Qualification protocols for Platform Core 1.0-RC1.
+Installation Qualification protocols for Platform Core.
 
-Executed 2026-08-22. See `IQ-Protocol.md` and `IQ-Execution-Summary.md`.
+| Record | Role |
+| --- | --- |
+| `IQ-Protocol.md` | RC1 historical executed protocol (preserved) |
+| `IQ-Execution-Summary.md` | RC1 summary (FAIL) |
+| `RC2-IQ-Execution-Summary.md` | RC2 re-test summary |
 
-Product validation status remains **NOT_VALIDATED**. IQ result is not a validated release.
+Product validation status remains **NOT_VALIDATED**. IQ is not a validated release.

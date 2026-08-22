@@ -9,7 +9,7 @@ requirements_baseline: PDF-PC-VAL-BL-1.0
 validation_status: NOT_VALIDATED
 part_11_status: NOT_CLAIMED
 gxp_status: NOT_VALIDATED
-formal_iq_oq_uat: IQ_EXECUTED_ON_RC1_FAIL; RC2_IQ_RETEST_NOT_EXECUTED
+formal_iq_oq_uat: RC1_IQ_FAIL; RC2_IQ_RETEST_PASS_WITH_OPEN_OBSERVATIONS; OQ_UAT_NOT_EXECUTED
 created_on: 2026-08-22
 predecessor:
   version: 1.0-RC1
@@ -31,6 +31,7 @@ git:
   validation_package_in_repo: true
 
 notes:
-  - IQ-FIND-001 is REMEDIATED_PENDING_RETEST, not CLOSED.
+  - IQ-FIND-001 CLOSED after RC2 IQ-006 PASS (CC-001).
   - Do not treat CERTIFIED or RELEASED as GMP validation.
   - Named volume create_authorization_audit is not a Part 11 control.
+  - Named human executor remains NOT_ESTABLISHED on formal evidence.

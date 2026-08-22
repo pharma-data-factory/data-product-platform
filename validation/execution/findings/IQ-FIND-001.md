@@ -4,24 +4,36 @@
 | --- | --- |
 | ID | IQ-FIND-001 |
 | Originating IQ | IQ-006 |
-| Date | 2026-08-22 |
+| Opened | 2026-08-22 (RC1 IQ) |
 | Severity | Major |
-| Status | REMEDIATED_PENDING_RETEST (CC-001). Not CLOSED until formal IQ-006 re-test on RC2. |
+| Status | **CLOSED** |
+| Closed on | 2026-08-22 |
+| Closure candidate | Platform Core 1.0-RC2 (`platform-core-v1.0-rc2` / `e2b2297a1506603ba05e6fb1dcf973ac046ad009`) |
+| Change control | CC-001 |
 
 ## Description
 
-The candidate configures Create-authorization audit persistence as `.runtime/create-authorization-audit.jsonl` (env-overridable). The hosted start definitions do not mount a persistent volume for that path.
+The candidate configures Create-authorization audit persistence as `.runtime/create-authorization-audit.jsonl` (env-overridable). On RC1, hosted start definitions did not mount a persistent volume for that path.
 
 ## Expected behavior
 
-URS-AUD-001 / IQ-006: after merge, the audit path is present **and**, if the default `.runtime/...` path is used, it sits on a durable volume for the intended hosted host.
+URS-AUD-001 / IQ-006: after merge, the audit path is present **and** sits on a durable volume for the intended hosted host.
 
-## Observed behavior
+## Observed behavior (RC1)
 
-- `app-config.yaml` and `app-config.production.yaml` set `commercial.createAuthorizationAuditPath`.
-- Root `docker-compose.yml` `control-plane` service has **no** volume for `.runtime`.
-- `packages/backend/Dockerfile` (production image) has **no** VOLUME/mount for `.runtime`.
-- On the verification host, `.runtime/` did not exist at execution (first write not performed).
+- Path configured in app-config
+- No compose/Dockerfile volume for `.runtime`
+- IQ-006 FAIL
+
+## Remediation (CC-001)
+
+Named volume `create_authorization_audit` → `/app/.runtime`; env path `/app/.runtime/create-authorization-audit.jsonl`; Dockerfile VOLUME + writable dir.
+
+## Closure evidence (RC2 formal re-test)
+
+`validation/execution/evidence/IQ/RC2/IQ-006-Evidence.md`
+
+Probe `IQ-RC2-006-20260822193840` persisted across `force-recreate` of control-plane; post-recreate write succeeded. IQ-006 RC2 status: **PASS**.
 
 ## Affected
 
@@ -32,10 +44,6 @@ URS-AUD-001 / IQ-006: after merge, the audit path is present **and**, if the def
 | TDS | TDS-AUD-001 |
 | Risk | RA-007 |
 
-## Potential validation impact
+## Notes
 
-Hosted restart can lose Create-authorization audit records. IQ of durable audit installation is not satisfied for compose/production profiles.
-
-## Recommended disposition
-
-Change record after RC1: mount a durable volume (or external store) for the audit JSONL on hosted profiles. Re-execute IQ-006. Do not treat this finding as OQ evidence.
+Closure is for the IQ installation finding only. Formal OQ of Create-authorization audit restart remains **NOT_EXECUTED**. Not Part 11.

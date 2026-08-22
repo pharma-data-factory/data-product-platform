@@ -63,6 +63,7 @@ Follow `Evidence-Conventions.md`. Do not fabricate executor, timestamps, screens
 | `../change-control/CC-001-IQ-Audit-Persistence.md` | IQ-FIND-001 change record |
 | `RC2-Impact-Assessment.md` | Formal re-test scope for RC2 |
 | `RC2-Manifest.yaml` | 1.0-RC2 candidate identity |
+| `IQ/RC2-IQ-Execution-Summary.md` | RC2 IQ re-test results |
 | `SOUP-SBOM-Plan.md` | Inventory / SBOM approach |
 | `Formal-Environment-Prerequisites.md` | IQ/OQ/UAT env |
 | `Risk-Review-Gate.md` | RA review timing (not accepted) |
