@@ -2,6 +2,6 @@
 
 Installation Qualification protocols for Platform Core 1.0-RC1.
 
-Status of all tests: **NOT_EXECUTED**.
+Executed 2026-08-22. See `IQ-Protocol.md` and `IQ-Execution-Summary.md`.
 
-Do not treat this folder as executed IQ evidence.
+Product validation status remains **NOT_VALIDATED**. IQ result is not a validated release.

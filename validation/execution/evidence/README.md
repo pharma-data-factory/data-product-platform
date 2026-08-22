@@ -1,5 +1,7 @@
 # Formal evidence
 
-Empty until a named human executes a protocol test.
+IQ evidence: `validation/execution/evidence/IQ/` (executed 2026-08-22).
 
-Do not place fabricated logs, screenshots, signatures, or approvals here.
+Named human executor: **NOT_ESTABLISHED** (recorded on each IQ record; not fabricated).
+
+OQ/UAT evidence: none (NOT_EXECUTED).

@@ -60,6 +60,9 @@ Follow `Evidence-Conventions.md`. Do not fabricate executor, timestamps, screens
 | `RC1-Out-of-Scope-Register.md` | Allowed non-Core components |
 | `RC1-Reconciled-Candidate.md` | Snapshot candidate model |
 | `RC1-Finalization-Record.md` | Tagged candidate identity (SHA after tag) |
+| `../change-control/CC-001-IQ-Audit-Persistence.md` | IQ-FIND-001 change record |
+| `RC2-Impact-Assessment.md` | Formal re-test scope for RC2 |
+| `RC2-Manifest.yaml` | 1.0-RC2 candidate identity |
 | `SOUP-SBOM-Plan.md` | Inventory / SBOM approach |
 | `Formal-Environment-Prerequisites.md` | IQ/OQ/UAT env |
 | `Risk-Review-Gate.md` | RA review timing (not accepted) |

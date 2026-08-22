@@ -54,6 +54,10 @@ describe('hosted Control Plane production package', () => {
     expect(compose).toContain('restart: unless-stopped');
     expect(compose).toContain('/.backstage/health/v1/readiness');
     expect(compose).toContain('postgres_data');
+    expect(compose).toContain('create_authorization_audit:/app/.runtime');
+    expect(compose).toContain(
+      'CREATE_AUTHORIZATION_AUDIT_PATH: ${CREATE_AUTHORIZATION_AUDIT_PATH:-/app/.runtime/create-authorization-audit.jsonl}',
+    );
     expect(compose).toContain('POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required');
     expect(compose).not.toContain('POSTGRES_PASSWORD=dpp');
     expect(compose).not.toContain('build:');

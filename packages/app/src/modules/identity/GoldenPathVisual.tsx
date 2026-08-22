@@ -50,7 +50,11 @@ function SceneFrame({
   );
 }
 
-function Caption({ x, y, children }: Readonly<{ x: number; y: number; children: string }>) {
+function Caption({
+  x,
+  y,
+  children,
+}: Readonly<{ x: number | string; y: number | string; children: string }>) {
   return (
     <text
       x={x}

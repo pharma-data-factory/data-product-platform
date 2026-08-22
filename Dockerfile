@@ -29,6 +29,10 @@ RUN yarn install
 
 COPY . .
 
+# Durable Create-authorization audit JSONL for local compose. Not Part 11.
+RUN mkdir -p /app/.runtime
+VOLUME ["/app/.runtime"]
+
 EXPOSE 3000 7007
 
 CMD ["yarn", "start", "--config", "app-config.yaml", "--config", "app-config.docker.yaml"]

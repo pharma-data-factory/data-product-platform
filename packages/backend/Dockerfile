@@ -72,6 +72,13 @@ COPY --chown=node:node mkdocs.yml ./
 COPY --chown=node:node packages/backend/dist/bundle.tar.gz app-config*.yaml ./
 RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
 
+# Durable Create-authorization audit JSONL (URS-AUD-001). Not Part 11.
+# Compose must mount a named volume at /app/.runtime. The image user is node.
+USER root
+RUN mkdir -p /app/.runtime && chown node:node /app/.runtime
+USER node
+VOLUME ["/app/.runtime"]
+
 EXPOSE 7007
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \

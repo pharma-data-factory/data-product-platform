@@ -56,7 +56,8 @@ Never paste secrets into the compose file or Git.
 Required variables are listed in
 [Control Plane hosting](../operations/control-plane-hosting.md).
 
-Postgres password must not be `dpp`. Persist `postgres_data`.
+Postgres password must not be `dpp`. Persist `postgres_data` and
+`create_authorization_audit`.
 
 ## Health
 

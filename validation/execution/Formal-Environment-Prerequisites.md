@@ -11,10 +11,10 @@ Do not start IQ/OQ/UAT until the items marked required for that phase exist. Do 
 | Prerequisite | Status now | Notes |
 | --- | --- | --- |
 | Named human executor | NOT_ESTABLISHED | Required on every evidence record |
-| Unique candidate commit + tag `platform-core-v1.0-rc1` | NOT_ESTABLISHED | Blocked by dirty worktree |
-| Validation package in that commit | NOT_ESTABLISHED | Sibling `IDP/validation/` only |
-| Evidence storage path | Planned: `validation/execution/evidence/` | Empty |
-| Findings path | Planned: `validation/execution/findings/` | Empty |
+| Unique candidate commit + tag `platform-core-v1.0-rc1` | Established (RC1). RC2 uses `platform-core-v1.0-rc2` |
+| Validation package in that commit | In-repo under `validation/` |
+| Evidence storage path | `validation/execution/evidence/` | IQ records present |
+| Findings path | `validation/execution/findings/` | IQ-FIND-001 |
 | No fabricated signatures | In force | |
 
 ---
@@ -29,7 +29,8 @@ Do not start IQ/OQ/UAT until the items marked required for that phase exist. Do 
 | `permission.enabled` merged true | IQ-003 |
 | GitHub OAuth env *names* set (values not copied to evidence) | IQ-004, IQ-015 |
 | GitHub App env names if publish profile is in scope | IQ-015 |
-| `commercial.createAuthorizationAuditPath` on a durable volume | IQ-006 |
+| `commercial.createAuthorizationAuditPath` on a durable volume | IQ-006; CC-001 adds volume `create_authorization_audit` → `/app/.runtime` |
+| RC2 validation compose | `docker-compose.validation.yml` (ports 7008 / 5435) |
 | Health endpoints reachable | IQ-016 |
 | Lockfile / Node / Yarn versions recorded | IQ-011, IQ-014 |
 | SBOM or explicit NOT_ESTABLISHED | IQ-012 |

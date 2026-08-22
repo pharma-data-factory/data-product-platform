@@ -1,0 +1,36 @@
+# Platform Core 1.0-RC2 — formal verification candidate
+# Validation status is not a validated release.
+# RC1 tag platform-core-v1.0-rc1 is not modified.
+
+product: Platform Core
+product_ui_name: Nexora
+candidate_version: 1.0-RC2
+requirements_baseline: PDF-PC-VAL-BL-1.0
+validation_status: NOT_VALIDATED
+part_11_status: NOT_CLAIMED
+gxp_status: NOT_VALIDATED
+formal_iq_oq_uat: IQ_EXECUTED_ON_RC1_FAIL; RC2_IQ_RETEST_NOT_EXECUTED
+created_on: 2026-08-22
+predecessor:
+  version: 1.0-RC1
+  tag: platform-core-v1.0-rc1
+  commit: dcc937370e325cbaf493ed28ab02dccca3557d53
+change_control:
+  - CC-001
+
+validation_package_in_repo: true
+
+git:
+  repository_path: data-product-platform
+  branch: main
+  tag: platform-core-v1.0-rc2
+  tag_is_canonical_candidate_identifier: true
+  previous_snapshot_commit: dcc937370e325cbaf493ed28ab02dccca3557d53
+  commit: USE_TAG
+  worktree_status: CLEAN
+  validation_package_in_repo: true
+
+notes:
+  - IQ-FIND-001 is REMEDIATED_PENDING_RETEST, not CLOSED.
+  - Do not treat CERTIFIED or RELEASED as GMP validation.
+  - Named volume create_authorization_audit is not a Part 11 control.

@@ -35,7 +35,7 @@ describe('nexora industrial router', () => {
   };
 
   async function app(
-    permissions: { authorize: typeof allow.authorize } = allow,
+    permissions: typeof allow | typeof deny = allow,
   ) {
     const router = await createRouter({
       logger: { warn: jest.fn(), info: jest.fn() } as never,

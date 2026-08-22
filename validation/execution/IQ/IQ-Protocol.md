@@ -6,11 +6,11 @@
 | Baseline | PDF-PC-VAL-BL-1.0 |
 | Candidate | 1.0-RC1 |
 | Validation status | NOT_VALIDATED |
-| Execution | **NOT_EXECUTED** |
+| Execution | **EXECUTED 2026-08-22** (results recorded; product remains NOT_VALIDATED) |
 
 Installation Qualification confirms the candidate is installed and configured as specified. It does not demonstrate operational use (OQ) or intended-use journeys (UAT).
 
-All Actual Result and Status fields below are **NOT_EXECUTED**.
+Actual Result and Status fields below record the 2026-08-22 execution. Test intent, linkage, and Expected Result are unchanged.
 
 ---
 
@@ -25,8 +25,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Compare running image/build metadata to the manifest. Record commit, branch, and whether the worktree/image is dirty relative to HEAD `d96ab0cbd97ea86314ddcbd468ff5faf756df212`. |
 | Expected Result | Identity is recorded. Discrepancies are findings. A dirty worktree is reported, not hidden. |
 | Evidence Required | Version/commit printout; image tag if used |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Tag `platform-core-v1.0-rc1` resolves to `dcc937370e325cbaf493ed28ab02dccca3557d53`. Worktree CLEAN. HEAD is documentation commit `33e7fa0` (finalization record only). Protocol procedure still cites pre-snapshot `d96ab0c`. No RC1 image running. |
+| Status | PASS |
 
 ## IQ-002 — Production configuration overlay
 
@@ -39,8 +39,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Record the `--config` chain (expected: `app-config.yaml` + `app-config.docker.yaml` and/or `app-config.production.yaml` + `app-config.github.yaml` as applicable). |
 | Expected Result | Overlay set matches the intended hosted profile. Guest-enabled local-only yaml is not the sole hosted config. |
 | Evidence Required | Process command line or start script excerpt |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Intended hosted CMD recorded in Dockerfiles. Product compose not running. Live process is local `package start` without docker/production overlay. Hosted instance not available. |
+| Status | BLOCKED |
 
 ## IQ-003 — Permission Framework enabled
 
@@ -53,8 +53,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Inspect merged configuration for `permission.enabled`. |
 | Expected Result | `enabled: true`. No hosted overlay sets `false`. |
 | Evidence Required | Merged config excerpt |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | `permission.enabled: true` on yaml, docker, production, marketplace-test. No overlay sets `false`. |
+| Status | PASS |
 
 ## IQ-004 — Authentication provider configuration
 
@@ -67,8 +67,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Inspect `auth.environment` and `auth.providers`. Confirm Guest is absent on hosted overlays. Confirm GitHub provider keys are env-substituted. |
 | Expected Result | `auth.environment` is production on docker/production overlays. Guest provider is omitted. No hard-coded OAuth secret. |
 | Evidence Required | Redacted config excerpt |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | docker/production `auth.environment: production`, Guest omitted, OAuth secrets `${ENV}` only. |
+| Status | PASS |
 
 ## IQ-005 — Database connectivity
 
@@ -81,8 +81,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Confirm `backend.database.client` is `pg` on docker/production. Confirm a successful connection (health or backend start log). |
 | Expected Result | Hosted instance is not using SQLite. Database is reachable. |
 | Evidence Required | Config excerpt; connection/health log (no passwords) |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Hosted overlays specify `pg`. Product Postgres/compose not running. Running local instance uses SQLite. Unrelated host :5432 not used. |
+| Status | BLOCKED |
 
 ## IQ-006 — Audit persistence configuration
 
@@ -95,8 +95,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Inspect `commercial.createAuthorizationAuditPath`. Confirm the directory exists or is created on first write and is on a persistent volume if hosted. |
 | Expected Result | Path is present after merge. Default `.runtime/create-authorization-audit.jsonl` is accepted only if the volume is durable for the intended host. |
 | Evidence Required | Config excerpt; path listing (no audit content required) |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Path present after merge. `.runtime/` absent on host. Compose and production Dockerfile declare no durable volume for the default JSONL path. Finding IQ-FIND-001. |
+| Status | FAIL |
 
 ## IQ-007 — Required plugins and modules
 
@@ -109,8 +109,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Confirm permission policy module, entitlements backend, data-products backend, catalog, scaffolder, auth, and search/techdocs are present in the running backend. |
 | Expected Result | Modules listed in `packages/backend/src/index.ts` for Core are loaded. AAS/Nexora industrial plugins may be loaded but remain out of Core validation scope. |
 | Evidence Required | Startup log or module list |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Core modules listed in `index.ts`. AAS/nexora also registered (out of Core claim). Local backend health 200. Hosted startup log NOT_ESTABLISHED. |
+| Status | PASS |
 
 ## IQ-008 — Production catalog configuration
 
@@ -123,8 +123,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Record merged `catalog.locations`. |
 | Expected Result | Hosted locations include org/entities/templates as specified by docker/production overlays, not local-only sample files. |
 | Evidence Required | Merged locations list |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | docker/production locations include org/entities/templates and omit `catalog/samples`. Live hosted merge not observed. |
+| Status | PASS |
 
 ## IQ-009 — Sample catalog absence
 
@@ -137,8 +137,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Confirm merged locations omit `catalog/samples`. Query catalog for a known sample-only entity and expect it absent. |
 | Expected Result | No `catalog/samples` location. Sample-only entities are not present. |
 | Evidence Required | Locations excerpt; catalog query result |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Hosted overlays omit `catalog/samples`. Hosted catalog ingest/query not available. Local catalog query returned 401 and is not the hosted subject. |
+| Status | BLOCKED |
 
 ## IQ-010 — Secret configuration mechanism
 
@@ -151,8 +151,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Review committed overlays for secret keys. Confirm values are `${ENV}` placeholders. Do not copy secret values into evidence. |
 | Expected Result | No committed raw secrets. Public `clientId` may appear as configured. |
 | Evidence Required | Redacted overlay excerpts |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Committed overlays use `${ENV}` for secret keys. PEM/token-prefix hits: 0. Values not copied. |
+| Status | PASS |
 
 ## IQ-011 — Dependency inventory
 
@@ -165,8 +165,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Record Node, Yarn, and `@backstage/cli` declared versions. Record lockfile presence. A signed SOUP assessment is not created here. |
 | Expected Result | Inventory recorded. Missing signed SOUP assessment is noted as NOT_ESTABLISHED, not invented. |
 | Evidence Required | Version list; lockfile hash if computed |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Node v22.12.0, Yarn 4.13.0, lockfile SHA-256 2AA0C6614DCEEAEC5CDD3AE587FF7F456CA8553018ECBEC0A38A5F77608E64AF. Signed SOUP NOT_ESTABLISHED. SOUP not approved. |
+| Status | PASS |
 
 ## IQ-012 — SBOM
 
@@ -179,8 +179,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Search the candidate for an SBOM artifact. If none, record NOT_ESTABLISHED. |
 | Expected Result | SBOM attached **or** explicitly NOT_ESTABLISHED. Do not fabricate an SBOM. |
 | Evidence Required | SBOM path or written NOT_ESTABLISHED |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | No SBOM artifact in the candidate. syft absent. CycloneDX not generated (no install). Explicitly NOT_ESTABLISHED. |
+| Status | PASS |
 
 ## IQ-013 — Build artifact
 
@@ -193,8 +193,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Record image tag and/or `yarn build:backend` artifact identity. |
 | Expected Result | A single artifact identity is recorded for the execution environment. |
 | Evidence Required | Image digest or build log excerpt |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | No RC1 image digest. Local dist tarballs predate the tag. Running identity is `yarn start` source, not a unique RC1 build artifact. |
+| Status | BLOCKED |
 
 ## IQ-014 — Runtime versions
 
@@ -207,8 +207,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Record Node, OS, Postgres (if hosted), and container runtime versions actually used. |
 | Expected Result | Versions recorded. Manifest observed values may be used as a starting point and must be confirmed. |
 | Evidence Required | `node -v`, `yarn -v`, Postgres version |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Node v22.12.0, Yarn 4.13.0, Windows 10.0.26200, Docker 29.5.3. Postgres for this candidate NOT_ESTABLISHED. |
+| Status | PASS |
 
 ## IQ-015 — Environment variables (names)
 
@@ -221,8 +221,8 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Check presence of `AUTH_GITHUB_*`, `GITHUB_APP_*` / `GITHUB_PRIVATE_KEY` as required by the profile, and Postgres variables. Record only set/unset. |
 | Expected Result | Required names are set for the chosen profile. Values are not copied into the evidence pack. |
 | Evidence Required | Name/presence checklist |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | AUTH_GITHUB_* and GITHUB_APP credential names PRESENT_NON_EMPTY on this host. GITHUB_WEBHOOK_SECRET PRESENT_EMPTY. Production APP_BASE_URL/BACKEND_SECRET ABSENT. Values not recorded. |
+| Status | PASS |
 
 ## IQ-016 — Health endpoints
 
@@ -235,5 +235,5 @@ All Actual Result and Status fields below are **NOT_EXECUTED**.
 | Procedure | Call documented health endpoints (backend health; entitlements health if present). |
 | Expected Result | Health responses indicate the process is up. This is not an OQ of authorization. |
 | Evidence Required | HTTP status and redacted body |
-| Actual Result | NOT_EXECUTED |
-| Status | NOT_EXECUTED |
+| Actual Result | Local backend: readiness/liveness/entitlements health HTTP 200 `{"status":"ok"}`. Not a hosted overlay instance. |
+| Status | PASS |

@@ -36,6 +36,7 @@ Do not put values in Git. Empty cells are secrets or site-specific.
 | `POSTGRES_PASSWORD` | Unique password. Never `dpp` |
 | `POSTGRES_DATABASE` | Database name |
 | `LEGAL_DISTRIBUTION_STATUS` | Keep `BLOCKED` until counsel approves distribution |
+| `CREATE_AUTHORIZATION_AUDIT_PATH` | JSONL path. Compose default `/app/.runtime/create-authorization-audit.jsonl` on volume `create_authorization_audit` |
 
 `POSTGRES_HOST` / `POSTGRES_PORT` inside the stack are `postgres` / `5432`.
 Do not point the Control Plane at a laptop `localhost` from Portainer.
@@ -75,9 +76,10 @@ Until that run exists, treat live Create as **not proven** on the host.
 
 ## Backup
 
-Postgres: snapshot or `pg_dump` the `postgres_data` volume. Control Plane
-image is immutable; do not back up container writable layers for product
-state.
+Postgres: snapshot or `pg_dump` the `postgres_data` volume. Create-authorization
+audit JSONL: snapshot the `create_authorization_audit` volume (not Part 11).
+Control Plane image is immutable; do not back up container writable layers
+for product state.
 
 ## Security
 

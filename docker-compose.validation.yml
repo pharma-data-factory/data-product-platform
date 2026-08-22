@@ -1,0 +1,81 @@
+# Local production-like stack for Platform Core IQ re-test (RC2).
+# Uses packages/backend/Dockerfile + production/github overlays + PostgreSQL.
+# Host ports avoid the developer yarn-start instance (7007) and unrelated
+# host Postgres on 5432. This is not a commercial host and not Part 11.
+#
+#   yarn install --immutable
+#   yarn tsc
+#   yarn build:backend
+#   docker compose -f docker-compose.validation.yml build
+#   docker compose -f docker-compose.validation.yml up -d
+#
+# GitHub OAuth/App values come from the operator .env. Do not commit secrets.
+
+name: platform-core-validation
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dpp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dpp}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-pharma_data_factory}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dpp} -d ${POSTGRES_DATABASE:-pharma_data_factory}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  control-plane:
+    image: ${CONTROL_PLANE_IMAGE:-platform-core:1.0-rc2}
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "7008:7007"
+    environment:
+      NODE_ENV: production
+      APP_BASE_URL: ${APP_BASE_URL:-http://127.0.0.1:7008}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://127.0.0.1:7008}
+      BACKEND_SECRET: ${BACKEND_SECRET:-validation-local-not-for-hosted-use}
+      AUTH_GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:-}
+      AUTH_GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:-}
+      AUTH_GITHUB_CALLBACK_URL: ${AUTH_GITHUB_CALLBACK_URL:-http://127.0.0.1:7008/api/auth/github/handler/frame}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_ORG: ${GITHUB_ORG:-pharma-data-factory}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-dpp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dpp}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE:-pharma_data_factory}
+      LEGAL_DISTRIBUTION_STATUS: ${LEGAL_DISTRIBUTION_STATUS:-BLOCKED}
+      CREATE_AUTHORIZATION_AUDIT_PATH: ${CREATE_AUTHORIZATION_AUDIT_PATH:-/app/.runtime/create-authorization-audit.jsonl}
+    volumes:
+      - create_authorization_audit:/app/.runtime
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+volumes:
+  postgres_data:
+  create_authorization_audit:
