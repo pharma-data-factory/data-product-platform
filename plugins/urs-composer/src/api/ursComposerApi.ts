@@ -194,6 +194,50 @@ export class URSComposerApi {
   }
 
   /**
+   * URS → Validation Expert integration.
+   *
+   * POST /api/validation-expert/contexts/from-urs
+   * Create (or return existing) a Validation Context from an APPROVED URS
+   * baseline. The backend enforces the APPROVED gate; calling this for a
+   * DRAFT/IN_REVIEW/REJECTED baseline is denied server-side.
+   */
+  async startValidationFromBaseline(
+    requirementSetId: string,
+    baselineId: string,
+  ): Promise<{
+    context: {
+      id: string;
+      source: {
+        requirementSetId: string;
+        baselineId: string;
+        baselineVersion: string;
+        businessCapabilityIds: string[];
+        approvalStatus: string;
+        sourceSystem: string;
+      };
+    };
+    created: boolean;
+  }> {
+    const url = `/api/validation-expert/contexts/from-urs`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requirementSetId, baselineId }),
+    });
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`;
+      try {
+        const body = await response.json();
+        message = (body as { error?: string })?.error ?? message;
+      } catch {
+        // keep default message
+      }
+      throw new Error(message);
+    }
+    return response.json();
+  }
+
+  /**
    * GET /requirement-sets/:id/audit
    * Get audit trail for a requirement set
    */

@@ -12,6 +12,7 @@ import {
   requirementReadPermission,
   traceabilityReadPermission,
   validationReadPermission,
+  validationReviewPermission,
   validationRunStartPermission,
   validationTestExecutePermission,
 } from '@internal/platform-common';
@@ -268,6 +269,70 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
       res.json({ items: service.getEvidence() });
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  // ============================================================================
+  // URS → Validation integration contexts
+  // ============================================================================
+
+  /** GET /contexts — list validation contexts (each anchored to an approved URS baseline). */
+  router.get('/contexts', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      res.json({ items: service.listContexts() });
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /** GET /contexts/:id — fetch a single validation context. */
+  router.get('/contexts/:id', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      const context = service.getContext(req.params.id);
+      if (!context) {
+        res.status(404).json({ error: 'Validation context not found' });
+        return;
+      }
+      res.json(context);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * POST /contexts/from-urs
+   * Create (or return existing) a validation context from an APPROVED URS
+   * baseline. Body: { requirementSetId, baselineId }.
+   * Entry gate is enforced in the service/resolver: only APPROVED baselines
+   * resolve; DRAFT / SUBMITTED(IN_REVIEW) / REJECTED are denied.
+   */
+  router.post('/contexts/from-urs', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      const requirementSetId = String(req.body?.requirementSetId ?? '').trim();
+      const baselineId = String(req.body?.baselineId ?? '').trim();
+      if (!requirementSetId || !baselineId) {
+        res
+          .status(400)
+          .json({ error: 'requirementSetId and baselineId are required' });
+        return;
+      }
+      const { context, created } = await service.createContextFromApprovedUrs(
+        { requirementSetId, baselineId },
+        actor || 'unknown',
+      );
+      res.status(created ? 201 : 200).json({ context, created });
     } catch (error) {
       respondError(res, logger, error);
     }

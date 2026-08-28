@@ -1,3 +1,8 @@
+import type {
+  ApprovedURSReference,
+  CreateValidationContextRequest,
+  ValidationContext,
+} from '@internal/platform-common';
 import { createHash, randomUUID } from 'crypto';
 import type { ValidationRunRepository } from './repository';
 import {
@@ -25,6 +30,21 @@ import type {
   ValidationTestExecution,
 } from './types';
 
+export type { ApprovedURSReference, ValidationContext } from '@internal/platform-common';
+
+/**
+ * Boundary that resolves an APPROVED URS baseline for integration. Implemented
+ * in the plugin via an explicit HTTP call to the URS Composer backend
+ * (`GET /api/urs-composer/baselines/:id`). The Validation Expert never reads
+ * URS PostgreSQL tables directly. In tests this can be backed by a real
+ * URSService/repository against PostgreSQL.
+ */
+export interface UrsBaselineResolver {
+  resolveApprovedBaseline(request: CreateValidationContextRequest): Promise<{
+    reference: ApprovedURSReference;
+  }>;
+}
+
 export class ValidationExpertService {
   constructor(
     private readonly options: {
@@ -32,6 +52,7 @@ export class ValidationExpertService {
       repository: ValidationRunRepository;
       runners: ValidationRunnerRegistry;
       healthBaseUrl?: string;
+      ursBaselineResolver?: UrsBaselineResolver;
     },
   ) {}
 
@@ -106,6 +127,63 @@ export class ValidationExpertService {
       baselineId: String(baseline.baseline_id ?? 'PDF-PC-VAL-BL-1.0'),
       createdBy: input.createdBy,
     });
+  }
+
+  // ============================================================================
+  // URS → Validation integration contexts
+  // ============================================================================
+
+  listContexts(): ValidationContext[] {
+    return this.options.repository.listContexts();
+  }
+
+  getContext(contextId: string): ValidationContext | undefined {
+    return this.options.repository.getContext(contextId);
+  }
+
+  /**
+   * Create a validation context from an APPROVED URS baseline, or return the
+   * existing context for the same (requirementSetId, baselineId) pair.
+   *
+   * ENTRY GATE (enforced here, not only in the UI): the baseline must resolve
+   * as APPROVED. DRAFT / IN_REVIEW(SUBMITTED) / REJECTED are denied.
+   */
+  async createContextFromApprovedUrs(
+    request: CreateValidationContextRequest,
+    actor: string,
+  ): Promise<{ context: ValidationContext; created: boolean }> {
+    if (!this.options.ursBaselineResolver) {
+      throw new Error(
+        'ursBaselineResolver is not configured; integration endpoint unavailable',
+      );
+    }
+    const existing = this.options.repository.findContextBySource(
+      request.requirementSetId,
+      request.baselineId,
+    );
+    if (existing) {
+      return { context: existing, created: false };
+    }
+
+    const { reference } = await this.options.ursBaselineResolver.resolveApprovedBaseline(
+      request,
+    );
+    // Entry gate enforced in the service (not only the resolver / UI): the
+    // resolved reference MUST be an APPROVED URS baseline.
+    if (String(reference.approvalStatus ?? '').toUpperCase() !== 'APPROVED') {
+      throw new Error(
+        `URS baseline ${request.baselineId} is ${reference.approvalStatus || 'UNKNOWN'}; a validation context may only be created from an APPROVED baseline`,
+      );
+    }
+    const context: ValidationContext = {
+      id: `VALIDATION-CTX-${Date.now().toString(36).toUpperCase()}`,
+      source: reference,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      createdBy: actor,
+    };
+    this.options.repository.addContext(context);
+    return { context, created: true };
   }
 
   async executeAutomated(runId: string, executor: ExecutorIdentity): Promise<ValidationRun> {

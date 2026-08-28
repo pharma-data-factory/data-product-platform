@@ -89,6 +89,13 @@ export {
 } from './policy';
 export type { PolicyDecisionName, PolicyPermission } from './policy';
 
+// URS Composer → Validation Expert integration contract
+export type {
+  ApprovedURSReference,
+  ValidationContext,
+  CreateValidationContextRequest,
+} from './validation-integration';
+
 export { quickActionsForRole } from './dashboard';
 export type { QuickAction } from './dashboard';
 

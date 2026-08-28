@@ -3,7 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { Grid, Typography, makeStyles } from '@material-ui/core';
-import { validationExpertApiRef, ValidationOverview } from '../api';
+import { validationExpertApiRef, ValidationContext, ValidationOverview } from '../api';
 import { NX, PageShell, StatusChip } from './shared';
 
 const useStyles = makeStyles({
@@ -131,6 +131,7 @@ export function OverviewPage() {
   const classes = useStyles();
   const api = useApi(validationExpertApiRef);
   const [data, setData] = useState<ValidationOverview | null>(null);
+  const [contexts, setContexts] = useState<ValidationContext[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -138,6 +139,15 @@ export function OverviewPage() {
       .getOverview()
       .then(setData)
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'));
+  }, [api]);
+
+  useEffect(() => {
+    api
+      .getContexts()
+      .then(setContexts)
+      .catch(() => {
+        // contexts are optional; ignore if endpoint unavailable
+      });
   }, [api]);
 
   if (error) {
@@ -195,6 +205,18 @@ export function OverviewPage() {
             to="/validation-expert/traceability"
           />
         </Grid>
+        {contexts.length > 0 && (
+          <Grid item xs={12}>
+            <MetricCard
+              title="Source URS"
+              value={contexts[0].source.requirementSetTitle || contexts[0].source.requirementSetId}
+              detail={`Baseline ${contexts[0].source.baselineVersion} · Approval ${contexts[0].source.approvalStatus} · ${
+                (contexts[0].source.businessCapabilityIds || []).join(', ') || '—'
+              }`}
+              to={`/urs/${contexts[0].source.requirementSetId}`}
+            />
+          </Grid>
+        )}
         <Grid item xs={12} sm={6} md={4} lg={3}>
           <MetricCard title="IQ" value={data.iqStatus} to="/validation-expert/iq" />
         </Grid>

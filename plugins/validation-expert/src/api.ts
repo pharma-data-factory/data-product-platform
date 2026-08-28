@@ -85,6 +85,27 @@ export interface ProtocolResponse {
   tests: ProtocolTest[];
 }
 
+/** URS → Validation integration: a context anchored to an approved URS baseline. */
+export interface ValidationContext {
+  id: string;
+  status: string;
+  summary?: string;
+  createdAt: string;
+  createdBy?: string;
+  source: {
+    requirementSetId: string;
+    requirementSetTitle?: string;
+    baselineId: string;
+    baselineVersion: string;
+    businessCapabilityIds: string[];
+    approvalStatus: string;
+    approvedAt?: string;
+    approvedBy?: string;
+    sourceSystem: string;
+    requirementIds: string[];
+  };
+}
+
 export interface ValidationRun {
   id: string;
   candidate: string;
@@ -129,6 +150,8 @@ export interface ValidationExpertApi {
   ): Promise<unknown>;
   getFindings(): Promise<unknown[]>;
   getEvidence(): Promise<unknown[]>;
+  /** URS → Validation integration: list validation contexts anchored to approved URS baselines. */
+  getContexts(): Promise<ValidationContext[]>;
 }
 
 export const validationExpertApiRef = createApiRef<ValidationExpertApi>({
@@ -245,6 +268,11 @@ export class ValidationExpertClient implements ValidationExpertApi {
 
   async getEvidence() {
     const data = await this.json<{ items: unknown[] }>('/evidence');
+    return data.items;
+  }
+
+  async getContexts(): Promise<ValidationContext[]> {
+    const data = await this.json<{ items: ValidationContext[] }>('/contexts');
     return data.items;
   }
 }

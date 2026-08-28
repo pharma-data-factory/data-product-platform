@@ -69,6 +69,14 @@ export const URSRequirementSetPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  // URS → Validation Expert integration
+  const [approvedBaselineId, setApprovedBaselineId] = useState<string | null>(
+    null,
+  );
+  const [validating, setValidating] = useState(false);
+  const [validationContextId, setValidationContextId] = useState<string | null>(
+    null,
+  );
 
   const approveAllowed = usePermission({ permission: ursApprovePermission });
   const manageAllowed = usePermission({ permission: ursManagePermission });
@@ -170,6 +178,51 @@ export const URSRequirementSetPage: React.FC = () => {
       setActionError(err.message || 'Rejection denied or failed');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Load any approved baseline for this requirement set (entry gate for a
+  // Validation Context). Backend remains authoritative.
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+    let mounted = true;
+    ursComposerApi
+      .listBaselines(id)
+      .then(baselines => {
+        if (mounted) {
+          const approved = baselines.find(
+            b => String(b.status).toUpperCase() === 'APPROVED',
+          );
+          setApprovedBaselineId(approved ? approved.id : null);
+        }
+      })
+      .catch(() => {
+        // baselines may be unsupported/empty — not fatal
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  const handleStartValidation = async () => {
+    if (!id || !approvedBaselineId) {
+      return;
+    }
+    setActionError(null);
+    setValidating(true);
+    try {
+      const { context, created } = await ursComposerApi.startValidationFromBaseline(
+        id,
+        approvedBaselineId,
+      );
+      setValidationContextId(context.id);
+      window.location.href = `/validation-expert`;
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to start validation');
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -369,6 +422,38 @@ export const URSRequirementSetPage: React.FC = () => {
                       onClick={handleReject}
                     >
                       Reject
+                    </Button>
+                  </Box>
+                )}
+
+                {/* URS → Validation Expert integration. Visibility is convenience;
+                    the backend enforces the APPROVED-baseline entry gate. */}
+                {approvedBaselineId && !validationContextId && (
+                  <Box style={{ marginTop: 16 }}>
+                    <Button
+                      color="primary"
+                      variant="contained"
+                      startIcon={<CheckIcon />}
+                      disabled={validating || actionLoading}
+                      onClick={handleStartValidation}
+                    >
+                      {validating ? 'Starting…' : 'Start Validation'}
+                    </Button>
+                    <Typography variant="caption" color="textSecondary" style={{ marginLeft: 8 }}>
+                      From approved baseline ({approvedBaselineId})
+                    </Typography>
+                  </Box>
+                )}
+                {validationContextId && (
+                  <Box style={{ marginTop: 16 }}>
+                    <Button
+                      color="primary"
+                      variant="outlined"
+                      onClick={() => {
+                        window.location.href = `/validation-expert`;
+                      }}
+                    >
+                      View Validation
                     </Button>
                   </Box>
                 )}

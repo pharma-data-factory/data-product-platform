@@ -1,5 +1,9 @@
-export type ProtocolType = 'IQ' | 'OQ' | 'UAT';
+import type {
+  ApprovedURSReference,
+  ValidationContext,
+} from '@internal/platform-common';
 
+export type ProtocolType = 'IQ' | 'OQ' | 'UAT';
 export type ExecutionType =
   | 'AUTOMATED_API'
   | 'AUTOMATED_PLATFORM'
@@ -189,3 +193,6 @@ export interface ValidationTestRunner {
     context: ValidationRunContext,
   ): Promise<ValidationTestResult>;
 }
+
+export type { ApprovedURSReference, ValidationContext };
+

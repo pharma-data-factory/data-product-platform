@@ -4,6 +4,7 @@ import type {
   ExecutorIdentity,
   FindingStatus,
   ProtocolType,
+  ValidationContext,
   ValidationEvidenceItem,
   ValidationFinding,
   ValidationRun,
@@ -26,17 +27,26 @@ export interface ValidationRunRepository {
   updateFindingStatus(id: string, status: FindingStatus): void;
   listEvidence(): ValidationEvidenceItem[];
   addEvidence(item: ValidationEvidenceItem): void;
+  // URS → Validation integration contexts
+  listContexts(): ValidationContext[];
+  getContext(contextId: string): ValidationContext | undefined;
+  findContextBySource(
+    requirementSetId: string,
+    baselineId: string,
+  ): ValidationContext | undefined;
+  addContext(context: ValidationContext): void;
 }
 
 interface StoreShape {
   runs: ValidationRun[];
   findings: ValidationFinding[];
   evidence: ValidationEvidenceItem[];
+  contexts: ValidationContext[];
   counters: Record<string, number>;
 }
 
 function emptyStore(): StoreShape {
-  return { runs: [], findings: [], evidence: [], counters: {} };
+  return { runs: [], findings: [], evidence: [], contexts: [], counters: {} };
 }
 
 export class MemoryValidationRunRepository implements ValidationRunRepository {
@@ -111,6 +121,48 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
   addEvidence(item: ValidationEvidenceItem): void {
     this.store.evidence.push({ ...item });
   }
+
+  listContexts(): ValidationContext[] {
+    return this.store.contexts.map(ctx => ({
+      ...ctx,
+      source: { ...ctx.source, businessCapabilityIds: [...ctx.source.businessCapabilityIds], requirementIds: [...ctx.source.requirementIds] },
+    }));
+  }
+
+  getContext(contextId: string): ValidationContext | undefined {
+    const found = this.store.contexts.find(ctx => ctx.id === contextId);
+    return found
+      ? {
+          ...found,
+          source: { ...found.source, businessCapabilityIds: [...found.source.businessCapabilityIds], requirementIds: [...found.source.requirementIds] },
+        }
+      : undefined;
+  }
+
+  findContextBySource(
+    requirementSetId: string,
+    baselineId: string,
+  ): ValidationContext | undefined {
+    return this.store.contexts.find(
+      ctx =>
+        ctx.source.requirementSetId === requirementSetId &&
+        ctx.source.baselineId === baselineId,
+    );
+  }
+
+  addContext(context: ValidationContext): void {
+    if (this.store.contexts.some(ctx => ctx.id === context.id)) {
+      throw new Error(`Context ${context.id} already exists`);
+    }
+    this.store.contexts.push({
+      ...context,
+      source: {
+        ...context.source,
+        businessCapabilityIds: [...context.source.businessCapabilityIds],
+        requirementIds: [...context.source.requirementIds],
+      },
+    });
+  }
 }
 
 export class FileValidationRunRepository implements ValidationRunRepository {
@@ -131,6 +183,7 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     const store = (this.memory as unknown as { store: StoreShape }).store;
     store.findings = raw.findings ?? [];
     store.evidence = raw.evidence ?? [];
+    store.contexts = raw.contexts ?? [];
     store.counters = raw.counters ?? {};
   }
 
@@ -185,6 +238,26 @@ export class FileValidationRunRepository implements ValidationRunRepository {
 
   addEvidence(item: ValidationEvidenceItem): void {
     this.memory.addEvidence(item);
+    this.persist();
+  }
+
+  listContexts(): ValidationContext[] {
+    return this.memory.listContexts();
+  }
+
+  getContext(contextId: string): ValidationContext | undefined {
+    return this.memory.getContext(contextId);
+  }
+
+  findContextBySource(
+    requirementSetId: string,
+    baselineId: string,
+  ): ValidationContext | undefined {
+    return this.memory.findContextBySource(requirementSetId, baselineId);
+  }
+
+  addContext(context: ValidationContext): void {
+    this.memory.addContext(context);
     this.persist();
   }
 }
