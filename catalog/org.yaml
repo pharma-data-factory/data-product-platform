@@ -130,3 +130,97 @@ metadata:
 spec:
   type: team
   children: []
+---
+# RBAC Groups — URS Composer Domain
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: urs-authors
+  title: URS Authors
+  description: Can create and edit URS requirement sets (drafts and revisions).
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: urs-owners
+  title: URS Owners
+  description: Own URS requirement sets; can create and manage.
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: urs-business-reviewers
+  title: URS Business Reviewers
+  description: Review and approve URS for business fit and requirements.
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: urs-product-managers
+  title: URS Product Managers
+  description: Review and approve URS from product and market perspective.
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: urs-quality-reviewers
+  title: URS Quality Reviewers
+  description: Review and approve URS for quality, compliance, and GxP requirements.
+spec:
+  type: team
+  children: []
+---
+# RBAC Groups — Validation Domain
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: validation-reviewers
+  title: Validation Reviewers
+  description: Review validation evidence, findings, and test results.
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: validation-managers
+  title: Validation Managers
+  description: Manage validation runs, protocols, and test configurations.
+spec:
+  type: team
+  children: []
+---
+# RBAC Groups — Data Product Domain
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: data-product-publishers
+  title: Data Product Publishers
+  description: Publish and manage data products in marketplace.
+spec:
+  type: team
+  children: []
+---
+# RBAC Groups — Marketplace Domain
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: marketplace-publishers
+  title: Marketplace Publishers
+  description: Publish and manage marketplace offerings and plugins.
+spec:
+  type: team
+  children: []

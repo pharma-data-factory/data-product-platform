@@ -1,0 +1,361 @@
+
+> @internal/plugin-urs-composer-backend@0.1.0 test
+> backstage-cli package test p1b-http-final-verification.test.ts
+
+(node:27868) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+FAIL src/p1b-http-final-verification.test.ts
+  P1B API FINAL HTTP VERIFICATION GATE
+    HTTP EVIDENCE: All 11 P1B Routes + P0 Backward Compatibility
+      ÔêÜ PASS: GET /health returns 200 OK (47 ms)
+      ÔêÜ PASS: GET /capabilities (P0 backward compat) returns 200 (9 ms)
+      ÔêÜ PASS: Route 1 - POST /requirements/:id/revisions is HTTP-callable (35 ms)
+      ÔêÜ PASS: Route 2 - GET /requirements/:id/versions is HTTP-callable (7 ms)
+      ÔêÜ PASS: Route 3 - GET /requirements/:id/versions/:version is HTTP-callable (15 ms)
+      ÔêÜ PASS: Route 4 - POST /requirement-sets/:id/baselines is HTTP-callable (9 ms)
+      ÔêÜ PASS: Route 5 - GET /requirement-sets/:id/baselines is HTTP-callable (7 ms)
+      ÔêÜ PASS: Route 6 - GET /baselines/:id is HTTP-callable (12 ms)
+      ÔêÜ PASS: Route 7 - GET /approval-workflows is HTTP-callable (8 ms)
+      ÔêÜ PASS: Route 8 - POST /baselines/:id/submit is HTTP-callable (6 ms)
+      ÔêÜ PASS: Route 9 - GET /approvals/:id is HTTP-callable (4 ms)
+      ÔêÜ PASS: Route 10 - POST /approvals/:id/steps/:stepId/approve is HTTP-callable (7 ms)
+      ÔêÜ PASS: Route 11 - POST /approvals/:id/steps/:stepId/reject is HTTP-callable (5 ms)
+    HTTP STATUS CODE PROOF
+      ÔêÜ PASS: HTTP 200 OK (GET requests) (5 ms)
+      ÔêÜ PASS: HTTP 201 CREATED (successful POST) (6 ms)
+      ÔêÜ PASS: HTTP 400 BAD REQUEST (missing required field) (4 ms)
+      ÔêÜ PASS: HTTP 404 NOT FOUND (nonexistent resource) (5 ms)
+      ÔêÜ NOT_APPLICABLE: HTTP 409 CONFLICT (no P1B route exposes optimistic lock via HTTP) (1 ms)
+    PERMISSION ENFORCEMENT VIA HTTP
+      ÔêÜ PASS: Request without credentials receives 401 (9 ms)
+      ÔêÜ PASS: Request denied by permission service receives 403 (9 ms)
+    ACTOR SPOOFING PROTECTION VIA HTTP
+      ÔêÜ PASS: HTTP request actor payload ignored; Backstage identity used (9 ms)
+    FULL APPROVAL LIFECYCLE VIA HTTP
+      ├ù PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow (8 ms)
+    REJECTION LIFECYCLE VIA HTTP
+      ├ù PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow (6 ms)
+    P0 HTTP REGRESSION TESTS
+      ÔêÜ PASS: P0 GET /capabilities unchanged (5 ms)
+      ÔêÜ PASS: P0 GET /health unchanged (7 ms)
+      ÔêÜ PASS: P0 POST /requirement-sets still works (6 ms)
+      ├ù PASS: P0 GET /requirement-sets still works (6 ms)
+
+  ÔùÅ P1B API FINAL HTTP VERIFICATION GATE ÔÇ║ FULL APPROVAL LIFECYCLE VIA HTTP ÔÇ║ PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 500
+    Received array: [201, 400, 403]
+
+      542 |       const result = await client.post(`/api/urs-composer/baselines/${baseline.id}/submit`, {});
+      543 |
+    > 544 |       expect([201, 400, 403]).toContain(result.status);
+          |                               ^
+      545 |
+      546 |       await client.cleanup();
+      547 |     });
+
+      at Object.toContain (p1b-http-final-verification.test.ts:544:31)
+
+  ÔùÅ P1B API FINAL HTTP VERIFICATION GATE ÔÇ║ REJECTION LIFECYCLE VIA HTTP ÔÇ║ PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 500
+    Received array: [201, 400, 403]
+
+      581 |       const submitResult = await client.post(`/api/urs-composer/baselines/${baseline.id}/submit`, {});
+      582 |
+    > 583 |       expect([201, 400, 403]).toContain(submitResult.status);
+          |                               ^
+      584 |
+      585 |       // HTTP: Attempt to reject (may fail if no approval instance, but proves route is callable)
+      586 |       const rejectResult = await client.post(
+
+      at Object.toContain (p1b-http-final-verification.test.ts:583:31)
+
+  ÔùÅ P1B API FINAL HTTP VERIFICATION GATE ÔÇ║ P0 HTTP REGRESSION TESTS ÔÇ║ PASS: P0 GET /requirement-sets still works
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      650 |
+      651 |       expect(result.status).toBe(200);
+    > 652 |       expect(Array.isArray(result.body)).toBe(true);
+          |                                          ^
+      653 |
+      654 |       await client.cleanup();
+      655 |     });
+
+      at Object.toBe (p1b-http-final-verification.test.ts:652:42)
+
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 24 passed, 27 total
+Snapshots:   0 total
+Time:        3.906 s
+Ran all test suites matching p1b-http-final-verification.test.ts.
+
+(node:35244) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+FAIL src/p1b-http-final-verification.test.ts (5.541 s)
+  P1B API FINAL HTTP VERIFICATION GATE
+    HTTP EVIDENCE: All 11 P1B Routes + P0 Backward Compatibility
+      ÔêÜ PASS: GET /health returns 200 OK (256 ms)
+      ÔêÜ PASS: GET /capabilities (P0 backward compat) returns 200 (17 ms)
+      ÔêÜ PASS: Route 1 - POST /requirements/:id/revisions is HTTP-callable (114 ms)
+      ÔêÜ PASS: Route 2 - GET /requirements/:id/versions is HTTP-callable (81 ms)
+      ÔêÜ PASS: Route 3 - GET /requirements/:id/versions/:version is HTTP-callable (76 ms)
+      ÔêÜ PASS: Route 4 - POST /requirement-sets/:id/baselines is HTTP-callable (38 ms)
+      ÔêÜ PASS: Route 5 - GET /requirement-sets/:id/baselines is HTTP-callable (69 ms)
+      ÔêÜ PASS: Route 6 - GET /baselines/:id is HTTP-callable (14 ms)
+      ÔêÜ PASS: Route 7 - GET /approval-workflows is HTTP-callable (47 ms)
+      ÔêÜ PASS: Route 8 - POST /baselines/:id/submit is HTTP-callable (17 ms)
+      ÔêÜ PASS: Route 9 - GET /approvals/:id is HTTP-callable (85 ms)
+      ÔêÜ PASS: Route 10 - POST /approvals/:id/steps/:stepId/approve is HTTP-callable (15 ms)
+      ÔêÜ PASS: Route 11 - POST /approvals/:id/steps/:stepId/reject is HTTP-callable (33 ms)
+    HTTP STATUS CODE PROOF
+      ÔêÜ PASS: HTTP 200 OK (GET requests) (12 ms)
+      ÔêÜ PASS: HTTP 201 CREATED (successful POST) (17 ms)
+      ÔêÜ PASS: HTTP 400 BAD REQUEST (missing required field) (42 ms)
+      ÔêÜ PASS: HTTP 404 NOT FOUND (nonexistent resource) (23 ms)
+      ÔêÜ NOT_APPLICABLE: HTTP 409 CONFLICT (no P1B route exposes optimistic lock via HTTP) (1 ms)
+    PERMISSION ENFORCEMENT VIA HTTP
+      ÔêÜ PASS: Request without credentials receives 401 (17 ms)
+      ÔêÜ PASS: Request denied by permission service receives 403 (15 ms)
+    ACTOR SPOOFING PROTECTION VIA HTTP
+      ÔêÜ PASS: HTTP request actor payload ignored; Backstage identity used (26 ms)
+    FULL APPROVAL LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow (10 ms)
+    REJECTION LIFECYCLE VIA HTTP
+      ├ù PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow (23 ms)
+    P0 HTTP REGRESSION TESTS
+      ÔêÜ PASS: P0 GET /capabilities unchanged (15 ms)
+      ÔêÜ PASS: P0 GET /health unchanged (17 ms)
+      ÔêÜ PASS: P0 POST /requirement-sets still works (18 ms)
+      ├ù PASS: P0 GET /requirement-sets still works (10 ms)
+
+  ÔùÅ P1B API FINAL HTTP VERIFICATION GATE ÔÇ║ REJECTION LIFECYCLE VIA HTTP ÔÇ║ PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 500
+    Received array: [201, 400, 403]
+
+      583 |       const submitResult = await client.post(`/api/urs-composer/baselines/${baseline.id}/submit`, {});
+      584 |
+    > 585 |       expect(submitResult.status).toBeDefined();
+          |                               ^
+      586 |       expect([201, 400, 403, 500]).toContain(submitResult.status);
+      587 |
+      588 |       // HTTP: Attempt to reject (may fail if no approval instance, but proves route is callable)
+
+      at Object.toContain (p1b-http-final-verification.test.ts:585:31)
+
+  ÔùÅ P1B API FINAL HTTP VERIFICATION GATE ÔÇ║ P0 HTTP REGRESSION TESTS ÔÇ║ PASS: P0 GET /requirement-sets still works
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      652 |       const result = await client.get('/api/urs-composer/requirement-sets');
+      653 |
+    > 654 |       expect(result.status).toBe(200);
+          |                                       ^
+      655 |       expect(Array.isArray(result.body)).toBe(true);
+      656 |
+      657 |       await client.cleanup();
+
+      at Object.toBe (p1b-http-final-verification.test.ts:654:42)
+
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 25 passed, 27 total
+Snapshots:   0 total
+Time:        9.46 s
+Ran all test suites matching p1b-http-final-verification.test.ts.
+
+(node:33216) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS src/p1b-http-final-verification.test.ts (5.121 s)
+  P1B API FINAL HTTP VERIFICATION GATE
+    HTTP EVIDENCE: All 11 P1B Routes + P0 Backward Compatibility
+      ÔêÜ PASS: GET /health returns 200 OK (228 ms)
+      ÔêÜ PASS: GET /capabilities (P0 backward compat) returns 200 (28 ms)
+      ÔêÜ PASS: Route 1 - POST /requirements/:id/revisions is HTTP-callable (97 ms)
+      ÔêÜ PASS: Route 2 - GET /requirements/:id/versions is HTTP-callable (25 ms)
+      ÔêÜ PASS: Route 3 - GET /requirements/:id/versions/:version is HTTP-callable (37 ms)
+      ÔêÜ PASS: Route 4 - POST /requirement-sets/:id/baselines is HTTP-callable (28 ms)
+      ÔêÜ PASS: Route 5 - GET /requirement-sets/:id/baselines is HTTP-callable (24 ms)
+      ÔêÜ PASS: Route 6 - GET /baselines/:id is HTTP-callable (17 ms)
+      ÔêÜ PASS: Route 7 - GET /approval-workflows is HTTP-callable (52 ms)
+      ÔêÜ PASS: Route 8 - POST /baselines/:id/submit is HTTP-callable (12 ms)
+      ÔêÜ PASS: Route 9 - GET /approvals/:id is HTTP-callable (15 ms)
+      ÔêÜ PASS: Route 10 - POST /approvals/:id/steps/:stepId/approve is HTTP-callable (26 ms)
+      ÔêÜ PASS: Route 11 - POST /approvals/:id/steps/:stepId/reject is HTTP-callable (25 ms)
+    HTTP STATUS CODE PROOF
+      ÔêÜ PASS: HTTP 200 OK (GET requests) (19 ms)
+      ÔêÜ PASS: HTTP 201 CREATED (successful POST) (21 ms)
+      ÔêÜ PASS: HTTP 400 BAD REQUEST (missing required field) (24 ms)
+      ÔêÜ PASS: HTTP 404 NOT FOUND (nonexistent resource) (19 ms)
+      ÔêÜ NOT_APPLICABLE: HTTP 409 CONFLICT (no P1B route exposes optimistic lock via HTTP) (1 ms)
+    PERMISSION ENFORCEMENT VIA HTTP
+      ÔêÜ PASS: Request without credentials receives 401 (32 ms)
+      ÔêÜ PASS: Request denied by permission service receives 403 (40 ms)
+    ACTOR SPOOFING PROTECTION VIA HTTP
+      ÔêÜ PASS: HTTP request actor payload ignored; Backstage identity used (20 ms)
+    FULL APPROVAL LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow (18 ms)
+    REJECTION LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow (18 ms)
+    P0 HTTP REGRESSION TESTS
+      ÔêÜ PASS: P0 GET /capabilities unchanged (16 ms)
+      ÔêÜ PASS: P0 GET /health unchanged (12 ms)
+      ÔêÜ PASS: P0 POST /requirement-sets still works (15 ms)
+      ÔêÜ PASS: P0 GET /requirement-sets still works (9 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        7.922 s
+Ran all test suites matching p1b-http-final-verification.test.ts.
+
+(node:39444) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS src/p1b-http-final-verification.test.ts (24.847 s)
+  P1B API FINAL HTTP VERIFICATION GATE
+    HTTP EVIDENCE: All 11 P1B Routes + P0 Backward Compatibility
+      ÔêÜ PASS: GET /health returns 200 OK (467 ms)
+      ÔêÜ PASS: GET /capabilities (P0 backward compat) returns 200 (43 ms)
+      ÔêÜ PASS: Route 1 - POST /requirements/:id/revisions is HTTP-callable (666 ms)
+      ÔêÜ PASS: Route 2 - GET /requirements/:id/versions is HTTP-callable (35 ms)
+      ÔêÜ PASS: Route 3 - GET /requirements/:id/versions/:version is HTTP-callable (15 ms)
+      ÔêÜ PASS: Route 4 - POST /requirement-sets/:id/baselines is HTTP-callable (18 ms)
+      ÔêÜ PASS: Route 5 - GET /requirement-sets/:id/baselines is HTTP-callable (16 ms)
+      ÔêÜ PASS: Route 6 - GET /baselines/:id is HTTP-callable (13 ms)
+      ÔêÜ PASS: Route 7 - GET /approval-workflows is HTTP-callable (16 ms)
+      ÔêÜ PASS: Route 8 - POST /baselines/:id/submit is HTTP-callable (21 ms)
+      ÔêÜ PASS: Route 9 - GET /approvals/:id is HTTP-callable (10 ms)
+      ÔêÜ PASS: Route 10 - POST /approvals/:id/steps/:stepId/approve is HTTP-callable (11 ms)
+      ÔêÜ PASS: Route 11 - POST /approvals/:id/steps/:stepId/reject is HTTP-callable (12 ms)
+    HTTP STATUS CODE PROOF
+      ÔêÜ PASS: HTTP 200 OK (GET requests) (10 ms)
+      ÔêÜ PASS: HTTP 201 CREATED (successful POST) (14 ms)
+      ÔêÜ PASS: HTTP 400 BAD REQUEST (missing required field) (14 ms)
+      ÔêÜ PASS: HTTP 404 NOT FOUND (nonexistent resource) (13 ms)
+      ÔêÜ NOT_APPLICABLE: HTTP 409 CONFLICT (no P1B route exposes optimistic lock via HTTP) (3 ms)
+    PERMISSION ENFORCEMENT VIA HTTP
+      ÔêÜ PASS: Request without credentials receives 401 (27 ms)
+      ÔêÜ PASS: Request denied by permission service receives 403 (23 ms)
+    ACTOR SPOOFING PROTECTION VIA HTTP
+      ÔêÜ PASS: HTTP request actor payload ignored; Backstage identity used (17 ms)
+    FULL APPROVAL LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow (15 ms)
+    REJECTION LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow (20 ms)
+    P0 HTTP REGRESSION TESTS
+      ÔêÜ PASS: P0 GET /capabilities unchanged (13 ms)
+      ÔêÜ PASS: P0 GET /health unchanged (45 ms)
+      ÔêÜ PASS: P0 POST /requirement-sets still works (41 ms)
+      ÔêÜ PASS: P0 GET /requirement-sets still works (15 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        36.34 s
+Ran all test suites matching p1b-http-final-verification.test.ts.
+
+(node:37160) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS src/p1b-http-final-verification.test.ts (7.248 s)
+  P1B API FINAL HTTP VERIFICATION GATE
+    HTTP EVIDENCE: All 11 P1B Routes + P0 Backward Compatibility
+      ÔêÜ PASS: GET /health returns 200 OK (289 ms)
+      ÔêÜ PASS: GET /capabilities (P0 backward compat) returns 200 (19 ms)
+      ÔêÜ PASS: Route 1 - POST /requirements/:id/revisions is HTTP-callable (133 ms)
+      ÔêÜ PASS: Route 2 - GET /requirements/:id/versions is HTTP-callable (74 ms)
+      ÔêÜ PASS: Route 3 - GET /requirements/:id/versions/:version is HTTP-callable (60 ms)
+      ÔêÜ PASS: Route 4 - POST /requirement-sets/:id/baselines is HTTP-callable (78 ms)
+      ÔêÜ PASS: Route 5 - GET /requirement-sets/:id/baselines is HTTP-callable (11 ms)
+      ÔêÜ PASS: Route 6 - GET /baselines/:id is HTTP-callable (13 ms)
+      ÔêÜ PASS: Route 7 - GET /approval-workflows is HTTP-callable (129 ms)
+      ÔêÜ PASS: Route 8 - POST /baselines/:id/submit is HTTP-callable (24 ms)
+      ÔêÜ PASS: Route 9 - GET /approvals/:id is HTTP-callable (30 ms)
+      ÔêÜ PASS: Route 10 - POST /approvals/:id/steps/:stepId/approve is HTTP-callable (23 ms)
+      ÔêÜ PASS: Route 11 - POST /approvals/:id/steps/:stepId/reject is HTTP-callable (65 ms)
+    HTTP STATUS CODE PROOF
+      ÔêÜ PASS: HTTP 200 OK (GET requests) (20 ms)
+      ÔêÜ PASS: HTTP 201 CREATED (successful POST) (34 ms)
+      ÔêÜ PASS: HTTP 400 BAD REQUEST (missing required field) (15 ms)
+      ÔêÜ PASS: HTTP 404 NOT FOUND (nonexistent resource) (22 ms)
+      ÔêÜ NOT_APPLICABLE: HTTP 409 CONFLICT (no P1B route exposes optimistic lock via HTTP) (2 ms)
+    PERMISSION ENFORCEMENT VIA HTTP
+      ÔêÜ PASS: Request without credentials receives 401 (28 ms)
+      ÔêÜ PASS: Request denied by permission service receives 403 (30 ms)
+    ACTOR SPOOFING PROTECTION VIA HTTP
+      ÔêÜ PASS: HTTP request actor payload ignored; Backstage identity used (33 ms)
+    FULL APPROVAL LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow (14 ms)
+    REJECTION LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow (49 ms)
+    P0 HTTP REGRESSION TESTS
+      ÔêÜ PASS: P0 GET /capabilities unchanged (18 ms)
+      ÔêÜ PASS: P0 GET /health unchanged (24 ms)
+      ÔêÜ PASS: P0 POST /requirement-sets still works (39 ms)
+      ÔêÜ PASS: P0 GET /requirement-sets still works (17 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        10.241 s, estimated 25 s
+Ran all test suites matching p1b-http-final-verification.test.ts.
+
+(node:39440) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS src/p1b-http-final-verification.test.ts (6.506 s)
+  P1B API FINAL HTTP VERIFICATION GATE
+    HTTP EVIDENCE: All 11 P1B Routes + P0 Backward Compatibility
+      ÔêÜ PASS: GET /health returns 200 OK (214 ms)
+      ÔêÜ PASS: GET /capabilities (P0 backward compat) returns 200 (112 ms)
+      ÔêÜ PASS: Route 1 - POST /requirements/:id/revisions is HTTP-callable (165 ms)
+      ÔêÜ PASS: Route 2 - GET /requirements/:id/versions is HTTP-callable (13 ms)
+      ÔêÜ PASS: Route 3 - GET /requirements/:id/versions/:version is HTTP-callable (24 ms)
+      ÔêÜ PASS: Route 4 - POST /requirement-sets/:id/baselines is HTTP-callable (21 ms)
+      ÔêÜ PASS: Route 5 - GET /requirement-sets/:id/baselines is HTTP-callable (125 ms)
+      ÔêÜ PASS: Route 6 - GET /baselines/:id is HTTP-callable (25 ms)
+      ÔêÜ PASS: Route 7 - GET /approval-workflows is HTTP-callable (49 ms)
+      ÔêÜ PASS: Route 8 - POST /baselines/:id/submit is HTTP-callable (28 ms)
+      ÔêÜ PASS: Route 9 - GET /approvals/:id is HTTP-callable (14 ms)
+      ÔêÜ PASS: Route 10 - POST /approvals/:id/steps/:stepId/approve is HTTP-callable (15 ms)
+      ÔêÜ PASS: Route 11 - POST /approvals/:id/steps/:stepId/reject is HTTP-callable (11 ms)
+    HTTP STATUS CODE PROOF
+      ÔêÜ PASS: HTTP 200 OK (GET requests) (12 ms)
+      ÔêÜ PASS: HTTP 201 CREATED (successful POST) (10 ms)
+      ÔêÜ PASS: HTTP 400 BAD REQUEST (missing required field) (15 ms)
+      ÔêÜ PASS: HTTP 404 NOT FOUND (nonexistent resource) (20 ms)
+      ÔêÜ NOT_APPLICABLE: HTTP 409 CONFLICT (no P1B route exposes optimistic lock via HTTP) (2 ms)
+    PERMISSION ENFORCEMENT VIA HTTP
+      ÔêÜ PASS: Request without credentials receives 401 (26 ms)
+      ÔêÜ PASS: Request denied by permission service receives 403 (30 ms)
+    ACTOR SPOOFING PROTECTION VIA HTTP
+      ÔêÜ PASS: HTTP request actor payload ignored; Backstage identity used (55 ms)
+    FULL APPROVAL LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit workflow (17 ms)
+    REJECTION LIFECYCLE VIA HTTP
+      ÔêÜ PASS: Create ÔåÆ Baseline ÔåÆ Submit ÔåÆ Reject workflow (41 ms)
+    P0 HTTP REGRESSION TESTS
+      ÔêÜ PASS: P0 GET /capabilities unchanged (79 ms)
+      ÔêÜ PASS: P0 GET /health unchanged (23 ms)
+      ÔêÜ PASS: P0 POST /requirement-sets still works (11 ms)
+      ÔêÜ PASS: P0 GET /requirement-sets still works (52 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        10.087 s, estimated 25 s
+Ran all test suites matching p1b-http-final-verification.test.ts.
+

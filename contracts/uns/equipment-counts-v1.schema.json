@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/equipment-counts-v1.schema.json",
+  "title": "UNS Equipment Counts v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "timestamp",
+    "equipmentId",
+    "goodCount",
+    "rejectCount",
+    "totalCount",
+    "dataQuality"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "equipmentId": { "type": "string" },
+    "goodCount": { "type": "integer", "minimum": 0 },
+    "rejectCount": { "type": "integer", "minimum": 0 },
+    "totalCount": { "type": "integer", "minimum": 0 },
+    "dataQuality": { "type": "string", "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"] }
+  }
+}

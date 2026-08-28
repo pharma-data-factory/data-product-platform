@@ -44,6 +44,11 @@ export function quickActionsForRole(role: PlatformRole): QuickAction[] {
         CREATE_ACTION,
         { id: 'platform', label: 'Manage Platform', to: '/settings' },
         { id: 'entitlements', label: 'Entitlements', to: '/admin/entitlements' },
+        {
+          id: 'plugin-directory',
+          label: 'Plugin Directory',
+          to: '/admin/plugins',
+        },
         ...EXPLORE_ACTIONS,
         RELEASES_ACTION,
         MY_ACCESS_ACTION,

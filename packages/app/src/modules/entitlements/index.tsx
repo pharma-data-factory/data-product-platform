@@ -1,4 +1,5 @@
 import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
+import BuildIcon from '@material-ui/icons/Build';
 import {
   createFrontendModule,
   createRouteRef,
@@ -8,6 +9,7 @@ import {
 const accessRouteRef = createRouteRef();
 const entitlementsRouteRef = createRouteRef();
 const integrationRouteRef = createRouteRef();
+const governanceOverviewRouteRef = createRouteRef();
 
 const myAccessPage = PageBlueprint.make({
   name: 'my-access',
@@ -42,11 +44,26 @@ const marketplaceIntegrationPage = PageBlueprint.make({
   },
 });
 
+const governanceOverviewPage = PageBlueprint.make({
+  name: 'platform-governance-overview',
+  params: {
+    path: '/admin/platform-architecture',
+    routeRef: governanceOverviewRouteRef,
+    title: 'Platform Architecture',
+    icon: <BuildIcon />,
+    loader: () =>
+      import('./PlatformGovernanceOverviewPage').then(m => (
+        <m.PlatformGovernanceOverviewPage />
+      )),
+  },
+});
+
 export const entitlementsModule = createFrontendModule({
   pluginId: 'app',
   extensions: [
     myAccessPage,
     entitlementsAdminPage,
     marketplaceIntegrationPage,
+    governanceOverviewPage,
   ],
 });

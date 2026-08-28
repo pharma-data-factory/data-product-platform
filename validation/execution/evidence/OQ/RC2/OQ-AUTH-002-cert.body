@@ -1,0 +1,1 @@
+{"error":{"name":"AuthenticationError","message":"Missing credentials"},"request":{"method":"POST","url":"/certification"},"response":{"statusCode":401}}

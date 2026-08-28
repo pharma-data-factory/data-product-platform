@@ -1,0 +1,1 @@
+{"error":{"name":"AuthenticationError","message":"Missing credentials"},"request":{"method":"GET","url":"/entities?limit=1"},"response":{"statusCode":401}}

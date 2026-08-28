@@ -1,0 +1,25 @@
+id: SCN-AI-010
+name: Complete Nominal Batch
+version: "0.1.0"
+description: Perfect deterministic end-to-end reference run.
+seedDefault: 42
+expected:
+  drugProductBatch:
+    status: RELEASED
+    goodQuantity: 49420
+    rejectQuantity: 580
+  assemblyBatch:
+    status: COMPLETED
+    goodQuantity: 48540
+    rejectQuantity: 260
+  packagingBatch:
+    status: COMPLETED
+    goodQuantity: 48000
+  finishedGoods:
+    warehouse: FG-WH-01
+    qualityStatus: RELEASED
+  genealogy:
+    complete: true
+  packagingBlocked: false
+  assemblyBlocked: false
+  serializationAvailable: true

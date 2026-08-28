@@ -295,16 +295,20 @@ export function EntityRelationshipCard({
 export function AssetHeader({
   asset,
   connectivity,
+  showTitle = true,
 }: {
   asset: NexoraAsset;
   connectivity?: string;
+  showTitle?: boolean;
 }) {
   const classes = useStyles();
   return (
     <header className={classes.header} aria-label={`${asset.title} overview`}>
-      <Typography variant="h4" style={{ color: NEXORA_NAVY, fontWeight: 600 }}>
-        {asset.title}
-      </Typography>
+      {showTitle ? (
+        <Typography variant="h4" style={{ color: NEXORA_NAVY, fontWeight: 600 }}>
+          {asset.title}
+        </Typography>
+      ) : null}
       {asset.description && (
         <Typography className={classes.muted}>{asset.description}</Typography>
       )}
@@ -342,19 +346,23 @@ export function DataProductHeader({
   lifecycle,
   version,
   status,
+  showTitle = true,
 }: {
   title: string;
   owner?: string;
   lifecycle?: string;
   version?: string;
   status?: string;
+  showTitle?: boolean;
 }) {
   const classes = useStyles();
   return (
     <header className={classes.header} aria-label={`${title} overview`}>
-      <Typography variant="h4" style={{ color: NEXORA_NAVY, fontWeight: 600 }}>
-        {title}
-      </Typography>
+      {showTitle ? (
+        <Typography variant="h4" style={{ color: NEXORA_NAVY, fontWeight: 600 }}>
+          {title}
+        </Typography>
+      ) : null}
       {version && (
         <Typography className={classes.muted}>Version {version}</Typography>
       )}

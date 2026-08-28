@@ -1,0 +1,14 @@
+site_name: OEE Data Product Template
+site_description: Overall Equipment Effectiveness for one asset and time window
+docs_dir: docs
+nav:
+  - Home: index.md
+theme:
+  name: material
+plugins:
+  - techdocs-core
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc
+  - tables

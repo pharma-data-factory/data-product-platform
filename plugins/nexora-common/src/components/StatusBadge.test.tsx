@@ -11,6 +11,20 @@ describe('shared industrial components', () => {
     );
   });
 
+  it('renders compatibility as a colored chip with the correct label', () => {
+    render(<StatusBadge state="COMPATIBLE" kind="compatibility" />);
+    expect(
+      screen.getByLabelText('compatibility status COMPATIBLE'),
+    ).toHaveTextContent('COMPATIBLE');
+  });
+
+  it('maps unknown compatibility values to UNKNOWN', () => {
+    render(<StatusBadge state="not-a-status" kind="compatibility" />);
+    expect(
+      screen.getByLabelText('compatibility status UNKNOWN'),
+    ).toHaveTextContent('UNKNOWN');
+  });
+
   it('falls back for missing integrations', () => {
     render(
       <EmptyIntegrationState

@@ -1,0 +1,8 @@
+id: SCN-AI-005
+name: Functional Test Failure Spike
+version: "0.1.0"
+description: FUNCTIONAL-TESTER-01 generates excessive failures.
+seedDefault: 42
+expected:
+  functionalTest:
+    rejectQuantityMin: 2000

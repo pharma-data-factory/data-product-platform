@@ -1,0 +1,10 @@
+id: SCN-AI-009
+name: Warehouse Delay
+version: "0.1.0"
+description: Finished Goods HU cannot be received immediately.
+seedDefault: 42
+expected:
+  finishedGoods:
+    warehouse: FG-WH-01
+    qualityStatus: QUALITY_HOLD
+    receiptStatus: DELAYED

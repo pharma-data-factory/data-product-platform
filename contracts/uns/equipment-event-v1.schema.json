@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/equipment-event-v1.schema.json",
+  "title": "UNS Equipment Discrete Event v1",
+  "type": "object",
+  "required": ["schemaVersion", "timestamp", "equipmentId", "eventName", "dataQuality"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "equipmentId": { "type": "string" },
+    "eventName": {
+      "type": "string",
+      "enum": ["equipment-state-changed", "microstop", "breakdown", "material-starvation", "network-gap"]
+    },
+    "reasonCode": { "type": ["string", "null"] },
+    "dataQuality": { "type": "string", "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"] }
+  }
+}

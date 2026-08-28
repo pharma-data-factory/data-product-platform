@@ -29,6 +29,10 @@ metadata:
     dataprod.platform/qualityStatus: TESTED
     dataprod.platform/quality-endpoint: /api/v1/quality
     dataprod.platform/quality-checks: deviceId_not_empty,eventId_not_empty,timestamp_iso8601,temperature_within_limits,unit_allowed,contract_schema
+    dataprod.platform/consume-rest-path: /api/v1/temperature
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,metric-cards,timeseries,realtime,json,schema
+    dataprod.platform/validation-status: NOT_VALIDATED
   links:
     - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
       title: Repository

@@ -271,6 +271,35 @@ function ColdChainScene({ from, via, to }: Readonly<{ from: string; via: string;
   );
 }
 
+function AasScene({ from, via, to }: Readonly<{ from: string; via: string; to: string }>) {
+  return (
+    <>
+      <g>
+        <rect x="18" y="40" width="48" height="36" rx="6" fill="rgba(0,194,217,0.08)" stroke={PHARMA_TEAL} />
+        <path {...STROKE} d="M28 50 h28 M28 62 h16" />
+      </g>
+      <line x1="72" y1="58" x2="120" y2="58" className="gpv-flow" />
+      <line x1="180" y1="58" x2="228" y2="58" className="gpv-flow" />
+      <Packet x={72} y={58} travel={48} delay="0.15s" />
+      <Packet x={180} y={58} travel={48} delay="0.9s" />
+      <g className="gpv-pulse">
+        <rect x="124" y="40" width="52" height="36" rx="6" fill="rgba(0,194,217,0.10)" stroke={PHARMA_TEAL} />
+        <circle cx="138" cy="52" r="3" fill={PHARMA_TEAL_LIGHT} />
+        <circle cx="152" cy="54" r="2.4" fill={PHARMA_TEAL_LIGHT} />
+        <circle cx="164" cy="56" r="2" fill={PHARMA_TEAL_LIGHT} />
+        <path {...STROKE} d="M138 62 h20" />
+      </g>
+      <g className="gpv-float">
+        <rect x="232" y="40" width="60" height="36" rx="6" fill="rgba(0,194,217,0.10)" stroke={PHARMA_TEAL} />
+        <path {...STROKE} d="M244 48 h36 M244 56 h28" />
+      </g>
+      <Caption x="42" y="108">{from}</Caption>
+      <Caption x="152" y="108">{via}</Caption>
+      <Caption x="262" y="108">{to}</Caption>
+    </>
+  );
+}
+
 export function GoldenPathVisualStyles() {
   return (
     <style>{`
@@ -357,6 +386,8 @@ export function GoldenPathVisual({ id }: Readonly<{ id: string }>) {
     scene = <SapScene from={copy.from} via={copy.via} to={copy.to} />;
   } else if (id === 'cold-chain') {
     scene = <ColdChainScene from={copy.from} via={copy.via} to={copy.to} />;
+  } else if (id === 'aas-data-product') {
+    scene = <AasScene from={copy.from} via={copy.via} to={copy.to} />;
   }
 
   return (

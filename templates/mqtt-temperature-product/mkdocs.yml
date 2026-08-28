@@ -1,7 +1,14 @@
 site_name: MQTT Temperature Data Product Template
-
-nav:
-  - Overview: index.md
-
+site_description: Reusable temperature data product from MQTT telemetry
+docs_dir: docs
+theme:
+  name: material
 plugins:
   - techdocs-core
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc
+  - tables
+nav:
+  - Home: index.md

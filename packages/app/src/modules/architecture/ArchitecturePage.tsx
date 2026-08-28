@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ArchitectureOverviewImage } from './ArchitectureOverviewImage';
 import {
   ArchitectureDiagramStyles,
@@ -56,9 +56,12 @@ export function ArchitecturePage({
     <>
       <ArchitectureDiagramStyles />
       <OverviewHero />
+      <ViewSelectorSection />
+      <ValidationByDesignSection />
       <IdpFundamentalsSection />
       <PlatformFeaturesSection />
       <BoundarySection />
+      <ResponsibilityModelSection />
       <ComparisonSection />
       <DiagramSection
         id="full-stack"
@@ -167,7 +170,7 @@ export function ArchitecturePage({
         diagram={<DeveloperFlowDiagram />}
         what="Golden Path → GitHub repo → CI/CD, tests, Docker, catalog and TechDocs by default."
         why="Teams without a large platform-engineering group still need a paved road."
-        how="Nexora provisions the path. GitHub holds source. Catalog and TechDocs follow passing tests."
+        how="Pharma Data Factory provisions the path. GitHub holds source. Catalog and TechDocs follow passing tests."
         decoupled="Generated products run independently of the Control Plane."
       />
       <DiagramSection
@@ -229,7 +232,7 @@ function OverviewHero() {
             margin: '0 0 16px',
           }}
         >
-          Platform architecture
+          Customer / Business Perspective
         </p>
         <h1
           className="pdf-display"
@@ -246,8 +249,8 @@ function OverviewHero() {
           Innovate Through Data Products.
         </h1>
         <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: '#CBD5E1', maxWidth: 720 }}>
-          Nexora is the Internal Developer Platform for industrial Data
-          Products. It does not replace ERP, MES, LIMS, EWM, Historians
+          <strong>Pharma Data Factory</strong> is the Internal Developer Platform for industrial Data
+          Products, built on Backstage. It does not replace ERP, MES, LIMS, EWM, Historians
           or other IT/OT systems of record — it is the control plane
           around them.
         </p>
@@ -267,25 +270,96 @@ function OverviewHero() {
   );
 }
 
+function ViewSelectorSection() {
+  return (
+    <section
+      aria-label="View this architecture from your perspective"
+      style={{ padding: '48px 24px', background: C.paper }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <div
+          style={{
+            border: `2px solid ${PHARMA_TEAL}`,
+            borderRadius: 16,
+            padding: 24,
+            background: 'rgba(13, 148, 136, 0.05)',
+          }}
+        >
+          <p
+            className="pdf-mono"
+            style={{
+              margin: '0 0 12px',
+              color: PHARMA_TEAL,
+              fontSize: 12,
+              letterSpacing: '0.12em',
+              fontWeight: 600,
+            }}
+          >
+            YOU ARE VIEWING: CUSTOMER VIEW
+          </p>
+          <p style={{ margin: '0 0 20px', fontSize: 15, lineHeight: 1.6, color: C.text }}>
+            This architecture explanation focuses on business value and how the platform solves your problems.
+          </p>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>Also explore:</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 14 }}>
+            <a
+              href="/platform/architecture/developer"
+              className="pdf-focus"
+              style={{
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                textDecoration: 'none',
+                color: PHARMA_NAVY,
+                fontSize: 14,
+                fontWeight: 600,
+                background: '#FFFFFF',
+              }}
+            >
+              → Developer technical view
+            </a>
+            <a
+              href="/admin/platform-architecture"
+              className="pdf-focus"
+              style={{
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                textDecoration: 'none',
+                color: PHARMA_NAVY,
+                fontSize: 14,
+                fontWeight: 600,
+                background: '#FFFFFF',
+              }}
+            >
+              → Admin governance map (sign in)
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function BoundarySection() {
   const items = [
     {
-      title: 'SYSTEM OF RECORD',
-      body: 'ERP, MES, LIMS, EWM and historians stay the operational source. Nexora does not own that data and does not connect to those databases directly.',
+      title: 'SYSTEMS OF RECORD',
+      body: 'ERP, MES, LIMS, EWM and historians remain the authoritative operational source. Pharma Data Factory does not own that data and does not connect to those databases directly.',
     },
     {
       title: 'DATA PRODUCT',
       body: 'An independently versioned service with contract, quality gates, API and owner. It evolves around the core, not inside it.',
     },
     {
-      title: 'NEXORA CONTROL PLANE',
-      body: 'Golden Paths, catalog, contracts, quality, CI/CD and certification. It does not replace source systems and does not store all enterprise data.',
+      title: 'PHARMA DATA FACTORY CONTROL PLANE',
+      body: 'Built on Backstage. Provides Golden Paths, catalog, contracts, quality, CI/CD and technical certification. It does not replace source systems and does not store all enterprise data.',
     },
   ];
 
   return (
     <section
-      aria-label="Architectural boundary"
+      aria-label="Architectural boundary and responsibility model"
       style={{ padding: '72px 24px', background: C.paper }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -298,7 +372,7 @@ function BoundarySection() {
             color: PHARMA_NAVY,
           }}
         >
-          Keep these three layers distinct
+          Clarity: Who owns what
         </h2>
         <div
           style={{
@@ -394,7 +468,7 @@ function IdpFundamentalsSection() {
     <CardGrid
       label="Internal Developer Platform fundamentals"
       title="What makes an Internal Developer Platform"
-      lead="An IDP is a product for developers: self-service, a catalog of what exists, and guardrails so every team does not rebuild CI/CD, contracts and docs. Nexora applies that model to industrial Data Products."
+      lead="An IDP is a product for developers: self-service, a catalog of what exists, and guardrails so every team does not rebuild CI/CD, contracts and docs. Pharma Data Factory applies that model to industrial Data Products."
       items={IDP_PILLARS}
       background={C.paper}
     />
@@ -410,6 +484,134 @@ function PlatformFeaturesSection() {
       items={PLATFORM_FEATURES}
       background={C.section}
     />
+  );
+}
+
+function ResponsibilityModelSection() {
+  return (
+    <section
+      aria-label="Operating model: platform innovation + domain focus partnership"
+      style={{ padding: '72px 24px', background: C.section }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <div
+          style={{
+            background: `linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(13, 148, 136, 0.04) 100%)`,
+            border: `1px solid ${PHARMA_TEAL}`,
+            borderRadius: 12,
+            padding: 24,
+            marginBottom: 32,
+          }}
+        >
+          <p
+            className="pdf-mono"
+            style={{
+              margin: '0 0 8px',
+              color: PHARMA_TEAL,
+              fontSize: 12,
+              letterSpacing: '0.12em',
+              fontWeight: 600,
+            }}
+          >
+            OPERATING MODEL
+          </p>
+          <h2
+            className="pdf-display"
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              margin: '0 0 12px',
+              color: PHARMA_NAVY,
+            }}
+          >
+            Platform innovation + Domain focus partnership
+          </h2>
+          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: C.text }}>
+            Pharma Data Factory handles the technical baseline. Your team focuses on your domain. Together, you build better products faster.
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 24,
+          }}
+        >
+          <article className="pdf-card" style={{ padding: 24 }}>
+            <h3
+              className="pdf-mono"
+              style={{
+                margin: 0,
+                color: PHARMA_TEAL,
+                fontSize: 12,
+                letterSpacing: '0.12em',
+                fontWeight: 600,
+              }}
+            >
+              PLATFORM STANDARDIZES
+            </h3>
+            <p style={{ margin: '12px 0 0', fontSize: 13, lineHeight: 1.6, color: C.muted }}>
+              The technical foundation you can trust
+            </p>
+            <ul
+              style={{
+                margin: '12px 0 0',
+                paddingLeft: 20,
+                fontSize: 14,
+                lineHeight: 1.7,
+                color: C.text,
+              }}
+            >
+              <li>Reusable technical components</li>
+              <li>Golden Path templates</li>
+              <li>Data contracts and schemas</li>
+              <li>Quality and test conventions</li>
+              <li>CI/CD framework and gates</li>
+              <li>Version metadata and tracking</li>
+              <li>Composition validation</li>
+              <li>Reusable technical evidence</li>
+            </ul>
+          </article>
+
+          <article className="pdf-card" style={{ padding: 24 }}>
+            <h3
+              className="pdf-mono"
+              style={{
+                margin: 0,
+                color: PHARMA_TEAL,
+                fontSize: 12,
+                letterSpacing: '0.12em',
+                fontWeight: 600,
+              }}
+            >
+              YOU FOCUS ON
+            </h3>
+            <p style={{ margin: '12px 0 0', fontSize: 13, lineHeight: 1.6, color: C.muted }}>
+              What makes your product valuable
+            </p>
+            <ul
+              style={{
+                margin: '12px 0 0',
+                paddingLeft: 20,
+                fontSize: 14,
+                lineHeight: 1.7,
+                color: C.text,
+              }}
+            >
+              <li>Intended use and business value</li>
+              <li>Domain-specific requirements</li>
+              <li>Manufacturing domain logic</li>
+              <li>Plant and source-system integration</li>
+              <li>Infrastructure and security setup</li>
+              <li>Risk assessment and mitigation</li>
+              <li>Validation decision and sign-off</li>
+              <li>Production support and maintenance</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -469,34 +671,76 @@ function DiagramSection({
   how: string;
   decoupled: string;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <section id={id} style={{ padding: '56px 24px', background: C.section }}>
+    <section id={id} style={{ padding: '32px 24px', background: C.section }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <p
-          className="pdf-mono"
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
           style={{
-            color: PHARMA_TEAL,
-            fontSize: 12,
-            letterSpacing: '0.16em',
-            margin: '0 0 12px',
-            fontWeight: 600,
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+            padding: '12px 0',
           }}
         >
-          {eyebrow}
-        </p>
-        <h2
-          className="pdf-display"
-          style={{
-            fontSize: 'clamp(24px, 3.2vw, 36px)',
-            fontWeight: 600,
-            margin: '0 0 24px',
-            color: PHARMA_NAVY,
-          }}
-        >
-          {title}
-        </h2>
-        {diagram}
-        <DiagramExplanation what={what} why={why} how={how} decoupled={decoupled} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 20,
+                height: 20,
+                background: PHARMA_TEAL,
+                color: 'white',
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 700,
+                transition: 'transform 0.2s',
+                transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              }}
+            >
+              ▸
+            </span>
+            <div>
+              <p
+                className="pdf-mono"
+                style={{
+                  color: PHARMA_TEAL,
+                  fontSize: 12,
+                  letterSpacing: '0.16em',
+                  margin: '0 0 8px',
+                  fontWeight: 600,
+                }}
+              >
+                {eyebrow}
+              </p>
+              <h2
+                className="pdf-display"
+                style={{
+                  fontSize: 'clamp(20px, 2.8vw, 28px)',
+                  fontWeight: 600,
+                  margin: 0,
+                  color: PHARMA_NAVY,
+                }}
+              >
+                {title}
+              </h2>
+            </div>
+          </div>
+        </button>
+
+        {isOpen && (
+          <div style={{ marginTop: 24, animation: 'fadeIn 0.2s ease-in' }}>
+            {diagram}
+            <DiagramExplanation what={what} why={why} how={how} decoupled={decoupled} />
+          </div>
+        )}
       </div>
     </section>
   );
@@ -518,7 +762,7 @@ function ArchitectureCta({ onSignIn }: { onSignIn?: () => void }) {
       <p style={{ margin: '16px auto 0', maxWidth: 560, color: '#CBD5E1', lineHeight: 1.7 }}>
         {onSignIn
           ? 'Continue to Golden Paths, return to the public landing, or sign in to the Control Plane.'
-          : 'Return to the public landing to continue exploring Nexora.'}
+          : 'Return to the public landing to continue exploring Pharma Data Factory.'}
       </p>
       <div
         style={{
@@ -566,6 +810,99 @@ function ArchitectureCta({ onSignIn }: { onSignIn?: () => void }) {
             Sign In
           </button>
         ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ValidationByDesignSection() {
+  return (
+    <section
+      id="validation-by-design"
+      aria-label="Built for Controlled Change: validation by design"
+      style={{ padding: '72px 24px', background: C.section }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <p
+          className="pdf-mono"
+          style={{
+            color: PHARMA_TEAL,
+            fontSize: 12,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            margin: '0 0 12px',
+            fontWeight: 600,
+          }}
+        >
+          VALIDATION & TRUST
+        </p>
+        <h2
+          className="pdf-display"
+          style={{
+            fontSize: 'clamp(24px, 3.2vw, 36px)',
+            fontWeight: 600,
+            margin: '0 0 24px',
+            color: PHARMA_NAVY,
+          }}
+        >
+          Built for Controlled Change.
+        </h2>
+        <p style={{ margin: '0 0 28px', fontSize: 16, lineHeight: 1.7, color: C.text, maxWidth: 800 }}>
+          Evidence for validation happens naturally — not reconstructed afterward.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 32 }}>
+          {[
+            { title: 'Requirements', body: 'Documented in code and design.' },
+            { title: 'Tests', body: 'Unit, contract, quality, compatibility.' },
+            { title: 'Quality Gates', body: 'Automated checks at every step.' },
+            { title: 'CI Results', body: 'Build, security scan, test logs.' },
+            { title: 'Contracts', body: 'Versioned and compatibility-validated.' },
+            { title: 'Traceability', body: 'Requirement → Code → Test → Result.' },
+          ].map(item => (
+            <article key={item.title} className="pdf-card" style={{ padding: 20 }}>
+              <h3
+                className="pdf-mono"
+                style={{
+                  margin: 0,
+                  color: PHARMA_TEAL,
+                  fontSize: 12,
+                  letterSpacing: '0.12em',
+                  fontWeight: 600,
+                }}
+              >
+                {item.title}
+              </h3>
+              <p style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.5, color: C.text }}>
+                {item.body}
+              </p>
+            </article>
+          ))}
+        </div>
+
+        <div
+          style={{
+            background: C.paper,
+            border: `1px solid ${C.border}`,
+            borderRadius: 16,
+            padding: 24,
+          }}
+        >
+          <p style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>
+            Your benefits:
+          </p>
+          <ul style={{ margin: '0 0 16px', paddingLeft: 20, fontSize: 14, lineHeight: 1.8, color: C.text }}>
+            <li><strong>No reconstruction:</strong> Evidence collected automatically, not compiled afterwards.</li>
+            <li><strong>Complete record:</strong> Every test, build, quality check is documented and linked.</li>
+            <li><strong>Faster validation:</strong> Your validation team starts with a solid foundation.</li>
+            <li><strong>Focused effort:</strong> Validation teams focus on intended use and risk, not re-verifying infrastructure.</li>
+          </ul>
+          <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6, color: C.muted }}>
+            <strong>Important:</strong> Technical certification (CERTIFIED) means platform conformance only. 
+            It does not constitute GxP validation or regulatory approval. Validation is a separate, 
+            human-driven process where your team confirms intended use, assesses risk, and takes formal responsibility.
+          </p>
+        </div>
       </div>
     </section>
   );

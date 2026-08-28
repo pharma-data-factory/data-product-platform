@@ -26,6 +26,10 @@ import {
   useLandingI18n,
 } from './landingI18n';
 import { C, BRAND_NAME, BRAND_WORDMARK, LANDING, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
+import { CookieConsentBanner } from '../legal/CookieConsentBanner';
+import { legalNavCopy } from '../legal/legalCopy';
+import { openCookieSettings } from '../legal/cookieConsent';
+import { ModelCompanySection } from './ModelCompanySection';
 
 const NAV_ITEMS = [
   { id: 'platform', href: '/platform/architecture' },
@@ -940,7 +944,8 @@ export function LandingFooter({
 }: {
   location?: LandingChromeLocation;
 }) {
-  const { t } = useLandingI18n();
+  const { t, locale } = useLandingI18n();
+  const legalNav = legalNavCopy[locale];
   return (
     <footer style={{ padding: '56px 24px 40px', borderTop: `1px solid ${C.border}`, background: C.section }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -971,9 +976,25 @@ export function LandingFooter({
           <nav aria-label="Legal" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12 }}>
             {LEGAL_NAV.map(item => (
               <a key={item.id} href={item.path} className="pdf-muted pdf-focus" style={{ textDecoration: 'none' }}>
-                {item.title}
+                {legalNav[item.id === 'open-source' ? 'openSource' : item.id]}
               </a>
             ))}
+            <button
+              type="button"
+              className="pdf-muted pdf-focus"
+              onClick={() => openCookieSettings()}
+              style={{
+                background: 'none',
+                border: 0,
+                padding: 0,
+                font: 'inherit',
+                cursor: 'pointer',
+                textDecoration: 'none',
+                color: 'inherit',
+              }}
+            >
+              {legalNav.cookieSettings}
+            </button>
           </nav>
           <p className="pdf-mono pdf-muted" style={{ fontSize: 12, margin: 0 }}>
             © 2026 {BRAND_NAME}
@@ -1000,11 +1021,13 @@ export function PublicLanding(props: PublicLandingProps) {
         <WhyNexoraSection />
         <HowItWorks />
         <GoldenPathShowcase />
+        <ModelCompanySection />
         <DeveloperValue />
         <ArchitecturePreview />
         <ProductEditions />
         <FinalCta {...props} onSignIn={startCreate} />
         <LandingFooter />
+        <CookieConsentBanner />
       </main>
     </LandingI18nProvider>
   );

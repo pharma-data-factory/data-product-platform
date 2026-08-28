@@ -1,0 +1,19 @@
+id: data-products
+name: Data Products
+description: Data Product catalog and CI quality status surfaces
+
+type: DOMAIN
+lifecycle: ENABLED
+
+frontend:
+  package: "@internal/plugin-data-products"
+  route: "/data-products"
+
+backend:
+  package: "@internal/plugin-data-products-backend"
+  route: "/api/data-products"
+
+owner: platform-team
+
+validation:
+  status: NOT_ESTABLISHED

@@ -1,0 +1,26 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: DataProduct
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+spec:
+  domain: ${{ values.domain }}
+  owner: ${{ values.owner }}
+  lifecycle: ${{ values.lifecycle }}
+  interfaces:
+    - id: query
+      type: rest
+      path: /api/v1/equipment
+  contracts:
+    outputs:
+      - equipment-event-v1
+  presentation:
+    defaultView: table
+    capabilities:
+      - table
+      - metric-cards
+      - json
+      - schema
+  validation:
+    status: NOT_VALIDATED

@@ -5,7 +5,7 @@ export const DEVELOPER_ARCHITECTURE_PATH = '/platform/architecture/developer';
 export const ARCHITECTURE_OVERVIEW_IMAGE_SRC = '/architecture-overview.png';
 
 export const ARCHITECTURE_OVERVIEW_IMAGE_ALT =
-  'Nexora architecture overview: keep ERP, MES, LIMS and other core systems standard, connect them through governed APIs, events, MQTT, REST and streams, and innovate with independently evolving Data Products';
+  'Pharma Data Factory architecture overview: keep ERP, MES, LIMS and other core systems standard, connect them through governed APIs, events, MQTT, REST and streams, and innovate with independently evolving Data Products';
 
 export function isPublicArchitecturePath(pathname: string): boolean {
   const normalized = pathname.replace(/\/+$/, '') || '/';
@@ -96,7 +96,7 @@ export const RUNTIME_CONSUMERS = [
 
 export const DEVELOPER_FLOW_STEPS = [
   'Developer',
-  'Nexora',
+  'Pharma Data Factory',
   'Certified Golden Path',
   'GitHub Repository',
   'CI/CD',

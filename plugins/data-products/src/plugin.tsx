@@ -6,6 +6,10 @@ import {
   PageBlueprint,
 } from '@backstage/frontend-plugin-api';
 import StorageIcon from '@material-ui/icons/Storage';
+import {
+  DataProductConsumptionClient,
+  dataProductConsumptionApiRef,
+} from '@internal/data-product-consumption';
 import { DataProductCiClient, dataProductCiApiRef } from './api';
 import { detailRouteRef, rootRouteRef } from './routes';
 
@@ -20,6 +24,20 @@ const dataProductCiApi = ApiBlueprint.make({
       },
       factory: ({ discoveryApi, fetchApi }) =>
         new DataProductCiClient({ discoveryApi, fetchApi }),
+    }),
+});
+
+const dataProductConsumptionApi = ApiBlueprint.make({
+  name: 'consumption',
+  params: defineParams =>
+    defineParams({
+      api: dataProductConsumptionApiRef,
+      deps: {
+        discoveryApi: discoveryApiRef,
+        fetchApi: fetchApiRef,
+      },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new DataProductConsumptionClient({ discoveryApi, fetchApi }),
     }),
 });
 
@@ -48,7 +66,12 @@ const dataProductDetailPage = PageBlueprint.make({
 
 export const dataProductsPlugin = createFrontendPlugin({
   pluginId: 'data-products',
-  extensions: [dataProductCiApi, dataProductsPage, dataProductDetailPage],
+  extensions: [
+    dataProductCiApi,
+    dataProductConsumptionApi,
+    dataProductsPage,
+    dataProductDetailPage,
+  ],
   routes: {
     root: rootRouteRef,
     detail: detailRouteRef,

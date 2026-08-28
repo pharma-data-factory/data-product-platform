@@ -1,0 +1,256 @@
+# Machine-readable CSV Phase 0 model
+# Product validation_status MUST remain NOT_VALIDATED.
+# Generated 2026-08-23. Documentation/analysis only — no freeze/tag/commit performed.
+
+phase0:
+  id: PDF-CSV-P0-2026-08-23
+  date: "2026-08-23"
+  product_validation_status: NOT_VALIDATED
+  baseline_freeze_status: NOT_READY_TO_FREEZE
+  baseline_not_yet_frozen: true
+  urs_readiness: URS_READY_WITH_OPEN_ITEMS
+  recommended_tag: platform-core-v0.1.0-csv-baseline
+  assessment_inputs:
+    - docs/assessment/CURRENT-IMPLEMENTATION-STATUS.md
+    - docs/assessment/current-implementation-status.yaml
+
+baseline_identity:
+  name: PLATFORM_CORE_VALIDATION_BASELINE_0.1
+  repository: data-product-platform
+  remote: https://github.com/pharma-data-factory/data-product-platform.git
+  branch: main
+  head_commit: "6e8318a093da871a665df92c2ac004d895a49b1f"
+  working_tree: dirty
+  ahead_of_origin: 7
+  backstage: "1.53.0"
+  node_engines: "22 || 24"
+  node_observed: v22.12.0
+  yarn: "4.13.0"
+  python_observed: "3.11.9"
+  python_templates_require: ">=3.12"
+  docker_observed: "29.5.3"
+  database_local: sqlite
+  database_compose: postgres:16
+  existing_rc_tags:
+    - platform-core-v1.0-rc1
+    - platform-core-v1.0-rc2
+
+intended_use:
+  status: PROPOSED_REQUIRES_HUMAN_APPROVAL
+  gate: GATE-01
+  summary: >-
+    Authenticated control plane for discovery, governed scaffolding of Data
+    Product repositories, and permission/entitlement enforcement; does not
+    imply GxP validation of platform or generated workloads.
+  not_intended_use:
+    - validated_eDMS
+    - part11_electronic_signature_system
+    - MES_replacement
+    - SAP_ERP_replacement
+    - validated_ALM_system_of_record
+    - automated_gxp_decision_engine
+    - auto_validation_of_generated_data_products
+    - production_plugin_store
+    - production_AAS_repository
+    - production_OEE_commercial_saas
+
+scope:
+  gate: GATE-02
+  baseline_name: PLATFORM_CORE_VALIDATION_BASELINE_0.1
+  golden_paths_approach: LAYER_2_SEPARATELY_QUALIFIED_REUSABLE_COMPONENTS
+  in_scope:
+    - platform_core
+    - backstage_frontend
+    - backstage_backend
+    - authentication
+    - authorization
+    - permission_policy
+    - software_catalog_engine
+    - scaffolder_engine
+    - platform_configuration
+    - core_persistence
+    - technical_github_integration
+    - entitlements_as_create_gates
+    - marketplace_discovery_ui
+    - data_products_metadata_ui
+  out_of_scope:
+    - validation_expert
+    - plugin_directory
+    - aas
+    - nexora_industrial_mock_operations
+    - oee_commercial
+    - sample_catalog_entities
+    - pilot_harnesses
+    - unified_namespace
+    - part11_er_es
+  external_dependencies:
+    - github
+    - postgresql
+    - sqlite
+    - docker
+    - node_yarn
+    - npm_registry
+    - pypi
+    - backstage_soup
+    - container_registry
+  future_scope:
+    - validation_expert_released
+    - plugin_directory_lifecycle
+    - persistent_aas
+    - nexora_remote_industrial
+    - oee_commercial
+  requires_decision:
+    - guest_provider_policy
+    - golden_path_layer_confirmation
+    - data_product_label_wording
+    - sample_catalog_isolation_method
+    - entitlements_aws_adapter_in_baseline
+
+components:
+  - id: backstage_frontend
+    class: IN_SCOPE
+  - id: backstage_backend
+    class: IN_SCOPE
+  - id: software_catalog
+    class: IN_SCOPE
+  - id: scaffolder_engine
+    class: IN_SCOPE
+  - id: authentication
+    class: IN_SCOPE
+  - id: authorization
+    class: IN_SCOPE
+  - id: permission_policy
+    class: IN_SCOPE
+  - id: github_integration
+    class: IN_SCOPE
+  - id: cicd_platform
+    class: EXTERNAL_DEPENDENCY
+  - id: database_persistence
+    class: IN_SCOPE
+  - id: logging
+    class: REQUIRES_DECISION
+  - id: audit_create_authorization
+    class: IN_SCOPE
+  - id: golden_paths_content
+    class: FUTURE_SCOPE
+    note: Layer 2 recommended; not auto-included in Baseline 0.1
+  - id: data_products_plugins
+    class: IN_SCOPE
+  - id: entitlements
+    class: IN_SCOPE
+  - id: marketplace
+    class: IN_SCOPE
+  - id: validation_expert
+    class: OUT_OF_SCOPE
+  - id: plugin_directory
+    class: OUT_OF_SCOPE
+  - id: aas
+    class: OUT_OF_SCOPE
+  - id: nexora_industrial
+    class: OUT_OF_SCOPE
+  - id: oee_commercial
+    class: OUT_OF_SCOPE
+
+dependencies:
+  - id: ED-01
+    name: GitHub
+    purpose: OAuth and repository publish / Actions
+    validation_relevance: high
+  - id: ED-02
+    name: PostgreSQL
+    purpose: Platform persistence in Compose/pilot
+    validation_relevance: high
+  - id: ED-03
+    name: SQLite
+    purpose: Local development persistence
+    validation_relevance: low_for_production_baseline
+  - id: ED-04
+    name: Docker
+    purpose: Compose and images
+    validation_relevance: medium_high
+  - id: ED-05
+    name: Node_Yarn
+    purpose: Build and run control plane
+    validation_relevance: high
+  - id: ED-08
+    name: Backstage
+    purpose: Framework SOUP
+    validation_relevance: high_as_soup
+
+gxp_impact:
+  gate: GATE-04
+  overall_posture_recommendation: INDIRECT
+  access_control: DIRECT
+  create_regulated_records: INDIRECT_OR_UNKNOWN
+  modify_regulated_records: UNKNOWN
+  process_regulated_data: INDIRECT
+  influence_gxp_decisions: NONE_FOR_BASELINE_0_1_INTENT
+  deploy_software_processing_gxp_data: INDIRECT
+  generate_evidence: INDIRECT
+  affect_data_integrity: INDIRECT
+  compliance_claims: none
+
+baseline_criteria:
+  BEC-01_clean_git_tree: FAIL
+  BEC-02_unique_commit_sha: PASS
+  BEC-03_baseline_tag: FAIL
+  BEC-04_frontend_smoke: OPEN
+  BEC-05_backend_smoke: PASS
+  BEC-06_authentication_smoke: OPEN
+  BEC-07_authorization_smoke: OPEN
+  BEC-08_catalog_smoke: OPEN
+  BEC-09_scaffolder_smoke: OPEN
+  BEC-10_guest_decision: OPEN
+  BEC-11_sample_isolation: OPEN
+  BEC-12_dependency_lock: PASS
+  BEC-13_reproducible_build: OPEN
+  BEC-14_configuration_identification: PASS
+  BEC-15_wip_plugins_excluded: FAIL
+  BEC-16_not_validated_preserved: PASS
+
+open_decisions:
+  business_quality:
+    - GATE-01_intended_use
+    - GATE-02_validation_scope
+    - GATE-03_system_boundary
+    - GATE-04_gxp_impact
+    - GATE-05_baseline_freeze
+    - guest_provider_policy
+    - technical_certification_label_wording
+  technical:
+    - clean_tree_strategy
+    - sample_catalog_exclusion
+    - smoke_evidence_pack
+    - python_312_toolchain_for_layer2
+    - disposition_validation_expert_plugin_directory_wip
+
+human_approval_gates:
+  - id: GATE-01
+    name: Intended Use Approval
+    ai_may_approve: false
+  - id: GATE-02
+    name: Validation Scope Approval
+    ai_may_approve: false
+  - id: GATE-03
+    name: System Boundary Approval
+    ai_may_approve: false
+  - id: GATE-04
+    name: GxP Impact Approval
+    ai_may_approve: false
+  - id: GATE-05
+    name: Baseline Freeze Approval
+    ai_may_approve: false
+
+exclusions:
+  - formal_urs_generation_this_phase
+  - product_code_changes
+  - git_commit
+  - git_tag
+  - git_push
+  - claiming_validated
+  - claiming_part11_annex11_gamp_compliance
+
+recommended_next_step: >-
+  Human review of docs/validation/00-phase0; clean working tree to HEAD plugin
+  set; complete smokes; GATE-01..04; then GATE-05 and tag
+  platform-core-v0.1.0-csv-baseline; only thereafter start formal URS generation.

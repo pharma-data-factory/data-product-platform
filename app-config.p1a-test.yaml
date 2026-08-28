@@ -1,0 +1,46 @@
+app:
+  title: Nexora P1A Persistence Verification
+  baseUrl: http://localhost:7007
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  database:
+    client: pg
+    connection:
+      host: 127.0.0.1
+      port: 5435
+      user: urs_test
+      password: test_pass123
+      database: urs_composer_test
+
+auth:
+  environment: development
+  providers:
+    guest:
+      userEntityRef: user:default/guest
+      ownershipEntityRefs:
+        - user:default/guest
+
+permission:
+  enabled: false
+
+catalog:
+  locations: []
+
+search:
+  elasticsearch:
+    enabled: false
+
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'local'
+  publisher:
+    type: 'local'
+
+# URS Composer P1A Configuration
+ursComposer:
+  persistence:
+    mode: postgres

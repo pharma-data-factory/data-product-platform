@@ -1,0 +1,11 @@
+# Validation Expert runtime store (v0.1)
+#
+# Durable development store for validation runs, runtime evidence metadata,
+# and runtime findings. Historical RC1/RC2 evidence under execution/ is never
+# overwritten from this directory.
+#
+# Production target remains PostgreSQL (see validation-expert-design.md).
+
+*
+!.gitignore
+!README.md

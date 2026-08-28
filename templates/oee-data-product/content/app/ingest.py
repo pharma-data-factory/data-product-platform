@@ -66,6 +66,8 @@ class IngestService:
             normalized["timestamp"] = normalized["start"]
         if normalized.get("state") == "PLANNED_STOP":
             normalized["state"] = "MAINTENANCE"
+        if normalized.get("state") == "MICROSTOP":
+            normalized["state"] = "STOPPED"
         failures = event_quality_failures(
             normalized,
             calculated_at=now_utc(),

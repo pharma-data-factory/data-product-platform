@@ -33,6 +33,11 @@ import {
   formatJourneyError,
   isUnauthorizedError,
 } from '@internal/platform-common';
+import {
+  NEXORA_CONTROL,
+  filterChipSx,
+  outlineButtonSx,
+} from '@internal/plugin-nexora-common';
 import { marketplaceCatalogSources } from '../catalog';
 import { entitlementApiRef } from '../entitlementApi';
 import {
@@ -58,6 +63,31 @@ const useStyles = makeStyles({
     fontWeight: 600,
     minWidth: 200,
     whiteSpace: 'normal',
+  },
+  filters: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+  },
+  filterChip: {
+    ...filterChipSx(false),
+  },
+  filterChipSelected: {
+    ...filterChipSx(true),
+  },
+  createAction: {
+    ...outlineButtonSx,
+    display: 'inline-flex',
+    whiteSpace: 'nowrap',
+  },
+  buildingBlock: {
+    background: NEXORA_CONTROL.chipIdleBg,
+    border: `1px solid ${NEXORA_CONTROL.border}`,
+    color: NEXORA_CONTROL.muted,
+    fontWeight: 600,
+    height: 24,
+    marginLeft: 8,
   },
 });
 
@@ -179,20 +209,28 @@ export function MarketplacePage() {
                 value={query}
                 onChange={event => setQuery(event.target.value)}
               />
-              <div style={{ marginTop: 16 }}>
+              <div className={classes.filters}>
                 <Chip
                   label="All"
-                  color={category === 'All' ? 'primary' : 'default'}
+                  clickable
+                  className={
+                    category === 'All'
+                      ? classes.filterChipSelected
+                      : classes.filterChip
+                  }
                   onClick={() => setCategory('All')}
-                  style={{ marginRight: 8 }}
                 />
                 {MARKETPLACE_CATEGORIES.map(item => (
                   <Chip
                     key={item}
                     label={item}
-                    color={category === item ? 'primary' : 'default'}
+                    clickable
+                    className={
+                      category === item
+                        ? classes.filterChipSelected
+                        : classes.filterChip
+                    }
                     onClick={() => setCategory(item)}
-                    style={{ marginRight: 8 }}
                   />
                 ))}
               </div>
@@ -227,7 +265,7 @@ export function MarketplacePage() {
                           <Chip
                             size="small"
                             label="BUILDING BLOCK"
-                            style={{ marginLeft: 8 }}
+                            className={classes.buildingBlock}
                           />
                         )}
                       </TableCell>
@@ -251,6 +289,7 @@ export function MarketplacePage() {
                             item.commercialStatus === undefined,
                         ) ? (
                           <Link
+                            className={classes.createAction}
                             to={item.documentation}
                             onClick={event => event.stopPropagation()}
                           >

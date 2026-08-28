@@ -4,8 +4,8 @@ import { QualityStatus } from '../model';
 const STYLES: Record<QualityStatus, { backgroundColor: string; color: string }> =
   {
     DEVELOPMENT: { backgroundColor: '#64748B', color: '#FFFFFF' },
-    TESTED: { backgroundColor: '#0B1F3A', color: '#FFFFFF' },
-    CERTIFIED: { backgroundColor: '#0D9488', color: '#FFFFFF' },
+    TESTED: { backgroundColor: '#0A1929', color: '#FFFFFF' },
+    CERTIFIED: { backgroundColor: '#00C2D9', color: '#FFFFFF' },
   };
 
 export function StatusChip({

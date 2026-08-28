@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Content, Link, Page, Progress } from '@backstage/core-components';
+import { Link, Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { Grid, Typography } from '@material-ui/core';
+import { makeStyles } from '@material-ui/core/styles';
 import {
   ConnectivityInterface,
   MetricValue,
@@ -21,15 +22,34 @@ import {
   ContextCard,
   EntityRelationshipCard,
   MetricCard,
+  NEXORA_MUTED,
+  NexoraSection,
+  NexoraToolPage,
   ProviderGate,
   RuntimeStateCard,
   productItems,
   nexoraConnectivityApiRef,
   nexoraEquipmentStateApiRef,
   nexoraMetricsApiRef,
+  useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
+const useStyles = makeStyles({
+  crumbs: {
+    color: NEXORA_MUTED,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  footnote: {
+    color: NEXORA_MUTED,
+    fontSize: 13,
+    lineHeight: 1.6,
+  },
+});
+
 export function EquipmentDetailPage() {
+  const classes = useStyles();
+  const tool = useNexoraToolStyles();
   const { name } = useParams();
   const catalogApi = useApi(catalogApiRef);
   const metricsApi = useApi(nexoraMetricsApiRef);
@@ -89,114 +109,150 @@ export function EquipmentDetailPage() {
       .catch(() => setLoading(false));
   }, [catalogApi, connectivityApi, metricsApi, name, stateApi]);
 
+  if (loading) {
+    return (
+      <NexoraToolPage
+        eyebrow="Industrial · Catalog"
+        title="Equipment"
+        copy="Loading equipment from the Catalog."
+      >
+        <Progress />
+      </NexoraToolPage>
+    );
+  }
+
+  if (!asset) {
+    return (
+      <NexoraToolPage
+        eyebrow="Industrial · Catalog"
+        title="Equipment"
+        copy="This equipment entity is not in the catalog."
+      >
+        <Typography className={classes.footnote}>
+          <Link className={tool.link} to="/equipment">
+            All equipment
+          </Link>
+        </Typography>
+      </NexoraToolPage>
+    );
+  }
+
   return (
-    <Page themeId="tool">
-      <Content>
-        {loading && <Progress />}
-        {!loading && !asset && (
-          <Typography>This equipment entity is not in the catalog.</Typography>
-        )}
-        {asset && (
-          <Grid container spacing={2}>
-            <Grid item xs={12} id="overview">
-              <AssetHeader
-                asset={asset}
-                connectivity={connectivity?.data?.[0]?.state}
-              />
-              <Typography variant="body2">
-                <Link to="/equipment">All equipment</Link>
-                {' · '}
-                <Link to={catalogEntityPath(asset.entityRef)}>Catalog</Link>
-              </Typography>
-            </Grid>
-            <Grid item xs={12} md={4} id="state">
-              <ProviderGate
-                title="Equipment State"
-                result={state}
-                empty="No runtime state integration configured."
-              >
-                {data => (
-                  <RuntimeStateCard state={data.state} updatedAt={data.updatedAt} />
-                )}
-              </ProviderGate>
-            </Grid>
-            <Grid item xs={12} md={8}>
-              <ContextCard
-                title="Asset context"
-                fields={[
-                  { label: 'Manufacturer', value: asset.manufacturer },
-                  { label: 'Model', value: asset.model },
-                  { label: 'Owner', value: asset.owner },
-                  { label: 'Lifecycle', value: asset.lifecycle },
-                ]}
-              />
-            </Grid>
-            <Grid item xs={12} id="metrics">
-              <Typography variant="h6">Metrics</Typography>
-              <ProviderGate
-                title="Metrics"
-                result={metrics}
-                empty="No metrics integration configured."
-              >
-                {data => (
-                  <Grid container spacing={2}>
-                    {data.map(metric => (
-                      <Grid item xs={12} sm={6} md={3} key={metric.id}>
-                        <MetricCard metric={metric} />
-                      </Grid>
-                    ))}
+    <NexoraToolPage
+      eyebrow="Industrial · Catalog"
+      title={asset.title}
+      principle={`${asset.site || 'Site'} · ${asset.area || 'Area'} · ${asset.line || 'Line'}`}
+      copy="Catalog equipment detail with optional runtime providers for state, metrics, and connectivity."
+      secondary="Product documentation stays in TechDocs. Runtime metrics come from configured Data Product APIs, not from this plugin."
+    >
+      <Typography className={classes.crumbs}>
+        <Link className={tool.link} to="/equipment">
+          All equipment
+        </Link>
+        {' · '}
+        <Link className={tool.link} to={catalogEntityPath(asset.entityRef)}>
+          Catalog
+        </Link>
+      </Typography>
+
+      <NexoraSection title="Overview">
+        <div id="overview">
+          <AssetHeader
+            asset={asset}
+            connectivity={connectivity?.data?.[0]?.state}
+            showTitle={false}
+          />
+        </div>
+      </NexoraSection>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4} id="state">
+          <ProviderGate
+            title="Equipment State"
+            result={state}
+            empty="No runtime state integration configured."
+          >
+            {data => (
+              <RuntimeStateCard state={data.state} updatedAt={data.updatedAt} />
+            )}
+          </ProviderGate>
+        </Grid>
+        <Grid item xs={12} md={8}>
+          <ContextCard
+            title="Asset context"
+            fields={[
+              { label: 'Manufacturer', value: asset.manufacturer },
+              { label: 'Model', value: asset.model },
+              { label: 'Owner', value: asset.owner },
+              { label: 'Lifecycle', value: asset.lifecycle },
+            ]}
+          />
+        </Grid>
+      </Grid>
+
+      <NexoraSection title="Metrics">
+        <div id="metrics">
+          <ProviderGate
+            title="Metrics"
+            result={metrics}
+            empty="No metrics integration configured."
+          >
+            {data => (
+              <Grid container spacing={2}>
+                {data.map(metric => (
+                  <Grid item xs={12} sm={6} md={3} key={metric.id}>
+                    <MetricCard metric={metric} />
                   </Grid>
-                )}
-              </ProviderGate>
-            </Grid>
-            <Grid item xs={12} md={4} id="products">
-              <EntityRelationshipCard
-                title="Data Products"
-                items={products}
-                empty="No Data Products depend on this asset yet."
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <EntityRelationshipCard
-                title="Interfaces"
-                items={interfaces.map(label => ({ label }))}
-                empty="No interface resources are linked in the catalog."
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <EntityRelationshipCard
-                title="Systems"
-                items={systems}
-                empty="No systems of record are linked."
-              />
-            </Grid>
-            <Grid item xs={12} id="connectivity">
-              <Typography variant="h6">Connectivity</Typography>
-              <ProviderGate
-                title="Connectivity"
-                result={connectivity}
-                empty="The equipment is registered in the catalog, but no connectivity provider is configured."
-              >
-                {data => (
-                  <Grid container spacing={2}>
-                    {data.map(item => (
-                      <Grid item xs={12} md={4} key={item.name}>
-                        <ConnectivityCard item={item} />
-                      </Grid>
-                    ))}
+                ))}
+              </Grid>
+            )}
+          </ProviderGate>
+        </div>
+      </NexoraSection>
+
+      <Grid container spacing={2} id="products">
+        <Grid item xs={12} md={4}>
+          <EntityRelationshipCard
+            title="Data Products"
+            items={products}
+            empty="No Data Products depend on this asset yet."
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <EntityRelationshipCard
+            title="Interfaces"
+            items={interfaces.map(label => ({ label }))}
+            empty="No interface resources are linked in the catalog."
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <EntityRelationshipCard
+            title="Systems"
+            items={systems}
+            empty="No systems of record are linked."
+          />
+        </Grid>
+      </Grid>
+
+      <NexoraSection title="Connectivity">
+        <div id="connectivity">
+          <ProviderGate
+            title="Connectivity"
+            result={connectivity}
+            empty="The equipment is registered in the catalog, but no connectivity provider is configured."
+          >
+            {data => (
+              <Grid container spacing={2}>
+                {data.map(item => (
+                  <Grid item xs={12} md={4} key={item.name}>
+                    <ConnectivityCard item={item} />
                   </Grid>
-                )}
-              </ProviderGate>
-            </Grid>
-            <Grid item xs={12} id="docs">
-              <Typography variant="body2">
-                Product documentation stays in TechDocs. Runtime metrics come
-                from configured Data Product APIs, not from this plugin.
-              </Typography>
-            </Grid>
-          </Grid>
-        )}
-      </Content>
-    </Page>
+                ))}
+              </Grid>
+            )}
+          </ProviderGate>
+        </div>
+      </NexoraSection>
+    </NexoraToolPage>
   );
 }

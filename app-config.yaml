@@ -124,7 +124,7 @@ catalog:
     entityFilename: catalog-info.yaml
     pullRequestBranchName: backstage-integration
   rules:
-    - allow: [Component, System, API, Resource, Location, Template]
+    - allow: [Component, System, API, Resource, Location, Template, Domain]
   locations:
     - type: file
       target: ../../catalog/entities.yaml
@@ -136,6 +136,10 @@ catalog:
     # Industrial plugin fixtures only. Not live shopfloor data.
     - type: file
       target: ../../catalog/samples/industrial.yaml
+
+    # Model Company catalog entities (synthetic / demo tags). Local/dev only.
+    - type: file
+      target: ../../model-company/catalog/entities.yaml
 
     - type: file
       target: ../../platform-components/catalog.yaml
@@ -186,7 +190,7 @@ catalog:
         - allow: [Template]
 
     - type: file
-      target: ../../templates/aas-asset/template.yaml
+      target: ../../templates/aas-data-product/template.yaml
       rules:
         - allow: [Template]
 
@@ -205,6 +209,12 @@ permission:
   # setting this to `false` will disable permissions
   enabled: true
 
+# RBAC: Community RBAC plugin configuration
+# Central role-based access control for all platform plugins
+rbac:
+  # Disable RBAC during development if needed (default: true)
+  # enabled: false
+  
 # Nexora industrial providers. mock uses in-memory fixtures for local
 # development. Remote base URLs are server-side only. Never put credentials here.
 nexora:
@@ -221,6 +231,11 @@ nexora:
 dataProducts:
   certification:
     overlayPath: catalog/certification-overrides.json
+  # Optional live upstreams for Consumption Framework (never secrets).
+  consume:
+    baseUrls:
+      # Customer Zero — CHECKWEIGHER-01 OEE on Model Company Mosquitto (:41884)
+      checkweigher-01-oee: http://127.0.0.1:18080
 
 # Commercial entitlement foundation. AWS Marketplace is one possible
 # source. Local provider is the default and requires no secrets.
@@ -245,3 +260,34 @@ commercial:
   awsMarketplace:
     region: ${AWS_MARKETPLACE_REGION:-}
     productCode: ${AWS_MARKETPLACE_PRODUCT_CODE:-}
+
+# Validation Expert v0.1 — workbench over validation/ artifacts.
+# Does not change product validation_status (remains NOT_VALIDATED).
+validationExpert:
+  validationRoot: validation
+  runtimeStorePath: validation/runtime/runs-store.json
+  healthBaseUrl: http://127.0.0.1:7007
+
+# Plugin Directory v0.1 — inventory of installed control-plane plugins.
+# Optional override when the backend cannot resolve the monorepo root.
+pluginDirectory:
+  workspaceRoot: .
+
+# Model Company v0.1 — Customer Zero synthetic plant (NON-GxP).
+# Does not change product validation_status (remains NOT_VALIDATED).
+# Architecture: Control Plane → Scenario Runtime (:18091) → Mosquitto (:41884) → OEE (:18080)
+modelCompany:
+  factoryPath: model-company/factories/autoinjector-pharma.yaml
+  # Paths resolve from process.cwd(). Starting backend from packages/backend
+  # writes under packages/backend/.runtime/model-company/ (cwd-relative).
+  runtimeStorePath: .runtime/model-company/state.json
+  eventsPath: .runtime/model-company/events.jsonl
+  # Required for real MQTT publish path (Scenario Runtime relay).
+  runtimeBaseUrl: http://127.0.0.1:18091
+  # Local Model Company Mosquitto (Compose host port). Runtime container uses mosquitto:1883.
+  mqtt:
+    brokerUrl: mqtt://127.0.0.1:41884
+    host: 127.0.0.1
+    port: 41884
+  integrations:
+    oeeHealthUrl: http://127.0.0.1:18080/health

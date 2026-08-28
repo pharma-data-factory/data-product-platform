@@ -1,0 +1,130 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfile
+metadata:
+  name: machine-state
+  title: Machine State Consumer Authorization Profile
+  namespace: default
+  annotations:
+    description: Authorization profile for Machine State Consumer Data Product
+    platform: data-product-factory
+    templatePath: templates/machine-state-consumer
+    compositionProof: "true"
+
+spec:
+  domain: machine-state
+  title: Machine State Consumer Authorization Profile
+  description: |
+    Authorization profile for Machine State Consumer Data Product.
+    Composition proof that demonstrates consuming machine-state-event from Unified Namespace.
+    Controls access to machine state data, state queries, and configuration.
+  
+  permissions:
+    - name: machine-state.read
+      title: Read Machine State
+      description: |
+        View machine state events, current machine state,
+        and historical state transitions from Unified Namespace.
+      category: read
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: REST API endpoints verify permissions before returning state data
+    
+    - name: machine-state.operate
+      title: Operate Machine State
+      description: |
+        Query machine state, retrieve state history,
+        and access state transition metrics.
+      category: operate
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: Query endpoints check user permissions
+    
+    - name: machine-state.configure
+      title: Configure Machine State Consumer
+      description: |
+        Configure machine state consumption parameters including
+        MQTT topic patterns, state storage policies, and UNS dependencies.
+      category: configure
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Backstage enforces permission before configuration changes
+    
+    - name: machine-state.admin
+      title: Administer Machine State
+      description: |
+        Full machine state consumer administration including lifecycle management,
+        dependency updates, and catalog synchronization.
+      category: admin
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Platform admin permission required
+  
+  suggestedRoles:
+    - name: machine-state-viewer
+      title: Machine State Viewer
+      description: Read-only access to machine state data
+      permissions:
+        - machine-state.read
+      principalType: user
+    
+    - name: machine-state-operator
+      title: Machine State Operator
+      description: Operational access to machine state data
+      permissions:
+        - machine-state.read
+        - machine-state.operate
+      principalType: user
+    
+    - name: machine-state-engineer
+      title: Machine State Engineer
+      description: Full configuration and operational access
+      permissions:
+        - machine-state.read
+        - machine-state.operate
+        - machine-state.configure
+      principalType: user
+    
+    - name: machine-state-admin
+      title: Machine State Administrator
+      description: Full machine state product administration
+      permissions:
+        - machine-state.read
+        - machine-state.operate
+        - machine-state.configure
+        - machine-state.admin
+      principalType: group
+  
+  platformRoleMappings:
+    - platformRole: viewer
+      suggestedDomainRole: machine-state-viewer
+      rationale: Platform viewers map to read-only state consumers
+    
+    - platformRole: developer
+      suggestedDomainRole: machine-state-operator
+      rationale: Platform developers map to state operators/analysts
+    
+    - platformRole: owner
+      suggestedDomainRole: machine-state-engineer
+      rationale: Platform owners map to full state engineers
+    
+    - platformRole: admin
+      suggestedDomainRole: machine-state-admin
+      rationale: Platform admins map to state admins
+  
+  dependsOn:
+    - profile: uns
+      reason: Consumes machine-state-event from Unified Namespace topics
+  
+  appliesTo:
+    - kind: Component
+      selector:
+        matchLabels:
+          nexora.io/authorization-profile: machine-state

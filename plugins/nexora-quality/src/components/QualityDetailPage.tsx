@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Content, Link, Page, Progress } from '@backstage/core-components';
+import { Link, Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
-import { Grid, Typography } from '@material-ui/core';
+import { Grid, Typography, makeStyles } from '@material-ui/core';
 import {
   ConnectivityInterface,
   DataProductHealth,
@@ -16,12 +16,22 @@ import {
   ConnectivityCard,
   DataProductHeader,
   HealthCard,
+  NexoraSection,
+  NexoraToolPage,
   ProviderGate,
   nexoraConnectivityApiRef,
   nexoraDataQualityApiRef,
 } from '@internal/plugin-nexora-common';
 
+const useStyles = makeStyles({
+  breadcrumb: {
+    marginBottom: 24,
+    fontSize: 14,
+  },
+});
+
 export function QualityDetailPage() {
+  const classes = useStyles();
   const { name } = useParams();
   const catalogApi = useApi(catalogApiRef);
   const [product, setProduct] = useState<IndustrialDataProduct>();
@@ -44,31 +54,52 @@ export function QualityDetailPage() {
       .catch(() => setLoading(false));
   }, [catalogApi, name]);
 
+  if (loading) {
+    return (
+      <NexoraToolPage
+        eyebrow="Industrial · Governance"
+        title="Data Quality"
+        principle="Loading..."
+        copy=""
+      >
+        <Progress />
+      </NexoraToolPage>
+    );
+  }
+
+  if (!product) {
+    return (
+      <NexoraToolPage
+        eyebrow="Industrial · Governance"
+        title="Data Quality"
+        principle="Product not found"
+        copy=""
+      >
+        <Typography>This Data Product is not in the catalog.</Typography>
+      </NexoraToolPage>
+    );
+  }
+
   return (
-    <Page themeId="tool">
-      <Content>
-        {loading && <Progress />}
-        {!loading && !product && (
-          <Typography>This Data Product is not in the catalog.</Typography>
-        )}
-        {product && (
-          <>
-            <DataProductHeader
-              title={product.title}
-              owner={product.owner}
-              lifecycle={product.lifecycle}
-              version={product.version}
-            />
-            <Typography variant="body2" paragraph>
-              <Link to="/quality">All quality views</Link>
-              {' · '}
-              <Link to={industrialContractPath(product.name)}>Contract</Link>
-            </Typography>
-            <QualityAndConnectivityCards entityRef={product.entityRef} />
-          </>
-        )}
-      </Content>
-    </Page>
+    <NexoraToolPage
+      eyebrow="Industrial · Governance"
+      title={product.title}
+      principle="Quality and connectivity overview"
+      copy={`Data Product version ${product.version}`}
+    >
+      <div className={classes.breadcrumb}>
+        <Link to="/quality">← Back to all quality views</Link>
+        {' · '}
+        <Link to={industrialContractPath(product.name)}>Contract</Link>
+      </div>
+      <DataProductHeader
+        title={product.title}
+        owner={product.owner}
+        lifecycle={product.lifecycle}
+        version={product.version}
+      />
+      <QualityAndConnectivityCards entityRef={product.entityRef} />
+    </NexoraToolPage>
   );
 }
 
@@ -102,8 +133,8 @@ export function QualityAndConnectivityCards({
     : [];
 
   return (
-    <Grid container spacing={2}>
-      <Grid item xs={12}>
+    <>
+      <NexoraSection title="Data Quality" testId="quality">
         <ProviderGate
           title="Data quality"
           result={quality}
@@ -119,9 +150,8 @@ export function QualityAndConnectivityCards({
             </Grid>
           )}
         </ProviderGate>
-      </Grid>
-      <Grid item xs={12} id="connectivity">
-        <Typography variant="h6">Connectivity</Typography>
+      </NexoraSection>
+      <NexoraSection title="Connectivity" testId="connectivity">
         <ProviderGate
           title="Connectivity"
           result={connectivity}
@@ -137,7 +167,7 @@ export function QualityAndConnectivityCards({
             </Grid>
           )}
         </ProviderGate>
-      </Grid>
-    </Grid>
+      </NexoraSection>
+    </>
   );
 }

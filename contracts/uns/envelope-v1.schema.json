@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/envelope-v1.schema.json",
+  "title": "UNS Envelope v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "eventId", "timestamp", "sourceSystem", "dataQuality", "payload"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "eventId": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sourceSystem": { "type": "string" },
+    "enterpriseId": { "type": ["string", "null"] },
+    "siteId": { "type": ["string", "null"] },
+    "areaId": { "type": ["string", "null"] },
+    "lineId": { "type": ["string", "null"] },
+    "equipmentId": { "type": ["string", "null"] },
+    "orderId": { "type": ["string", "null"] },
+    "batchId": { "type": ["string", "null"] },
+    "dataQuality": {
+      "type": "string",
+      "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"]
+    },
+    "payload": { "type": "object" }
+  }
+}

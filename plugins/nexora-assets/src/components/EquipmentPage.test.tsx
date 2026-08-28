@@ -151,7 +151,7 @@ describe('Asset & Equipment Explorer', () => {
 
   it('renders equipment metadata and related Data Products', async () => {
     await renderDetail('/equipment/filler-01');
-    expect(screen.getByText('FILLER-01')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'FILLER-01' })).toBeInTheDocument();
     expect(screen.getByText('basel')).toBeInTheDocument();
     expect(screen.getByText('OEE Data Product')).toBeInTheDocument();
     expect(screen.getAllByText('MQTT').length).toBeGreaterThan(0);
@@ -177,7 +177,7 @@ describe('Asset & Equipment Explorer', () => {
 
   it('renders generic W&D metrics for a dispenser', async () => {
     await renderDetail('/equipment/dispenser-01');
-    expect(screen.getByText('DISPENSER-01')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'DISPENSER-01' })).toBeInTheDocument();
     expect(screen.getByText('Last Weight')).toBeInTheDocument();
   });
 });

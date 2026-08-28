@@ -1,0 +1,30 @@
+﻿app-config.docker.yaml:18:password: ENV_PLACEHOLDER
+app-config.docker.yaml:34:clientSecret: ENV_PLACEHOLDER
+app-config.github.yaml:19:clientSecret: ENV_PLACEHOLDER
+app-config.github.yaml:20:privateKey: ENV_PLACEHOLDER
+app-config.github.yaml:21:webhookSecret: ENV_PLACEHOLDER
+app-config.production.yaml:13:- secret: ENV_PLACEHOLDER
+app-config.production.yaml:20:password: ENV_PLACEHOLDER
+app-config.production.yaml:39:clientSecret: ENV_PLACEHOLDER
+app-config.yaml:25:#     - secret: ENV_PLACEHOLDER
+app-config.yaml:61:token: ENV_PLACEHOLDER
+app-config.yaml:65:#   token: ENV_PLACEHOLDER
+app-config.yaml:110:clientSecret: ENV_PLACEHOLDER
+docker-compose.production.yml:19:POSTGRES_PASSWORD: ENV_PLACEHOLDER
+docker-compose.production.yml:50:BACKEND_SECRET: ENV_PLACEHOLDER
+docker-compose.production.yml:52:AUTH_GITHUB_CLIENT_SECRET: ENV_PLACEHOLDER
+docker-compose.production.yml:56:GITHUB_CLIENT_SECRET: ENV_PLACEHOLDER
+docker-compose.production.yml:58:GITHUB_WEBHOOK_SECRET: ENV_PLACEHOLDER
+docker-compose.production.yml:63:POSTGRES_PASSWORD: ENV_PLACEHOLDER
+docker-compose.validation.yml:21:POSTGRES_PASSWORD: ENV_PLACEHOLDER
+docker-compose.validation.yml:47:BACKEND_SECRET: ENV_PLACEHOLDER
+docker-compose.validation.yml:49:AUTH_GITHUB_CLIENT_SECRET: ENV_PLACEHOLDER
+docker-compose.validation.yml:53:GITHUB_CLIENT_SECRET: ENV_PLACEHOLDER
+docker-compose.validation.yml:55:GITHUB_WEBHOOK_SECRET: ENV_PLACEHOLDER
+docker-compose.validation.yml:60:POSTGRES_PASSWORD: ENV_PLACEHOLDER
+docker-compose.yml:12:POSTGRES_PASSWORD: ENV_PLACEHOLDER
+docker-compose.yml:36:POSTGRES_PASSWORD: ENV_PLACEHOLDER
+docker-compose.yml:39:AUTH_GITHUB_CLIENT_SECRET: ENV_PLACEHOLDER
+docker-compose.yml:41:GITHUB_TOKEN: ENV_PLACEHOLDER
+docker-compose.yml:44:GITHUB_CLIENT_SECRET: ENV_PLACEHOLDER
+docker-compose.yml:46:GITHUB_WEBHOOK_SECRET: ENV_PLACEHOLDER

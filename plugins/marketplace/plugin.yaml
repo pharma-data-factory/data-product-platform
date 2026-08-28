@@ -1,0 +1,15 @@
+id: marketplace
+name: Marketplace
+description: Data Product Golden Path catalog (not a plugin store)
+
+type: PLATFORM
+lifecycle: ENABLED
+
+frontend:
+  package: "@internal/plugin-marketplace"
+  route: "/marketplace"
+
+owner: platform-team
+
+validation:
+  status: NOT_ESTABLISHED

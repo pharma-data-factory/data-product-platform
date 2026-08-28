@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/handling-unit-v1.schema.json",
+  "title": "UNS Handling Unit v1",
+  "type": "object",
+  "required": ["schemaVersion", "huId", "materialId", "quantity", "status", "location"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "huId": { "type": "string" },
+    "materialId": { "type": "string" },
+    "quantity": { "type": "number" },
+    "status": {
+      "type": "string",
+      "enum": ["AVAILABLE", "STAGED", "IN_TRANSIT", "CONSUMED", "DELAYED", "RECEIVED"]
+    },
+    "location": { "type": "string" }
+  }
+}

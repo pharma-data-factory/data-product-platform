@@ -1,0 +1,126 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfile
+metadata:
+  name: aas
+  title: Asset Administration Shell Authorization Profile
+  namespace: default
+  annotations:
+    description: Authorization profile for AAS Data Product
+    platform: data-product-factory
+    templatePath: templates/aas-data-product
+    standard: IEC 63278
+
+spec:
+  domain: aas
+  title: Asset Administration Shell Authorization Profile
+  description: |
+    Authorization profile for AAS (Asset Administration Shell) Data Product Golden Path.
+    Implements IEC 63278 / IDTA-01001 v3.0 asset semantics with controlled access.
+    Controls access to asset registry, semantic models, and multi-source ingestion.
+  
+  permissions:
+    - name: aas.read
+      title: Read Asset Data
+      description: |
+        View Asset Administration Shell assets, semantic models (IEC 63278),
+        asset metadata, and asset relationships.
+      category: read
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: REST API endpoints verify permissions before returning asset data
+    
+    - name: aas.operate
+      title: Operate Assets
+      description: |
+        Query asset registry, retrieve asset specifications,
+        and access asset catalog endpoints.
+      category: operate
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: Query endpoints check user permissions
+    
+    - name: aas.configure
+      title: Configure Assets
+      description: |
+        Configure asset data sources (MQTT/REST/File), semantic validation rules,
+        asset metadata mappings, and ingestion policies.
+      category: configure
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Backstage enforces permission before configuration changes
+    
+    - name: aas.admin
+      title: Administer Assets
+      description: |
+        Full asset data product administration including asset registry management,
+        IEC 63278 compliance updates, catalog synchronization, and lifecycle management.
+      category: admin
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Platform admin permission required
+  
+  suggestedRoles:
+    - name: aas-viewer
+      title: AAS Viewer
+      description: Read-only access to asset registry
+      permissions:
+        - aas.read
+      principalType: user
+    
+    - name: aas-operator
+      title: AAS Operator
+      description: Operational access to asset data and queries
+      permissions:
+        - aas.read
+        - aas.operate
+      principalType: user
+    
+    - name: aas-engineer
+      title: AAS Engineer
+      description: Full configuration and operational access to assets
+      permissions:
+        - aas.read
+        - aas.operate
+        - aas.configure
+      principalType: user
+    
+    - name: aas-admin
+      title: AAS Administrator
+      description: Full asset data product administration
+      permissions:
+        - aas.read
+        - aas.operate
+        - aas.configure
+        - aas.admin
+      principalType: group
+  
+  platformRoleMappings:
+    - platformRole: viewer
+      suggestedDomainRole: aas-viewer
+      rationale: Platform viewers map to read-only asset consumers
+    
+    - platformRole: developer
+      suggestedDomainRole: aas-operator
+      rationale: Platform developers map to asset operators/analysts
+    
+    - platformRole: owner
+      suggestedDomainRole: aas-engineer
+      rationale: Platform owners map to full asset engineers
+    
+    - platformRole: admin
+      suggestedDomainRole: aas-admin
+      rationale: Platform admins map to asset admins
+  
+  appliesTo:
+    - kind: Component
+      selector:
+        matchLabels:
+          nexora.io/authorization-profile: aas

@@ -1,0 +1,8 @@
+id: SCN-AI-004
+name: Device Assembly Breakdown
+version: "0.1.0"
+description: DEVICE-ASSEMBLER-01 enters BREAKDOWN.
+seedDefault: 42
+expected:
+  deviceAssemblerState: BREAKDOWN
+  assemblyBlocked: false

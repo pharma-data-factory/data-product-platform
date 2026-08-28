@@ -1,0 +1,335 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfileRegistry
+metadata:
+  name: platform-authorization-registry
+  title: Platform Authorization Profile Registry
+  namespace: default
+  annotations:
+    description: Central registry of all authorization profiles across Golden Paths
+    platform: data-product-factory
+    lastUpdated: "2026-08-26"
+
+spec:
+  # Registry metadata
+  registryVersion: "1.0.0"
+  platformVersion: "1.0.0"
+  description: |
+    Central registry of all authorization profiles for the Pharma Data Factory platform.
+    Automatically loads all domain authorization profiles and registers permissions.
+    Enables central Platform RBAC discovery of domain-specific permissions.
+
+  # Profile catalog (automatically populated)
+  profiles:
+    - name: oee
+      title: OEE (Overall Equipment Effectiveness) Authorization Profile
+      path: templates/oee-data-product/authorization.yaml
+      domain: oee
+      status: active
+      certificationStatus: certified
+      description: Controls access to OEE calculations, metrics, and configuration
+      permissions:
+        - oee.read
+        - oee.operate
+        - oee.configure
+        - oee.admin
+      roles:
+        - oee-viewer
+        - oee-operator
+        - oee-engineer
+        - oee-admin
+
+    - name: mqtt
+      title: MQTT Temperature Authorization Profile
+      path: templates/mqtt-temperature-product/authorization.yaml
+      domain: mqtt
+      status: active
+      certificationStatus: certified
+      description: Controls access to MQTT temperature data ingestion and queries
+      permissions:
+        - mqtt.read
+        - mqtt.operate
+        - mqtt.configure
+        - mqtt.admin
+      roles:
+        - mqtt-viewer
+        - mqtt-operator
+        - mqtt-engineer
+        - mqtt-admin
+
+    - name: equipment
+      title: Equipment Master Data Authorization Profile
+      path: templates/rest-equipment-product/authorization.yaml
+      domain: equipment
+      status: active
+      certificationStatus: certified
+      description: Controls access to equipment master data and catalog
+      permissions:
+        - equipment.read
+        - equipment.operate
+        - equipment.configure
+        - equipment.admin
+      roles:
+        - equipment-viewer
+        - equipment-operator
+        - equipment-engineer
+        - equipment-admin
+
+    - name: aas
+      title: Asset Administration Shell Authorization Profile
+      path: templates/aas-data-product/authorization.yaml
+      domain: aas
+      status: active
+      certificationStatus: certified
+      description: Controls access to IEC 63278 asset registry
+      permissions:
+        - aas.read
+        - aas.operate
+        - aas.configure
+        - aas.admin
+      roles:
+        - aas-viewer
+        - aas-operator
+        - aas-engineer
+        - aas-admin
+
+    - name: uns
+      title: Unified Namespace Authorization Profile
+      path: templates/unified-namespace/authorization.yaml
+      domain: uns
+      status: active
+      certificationStatus: development
+      description: Controls access to MQTT topic governance and contracts
+      permissions:
+        - uns.read
+        - uns.operate
+        - uns.configure
+        - uns.admin
+      roles:
+        - uns-viewer
+        - uns-subscriber
+        - uns-engineer
+        - uns-admin
+
+    - name: machine-state
+      title: Machine State Consumer Authorization Profile
+      path: templates/machine-state-consumer/authorization.yaml
+      domain: machine-state
+      status: active
+      certificationStatus: certified
+      description: Controls access to machine state consumption from UNS
+      permissions:
+        - machine-state.read
+        - machine-state.operate
+        - machine-state.configure
+        - machine-state.admin
+      roles:
+        - machine-state-viewer
+        - machine-state-operator
+        - machine-state-engineer
+        - machine-state-admin
+
+  # All registered permissions (by domain)
+  permissions:
+    oee:
+      - name: oee.read
+        title: Read OEE Data
+        category: read
+        runtimeEnforcement: IMPLEMENTED
+      - name: oee.operate
+        title: Operate OEE
+        category: operate
+        runtimeEnforcement: IMPLEMENTED
+      - name: oee.configure
+        title: Configure OEE
+        category: configure
+        runtimeEnforcement: EXTERNAL
+      - name: oee.admin
+        title: Administer OEE
+        category: admin
+        runtimeEnforcement: EXTERNAL
+
+    mqtt:
+      - name: mqtt.read
+        title: Read MQTT Data
+        category: read
+        runtimeEnforcement: IMPLEMENTED
+      - name: mqtt.operate
+        title: Operate MQTT
+        category: operate
+        runtimeEnforcement: IMPLEMENTED
+      - name: mqtt.configure
+        title: Configure MQTT
+        category: configure
+        runtimeEnforcement: EXTERNAL
+      - name: mqtt.admin
+        title: Administer MQTT
+        category: admin
+        runtimeEnforcement: EXTERNAL
+
+    equipment:
+      - name: equipment.read
+        title: Read Equipment Data
+        category: read
+        runtimeEnforcement: IMPLEMENTED
+      - name: equipment.operate
+        title: Operate Equipment
+        category: operate
+        runtimeEnforcement: IMPLEMENTED
+      - name: equipment.configure
+        title: Configure Equipment
+        category: configure
+        runtimeEnforcement: EXTERNAL
+      - name: equipment.admin
+        title: Administer Equipment
+        category: admin
+        runtimeEnforcement: EXTERNAL
+
+    aas:
+      - name: aas.read
+        title: Read Asset Data
+        category: read
+        runtimeEnforcement: IMPLEMENTED
+      - name: aas.operate
+        title: Operate Assets
+        category: operate
+        runtimeEnforcement: IMPLEMENTED
+      - name: aas.configure
+        title: Configure Assets
+        category: configure
+        runtimeEnforcement: EXTERNAL
+      - name: aas.admin
+        title: Administer Assets
+        category: admin
+        runtimeEnforcement: EXTERNAL
+
+    uns:
+      - name: uns.read
+        title: Read MQTT Topics
+        category: read
+        runtimeEnforcement: NOT_REQUIRED
+      - name: uns.operate
+        title: Subscribe to MQTT Topics
+        category: operate
+        runtimeEnforcement: EXTERNAL
+      - name: uns.configure
+        title: Configure Namespace
+        category: configure
+        runtimeEnforcement: EXTERNAL
+      - name: uns.admin
+        title: Administer Namespace
+        category: admin
+        runtimeEnforcement: EXTERNAL
+
+    machine-state:
+      - name: machine-state.read
+        title: Read Machine State
+        category: read
+        runtimeEnforcement: IMPLEMENTED
+      - name: machine-state.operate
+        title: Operate Machine State
+        category: operate
+        runtimeEnforcement: IMPLEMENTED
+      - name: machine-state.configure
+        title: Configure Machine State Consumer
+        category: configure
+        runtimeEnforcement: EXTERNAL
+      - name: machine-state.admin
+        title: Administer Machine State
+        category: admin
+        runtimeEnforcement: EXTERNAL
+
+  # Platform role mappings (central RBAC)
+  platformRoles:
+    - name: viewer
+      title: Platform Viewer
+      description: View-only access to all domains
+      suggestedDomainRoles:
+        - oee-viewer
+        - mqtt-viewer
+        - equipment-viewer
+        - aas-viewer
+        - uns-viewer
+        - machine-state-viewer
+
+    - name: developer
+      title: Platform Developer
+      description: Operational access to all domains
+      suggestedDomainRoles:
+        - oee-operator
+        - mqtt-operator
+        - equipment-operator
+        - aas-operator
+        - uns-subscriber
+        - machine-state-operator
+
+    - name: owner
+      title: Platform Owner
+      description: Full configuration and operational access
+      suggestedDomainRoles:
+        - oee-engineer
+        - mqtt-engineer
+        - equipment-engineer
+        - aas-engineer
+        - uns-engineer
+        - machine-state-engineer
+
+    - name: admin
+      title: Platform Admin
+      description: Full administrative access
+      suggestedDomainRoles:
+        - oee-admin
+        - mqtt-admin
+        - equipment-admin
+        - aas-admin
+        - uns-admin
+        - machine-state-admin
+
+  # Permission statistics
+  statistics:
+    totalProfiles: 6
+    totalDomains: 6
+    totalPermissions: 24
+    permissionsByCategory:
+      read: 6
+      operate: 6
+      configure: 6
+      admin: 6
+    runtimeEnforcement:
+      implemented: 12
+      external: 10
+      notRequired: 2
+    avgPermissionsPerDomain: 4
+    avgRolesPerDomain: 4
+
+  # Certification and compliance
+  compliance:
+    mvpCompliance: "1.0.0"
+    architectureBoundary: "confirmed"
+    backstageRuntimeDependencies: "none-in-generated-products"
+    centralPlatformRbac: "single-instance"
+    description: |
+      All Golden Paths registered with authorization profiles.
+      No duplication of platform RBAC. No Backstage runtime dependencies
+      introduced into generated products. Architecture boundaries maintained.
+
+---
+# Discovery configuration for Backstage plugin
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authorization-profile-discovery
+  namespace: default
+  labels:
+    app: platform-authorization-discovery
+
+data:
+  registryPath: "docs/architecture/authorization-profile-registry.yaml"
+  profilesPath: "templates/*/authorization.yaml"
+  discoveryMode: "automatic"
+  updateInterval: "24h"
+  description: |
+    Configuration for automatic discovery of authorization profiles.
+    Backstage plugin scans profiles path and loads all profiles into
+    central authorization registry. Central RBAC can then query registry
+    for domain-specific permissions and register them.
+

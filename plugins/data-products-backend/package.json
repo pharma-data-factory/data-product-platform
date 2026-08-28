@@ -28,6 +28,7 @@
     "@backstage/integration": "^2.0.3",
     "@backstage/plugin-catalog-node": "^2.2.3",
     "@backstage/plugin-permission-common": "^0.9.9",
+    "@internal/data-product-consumption": "workspace:^",
     "@internal/platform-common": "workspace:^",
     "express": "^4.22.0",
     "express-promise-router": "^4.1.1"

@@ -1,7 +1,7 @@
-# Formal evidence conventions — Platform Core 1.0-RC1
+# Formal evidence conventions — Platform Core 1.0-RC2
 
 **Baseline:** PDF-PC-VAL-BL-1.0  
-**Candidate:** Platform Core 1.0-RC1  
+**Candidate:** Platform Core 1.0-RC2  
 **Validation status:** NOT_VALIDATED  
 
 These rules apply to IQ, OQ, and UAT evidence under `validation/execution/`. They do not introduce Part 11 electronic signatures.
@@ -10,7 +10,7 @@ These rules apply to IQ, OQ, and UAT evidence under `validation/execution/`. The
 
 | Field | Rule |
 | --- | --- |
-| candidate_version | `1.0-RC1` (or later candidate ID) |
+| candidate_version | `1.0-RC2` (or later candidate ID) |
 | test_id | Protocol ID (e.g. IQ-003, OQ-AUTH-002, UAT-001) |
 | execution_timestamp | Actual ISO-8601 time of execution. Do not invent. |
 | executor | Named human executor. Do not invent. |
@@ -37,6 +37,8 @@ Developer Jest/CI results are **technical candidates**, not formal IQ/OQ/UAT evi
 
 Place records under `validation/execution/evidence/` using `{test_id}-{date}.md` or an equivalent unique name. Findings go to `validation/execution/findings/`.
 
+RC2 OQ evidence: `validation/execution/evidence/OQ/RC2/`.
+
 ## Findings
 
-A failed or blocked formal test requires a finding record: test ID, URS, severity, impact, and whether a post-RC1 change record is required.
+A failed or blocked formal test requires a finding record: test ID, URS, severity, impact, and whether a post-candidate change record is required.

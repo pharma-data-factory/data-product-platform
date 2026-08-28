@@ -13,6 +13,7 @@ const MARKETPLACE_HREF: Record<string, string> = {
   'mqtt-temperature': '/marketplace/mqtt-temperature-data-product',
   'rest-equipment': '/marketplace/rest-equipment-data-product',
   oee: '/marketplace/oee-data-product',
+  'aas-data-product': '/marketplace/aas-data-product',
 };
 
 type LossFeatureStatus = 'in-1.0' | 'foundation' | 'planned';
@@ -126,6 +127,15 @@ function GoldenPathIcon({ id }: Readonly<{ id: string }>) {
           <circle cx="18" cy="26" r="4" />
           <rect x="26" y="16" width="8" height="12" rx="1" />
           <path d="M28 20 h4 M28 24 h4" />
+        </g>
+      ) : null}
+      {id === 'aas-data-product' ? (
+        <g {...common}>
+          <rect x="14" y="15" width="16" height="14" rx="1.5" />
+          <path d="M17 13 h10 v2 h-10" />
+          <path d="M18 20 h8 M18 24 h6" />
+          <circle cx="16" cy="27" r="1.5" fill={PHARMA_TEAL} />
+          <circle cx="21" cy="27" r="1.5" fill={PHARMA_TEAL} />
         </g>
       ) : null}
     </svg>

@@ -8,6 +8,7 @@ import {
 import { UserIdentity } from '@backstage/core-components';
 import { SignInPageProps } from '@backstage/plugin-app-react';
 import { hasApprovedPlatformAccess } from '@internal/platform-common';
+import { PublicModelCompanyPage } from '@internal/plugin-model-company';
 import { ArchitecturePage } from '../architecture/ArchitecturePage';
 import { DeveloperArchitecturePage } from '../architecture/DeveloperArchitecturePage';
 import {
@@ -28,12 +29,27 @@ import { createGuestIdentity } from './guestIdentity';
 import { LoginPage } from './LoginPage';
 import { PublicLanding } from './PublicLanding';
 
+function isModelCompanyPath(pathname: string): boolean {
+  return (
+    pathname === '/model-company' || pathname.startsWith('/model-company/')
+  );
+}
+
+function isPublicModelCompanyPath(pathname: string): boolean {
+  return pathname === '/model-company' || pathname === '/model-company/';
+}
+
 export function LandingSignInPage(props: SignInPageProps) {
   const configApi = useApi(configApiRef);
   const discoveryApi = useApi(discoveryApiRef);
   const githubAuth = useApi(githubAuthApiRef);
   const [error, setError] = useState<string>();
-  const [view, setView] = useState<'landing' | 'login' | 'denied'>('landing');
+  const [view, setView] = useState<'landing' | 'login' | 'denied'>(() =>
+    isModelCompanyPath(window.location.pathname) &&
+    !isPublicModelCompanyPath(window.location.pathname)
+      ? 'login'
+      : 'landing',
+  );
   const [deniedLogin, setDeniedLogin] = useState<string>();
 
   const environment =
@@ -47,7 +63,10 @@ export function LandingSignInPage(props: SignInPageProps) {
     setError(undefined);
     setDeniedLogin(undefined);
     setView('landing');
-    if (isPublicArchitecturePath(window.location.pathname)) {
+    if (
+      isPublicArchitecturePath(window.location.pathname) ||
+      isModelCompanyPath(window.location.pathname)
+    ) {
       window.location.assign('/');
     }
   };
@@ -169,6 +188,16 @@ export function LandingSignInPage(props: SignInPageProps) {
       <LegalPage
         pathname={window.location.pathname}
         standalone
+        onSignIn={openLogin}
+      />
+    );
+  }
+
+  if (isPublicModelCompanyPath(window.location.pathname)) {
+    return (
+      <PublicModelCompanyPage
+        publicMode
+        onBack={() => window.location.assign('/')}
         onSignIn={openLogin}
       />
     );

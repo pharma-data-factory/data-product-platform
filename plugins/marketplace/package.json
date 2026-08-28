@@ -28,6 +28,7 @@
     "@backstage/plugin-catalog-react": "^1.21.6",
     "@internal/platform-common": "workspace:^",
     "@internal/plugin-data-products": "workspace:^",
+    "@internal/plugin-nexora-common": "workspace:^",
     "@material-ui/core": "^4.12.2",
     "@material-ui/icons": "^4.9.1"
   },

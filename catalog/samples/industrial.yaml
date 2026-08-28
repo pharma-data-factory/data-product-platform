@@ -156,6 +156,12 @@ metadata:
     nexora.io/data-quality-api: /api/v1/quality
     nexora.io/capabilities-api: /api/v1/capabilities
     nexora.io/contract-api: /api/v1/contracts
+    dataprod.platform/interfaces: REST
+    dataprod.platform/consume-rest-path: /api/v1/oee
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,metric-cards,json,schema,realtime
+    dataprod.platform/presentation-extensions: oee-dashboard
+    dataprod.platform/validation-status: NOT_VALIDATED
 spec:
   type: data-product
   lifecycle: production
@@ -276,3 +282,64 @@ spec:
   dependsOn:
     - component:default/filler-01-oee
     - api:default/filler-01-oee-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: checkweigher-01-oee
+  title: CHECKWEIGHER-01 OEE Data Product
+  description: >
+    Customer Zero OEE Data Product for Autoinjector packaging checkweigher.
+    Consumes Platform UNS topics from Model Company Mosquitto. Calculation stays
+    in the OEE Golden Path engine — not in Model Company.
+  tags:
+    - data-product
+    - oee
+    - model-company
+    - customer-zero
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: '1.0'
+    dataprod.platform/domain: manufacturing
+    dataprod.platform/template: oee-data-product
+    nexora.io/equipment-id: CHECKWEIGHER-01
+    nexora.io/site: MODEL-PHARMA-01
+    nexora.io/line: PKG-L01
+    nexora.io/product-type: oee
+    nexora.io/oee-api: /api/v1/oee
+    nexora.io/data-quality-api: /api/v1/quality
+    nexora.io/capabilities-api: /api/v1/capabilities
+    nexora.io/contract-api: /api/v1/contracts
+    dataprod.platform/interfaces: REST
+    dataprod.platform/consume-rest-path: /api/v1/oee
+    dataprod.platform/consume-base-url: http://127.0.0.1:18080
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,metric-cards,json,schema,realtime
+    dataprod.platform/presentation-extensions: oee-dashboard
+    dataprod.platform/validation-status: NOT_VALIDATED
+spec:
+  type: data-product
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: packaging-line-04
+  providesApis:
+    - checkweigher-01-oee-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: checkweigher-01-oee-api
+  title: CHECKWEIGHER-01 OEE Result Contract
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    dataprod.platform/contract: oee-result
+    dataprod.platform/contract-version: '1.0'
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: packaging-line-04
+  definition: |
+    OEE result contract 1.0 for CHECKWEIGHER-01. Fields: equipmentId, window,
+    availability, performance, quality, oee, calculationStatus.

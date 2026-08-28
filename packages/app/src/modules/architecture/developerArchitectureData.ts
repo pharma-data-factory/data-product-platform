@@ -85,7 +85,7 @@ export const DEVELOPER_BUILD_STEPS: readonly DeveloperBuildStep[] = [
   {
     id: 'runtime',
     title: 'The generated runtime stays independent',
-    body: 'The Data Product serves consumers from its own API. It does not require Nexora to keep running.',
+    body: 'The Data Product serves consumers from its own API. It does not require Pharma Data Factory to keep running.',
     docsHref: documentationHref('control-plane'),
     docsLabel: 'Control Plane vs Data Plane',
     extraHref: documentationHref('architecture-data-product'),

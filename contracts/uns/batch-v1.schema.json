@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/batch-v1.schema.json",
+  "title": "UNS Batch v1",
+  "type": "object",
+  "required": ["schemaVersion", "batchId", "materialId", "orderId", "status", "siteId", "quantity", "uom"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "batchId": { "type": "string" },
+    "materialId": { "type": "string" },
+    "orderId": { "type": "string" },
+    "status": { "type": "string" },
+    "siteId": { "type": "string" },
+    "quantity": { "type": "number" },
+    "uom": { "type": "string" },
+    "startedAt": { "type": ["string", "null"], "format": "date-time" },
+    "completedAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

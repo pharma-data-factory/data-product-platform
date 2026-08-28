@@ -220,6 +220,13 @@ http://localhost:3000 — backend: http://localhost:7007.
 Local `yarn start` without Docker uses SQLite from `app-config.yaml`.
 Do not deploy the root `Dockerfile` as production. Production image:
 `packages/backend/Dockerfile`. Hosted: [Portainer](docs/deployment/portainer.md).
+Production smoke checklist: [Docker production](docs/deployment/docker-production.md).
+
+```powershell
+.\scripts\build-production-image.ps1
+.\scripts\prepare-production-local-env.ps1
+yarn docker:prod:up
+```
 
 ### Configuration files
 

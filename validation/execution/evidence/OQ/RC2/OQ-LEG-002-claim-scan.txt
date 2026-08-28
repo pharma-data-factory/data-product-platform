@@ -1,0 +1,10 @@
+GMP VALIDATED=0
+GxP COMPLIANT=0
+PART 11 COMPLIANT=0
+Part 11 COMPLIANT=0
+NOT_VALIDATED=4
+not GxP=32
+DEGRADED / UNVERIFIED=2
+building blocks, not Data=2
+Platform Components=34
+Platform Component=34

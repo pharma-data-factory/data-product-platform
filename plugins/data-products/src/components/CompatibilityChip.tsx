@@ -1,13 +1,13 @@
 import { Chip } from '@material-ui/core';
 import { CompatibilityStatus } from '../compatibility';
 
-const COLORS: Record<
+const STYLES: Record<
   CompatibilityStatus,
-  'default' | 'primary' | 'secondary'
+  { backgroundColor: string; color: string }
 > = {
-  COMPATIBLE: 'primary',
-  BREAKING_CHANGE: 'secondary',
-  UNKNOWN: 'default',
+  COMPATIBLE: { backgroundColor: '#0D9488', color: '#FFFFFF' },
+  BREAKING_CHANGE: { backgroundColor: '#B91C1C', color: '#FFFFFF' },
+  UNKNOWN: { backgroundColor: '#E2E8F0', color: '#334155' },
 };
 
 export function CompatibilityChip({
@@ -18,8 +18,8 @@ export function CompatibilityChip({
   return (
     <Chip
       size="small"
-      color={COLORS[status]}
       label={status}
+      style={STYLES[status]}
       title="Contract compatibility for active consumers. Not GxP validation."
     />
   );

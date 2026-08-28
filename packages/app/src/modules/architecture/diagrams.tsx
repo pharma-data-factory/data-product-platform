@@ -106,6 +106,16 @@ export function ArchitectureDiagramStyles() {
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 16px;
       }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          max-height: 0;
+        }
+        to {
+          opacity: 1;
+          max-height: 10000px;
+        }
+      }
       @media (max-width: 700px) {
         .pdf-diag { padding: 16px; }
         .pdf-diag-flow { flex-direction: column; align-items: stretch; }
@@ -190,7 +200,7 @@ export function SystemArchitectureDiagram() {
           ))}
         </Layer>
         <Arrow />
-        <Layer title="Nexora">
+        <Layer title="Pharma Data Factory">
           {FACTORY_CAPABILITIES.map(label => (
             <Node key={label} label={label} tone="factory" />
           ))}
@@ -250,7 +260,7 @@ export function DataProductRuntimeDiagram() {
 }
 
 function stepTone(step: string): NodeTone {
-  if (step === 'Nexora') {
+  if (step === 'Pharma Data Factory') {
     return 'factory';
   }
   if (step === 'Certified Golden Path') {

@@ -22,7 +22,9 @@ from app.domain.reason_codes import (
 from app.domain.timeline import build_timeline
 from app.domain.windows import ensure_utc, to_iso, window_seconds
 
-CAPTURE_STATE_ALIASES = {"PLANNED_STOP": "MAINTENANCE"}
+# Platform UNS may emit MICROSTOP; OEE 1.0 machine-state enum maps it to STOPPED
+# so loss classification (duration-based MICROSTOP) remains in the OEE engine.
+CAPTURE_STATE_ALIASES = {"PLANNED_STOP": "MAINTENANCE", "MICROSTOP": "STOPPED"}
 FAILURE_CLASSES = frozenset({LossClass.EQUIPMENT_FAILURE, LossClass.UNPLANNED_DOWNTIME})
 
 

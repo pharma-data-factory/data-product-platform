@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Asset Event Schema",
+  "description": "Asset Administration Shell (AAS) Event Schema - IDTA-01001 v3.0 compliant asset event contract.",
+  "type": "object",
+  "required": [
+    "eventId",
+    "assetId",
+    "timestamp",
+    "assetType",
+    "submodelElements"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "description": "Unique event identifier (UUID v4 recommended).",
+      "pattern": "^[a-f0-9\\-]{36}$|^[a-zA-Z0-9\\-_.]+$"
+    },
+    "assetId": {
+      "type": "string",
+      "description": "Unique asset identifier (idShort or full AAS identifier path).",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the event in UTC."
+    },
+    "assetType": {
+      "type": "string",
+      "description": "AAS asset type classification.",
+      "enum": [
+        "equipment",
+        "sensor",
+        "component",
+        "product",
+        "facility",
+        "other"
+      ]
+    },
+    "sourceSystem": {
+      "type": "string",
+      "description": "Source system identifier (e.g., MQTT, REST, SAP, MES).",
+      "default": "unknown"
+    },
+    "submodelElements": {
+      "type": "object",
+      "description": "AAS submodel elements as key-value pairs (IDTA-01001 v3.0 compatible).",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "object"
+          },
+          {
+            "type": "array"
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional event metadata.",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Schema version identifier."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "MIME type of submodel elements.",
+          "default": "application/json"
+        },
+        "encoding": {
+          "type": "string",
+          "description": "Character encoding.",
+          "default": "UTF-8"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "description": "Optional business context (manufacturing, quality, lifecycle, etc.).",
+      "properties": {
+        "plantId": {
+          "type": "string"
+        },
+        "productionLine": {
+          "type": "string"
+        },
+        "batch": {
+          "type": "string"
+        },
+        "workOrder": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "eventId": "550e8400-e29b-41d4-a716-446655440000",
+      "assetId": "pump-unit-001",
+      "timestamp": "2026-08-24T14:30:00Z",
+      "assetType": "equipment",
+      "sourceSystem": "mqtt",
+      "submodelElements": {
+        "manufacturer": "Bosch Rexroth",
+        "serialNumber": "BR-2024-001",
+        "status": "operational",
+        "temperature": 45.2,
+        "pressure": 3.5,
+        "maintenanceStatus": "scheduled"
+      },
+      "metadata": {
+        "version": "1.0.0",
+        "contentType": "application/json",
+        "encoding": "UTF-8"
+      },
+      "context": {
+        "plantId": "PLANT-DE-01",
+        "productionLine": "LINE-A",
+        "batch": "BATCH-2024-0815",
+        "workOrder": "WO-123456"
+      }
+    }
+  ]
+}

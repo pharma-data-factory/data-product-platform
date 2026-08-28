@@ -1,0 +1,24 @@
+id: plugin-directory
+name: Plugin Directory
+description: Admin inventory of installed Nexora / Backstage plugins
+
+type: PLATFORM
+lifecycle: ENABLED
+
+frontend:
+  package: "@internal/plugin-directory"
+  route: "/admin/plugins"
+
+backend:
+  package: "@internal/plugin-directory-backend"
+  route: "/api/plugin-directory"
+
+owner: platform-team
+
+permissions:
+  - pluginDirectory.read
+  - pluginDirectory.admin
+
+validation:
+  status: NOT_VALIDATED
+  reference: plugin-directory-design.md

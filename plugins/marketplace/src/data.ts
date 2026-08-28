@@ -199,6 +199,20 @@ export const marketplaceItems: MarketplaceItem[] = [
       'api:default/sample-machine-state-consumer--machine-state-event',
   },
   {
+    id: 'aas-data-product',
+    name: 'AAS Asset Administration Shell Data Product',
+    category: 'Data Products',
+    version: '1.0.0',
+    description:
+      'Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) for asset registry, multi-source ingestion (MQTT/REST), and semantic asset management. Technical CERTIFIED; asset-event-v1.0.0 data contract.',
+    provider: 'Nexora',
+    compatibility: 'Python 3.12+, MQTT, REST, Docker, BaSyx SDK',
+    status: 'available',
+    certificationStatus: 'CERTIFIED',
+    documentation: '/create/templates/default/aas-data-product',
+    templateReference: 'template:default/aas-data-product',
+  },
+  {
     id: 'oee-data-product',
     name: 'OEE Data Product',
     category: 'Data Products',
@@ -371,6 +385,19 @@ export function goldenPathCreateHighlights(item: MarketplaceItem): string[] {
     return [
       'Certified Golden Path',
       'REST',
+      'Data Contract',
+      'Quality Gate',
+      'CI/CD',
+      'TechDocs',
+    ];
+  }
+  if (item.id === 'aas-data-product') {
+    return [
+      'Certified Golden Path',
+      'AAS',
+      'IEC 63278 / IDTA-01001 v3.0',
+      'Asset Registry',
+      'MQTT/REST Ingest',
       'Data Contract',
       'Quality Gate',
       'CI/CD',

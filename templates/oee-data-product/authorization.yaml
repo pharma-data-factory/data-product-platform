@@ -1,0 +1,125 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfile
+metadata:
+  name: oee
+  title: OEE Authorization Profile
+  namespace: default
+  annotations:
+    description: Authorization profile for OEE Data Product
+    platform: data-product-factory
+    templatePath: templates/oee-data-product
+
+spec:
+  domain: oee
+  title: OEE (Overall Equipment Effectiveness) Authorization Profile
+  description: |
+    Authorization profile for the OEE Data Product Golden Path.
+    Controls access to OEE calculations, metrics, configuration, and administration.
+  
+  permissions:
+    - name: oee.read
+      title: Read OEE Data
+      description: |
+        View OEE results, metrics (Availability, Performance, Quality),
+        time-series data, and historical calculations.
+      category: read
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: REST API endpoints check user permissions before returning OEE data
+    
+    - name: oee.operate
+      title: Operate OEE
+      description: |
+        Trigger OEE calculations, query results, retrieve metrics for
+        specific equipment, time windows, or contexts.
+      category: operate
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: Calculate and retrieve endpoints enforce permission headers
+    
+    - name: oee.configure
+      title: Configure OEE
+      description: |
+        Configure OEE integration parameters including MQTT topics (machine state,
+        counters), REST API endpoints for production context, equipment identifiers,
+        calculation windows, and data retention policies.
+      category: configure
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Backstage enforces permission before allowing product configuration
+    
+    - name: oee.admin
+      title: Administer OEE
+      description: |
+        Full OEE data product administration including lifecycle management,
+        catalog updates, permission assignments, and data product removal.
+      category: admin
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Platform admin permission required
+  
+  suggestedRoles:
+    - name: oee-viewer
+      title: OEE Viewer
+      description: Read-only access to OEE metrics and results
+      permissions:
+        - oee.read
+      principalType: user
+    
+    - name: oee-operator
+      title: OEE Operator
+      description: Operational access to OEE data and calculations
+      permissions:
+        - oee.read
+        - oee.operate
+      principalType: user
+    
+    - name: oee-engineer
+      title: OEE Engineer
+      description: Full configuration and operational access to OEE
+      permissions:
+        - oee.read
+        - oee.operate
+        - oee.configure
+      principalType: user
+    
+    - name: oee-admin
+      title: OEE Administrator
+      description: Full OEE product administration
+      permissions:
+        - oee.read
+        - oee.operate
+        - oee.configure
+        - oee.admin
+      principalType: group
+  
+  platformRoleMappings:
+    - platformRole: viewer
+      suggestedDomainRole: oee-viewer
+      rationale: Platform viewers map to read-only OEE consumers
+    
+    - platformRole: developer
+      suggestedDomainRole: oee-operator
+      rationale: Platform developers map to OEE operators/analysts
+    
+    - platformRole: owner
+      suggestedDomainRole: oee-engineer
+      rationale: Platform owners map to full OEE engineers
+    
+    - platformRole: admin
+      suggestedDomainRole: oee-admin
+      rationale: Platform admins map to OEE admins
+  
+  appliesTo:
+    - kind: Component
+      selector:
+        matchLabels:
+          nexora.io/authorization-profile: oee

@@ -1,8 +1,14 @@
 site_name: REST Equipment Data Product Template
-site_description: Official Data Product Platform template
-
-nav:
-  - Overview: docs/index.md
-
+site_description: Canonical equipment identity and state over REST
+docs_dir: docs
+theme:
+  name: material
 plugins:
   - techdocs-core
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc
+  - tables
+nav:
+  - Home: index.md

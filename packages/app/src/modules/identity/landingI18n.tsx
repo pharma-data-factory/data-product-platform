@@ -53,6 +53,8 @@ export interface LandingCopy {
     headlineAccent: string;
     demo: string;
     coreLabel: string;
+    /** Top → bottom platform stack under the brand lockup. */
+    coreLayers: readonly [string, string, string];
     dashboardNav: readonly string[];
     metrics: readonly { label: string; value: string; hint: string }[];
     orbit: Record<
@@ -273,6 +275,22 @@ export interface LandingCopy {
     title: string;
     sub: string;
   };
+  consent: {
+    title: string;
+    body: string;
+    privacy: string;
+    close: string;
+    necessaryTitle: string;
+    necessaryBody: string;
+    necessaryBadge: string;
+    analyticsTitle: string;
+    analyticsBody: string;
+    marketingTitle: string;
+    marketingBody: string;
+    acceptAll: string;
+    necessaryOnly: string;
+    savePreferences: string;
+  };
 }
 
 const EN_LEARN_TOPICS = Object.fromEntries(
@@ -342,12 +360,17 @@ const en: LandingCopy = {
     title: 'Keep core systems standardized.\nDeliver Data Products around them.',
     headlinePrimary: 'Keep core systems standardized.',
     headlineAccent: 'Deliver Data Products around them.',
-    sub: 'Nexora is the open platform for Data Products and integrations in life science and industrial environments.',
+    sub: 'Nexora is the open platform for Data Products and integrations in life science and industrial environments, based on an open-source concept.',
     primary: 'See how it works',
     secondary: 'See Golden Paths',
     discover: 'Explore platform',
     demo: 'Book a demo',
     coreLabel: 'Platform',
+    coreLayers: [
+      'User Engagement and Experiences',
+      'Autonomous Execution',
+      'AI & Data Foundation',
+    ],
     sceneLabel: 'Nexora Control Plane beside ERP, MES, LIMS, EWM, historian, CMO platforms and product interfaces',
     protocolLabel: 'How Data Products are consumed',
     overlayTitle: 'OVERVIEW',
@@ -448,7 +471,7 @@ const en: LandingCopy = {
   },
   proof: {
     eyebrow: 'What you can run today',
-    title: 'Three certified Golden Paths. One factory.',
+    title: 'Four certified Golden Paths. One factory.',
     oeeCaption:
       'Overall Equipment Effectiveness per asset and time window — Availability × Performance × Quality — as a product, not an MES report.',
     oee: 'OEE Data Product',
@@ -460,6 +483,7 @@ const en: LandingCopy = {
     api: 'REST API',
     mqttCard: 'Turn MQTT temperature telemetry into a governed product with a contract, quality gate and REST API.',
     restCard: 'Publish equipment state over REST as a versioned Data Product — reusable across lines, not a one-off extract.',
+    aasCard: 'Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) for asset registry, multi-source ingestion, and semantic asset management.',
     footnote: 'CERTIFIED is technical platform status. It is not GxP, CSV, or regulatory validation.',
   },
   learn: {
@@ -634,6 +658,12 @@ const en: LandingCopy = {
         from: 'Chamber',
         via: 'Band',
         to: 'Integrity',
+      },
+      'aas-data-product': {
+        label: 'Asset Administration Shell brings semantic meaning to equipment, then data flows to products',
+        from: 'Equipment',
+        via: 'AAS',
+        to: 'Products',
       },
     },
     items: {
@@ -850,11 +880,45 @@ const en: LandingCopy = {
           'A governed feed that a future quality product can consume without reading logger files',
         ],
       },
+      'aas-data-product': {
+        description:
+          'Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) for asset registry, multi-source ingestion, and semantic asset management.',
+        definition:
+          'AAS Asset Administration Shell is a standardized digital representation of industrial assets (equipment, components, facilities) conforming to IEC 63278-1:2024 and IDTA-01001 v3.0 metamodel. The golden path generates a certified asset registry service that ingests asset events from MQTT, REST, or file sources, validates them against a data contract, and exposes a governed REST API for asset discovery, submodel management, and quality assurance.',
+        problem:
+          'Asset metadata lives in disconnected systems: MES, ERP, maintenance platforms, and spreadsheets. Teams cannot subscribe to a versioned asset identity contract. Each consumer rebuilds or duplicates asset context. When assets move or are decommissioned, changes propagate separately to each system.',
+        logic:
+          'The generated service consumes asset-event contracts from configured sources (MQTT topics, REST endpoints, file uploads) → validates IDTA-01001 v3.0 submodel compliance → persists assets with full submodel element support → exposes a governed REST product API with health checks, observability, tests, Docker build, and catalog metadata. It runs independently of Backstage and can serve as a platform component for downstream data products.',
+        useCases: [
+          'Centralized asset registry for production lines, equipment, and components',
+          'Semantic asset enrichment for OEE, temperature, and equipment data products',
+          'Governance and versioning of asset identity and submodel elements across plants',
+        ],
+      },
     },
   },
   finalCta: {
     title: 'See Temperature, Equipment and OEE on your terms.',
     sub: 'Book a walkthrough of the factory — or sign in if your organization already has access.',
+  },
+  consent: {
+    title: 'Cookie Settings',
+    body: 'We use cookies to provide you with the best possible experience on our website. You can adjust your settings at any time.',
+    privacy: 'Privacy Policy',
+    close: 'Close',
+    necessaryTitle: 'Necessary',
+    necessaryBody:
+      'These cookies are essential for the basic functions of the website and cannot be disabled.',
+    necessaryBadge: 'Always active',
+    analyticsTitle: 'Analytics',
+    analyticsBody:
+      'These cookies help us understand how visitors interact with the website.',
+    marketingTitle: 'Marketing',
+    marketingBody:
+      'These cookies are used to make advertising more relevant to you.',
+    acceptAll: 'Accept all',
+    necessaryOnly: 'Necessary only',
+    savePreferences: 'Save preferences',
   },
 };
 
@@ -876,12 +940,17 @@ const de: LandingCopy = {
     title: 'Kernsysteme standardisiert halten.\nData Products darum herum liefern.',
     headlinePrimary: 'Kernsysteme standardisiert halten.',
     headlineAccent: 'Data Products darum herum liefern.',
-    sub: 'Nexora ist die offene Plattform für Data Products und Integrationen in Life-Science- und industriellen Umgebungen.',
+    sub: 'Nexora ist die offene Plattform für Data Products und Integrationen in Life-Science- und industriellen Umgebungen basierend auf Open-Source Concept.',
     primary: 'So funktioniert es',
     secondary: 'Golden Paths ansehen',
     discover: 'Plattform entdecken',
     demo: 'Demo vereinbaren',
     coreLabel: 'Plattform',
+    coreLayers: [
+      'User Engagement und Experiences',
+      'Autonomous Execution',
+      'AI & Data Foundation',
+    ],
     sceneLabel: 'Nexora Control Plane neben ERP, MES, LIMS, EWM, Historian, CMO-Plattformen und Product-Schnittstellen',
     protocolLabel: 'So werden Data Products genutzt',
     overlayTitle: 'ÜBERSICHT',
@@ -1294,6 +1363,12 @@ const de: LandingCopy = {
         via: 'Band',
         to: 'Integrität',
       },
+      'aas-data-product': {
+        label: 'Asset Administration Shell bringt semantische Bedeutung zur Ausrüstung, dann fließen Daten zu Products',
+        from: 'Ausrüstung',
+        via: 'AAS',
+        to: 'Products',
+      },
     },
     items: {
       'mqtt-temperature': {
@@ -1509,11 +1584,45 @@ const de: LandingCopy = {
           'Gesteuerter Feed, den ein späteres Qualitäts-Product nutzen kann — ohne Logger-Dateien',
         ],
       },
+      'aas-data-product': {
+        description:
+          'Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) für Asset-Register, Multi-Source-Ingest und semantische Asset-Verwaltung.',
+        definition:
+          'AAS Asset Administration Shell ist eine standardisierte digitale Darstellung von Industrieanlagen (Ausrüstungen, Komponenten, Einrichtungen) gemäß IEC 63278-1:2024 und IDTA-01001 v3.0-Metamodell. Der Golden Path erzeugt einen zertifizierten Asset-Registry-Service, der Asset-Events aus MQTT, REST oder Dateien aufnimmt, gegen einen Contract validiert und eine gesteuerte REST-API für Asset-Suche, Submodel-Management und Qualitätssicherung bereitstellt.',
+        problem:
+          'Asset-Metadaten liegen in separaten Systemen: MES, ERP, Wartungsplattformen und Tabellen. Teams können keine versionierte Asset-Identity-API abonnieren. Jeder Verbraucher baut oder dupliziert Asset-Kontext. Wenn Anlagen wechseln oder ausscheiden, propagieren Änderungen separat zu jedem System.',
+        logic:
+          'Der erzeugte Service verbraucht Asset-Event-Contracts aus konfigurierten Quellen (MQTT-Topics, REST-Endpunkte, Datei-Uploads) → validiert IDTA-01001-v3.0-Submodel-Compliance → speichert Assets mit vollem Submodel-Element-Support → stellt eine gesteuerte REST-Product-API mit Health Checks, Observability, Tests, Docker und Katalog bereit. Er läuft unabhängig vom Control Plane und kann als Platform-Component für nachgelagerte Data Products dienen.',
+        useCases: [
+          'Zentrales Asset-Register für Produktionslinien, Ausrüstungen und Komponenten',
+          'Semantische Asset-Anreicherung für OEE-, Temperatur- und Equipment-Products',
+          'Governance und Versionierung der Asset-Identität über mehrere Werke hinweg',
+        ],
+      },
     },
   },
   finalCta: {
     title: 'Temperature, Equipment und OEE auf Ihre Bedingungen sehen.',
     sub: 'Vereinbaren Sie einen Rundgang durch die Factory — oder melden Sie sich an, wenn Ihre Organisation bereits Zugang hat.',
+  },
+  consent: {
+    title: 'Cookie-Einstellungen',
+    body: 'Wir verwenden Cookies, um Ihnen die bestmögliche Erfahrung auf unserer Website zu bieten. Sie können Ihre Einstellungen jederzeit anpassen.',
+    privacy: 'Datenschutzerklärung',
+    close: 'Schließen',
+    necessaryTitle: 'Notwendig',
+    necessaryBody:
+      'Diese Cookies sind für die Grundfunktionen der Website erforderlich und können nicht deaktiviert werden.',
+    necessaryBadge: 'Immer aktiv',
+    analyticsTitle: 'Analyse',
+    analyticsBody:
+      'Diese Cookies helfen uns zu verstehen, wie Besucher mit der Website interagieren.',
+    marketingTitle: 'Marketing',
+    marketingBody:
+      'Diese Cookies werden verwendet, um Werbung relevanter für Sie zu gestalten.',
+    acceptAll: 'Alle akzeptieren',
+    necessaryOnly: 'Nur notwendige',
+    savePreferences: 'Auswahl speichern',
   },
 };
 

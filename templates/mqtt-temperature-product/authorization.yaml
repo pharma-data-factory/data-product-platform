@@ -1,0 +1,124 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfile
+metadata:
+  name: mqtt
+  title: MQTT Temperature Authorization Profile
+  namespace: default
+  annotations:
+    description: Authorization profile for MQTT Temperature Data Product
+    platform: data-product-factory
+    templatePath: templates/mqtt-temperature-product
+
+spec:
+  domain: mqtt
+  title: MQTT Temperature Authorization Profile
+  description: |
+    Authorization profile for MQTT Temperature Data Product Golden Path.
+    Controls access to MQTT sensor data ingestion, querying, and configuration.
+  
+  permissions:
+    - name: mqtt.read
+      title: Read MQTT Data
+      description: |
+        View temperature sensor data, historical readings,
+        and query time-series results from MQTT ingestion.
+      category: read
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: REST API query endpoints verify permissions before returning data
+    
+    - name: mqtt.operate
+      title: Operate MQTT
+      description: |
+        Query and retrieve temperature data, monitor ingestion status,
+        and access MQTT subscription metrics.
+      category: operate
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: Query and metrics endpoints check user permissions
+    
+    - name: mqtt.configure
+      title: Configure MQTT
+      description: |
+        Configure MQTT topic patterns, broker settings, data validation rules,
+        storage parameters, and ingestion thresholds.
+      category: configure
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Backstage enforces permission before product configuration changes
+    
+    - name: mqtt.admin
+      title: Administer MQTT
+      description: |
+        Full MQTT data product administration including lifecycle management,
+        catalog registration, and data deletion.
+      category: admin
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Platform admin permission required
+  
+  suggestedRoles:
+    - name: mqtt-viewer
+      title: MQTT Viewer
+      description: Read-only access to MQTT temperature data
+      permissions:
+        - mqtt.read
+      principalType: user
+    
+    - name: mqtt-operator
+      title: MQTT Operator
+      description: Operational access to MQTT data and monitoring
+      permissions:
+        - mqtt.read
+        - mqtt.operate
+      principalType: user
+    
+    - name: mqtt-engineer
+      title: MQTT Engineer
+      description: Full configuration and operational access
+      permissions:
+        - mqtt.read
+        - mqtt.operate
+        - mqtt.configure
+      principalType: user
+    
+    - name: mqtt-admin
+      title: MQTT Administrator
+      description: Full MQTT data product administration
+      permissions:
+        - mqtt.read
+        - mqtt.operate
+        - mqtt.configure
+        - mqtt.admin
+      principalType: group
+  
+  platformRoleMappings:
+    - platformRole: viewer
+      suggestedDomainRole: mqtt-viewer
+      rationale: Platform viewers map to read-only MQTT data consumers
+    
+    - platformRole: developer
+      suggestedDomainRole: mqtt-operator
+      rationale: Platform developers map to MQTT operators/analysts
+    
+    - platformRole: owner
+      suggestedDomainRole: mqtt-engineer
+      rationale: Platform owners map to full MQTT engineers
+    
+    - platformRole: admin
+      suggestedDomainRole: mqtt-admin
+      rationale: Platform admins map to MQTT admins
+  
+  appliesTo:
+    - kind: Component
+      selector:
+        matchLabels:
+          nexora.io/authorization-profile: mqtt

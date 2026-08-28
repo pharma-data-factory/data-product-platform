@@ -1,0 +1,14 @@
+site_name: Unified Namespace
+site_description: Reusable MQTT namespace management and topic registry
+docs_dir: docs
+theme:
+  name: material
+plugins:
+  - techdocs-core
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc
+  - tables
+nav:
+  - Home: index.md

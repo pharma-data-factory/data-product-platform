@@ -67,6 +67,7 @@ export function HeroArchitecture() {
         <PlatformCore
           active={active === 'mqtt' || active === 'core'}
           label={t.hero.coreLabel}
+          layers={t.hero.coreLayers}
         />
       </div>
       <div className="nx-arch-right">

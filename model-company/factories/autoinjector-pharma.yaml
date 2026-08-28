@@ -1,0 +1,238 @@
+# Nexora Model Pharma — Autoinjector End-to-End (Customer Zero)
+# Synthetic / NON-GxP. Platform UNS Standard 1.0. Not a second platform.
+company:
+  id: model-pharma
+  name: Nexora Model Pharma
+  classification:
+    environment: simulation
+    dataClassification: synthetic
+    gxpScope: out-of-scope
+    productionUse: false
+
+uns:
+  root: uns
+  enterpriseId: model-pharma
+  sourceSystem: model-factory
+  areaSlugs:
+    DRUG-PRODUCT: drug-product
+    DEVICE-ASSEMBLY: device-assembly
+    PACKAGING: packaging
+    FG-WAREHOUSE: warehouse
+
+productFamily: AUTOINJECTOR-100MG
+campaignId: SCN-AI-001
+
+masterData:
+  finishedProduct:
+    materialId: FG-AUTOINJECTOR-100MG
+    description: Autoinjector 100 mg - Commercial Pack
+  drugProduct:
+    materialId: DP-AUTOINJECTOR-100MG
+  primaryContainer:
+    materialId: PC-PFS-100MG
+  deviceComponents:
+    - DEV-BODY-001
+    - DEV-SPRING-001
+    - DEV-CAP-001
+    - DEV-NEEDLE-GUARD-001
+  packagingMaterials:
+    - PKG-LABEL-001
+    - PKG-CARTON-001
+    - PKG-LEAFLET-001
+    - PKG-CASE-001
+    - PKG-PALLET-001
+
+orders:
+  - orderId: PO-DP-100001
+    material: DP-AUTOINJECTOR-100MG
+    batch: DPB-260823-001
+    targetQuantity: 50000
+    lineId: DP-L01
+    role: drug-product
+    linkedDownstream: PO-AI-100002
+  - orderId: PO-AI-100002
+    material: AUTOINJECTOR-DEVICE
+    batch: AIB-260823-001
+    targetQuantity: 48500
+    lineId: AI-L01
+    role: assembly
+    linkedUpstream: PO-DP-100001
+    linkedDownstream: PO-PKG-100003
+  - orderId: PO-PKG-100003
+    material: FG-AUTOINJECTOR-100MG
+    batch: FGB-260823-001
+    targetQuantity: 48000
+    lineId: PKG-L01
+    role: packaging
+    linkedUpstream: PO-AI-100002
+
+sites:
+  - id: MODEL-PHARMA-01
+    name: Model Pharma Plant
+    displayName: Nexora Model Pharma
+    areas:
+      - id: DRUG-PRODUCT
+        name: Drug Product
+        lines:
+          - id: DP-L01
+            name: Drug Product Line
+            equipment:
+              - id: COMPOUNDER-01
+                type: compounder
+                capabilities: [telemetry, state, availability]
+              - id: HOLDING-TANK-01
+                type: holding-tank
+                capabilities: [telemetry, state, availability]
+              - id: STERILE-FILTER-01
+                type: sterile-filter
+                capabilities: [telemetry, state, availability]
+              - id: SYRINGE-FILLER-01
+                type: syringe-filler
+                capabilities: [telemetry, state, counters, speed, rejects, availability]
+              - id: VISUAL-INSPECTION-01
+                type: visual-inspection
+                capabilities: [telemetry, state, rejects, availability]
+
+      - id: DEVICE-ASSEMBLY
+        name: Autoinjector Assembly
+        lines:
+          - id: AI-L01
+            name: Autoinjector Assembly Line
+            equipment:
+              - id: PRIMARY-CONTAINER-FEEDER-01
+                type: feeder
+                capabilities: [telemetry, state, availability]
+              - id: DEVICE-ASSEMBLER-01
+                type: device-assembler
+                capabilities: [telemetry, state, counters, speed, availability]
+              - id: SPRING-ASSEMBLY-01
+                type: spring-assembly
+                capabilities: [telemetry, state, counters, availability]
+              - id: FUNCTIONAL-TESTER-01
+                type: functional-tester
+                capabilities: [telemetry, state, rejects, availability]
+              - id: DEVICE-INSPECTION-01
+                type: device-inspection
+                capabilities: [telemetry, state, rejects, availability]
+
+      - id: PACKAGING
+        name: Final Packaging
+        lines:
+          - id: PKG-L01
+            name: Final Packaging Line
+            equipment:
+              - id: DEVICE-LABELER-01
+                type: labeler
+                capabilities: [telemetry, state, counters, rejects, availability]
+              - id: CARTONER-01
+                type: cartoner
+                capabilities: [telemetry, state, counters, speed, availability]
+              - id: LEAFLET-INSERTER-01
+                type: leaflet-inserter
+                capabilities: [telemetry, state, availability]
+              - id: CHECKWEIGHER-01
+                type: checkweigher
+                capabilities: [telemetry, state, rejects, availability]
+              - id: SERIALIZATION-STATION-01
+                type: serialization
+                capabilities: [telemetry, state, availability]
+              - id: CASE-PACKER-01
+                type: case-packer
+                capabilities: [telemetry, state, counters, availability]
+              - id: PALLETIZER-01
+                type: palletizer
+                capabilities: [telemetry, state, availability]
+
+      - id: FG-WAREHOUSE
+        name: Finished Goods Warehouse
+        lines:
+          - id: FG-WH-01
+            name: FG Warehouse
+            equipment:
+              - id: FG-RECEIVING-01
+                type: warehouse-receiving
+                capabilities: [telemetry, state, availability]
+
+dataProducts:
+  - id: equipment-api
+    name: Equipment Data Product
+    goldenPath: rest-equipment-data-product
+    unsCompatibility: NOT_COMPATIBLE
+    statusSource: integration
+    integration:
+      sourceApiPath: /api/model-company/equipment
+      gap: "REST Equipment GP expects equipment-event schema; Model Company exposes UNS + REST adapter path"
+  - id: oee-checkweigher
+    name: OEE - Checkweigher
+    goldenPath: oee-data-product
+    unsCompatibility: COMPATIBLE
+    statusSource: integration
+    integration:
+      mqttStateTopic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CHECKWEIGHER-01/state
+      mqttCountsTopic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CHECKWEIGHER-01/counts
+      equipmentIds: [CHECKWEIGHER-01]
+  - id: oee-syringe-filler
+    name: OEE — Syringe Filler
+    goldenPath: oee-data-product
+    unsCompatibility: REQUIRES_EXTENSION
+    statusSource: integration
+    integration:
+      mqttStateTopic: uns/model-pharma/MODEL-PHARMA-01/drug-product/DP-L01/SYRINGE-FILLER-01/state
+      mqttCountsTopic: uns/model-pharma/MODEL-PHARMA-01/drug-product/DP-L01/SYRINGE-FILLER-01/counts
+      equipmentIds: [SYRINGE-FILLER-01]
+      gap: "OEE GP UNS state enum / envelope mapping required"
+  - id: oee-device-assembler
+    name: OEE — Device Assembler
+    goldenPath: oee-data-product
+    unsCompatibility: REQUIRES_EXTENSION
+    statusSource: integration
+    integration:
+      mqttStateTopic: uns/model-pharma/MODEL-PHARMA-01/device-assembly/AI-L01/DEVICE-ASSEMBLER-01/state
+      mqttCountsTopic: uns/model-pharma/MODEL-PHARMA-01/device-assembly/AI-L01/DEVICE-ASSEMBLER-01/counts
+      equipmentIds: [DEVICE-ASSEMBLER-01]
+      gap: "OEE GP UNS state enum / envelope mapping required"
+  - id: oee-cartoner
+    name: OEE — Cartoner
+    goldenPath: oee-data-product
+    unsCompatibility: REQUIRES_EXTENSION
+    statusSource: integration
+    integration:
+      mqttStateTopic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CARTONER-01/state
+      mqttCountsTopic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CARTONER-01/counts
+      equipmentIds: [CARTONER-01]
+      gap: "OEE GP UNS state enum / envelope mapping required"
+  - id: batch-genealogy
+    name: Batch Genealogy Data Product
+    goldenPath: none
+    unsCompatibility: CUSTOMER_COMPONENT_GAP
+    statusSource: integration
+    integration:
+      gap: "No customer Batch Genealogy Golden Path / Data Product yet"
+  - id: material-flow
+    name: Material Flow Data Product
+    goldenPath: none
+    unsCompatibility: CUSTOMER_COMPONENT_GAP
+    statusSource: integration
+    integration:
+      gap: "No customer Material Flow Golden Path yet"
+  - id: quality-events
+    name: Quality Event Data Product
+    goldenPath: none
+    unsCompatibility: CUSTOMER_COMPONENT_GAP
+    statusSource: integration
+    integration:
+      gap: "No customer Quality Event Data Product yet"
+  - id: serialization
+    name: Serialization / Aggregation Data Product
+    goldenPath: none
+    unsCompatibility: CUSTOMER_COMPONENT_GAP
+    statusSource: integration
+    integration:
+      gap: "No customer Serialization Data Product yet"
+  - id: finished-goods
+    name: Finished Goods Data Product
+    goldenPath: none
+    unsCompatibility: CUSTOMER_COMPONENT_GAP
+    statusSource: integration
+    integration:
+      gap: "No customer Finished Goods Data Product yet"

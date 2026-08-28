@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/equipment-state-v1.schema.json",
+  "title": "UNS Equipment State v1",
+  "type": "object",
+  "required": ["schemaVersion", "timestamp", "equipmentId", "state", "dataQuality"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "equipmentId": { "type": "string" },
+    "state": {
+      "type": "string",
+      "enum": [
+        "OFF",
+        "IDLE",
+        "SETUP",
+        "RUNNING",
+        "MICROSTOP",
+        "STOPPED",
+        "BREAKDOWN",
+        "MATERIAL_STARVED",
+        "QUALITY_HOLD",
+        "MAINTENANCE",
+        "CHANGEOVER"
+      ]
+    },
+    "previousState": { "type": ["string", "null"] },
+    "reasonCode": { "type": ["string", "null"] },
+    "dataQuality": { "type": "string", "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"] }
+  }
+}

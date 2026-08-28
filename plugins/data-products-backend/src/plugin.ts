@@ -37,6 +37,14 @@ export const dataProductsPlugin = createBackendPlugin({
           certificationOverlayPath(config),
         );
         const releaseOverlay = new FileReleaseOverlay(releaseOverlayPath(config));
+        const consumeBaseUrls: Record<string, string> = {};
+        const consumeCfg = config.getOptionalConfig('dataProducts.consume.baseUrls');
+        if (consumeCfg) {
+          for (const key of consumeCfg.keys()) {
+            const value = consumeCfg.getOptionalString(key);
+            if (value) consumeBaseUrls[key] = value;
+          }
+        }
         httpRouter.use(
           await createRouter({
             logger,
@@ -46,6 +54,7 @@ export const dataProductsPlugin = createBackendPlugin({
             permissions,
             certificationOverlay,
             releaseOverlay,
+            consumeBaseUrls,
           }),
         );
         httpRouter.addAuthPolicy({

@@ -1,0 +1,61 @@
+version: "1.0"
+framework: data-product-consumption
+validationStatus: NOT_VALIDATED
+
+supportedInterfaceTypes:
+  - rest
+  - stream
+  - mqtt
+  - openapi
+
+streamProtocols:
+  - sse
+  - websocket
+
+presentationCapabilities:
+  - table
+  - metric-cards
+  - timeseries
+  - realtime
+  - json
+  - schema
+
+errorModel:
+  - NOT_FOUND
+  - FORBIDDEN
+  - INTERFACE_UNAVAILABLE
+  - TIMEOUT
+  - CONTRACT_VIOLATION
+  - UPSTREAM_UNAVAILABLE
+  - UNKNOWN
+
+permissions:
+  - data-product.view
+  - data-product.consume
+  - data-product.viewQuality
+  - data-product.viewValidation
+  - data-product.admin
+
+extensionRegistration:
+  mechanism: compile-time-registry
+  api: registerDataProductExtension
+  builtIn:
+    - oee-dashboard
+
+endpoints:
+  - GET /consume/products/:entityRef
+  - GET /consume/query
+  - GET /consume/stream
+  - GET /consume/stream-poll
+  - GET /consume/quality/:entityRef
+  - GET /consume/validation/:entityRef
+
+compatibilityMatrix:
+  rest-equipment-data-product: COMPATIBLE_WITH_CHANGES
+  oee-data-product: COMPATIBLE_WITH_CHANGES
+  mqtt-temperature-data-product: COMPATIBLE_WITH_CHANGES
+
+packages:
+  - "@internal/data-product-consumption"
+  - "@internal/plugin-data-products"
+  - "@internal/plugin-data-products-backend"

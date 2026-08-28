@@ -1,0 +1,761 @@
+/**
+ * URS Composer Backend Router
+ *
+ * HTTP endpoints for:
+ * - Business Capabilities
+ * - Requirement Sets (CRUD + workflow)
+ * - Requirements
+ * - Quality checks
+ * - Audit trail
+ *
+ * All operations use Backstage Permission Framework for authorization.
+ */
+
+import express from 'express';
+import Router from 'express-promise-router';
+import { AuthenticationError, InputError, NotAllowedError } from '@backstage/errors';
+import {
+  HttpAuthService,
+  LoggerService,
+  PermissionsService,
+} from '@backstage/backend-plugin-api';
+import { AuthorizeResult, BasicPermission } from '@backstage/plugin-permission-common';
+import {
+  ursReadPermission,
+  ursCreatePermission,
+  ursManagePermission,
+  ursApprovePermission,
+} from '@internal/platform-common';
+import { URSService } from './service';
+import {
+  CreateRequirementSetRequest,
+  CreateRequirementRequest,
+  UpdateRequirementSetRequest,
+  QualityCheckRequest,
+  RejectRequest,
+  CreateRevisionRequest,
+  CreateBaselineRequest,
+  ApproveApprovalStepRequest,
+  RejectApprovalStepRequest,
+} from './types';
+
+export interface RouterOptions {
+  logger: LoggerService;
+  httpAuth: HttpAuthService;
+  permissions?: PermissionsService;
+  service: URSService;
+}
+
+/**
+ * Standard authorization check
+ * (Replicates pattern from model-company-backend, validation-manager-backend)
+ */
+async function authorize(
+  permissions: PermissionsService | undefined,
+  httpAuth: HttpAuthService,
+  req: express.Request,
+  permission: BasicPermission,
+): Promise<string> {
+  if (!permissions) {
+    throw new NotAllowedError('Permission service is not configured');
+  }
+  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  const [decision] = await permissions.authorize([{ permission }], { credentials });
+  if (decision.result !== AuthorizeResult.ALLOW) {
+    throw new NotAllowedError();
+  }
+  // Return authenticated user ref for audit
+  return credentials.principal?.userEntityRef || 'unknown';
+}
+
+/**
+ * Standard error response handler
+ */
+function respondError(res: express.Response, logger: LoggerService, error: unknown) {
+  if (error instanceof AuthenticationError) {
+    res.status(401).json({ error: error.message || 'Unauthorized' });
+    return;
+  }
+  if (error instanceof NotAllowedError) {
+    const message = error.message || 'Forbidden';
+    if (message.includes('not configured')) {
+      logger.error(`Authorization service misconfiguration: ${message}`);
+      res.status(500).json({ error: 'Authorization service unavailable' });
+      return;
+    }
+    res.status(403).json({ error: message });
+    return;
+  }
+  if (error instanceof InputError) {
+    res.status(400).json({ error: String(error) });
+    return;
+  }
+  logger.error(`Unexpected error: ${error}`);
+  res.status(500).json({ error: 'Internal server error' });
+}
+
+export async function createRouter(
+  options: RouterOptions,
+): Promise<express.Router> {
+  const { logger, httpAuth, permissions, service } = options;
+  const router = Router();
+  router.use(express.json());
+
+  // ============================================================================
+  // BUSINESS CAPABILITIES
+  // ============================================================================
+
+  /**
+   * GET /capabilities
+   * List all business capabilities
+   */
+  router.get('/capabilities', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const capabilities = await service.getCapabilities();
+      res.json(capabilities);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /capabilities/:id
+   * Get capability by ID
+   */
+  router.get('/capabilities/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const capability = await service.getCapability(req.params.id);
+      if (!capability) {
+        res.status(404).json({ error: 'Capability not found' });
+        return;
+      }
+      res.json(capability);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  // ============================================================================
+  // REQUIREMENT SETS (URS)
+  // ============================================================================
+
+  /**
+   * POST /requirement-sets
+   * Create new requirement set
+   */
+  router.post('/requirement-sets', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursCreatePermission,
+      );
+      const data = req.body as CreateRequirementSetRequest;
+      const requirementSet = await service.createRequirementSet(data, actor);
+      res.status(201).json(requirementSet);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-sets
+   * List requirement sets with pagination
+   */
+  router.get('/requirement-sets', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const result = await service.listRequirementSets(limit, offset);
+      res.json(result);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-sets/:id
+   * Get requirement set detail
+   */
+  router.get('/requirement-sets/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const requirementSet = await service.getRequirementSet(req.params.id);
+      if (!requirementSet) {
+        res.status(404).json({ error: 'Requirement set not found' });
+        return;
+      }
+      res.json(requirementSet);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * PUT /requirement-sets/:id
+   * Update requirement set (draft only)
+   */
+  router.put('/requirement-sets/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursManagePermission,
+      );
+      const data = req.body as UpdateRequirementSetRequest & {
+        requirements?: Partial<CreateRequirementRequest & { id?: string; requirementId?: string; acceptanceIntent?: string }>[];
+      };
+      const result = await service.updateRequirementSetDraft(
+        req.params.id,
+        data,
+        data.requirements || [],
+        actor,
+      );
+      res.json(result);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-sets/:id/submit
+   * Submit for review
+   */
+  router.post(
+    '/requirement-sets/:id/submit',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursCreatePermission,
+        );
+        const data = req.body as { reason?: string };
+        const updated = await service.submitForReview(req.params.id, actor, data.reason);
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /requirement-sets/:id/approve
+   * Approve requirement set
+   */
+  router.post(
+    '/requirement-sets/:id/approve',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursApprovePermission,
+        );
+        const updated = await service.approveRequirementSet(
+          req.params.id,
+          actor,
+        );
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /requirement-sets/:id/reject
+   * Reject requirement set
+   */
+  router.post(
+    '/requirement-sets/:id/reject',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursApprovePermission,
+        );
+        const data = req.body as RejectRequest;
+        if (!data.reason) {
+          res.status(400).json({ error: 'Rejection reason is required' });
+          return;
+        }
+        const updated = await service.rejectRequirementSet(
+          req.params.id,
+          actor,
+          data.reason,
+        );
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirement-sets/:id/audit
+   * Get audit trail
+   */
+  router.get('/requirement-sets/:id/audit', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const auditTrail = await service.getAuditTrail(req.params.id);
+      res.json(auditTrail);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-sets/:id/approvals
+   * Get approval status
+   */
+  router.get(
+    '/requirement-sets/:id/approvals',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const approvals = await service.getApprovals(req.params.id);
+        res.json(approvals);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // REQUIREMENTS
+  // ============================================================================
+
+  /**
+   * POST /requirement-sets/:setId/requirements
+   * Create requirement
+   */
+  router.post(
+    '/requirement-sets/:setId/requirements',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursCreatePermission,
+        );
+        const data = req.body as CreateRequirementRequest;
+        const requirement = await service.createRequirement(
+          req.params.setId,
+          data,
+          actor,
+        );
+        res.status(201).json(requirement);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirement-sets/:setId/requirements
+   * List requirements for a requirement set
+   */
+  router.get(
+    '/requirement-sets/:setId/requirements',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const requirements = await service.getRequirements(req.params.setId);
+        res.json(requirements);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // QUALITY CHECKS
+  // ============================================================================
+
+  /**
+   * POST /validate
+   * Check single requirement quality
+   */
+  router.post('/validate', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const data = req.body as QualityCheckRequest;
+      const issues = await service.checkRequirementQuality(data);
+      res.json({ issues });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-sets/:id/validate
+   * Check all requirements in a set against the existing URS quality checks
+   */
+  router.post(
+    '/requirement-sets/:id/validate',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const requirements = await service.getRequirements(req.params.id);
+        const issues: Array<{
+          requirementId?: string;
+          issue: string;
+          severity: string;
+          recommendation?: string;
+        }> = [];
+        for (const r of requirements) {
+          const result = await service.checkRequirementQuality({
+            requirementId: r.requirementId,
+            title: r.title,
+            statement: r.statement,
+            gxpRelevance: r.gxpRelevance,
+          });
+          issues.push(...result);
+        }
+        res.json({ issues });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // P1A/P1B REQUIREMENT VERSIONS (Controlled Revisions)
+  // ============================================================================
+
+  /**
+   * POST /requirements/:id/revisions
+   * Create a controlled revision from an existing approved requirement version
+   */
+  router.post(
+    '/requirements/:id/revisions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursCreatePermission,
+        );
+        const data = req.body as CreateRevisionRequest;
+        if (!data.revisionReason) {
+          res.status(400).json({ error: 'revisionReason is required' });
+          return;
+        }
+        const revision = await service.createRevision(
+          req.params.id,
+          data.revisionReason,
+          actor,
+        );
+        res.status(201).json(revision);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirements/:id/versions
+   * Get complete version history for a requirement
+   */
+  router.get(
+    '/requirements/:id/versions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const history = await service.getVersionHistory(req.params.id);
+        if (!history) {
+          res.status(404).json({ error: 'Requirement not found' });
+          return;
+        }
+        res.json(history);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirements/:id/versions/:version
+   * Get one exact controlled version (do not auto-resolve to latest)
+   */
+  router.get(
+    '/requirements/:id/versions/:version',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const version = await service.getVersion(req.params.version);
+        if (!version) {
+          res.status(404).json({ error: 'Version not found' });
+          return;
+        }
+        res.json(version);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // P1A/P1B BASELINES (Immutable Snapshots)
+  // ============================================================================
+
+  /**
+   * POST /requirement-sets/:id/baselines
+   * Create an immutable snapshot of the requirement set at a point in time
+   */
+  router.post(
+    '/requirement-sets/:id/baselines',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursManagePermission,
+        );
+        const data = req.body as CreateBaselineRequest;
+        if (!data.requirementVersionIds || data.requirementVersionIds.length === 0) {
+          res.status(400).json({
+            error: 'requirementVersionIds is required and must not be empty',
+          });
+          return;
+        }
+        const baseline = await service.createBaseline(
+          {
+            ...data,
+            requirementSetId: req.params.id,
+          },
+          actor,
+        );
+        res.status(201).json(baseline);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirement-sets/:id/baselines
+   * List baseline history for a requirement set
+   */
+  router.get(
+    '/requirement-sets/:id/baselines',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+        const offset = parseInt(req.query.offset as string) || 0;
+        const result = await service.listBaselines(
+          req.params.id,
+          limit,
+          offset,
+        );
+        res.json(result);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /baselines/:id
+   * Get baseline detail (stable cross-plugin contract candidate)
+   * 
+   * Returns baseline with full context:
+   * - exact requirement versions
+   * - business capability context
+   * - approval status
+   * - without exposing DB implementation details
+   */
+  router.get('/baselines/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const baseline = await service.getBaseline(req.params.id);
+      if (!baseline) {
+        res.status(404).json({ error: 'Baseline not found' });
+        return;
+      }
+      res.json(baseline);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  // ============================================================================
+  // P1A/P1B APPROVAL WORKFLOWS
+  // ============================================================================
+
+  /**
+   * GET /approval-workflows
+   * List available approval workflow definitions
+   */
+  router.get(
+    '/approval-workflows',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const workflows = await service.listApprovalWorkflows();
+        res.json(workflows);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // P1A/P1B BASELINE SUBMISSION & APPROVAL WORKFLOW
+  // ============================================================================
+
+  /**
+   * POST /baselines/:id/submit
+   * Submit baseline for approval
+   * 
+   * Service orchestrates:
+   * 1. Validate baseline state
+   * 2. Select workflow
+   * 3. Create approval instance
+   * 4. Create steps
+   * 5. Activate first step
+   * 6. Create audit event
+   */
+  router.post(
+    '/baselines/:id/submit',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursManagePermission,
+        );
+        const approval = await service.submitBaseline(req.params.id, actor);
+        res.status(201).json(approval);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // P1A/P1B APPROVAL INSTANCES & DECISIONS
+  // ============================================================================
+
+  /**
+   * GET /approvals/:id
+   * Get approval instance detail including workflow, current step, history
+   */
+  router.get('/approvals/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const approval = await service.getApprovalInstance(req.params.id);
+      if (!approval) {
+        res.status(404).json({ error: 'Approval instance not found' });
+        return;
+      }
+      res.json(approval);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /approvals/:id/steps/:stepId/approve
+   * Approve an active approval step
+   * 
+   * Actor must come from Backstage identity (never from request body).
+   * 
+   * If final step:
+   * - ApprovalInstance → APPROVED
+   * - Baseline → APPROVED
+   * - Requirement Versions → APPROVED
+   * - Previous approved versions → SUPERSEDED
+   * - Audit events created
+   * (all transactional through service layer)
+   */
+  router.post(
+    '/approvals/:id/steps/:stepId/approve',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursApprovePermission,
+        );
+        const data = req.body as ApproveApprovalStepRequest;
+        const updated = await service.approveApprovalStep(
+          req.params.id,
+          req.params.stepId,
+          actor,
+          data.comment,
+        );
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /approvals/:id/steps/:stepId/reject
+   * Reject an active approval step
+   * 
+   * Actor must come from Backstage identity.
+   * Rejection reason/comment required.
+   * Preserves rejected baseline and approval history.
+   */
+  router.post(
+    '/approvals/:id/steps/:stepId/reject',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursApprovePermission,
+        );
+        const data = req.body as RejectApprovalStepRequest;
+        if (!data.reason && !data.comment) {
+          res.status(400).json({ error: 'Rejection reason or comment is required' });
+          return;
+        }
+        const updated = await service.rejectApprovalStep(
+          req.params.id,
+          req.params.stepId,
+          actor,
+          data.reason || data.comment,
+        );
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // HEALTH
+  // ============================================================================
+
+  router.get('/health', (_req: express.Request, res: express.Response) => {
+    res.json({
+      status: 'ok',
+      service: 'urs-composer',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  return router;
+}

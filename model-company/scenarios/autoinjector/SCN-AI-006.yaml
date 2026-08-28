@@ -1,0 +1,10 @@
+id: SCN-AI-006
+name: Packaging Material Missing
+version: "0.1.0"
+description: Required cartons unavailable — packaging cannot proceed.
+seedDefault: 42
+expected:
+  packagingMaterialsStaged: false
+  packagingBatch:
+    status: BLOCKED_MATERIAL
+  packagingBlocked: true

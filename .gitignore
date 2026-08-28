@@ -36,6 +36,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+deploy/production.local.env
+deploy/.smoke-github-app-key.one-line.txt
 
 # Build output
 dist
@@ -65,6 +67,11 @@ e2e-test-report/
 
 # Local template dry-runs
 .tmp/
+
+# Disposable CI/analysis scratch artifacts in the repo root
+.tmp-*
+.tmp_*
+tsc-output.txt
 
 # Generated OEE pilot artifact (recreated by pilot/oee/generate.py)
 pilot/oee/generated/

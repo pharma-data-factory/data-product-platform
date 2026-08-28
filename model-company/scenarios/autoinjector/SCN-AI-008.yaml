@@ -1,0 +1,9 @@
+id: SCN-AI-008
+name: Serialization Outage
+version: "0.1.0"
+description: Serialization service unavailable — packaging responds appropriately.
+seedDefault: 42
+expected:
+  serializationAvailable: false
+  packagingBatch:
+    status: BLOCKED_SERIALIZATION

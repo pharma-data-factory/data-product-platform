@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/equipment-availability-v1.schema.json",
+  "title": "UNS Equipment Availability v1",
+  "type": "object",
+  "required": ["schemaVersion", "timestamp", "status", "source", "dataQuality"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["ONLINE", "OFFLINE", "DEGRADED"] },
+    "source": { "type": "string" },
+    "dataQuality": { "type": "string", "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"] }
+  }
+}

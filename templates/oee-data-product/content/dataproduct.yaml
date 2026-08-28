@@ -1,0 +1,44 @@
+# Declarative Data Product descriptor (Consumption Framework v1).
+# Catalog Component remains the system of record; this file documents the
+# product-facing model for generated repositories.
+apiVersion: platform.nexora.io/v1alpha1
+kind: DataProduct
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+spec:
+  domain: ${{ values.domain }}
+  owner: ${{ values.owner }}
+  lifecycle: ${{ values.lifecycle }}
+  interfaces:
+    - id: query
+      type: rest
+      path: /api/v1/oee
+    - id: realtime
+      type: stream
+      protocol: websocket
+    - id: source
+      type: mqtt
+      topic: uns/{enterprise}/{site}/{area}/{line}/{equipment}/oee
+  contracts:
+    inputs:
+      - equipment-state-v1
+      - equipment-counts-v1
+    outputs:
+      - oee-result-v1
+  quality:
+    freshnessTargetSeconds: 10
+    completenessTarget: 0.99
+  presentation:
+    defaultView: metrics
+    capabilities:
+      - table
+      - metric-cards
+      - realtime
+      - json
+      - schema
+    extensions:
+      - oee-dashboard
+  validation:
+    status: NOT_VALIDATED

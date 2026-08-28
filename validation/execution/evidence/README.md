@@ -1,10 +1,10 @@
-# Formal evidence
+# Evidence
 
-| Path | Content |
-| --- | --- |
-| `validation/execution/evidence/IQ/` | RC1 historical IQ evidence (preserved) |
-| `validation/execution/evidence/IQ/RC2/` | RC2 formal IQ re-test evidence |
+| Phase | Path | Notes |
+| --- | --- | --- |
+| IQ RC1 | `IQ/` | Preserved |
+| IQ RC2 | `IQ/RC2/` | Re-test PASS WITH OPEN OBSERVATIONS |
+| OQ RC2 | `OQ/RC2/` | Formal OQ executed; overall BLOCKED |
+| UAT | — | NOT_EXECUTED |
 
-Named human executor: **NOT_ESTABLISHED** (recorded; not fabricated).
-
-OQ/UAT evidence: none (NOT_EXECUTED).
+Product validation status remains NOT_VALIDATED.

@@ -1,0 +1,9 @@
+id: SCN-AI-003
+name: Filling Reject Spike
+version: "0.1.0"
+description: SYRINGE-FILLER-01 reject rate increases substantially.
+seedDefault: 42
+expected:
+  drugProductBatch:
+    rejectQuantityMin: 2500
+  assemblyBlocked: false

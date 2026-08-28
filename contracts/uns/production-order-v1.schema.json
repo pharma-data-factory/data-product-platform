@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/production-order-v1.schema.json",
+  "title": "UNS Production Order v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "orderId",
+    "materialId",
+    "batchId",
+    "plannedQuantity",
+    "uom",
+    "lineId",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "orderId": { "type": "string" },
+    "materialId": { "type": "string" },
+    "batchId": { "type": "string" },
+    "plannedQuantity": { "type": "number" },
+    "uom": { "type": "string" },
+    "lineId": { "type": "string" },
+    "status": { "type": "string" }
+  }
+}

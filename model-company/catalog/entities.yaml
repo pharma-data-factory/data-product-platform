@@ -1,0 +1,95 @@
+---
+# Nexora Model Pharma — catalog entities (synthetic / demo)
+# Loaded only via app-config local locations. Tagged to avoid customer discovery pollution.
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: model-pharma
+  title: Nexora Model Pharma
+  description: Synthetic Customer Zero pharmaceutical manufacturing company.
+  tags:
+    - model-company
+    - synthetic
+    - demo
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    nexora.io/environment: simulation
+spec:
+  owner: group:default/platform-admins
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: model-pharma-plant
+  title: Model Pharma Plant
+  description: MODEL-PHARMA-01 simulated site — Autoinjector E2E Customer Zero (synthetic).
+  tags:
+    - model-company
+    - synthetic
+    - demo
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+    nexora.io/site: MODEL-PHARMA-01
+spec:
+  owner: group:default/platform-admins
+  domain: domain:default/model-pharma
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: model-company-runtime
+  title: Model Company Runtime
+  description: Scenario engine and ERP/MES/warehouse/equipment simulators.
+  tags:
+    - model-company
+    - synthetic
+    - demo
+  annotations:
+    dataprod.platform/catalog-class: SAMPLE
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-admins
+  system: system:default/model-pharma-plant
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: model-company-api
+  title: Model Company API
+  description: Control Plane API for Model Company simulation (/api/model-company).
+  tags:
+    - model-company
+    - synthetic
+    - demo
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/platform-admins
+  system: system:default/model-pharma-plant
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Model Company API
+      version: 0.1.0
+    paths:
+      /health:
+        get:
+          summary: Health
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: model-pharma-uns-namespace
+  title: Model Pharma UNS Namespace
+  description: uns/model-pharma/MODEL-PHARMA-01/… (Platform UNS Standard 1.0)
+  tags:
+    - model-company
+    - synthetic
+    - demo
+    - uns
+    - mqtt
+spec:
+  type: uns-topic-namespace
+  owner: group:default/platform-admins
+  system: system:default/model-pharma-plant

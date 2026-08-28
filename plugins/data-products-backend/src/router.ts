@@ -22,6 +22,7 @@ import {
 import { CERTIFICATION_STATUSES, CertificationStatus } from './certification';
 import { FileCertificationOverlay } from './certificationOverlay';
 import { FileReleaseOverlay } from './releaseCatalog';
+import { mountConsumeRoutes } from './consume/router';
 import { GithubActionsClient, publicCiStatus, unknownCiStatus } from './types';
 import { resolveCiStatus } from './resolveCiStatus';
 
@@ -33,15 +34,33 @@ export interface RouterOptions {
   permissions?: PermissionsService;
   certificationOverlay?: FileCertificationOverlay;
   releaseOverlay?: FileReleaseOverlay;
+  /** Optional map of product name / template → upstream base URL */
+  consumeBaseUrls?: Record<string, string>;
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, catalog, httpAuth, github, permissions, certificationOverlay, releaseOverlay } =
-    options;
+  const {
+    logger,
+    catalog,
+    httpAuth,
+    github,
+    permissions,
+    certificationOverlay,
+    releaseOverlay,
+    consumeBaseUrls = {},
+  } = options;
   const router = Router();
   router.use(express.json());
+
+  mountConsumeRoutes(router, {
+    logger,
+    catalog,
+    httpAuth,
+    permissions,
+    baseUrls: consumeBaseUrls,
+  });
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });

@@ -237,6 +237,14 @@ export const CERTIFIED_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
     category: 'Performance',
     version: '1.0',
   },
+  {
+    id: 'aas-data-product',
+    name: 'AAS Asset Administration Shell',
+    statusLabel: 'CERTIFIED',
+    availability: 'current',
+    category: 'Equipment',
+    version: '1.0',
+  },
 ];
 
 export const FUTURE_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [

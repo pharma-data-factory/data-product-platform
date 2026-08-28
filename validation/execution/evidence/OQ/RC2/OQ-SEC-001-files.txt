@@ -1,0 +1,9 @@
+﻿app-config.docker.yaml
+app-config.github.yaml
+app-config.local.yaml
+app-config.marketplace-test.yaml
+app-config.production.yaml
+app-config.yaml
+docker-compose.production.yml
+docker-compose.validation.yml
+docker-compose.yml

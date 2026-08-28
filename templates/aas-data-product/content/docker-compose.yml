@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  aas-data-product:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aas-data-product
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      SERVICE_NAME: aas-data-product
+      SERVICE_VERSION: 1.0.0
+      HOST: 0.0.0.0
+      PORT: 8080
+      DEBUG: "False"
+      AAS_REPOSITORY_URL: http://basyx-aas:4000
+      AAS_REGISTRY_URL: http://basyx-registry:4001
+      AAS_PERSISTENCE: sqlite
+      AAS_SQLITE_PATH: /app/.data/aas.sqlite
+      SOURCE_SYSTEM: ${{ values.assetSource }}
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+      MQTT_TOPIC: ${{ values.mqttTopic }}
+      REST_ENDPOINT: ${{ values.restEndpoint }}
+      CORS_ORIGINS: '["*"]'
+      OBSERVABILITY_ENABLED: "True"
+      METRICS_PORT: 8081
+    depends_on:
+      - mosquitto
+      - basyx-aas
+      - basyx-registry
+    volumes:
+      - ./app:/app/app
+      - aas_data:/app/.data
+    networks:
+      - aas-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - aas-network
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$SYS/#", "-C", "1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  basyx-aas:
+    image: eclipsebasyx/aas-server:latest
+    container_name: basyx-aas
+    ports:
+      - "4000:4000"
+    environment:
+      SERVER_PORT: 4000
+    networks:
+      - aas-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  basyx-registry:
+    image: eclipsebasyx/aas-registry:latest
+    container_name: basyx-registry
+    ports:
+      - "4001:4001"
+    environment:
+      SERVER_PORT: 4001
+    networks:
+      - aas-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  aas_data:
+  mosquitto_data:
+  mosquitto_logs:
+
+networks:
+  aas-network:
+    driver: bridge

@@ -1,0 +1,124 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfile
+metadata:
+  name: uns
+  title: Unified Namespace Authorization Profile
+  namespace: default
+  annotations:
+    description: Authorization profile for Unified Namespace Platform Component
+    platform: data-product-factory
+    templatePath: templates/unified-namespace
+
+spec:
+  domain: uns
+  title: Unified Namespace Authorization Profile
+  description: |
+    Authorization profile for Unified Namespace (UNS) Platform Component.
+    Controls access to MQTT topic governance, topic contracts, and namespace administration.
+  
+  permissions:
+    - name: uns.read
+      title: Read MQTT Topics
+      description: |
+        View Unified Namespace topic structure, topic contracts,
+        naming conventions, and topic documentation.
+      category: read
+      runtimeEnforcement: NOT_REQUIRED
+      enforcement:
+        location: catalog
+        mechanism: informational
+        description: Topic structure is read-only reference material
+    
+    - name: uns.operate
+      title: Subscribe to MQTT Topics
+      description: |
+        Publish and subscribe to topics within the Unified Namespace,
+        respecting topic contracts and naming conventions.
+      category: operate
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: runtime
+        mechanism: mqtt-broker-acl
+        description: MQTT broker enforces topic ACLs and subscriptions
+    
+    - name: uns.configure
+      title: Configure Namespace
+      description: |
+        Define and modify MQTT topic patterns, topic contracts,
+        naming conventions, and topic governance policies.
+      category: configure
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Backstage enforces permission before namespace changes
+    
+    - name: uns.admin
+      title: Administer Namespace
+      description: |
+        Full Unified Namespace administration including topic hierarchy management,
+        contract enforcement, environment configuration, and namespace removal.
+      category: admin
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Platform admin permission required
+  
+  suggestedRoles:
+    - name: uns-viewer
+      title: UNS Viewer
+      description: Read-only access to MQTT topic structure
+      permissions:
+        - uns.read
+      principalType: user
+    
+    - name: uns-subscriber
+      title: UNS Subscriber
+      description: Can publish and subscribe to MQTT topics
+      permissions:
+        - uns.read
+        - uns.operate
+      principalType: user
+    
+    - name: uns-engineer
+      title: UNS Engineer
+      description: Full configuration and operational access to namespace
+      permissions:
+        - uns.read
+        - uns.operate
+        - uns.configure
+      principalType: user
+    
+    - name: uns-admin
+      title: UNS Administrator
+      description: Full namespace administration
+      permissions:
+        - uns.read
+        - uns.operate
+        - uns.configure
+        - uns.admin
+      principalType: group
+  
+  platformRoleMappings:
+    - platformRole: viewer
+      suggestedDomainRole: uns-viewer
+      rationale: Platform viewers map to read-only namespace consumers
+    
+    - platformRole: developer
+      suggestedDomainRole: uns-subscriber
+      rationale: Platform developers map to MQTT subscribers
+    
+    - platformRole: owner
+      suggestedDomainRole: uns-engineer
+      rationale: Platform owners map to full namespace engineers
+    
+    - platformRole: admin
+      suggestedDomainRole: uns-admin
+      rationale: Platform admins map to namespace admins
+  
+  appliesTo:
+    - kind: Component
+      selector:
+        matchLabels:
+          nexora.io/authorization-profile: uns

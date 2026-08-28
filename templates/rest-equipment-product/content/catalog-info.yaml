@@ -27,6 +27,9 @@ metadata:
     dataprod.platform/qualityStatus: TESTED
     dataprod.platform/quality-endpoint: /api/v1/quality
     dataprod.platform/quality-checks: equipmentId_not_empty,equipmentId_unique,name_not_empty,site_not_empty,status_allowed,updatedAt_iso8601,contract_schema
+    dataprod.platform/consume-rest-path: /api/v1/equipment
+    dataprod.platform/presentation-capabilities: table,json,schema,metric-cards
+    dataprod.platform/validation-status: NOT_VALIDATED
   links:
     - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
       title: Repository

@@ -1,0 +1,118 @@
+# Nexora Model Pharma — Factory-as-Code (UNS-native Customer Zero)
+# Synthetic / NON-GxP. Publishes to Platform UNS Standard 1.0.
+company:
+  id: model-pharma
+  name: Nexora Model Pharma
+  classification:
+    environment: simulation
+    dataClassification: synthetic
+    gxpScope: out-of-scope
+    productionUse: false
+
+uns:
+  root: uns
+  enterpriseId: model-pharma
+  sourceSystem: model-factory
+  # Area id → topic slug (ISA-95-inspired path segment)
+  areaSlugs:
+    SOLID-DOSE: manufacturing
+    PACKAGING: packaging
+    FILL-FINISH: fill-finish
+
+sites:
+  - id: MODEL-PHARMA-01
+    name: Model Pharma Plant
+    displayName: Model Pharma Plant
+    areas:
+      - id: SOLID-DOSE
+        name: Solid Dose
+        lines:
+          - id: MFG-L01
+            name: Solid Dose Manufacturing
+            equipment:
+              - id: DISPENSER-01
+                type: dispenser
+                capabilities: [telemetry, state, temperature, availability]
+              - id: BLENDER-01
+                type: blender
+                capabilities: [telemetry, state, availability]
+              - id: TABLET-PRESS-01
+                type: tablet-press
+                capabilities: [telemetry, state, counters, speed, availability]
+              - id: COATER-01
+                type: coater
+                capabilities: [telemetry, state, temperature, availability]
+
+      - id: PACKAGING
+        name: Packaging
+        lines:
+          - id: PKG-L01
+            name: Primary Packaging
+            equipment:
+              - id: BOTTLE-FILLER-01
+                type: filler
+                capabilities: [telemetry, state, counters, speed, availability]
+              - id: CAPPER-01
+                type: capper
+                capabilities: [telemetry, state, counters, availability]
+              - id: LABELER-01
+                type: labeler
+                capabilities: [telemetry, state, availability]
+              - id: CHECKWEIGHER-01
+                type: checkweigher
+                capabilities: [telemetry, state, rejects, availability]
+              - id: CARTONER-01
+                type: cartoner
+                capabilities: [telemetry, state, counters, availability]
+              - id: PALLETIZER-01
+                type: palletizer
+                capabilities: [telemetry, state, availability]
+
+      - id: FILL-FINISH
+        name: Fill Finish
+        lines:
+          - id: FF-L01
+            name: Fill Finish Line
+            equipment:
+              - id: VIAL-FILLER-01
+                type: vial-filler
+                capabilities: [telemetry, state, counters, speed, availability]
+              - id: STOPPER-01
+                type: stopper
+                capabilities: [telemetry, state, availability]
+              - id: CAPPER-02
+                type: capper
+                capabilities: [telemetry, state, counters, availability]
+              - id: INSPECTION-01
+                type: inspection
+                capabilities: [telemetry, state, rejects, availability]
+              - id: LABELER-02
+                type: labeler
+                capabilities: [telemetry, state, availability]
+
+dataProducts:
+  - id: oee-pkg-l01
+    name: OEE Data Product
+    goldenPath: oee-data-product
+    unsCompatibility: REQUIRES_EXTENSION
+    statusSource: integration
+    integration:
+      mqttStateTopic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/+/state
+      mqttCountsTopic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/+/counts
+      equipmentIds: [BOTTLE-FILLER-01]
+      gap: "OEE 1.0 state enum lacks BREAKDOWN/MICROSTOP/MATERIAL_STARVED; envelope/payload mapping required"
+  - id: equipment-api
+    name: Equipment API
+    goldenPath: rest-equipment-data-product
+    unsCompatibility: NOT_COMPATIBLE
+    statusSource: integration
+    integration:
+      sourceApiPath: /api/model-company/equipment
+  - id: temperature-monitoring
+    name: Temperature Monitoring
+    goldenPath: mqtt-temperature-data-product
+    unsCompatibility: REQUIRES_EXTENSION
+    statusSource: integration
+    integration:
+      mqttTopicPattern: uns/model-pharma/MODEL-PHARMA-01/+/+/+/temperature
+      gap: "Temperature GP forbids UNS envelope (additionalProperties: false)"

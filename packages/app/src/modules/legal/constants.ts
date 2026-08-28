@@ -6,8 +6,8 @@ export const LEGAL_PATHS = {
 } as const;
 
 export const LEGAL_NAV = [
-  { id: 'legal', path: LEGAL_PATHS.legal, title: 'Legal' },
-  { id: 'privacy', path: LEGAL_PATHS.privacy, title: 'Privacy' },
+  { id: 'legal', path: LEGAL_PATHS.legal, title: 'Legal Notice' },
+  { id: 'privacy', path: LEGAL_PATHS.privacy, title: 'Privacy Policy' },
   { id: 'terms', path: LEGAL_PATHS.terms, title: 'Terms' },
   { id: 'open-source', path: LEGAL_PATHS.openSource, title: 'Open source' },
 ] as const;

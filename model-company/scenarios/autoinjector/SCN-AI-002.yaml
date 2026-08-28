@@ -1,0 +1,14 @@
+id: SCN-AI-002
+name: Drug Product Quality Hold
+version: "0.1.0"
+description: Drug Product batch remains on QUALITY_HOLD and blocks assembly.
+seedDefault: 42
+expected:
+  drugProductBatch:
+    status: QUALITY_HOLD
+  assemblyBatch:
+    status: BLOCKED
+  packagingBlocked: true
+  assemblyBlocked: true
+  genealogy:
+    complete: false

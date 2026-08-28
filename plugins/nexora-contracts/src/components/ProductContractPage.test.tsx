@@ -91,7 +91,10 @@ describe('Data Product & Contract Explorer', () => {
     expect(screen.getByText('Operations Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Quality Loss')).toBeInTheDocument();
     expect(screen.getByText('FOUNDATION')).toBeInTheDocument();
-    expect(screen.getByText('0.9 → 1.0 COMPATIBLE')).toBeInTheDocument();
+    expect(screen.getByText('0.9 → 1.0')).toBeInTheDocument();
+    expect(
+      screen.getAllByLabelText('compatibility status COMPATIBLE').length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it('handles a missing contract provider', async () => {

@@ -1,0 +1,1 @@
+{"error":{"name":"AuthenticationError","message":"Missing credentials"},"request":{"method":"GET","url":"/admin/entitlements"},"response":{"statusCode":401}}

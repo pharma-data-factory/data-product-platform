@@ -66,7 +66,7 @@ export function DeveloperArchitectureDiagram() {
     <div
       className="pdf-diag pdf-diag-compact"
       role="group"
-      aria-label="Developer architecture: Nexora Control Plane with Catalog, Marketplace and Create leading to a Golden Path, composition manifest, Platform Components, generated Data Product and independent runtime"
+      aria-label="Developer architecture: Pharma Data Factory Control Plane with Catalog, Marketplace and Create leading to a Golden Path, composition manifest, Platform Components, generated Data Product and independent runtime"
     >
       <div className="pdf-diag-stack">
         <Layer title="CONTROL PLANE">

@@ -207,36 +207,47 @@ export const HomeStyles = () => (
     .nx-dash-chart { width: 100%; height: 48px; margin-top: 8px; display: block; }
     .nx-core {
       position: relative;
-      width: min(100%, 340px);
+      width: min(100%, 360px);
       margin: 0 auto 8px;
       z-index: 4;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     .nx-core-stack {
       position: relative;
       width: 100%;
-      height: 132px;
-      transform-style: preserve-3d;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     .nx-slab {
-      position: absolute;
-      left: 6%;
-      right: 6%;
-      height: 78px;
-      border-radius: 18px;
+      position: relative;
+      width: 100%;
+      min-height: 44px;
+      padding: 12px 16px;
+      border-radius: 14px;
       border: 1px solid var(--nx-border-strong);
       background: linear-gradient(180deg, #1b3552 0%, #0c1d30 100%);
-      box-shadow: 0 16px 30px rgba(0,0,0,0.32), inset 0 1px 0 rgba(94,234,212,0.18);
-      transform: perspective(760px) rotateX(62deg) rotateZ(-18deg);
-      transform-style: preserve-3d;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(94,234,212,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .nx-slab-1 { top: 0; z-index: 4; }
-    .nx-slab-2 { top: 20px; z-index: 3; opacity: 0.92; }
-    .nx-slab-3 { top: 40px; z-index: 2; opacity: 0.78; }
-    .nx-slab-4 { top: 60px; z-index: 1; opacity: 0.58; }
+    .nx-slab-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(248, 250, 252, 0.96);
+      pointer-events: none;
+      text-align: center;
+      line-height: 1.35;
+    }
+    .nx-slab-1 { z-index: 3; }
+    .nx-slab-2 { z-index: 2; opacity: 0.96; }
+    .nx-slab-3 { z-index: 1; opacity: 0.9; }
     .nx-core-lockup {
       position: relative;
       z-index: 6;

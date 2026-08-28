@@ -70,6 +70,10 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: mqtt-temperature-data-product
     dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/consume-rest-path: /api/v1/temperature
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,metric-cards,timeseries,realtime,json,schema
+    dataprod.platform/validation-status: NOT_VALIDATED
   links:
     - url: https://github.com/example/sample-mqtt-temperature-product
       title: Repository
@@ -186,6 +190,9 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: rest-equipment-data-product
     dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/consume-rest-path: /api/v1/equipment
+    dataprod.platform/presentation-capabilities: table,json,schema,metric-cards
+    dataprod.platform/validation-status: NOT_VALIDATED
   links:
     - url: https://github.com/example/sample-rest-equipment-product
       title: Repository
@@ -287,7 +294,7 @@ spec:
   lifecycle: experimental
   owner: group:default/platform-team
   system: data-platform
-    definition: |
+  definition: |
       openapi: 3.0.3
       info:
         title: Sample Orders API
@@ -446,6 +453,11 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: oee-data-product
     dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/consume-rest-path: /api/v1/oee
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,metric-cards,json,schema,realtime
+    dataprod.platform/presentation-extensions: oee-dashboard
+    dataprod.platform/validation-status: NOT_VALIDATED
 spec:
   type: data-product
   lifecycle: experimental

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import {
-  Content,
-  Header,
-  InfoCard,
-  Page,
-  Progress,
-  StructuredMetadataTable,
-} from '@backstage/core-components';
+import { Progress, StructuredMetadataTable } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { Grid, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@material-ui/core';
+import { Grid, Typography } from '@material-ui/core';
+import { makeStyles } from '@material-ui/core/styles';
+import {
+  NEXORA_MUTED,
+  NEXORA_NAVY,
+  NexoraSection,
+  NexoraToolPage,
+  useNexoraToolStyles,
+} from '@internal/plugin-nexora-common';
 import {
   canAdministerPlatform,
   formatJourneyError,
@@ -20,7 +21,26 @@ import {
   type EntitlementSnapshot,
 } from '@internal/plugin-marketplace';
 
+const useLabelStyles = makeStyles({
+  status: {
+    color: NEXORA_NAVY,
+    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+  },
+  note: {
+    color: NEXORA_MUTED,
+    fontSize: 13,
+    lineHeight: 1.5,
+    marginTop: 12,
+  },
+});
+
 export function EntitlementsAdminPage() {
+  const classes = useNexoraToolStyles();
+  const labelClasses = useLabelStyles();
   const api = useApi(entitlementApiRef);
   const { role } = usePlatformRole();
   const [data, setData] = useState<EntitlementSnapshot & { audit?: unknown[] }>();
@@ -42,87 +62,90 @@ export function EntitlementsAdminPage() {
 
   if (!canAdministerPlatform(role) && !loading) {
     return (
-      <Page themeId="tool">
-        <Header title="Entitlements" subtitle="Platform Admin only" />
-        <Content>
-          <JourneyState
-            title="Unauthorized"
-            message="Only Platform Admin can view organization entitlements administration."
-          />
-        </Content>
-      </Page>
+      <NexoraToolPage
+        eyebrow="Admin"
+        title="Entitlements"
+        copy="Organization commercial capabilities. This is not a billing console."
+      >
+        <JourneyState
+          title="Unauthorized"
+          message="Only Platform Admin can view organization entitlements administration."
+        />
+      </NexoraToolPage>
     );
   }
 
   return (
-    <Page themeId="tool">
-      <Header
-        title="Entitlements"
-        subtitle="Organization commercial capabilities. This is not a billing console."
-      />
-      <Content>
-        {loading && <Progress />}
-        {error && (
-          <JourneyState
-            title={isUnauthorizedError(error) ? 'Unauthorized' : 'Unable to load entitlements'}
-            message={formatJourneyError(error)}
-          />
-        )}
-        {data && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <InfoCard title="Organization">
-                <StructuredMetadataTable
-                  metadata={{
-                    Organization: data.organizationId,
-                    Edition: data.edition,
-                    Source: data.source,
-                    Provider: data.provider,
-                  }}
-                />
-                <Typography variant="body2" style={{ marginTop: 12 }}>
-                  Local/dev entitlements come from configuration. They cannot
-                  be edited from the browser. AWS credentials are never shown.
-                </Typography>
-              </InfoCard>
-            </Grid>
-            <Grid item xs={12} md={8}>
-              <InfoCard title="Entitlements">
-                <div style={{ overflowX: 'auto', width: '100%' }}>
-                <Table style={{ minWidth: 640 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Organization</TableCell>
-                      <TableCell>Product</TableCell>
-                      <TableCell>Edition</TableCell>
-                      <TableCell>Source</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Valid From</TableCell>
-                      <TableCell>Valid Until</TableCell>
-                      <TableCell>External Reference</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {data.entitlements.map(row => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.organizationId}</TableCell>
-                        <TableCell>{row.productId}</TableCell>
-                        <TableCell>{data.edition}</TableCell>
-                        <TableCell>{row.source}</TableCell>
-                        <TableCell>{row.status}</TableCell>
-                        <TableCell>{row.validFrom || '—'}</TableCell>
-                        <TableCell>{row.validUntil || '—'}</TableCell>
-                        <TableCell>{row.externalReference || '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
-              </InfoCard>
-            </Grid>
+    <NexoraToolPage
+      eyebrow="Admin"
+      title="Entitlements"
+      principle="Commercial capabilities, not billing."
+      copy="Organization commercial capabilities and entitlement records for the Nexora control plane."
+      secondary="Local/dev entitlements come from configuration. AWS credentials are never shown."
+    >
+      {loading && <Progress />}
+      {error && (
+        <JourneyState
+          title={isUnauthorizedError(error) ? 'Unauthorized' : 'Unable to load entitlements'}
+          message={formatJourneyError(error)}
+        />
+      )}
+      {data && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <NexoraSection title="Organization">
+              <StructuredMetadataTable
+                metadata={{
+                  Organization: data.organizationId,
+                  Edition: data.edition,
+                  Source: data.source,
+                  Provider: data.provider,
+                }}
+              />
+              <Typography className={labelClasses.note}>
+                Local/dev entitlements come from configuration. They cannot be
+                edited from the browser.
+              </Typography>
+            </NexoraSection>
           </Grid>
-        )}
-      </Content>
-    </Page>
+          <Grid item xs={12} md={8}>
+            <NexoraSection title="Entitlements">
+              <div className={classes.tableWrap}>
+                <table className={classes.table}>
+                  <thead>
+                    <tr>
+                      <th>Organization</th>
+                      <th>Product</th>
+                      <th>Edition</th>
+                      <th>Source</th>
+                      <th>Status</th>
+                      <th>Valid From</th>
+                      <th>Valid Until</th>
+                      <th>External Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.entitlements.map(row => (
+                      <tr key={row.id}>
+                        <td>{row.organizationId}</td>
+                        <td>{row.productId}</td>
+                        <td>{data.edition}</td>
+                        <td>{row.source}</td>
+                        <td>
+                          <span className={labelClasses.status}>{row.status}</span>
+                        </td>
+                        <td>{row.validFrom || '—'}</td>
+                        <td>{row.validUntil || '—'}</td>
+                        <td>{row.externalReference || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </NexoraSection>
+          </Grid>
+        </Grid>
+      )}
+    </NexoraToolPage>
   );
 }

@@ -1,0 +1,124 @@
+apiVersion: platform.nexora.io/v1alpha1
+kind: AuthorizationProfile
+metadata:
+  name: equipment
+  title: Equipment Master Data Authorization Profile
+  namespace: default
+  annotations:
+    description: Authorization profile for REST Equipment Data Product
+    platform: data-product-factory
+    templatePath: templates/rest-equipment-product
+
+spec:
+  domain: equipment
+  title: Equipment Master Data Authorization Profile
+  description: |
+    Authorization profile for REST Equipment Data Product Golden Path.
+    Controls access to equipment master data, catalog queries, and configuration.
+  
+  permissions:
+    - name: equipment.read
+      title: Read Equipment Data
+      description: |
+        View equipment master data including specifications, metadata,
+        identifiers, and historical configurations.
+      category: read
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: REST API endpoints verify permissions before returning equipment data
+    
+    - name: equipment.operate
+      title: Operate Equipment
+      description: |
+        Query equipment master data, retrieve equipment specifications,
+        and access equipment catalogs.
+      category: operate
+      runtimeEnforcement: IMPLEMENTED
+      enforcement:
+        location: runtime
+        mechanism: fastapi-permission-check
+        description: Query endpoints check user permissions
+    
+    - name: equipment.configure
+      title: Configure Equipment
+      description: |
+        Configure equipment catalog sources, validation rules, master data
+        repositories, and data refresh policies.
+      category: configure
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Backstage enforces permission before configuration changes
+    
+    - name: equipment.admin
+      title: Administer Equipment
+      description: |
+        Full equipment data product administration including lifecycle management,
+        catalog updates, and data retention policies.
+      category: admin
+      runtimeEnforcement: EXTERNAL
+      enforcement:
+        location: platform
+        mechanism: backstage-permission-framework
+        description: Platform admin permission required
+  
+  suggestedRoles:
+    - name: equipment-viewer
+      title: Equipment Viewer
+      description: Read-only access to equipment master data
+      permissions:
+        - equipment.read
+      principalType: user
+    
+    - name: equipment-operator
+      title: Equipment Operator
+      description: Operational access to equipment data and queries
+      permissions:
+        - equipment.read
+        - equipment.operate
+      principalType: user
+    
+    - name: equipment-engineer
+      title: Equipment Engineer
+      description: Full configuration and operational access
+      permissions:
+        - equipment.read
+        - equipment.operate
+        - equipment.configure
+      principalType: user
+    
+    - name: equipment-admin
+      title: Equipment Administrator
+      description: Full equipment data product administration
+      permissions:
+        - equipment.read
+        - equipment.operate
+        - equipment.configure
+        - equipment.admin
+      principalType: group
+  
+  platformRoleMappings:
+    - platformRole: viewer
+      suggestedDomainRole: equipment-viewer
+      rationale: Platform viewers map to read-only equipment data consumers
+    
+    - platformRole: developer
+      suggestedDomainRole: equipment-operator
+      rationale: Platform developers map to equipment operators/analysts
+    
+    - platformRole: owner
+      suggestedDomainRole: equipment-engineer
+      rationale: Platform owners map to full equipment engineers
+    
+    - platformRole: admin
+      suggestedDomainRole: equipment-admin
+      rationale: Platform admins map to equipment admins
+  
+  appliesTo:
+    - kind: Component
+      selector:
+        matchLabels:
+          nexora.io/authorization-profile: equipment

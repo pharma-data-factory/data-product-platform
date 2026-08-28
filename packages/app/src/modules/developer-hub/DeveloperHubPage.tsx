@@ -63,32 +63,60 @@ const useStyles = makeStyles({
     gap: 10,
     marginTop: 20,
   },
+  /** Primary CTA — solid teal (same vocabulary as theme secondary). */
   action: {
-    background: `linear-gradient(135deg, ${PHARMA_TEAL}, ${PHARMA_TEAL_LIGHT})`,
+    background: PHARMA_TEAL,
+    border: `1px solid ${PHARMA_TEAL}`,
     borderRadius: 10,
     color: '#FFFFFF !important',
     display: 'inline-flex',
+    alignItems: 'center',
     fontSize: 13,
     fontWeight: 600,
     padding: '8px 14px',
     textDecoration: 'none',
+    textTransform: 'none',
     '&:hover': {
-      filter: 'brightness(1.08)',
+      background: '#0098AB',
+      borderColor: '#0098AB',
       textDecoration: 'none',
     },
   },
+  /** Secondary on dark hero — outline ghost. */
   ghostAction: {
     background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.24)',
+    border: '1px solid rgba(255,255,255,0.28)',
     borderRadius: 10,
     color: '#F8FAFC !important',
     display: 'inline-flex',
+    alignItems: 'center',
     fontSize: 13,
     fontWeight: 600,
     padding: '8px 14px',
     textDecoration: 'none',
+    textTransform: 'none',
     '&:hover': {
-      background: 'rgba(0,194,217,0.16)',
+      background: 'rgba(0,194,217,0.14)',
+      borderColor: PHARMA_TEAL_LIGHT,
+      textDecoration: 'none',
+    },
+  },
+  /** Secondary on white cards — navy outline (never white-on-white). */
+  outlineAction: {
+    background: 'transparent',
+    border: `1px solid ${C.border}`,
+    borderRadius: 10,
+    color: `${PHARMA_NAVY} !important`,
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontSize: 13,
+    fontWeight: 600,
+    padding: '8px 14px',
+    textDecoration: 'none',
+    textTransform: 'none',
+    '&:hover': {
+      background: 'rgba(0,194,217,0.08)',
+      borderColor: PHARMA_TEAL,
       textDecoration: 'none',
     },
   },
@@ -142,12 +170,19 @@ const useStyles = makeStyles({
     marginTop: 8,
   },
   kind: {
+    background: '#F1F5F9',
     border: `1px solid ${C.border}`,
     borderRadius: 999,
     color: `${C.text} !important`,
     fontSize: 12,
-    padding: '4px 10px',
+    fontWeight: 600,
+    padding: '6px 12px',
     textDecoration: 'none',
+    textTransform: 'none',
+    '&:hover': {
+      background: '#E2E8F0',
+      textDecoration: 'none',
+    },
   },
   badge: {
     color: PHARMA_TEAL,
@@ -173,15 +208,18 @@ const useStyles = makeStyles({
     margin: '12px 0',
   },
   chip: {
-    background: PHARMA_NAVY,
+    background: 'transparent',
+    border: `1px solid ${C.border}`,
     borderRadius: 10,
-    color: '#F8FAFC !important',
+    color: `${PHARMA_NAVY} !important`,
     fontSize: 12,
     fontWeight: 600,
-    padding: '8px 12px',
+    padding: '6px 12px',
     textDecoration: 'none',
+    textTransform: 'none',
     '&:hover, &:focus-visible': {
-      background: PHARMA_TEAL,
+      background: 'rgba(0,194,217,0.08)',
+      borderColor: PHARMA_TEAL,
       outline: 'none',
       textDecoration: 'none',
     },
@@ -214,7 +252,7 @@ export function DeveloperHubPage() {
           <h1 className={classes.heroTitle}>Developer Hub</h1>
           <p className={classes.heroCopy}>
             Keep core systems standard. Innovate through Data Products. This
-            hub is the authenticated starting point for Nexora
+            hub is the authenticated starting point for Pharma Data Factory
             documentation. Pages are published with TechDocs and indexed by
             the existing Search plugin.
           </p>
@@ -232,6 +270,66 @@ export function DeveloperHubPage() {
         </section>
 
         <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <section className={classes.card} aria-label="How the platform fits together">
+              <Typography className={classes.title}>Platform Architecture at a Glance</Typography>
+              <Typography variant="body2" className={classes.muted} paragraph>
+                Three layers working together:
+              </Typography>
+              <Grid container spacing={2} style={{ marginTop: 0 }}>
+                <Grid item xs={12} md={4}>
+                  <div style={{
+                    background: '#F8FAFC',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: 16,
+                  }}>
+                    <Typography style={{ fontSize: 13, fontWeight: 600, color: PHARMA_TEAL, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
+                      Layer 1: Backstage
+                    </Typography>
+                    <Typography variant="body2" className={classes.muted}>
+                      Control Plane: Catalog, Scaffolder, TechDocs, Search, Identity. Open-source foundation.
+                    </Typography>
+                  </div>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <div style={{
+                    background: 'rgba(13, 148, 136, 0.08)',
+                    border: `2px solid ${PHARMA_TEAL}`,
+                    borderRadius: 12,
+                    padding: 16,
+                  }}>
+                    <Typography style={{ fontSize: 13, fontWeight: 600, color: PHARMA_TEAL, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
+                      Layer 2: Pharma Data Factory
+                    </Typography>
+                    <Typography variant="body2" className={classes.muted}>
+                      Standard, SDK, Components, Contracts, Quality, Compatibility, Golden Paths.
+                    </Typography>
+                  </div>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <div style={{
+                    background: '#F8FAFC',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: 16,
+                  }}>
+                    <Typography style={{ fontSize: 13, fontWeight: 600, color: PHARMA_TEAL, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
+                      Layer 3: Data Products
+                    </Typography>
+                    <Typography variant="body2" className={classes.muted}>
+                      Independent services: your domain logic + platform reuse = Data Product.
+                    </Typography>
+                  </div>
+                </Grid>
+              </Grid>
+              <Typography variant="body2" style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+                <strong>The key insight:</strong> Systems of record (ERP, MES, LIMS, etc.) stay authoritative.
+                Pharma Data Factory is the control plane around them, not a second system of record.
+              </Typography>
+            </section>
+          </Grid>
+
           <Grid item xs={12} md={8}>
             <section className={classes.card} aria-label="Search">
               <Typography className={classes.title}>Search</Typography>
@@ -291,43 +389,37 @@ export function DeveloperHubPage() {
                   Explore the Architecture
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to="/platform/architecture/developer"
                 >
                   How developers build
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to={documentationHref('architecture-platform')}
                 >
                   Platform Architecture docs
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to={documentationHref('aas-overview')}
                 >
                   AAS Developer Docs
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to={documentationHref('uns-overview')}
                 >
                   Unified Namespace Docs
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to="/marketplace"
                 >
                   Marketplace
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to="/data-products"
                 >
                   Data Products UI
@@ -383,30 +475,26 @@ export function DeveloperHubPage() {
                   </Link>
                 ) : (
                   <Link
-                    className={classes.ghostAction}
-                    style={{ color: `${C.text} !important`, borderColor: C.border }}
+                    className={classes.outlineAction}
                     to={documentationHref('platform-component-composition')}
                   >
                     Composition documentation
                   </Link>
                 )}
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to={documentationHref('platform-components')}
                 >
                   What is a Platform Component?
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to={documentationHref('platform-component-using')}
                 >
                   How to reuse a Component
                 </Link>
                 <Link
-                  className={classes.ghostAction}
-                  style={{ color: `${C.text} !important`, borderColor: C.border }}
+                  className={classes.outlineAction}
                   to={documentationHref('platform-component-decision')}
                 >
                   Decision model
@@ -437,11 +525,11 @@ export function DeveloperHubPage() {
                     Route A · Create
                   </Link>
                 ) : null}
-                <Link className={classes.ghostAction} to="/compose">
+                <Link className={classes.outlineAction} to="/compose">
                   Route B · Compose
                 </Link>
                 <Link
-                  className={classes.ghostAction}
+                  className={classes.outlineAction}
                   to={documentationHref('platform-component-equipment-use-log')}
                 >
                   Equipment Use Log design
@@ -491,7 +579,7 @@ export function DeveloperHubPage() {
                         </div>
                       )}
                       <div className={classes.actions}>
-                        <Link className={classes.ghostAction} style={{ color: `${C.text} !important`, borderColor: C.border }} to={documentationHref(path.docsId)}>
+                        <Link className={classes.outlineAction} to={documentationHref(path.docsId)}>
                           Golden Path docs
                         </Link>
                         {canCreate ? (
@@ -499,7 +587,7 @@ export function DeveloperHubPage() {
                             Open in Marketplace
                           </Link>
                         ) : (
-                          <Link className={classes.ghostAction} style={{ color: `${C.text} !important`, borderColor: C.border }} to={path.marketplacePath}>
+                          <Link className={classes.outlineAction} to={path.marketplacePath}>
                             View in Marketplace
                           </Link>
                         )}

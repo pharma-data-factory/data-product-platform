@@ -1,0 +1,51 @@
+site_name: AAS Asset Administration Shell Data Product
+site_description: IDTA-01001 v3.0 compliant asset registry and data ingestion service
+
+theme:
+  name: material
+  palette:
+    primary: blue
+    accent: orange
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Overview: getting-started/overview.md
+      - Quick Start: getting-started/quickstart.md
+      - Architecture: getting-started/architecture.md
+  - User Guide:
+      - API Reference: user-guide/api-reference.md
+      - Data Contract: user-guide/data-contract.md
+      - Configuration: user-guide/configuration.md
+      - Quality Gates: user-guide/quality.md
+  - Developer:
+      - Development Setup: developer/development.md
+      - Testing: developer/testing.md
+      - Contributing: developer/contributing.md
+  - Reference:
+      - AAS Specification: reference/aas-specification.md
+      - Troubleshooting: reference/troubleshooting.md
+      - FAQ: reference/faq.md
+  - Release Notes: release-notes.md
+
+plugins:
+  - search
+  - include-markdown
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true

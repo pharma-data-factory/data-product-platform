@@ -1,11 +1,16 @@
 import { createApp } from '@backstage/frontend-defaults';
 import catalogPlugin from '@backstage/plugin-catalog/alpha';
+import rbacPlugin from '@backstage-community/plugin-rbac';
 import dataProductsPlugin from '@internal/plugin-data-products';
 import marketplacePlugin from '@internal/plugin-marketplace';
 import { nexoraCommonPlugin } from '@internal/plugin-nexora-common';
 import { nexoraAssetsPlugin } from '@internal/plugin-nexora-assets';
 import { nexoraContractsPlugin } from '@internal/plugin-nexora-contracts';
 import { nexoraQualityPlugin } from '@internal/plugin-nexora-quality';
+import { validationExpertPlugin } from '@internal/plugin-validation-expert';
+import { ursComposerPlugin } from '@internal/plugin-urs-composer';
+import pluginDirectoryPlugin from '@internal/plugin-directory';
+import { modelCompanyPlugin } from '@internal/plugin-model-company';
 import { architectureModule } from './modules/architecture';
 import { legalModule } from './modules/legal';
 import { developerHubModule } from './modules/developer-hub';
@@ -24,6 +29,7 @@ import { themeModule } from './modules/theme';
 export default createApp({
   features: [
     catalogPlugin,
+    rbacPlugin,
     themeModule,
     identityModule,
     architectureModule,
@@ -44,5 +50,9 @@ export default createApp({
     nexoraAssetsPlugin,
     nexoraContractsPlugin,
     nexoraQualityPlugin,
+    validationExpertPlugin,
+    ursComposerPlugin,
+    pluginDirectoryPlugin,
+    modelCompanyPlugin,
   ],
 });

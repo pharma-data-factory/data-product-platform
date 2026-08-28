@@ -1,0 +1,208 @@
+# Model Company Runtime & Frontend Audit — machine-readable
+# Product validation_status remains NOT_VALIDATED
+audit_date: "2026-08-23"
+validation_status: NOT_VALIDATED
+maturity: DEMO_READY_WITH_CONDITIONS
+frontend_accessibility: LANDING_PAGE_ACCESSIBLE
+separate_instance_decision: SAME_BACKSTAGE_INSTANCE
+e2e_declaration: MODEL_COMPANY_DATA_PRODUCT_E2E_PARTIAL
+
+runtime_status:
+  backend: PASS
+  frontend: PASS
+  health: PASS
+  factory_loaded: PASS
+  factory_id: autoinjector-pharma
+  company: "Nexora Model Pharma"
+  site_id: MODEL-PHARMA-01
+  areas: [DRUG-PRODUCT, DEVICE-ASSEMBLY, PACKAGING, FG-WAREHOUSE]
+  lines: 4
+  equipment: 18
+  simulation_control_plane: PASS
+  simulation_mode: IN_PROCESS_WITH_MQTT_RELAY
+  reset: PASS
+  start: PASS
+  stop: PASS
+  tick: PASS
+  persistence: PASS
+  persistence_path: packages/backend/.runtime/model-company/
+  persistence_note: "cwd-relative; document only — E2E uses temp dirs"
+  scenario_engine_compose: PASS
+  scenario_engine_url: http://127.0.0.1:18091
+  scenario_engine_note: "health ok; POST /api/v1/uns/publish relays Control Plane UNS to Mosquitto"
+  oee_checkweigher_url: http://127.0.0.1:18080
+  oee_checkweigher: PASS
+  stale_state_risk: "Persisted Autoinjector state under packages/backend/.runtime; reset required when switching factories"
+
+frontend_status:
+  plugin_registered: PASS
+  backend_plugin_registered: PASS
+  sidebar_nav: PASS
+  overview_renders: PASS
+  campaign_value_stream: PASS
+  simulated_time: NOT_AVAILABLE
+  hard_refresh_deep_link: PASS
+  hard_refresh_note: >
+    Prior FAIL was probe Accept-header artifact. Browser Accept: text/html → 200
+    for /model-company and /data-products/* on :3000 and :7007 (Rspack historyApiFallback).
+
+route_status:
+  model_company: PASS
+  model_company_uns: PASS
+  model_company_factory: PASS
+  model_company_campaign: PASS
+  model_company_scenarios: PASS
+  model_company_data_products: PASS
+  direct_refresh: PASS
+
+landing_page_status: PASS
+landing_page_integration: PRESENT
+landing_page_cta: "/model-company"
+landing_page_badges: [SYNTHETIC, NON-GXP, UNS-NATIVE]
+landing_page_fix_applied: true
+
+scenario_status:
+  SCN-AI-001: PASS
+  SCN-AI-002: PASS
+  SCN-AI-003: PARTIAL
+  SCN-AI-004: PASS
+  SCN-AI-005: PARTIAL
+  SCN-AI-006: PASS
+  SCN-AI-007: PASS
+  SCN-AI-008: PARTIAL
+  SCN-AI-009: PARTIAL
+  SCN-AI-010: PASS
+  SCN-AI-001_full_run:
+    phase: COMPLETE
+    drug_product: COMPLETED
+    assembly: COMPLETED
+    packaging: COMPLETED
+    fg_qty: 48000
+    fg_status: RECEIVED
+    serials: 4
+    genealogy_edges: 412
+  SCN-AI-007_mqtt_oee_e2e:
+    result: PASS
+    topic: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CHECKWEIGHER-01/state
+    state: MICROSTOP
+    reasonCode: PRODUCT_JAM
+    independent_subscriber: PASS
+    oee_api: PASS
+    source_not_fixture: PASS
+
+mqtt_status:
+  classification: REAL_MQTT_BROKER_VERIFIED
+  real_mqtt_broker_verified: true
+  broker_port_41884: UP
+  plugin_broker_status: CONFIGURED
+  uns_buffer: HEALTHY
+  runtimeBaseUrl_configured: true
+  runtimeBaseUrl: http://127.0.0.1:18091
+  architecture: "Control Plane → Scenario Runtime → MQTT → Mosquitto → OEE"
+
+api_status:
+  health: PASS
+  overview: PASS
+  sites: PASS
+  factory: PASS
+  lines: PASS
+  equipment: PASS
+  orders: PASS
+  batches: PASS
+  genealogy: PASS
+  campaign: PASS
+  warehouse: PASS
+  serials: PASS
+  scenarios: PASS
+  simulation: PASS
+  events: PASS
+  uns_tree: PASS
+  uns_health: PASS
+  uns_messages: PASS
+  uns_topics: PASS
+  data_products: PASS
+  traceability_CHECKWEIGHER-01: PASS
+  traceability_BOTTLE-FILLER-01: NOT_FOUND
+  simulation_start: PASS
+  simulation_stop: PASS
+  simulation_reset: PASS
+  simulation_tick: PASS
+  scenarios_run: PASS
+
+data_product_deep_link_status: PASS
+data_product_deep_links:
+  prior_sample_oee: FAIL
+  prior_sample_equipment: FAIL
+  filler_01_oee_catalog: PASS
+  checkweigher_01_oee_catalog: PASS
+  line04_equipment_state_catalog: PASS
+  context_query_params_consumed: PASS
+  live_oee_from_model_company_uns: PASS
+  consume_baseUrls_checkweigher_01_oee: http://127.0.0.1:18080
+  minimal_fix_retargeted_to_catalog_entities: true
+
+e2e_levels:
+  1_model_company_event: PASS
+  2_real_mqtt_publish: PASS
+  3_independent_subscriber: PASS
+  4_oee_uns_consumed: PASS
+  5_oee_engine_calculated: PASS
+  6_oee_api_live: PASS
+  7_consumption_framework: PASS
+  8_frontend_live_display: NOT_RUN
+  9_spa_refresh: PASS
+
+user_journey_status:
+  landing_to_model_company: PASS
+  overview: PASS
+  campaign: PASS
+  run_SCN-AI-001: PASS
+  run_SCN-AI-007_mqtt_oee: PASS
+  packaging_checkweigher: PASS
+  open_oee_data_product: PARTIAL
+  stop_reason: "Deep link + live upstream proven; browser rendering of live metrics NOT_RUN"
+
+demo_readiness:
+  internal_demo: READY_WITH_CONDITIONS
+  customer_demo: READY_WITH_CONDITIONS
+  technical_workshop: READY
+  customer_sandbox: PARTIAL
+  validation_test_harness: NOT_READY
+
+tests_executed:
+  model_company_backend: { suites: 4, tests: 23, result: PASS }
+  model_company_frontend: { suites: 2, tests: 3, result: PASS }
+  data_products_frontend: { suites: 10, tests: 58, result: PASS }
+  landing_ModelCompanySection: { suites: 1, tests: 1, result: PASS }
+  oee_golden_path: { suites: 2, tests: 10, result: PASS }
+  real_mqtt_integration: PASS
+
+historical_gaps_preserved:
+  - "2026-08-23 prior: runtimeBaseUrl disabled; no Control Plane MQTT publish path"
+  - "2026-08-23 prior: brokerStatus NOT_CONFIGURED"
+  - "2026-08-23 prior: OEE/Equipment consume baseUrls empty (fixture path)"
+  - "2026-08-23 prior: SPA hard-refresh reported FAIL (later reclassified Accept-header artifact)"
+
+gaps:
+  - Level 8 browser display of live OEE metrics not automated
+  - Overview missing simulated time
+  - CUSTOMER_COMPONENT_GAP may remain on non-OEE DP bindings
+  - cwd-relative persistence under packages/backend/.runtime (documented)
+
+fixes_applied_this_session:
+  - Scenario Runtime POST /api/v1/uns/publish MQTT relay
+  - Control Plane RuntimeMqttBridge when runtimeBaseUrl set
+  - Compose oee-checkweigher on shared Mosquitto :41884
+  - OEE MICROSTOP→STOPPED alias
+  - Catalog checkweigher-01-oee + consume baseUrls
+  - Deep links retargeted to checkweigher-01-oee
+  - customerZeroOeeE2e.test.ts
+
+next_actions:
+  - Automate browser Open OEE live metrics (Level 8)
+  - Promote e2e_declaration to MODEL_COMPANY_DATA_PRODUCT_E2E_VERIFIED
+
+recommended_next_milestone: >
+  Automate browser Open OEE (CHECKWEIGHER-01 live metrics) and promote E2E
+  declaration from MODEL_COMPANY_DATA_PRODUCT_E2E_PARTIAL to
+  MODEL_COMPANY_DATA_PRODUCT_E2E_VERIFIED.

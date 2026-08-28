@@ -70,3 +70,27 @@ releases:
         - oee-result 1.0.0, quality gates, CI/CD, Docker, and TechDocs
       fixes: []
       migration: No migration. First released line.
+
+  - template: aas-data-product
+    name: AAS Asset Administration Shell Data Product
+    version: "1.0.0"
+    status: RELEASED
+    certification:
+      status: CERTIFIED
+      standard: "3.0.x"
+      sdk: "2.1.x"
+    distribution:
+      - INTERNAL
+      - TEMPLATE_EDITION
+    release:
+      date: "2026-08"
+      notes: docs/releases/aas-1.0.0.md
+    # Wave 2. Technical CERTIFIED / RELEASED. IEC 63278 / IDTA-01001 v3.0 compliant.
+    changelog:
+      breaking: []
+      capabilities:
+        - AAS Golden Path with IEC 63278 / IDTA-01001 v3.0 compliance
+        - Asset-event 1.0.0 contract, MQTT/REST ingestion, quality gates, CI/CD, Docker, and TechDocs
+        - Eclipse BaSyx SDK integration for asset registry and discovery
+      fixes: []
+      migration: No migration. First released line. Wave 2 baseline.

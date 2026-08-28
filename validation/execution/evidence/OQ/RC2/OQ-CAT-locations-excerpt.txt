@@ -1,0 +1,13 @@
+    - allow: [Component, System, API, Resource, Location, Template]
+  locations:
+      target: ./catalog/entities.yaml
+      target: ./platform-components/catalog.yaml
+      target: ./catalog/org.yaml
+      target: ./templates/python-service/template.yaml
+      target: ./templates/node-service/template.yaml
+      target: ./templates/mqtt-connector/template.yaml
+      target: ./templates/mqtt-temperature-product/template.yaml
+      target: ./templates/rest-equipment-product/template.yaml
+      target: ./templates/unified-namespace/template.yaml
+      target: ./templates/machine-state-consumer/template.yaml
+      target: ./templates/oee-data-product/template.yaml

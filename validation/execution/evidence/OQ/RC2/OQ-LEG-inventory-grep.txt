@@ -1,0 +1,20 @@
+=== CustomerPackageExport hits=5 ===
+platform-core-v1.0-rc2^{commit}:validation/baseline/URS.md:338:| Policy detail | Exact list: **CLOSED** (`OPEN-LEG-001` / DEC-LEGAL-002). Internal development (Catalog browse; internal Data Product Create; Scaffolder / Repository Create; Build and Test; Internal Development Deployment) does **not** require the Legal Gate. Commercial/customer operations (Customer Package Export; Customer Handoff; Commercial Activation; Marketplace Commercial Release; Customer Tenant Provisioning) **do** require the Legal Gate. RC1 implements Legal Gate only for existing Customer Handoff (`authorizeCreate` `handoff=customer`). Other commercial operations are **NOT_APPLICABLE_CURRENT_RELEASE**. Requirement sentence unchanged. |
+platform-core-v1.0-rc2^{commit}:validation/execution/OQ/OQ-Protocol.md:543:### OQ-LEG-003 ÔÇö Customer Package Export
+platform-core-v1.0-rc2^{commit}:validation/execution/OQ/OQ-Protocol.md:552:| Procedure | Confirm no Customer Package Export operation exists in RC1. |
+platform-core-v1.0-rc2^{commit}:validation/reviews/OPEN-LEG-001-Decision-Request.md:81:| Customer Package Export | Required | **NOT_APPLICABLE_CURRENT_RELEASE** ÔÇö no export API or UI |
+platform-core-v1.0-rc2^{commit}:validation/reviews/Validation-Decisions.md:136:Commercial / customer (Customer Package Export; Customer Handoff; Commercial Activation; Marketplace Commercial Release; Customer Tenant Provisioning): Legal Gate **required**, together with RBAC and entitlement.
+=== CommercialActivation hits=10 ===
+platform-core-v1.0-rc2^{commit}:templates/mqtt-connector/content/README.md:20:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/mqtt-connector/content/docs/index.md:61:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/mqtt-temperature-product/content/README.md:61:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/mqtt-temperature-product/content/docs/local-development.md:7:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/oee-data-product/content/README.md:16:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/python-service/content/README.md:16:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/rest-equipment-product/content/README.md:65:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:templates/rest-equipment-product/content/docs/local-development.md:7:.venv/Scripts/activate
+platform-core-v1.0-rc2^{commit}:validation/execution/OQ/OQ-Protocol.md:567:| Procedure | Confirm Marketplace register is not commercial activation (`accessGranted: false`). No separate activation operation exists. |
+platform-core-v1.0-rc2^{commit}:validation/reviews/P1-Independent-Review.md:90:- Status `ENTITLED` plus `entitledProductIds` on HTTP 200 can be misread as commercial activation if a client ignores `accessGranted` / `requiresSignIn`. The typed payload and message contradict that reading.
+=== MarketplaceCommercialRelease hits=1 ===
+platform-core-v1.0-rc2^{commit}:validation/baseline/Risk-Assessment.md:106:| Missing controls | Process control for customer delivery of internally created artifacts; implemented Legal Gate only exists for Customer Handoff API. Export / activation / commercial release / tenant provisioning are NOT_APPLICABLE_CURRENT_RELEASE. |
+=== CustomerTenantProvisioning hits=0 ===

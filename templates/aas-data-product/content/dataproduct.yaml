@@ -1,0 +1,71 @@
+apiVersion: dataprod.platform/v1
+kind: DataProduct
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  owner: ${{ values.owner }}
+  version: ${{ values.version }}
+spec:
+  domain: ${{ values.domain }}
+  system: ${{ values.system }}
+  lifecycle: ${{ values.lifecycle }}
+  sourceSystem: ${{ values.assetSource }}
+  dataProductStandardVersion: 1.0.0
+  dataProductSdkVersion: 1.0.0
+  certificationStatus: DEVELOPMENT
+  dataContracts:
+    - name: asset-event
+      version: 1.0.0
+      file: contracts/asset-event.schema.json
+  qualityChecks:
+    - id: eventId_not_empty
+      rule: required_field
+      field: eventId
+    - id: assetId_not_empty
+      rule: required_field
+      field: assetId
+    - id: timestamp_iso8601
+      rule: format
+      field: timestamp
+      pattern: ISO8601
+    - id: assetType_valid
+      rule: enum
+      field: assetType
+      values: [equipment, sensor, component, product, facility, other]
+    - id: submodelElements_present
+      rule: required_field
+      field: submodelElements
+    - id: contract_schema
+      rule: schema_validation
+      schema: contracts/asset-event.schema.json
+  interfaces:
+    - id: ingest
+      type: rest
+      path: /api/v1/assets
+      method: POST
+      description: Ingest asset event
+    - id: query
+      type: rest
+      path: /api/v1/assets
+      method: GET
+      description: Query assets
+    - id: health
+      type: rest
+      path: /api/v1/health
+      method: GET
+      description: Health check
+    - id: quality
+      type: rest
+      path: /api/v1/quality
+      method: GET
+      description: Quality metrics
+  presentation:
+    capabilities:
+      - table
+      - tree
+      - asset-graph
+      - api
+      - json
+      - schema
+    defaultView: table

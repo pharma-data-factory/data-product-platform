@@ -1,0 +1,145 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: aas-data-product
+  title: AAS Asset Administration Shell Data Product
+  description: Certified Golden Path for Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) with asset registry, MQTT/REST ingestion, data contracts, quality gates, CI/CD, and TechDocs.
+  tags:
+    - recommended
+    - python
+    - aas
+    - fastapi
+    - data-product
+    - asset-management
+  annotations:
+    dataprod.platform/kind: template
+    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/templateVersion: 1.0.0
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/category: Templates
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: group:default/platform-team
+  type: data-product
+  parameters:
+    - title: AAS Asset Administration Shell Data Product
+      description: |
+        Certified Golden Path · IEC 63278 / IDTA v3.0 · Asset Registry · MQTT/REST Ingest · Quality Gate · CI/CD · TechDocs
+
+        Domain is manufacturing asset management and semantic integration. Enter Data Product Name, Description, Owner,
+        Asset Source (MQTT or REST), and GitHub Repository. The repository is created in pharma-data-factory.
+      required:
+        - name
+        - description
+        - owner
+        - assetSource
+        - repoUrl
+      properties:
+        name:
+          title: Data Product Name
+          type: string
+          description: Unique data product name for asset management. Lowercase letters, digits, and dashes only.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Short description of the asset data product and its scope.
+          ui:widget: textarea
+        owner:
+          title: Owner
+          type: string
+          description: Owning user or group for this Data Product. This is not the GitHub organization.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        assetSource:
+          title: Asset Source
+          type: string
+          description: Primary source for asset data ingestion.
+          enum:
+            - mqtt
+            - rest
+            - file
+          default: rest
+        mqttTopic:
+          title: MQTT Topic (if MQTT selected)
+          type: string
+          description: MQTT subscription topic for asset updates. Use + as a single-level wildcard.
+          default: pharma/assets/+
+          condition:
+            properties:
+              assetSource:
+                const: mqtt
+        restEndpoint:
+          title: REST Endpoint (if REST selected)
+          type: string
+          description: REST API endpoint pattern for asset ingestion. Use {assetId} as placeholder.
+          default: /api/v1/assets/{assetId}
+          condition:
+            properties:
+              assetSource:
+                const: rest
+        repoUrl:
+          title: GitHub Repository
+          type: string
+          description: The repository is created in the pharma-data-factory organization by the platform GitHub App. Enter only the repository name.
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - pharma-data-factory
+  steps:
+    - id: fetch-base
+      name: Fetch AAS data product skeleton
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/data-product-quality.yml
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          assetSource: ${{ parameters.assetSource }}
+          mqttTopic: ${{ parameters.mqttTopic }}
+          restEndpoint: ${{ parameters.restEndpoint }}
+          system: data-platform
+          domain: manufacturing
+          lifecycle: experimental
+          version: 1.0.0
+          destination:
+            host: github.com
+            owner: pharma-data-factory
+            repo: ${{ parameters.name }}
+          templateName: aas-data-product
+          templateVersion: 1.0.0
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Data Product Platform
+        gitAuthorEmail: platform@localhost
+    - id: register
+      name: Register Data Product
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: View Data Product
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

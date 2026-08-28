@@ -1,0 +1,70 @@
+# Model Company runtime — separate from Backstage Control Plane.
+# Simulators replace external systems. Do not implement Golden Path logic here.
+#
+# Mosquitto anonymous mode is LOCAL / SYNTHETIC ONLY.
+# Topology (Customer Zero):
+#   Control Plane → scenario-engine (/api/v1/uns/publish) → mosquitto → oee-checkweigher
+
+name: model-company
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "41884:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  scenario-engine:
+    build: ./scenario-engine
+    depends_on:
+      - mosquitto
+    ports:
+      - "18091:8091"
+    environment:
+      TZ: UTC
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      # Factory used by the embedded ticker only. Autoinjector SCN-AI-* domain
+      # ticks run in the Control Plane; this service relays their UNS envelopes.
+      MODEL_COMPANY_FACTORY: /factory/model-pharma.yaml
+      MODEL_COMPANY_STATE: /data/runtime-state.json
+    volumes:
+      - ../factories/model-pharma.yaml:/factory/model-pharma.yaml:ro
+      - model-company-data:/data
+
+  # OEE Golden Path instance scoped to CHECKWEIGHER-01 / Platform UNS topics.
+  # Shares the Model Company Mosquitto — do not add a second broker.
+  oee-checkweigher:
+    build:
+      context: ../../templates/oee-data-product/content
+    depends_on:
+      - mosquitto
+    ports:
+      - "18080:8080"
+    environment:
+      TZ: UTC
+      SERVICE_NAME: checkweigher-01-oee
+      SERVICE_VERSION: 1.0.0
+      EQUIPMENT_ID: CHECKWEIGHER-01
+      SITE: MODEL-PHARMA-01
+      AREA: packaging
+      LINE: PKG-L01
+      DEFAULT_WINDOW: hour
+      TEMPLATE_NAME: oee-data-product
+      TEMPLATE_VERSION: 1.0.0
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      MACHINE_STATE_TOPIC: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CHECKWEIGHER-01/state
+      COUNTER_TOPIC: uns/model-pharma/MODEL-PHARMA-01/packaging/PKG-L01/CHECKWEIGHER-01/counts
+      MQTT_TOPIC: ""
+      SOURCE_API_URL: ""
+      TIMESERIES_SQLITE_PATH: /app/data/oee.db
+    volumes:
+      - model-company-oee-data:/app/data
+
+volumes:
+  model-company-data:
+  model-company-oee-data:

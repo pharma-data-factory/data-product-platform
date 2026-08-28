@@ -1,0 +1,29 @@
+id: validation-expert
+name: Validation Expert
+description: Validation lifecycle and evidence workbench
+
+type: VALIDATION
+lifecycle: ENABLED
+
+frontend:
+  package: "@internal/plugin-validation-expert"
+  route: "/validation-expert"
+
+backend:
+  package: "@internal/plugin-validation-expert-backend"
+  route: "/api/validation-expert"
+
+owner: platform-team
+
+permissions:
+  - validation.read
+  - requirement.read
+  - traceability.read
+  - validation.run.start
+  - validation.test.execute
+  - validation.review
+  - validation.admin
+
+validation:
+  status: NOT_VALIDATED
+  reference: validation-expert/VALIDATION-IMPACT.md

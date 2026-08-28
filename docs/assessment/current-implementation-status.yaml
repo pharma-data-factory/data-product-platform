@@ -1,0 +1,373 @@
+# Machine-readable AS-IS status for Validation Expert / governance tooling.
+# Generated 2026-08-23. Not a validated record. Product validation_status remains NOT_VALIDATED.
+
+assessment:
+  id: PDF-ASIS-2026-08-23
+  date: "2026-08-23"
+  type: current-implementation-status
+  repository: data-product-platform
+  remote: https://github.com/pharma-data-factory/data-product-platform.git
+  branch: main
+  commit: 6e8318a093da871a665df92c2ac004d895a49b1f
+  working_tree: dirty
+  working_tree_note: >-
+    Untracked plugins/validation-expert* and plugins/plugin-directory*;
+    backend/app wiring modified. HEAD plugins do not include these packages.
+  overall_status: PILOT_READY_WITH_CONDITIONS
+  confidence: medium_high
+  product_validation_status: NOT_VALIDATED
+  technical_mvp_doc_claim: TECHNICAL_MVP_COMPLETE
+  technical_mvp_evidence: partial
+  phase0_decision: START_PHASE_0_WITH_CONDITIONS
+  current_verified_e2e_boundary: >-
+    Unit/service tests + official Golden Path template content pytest +
+    backend liveness probes (+ RC2 validation Compose liveness). No scaffolder→GitHub E2E.
+
+baseline:
+  package_manager: yarn@4.13.0
+  node_engines: "22 || 24"
+  node_observed: v22.12.0
+  backstage: "1.53.0"
+  python_observed: "3.11.9"
+  python_template_requires: ">=3.12"
+  docker_observed: "29.5.3"
+  local_database: better-sqlite3
+  compose_database: postgres:16
+  reproducibility: partial
+
+infrastructure:
+  frontend_port_3000: not_verified_connection_refused
+  backend_port_7007_liveness: verified_ok
+  validation_compose_port_7008_liveness: verified_ok
+  docker_compose_validation_stack: running_healthy
+  secrets_pattern: env_vars_gitignored
+  committed_secrets_scan: no_credential_files_named_in_git_ls_files
+
+authentication:
+  guest_development: configured
+  github_oauth: configured
+  google: not_configured
+  interactive_login_verified: false
+  production_guest_forbidden: configured_in_overlays
+  status: IMPLEMENTED_NOT_VERIFIED
+
+authorization:
+  permission_enabled: true
+  policy: packages/backend/src/permission/policy.ts
+  roles: [VIEWER, DEVELOPER, DATA_PRODUCT_OWNER, PLATFORM_ADMIN]
+  entitlement_and_rbac: true
+  unit_tests: pass
+  tests_executed: 11
+  status: IMPLEMENTED_AND_VERIFIED_UNIT
+
+components:
+  - id: COMP-001
+    name: backstage-app
+    location: packages/app
+    status: IMPLEMENTED_NOT_VERIFIED
+    persistence: none
+  - id: COMP-002
+    name: backstage-backend
+    location: packages/backend
+    status: IMPLEMENTED_AND_VERIFIED
+    persistence: sqlite_or_postgres
+  - id: COMP-003
+    name: platform-common
+    location: packages/platform-common
+    status: IMPLEMENTED_AND_VERIFIED
+    tests_passed: 110
+  - id: COMP-004
+    name: marketplace
+    location: plugins/marketplace
+    status: IMPLEMENTED_NOT_VERIFIED
+    maturity: PLUGIN_M3_M4
+  - id: COMP-005
+    name: data-products
+    location: plugins/data-products+backend
+    status: IMPLEMENTED_NOT_VERIFIED
+    maturity: PLUGIN_M4
+  - id: COMP-006
+    name: entitlements-backend
+    location: plugins/entitlements-backend
+    status: IMPLEMENTED_NOT_VERIFIED
+    maturity: PLUGIN_M3_M4
+  - id: COMP-007
+    name: nexora-industrial
+    location: plugins/nexora-*
+    status: PARTIAL
+    maturity: PLUGIN_M2_M3
+    mode_default: mock
+  - id: COMP-008
+    name: aas-adapter
+    location: packages/backend/src/aas
+    status: PROTOTYPE
+    maturity: PLUGIN_M2
+    persistence: in_memory
+  - id: COMP-009
+    name: validation-expert
+    location: plugins/validation-expert*
+    status: PARTIAL
+    in_head: false
+    maturity: PLUGIN_M3
+    product_validation_status: NOT_VALIDATED
+  - id: COMP-010
+    name: plugin-directory
+    location: plugins/plugin-directory*
+    status: PARTIAL
+    in_head: false
+    maturity: PLUGIN_M3
+    install_lifecycle: not_implemented
+  - id: COMP-011
+    name: official-golden-paths
+    location: templates/mqtt-temperature-product,rest-equipment-product,oee-data-product
+    status: CONTENT_VERIFIED_SCAFFOLD_NOT_TESTED
+  - id: COMP-015
+    name: validation-package
+    location: validation/
+    status: STATIC_BASELINE_NOT_VALIDATED
+    baseline_status: BASELINED
+    validation_status: NOT_VALIDATED
+
+plugins:
+  - name: marketplace
+    in_head: true
+    maturity: PLUGIN_M3_M4
+  - name: data-products
+    in_head: true
+    maturity: PLUGIN_M4
+  - name: entitlements-backend
+    in_head: true
+    maturity: PLUGIN_M3_M4
+  - name: nexora-assets
+    in_head: true
+    maturity: PLUGIN_M2_M3
+  - name: nexora-contracts
+    in_head: true
+    maturity: PLUGIN_M2_M3
+  - name: nexora-quality
+    in_head: true
+    maturity: PLUGIN_M2_M3
+  - name: nexora-backend
+    in_head: true
+    maturity: PLUGIN_M3
+  - name: validation-expert
+    in_head: false
+    maturity: PLUGIN_M3
+  - name: plugin-directory
+    in_head: false
+    maturity: PLUGIN_M3
+  - name: aas
+    in_head: true
+    maturity: PLUGIN_M2
+
+golden_paths:
+  - id: GP-001
+    name: MQTT Temperature
+    official: true
+    level_evidence: 2
+    scaffold: NOT_TESTED
+    build: NOT_TESTED
+    tests: PASS
+    tests_count: 44
+    github_publish: NOT_TESTED
+    catalog: PARTIAL
+    docker: PARTIAL
+    deployment: NOT_TESTED
+  - id: GP-002
+    name: REST Equipment
+    official: true
+    level_evidence: 2
+    scaffold: NOT_TESTED
+    build: NOT_TESTED
+    tests: PASS
+    tests_count: 48
+    github_publish: NOT_TESTED
+    catalog: PARTIAL
+    docker: PARTIAL
+    deployment: NOT_TESTED
+  - id: GP-003
+    name: OEE Data Product
+    official: true
+    commercial: FUTURE
+    level_evidence: 2
+    scaffold: NOT_TESTED
+    build: NOT_TESTED
+    tests: PASS
+    tests_count: 75
+    github_publish: NOT_TESTED
+    catalog: PARTIAL
+    docker: PARTIAL
+    deployment: NOT_TESTED
+  - id: GP-009
+    name: AAS Asset
+    official: false
+    level_evidence: 0
+    scaffold: NOT_APPLICABLE
+    notes: debug log only; no content application
+
+apis:
+  - name: backstage-liveness
+    method: GET
+    endpoint: /.backstage/health/v1/liveness
+    status: VERIFIED
+  - name: catalog-entities
+    method: GET
+    endpoint: /api/catalog/entities
+    status: VERIFIED_AUTH_GATED
+    observed: 401
+  - name: validation-expert-health
+    method: GET
+    endpoint: /api/validation-expert/health
+    status: VERIFIED
+    scope: working_tree
+  - name: plugin-directory-health
+    method: GET
+    endpoint: /api/plugin-directory/health
+    status: VERIFIED
+    scope: working_tree
+  - name: aas
+    endpoint: /api/aas/*
+    status: PROTOTYPE_IN_MEMORY
+  - name: nexora-industrial
+    endpoint: /api/nexora-industrial/*
+    status: MOCK_DEFAULT
+
+tests:
+  discovered_ts_test_files_approx: 130
+  executed:
+    platform_common: { passed: 110, failed: 0 }
+    backend_permission: { passed: 11, failed: 0 }
+    validation_expert_backend: { passed: 9, failed: 0 }
+    validation_expert_frontend: { passed: 24, failed: 0 }
+    plugin_directory_backend: { passed: 6, failed: 0 }
+    mqtt_temperature_pytest: { passed: 44, failed: 0 }
+    rest_equipment_pytest: { passed: 48, failed: 0 }
+    oee_pytest: { passed: 75, failed: 0 }
+  full_monorepo: NOT_EXECUTED
+  playwright_e2e: NOT_EXECUTED
+  scaffolder_e2e: NOT_EXECUTED
+
+security:
+  guest_in_default_config: true
+  guest_forbidden_in_production_overlays: true
+  permission_enabled: true
+  committed_secrets: not_found_by_name_scan
+  p0_risks:
+    - dirty_tree_untracked_plugins_in_runtime
+    - configuration_identity_unclear_for_csv
+
+validation_expert:
+  present_in_head: false
+  present_in_working_tree: true
+  validation_status: NOT_VALIDATED
+  capabilities:
+    overview: { ui: true, api: true, persistence: true, e2e: false }
+    requirements: { ui: true, api: true, persistence: true, e2e: false }
+    traceability: { ui: true, api: true, persistence: true, e2e: false }
+    risks: { ui: true, api: true, persistence: true, e2e: false }
+    protocols: { ui: true, api: true, persistence: true, e2e: false }
+    runs: { ui: true, api: true, persistence: true, e2e: false }
+    evidence: { ui: true, api: true, persistence: true, e2e: false }
+    findings: { ui: true, api: true, persistence: true, e2e: false }
+    approval: { ui: false, api: false, persistence: false, e2e: false }
+    part11_audit: { ui: false, api: false, persistence: false, e2e: false }
+
+plugin_directory:
+  present_in_head: false
+  present_in_working_tree: true
+  discoverable_inventory: true
+  install_enable_disable: false
+  status: NOT_A_PLUGIN_STORE
+
+persistence:
+  catalog: PERSISTENT
+  scaffolder: PERSISTENT
+  create_authorization_audit: PERSISTENT
+  validation_runs_store: PERSISTENT
+  aas: IN_MEMORY
+  nexora_mock: IN_MEMORY
+  entitlement_local_map: STATIC_CONFIG
+
+maturity:
+  platform_core: { percent: 70, confidence: high }
+  backstage: { percent: 75, confidence: high }
+  authentication: { percent: 55, confidence: medium }
+  authorization: { percent: 70, confidence: high }
+  catalog: { percent: 60, confidence: medium }
+  golden_paths: { percent: 65, confidence: medium_high }
+  plugins: { percent: 60, confidence: medium }
+  validation_expert: { percent: 35, confidence: medium }
+  testing: { percent: 55, confidence: medium }
+  e2e: { percent: 15, confidence: high }
+  deployment: { percent: 50, confidence: medium }
+  security: { percent: 55, confidence: medium }
+  csv_readiness: { percent: 40, confidence: high }
+
+gaps:
+  p0:
+    - id: GAP-P0-001
+      problem: Untracked Validation Expert / Plugin Directory in runtime WT
+      impact: Non-reproducible baseline; CSV scope contamination
+    - id: GAP-P0-002
+      problem: Dirty main with mixed WIP vs HEAD
+      impact: Unclear validated configuration identity
+  p1:
+    - id: GAP-P1-001
+      problem: Frontend not verified (:3000 down)
+    - id: GAP-P1-002
+      problem: No scaffolder→GitHub E2E verified this assessment
+    - id: GAP-P1-003
+      problem: Guest enabled in default development config
+    - id: GAP-P1-004
+      problem: Sample catalog entities loaded by default
+    - id: GAP-P1-005
+      problem: AAS in-memory prototype exposed as API
+
+next_actions:
+  before_phase0:
+    - priority: P0
+      action: Commit or remove WT Validation Expert & Plugin Directory from release identity
+      effort: M
+      validation_relevance: high
+    - priority: P0
+      action: Tag clean tree matching IQ evidence
+      effort: S
+      validation_relevance: high
+    - priority: P1
+      action: Frontend + login smoke (Guest/GitHub)
+      effort: S
+      validation_relevance: high
+    - priority: P1
+      action: Authenticated catalog + one GP scaffolder dry-run
+      effort: M
+      validation_relevance: high
+    - priority: P1
+      action: Confirm Guest disabled on hosted IQ/OQ environment
+      effort: S
+      validation_relevance: high
+  after_baseline:
+    - priority: P1
+      action: Controlled official GP GitHub publish proof
+      effort: L
+      validation_relevance: medium
+    - priority: P2
+      action: Full yarn test:all + Playwright smoke
+      effort: M
+      validation_relevance: medium
+    - priority: P2
+      action: Isolate sample catalog from pilot discovery
+      effort: M
+      validation_relevance: medium
+    - priority: P2
+      action: Define Validation Expert v0.1 release scope
+      effort: M
+      validation_relevance: high
+    - priority: P3
+      action: Standardize Python 3.12 toolchain for GP content
+      effort: S
+      validation_relevance: low
+
+recommended_next_milestone: >-
+  Freeze Platform Core clean-tag baseline and run Phase 0 configuration
+  identification + smoke IQ against that tag; exclude Validation Expert,
+  Plugin Directory, and AAS from validated scope.

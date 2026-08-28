@@ -46,6 +46,39 @@ describe('permission matrix', () => {
     },
   );
 
+  it('allows Viewer to consume Data Products and view quality/validation metadata', () => {
+    expect(
+      decidePermission(
+        { name: 'data-product.consume', attributes: { action: 'read' } },
+        'VIEWER',
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'data-product.viewQuality', attributes: { action: 'read' } },
+        'VIEWER',
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'data-product.viewValidation', attributes: { action: 'read' } },
+        'VIEWER',
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'data-product.admin', attributes: { action: 'update' } },
+        'VIEWER',
+      ),
+    ).toBe('deny');
+    expect(
+      decidePermission(
+        { name: 'data-product.admin', attributes: { action: 'update' } },
+        'PLATFORM_ADMIN',
+      ),
+    ).toBe('allow');
+  });
+
   it('denies unauthenticated requests', () => {
     expect(decidePermission(CATALOG_READ)).toBe('deny');
     expect(decidePermission(TECHDOCS_READ)).toBe('deny');
@@ -225,6 +258,7 @@ describe('role-aware dashboard actions', () => {
       'Create Data Product',
       'Manage Platform',
       'Entitlements',
+      'Plugin Directory',
       'Open Developer Hub',
       'Explore Marketplace',
       'Browse Data Products',
@@ -232,5 +266,52 @@ describe('role-aware dashboard actions', () => {
       'Release Catalog',
       'My Access',
     ]);
+  });
+});
+
+describe('model company permissions', () => {
+  it('allows Viewer read and denies control', () => {
+    expect(
+      decidePermission(
+        { name: 'modelCompany.read', attributes: { action: 'read' } },
+        'VIEWER',
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'modelCompany.control', attributes: { action: 'update' } },
+        'VIEWER',
+      ),
+    ).toBe('deny');
+  });
+
+  it('allows Developer runScenario and control', () => {
+    expect(
+      decidePermission(
+        { name: 'modelCompany.runScenario', attributes: { action: 'create' } },
+        'DEVELOPER',
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'modelCompany.control', attributes: { action: 'update' } },
+        'DEVELOPER',
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'modelCompany.admin', attributes: { action: 'update' } },
+        'DEVELOPER',
+      ),
+    ).toBe('deny');
+  });
+
+  it('allows Admin full model company control', () => {
+    expect(
+      decidePermission(
+        { name: 'modelCompany.admin', attributes: { action: 'update' } },
+        'PLATFORM_ADMIN',
+      ),
+    ).toBe('allow');
   });
 });

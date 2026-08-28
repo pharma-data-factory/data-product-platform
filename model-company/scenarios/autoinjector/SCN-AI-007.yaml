@@ -1,0 +1,8 @@
+id: SCN-AI-007
+name: Checkweigher Microstop Storm
+version: "0.1.0"
+description: Repeated MICROSTOP on CHECKWEIGHER-01 degrades packaging OEE inputs.
+seedDefault: 42
+expected:
+  checkweigherMicrostops: true
+  checkweigherReason: PRODUCT_JAM

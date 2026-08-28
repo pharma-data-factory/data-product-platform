@@ -10,7 +10,29 @@ import type {
   ProfileInfo,
 } from '@backstage/core-plugin-api';
 import type { JsonObject } from '@backstage/types';
+import { MemoryRouter } from 'react-router-dom';
+import {
+  modelCompanyApiRef,
+  type PublicModelCompanyDemo,
+} from '@internal/plugin-model-company';
 import { LandingSignInPage } from './LandingSignInPage';
+
+const publicDemo = {
+  overview: {
+    companyName: 'Nexora Model Pharma',
+    siteName: 'Model Pharma Plant',
+    siteId: 'MODEL-PHARMA-01',
+    simulation: 'STOPPED',
+    currentScenario: '',
+    connectivity: { simulation: 'STOPPED', mqtt: 'UNKNOWN', uns: 'IDLE' },
+  },
+  factory: { sites: [], lineCount: 0, equipmentCount: 0 },
+  equipment: [],
+  orders: [],
+  batches: [],
+  genealogy: [],
+  warehouse: [],
+} as unknown as PublicModelCompanyDemo;
 
 function renderLanding(
   config: JsonObject,
@@ -22,30 +44,33 @@ function renderLanding(
   onSignInSuccess: () => void = () => undefined,
 ) {
   render(
-    <TestApiProvider
-      apis={[
-        [configApiRef, mockApis.config({ data: config })],
-        [
-          discoveryApiRef,
-          { getBaseUrl: async () => 'http://localhost:7007/api/auth' },
-        ],
-        [
-          githubAuthApiRef,
-          {
-            getBackstageIdentity:
-              githubAuth.getBackstageIdentity ??
-              (async (): Promise<BackstageIdentityResponse | undefined> =>
-                undefined),
-            getProfile:
-              githubAuth.getProfile ??
-              (async (): Promise<ProfileInfo | undefined> => undefined),
-            signOut: githubAuth.signOut ?? (async () => undefined),
-          },
-        ],
-      ]}
-    >
-      <LandingSignInPage onSignInSuccess={onSignInSuccess} />
-    </TestApiProvider>,
+    <MemoryRouter>
+      <TestApiProvider
+        apis={[
+          [configApiRef, mockApis.config({ data: config })],
+          [
+            discoveryApiRef,
+            { getBaseUrl: async () => 'http://localhost:7007/api/auth' },
+          ],
+          [modelCompanyApiRef, { getPublicDemo: async () => publicDemo }],
+          [
+            githubAuthApiRef,
+            {
+              getBackstageIdentity:
+                githubAuth.getBackstageIdentity ??
+                (async (): Promise<BackstageIdentityResponse | undefined> =>
+                  undefined),
+              getProfile:
+                githubAuth.getProfile ??
+                (async (): Promise<ProfileInfo | undefined> => undefined),
+              signOut: githubAuth.signOut ?? (async () => undefined),
+            },
+          ],
+        ]}
+      >
+        <LandingSignInPage onSignInSuccess={onSignInSuccess} />
+      </TestApiProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -94,6 +119,61 @@ describe('LandingSignInPage', () => {
     expect(
       screen.getByRole('button', { name: /Continue as Guest/i }),
     ).toBeInTheDocument();
+  });
+
+  it('shows the read-only Model Company demo to anonymous visitors', async () => {
+    window.history.pushState({}, '', '/model-company');
+
+    try {
+      renderLanding({
+        auth: {
+          environment: 'production',
+          providers: {
+            github: { production: { clientId: 'oauth-client' } },
+          },
+        },
+      });
+
+      expect(
+        await screen.findByRole('heading', { name: 'Nexora Model Pharma' }),
+      ).toBeInTheDocument();
+      expect(screen.getByText('NON-GXP')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Sign in for controls/i }),
+      ).toBeInTheDocument();
+
+      // Simulation control and authenticated navigation stay hidden.
+      expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('navigation', { name: 'Model Company primary' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
+  it('opens login for a Model Company sub-route', () => {
+    window.history.pushState({}, '', '/model-company/scenarios');
+
+    try {
+      renderLanding({
+        auth: {
+          environment: 'development',
+          providers: {
+            guest: {},
+            github: { development: { clientId: 'oauth-client' } },
+          },
+        },
+      });
+
+      expect(screen.getByText('Sign in to continue')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Continue as Guest/i }),
+      ).toBeInTheDocument();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
   });
 
   it('hides Guest in production even if a merged Guest provider remains', () => {

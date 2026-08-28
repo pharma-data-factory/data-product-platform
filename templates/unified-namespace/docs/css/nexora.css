@@ -1,0 +1,222 @@
+/* Nexora Global Color Palette */
+:root {
+  --nexora-navy: #0A1929;
+  --nexora-navy-dark: #05101C;
+  --nexora-cyan: #00C2D9;
+  --nexora-cyan-light: #5EE4F0;
+  --nexora-text: #0F172A;
+  --nexora-muted: #475569;
+  --nexora-border: #E8EEF2;
+  --nexora-card: #FFFFFF;
+  --nexora-surface: #F4F6F8;
+}
+
+/* Material Theme Overrides */
+.md-header {
+  background-color: var(--nexora-navy) !important;
+}
+
+.md-header__button {
+  color: var(--nexora-cyan) !important;
+}
+
+.md-nav__link,
+.md-nav__link:hover {
+  color: var(--nexora-text) !important;
+}
+
+.md-nav__link--active {
+  color: var(--nexora-cyan) !important;
+  font-weight: 600;
+}
+
+.md-content {
+  background-color: #FFFFFF;
+  color: var(--nexora-text);
+}
+
+.md-content a {
+  color: var(--nexora-cyan) !important;
+}
+
+.md-content a:hover {
+  color: var(--nexora-cyan-light) !important;
+  text-decoration: underline;
+}
+
+.md-content h1,
+.md-content h2,
+.md-content h3,
+.md-content h4,
+.md-content h5,
+.md-content h6 {
+  color: var(--nexora-navy) !important;
+  font-weight: 600;
+}
+
+.md-content code {
+  background-color: var(--nexora-surface);
+  color: var(--nexora-navy);
+  border: 1px solid var(--nexora-border);
+}
+
+.md-typeset pre {
+  background-color: var(--nexora-navy-dark);
+  border: 1px solid var(--nexora-border);
+}
+
+.md-typeset pre code {
+  color: var(--nexora-cyan-light);
+  background-color: transparent;
+  border: none;
+}
+
+.md-typeset table {
+  border-collapse: collapse;
+}
+
+.md-typeset table thead tr {
+  background-color: var(--nexora-surface);
+  border-bottom: 2px solid var(--nexora-cyan);
+}
+
+.md-typeset table tbody tr {
+  border-bottom: 1px solid var(--nexora-border);
+}
+
+.md-typeset table tbody tr:hover {
+  background-color: #F9FAFB;
+}
+
+.md-typeset table th {
+  color: var(--nexora-navy);
+  font-weight: 600;
+}
+
+.md-typeset table td {
+  color: var(--nexora-text);
+}
+
+.md-typeset .admonition {
+  border-left: 4px solid var(--nexora-cyan);
+  border-radius: 4px;
+  background-color: var(--nexora-surface);
+}
+
+.md-typeset .admonition.note {
+  border-left-color: var(--nexora-cyan);
+}
+
+.md-typeset .admonition.warning {
+  border-left-color: #F59E0B;
+}
+
+.md-typeset .admonition.danger {
+  border-left-color: #EF4444;
+}
+
+.md-typeset .admonition > .admonition-title {
+  color: var(--nexora-navy);
+  font-weight: 600;
+  background-color: transparent;
+}
+
+.md-search__input {
+  color: var(--nexora-text);
+  border: 1px solid var(--nexora-border);
+}
+
+.md-search__input::placeholder {
+  color: var(--nexora-muted);
+}
+
+.md-search__suggestions {
+  background-color: #FFFFFF;
+  border: 1px solid var(--nexora-border);
+}
+
+.md-search__result__heading {
+  color: var(--nexora-cyan);
+  font-weight: 600;
+}
+
+.md-search__result__text {
+  color: var(--nexora-muted);
+}
+
+.md-typeset blockquote {
+  border-left: 4px solid var(--nexora-cyan);
+  color: var(--nexora-muted);
+}
+
+/* Ensure good contrast */
+body {
+  background-color: #FFFFFF;
+  color: var(--nexora-text);
+}
+
+/* Sidebar/Navigation */
+.md-sidebar {
+  background-color: var(--nexora-surface);
+}
+
+.md-tabs {
+  background-color: var(--nexora-navy);
+}
+
+.md-tabs__tab {
+  color: var(--nexora-cyan) !important;
+}
+
+.md-tabs__tab--active {
+  border-bottom-color: var(--nexora-cyan) !important;
+}
+
+/* Button styling */
+.md-button {
+  background-color: var(--nexora-cyan);
+  color: #FFFFFF;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.md-button:hover {
+  background-color: var(--nexora-cyan-light);
+}
+
+/* Footer */
+.md-footer {
+  background-color: var(--nexora-navy-dark);
+  color: var(--nexora-cyan);
+}
+
+.md-footer-meta {
+  background-color: var(--nexora-navy);
+}
+
+/* Global text contrast */
+.md-typeset strong {
+  color: var(--nexora-navy);
+  font-weight: 600;
+}
+
+.md-typeset em {
+  color: var(--nexora-text);
+  font-style: italic;
+}
+
+/* JSON/Code blocks */
+.codehilite,
+.highlight {
+  background-color: var(--nexora-navy-dark) !important;
+}
+
+.codehilite code,
+.highlight code {
+  color: #E0E0E0 !important;
+}
+
+/* Ensure all text is readable */
+* {
+  color: inherit;
+}

@@ -32,6 +32,14 @@ metadata:
     dataprod.platform/qualityStatus: TESTED
     dataprod.platform/quality-endpoint: /api/v1/quality
     dataprod.platform/quality-checks: machine_state_valid,timestamp_valid,counts_non_negative,ideal_cycle_time,window_bounds,contract_schema
+    dataprod.platform/consume-rest-path: /api/v1/oee
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,metric-cards,json,schema,realtime
+    dataprod.platform/presentation-extensions: oee-dashboard
+    dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/freshness-target-seconds: '10'
+    dataprod.platform/completeness-target: '0.99'
+    dataprod.platform/input-contracts: equipment-state-v1,equipment-counts-v1
   links:
     - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
       title: Repository

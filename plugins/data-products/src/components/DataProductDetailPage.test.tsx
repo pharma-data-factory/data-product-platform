@@ -24,6 +24,16 @@ describe('Data Product detail control center', () => {
     expect(source).toContain('Contract documentation');
   });
 
+  it('exposes Consumption Framework tabs and capabilities', () => {
+    expect(source).toContain('label="Data"');
+    expect(source).toContain('label="Validation"');
+    expect(source).toContain('label="Realtime"');
+    expect(source).toContain('useDataProduct');
+    expect(source).toContain('DataProductTable');
+    expect(source).toContain('NOT_VALIDATED');
+    expect(source).toContain('NOT_AVAILABLE');
+  });
+
   it('uses professional loading, empty, and unauthorized states', () => {
     expect(source).toContain('JourneyState');
     expect(source).toContain('Unauthorized');

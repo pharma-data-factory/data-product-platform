@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/temperature-v1.schema.json",
+  "title": "UNS Temperature v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "timestamp",
+    "value",
+    "unit",
+    "lowerLimit",
+    "upperLimit",
+    "dataQuality"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "value": { "type": "number" },
+    "unit": { "type": "string", "enum": ["C", "F", "K"] },
+    "lowerLimit": { "type": "number" },
+    "upperLimit": { "type": "number" },
+    "dataQuality": { "type": "string", "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"] }
+  }
+}

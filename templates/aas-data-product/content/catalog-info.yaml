@@ -1,0 +1,89 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  tags:
+    - data-product
+    - python
+    - aas
+    - asset-management
+    - ${{ values.assetSource }}
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+    dataprod.platform/kind: data-product
+    dataprod.platform/version: ${{ values.version }}
+    dataprod.platform/domain: ${{ values.domain }}
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/dataProductStandardVersion: 1.0.0
+    dataprod.platform/dataProductSdkVersion: 1.0.0
+    dataprod.platform/template: ${{ values.templateName }}
+    dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    dataprod.platform/source-systems: aas,${{ values.assetSource }}
+    dataprod.platform/interfaces: REST
+    dataprod.platform/protocol: ${{ values.assetSource | upper }}
+    dataprod.platform/data-contracts: asset-event-v1
+    dataprod.platform/dataContract: contracts/asset-event.schema.json
+    dataprod.platform/qualityStatus: TESTED
+    dataprod.platform/quality-endpoint: /api/v1/quality
+    dataprod.platform/quality-checks: assetId_not_empty,eventId_not_empty,timestamp_iso8601,asset_schema,contract_schema
+    dataprod.platform/consume-rest-path: /api/v1/assets
+    dataprod.platform/consume-stream: sse
+    dataprod.platform/presentation-capabilities: table,tree,asset-graph,api,json,schema
+    dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/aas-version: v3.0 (IDTA-01001)
+    dataprod.platform/aas-serialization: json
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
+    - url: https://industrialdigitaltwin.io/aas-specifications/IDTA-01001/v3.0/index.html
+      title: AAS Specification (IDTA-01001 v3.0)
+      icon: docs
+spec:
+  type: data-product
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  dependsOn:
+    - component:default/aas-foundation
+  providesApis:
+    - ${{ values.name }}--asset-event
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}--asset-event
+  title: Asset Event Contract (AAS)
+  description: JSON Schema contract for AAS asset events, IDTA-01001 v3.0 compliant, version 1.0.0.
+  tags:
+    - contract
+    - aas
+    - asset
+  annotations:
+    dataprod.platform/contract: asset-event
+    dataprod.platform/contract-version: 1.0.0
+    dataprod.platform/dataContract: contracts/asset-event.schema.json
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: Repository
+      icon: github
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/contracts/asset-event.schema.json
+      title: Data Contract Schema
+      icon: docs
+spec:
+  type: contract
+  lifecycle: ${{ values.lifecycle }}
+  owner: ${{ values.owner }}
+  system: ${{ values.system }}
+  definition: |
+    Asset Event contract 1.0.0 (IDTA-01001 v3.0)
+    Required fields: eventId, assetId, timestamp, assetType, submodelElements

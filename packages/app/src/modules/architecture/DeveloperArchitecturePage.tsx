@@ -36,6 +36,7 @@ export function DeveloperArchitecturePage({
       <ArchitectureDiagramStyles />
       <Hero />
       <DiagramSection />
+      <BackstageFoundationSection />
       <HowSection />
       <ManifestSection />
       <DocsSection />
@@ -87,7 +88,7 @@ function Hero() {
             margin: '0 0 16px',
           }}
         >
-          Developer technical view
+          Developer / Technical Perspective
         </p>
         <h1
           className="pdf-display"
@@ -102,7 +103,7 @@ function Hero() {
           How a developer builds a Data Product.
         </h1>
         <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
-          The public architecture story explains why Nexora exists.
+          The public architecture story explains why Pharma Data Factory exists.
           This page explains how a developer uses Catalog, Marketplace, Create,
           Golden Paths and Platform Components to ship an independently running
           Data Product.
@@ -154,6 +155,70 @@ function DiagramSection() {
           Catalog later discovers the product. The runtime does not stay inside
           the Control Plane.
         </p>
+      </div>
+    </section>
+  );
+}
+
+function BackstageFoundationSection() {
+  return (
+    <section
+      aria-label="Backstage foundation"
+      style={{ padding: '56px 24px', background: C.section }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <p
+          className="pdf-mono"
+          style={{
+            color: PHARMA_TEAL,
+            fontSize: 12,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            margin: '0 0 12px',
+            fontWeight: 600,
+          }}
+        >
+          BACKSTAGE FOUNDATION
+        </p>
+        <h2
+          className="pdf-display"
+          style={{
+            fontSize: 'clamp(24px, 3.2vw, 36px)',
+            fontWeight: 600,
+            margin: '0 0 24px',
+            color: PHARMA_NAVY,
+          }}
+        >
+          Built on Backstage, extended for Data Products
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+          <div className="pdf-card" style={{ padding: 20 }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>
+              From Backstage
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: C.text }}>
+              <li>Software Catalog</li>
+              <li>Scaffolder / Create</li>
+              <li>TechDocs</li>
+              <li>Search</li>
+              <li>Plugin architecture</li>
+              <li>Identity & RBAC</li>
+            </ul>
+          </div>
+          <div className="pdf-card" style={{ padding: 20 }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>
+              Pharma Data Factory adds
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: C.text }}>
+              <li>Data Product standard</li>
+              <li>Platform Components</li>
+              <li>Contracts & quality</li>
+              <li>Golden Paths</li>
+              <li>Composition validation</li>
+              <li>Validation & Trust layer</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
   );

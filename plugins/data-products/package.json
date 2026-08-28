@@ -27,6 +27,7 @@
     "@backstage/core-plugin-api": "^1.12.8",
     "@backstage/frontend-plugin-api": "^0.17.3",
     "@backstage/plugin-catalog-react": "^1.21.6",
+    "@internal/data-product-consumption": "workspace:^",
     "@internal/platform-common": "workspace:^",
     "@material-ui/core": "^4.12.2",
     "@material-ui/icons": "^4.9.1"

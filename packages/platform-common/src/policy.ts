@@ -42,6 +42,15 @@ export function decidePermission(
     return 'deny';
   }
 
+  // Reserved Validation Expert controls — never auto-granted in v0.1.
+  if (
+    permission.name === 'validation.approve' ||
+    permission.name === 'risk.accept' ||
+    permission.name === 'baseline.modify'
+  ) {
+    return 'deny';
+  }
+
   if (role === 'PLATFORM_ADMIN') {
     return allowScaffolderTemplateIfReleased(permission, role, resourceRef, 'allow');
   }
@@ -85,8 +94,40 @@ function isPrivilegedRead(name: string): boolean {
     name === 'platform.admin' ||
     name === 'template.admin' ||
     name === 'golden-path.release.manage' ||
-    name === 'entitlement.admin'
+    name === 'entitlement.admin' ||
+    name === 'validation.admin' ||
+    name === 'validation.approve' ||
+    name === 'validation.review' ||
+    name === 'validation.run.start' ||
+    name === 'validation.test.execute' ||
+    name === 'risk.accept' ||
+    name === 'baseline.modify' ||
+    name === 'pluginDirectory.read' ||
+    name === 'pluginDirectory.admin' ||
+    name === 'modelCompany.runScenario' ||
+    name === 'modelCompany.control' ||
+    name === 'modelCompany.admin'
   );
+}
+
+export function canReadValidation(role: PlatformRole): boolean {
+  return isAtLeast(role, 'VIEWER');
+}
+
+export function canStartValidationRun(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DEVELOPER');
+}
+
+export function canExecuteValidationTest(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DEVELOPER');
+}
+
+export function canReviewValidation(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DATA_PRODUCT_OWNER');
+}
+
+export function canAdministerValidation(role: PlatformRole): boolean {
+  return role === 'PLATFORM_ADMIN';
 }
 
 export function canViewCatalog(role: PlatformRole): boolean {
@@ -122,5 +163,29 @@ export function canViewEntitlements(role: PlatformRole): boolean {
 }
 
 export function canAdministerEntitlements(role: PlatformRole): boolean {
+  return role === 'PLATFORM_ADMIN';
+}
+
+export function canReadPluginDirectory(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DEVELOPER');
+}
+
+export function canAdministerPluginDirectory(role: PlatformRole): boolean {
+  return role === 'PLATFORM_ADMIN';
+}
+
+export function canReadModelCompany(role: PlatformRole): boolean {
+  return isAtLeast(role, 'VIEWER');
+}
+
+export function canRunModelCompanyScenario(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DEVELOPER');
+}
+
+export function canControlModelCompany(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DEVELOPER');
+}
+
+export function canAdministerModelCompany(role: PlatformRole): boolean {
   return role === 'PLATFORM_ADMIN';
 }

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dataprod.platform/contracts/uns/equipment-telemetry-v1.schema.json",
+  "title": "UNS Equipment Telemetry v1",
+  "type": "object",
+  "required": ["schemaVersion", "timestamp", "equipmentId", "dataQuality"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "equipmentId": { "type": "string" },
+    "speed": { "type": ["number", "null"] },
+    "targetSpeed": { "type": ["number", "null"] },
+    "temperature": { "type": ["number", "null"] },
+    "dataQuality": { "type": "string", "enum": ["GOOD", "UNCERTAIN", "BAD", "STALE"] }
+  }
+}
