@@ -13,7 +13,7 @@ metadata:
     - uns
   annotations:
     dataprod.platform/kind: template
-    dataprod.platform/certification-status: CERTIFIED
+    dataprod.platform/certification-status: TESTED
     dataprod.platform/templateVersion: 1.0.0
     dataprod.platform/dataProductStandardVersion: 1.0.0
     dataprod.platform/dataProductSdkVersion: 1.0.0

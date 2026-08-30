@@ -67,7 +67,7 @@ export const ursComposerPlugin = createBackendPlugin({
         if (persistenceMode === 'postgres') {
           // Production: PostgreSQL required
           try {
-            repository = new PostgresURSRepository(database, logger);
+            repository = await PostgresURSRepository.create(database);
             logger.info('URS Composer initialized with PostgreSQL repository (P1A)');
           } catch (error) {
             logger.error(

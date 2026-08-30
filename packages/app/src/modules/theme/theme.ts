@@ -151,7 +151,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
         },
         containedSecondary: {
           backgroundColor: PHARMA_TEAL,
-          color: '#FFFFFF',
+          color: PHARMA_NAVY_DARK,
           fontWeight: 600,
           textTransform: 'none',
           '&:hover': {

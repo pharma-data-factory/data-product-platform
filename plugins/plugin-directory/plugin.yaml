@@ -7,7 +7,7 @@ lifecycle: ENABLED
 
 frontend:
   package: "@internal/plugin-directory"
-  route: "/admin/plugins"
+  route: "/plugin-directory"
 
 backend:
   package: "@internal/plugin-directory-backend"

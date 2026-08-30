@@ -4,28 +4,38 @@ import {
   SidebarDivider,
   SidebarGroup,
   SidebarItem,
-  SidebarScrollWrapper,
   SidebarSpace,
+  SidebarSubmenu,
+  SidebarSubmenuItem,
 } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
-import {
-  NavContentBlueprint,
-  NavContentComponentProps,
-} from '@backstage/plugin-app-react';
+import { NavContentBlueprint } from '@backstage/plugin-app-react';
 import { SidebarSearchModal } from '@backstage/plugin-search';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
-import MenuIcon from '@material-ui/icons/Menu';
 import SearchIcon from '@material-ui/icons/Search';
 import SettingsIcon from '@material-ui/icons/Settings';
 import {
   PlatformRole,
   canAdministerPlatform,
-  canExecuteScaffolder,
   hasApprovedPlatformAccess,
   resolvePlatformRole,
 } from '@internal/platform-common';
 import { SidebarLogo } from './SidebarLogo';
 import { UserProfileMenu } from './UserProfileMenu';
+import HomeIcon from '@material-ui/icons/Home';
+import BuildIcon from '@material-ui/icons/Build';
+import AddCircleIcon from '@material-ui/icons/AddCircle';
+import EmojiEventsIcon from '@material-ui/icons/EmojiEvents';
+import CategoryIcon from '@material-ui/icons/Category';
+import DeviceHubIcon from '@material-ui/icons/DeviceHub';
+import FolderOpenIcon from '@material-ui/icons/FolderOpen';
+import StorageIcon from '@material-ui/icons/Storage';
+import ViewListIcon from '@material-ui/icons/ViewList';
+import CheckCircleIcon from '@material-ui/icons/CheckCircle';
+import DescriptionIcon from '@material-ui/icons/Description';
+import StorefrontIcon from '@material-ui/icons/Storefront';
+import BusinessIcon from '@material-ui/icons/Business';
+import ExtensionIcon from '@material-ui/icons/Extension';
 import AdminIcon from '@material-ui/icons/Security';
 import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
@@ -38,7 +48,7 @@ export const SidebarContent = NavContentBlueprint.make({
   },
 });
 
-function PlatformSidebar({ navItems }: NavContentComponentProps) {
+function PlatformSidebar() {
   const identityApi = useApi(identityApiRef);
   const [role, setRole] = useState<PlatformRole>('VIEWER');
   const [hasAccess, setHasAccess] = useState(true);
@@ -50,14 +60,7 @@ function PlatformSidebar({ navItems }: NavContentComponentProps) {
     });
   }, [identityApi]);
 
-  const nav = navItems.withComponent(item => (
-    <SidebarItem icon={() => item.icon} to={item.href} text={item.title} />
-  ));
-
-  nav.take('page:search');
-  nav.take('page:notifications');
-  nav.take('page:app-visualizer');
-  const createItem = nav.take('page:scaffolder');
+  const admin = canAdministerPlatform(role);
 
   return (
     <Sidebar>
@@ -69,83 +72,100 @@ function PlatformSidebar({ navItems }: NavContentComponentProps) {
       )}
       {hasAccess && <SidebarDivider />}
       {hasAccess && (
-        <SidebarGroup label="Menu" icon={<MenuIcon />}>
-          {nav.take('page:app/home')}
-          {nav.take('page:app/developer')}
-          {nav.take('page:catalog')}
-          {nav.take('page:marketplace')}
-          {nav.take('page:app/releases')}
-          {nav.take('page:app/platform-components')}
-          {nav.take('page:app/compose')}
-          {nav.take('page:app/assets')}
-          {nav.take('page:nexora-assets')}
-          {nav.take('page:nexora-assets/detail')}
-          {nav.take('page:data-products')}
-          {nav.take('page:model-company')}
-          {nav.take('page:model-company/factory')}
-          {nav.take('page:model-company/lines')}
-          {nav.take('page:model-company/material-flow')}
-          {nav.take('page:model-company/batches')}
-          {nav.take('page:model-company/scenarios')}
-          {nav.take('page:model-company/equipment')}
-          {nav.take('page:model-company/uns')}
-          {nav.take('page:model-company/data-products')}
-          {nav.take('page:validation-expert')}
-          {nav.take('page:validation-expert/requirements')}
-          {nav.take('page:validation-expert/requirement-detail')}
-          {nav.take('page:validation-expert/traceability')}
-          {nav.take('page:validation-expert/risks')}
-          {nav.take('page:validation-expert/iq')}
-          {nav.take('page:validation-expert/oq')}
-          {nav.take('page:validation-expert/uat')}
-          {nav.take('page:validation-expert/runs')}
-          {nav.take('page:validation-expert/run-detail')}
-          {nav.take('page:validation-expert/manual-test')}
-          {nav.take('page:validation-expert/evidence')}
-          {nav.take('page:validation-expert/findings')}
-          {nav.take('page:urs-composer')}
-          {nav.take('page:urs-composer/library')}
-          {nav.take('page:urs-composer/create')}
-          {nav.take('page:urs-composer/edit')}
-          {nav.take('page:urs-composer/detail')}
-          {nav.take('page:nexora-contracts')}
-          {nav.take('page:nexora-contracts/detail')}
-          {nav.take('page:nexora-quality')}
-          {nav.take('page:nexora-quality/detail')}
-          {nav.take('page:app/my-access')}
-          {canExecuteScaffolder(role) ? createItem : null}
-          <SidebarDivider />
-          {canAdministerPlatform(role) ? (
-            <SidebarGroup label="Admin" icon={<AdminIcon />}>
-              <SidebarItem
-                icon={VerifiedUserIcon}
-                to="/admin/entitlements"
-                text="Entitlements"
+        <>
+          <SidebarItem icon={HomeIcon} to="/" text="Home" />
+
+          <SidebarItem icon={BuildIcon} to="/build" text="Build">
+            <SidebarSubmenu title="Build">
+              <SidebarSubmenuItem
+                icon={AddCircleIcon}
+                to="/create"
+                title="Start Building"
               />
-              <SidebarItem
-                icon={StoreIcon}
-                to="/admin/marketplace-integration"
-                text="Marketplace Integration"
+              <SidebarSubmenuItem
+                icon={EmojiEventsIcon}
+                to="/releases"
+                title="Golden Paths"
               />
-              {nav.take('page:plugin-directory')}
-              <SidebarItem
+              <SidebarSubmenuItem
+                icon={CategoryIcon}
+                to="/platform-components"
+                title="Components"
+              />
+              <SidebarSubmenuItem
+                icon={DeviceHubIcon}
+                to="/compose"
+                title="Composer"
+                subtitle="Advanced"
+              />
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          <SidebarItem icon={FolderOpenIcon} to="/my-products" text="My Products">
+            <SidebarSubmenu title="My Products">
+              <SidebarSubmenuItem
+                icon={StorageIcon}
+                to="/data-products"
+                title="Data Products"
+              />
+              <SidebarSubmenuItem
+                icon={ViewListIcon}
+                to="/catalog"
+                title="Catalog"
+              />
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          <SidebarItem icon={CheckCircleIcon} to="/validate" text="Validate">
+            <SidebarSubmenu title="Validate">
+              <SidebarSubmenuItem
+                icon={DescriptionIcon}
+                to="/urs-composer"
+                title="URS Composer"
+              />
+              <SidebarSubmenuItem
                 icon={AssignmentTurnedInIcon}
                 to="/validation-expert"
-                text="Validation"
+                title="Validation Expert"
               />
-              <SidebarItem
-                icon={SettingsApplicationsIcon}
-                to="/settings"
-                text="Platform Settings"
-              />
-            </SidebarGroup>
-          ) : (
-            nav.take('page:plugin-directory')
-          )}
-          <SidebarScrollWrapper>
-            {nav.rest({ sortBy: 'title' })}
-          </SidebarScrollWrapper>
-        </SidebarGroup>
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          <SidebarItem icon={StorefrontIcon} to="/marketplace" text="Marketplace" />
+          <SidebarItem icon={BusinessIcon} to="/model-company" text="Model Company" />
+
+          {admin ? (
+            <SidebarItem icon={AdminIcon} to="/admin" text="Admin">
+              <SidebarSubmenu title="Admin">
+                <SidebarSubmenuItem
+                  icon={VerifiedUserIcon}
+                  to="/admin/entitlements"
+                  title="Entitlements"
+                />
+                <SidebarSubmenuItem
+                  icon={StoreIcon}
+                  to="/admin/marketplace-integration"
+                  title="Marketplace Integration"
+                />
+                <SidebarSubmenuItem
+                  icon={BuildIcon}
+                  to="/admin/platform-architecture"
+                  title="Platform Architecture"
+                />
+                <SidebarSubmenuItem
+                  icon={ExtensionIcon}
+                  to="/plugin-directory"
+                  title="Plugin Directory"
+                />
+                <SidebarSubmenuItem
+                  icon={SettingsApplicationsIcon}
+                  to="/settings"
+                  title="Platform Settings"
+                />
+              </SidebarSubmenu>
+            </SidebarItem>
+          ) : null}
+        </>
       )}
       <SidebarSpace />
       {hasAccess && (
@@ -153,9 +173,15 @@ function PlatformSidebar({ navItems }: NavContentComponentProps) {
           <SidebarDivider />
           <NotificationsSidebarItem />
           <SidebarDivider />
-          <SidebarGroup label="Settings" icon={<SettingsIcon />} to="/settings">
-            {nav.take('page:user-settings')}
-          </SidebarGroup>
+          <SidebarItem icon={SettingsIcon} to="/settings" text="Settings">
+            <SidebarSubmenu title="Settings">
+              <SidebarSubmenuItem
+                icon={VerifiedUserIcon}
+                to="/access"
+                title="My Access"
+              />
+            </SidebarSubmenu>
+          </SidebarItem>
         </>
       )}
       <UserProfileMenu />

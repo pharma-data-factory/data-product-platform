@@ -25,7 +25,7 @@ const pluginDirectoryApi = ApiBlueprint.make({
 
 const directoryPage = PageBlueprint.make({
   params: {
-    path: '/admin/plugins',
+    path: '/plugin-directory',
     routeRef: rootRouteRef,
     title: 'Plugin Directory',
     icon: <ExtensionIcon />,
@@ -39,7 +39,7 @@ const directoryPage = PageBlueprint.make({
 const detailPage = PageBlueprint.make({
   name: 'detail',
   params: {
-    path: '/admin/plugins/:pluginId',
+    path: '/plugin-directory/:pluginId',
     routeRef: detailRouteRef,
     loader: () =>
       import('./components/PluginDetailPage').then(m => <m.PluginDetailPage />),

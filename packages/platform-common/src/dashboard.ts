@@ -47,7 +47,7 @@ export function quickActionsForRole(role: PlatformRole): QuickAction[] {
         {
           id: 'plugin-directory',
           label: 'Plugin Directory',
-          to: '/admin/plugins',
+          to: '/plugin-directory',
         },
         ...EXPLORE_ACTIONS,
         RELEASES_ACTION,

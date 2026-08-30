@@ -518,5 +518,3 @@ router.get('/health', (req: express.Request, res: express.Response) => {
 
 return router;
 }
-
-export { createRouter };

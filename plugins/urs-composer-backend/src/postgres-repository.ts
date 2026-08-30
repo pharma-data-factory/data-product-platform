@@ -9,7 +9,6 @@
  */
 
 import { Knex } from 'knex';
-import { LoggerService } from '@backstage/backend-plugin-api';
 
 import {
   RequirementSet,
@@ -27,6 +26,8 @@ import {
   ApprovalStepStatus,
 } from './types';
 import { IURSRepository, Transaction } from './repository-interface';
+import { up } from './db/migrations';
+import { seed } from './db/seeds';
 
 /**
  * PostgreSQL Transaction wrapper
@@ -61,9 +62,20 @@ class PostgresTransaction implements Transaction {
 export class PostgresURSRepository implements IURSRepository {
   private readonly db: Knex;
 
-  constructor(database: any) {
-    // Get Knex instance from Backstage DatabaseService
-    this.db = database.getClient();
+  constructor(db: Knex) {
+    this.db = db;
+  }
+
+  /**
+   * Backstage's DatabaseService.getClient() is async. Construct via this
+   * factory so the repository holds a real Knex instance (and the schema
+   * exists) instead of an unresolved Promise.
+   */
+  static async create(database: { getClient(): Promise<Knex> | Knex }): Promise<PostgresURSRepository> {
+    const db = await database.getClient();
+    await up(db);
+    await seed(db);
+    return new PostgresURSRepository(db);
   }
 
   // ============================================================================

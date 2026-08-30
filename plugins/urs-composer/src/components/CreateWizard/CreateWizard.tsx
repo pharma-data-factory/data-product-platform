@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   Stepper,
   Step,
@@ -37,7 +38,7 @@ import { AcceptanceCriteriaStep } from './steps/AcceptanceCriteriaStep';
 import { QualityReviewStep } from './steps/QualityReviewStep';
 import { TraceabilityStep } from './steps/TraceabilityStep';
 import { ReviewSubmitStep } from './steps/ReviewSubmitStep';
-import { ursComposerApi } from '../../api/ursComposerApi';
+import { ursComposerApiRef } from '../../api/ursComposerApi';
 
 const useStyles = makeStyles(theme => ({
   root: {
@@ -92,6 +93,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
   onCancel,
 }) => {
   const classes = useStyles();
+  const api = useApi(ursComposerApiRef);
   const [state, setState] = useState<URSWizardState>(
     initialState || initializeWizardState(),
   );
@@ -106,18 +108,18 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     const updatePayload = { ...base, requirements };
 
     if (state.requirementSetId) {
-      return ursComposerApi.updateRequirementSet(
+      return api.updateRequirementSet(
         state.requirementSetId,
         updatePayload,
       );
     }
 
-    const created = await ursComposerApi.createRequirementSet(base);
+    const created = await api.createRequirementSet(base);
     if (requirements.length > 0) {
-      return ursComposerApi.updateRequirementSet(created.id, updatePayload);
+      return api.updateRequirementSet(created.id, updatePayload);
     }
     return { requirementSet: created, requirements: [] };
-  }, [state]);
+  }, [state, api]);
 
   const handleNext = useCallback(() => {
     const validation = validateStep(state, state.currentStep);
@@ -167,7 +169,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     setSaveError(null);
     try {
       const saved = await persistDraft();
-      const submitted = await ursComposerApi.submitRequirementSet(
+      const submitted = await api.submitRequirementSet(
         saved.requirementSet.id,
       );
       onComplete?.(submitted.id);
@@ -176,7 +178,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [state, onComplete, persistDraft]);
+  }, [state, onComplete, persistDraft, api]);
 
   const renderStepContent = () => {
     const props = { state, onStateChange: handleStateChange };

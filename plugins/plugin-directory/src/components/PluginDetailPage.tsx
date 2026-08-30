@@ -67,7 +67,7 @@ export function PluginDetailPage() {
       <NexoraToolPage eyebrow="Admin" title={pluginId}>
         <Typography color="error">{error ?? 'Not found'}</Typography>
         <Typography style={{ marginTop: 12 }}>
-          <RouterLink className={classes.link} to="/admin/plugins">
+          <RouterLink className={classes.link} to="/plugin-directory">
             Back to Plugin Directory
           </RouterLink>
         </Typography>
@@ -83,7 +83,7 @@ export function PluginDetailPage() {
       secondary={plugin.description}
     >
       <Typography style={{ marginBottom: 16 }}>
-        <RouterLink className={classes.link} to="/admin/plugins">
+        <RouterLink className={classes.link} to="/plugin-directory">
           ← Plugin Directory
         </RouterLink>
       </Typography>

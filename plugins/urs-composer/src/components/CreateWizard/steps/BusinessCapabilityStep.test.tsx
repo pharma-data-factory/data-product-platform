@@ -13,14 +13,17 @@ import { renderWithApp } from '../../../testUtils';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { BusinessCapabilityStep } from './BusinessCapabilityStep';
 import { URSWizardState, initializeWizardState } from '../wizardState';
-import * as ursComposerApi from '../../../api/ursComposerApi';
+import { ursComposerApiRef } from '../../../api/ursComposerApi';
 
-// Mock the API
-jest.mock('../../../api/ursComposerApi', () => ({
-  ursComposerApi: {
-    listCapabilities: jest.fn(),
-  },
-}));
+const mockApi = {
+  listCapabilities: jest.fn(),
+};
+
+const renderStep = (state: URSWizardState, onStateChange: jest.Mock) =>
+  renderWithApp(
+    <BusinessCapabilityStep state={state} onStateChange={onStateChange} />,
+    { apis: [[ursComposerApiRef, mockApi as any]] },
+  );
 
 describe('BusinessCapabilityStep', () => {
   const mockState: URSWizardState = {
@@ -57,16 +60,11 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Loading', () => {
     test('shows loading spinner while fetching capabilities', async () => {
-      (ursComposerApi.ursComposerApi.listCapabilities as jest.Mock).mockImplementation(
+      mockApi.listCapabilities.mockImplementation(
         () => new Promise(resolve => setTimeout(() => resolve(mockCapabilities), 100)),
       );
 
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={mockState}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(mockState, mockOnStateChange);
 
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
 
@@ -82,17 +80,12 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Error handling', () => {
     test('displays error message on API failure', async () => {
-      (ursComposerApi.ursComposerApi.listCapabilities as jest.Mock).mockRejectedValueOnce({
+      mockApi.listCapabilities.mockRejectedValueOnce({
         status: 500,
         message: 'Internal server error',
       });
 
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={mockState}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(mockState, mockOnStateChange);
 
       await waitFor(() => {
         expect(screen.getByText(/failed to load capabilities/i)).toBeInTheDocument();
@@ -106,18 +99,11 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Capability selection', () => {
     beforeEach(() => {
-      (ursComposerApi.ursComposerApi.listCapabilities as jest.Mock).mockResolvedValueOnce(
-        mockCapabilities,
-      );
+      mockApi.listCapabilities.mockResolvedValueOnce(mockCapabilities);
     });
 
     test('loads and displays capabilities', async () => {
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={mockState}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(mockState, mockOnStateChange);
 
       await waitFor(() => {
         expect(screen.getByText('OEE Management')).toBeInTheDocument();
@@ -126,12 +112,7 @@ describe('BusinessCapabilityStep', () => {
     });
 
     test('calls onStateChange when capability selected', async () => {
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={mockState}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(mockState, mockOnStateChange);
 
       await waitFor(() => {
         const card = screen.getByText('OEE Management').closest('div[role="button"]') || 
@@ -156,12 +137,7 @@ describe('BusinessCapabilityStep', () => {
         businessCapabilityRefs: ['business-capability:make/oee'],
       };
 
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={stateWithSelection}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(stateWithSelection, mockOnStateChange);
 
       await waitFor(() => {
         expect(screen.getByText('OEE Management')).toBeInTheDocument();
@@ -176,18 +152,11 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Search/filter', () => {
     beforeEach(() => {
-      (ursComposerApi.ursComposerApi.listCapabilities as jest.Mock).mockResolvedValueOnce(
-        mockCapabilities,
-      );
+      mockApi.listCapabilities.mockResolvedValueOnce(mockCapabilities);
     });
 
     test('filters capabilities by search term', async () => {
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={mockState}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(mockState, mockOnStateChange);
 
       await waitFor(() => {
         expect(screen.getByText('OEE Management')).toBeInTheDocument();
@@ -209,16 +178,9 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Empty state', () => {
     test('shows empty state message when no capabilities match search', async () => {
-      (ursComposerApi.ursComposerApi.listCapabilities as jest.Mock).mockResolvedValueOnce(
-        mockCapabilities,
-      );
+      mockApi.listCapabilities.mockResolvedValueOnce(mockCapabilities);
 
-      renderWithApp(
-        <BusinessCapabilityStep
-          state={mockState}
-          onStateChange={mockOnStateChange}
-        />,
-      );
+      renderStep(mockState, mockOnStateChange);
 
       await waitFor(() => {
         const searchInput = screen.getByPlaceholderText('Search capabilities...');

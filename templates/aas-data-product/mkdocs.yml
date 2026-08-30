@@ -1,6 +1,8 @@
 site_name: AAS Asset Administration Shell Data Product
 site_description: IEC 63278 / IDTA-01001 v3.0 asset registry and data ingestion service
 docs_dir: docs
+nav:
+  - Home: index.md
 theme:
   name: material
 plugins:
@@ -10,5 +12,3 @@ markdown_extensions:
   - codehilite
   - toc
   - tables
-nav:
-  - Home: index.md

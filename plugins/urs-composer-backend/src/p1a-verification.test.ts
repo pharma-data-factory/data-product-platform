@@ -99,7 +99,7 @@ describe('URS Composer P1A Persistence Verification', () => {
 
   beforeEach(() => {
     inMemoryRepo = new URSRepository();
-    postgresRepo = new PostgresURSRepository({ getClient: () => db }, mockLogger);
+    postgresRepo = new PostgresURSRepository(db);
   });
 
   /**
@@ -249,7 +249,7 @@ describe('URS Composer P1A Persistence Verification', () => {
       await postgresRepo.createBusinessCapability(cap);
 
       // "Restart" - create new repository instance pointing to same database
-      const newPostgresRepo = new PostgresURSRepository({ getClient: () => db }, mockLogger);
+      const newPostgresRepo = new PostgresURSRepository(db);
 
       // Verify data persists
       const retrieved = await newPostgresRepo.getBusinessCapability('durability-test-cap');
@@ -548,9 +548,9 @@ describe('URS Composer P1A Persistence Verification', () => {
         },
       };
 
-      expect(() => {
-        new PostgresURSRepository(badDb as any, mockLogger);
-      }).toThrow();
+      await expect(
+        PostgresURSRepository.create(badDb as any),
+      ).rejects.toThrow('Database connection failed');
     });
   });
 });

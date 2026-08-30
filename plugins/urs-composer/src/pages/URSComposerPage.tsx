@@ -74,7 +74,7 @@ export const URSComposerPage: React.FC = () => {
                 <Button
                   color="primary"
                   startIcon={<AddIcon />}
-                  onClick={() => navigate('/urs/new')}
+                  onClick={() => navigate('/urs-composer/new')}
                 >
                   Create New
                 </Button>
@@ -96,7 +96,7 @@ export const URSComposerPage: React.FC = () => {
                 <Button
                   color="primary"
                   startIcon={<SearchIcon />}
-                  onClick={() => navigate('/urs/library')}
+                  onClick={() => navigate('/urs-composer/library')}
                 >
                   View All
                 </Button>

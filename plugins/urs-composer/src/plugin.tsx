@@ -1,8 +1,12 @@
 import {
+  ApiBlueprint,
   createFrontendPlugin,
+  discoveryApiRef,
+  fetchApiRef,
   PageBlueprint,
 } from '@backstage/frontend-plugin-api';
 import DescriptionIcon from '@material-ui/icons/Description';
+import { URSComposerApi, ursComposerApiRef } from './api/ursComposerApi';
 import {
   createRouteRef_,
   editRouteRef,
@@ -11,9 +15,23 @@ import {
   rootRouteRef,
 } from './routes';
 
+const ursComposerApi = ApiBlueprint.make({
+  name: 'service',
+  params: defineParams =>
+    defineParams({
+      api: ursComposerApiRef,
+      deps: {
+        discoveryApi: discoveryApiRef,
+        fetchApi: fetchApiRef,
+      },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new URSComposerApi({ discoveryApi, fetchApi }),
+    }),
+});
+
 const overviewPage = PageBlueprint.make({
   params: {
-    path: '/urs',
+    path: '/urs-composer',
     routeRef: rootRouteRef,
     title: 'URS Composer',
     icon: <DescriptionIcon />,
@@ -25,7 +43,7 @@ const overviewPage = PageBlueprint.make({
 const libraryPage = PageBlueprint.make({
   name: 'library',
   params: {
-    path: '/urs/library',
+    path: '/urs-composer/library',
     routeRef: libraryRouteRef,
     loader: () =>
       import('./pages/URSLibraryPage').then(m => <m.URSLibraryPage />),
@@ -35,7 +53,7 @@ const libraryPage = PageBlueprint.make({
 const createPage = PageBlueprint.make({
   name: 'create',
   params: {
-    path: '/urs/new',
+    path: '/urs-composer/new',
     routeRef: createRouteRef_,
     loader: () =>
       import('./pages/CreateURSWizardPage').then(m => <m.CreateURSWizardPage />),
@@ -45,7 +63,7 @@ const createPage = PageBlueprint.make({
 const editPage = PageBlueprint.make({
   name: 'edit',
   params: {
-    path: '/urs/:id/edit',
+    path: '/urs-composer/:id/edit',
     routeRef: editRouteRef,
     loader: () =>
       import('./pages/CreateURSWizardPage').then(m => <m.EditURSWizardPage />),
@@ -55,7 +73,7 @@ const editPage = PageBlueprint.make({
 const detailPage = PageBlueprint.make({
   name: 'detail',
   params: {
-    path: '/urs/:id',
+    path: '/urs-composer/:id',
     routeRef: requirementSetRouteRef,
     loader: () =>
       import('./pages/URSRequirementSetPage').then(m => <m.URSRequirementSetPage />),
@@ -64,7 +82,14 @@ const detailPage = PageBlueprint.make({
 
 export const ursComposerPlugin = createFrontendPlugin({
   pluginId: 'urs-composer',
-  extensions: [overviewPage, libraryPage, createPage, editPage, detailPage],
+  extensions: [
+    ursComposerApi,
+    overviewPage,
+    libraryPage,
+    createPage,
+    editPage,
+    detailPage,
+  ],
   routes: {
     root: rootRouteRef,
     library: libraryRouteRef,

@@ -5,7 +5,7 @@
 Admin governance inventory of plugins known to the Nexora control plane.
 **Not** a Plugin Store / Marketplace for installing remote plugins.
 
-Route: `/admin/plugins`  
+Route: `/plugin-directory`  
 Packages: `@internal/plugin-directory`, `@internal/plugin-directory-backend`  
 Plugin ID: `plugin-directory`
 
@@ -144,8 +144,8 @@ Validation Reviewer (DATA_PRODUCT_OWNER+) inherits read via role sets and can se
 
 | Route | Page |
 |-------|------|
-| `/admin/plugins` | Summary cards + filterable table |
-| `/admin/plugins/:pluginId` | Detail (identity, packages, runtime, permissions, deps, validation) |
+| `/plugin-directory` | Summary cards + filterable table |
+| `/plugin-directory/:pluginId` | Detail (identity, packages, runtime, permissions, deps, validation) |
 
 Nav (Admin group, Platform Admin):
 

@@ -34,7 +34,6 @@ import {
   isUnauthorizedError,
 } from '@internal/platform-common';
 import {
-  NEXORA_CONTROL,
   filterChipSx,
   outlineButtonSx,
 } from '@internal/plugin-nexora-common';
@@ -51,7 +50,7 @@ import {
   marketplaceOfferingKind,
 } from '../data';
 
-const useStyles = makeStyles({
+const useStyles = makeStyles(theme => ({
   tableWrap: {
     overflowX: 'auto',
     width: '100%',
@@ -70,26 +69,22 @@ const useStyles = makeStyles({
     gap: 8,
     marginTop: 16,
   },
-  filterChip: {
-    ...filterChipSx(false),
-  },
-  filterChipSelected: {
-    ...filterChipSx(true),
-  },
+  filterChip: filterChipSx(theme, false),
+  filterChipSelected: filterChipSx(theme, true),
   createAction: {
-    ...outlineButtonSx,
+    ...outlineButtonSx(theme),
     display: 'inline-flex',
     whiteSpace: 'nowrap',
   },
   buildingBlock: {
-    background: NEXORA_CONTROL.chipIdleBg,
-    border: `1px solid ${NEXORA_CONTROL.border}`,
-    color: NEXORA_CONTROL.muted,
+    background: theme.palette.background.default,
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.secondary,
     fontWeight: 600,
     height: 24,
     marginLeft: 8,
   },
-});
+}));
 
 export function MarketplacePage() {
   const classes = useStyles();

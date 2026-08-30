@@ -9,8 +9,18 @@
 
 import { URSComposerApi, URSApiError } from './ursComposerApi';
 
-// Mock fetch
-global.fetch = jest.fn();
+const discoveryApi = {
+  getBaseUrl: jest
+    .fn()
+    .mockResolvedValue('http://localhost:7007/api/urs-composer'),
+};
+const fetchApi = {
+  fetch: jest.fn(),
+};
+
+function createApi(): URSComposerApi {
+  return new URSComposerApi({ discoveryApi, fetchApi });
+}
 
 describe('URSComposerApi', () => {
   beforeEach(() => {
@@ -23,7 +33,7 @@ describe('URSComposerApi', () => {
 
   describe('Success mapping', () => {
     test('listCapabilities returns typed array', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => [
           {
@@ -35,7 +45,7 @@ describe('URSComposerApi', () => {
         ],
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
       const result = await api.listCapabilities();
 
       expect(result).toHaveLength(1);
@@ -44,7 +54,7 @@ describe('URSComposerApi', () => {
     });
 
     test('createRequirementSet returns typed response', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           id: 'uuid-123',
@@ -60,7 +70,7 @@ describe('URSComposerApi', () => {
         }),
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
       const result = await api.createRequirementSet({
         businessCapabilityRefs: ['business-capability:make/oee'],
         businessNeed: 'Equipment visibility',
@@ -80,7 +90,7 @@ describe('URSComposerApi', () => {
 
   describe('Error mapping', () => {
     test('HTTP 400 throws URSApiError', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 400,
         json: async () => ({
@@ -88,7 +98,7 @@ describe('URSComposerApi', () => {
         }),
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
 
       try {
         await api.createRequirementSet({
@@ -106,7 +116,7 @@ describe('URSComposerApi', () => {
     });
 
     test('HTTP 401 throws URSApiError', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 401,
         json: async () => ({
@@ -114,7 +124,7 @@ describe('URSComposerApi', () => {
         }),
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
 
       try {
         await api.listCapabilities();
@@ -126,7 +136,7 @@ describe('URSComposerApi', () => {
     });
 
     test('HTTP 403 throws URSApiError', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 403,
         json: async () => ({
@@ -134,7 +144,7 @@ describe('URSComposerApi', () => {
         }),
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
 
       try {
         await api.createRequirementSet({
@@ -151,7 +161,7 @@ describe('URSComposerApi', () => {
     });
 
     test('HTTP 404 throws URSApiError', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 404,
         json: async () => ({
@@ -159,7 +169,7 @@ describe('URSComposerApi', () => {
         }),
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
 
       try {
         await api.getRequirementSet('nonexistent');
@@ -171,7 +181,7 @@ describe('URSComposerApi', () => {
     });
 
     test('HTTP 500 throws URSApiError', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 500,
         json: async () => ({
@@ -179,7 +189,7 @@ describe('URSComposerApi', () => {
         }),
       });
 
-      const api = new URSComposerApi();
+      const api = createApi();
 
       try {
         await api.health();
@@ -197,43 +207,43 @@ describe('URSComposerApi', () => {
 
   describe('All endpoints callable', () => {
     beforeEach(() => {
-      (global.fetch as jest.Mock).mockResolvedValue({
+      (fetchApi.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: async () => ({}),
       });
     });
 
     test('health endpoint', async () => {
-      const api = new URSComposerApi();
+      const api = createApi();
       await api.health();
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/health'),
         expect.any(Object),
       );
     });
 
     test('listCapabilities endpoint', async () => {
-      const api = new URSComposerApi();
+      const api = createApi();
       await api.listCapabilities();
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/capabilities'),
         expect.any(Object),
       );
     });
 
     test('listRequirementSets endpoint', async () => {
-      const api = new URSComposerApi();
+      const api = createApi();
       await api.listRequirementSets();
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/requirement-sets'),
         expect.any(Object),
       );
     });
 
     test('submitBaseline endpoint', async () => {
-      const api = new URSComposerApi();
+      const api = createApi();
       await api.submitBaseline('baseline-123');
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/baselines/baseline-123/submit'),
         expect.any(Object),
       );

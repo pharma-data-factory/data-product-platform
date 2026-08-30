@@ -7,6 +7,11 @@
  */
 
 import {
+  createApiRef,
+  DiscoveryApi,
+  FetchApi,
+} from '@backstage/core-plugin-api';
+import {
   URSApiError,
   BusinessCapability,
   RequirementSet,
@@ -31,26 +36,20 @@ import {
 export type { URSApiError };
 
 /**
- * Configuration for API client
- */
-interface ApiClientConfig {
-  baseUrl?: string;
-}
-
-/**
  * URS Composer API Client
- * 
+ *
  * All methods:
  * - Return typed responses
  * - Throw URSApiError on failure
  * - Map HTTP error codes to consistent error interface
  */
 export class URSComposerApi {
-  private baseUrl: string;
+  private readonly discoveryApi: DiscoveryApi;
+  private readonly fetchApi: FetchApi;
 
-  constructor(config?: ApiClientConfig) {
-    // Use relative path; Backstage will handle proxying
-    this.baseUrl = config?.baseUrl || '/api/urs-composer';
+  constructor(options: { discoveryApi: DiscoveryApi; fetchApi: FetchApi }) {
+    this.discoveryApi = options.discoveryApi;
+    this.fetchApi = options.fetchApi;
   }
 
   /**
@@ -61,7 +60,8 @@ export class URSComposerApi {
     path: string,
     body?: unknown,
   ): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+    const base = await this.discoveryApi.getBaseUrl('urs-composer');
+    const url = `${base}${path}`;
     const options: RequestInit = {
       method,
       headers: {
@@ -73,7 +73,7 @@ export class URSComposerApi {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(url, options);
+    const response = await this.fetchApi.fetch(url, options);
 
     // Handle error responses
     if (!response.ok) {
@@ -218,8 +218,9 @@ export class URSComposerApi {
     };
     created: boolean;
   }> {
-    const url = `/api/validation-expert/contexts/from-urs`;
-    const response = await fetch(url, {
+    const base = await this.discoveryApi.getBaseUrl('validation-expert');
+    const url = `${base}/contexts/from-urs`;
+    const response = await this.fetchApi.fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requirementSetId, baselineId }),
@@ -424,6 +425,8 @@ export class URSComposerApi {
 }
 
 /**
- * Singleton instance
+ * API reference for the URS Composer client.
  */
-export const ursComposerApi = new URSComposerApi();
+export const ursComposerApiRef = createApiRef<URSComposerApi>({
+  id: 'plugin.urs-composer.api',
+});

@@ -1,3 +1,4 @@
+export { authorizationRegistryPlugin as default } from './plugin';
 export { authorizationRegistryPlugin } from './plugin';
 export { AuthorizationProfileRegistry } from './registry';
 export { AuthorizationProfileLoader } from './loader';

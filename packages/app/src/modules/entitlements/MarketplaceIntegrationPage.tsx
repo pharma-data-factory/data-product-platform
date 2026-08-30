@@ -24,19 +24,19 @@ import {
   type MarketplaceLinkView,
 } from '@internal/plugin-marketplace';
 
-const useActionStyles = makeStyles({
+const useActionStyles = makeStyles(theme => ({
   actions: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: 8,
   },
   primaryAction: {
-    ...primaryButtonSx,
+    ...primaryButtonSx(theme),
     minWidth: 0,
     padding: '6px 12px',
   },
   outlineAction: {
-    ...outlineButtonSx,
+    ...outlineButtonSx(theme),
     minWidth: 0,
   },
   status: {
@@ -55,7 +55,7 @@ const useActionStyles = makeStyles({
     marginBottom: 6,
     textTransform: 'uppercase',
   },
-});
+}));
 
 export function MarketplaceIntegrationPage() {
   const classes = useNexoraToolStyles();

@@ -26,9 +26,14 @@ backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
 backend.add(import('@backstage/plugin-permission-backend'));
 backend.add(permissionModulePlatformPolicy);
 
-// RBAC: Community RBAC plugin as central authorization policy administration
-// Works alongside PlatformPermissionPolicy to provide role-based access control
-backend.add(import('@backstage-community/plugin-rbac-backend'));
+// Community RBAC is disabled because it registers its own permission policy
+// through the same /alpha policyExtensionPoint that PlatformPermissionPolicy
+// uses; a second setPolicy() throws "Policy already set". Backstage 1.53 only
+// exposes policyExtensionPoint under /alpha, so there is no stable chaining
+// API yet. Keep the platform policy (RBAC matrix + entitlement gate + audit)
+// as the single authority; migrate to chained Community RBAC once the
+// extension point stabilizes.
+// backend.add(import('@backstage-community/plugin-rbac-backend'));
 
 backend.add(import('@internal/plugin-data-products-backend'));
 backend.add(catalogModuleCertificationOverlay);

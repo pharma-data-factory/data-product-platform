@@ -23,19 +23,15 @@ import {
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
-const useStyles = makeStyles({
+const useStyles = makeStyles(theme => ({
   filters: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
   },
-  filterChip: {
-    ...filterChipSx(false),
-  },
-  filterChipSelected: {
-    ...filterChipSx(true),
-  },
+  filterChip: filterChipSx(theme, false),
+  filterChipSelected: filterChipSx(theme, true),
   search: {
     marginBottom: 12,
   },
@@ -81,7 +77,7 @@ const useStyles = makeStyles({
     color: NEXORA_TEXT,
     fontSize: 14,
   },
-});
+}));
 
 export function EquipmentPage() {
   const classes = useStyles();

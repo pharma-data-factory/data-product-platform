@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   Header,
   Page,
@@ -31,7 +32,7 @@ import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
 import { usePermission } from '@backstage/plugin-permission-react';
 import { ursApprovePermission, ursManagePermission } from '@internal/platform-common';
-import { ursComposerApi } from '../api/ursComposerApi';
+import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
   RequirementSet,
   Requirement,
@@ -59,6 +60,7 @@ function TabPanel(props: TabPanelProps) {
 export const URSRequirementSetPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const api = useApi(ursComposerApiRef);
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,10 +89,10 @@ export const URSRequirementSetPage: React.FC = () => {
     }
     let mounted = true;
     Promise.all([
-      ursComposerApi.getRequirementSet(id),
-      ursComposerApi.listRequirements(id),
-      ursComposerApi.getRequirementSetAudit(id),
-      ursComposerApi.getApprovals(id),
+      api.getRequirementSet(id),
+      api.listRequirements(id),
+      api.getRequirementSetAudit(id),
+      api.getApprovals(id),
     ])
       .then(([requirementSet, reqs, auditEvents, approvalRecords]) => {
         if (!mounted) {
@@ -114,17 +116,17 @@ export const URSRequirementSetPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, api]);
 
   const reload = async () => {
     if (!id) {
       return;
     }
     const [requirementSet, reqs, auditEvents, approvalRecords] = await Promise.all([
-      ursComposerApi.getRequirementSet(id),
-      ursComposerApi.listRequirements(id),
-      ursComposerApi.getRequirementSetAudit(id),
-      ursComposerApi.getApprovals(id),
+      api.getRequirementSet(id),
+      api.listRequirements(id),
+      api.getRequirementSetAudit(id),
+      api.getApprovals(id),
     ]);
     setSet(requirementSet);
     setRequirements(reqs);
@@ -139,7 +141,7 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionLoading(true);
     setActionError(null);
     try {
-      await ursComposerApi.submitRequirementSet(id);
+      await api.submitRequirementSet(id);
       await reload();
     } catch (err: any) {
       setActionError(err.message || 'Submit failed');
@@ -155,7 +157,7 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionLoading(true);
     setActionError(null);
     try {
-      await ursComposerApi.approveRequirementSet(id);
+      await api.approveRequirementSet(id);
       await reload();
     } catch (err: any) {
       setActionError(err.message || 'Approval denied or failed');
@@ -172,7 +174,7 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionLoading(true);
     setActionError(null);
     try {
-      await ursComposerApi.rejectRequirementSet(id, rejectReason.trim());
+      await api.rejectRequirementSet(id, rejectReason.trim());
       await reload();
     } catch (err: any) {
       setActionError(err.message || 'Rejection denied or failed');
@@ -188,7 +190,7 @@ export const URSRequirementSetPage: React.FC = () => {
       return;
     }
     let mounted = true;
-    ursComposerApi
+    api
       .listBaselines(id)
       .then(baselines => {
         if (mounted) {
@@ -204,7 +206,7 @@ export const URSRequirementSetPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, api]);
 
   const handleStartValidation = async () => {
     if (!id || !approvedBaselineId) {
@@ -213,7 +215,7 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionError(null);
     setValidating(true);
     try {
-      const { context, created } = await ursComposerApi.startValidationFromBaseline(
+      const { context, created } = await api.startValidationFromBaseline(
         id,
         approvedBaselineId,
       );
@@ -269,7 +271,7 @@ export const URSRequirementSetPage: React.FC = () => {
           {canEdit && (
             <Button
               startIcon={<EditIcon />}
-              onClick={() => navigate(`/urs/${set.id}/edit`)}
+              onClick={() => navigate(`/urs-composer/${set.id}/edit`)}
             >
               Edit Draft
             </Button>

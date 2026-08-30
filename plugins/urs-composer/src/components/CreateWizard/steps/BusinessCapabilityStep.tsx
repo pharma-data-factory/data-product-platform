@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   Box,
   Typography,
@@ -24,7 +25,7 @@ import { Alert } from '@material-ui/lab';
 import { makeStyles } from '@material-ui/core/styles';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import { BusinessCapability, URSApiError } from '../../../api/types';
-import { ursComposerApi } from '../../../api/ursComposerApi';
+import { ursComposerApiRef } from '../../../api/ursComposerApi';
 import { URSWizardState } from '../wizardState';
 
 const useStyles = makeStyles(theme => ({
@@ -86,6 +87,7 @@ export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
   onStateChange,
 }) => {
   const classes = useStyles();
+  const api = useApi(ursComposerApiRef);
   const [capabilities, setCapabilities] = useState<BusinessCapability[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
       try {
         setLoading(true);
         setError(null);
-        const data = await ursComposerApi.listCapabilities();
+        const data = await api.listCapabilities();
         setCapabilities(data);
       } catch (err) {
         const apiError = err as URSApiError;
@@ -107,7 +109,7 @@ export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
       }
     };
     loadCapabilities();
-  }, []);
+  }, [api]);
 
   const handleToggleCapability = (capabilityId: string) => {
     const newRefs = state.businessCapabilityRefs.includes(capabilityId)

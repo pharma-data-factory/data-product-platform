@@ -22,7 +22,7 @@ import {
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
-const useStyles = makeStyles({
+const useStyles = makeStyles(theme => ({
   search: { marginBottom: 12 },
   filters: {
     display: 'flex',
@@ -30,8 +30,8 @@ const useStyles = makeStyles({
     gap: 8,
     marginBottom: 16,
   },
-  filterChip: { ...filterChipSx(false) },
-  filterChipSelected: { ...filterChipSx(true) },
+  filterChip: filterChipSx(theme, false),
+  filterChipSelected: filterChipSx(theme, true),
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
     background: '#F8FAFC',
@@ -41,7 +41,7 @@ const useStyles = makeStyles({
   },
   meta: { color: NEXORA_MUTED, fontSize: 13, marginTop: 4 },
   empty: { color: NEXORA_TEXT, fontSize: 14 },
-});
+}));
 
 export function ContractExplorerPage() {
   const classes = useStyles();

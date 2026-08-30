@@ -233,7 +233,7 @@ export function PluginDirectoryPage() {
                 <td>
                   <RouterLink
                     className={classes.link}
-                    to={`/admin/plugins/${row.id}`}
+                    to={`/plugin-directory/${row.id}`}
                     data-testid={`plugin-link-${row.id}`}
                   >
                     {row.name}

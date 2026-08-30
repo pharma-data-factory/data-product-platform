@@ -4,6 +4,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   Header,
   Page,
@@ -17,11 +18,12 @@ import {
 import { Button, TextField, Box, Chip } from '@material-ui/core';
 import AddIcon from '@material-ui/icons/Add';
 import EditIcon from '@material-ui/icons/Edit';
-import { ursComposerApi } from '../api/ursComposerApi';
+import { ursComposerApiRef } from '../api/ursComposerApi';
 import { RequirementSet, URSStatus } from '../api/types';
 
 export const URSLibraryPage: React.FC = () => {
   const navigate = useNavigate();
+  const api = useApi(ursComposerApiRef);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<RequirementSet[]>([]);
@@ -29,7 +31,7 @@ export const URSLibraryPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    ursComposerApi
+    api
       .listRequirementSets()
       .then(result => {
         if (mounted) {
@@ -49,7 +51,7 @@ export const URSLibraryPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [api]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -75,8 +77,8 @@ export const URSLibraryPage: React.FC = () => {
       title: 'URS ID',
       field: 'requirementSetId',
       render: row => (
-        <Link to={`/urs/${row.id}`} onClick={e => e.preventDefault()}>
-          <Button size="small" onClick={() => navigate(`/urs/${row.id}`)}>
+        <Link to={`/urs-composer/${row.id}`} onClick={e => e.preventDefault()}>
+          <Button size="small" onClick={() => navigate(`/urs-composer/${row.id}`)}>
             {row.requirementSetId}
           </Button>
         </Link>
@@ -114,14 +116,14 @@ export const URSLibraryPage: React.FC = () => {
       title: 'Actions',
       render: row => (
         <Box display="flex" style={{ gap: 8 }}>
-          <Button size="small" onClick={() => navigate(`/urs/${row.id}`)}>
+          <Button size="small" onClick={() => navigate(`/urs-composer/${row.id}`)}>
             Open
           </Button>
           {row.status === URSStatus.DRAFT && (
             <Button
               size="small"
               startIcon={<EditIcon />}
-              onClick={() => navigate(`/urs/${row.id}/edit`)}
+              onClick={() => navigate(`/urs-composer/${row.id}/edit`)}
             >
               Edit
             </Button>
@@ -139,7 +141,7 @@ export const URSLibraryPage: React.FC = () => {
           <Button
             color="primary"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/urs/new')}
+            onClick={() => navigate('/urs-composer/new')}
           >
             Create URS
           </Button>

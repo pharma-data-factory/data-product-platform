@@ -53,6 +53,7 @@ export const AVAILABLE_DISTRIBUTION_CHANNELS: readonly DistributionChannel[] = [
 ];
 
 export const OFFICIAL_GOLDEN_PATHS = [
+  'aas-data-product',
   'mqtt-temperature-data-product',
   'rest-equipment-data-product',
   'oee-data-product',

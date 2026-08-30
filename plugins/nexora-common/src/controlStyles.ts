@@ -1,12 +1,15 @@
 /**
  * Shared interactive control styles for Nexora surfaces.
  * Keep Marketplace, Developer Hub, and Admin pages on the same vocabulary:
- * - Primary: navy fill
- * - Accent: teal fill (CTAs on dark heroes)
- * - Ghost: outline on dark
- * - Filter chip: pill, navy when selected
+ * - Primary: theme primary fill
+ * - Filter chip: pill, primary when selected
  * - Table action: compact outlined button
+ *
+ * All colors resolve through the active MUI theme so the controls stay
+ * readable in both the light and dark Control Plane themes.
  */
+import { Theme } from '@material-ui/core/styles';
+
 export const NEXORA_CONTROL = {
   radius: 10,
   pillRadius: 999,
@@ -23,74 +26,48 @@ export const NEXORA_CONTROL = {
   chipIdleBg: '#F1F5F9',
 } as const;
 
-export const primaryButtonSx = {
-  background: NEXORA_CONTROL.navy,
+export const primaryButtonSx = (theme: Theme) => ({
+  background: theme.palette.primary.main,
   borderRadius: NEXORA_CONTROL.radius,
-  color: '#FFFFFF',
+  color: theme.palette.primary.contrastText,
   fontSize: NEXORA_CONTROL.fontSize,
   fontWeight: NEXORA_CONTROL.fontWeight,
   padding: '8px 14px',
   textDecoration: 'none',
   textTransform: 'none' as const,
   '&:hover': {
-    background: NEXORA_CONTROL.navyDark,
+    background: theme.palette.primary.dark,
     textDecoration: 'none',
   },
-};
+});
 
-export const accentButtonSx = {
-  background: NEXORA_CONTROL.teal,
-  borderRadius: NEXORA_CONTROL.radius,
-  color: '#FFFFFF',
-  fontSize: NEXORA_CONTROL.fontSize,
-  fontWeight: NEXORA_CONTROL.fontWeight,
-  padding: '8px 14px',
-  textDecoration: 'none',
-  textTransform: 'none' as const,
-  '&:hover': {
-    background: NEXORA_CONTROL.tealDark,
-    textDecoration: 'none',
-  },
-};
-
-export const ghostOnDarkButtonSx = {
-  background: 'transparent',
-  border: '1px solid rgba(255,255,255,0.28)',
-  borderRadius: NEXORA_CONTROL.radius,
-  color: '#F8FAFC',
-  fontSize: NEXORA_CONTROL.fontSize,
-  fontWeight: NEXORA_CONTROL.fontWeight,
-  padding: '8px 14px',
-  textDecoration: 'none',
-  textTransform: 'none' as const,
-  '&:hover': {
-    background: 'rgba(0,194,217,0.14)',
-    borderColor: NEXORA_CONTROL.tealLight,
-    textDecoration: 'none',
-  },
-};
-
-export const filterChipSx = (selected: boolean) => ({
-  background: selected ? NEXORA_CONTROL.navy : NEXORA_CONTROL.chipIdleBg,
+export const filterChipSx = (theme: Theme, selected: boolean) => ({
+  background: selected
+    ? theme.palette.primary.main
+    : theme.palette.background.default,
   border: selected
-    ? `1px solid ${NEXORA_CONTROL.navy}`
-    : `1px solid ${NEXORA_CONTROL.border}`,
+    ? `1px solid ${theme.palette.primary.main}`
+    : `1px solid ${theme.palette.divider}`,
   borderRadius: NEXORA_CONTROL.pillRadius,
-  color: selected ? '#FFFFFF' : NEXORA_CONTROL.text,
+  color: selected
+    ? theme.palette.primary.contrastText
+    : theme.palette.text.primary,
   fontSize: 12,
   fontWeight: NEXORA_CONTROL.fontWeight,
   height: 32,
   textTransform: 'none' as const,
   '&:hover': {
-    background: selected ? NEXORA_CONTROL.navyDark : '#E2E8F0',
+    background: selected
+      ? theme.palette.primary.dark
+      : theme.palette.action.hover,
   },
 });
 
-export const outlineButtonSx = {
+export const outlineButtonSx = (theme: Theme) => ({
   background: 'transparent',
-  border: `1px solid ${NEXORA_CONTROL.border}`,
+  border: `1px solid ${theme.palette.divider}`,
   borderRadius: NEXORA_CONTROL.radius,
-  color: NEXORA_CONTROL.navy,
+  color: theme.palette.text.primary,
   fontSize: 12,
   fontWeight: NEXORA_CONTROL.fontWeight,
   padding: '6px 12px',
@@ -101,4 +78,4 @@ export const outlineButtonSx = {
     borderColor: NEXORA_CONTROL.teal,
     textDecoration: 'none',
   },
-};
+});

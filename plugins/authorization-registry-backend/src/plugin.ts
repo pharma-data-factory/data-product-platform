@@ -29,9 +29,11 @@ export const authorizationRegistryPlugin = createBackendPlugin({
           registry,
         });
 
-        httpRouter.use('/authorization', router);
+        // HttpRouterService.use() takes only a middleware/router, not a path.
+        // Routes are served under /api/authorization-registry/...
+        httpRouter.use(router);
         httpRouter.addAuthPolicy({
-          path: '/authorization/health',
+          path: '/health',
           allow: 'unauthenticated',
         });
 

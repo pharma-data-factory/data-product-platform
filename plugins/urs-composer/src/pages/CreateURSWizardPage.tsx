@@ -4,10 +4,11 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useApi } from '@backstage/core-plugin-api';
 import { Progress } from '@backstage/core-components';
 import { Typography } from '@material-ui/core';
 import { CreateWizard } from '../components/CreateWizard/CreateWizard';
-import { ursComposerApi } from '../api/ursComposerApi';
+import { ursComposerApiRef } from '../api/ursComposerApi';
 import { fromRequirementSetToWizardState, URSWizardState } from '../components/CreateWizard/wizardState';
 
 export const CreateURSWizardPage: React.FC = () => {
@@ -15,13 +16,13 @@ export const CreateURSWizardPage: React.FC = () => {
 
   const handleComplete = useCallback(
     (requirementSetId: string) => {
-      navigate(`/urs/${requirementSetId}`);
+      navigate(`/urs-composer/${requirementSetId}`);
     },
     [navigate],
   );
 
   const handleCancel = useCallback(() => {
-    navigate('/urs');
+    navigate('/urs-composer');
   }, [navigate]);
 
   return <CreateWizard onComplete={handleComplete} onCancel={handleCancel} />;
@@ -30,6 +31,7 @@ export const CreateURSWizardPage: React.FC = () => {
 export const EditURSWizardPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const api = useApi(ursComposerApiRef);
   const [initialState, setInitialState] = useState<URSWizardState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +40,8 @@ export const EditURSWizardPage: React.FC = () => {
       return;
     }
     Promise.all([
-      ursComposerApi.getRequirementSet(id),
-      ursComposerApi.listRequirements(id),
+      api.getRequirementSet(id),
+      api.listRequirements(id),
     ])
       .then(([set, requirements]) => {
         setInitialState(fromRequirementSetToWizardState(set, requirements));
@@ -47,21 +49,21 @@ export const EditURSWizardPage: React.FC = () => {
       .catch(err => {
         setError(err.message || 'Failed to load draft');
       });
-  }, [id]);
+  }, [id, api]);
 
   const handleComplete = useCallback(
     (requirementSetId: string) => {
-      navigate(`/urs/${requirementSetId}`);
+      navigate(`/urs-composer/${requirementSetId}`);
     },
     [navigate],
   );
 
   const handleCancel = useCallback(() => {
     if (id) {
-      navigate(`/urs/${id}`);
+      navigate(`/urs-composer/${id}`);
       return;
     }
-    navigate('/urs/library');
+    navigate('/urs-composer/library');
   }, [id, navigate]);
 
   if (error) {

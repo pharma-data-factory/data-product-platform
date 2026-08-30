@@ -98,7 +98,7 @@ const DEFAULTS: Record<
     type: 'PLATFORM',
     name: 'Plugin Directory',
     lifecycle: 'ENABLED',
-    frontendRoute: '/admin/plugins',
+    frontendRoute: '/plugin-directory',
     backendRoute: '/api/plugin-directory',
     validationStatus: 'NOT_VALIDATED',
     validationReference: 'plugin-directory-design.md',

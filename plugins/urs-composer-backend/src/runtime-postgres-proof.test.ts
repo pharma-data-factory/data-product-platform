@@ -41,9 +41,7 @@ function createDb(): Knex {
 }
 
 function createService(db: Knex): URSService {
-  const repository = new PostgresURSRepository({
-    getClient: () => db,
-  }) as any;
+  const repository = new PostgresURSRepository(db) as any;
   return new URSService({
     logger: mockLogger,
     repository,
@@ -362,7 +360,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       },
       'user:default/author',
     );
-    const repo = new PostgresURSRepository({ getClient: () => db }) as any;
+    const repo = new PostgresURSRepository(db) as any;
     const initialVersion = {
       id: `baseline-version-v1-${Date.now()}`,
       requirementId: createdReq.requirementId,
@@ -407,7 +405,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
 
       // The baseline's own CREATED event carries entity_version (text column
       // reads back the semantic "1.0"). Query the repository's entity audit.
-      const repo2 = new PostgresURSRepository({ getClient: () => db2 }) as any;
+      const repo2 = new PostgresURSRepository(db2) as any;
       const baselineAudit = await repo2.getEntityAuditTrail(baseline.id, 'BASELINE');
       const baselineCreated = baselineAudit.find((a: any) => a.eventType === 'CREATED');
       expect(baselineCreated).toBeDefined();

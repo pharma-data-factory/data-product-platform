@@ -54,7 +54,7 @@ describe('URS Repository Contract', () => {
   beforeEach(() => {
     inMemoryRepo = new URSRepository();
     try {
-      postgresRepo = new PostgresURSRepository(mockDatabase as any, mockLogger);
+      postgresRepo = new PostgresURSRepository(mockDatabase.getClient() as any);
     } catch (error) {
       // PostgreSQL not available - will mark as NOT_APPLICABLE
       postgresRepo = null as any;

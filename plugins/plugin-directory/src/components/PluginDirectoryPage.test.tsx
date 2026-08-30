@@ -95,7 +95,7 @@ describe('Plugin Directory UI', () => {
     });
     expect(screen.getByTestId('plugin-link-validation-expert')).toHaveAttribute(
       'href',
-      '/admin/plugins/validation-expert',
+      '/plugin-directory/validation-expert',
     );
   });
 
@@ -132,7 +132,7 @@ describe('Plugin Directory UI', () => {
   it('shows Validation Expert detail with NOT_VALIDATED', async () => {
     render(
       <IndustrialTestRoot>
-        <MemoryRouter initialEntries={['/admin/plugins/validation-expert']}>
+        <MemoryRouter initialEntries={['/plugin-directory/validation-expert']}>
           <TestApiProvider
             apis={[
               [pluginDirectoryApiRef, api as any],
@@ -141,7 +141,7 @@ describe('Plugin Directory UI', () => {
           >
             <Routes>
               <Route
-                path="/admin/plugins/:pluginId"
+                path="/plugin-directory/:pluginId"
                 element={<PluginDetailPage />}
               />
             </Routes>

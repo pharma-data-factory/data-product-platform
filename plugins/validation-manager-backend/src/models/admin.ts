@@ -1,5 +1,5 @@
 /**
- * Admin Models — Rollen, Benutzer, Konfiguration
+ * Admin Models — roles, users, configuration
  * Defines roles, permissions, and user management
  */
 
@@ -68,7 +68,7 @@ export interface ApprovalStep {
 }
 
 /**
- * Approval Event (für State Machine)
+ * Approval Event (for State Machine)
  */
 export interface ApprovalEvent {
   id: string;
@@ -82,7 +82,7 @@ export interface ApprovalEvent {
 }
 
 /**
- * Approval Workflow State (für State Machine)
+ * Approval Workflow State (for State Machine)
  */
 export interface ApprovalWorkflowState {
   requirementId: string;
@@ -99,7 +99,7 @@ export interface ApprovalWorkflowState {
  */
 export interface DocumentExportConfig {
   enabled: boolean;
-  exportFolder: string; // z.B. /archive/approved-documents
+  exportFolder: string; // e.g. /archive/approved-documents
   filenamingPattern: string; // {DocumentType}-v{version}-{date}
   includeMetadata: boolean;
   includeAuditTrail: boolean;

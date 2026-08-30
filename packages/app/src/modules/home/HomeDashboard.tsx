@@ -1,123 +1,146 @@
 import { Link } from '@backstage/core-components';
-import { Avatar, Grid, Typography } from '@material-ui/core';
+import { Grid, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import {
-  PlatformRole,
-  ROLE_LABELS,
-  QuickAction,
-  quickActionsForRole,
-} from '@internal/platform-common';
-import {
-  catalogClassLabel,
-  CertificationChip,
-  QualityChip,
-  UpgradeChip,
-} from '@internal/plugin-data-products';
 import type { DataProduct } from '@internal/plugin-data-products';
-import { C } from '../theme/tokens';
-import { LandingI18nProvider } from '../identity/landingI18n';
-import { GoldenPathShowcase } from '../identity/GoldenPathShowcase';
+import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+
+const ACTIONS = [
+  { id: 'build', to: '/build', label: 'Build', copy: 'Create a Data Product using a guided Golden Path.', primary: true },
+  { id: 'products', to: '/my-products', label: 'My Products', copy: 'View existing Data Products.' },
+  { id: 'validate', to: '/validate', label: 'Validate', copy: 'Manage requirements and validation.' },
+  { id: 'marketplace', to: '/marketplace', label: 'Marketplace', copy: 'Discover reusable solutions.' },
+  { id: 'model-company', to: '/model-company', label: 'Model Company', copy: 'Explore the reference manufacturing environment.' },
+];
 
 const useStyles = makeStyles({
-  welcome: {
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
-    fontWeight: 600,
-    letterSpacing: '-0.02em',
+  hero: {
+    background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
+    borderRadius: 16,
+    color: '#F8FAFC',
+    marginBottom: 24,
+    padding: '28px 28px',
   },
-  identity: {
-    alignItems: 'center',
-    display: 'flex',
-    gap: 16,
-  },
-  role: {
-    color: C.muted,
+  eyebrow: {
+    color: PHARMA_TEAL_LIGHT,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
-    letterSpacing: '0.08em',
-    marginTop: 8,
+    fontWeight: 600,
+    letterSpacing: '0.16em',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  welcome: {
+    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    fontSize: 'clamp(24px, 3.4vw, 34px)',
+    fontWeight: 600,
+    letterSpacing: '-0.02em',
+    lineHeight: 1.15,
+    margin: 0,
+  },
+  copy: {
+    color: '#CBD5E1',
+    fontSize: 15,
+    lineHeight: 1.7,
+    marginBottom: 0,
+    marginTop: 12,
+    maxWidth: 720,
+  },
+  cta: {
+    background: PHARMA_TEAL,
+    border: `1px solid ${PHARMA_TEAL}`,
+    borderRadius: 10,
+    color: '#FFFFFF !important',
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontSize: 14,
+    fontWeight: 600,
+    marginTop: 20,
+    padding: '11px 20px',
+    textDecoration: 'none',
+    textTransform: 'none',
+    '&:hover': {
+      background: PHARMA_TEAL_DARK,
+      borderColor: PHARMA_TEAL_DARK,
+      textDecoration: 'none',
+    },
+  },
+  sectionLabel: {
+    color: PHARMA_TEAL_DARK,
+    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: '0.16em',
+    marginBottom: 10,
     textTransform: 'uppercase',
   },
   card: {
     background: C.card,
     border: `1px solid ${C.border}`,
     borderRadius: 16,
-    height: '100%',
-    padding: 20,
-    transition: 'border-color .3s, background .3s, transform .3s',
-    '&:hover': {
-      background: '#F8FAFC',
-      borderColor: 'rgba(11, 31, 58, 0.16)',
-    },
-  },
-  title: {
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
-    fontWeight: 600,
-    marginBottom: 12,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    fontSize: 14,
-  },
-  actions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 8,
-  },
-  action: {
-    background: `linear-gradient(135deg, ${C.cloud}, ${C.factory})`,
-    borderRadius: 10,
-    color: '#FFFFFF !important',
-    display: 'inline-flex',
-    fontSize: 13,
-    fontWeight: 600,
-    padding: '8px 14px',
-    textDecoration: 'none',
-    '&:hover': {
-      filter: 'brightness(1.08)',
-      textDecoration: 'none',
-    },
-  },
-  ghostAction: {
-    background: 'transparent',
-    border: `1px solid ${C.border}`,
-    borderRadius: 10,
     color: `${C.text} !important`,
-    display: 'inline-flex',
-    fontSize: 13,
-    fontWeight: 600,
-    padding: '8px 14px',
-    textDecoration: 'none',
-    '&:hover': {
-      background: 'rgba(13, 148, 136, 0.08)',
-      borderColor: 'rgba(13, 148, 136, 0.45)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    height: '100%',
+    minHeight: 150,
+    padding: 20,
+    textDecoration: 'none !important',
+    transition: 'border-color 120ms ease, box-shadow 120ms ease',
+    '&:hover, &:focus-visible': {
+      borderColor: PHARMA_TEAL,
+      boxShadow: '0 8px 24px rgba(11, 31, 58, 0.08)',
+      outline: 'none',
       textDecoration: 'none',
     },
   },
-  meta: {
-    borderTop: `1px solid ${C.border}`,
-    marginTop: 12,
+  primaryCard: {
+    background: `linear-gradient(135deg, ${PHARMA_TEAL}, ${PHARMA_TEAL_DARK})`,
+    border: 'none',
+    color: '#FFFFFF !important',
+    '&:hover, &:focus-visible': {
+      boxShadow: '0 10px 28px rgba(0, 194, 217, 0.28)',
+    },
+  },
+  primaryLabel: {
+    color: '#FFFFFF !important',
+  },
+  primaryCopy: {
+    color: '#E6FBFF !important',
+  },
+  primaryExplore: {
+    color: '#FFFFFF !important',
+  },
+  cardLabel: {
+    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    fontSize: 18,
+    fontWeight: 600,
+    lineHeight: 1.3,
+  },
+  cardCopy: {
+    color: C.muted,
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
+  explore: {
+    color: PHARMA_TEAL_DARK,
+    fontSize: 13,
+    fontWeight: 600,
+    marginTop: 'auto',
     paddingTop: 12,
   },
-  productLink: {
-    color: C.text,
-    fontWeight: 500,
+  product: {
+    borderTop: `1px solid ${C.border}`,
+    marginTop: 6,
+    paddingTop: 10,
   },
   empty: {
     color: C.muted,
+    fontSize: 14,
     marginTop: 8,
   },
-  sample: {
-    color: C.muted,
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-    fontSize: 11,
-    letterSpacing: '0.08em',
-    marginLeft: 8,
-    textTransform: 'uppercase',
-  },
 });
-
 export interface HomeDashboardProps {
-  platformRole: PlatformRole;
+  platformRole: string;
   displayName?: string;
   picture?: string;
   githubLogin?: string;
@@ -125,180 +148,76 @@ export interface HomeDashboardProps {
   recentlyUsed: DataProduct[];
 }
 
-export function HomeDashboard({
-  platformRole,
-  displayName,
-  picture,
-  githubLogin,
-  products,
-  recentlyUsed,
-}: HomeDashboardProps) {
+export function HomeDashboard({ displayName, products }: HomeDashboardProps) {
   const classes = useStyles();
-  const actions = quickActionsForRole(platformRole);
-  const updates = products.filter(
-    product =>
-      product.upgrade?.overall === 'UPDATE_AVAILABLE' ||
-      product.upgrade?.overall === 'UPGRADE_REQUIRED',
-  );
-
   return (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <div className={classes.identity}>
-          <Avatar
-            src={picture}
-            alt={displayName ?? 'User'}
-            style={{ width: 56, height: 56, background: C.factory }}
-          >
-            {(displayName ?? 'U').slice(0, 1).toUpperCase()}
-          </Avatar>
-          <div>
-            <Typography className={classes.welcome} variant="h4">
-              {displayName ? `Welcome, ${displayName}` : 'Home'}
-            </Typography>
-            <Typography className={classes.role}>
-              Role: {ROLE_LABELS[platformRole]}
-              {githubLogin ? ` · GitHub: ${githubLogin}` : ''}
-            </Typography>
-          </div>
-        </div>
-      </Grid>
-      <Grid item xs={12}>
-        <LandingI18nProvider>
-          <GoldenPathShowcase compact marketplaceLinks />
-        </LandingI18nProvider>
-      </Grid>
-      <Grid item xs={12}>
-        <div className={classes.card}>
-          <Typography className={classes.title} variant="h6">
-            Quick actions
-          </Typography>
-          <div className={classes.actions}>
-            {actions.map((action, index) => (
-              <QuickActionLink
-                key={action.id}
-                action={action}
-                primary={index === 0}
-              />
-            ))}
-          </div>
-        </div>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <div className={classes.card}>
-          <Typography className={classes.title} variant="h6">
-            My Data Products
-          </Typography>
-          {products.length === 0 && (
-            <Typography variant="body2" className={classes.empty}>
-              You have no Data Products yet. Create one from the Marketplace.
-            </Typography>
-          )}
-          {products.map(product => (
-            <div key={product.name} className={classes.meta}>
+    <>
+      <section className={classes.hero} aria-label="Pharma Data Factory">
+        <p className={classes.eyebrow}>PHARMA DATA FACTORY</p>
+        <h1 className={classes.welcome}>
+          {displayName ? `Welcome, ${displayName}` : 'Pharma Data Factory'}
+        </h1>
+        <p className={classes.copy}>
+          Build, validate, and operate Data Products for life science. Start by
+          creating a Data Product on a certified Golden Path.
+        </p>
+        <Link className={classes.cta} to="/build">
+          Build a Data Product
+        </Link>
+      </section>
+
+      <section aria-label="What can I do">
+        <Typography className={classes.sectionLabel}>What can I do?</Typography>
+        <Grid container spacing={3}>
+          {ACTIONS.map(action => (
+            <Grid item xs={12} sm={6} md={4} key={action.id}>
               <Link
-                className={classes.productLink}
-                to={`/data-products/${product.name}`}
+                className={`${classes.card} ${action.primary ? classes.primaryCard : ''}`}
+                to={action.to}
+                data-primary={action.primary ? 'true' : 'false'}
               >
-                {product.title}
+                <span
+                  className={`${classes.cardLabel} ${
+                    action.primary ? classes.primaryLabel : ''
+                  }`}
+                >
+                  {action.label}
+                </span>
+                <span
+                  className={`${classes.cardCopy} ${
+                    action.primary ? classes.primaryCopy : ''
+                  }`}
+                >
+                  {action.copy}
+                </span>
+                <span
+                  className={`${classes.explore} ${
+                    action.primary ? classes.primaryExplore : ''
+                  }`}
+                >
+                  Open
+                </span>
               </Link>
-              {catalogClassLabel(product) && (
-                <span className={classes.sample}>{catalogClassLabel(product)}</span>
-              )}
-              <div>
-                <QualityChip status={product.qualityStatus} />{' '}
-                <CertificationChip status={product.certificationStatus} />
-                {product.upgrade && (
-                  <>
-                    {' '}
-                    <UpgradeChip status={product.upgrade.overall} />
-                  </>
-                )}
-              </div>
-            </div>
+            </Grid>
           ))}
-        </div>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <div className={classes.card}>
-          <Typography className={classes.title} variant="h6">
-            Recent activity
+        </Grid>
+      </section>
+
+      <section aria-label="My Data Products" style={{ marginTop: 32 }}>
+        <Typography className={classes.sectionLabel}>My Data Products</Typography>
+        {products.length === 0 ? (
+          <Typography variant="body2" className={classes.empty}>
+            No Data Products yet. Start with a Golden Path to create your first one.
           </Typography>
-          {recentlyUsed.length === 0 && (
-            <Typography variant="body2" className={classes.empty}>
-              Open a Data Product to see recent activity here.
+        ) : (
+          products.map(product => (
+            <Typography key={product.name} variant="body2" className={classes.product}>
+              <Link to={`/data-products/${product.name}`}>{product.title}</Link>
             </Typography>
-          )}
-          {recentlyUsed.map(product => (
-            <Typography key={product.name} variant="body2" className={classes.meta}>
-              <Link
-                className={classes.productLink}
-                to={`/data-products/${product.name}`}
-              >
-                {product.title}
-              </Link>
-              {catalogClassLabel(product) && (
-                <span className={classes.sample}>{catalogClassLabel(product)}</span>
-              )}
-            </Typography>
-          ))}
-        </div>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <div className={classes.card}>
-          <Typography className={classes.title} variant="h6">
-            Quality & CI
-          </Typography>
-          {products.map(product => (
-            <Typography key={product.name} variant="body2" className={classes.meta}>
-              {product.title}: {product.qualityStatus}{' '}
-              <Link to={`/data-products/${product.name}#ci-quality-gate`}>
-                CI Quality Gate
-              </Link>
-            </Typography>
-          ))}
-          {products.length === 0 && (
-            <Typography variant="body2" className={classes.empty}>
-              Quality and CI status appear after a Data Product is registered.
-            </Typography>
-          )}
-        </div>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <div className={classes.card}>
-          <Typography className={classes.title} variant="h6">
-            Platform updates
-          </Typography>
-          {updates.length === 0 && (
-            <Typography variant="body2" className={classes.empty}>
-              No template or SDK updates detected.
-            </Typography>
-          )}
-          {updates.map(product => (
-            <Typography key={product.name} variant="body2" className={classes.meta}>
-              {product.title}: {product.upgrade?.overall}
-            </Typography>
-          ))}
-        </div>
-      </Grid>
-    </Grid>
+          ))
+        )}
+      </section>
+    </>
   );
 }
 
-function QuickActionLink({
-  action,
-  primary,
-}: {
-  action: QuickAction;
-  primary: boolean;
-}) {
-  const classes = useStyles();
-  return (
-    <Link
-      className={primary ? classes.action : classes.ghostAction}
-      to={action.to}
-    >
-      {action.label}
-    </Link>
-  );
-}
