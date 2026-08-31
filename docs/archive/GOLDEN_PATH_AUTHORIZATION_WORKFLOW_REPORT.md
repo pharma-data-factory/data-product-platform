@@ -12,15 +12,15 @@
 
 This addendum re-evaluates the original workflow audit against the architectural rule
 
-> Pharma Data Factory MUST NOT implement its own RBAC engine; authorization enforcement must use
+> Nexora MUST NOT implement its own RBAC engine; authorization enforcement must use
 > the existing standard Backstage authorization architecture.
 
 It is **read-only** (no source changes, no migrations, no commits). The original findings stand; this
 section re-classifies them by architecture responsibility, states the "BACKSTAGE RBAC ARCHITECTURE
 DECISION" (section §1A below), and revises the recommendations. The authoritative principle:
 
-> **Pharma Data Factory does not implement a proprietary RBAC engine. Authorization enforcement is
-> delegated to the standard Backstage permission/RBAC architecture. Pharma Data Factory defines
+> **Nexora does not implement a proprietary RBAC engine. Authorization enforcement is
+> delegated to the standard Backstage permission/RBAC architecture. Nexora defines
 > domain permissions, authorization profiles and Golden Path configuration.**
 
 ---
@@ -80,9 +80,9 @@ exact, smallest implementation are specified.
 
 ## 1A. BACKSTAGE RBAC ARCHITECTURE DECISION
 
-> **Pharma Data Factory does not implement a proprietary RBAC engine.
+> **Nexora does not implement a proprietary RBAC engine.
 > Authorization enforcement is delegated to the standard Backstage
-> permission/RBAC architecture. Pharma Data Factory defines domain
+> permission/RBAC architecture. Nexora defines domain
 > permissions, authorization profiles and Golden Path configuration.**
 
 ### 1A.1 Which standard Backstage authorization components are installed & used
@@ -202,7 +202,7 @@ Each arrow's owner is the platform component in parentheses; **no Pharma RBAC en
    (`/admin/rbac`, `rbac.policies` policy-server config). Only the domain-specific entitlements and
    release-gate business rules are retained as conditional policy logic.
 
-4. **What custom Pharma Data Factory authorization code genuinely needs to remain?**
+4. **What custom Nexora authorization code genuinely needs to remain?**
    Domain permissions (standard `createPermission` objects), authorization profiles + the profile
    registry (metadata), entitlements/release-gate business rules, and Golden Path configuration UX.
    The hard-coded role→permission evaluator (`decidePermission`/`permissionsForRole`) does **not**

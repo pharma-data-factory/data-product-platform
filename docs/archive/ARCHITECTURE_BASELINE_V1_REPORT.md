@@ -8,7 +8,7 @@
 
 ## EXECUTIVE SUMMARY
 
-A comprehensive baseline of the Pharma Data Factory architecture has been established through systematic repository inspection. The platform is a Backstage-based Internal Developer Platform (IDP) for pharmaceutical manufacturing with pharma-specific plugins for requirement management, solution composition, and validation.
+A comprehensive baseline of the Nexora architecture has been established through systematic repository inspection. The platform is a Backstage-based Internal Developer Platform (IDP) for pharmaceutical manufacturing with pharma-specific plugins for requirement management, solution composition, and validation.
 
 **Key Findings**:
 - ✅ Architecture is coherent and follows Backstage conventions
@@ -579,7 +579,7 @@ docs/
 
 ## ✅ **ARCHITECTURE_BASELINE_V1_COMPLETE**
 
-The Pharma Data Factory architecture has been:
+The Nexora architecture has been:
 
 1. ✅ **Comprehensively discovered** through repository inspection
 2. ✅ **Accurately documented** in coherent, layered structure

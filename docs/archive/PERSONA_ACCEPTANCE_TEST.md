@@ -1,4 +1,4 @@
-# Pharma Data Factory — Persona Acceptance Test Suite
+# Nexora — Persona Acceptance Test Suite
 **Date**: 2026-08-24  
 **Phase**: P0/P1/P2 Validation Architecture Story Alignment
 
@@ -30,7 +30,7 @@ Three personas, one canonical architecture story presented with different zoom l
 | **C-12** | ResponsibilityModel left column: "PLATFORM STANDARDIZES" | Visual inspection: Column title and description | □ PASS |
 | **C-13** | ResponsibilityModel right column: "YOU FOCUS ON" | Visual inspection: Column title and description | □ PASS |
 | **C-14** | Responsibility section intro box has teal gradient background | Visual inspection: Background color | □ PASS |
-| **C-15** | All "Nexora" references replaced with "Pharma Data Factory" | Text search: No "Nexora" on page | □ PASS |
+| **C-15** | All "Nexora" references replaced with "Nexora" | Text search: No "Nexora" on page | □ PASS |
 | **C-16** | Technical diagrams present (full-stack, AAS, contracts) | Visual inspection: DiagramSection components | □ PASS |
 | **C-17** | CTA present and functional | Visual inspection: ArchitectureCta component | □ PASS |
 | **C-18** | Page renders without JavaScript errors | Console check: No red errors | □ PASS |
@@ -62,8 +62,8 @@ Three personas, one canonical architecture story presented with different zoom l
 | **D-4** | BackstageFoundation mentions: Catalog, Scaffolder, TechDocs, Search, API, SDK | Count keywords in text | □ PASS |
 | **D-5** | Developer flow diagram present and loads | Visual inspection: DeveloperArchitectureDiagram component | □ PASS |
 | **D-6** | Technical stack layers explained | Visual inspection: Diagram sections (Backstage, Platform, Products) | □ PASS |
-| **D-7** | "Pharma Data Factory" naming used consistently | Text search: No "Nexora" on page | □ PASS |
-| **D-8** | All Nexora → Pharma Data Factory replacements complete | Text search: All references updated | □ PASS |
+| **D-7** | "Nexora" naming used consistently | Text search: No "Nexora" on page | □ PASS |
+| **D-8** | All Nexora → Nexora replacements complete | Text search: All references updated | □ PASS |
 | **D-9** | Developer journey steps explained (Build, Compose, Test, Release, Operate) | Visual inspection: Step narratives | □ PASS |
 | **D-10** | Links to technical documentation present | Link check: Documentation hrefs functional | □ PASS |
 | **D-11** | Golden Paths explained with technical context | Visual inspection: Content clarity | □ PASS |
@@ -127,11 +127,11 @@ Three personas, one canonical architecture story presented with different zoom l
 | Test ID | Requirement | Check | Status |
 |---------|-------------|-------|--------|
 | **E-1** | Hero title: "Developer Hub" | Visual inspection: Hero h1 | □ PASS |
-| **E-2** | Hero copy mentions "Pharma Data Factory" instead of "Nexora" | Text search: "Pharma Data Factory" present, "Nexora" absent | □ PASS |
+| **E-2** | Hero copy mentions "Nexora" instead of "Nexora" | Text search: "Nexora" present, "Nexora" absent | □ PASS |
 | **E-3** | NEW: Architecture Context Card visible after Hero | Visual inspection: "Platform Architecture at a Glance" section | □ PASS |
-| **E-4** | Architecture Context Card shows 3 layers in grid | Count: 3 layer boxes (Backstage, Pharma Data Factory, Data Products) | □ PASS |
+| **E-4** | Architecture Context Card shows 3 layers in grid | Count: 3 layer boxes (Backstage, Nexora, Data Products) | □ PASS |
 | **E-5** | Layer 1 (Backstage) box shows correct content | Visual inspection: "Open-source Control Plane" text | □ PASS |
-| **E-6** | Layer 2 (Pharma Data Factory) box highlighted with teal border | Visual inspection: Teal border and background color | □ PASS |
+| **E-6** | Layer 2 (Nexora) box highlighted with teal border | Visual inspection: Teal border and background color | □ PASS |
 | **E-7** | Layer 3 (Data Products) box shows correct content | Visual inspection: "Independent services" text | □ PASS |
 | **E-8** | Key insight box present: "Systems of record stay authoritative..." | Visual inspection: Callout text | □ PASS |
 | **E-9** | Search card present and links to documentation | Visual inspection: Search section and links | □ PASS |
@@ -162,7 +162,7 @@ Three personas, one canonical architecture story presented with different zoom l
 
 | Check ID | Requirement | Status |
 |----------|-------------|--------|
-| **X-1** | "Pharma Data Factory" naming consistent across all 4 pages | □ PASS |
+| **X-1** | "Nexora" naming consistent across all 4 pages | □ PASS |
 | **X-2** | Three-layer architecture model consistent across all pages | □ PASS |
 | **X-3** | Validation by Design narrative present on Customer & Developer pages | □ PASS |
 | **X-4** | ResponsibilityModel framing consistent (partnership tone, not blame) | □ PASS |

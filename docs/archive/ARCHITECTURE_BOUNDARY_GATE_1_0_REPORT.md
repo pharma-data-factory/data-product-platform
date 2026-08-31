@@ -11,7 +11,7 @@
 
 ## ✅ **ARCHITECTURE_BOUNDARY_GATE_PASSED**
 
-**Finding**: The Pharma Data Factory maintains clean architectural boundaries across Backstage Foundation, Platform Layer, Control-Plane Plugins, and Generated Runtimes.
+**Finding**: The Nexora maintains clean architectural boundaries across Backstage Foundation, Platform Layer, Control-Plane Plugins, and Generated Runtimes.
 
 **Key Verification**:
 - ✅ Backstage Core NOT forked
@@ -34,7 +34,7 @@
 
 ### Repository State (2026-08-25)
 
-The Pharma Data Factory is a **mature, well-structured Backstage-based IDP** with pharma-specific engineering capabilities. The architecture clearly separates:
+The Nexora is a **mature, well-structured Backstage-based IDP** with pharma-specific engineering capabilities. The architecture clearly separates:
 
 1. **Backstage Foundation** — Standard IDP capabilities (Catalog, Scaffolder, TechDocs, Auth, Permissions)
 2. **PDF Platform Layer** — Pharma-specific components and governance
@@ -100,7 +100,7 @@ Evidence:
 
 ---
 
-## 3. PHARMA DATA FACTORY PLATFORM BOUNDARY
+## 3. NEXORA PLATFORM BOUNDARY
 
 ### Platform Layers (Verified)
 
@@ -908,7 +908,7 @@ The URS Composer and Validation Expert plugins are architecturally ready to be p
 
 **Current production model**:
 ```
-Backstage + Pharma Data Factory plugins (pre-installed)
+Backstage + Nexora plugins (pre-installed)
 + configuration (app-config.yaml)
 = running platform
 ```
@@ -1350,7 +1350,7 @@ Evidence:
 
 ### Summary
 
-The Pharma Data Factory maintains clean architectural boundaries between:
+The Nexora maintains clean architectural boundaries between:
 
 1. **Backstage Foundation** — Untouched, properly extended
 2. **PDF Platform Layer** — Well-designed, coherent

@@ -41,7 +41,7 @@ The URS Composer is the starting point for a Requirements-Driven Engineering and
 - **Framework**: React 18.x
 - **UI Components**: Material-UI 4.x + Backstage Core Components
 - **Plugin Pattern**: Backstage frontend plugins with route registration
-- **Design System**: Consistent with existing Pharma Data Factory UI
+- **Design System**: Consistent with existing Nexora UI
 - **Routing**: React Router 6.x via `createRoutableExtension`
 
 ### 1.3 Backend Architecture

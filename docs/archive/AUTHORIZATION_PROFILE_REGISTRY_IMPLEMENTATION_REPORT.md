@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The Authorization Profile Registry has been successfully implemented, tested, and integrated into the Pharma Data Factory platform. The registry discovers and validates all 6 golden path authorization profiles from the repository, exposes 24 domain-specific permissions via REST API, and maintains architectural separation from the Backstage permission framework.
+The Authorization Profile Registry has been successfully implemented, tested, and integrated into the Nexora platform. The registry discovers and validates all 6 golden path authorization profiles from the repository, exposes 24 domain-specific permissions via REST API, and maintains architectural separation from the Backstage permission framework.
 
 **Key Achievements**:
 - ✅ 6/6 golden path profiles discovered and validated

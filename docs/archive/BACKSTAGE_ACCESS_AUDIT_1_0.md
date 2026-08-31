@@ -1,4 +1,4 @@
-# Pharma Data Factory — Backstage Access & Permission Management Audit 1.0
+# Nexora — Backstage Access & Permission Management Audit 1.0
 
 **Date**: 2026-08-25  
 **Scope**: Complete authorization architecture inspection  
@@ -722,7 +722,7 @@ EFFECTIVE ACCESS (DERIVED — NOT STORED)
 └────────────────────────────────────────────────────────────────┘
                          ↓
 ┌────────────────────────────────────────────────────────────────┐
-│  PHARMA DATA FACTORY POLICY LAYER (thin, domain-specific)      │
+│  NEXORA POLICY LAYER (thin, domain-specific)      │
 │                                                                │
 │  PlatformPermissionPolicy                                     │
 │  ├─ Role resolution (ownershipEntityRefs → Platform Role)     │

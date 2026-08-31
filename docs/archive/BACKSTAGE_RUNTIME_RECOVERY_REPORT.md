@@ -322,7 +322,7 @@ Classification: `CONFIGURED` (minimal single-line deletion).
 
 1. **Was the duplicate createRouter export the actual build blocker?** **YES** — removing it turned the
    full backend build from FAIL (duplicate export) to PASS.
-2. **Was the repair limited to Pharma Data Factory-owned code?** **YES** — only
+2. **Was the repair limited to Nexora-owned code?** **YES** — only
    `plugins/validation-manager-backend/src/router.ts` (Pharma-owned) was edited in this gate.
 3. **Were any @backstage packages modified or patched?** **NO** — no `@backstage/*`, no `node_modules`
    touched; the change is entirely inside Pharma-owned source.

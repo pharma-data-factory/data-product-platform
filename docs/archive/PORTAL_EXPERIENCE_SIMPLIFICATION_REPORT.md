@@ -1,4 +1,4 @@
-# PHARMA DATA FACTORY — PORTAL EXPERIENCE SIMPLIFICATION REPORT
+# NEXORA — PORTAL EXPERIENCE SIMPLIFICATION REPORT
 
 **Gate:** Portal Experience Simplification — Information Architecture + Navigation + Guided User Journeys
 **Status:** Implemented and verified against the running authenticated portal.
@@ -7,7 +7,7 @@
 
 ## EXECUTIVE SUMMARY
 
-The authenticated Pharma Data Factory portal has been reorganized around
+The authenticated Nexora portal has been reorganized around
 **business/developer intent** rather than internal platform architecture.
 
 **What changed (Pharma-owned only):**
@@ -26,7 +26,7 @@ The authenticated Pharma Data Factory portal has been reorganized around
   - `/validate` — **Validate** (URS Composer + Validation Expert as one flow)
   - `/admin` — **Admin** (RBAC, Entitlements, Marketplace Integration, Platform
     Architecture, Plugin Directory, Platform Settings)
-- **Home** was simplified to answer three questions (What is Pharma Data Factory?
+- **Home** was simplified to answer three questions (What is Nexora?
   What can I do? Where do I start?) with a dominant **Build a Data Product** CTA
   and five main actions (Build, My Products, Validate, Marketplace, Model
   Company). The heavy technical `GoldenPathShowcase`, "Quality & CI", "Platform
@@ -185,7 +185,7 @@ quick-action buttons + "Your products" / "Recent activity" / "Quality & CI" /
 
 **After:**
 
-- **Hero**: "PHARMA DATA FACTORY" eyebrow + `Welcome, <name>` + a single sentence
+- **Hero**: "NEXORA" eyebrow + `Welcome, <name>` + a single sentence
   + dominant **Build a Data Product** CTA (→ `/build`).
 - **What can I do?** — exactly five actions: **Build** (primary, teal),
   **My Products**, **Validate**, **Marketplace**, **Model Company**.
@@ -199,7 +199,7 @@ was deleted.
 
 This makes Home answer the three questions within seconds:
 
-1. **What is Pharma Data Factory?** Hero eyebrow + welcome copy.
+1. **What is Nexora?** Hero eyebrow + welcome copy.
 2. **What can I do?** Five clear actions.
 3. **Where do I start?** The dominant **Build a Data Product** CTA.
 

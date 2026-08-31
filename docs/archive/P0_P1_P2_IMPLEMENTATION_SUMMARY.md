@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Successfully implemented P0, P1, and P2 public-facing improvements to the **Pharma Data Factory** architecture narrative across four key pages. The implementation maintains the "one canonical architecture model" with three persona-specific zoom levels:
+Successfully implemented P0, P1, and P2 public-facing improvements to the **Nexora** architecture narrative across four key pages. The implementation maintains the "one canonical architecture model" with three persona-specific zoom levels:
 
 1. **Customer / Business** (`/platform/architecture`)
 2. **Developer / Technical** (`/platform/architecture/developer`)
@@ -49,10 +49,10 @@ Successfully implemented P0, P1, and P2 public-facing improvements to the **Phar
 - **File**: `ArchitecturePage.tsx` (new `ViewSelectorSection()` component)
 
 #### 3. Responsibility Model Reframed as Partnership
-- **Before**: "PHARMA DATA FACTORY PROVIDES" vs "PRODUCT TEAM OWNS" (blame-y tone)
+- **Before**: "NEXORA PROVIDES" vs "PRODUCT TEAM OWNS" (blame-y tone)
 - **After**: "PLATFORM STANDARDIZES" vs "YOU FOCUS ON" (partnership tone)
 - **New Intro Box**: "Platform innovation + Domain focus partnership"
-- **Subheading**: "Pharma Data Factory handles the technical baseline. Your team focuses on your domain. Together, you build better products faster."
+- **Subheading**: "Nexora handles the technical baseline. Your team focuses on your domain. Together, you build better products faster."
 - **Visual**: Teal-gradient intro box + partnership messaging
 - **File**: `ArchitecturePage.tsx`
 
@@ -66,10 +66,10 @@ Successfully implemented P0, P1, and P2 public-facing improvements to the **Phar
 - **Placement**: Immediately after Hero on `/developer` page
 - **Content**:
   - **Layer 1: Backstage** — "Open-source Control Plane: Catalog, Scaffolder, TechDocs, Search, Plugin architecture, Identity & RBAC"
-  - **Layer 2: Pharma Data Factory** — "Industrial Data Product platform layer: Standard, SDK, Components, Contracts, Quality, Compatibility, Golden Paths, Validation & Trust" (Teal-bordered highlight)
+  - **Layer 2: Nexora** — "Industrial Data Product platform layer: Standard, SDK, Components, Contracts, Quality, Compatibility, Golden Paths, Validation & Trust" (Teal-bordered highlight)
   - **Layer 3: Data Products** — "Independent services generated from Golden Paths. Each has owner, contract, quality gates, API, and lifecycle"
-- **Key Insight Box**: "The key insight: Systems of record (ERP, MES, LIMS, etc.) stay authoritative. Pharma Data Factory is the control plane around them, not a second system of record."
-- **File**: `DeveloperHubPage.tsx` (new section + Nexora → Pharma Data Factory naming fix)
+- **Key Insight Box**: "The key insight: Systems of record (ERP, MES, LIMS, etc.) stay authoritative. Nexora is the control plane around them, not a second system of record."
+- **File**: `DeveloperHubPage.tsx` (new section + Nexora → Nexora naming fix)
 
 ---
 
@@ -104,18 +104,18 @@ Successfully implemented P0, P1, and P2 public-facing improvements to the **Phar
 | File | Changes | Lines Added | Impact |
 |------|---------|-------------|--------|
 | `packages/app/src/modules/architecture/ArchitecturePage.tsx` | • Add ViewSelectorSection component<br>• Reorder body to prioritize ValidationByDesign<br>• Update ResponsibilityModelSection with partnership framing<br>• Simplify ValidationByDesignSection copy | ~250 | **HIGH** — Main P0 page |
-| `packages/app/src/modules/developer-hub/DeveloperHubPage.tsx` | • Add Architecture Context Card section<br>• Nexora → Pharma Data Factory naming | ~120 | **MEDIUM** — P1 feature |
+| `packages/app/src/modules/developer-hub/DeveloperHubPage.tsx` | • Add Architecture Context Card section<br>• Nexora → Nexora naming | ~120 | **MEDIUM** — P1 feature |
 | `packages/app/src/modules/entitlements/PlatformGovernanceOverviewPage.tsx` | • Add Admin Dashboard section<br>• Add Status Model Clarity section<br>• Expand "Learn More" links | ~180 | **MEDIUM** — P2 features |
 
 ### Supporting Files (Naming Updates)
 
 | File | Changes | Impact |
 |------|---------|--------|
-| `packages/app/src/modules/architecture/constants.ts` | Nexora → Pharma Data Factory | **LOW** |
-| `packages/app/src/modules/architecture/diagrams.tsx` | Nexora → Pharma Data Factory | **LOW** |
-| `packages/app/src/modules/architecture/DeveloperArchitecturePage.tsx` | Nexora → Pharma Data Factory (eyebrow) | **LOW** |
-| `packages/app/src/modules/architecture/DeveloperArchitectureDiagram.tsx` | Nexora → Pharma Data Factory (aria-label) | **LOW** |
-| `packages/app/src/modules/architecture/developerArchitectureData.ts` | Nexora → Pharma Data Factory | **LOW** |
+| `packages/app/src/modules/architecture/constants.ts` | Nexora → Nexora | **LOW** |
+| `packages/app/src/modules/architecture/diagrams.tsx` | Nexora → Nexora | **LOW** |
+| `packages/app/src/modules/architecture/DeveloperArchitecturePage.tsx` | Nexora → Nexora (eyebrow) | **LOW** |
+| `packages/app/src/modules/architecture/DeveloperArchitectureDiagram.tsx` | Nexora → Nexora (aria-label) | **LOW** |
+| `packages/app/src/modules/architecture/developerArchitectureData.ts` | Nexora → Nexora | **LOW** |
 
 ### Test & Documentation Files (New)
 
@@ -129,23 +129,23 @@ Successfully implemented P0, P1, and P2 public-facing improvements to the **Phar
 
 ## Naming Consistency Achievement
 
-**Goal**: Replace "Nexora" (internal codename) with "Pharma Data Factory" (product name)
+**Goal**: Replace "Nexora" (internal codename) with "Nexora" (product name)
 
 **Files Updated**: 8  
 **Instances Replaced**: 12+  
 **Verification**: ✅ Complete
 
 **Example Changes**:
-- "Nexora Control Plane" → "Pharma Data Factory Control Plane"
-- "Nexora documentation" → "Pharma Data Factory documentation"
-- "Keep Nexora standard" → "Keep Pharma Data Factory standard"
+- "Nexora Control Plane" → "Nexora Control Plane"
+- "Nexora documentation" → "Nexora documentation"
+- "Keep Nexora standard" → "Keep Nexora standard"
 
 ---
 
 ## Architecture Story Alignment Verification
 
 ### One Canonical Model ✅
-- **Single source of truth**: Platform = Backstage + Pharma Data Factory layer + Data Products
+- **Single source of truth**: Platform = Backstage + Nexora layer + Data Products
 - **Consistent across pages**: Architecture, Developer Architecture, Admin, Developer Hub
 - **No duplication**: Reused components and messaging
 
@@ -213,7 +213,7 @@ Successfully implemented P0, P1, and P2 public-facing improvements to the **Phar
 3. **Tone Shift**: Responsibility model now sounds like partnership, not burden-passing
 4. **Developer Context**: New architecture overview card in Developer Hub prevents confusion
 5. **Admin Empowerment**: Dashboard + Status Model sections give admins visibility and clarity
-6. **Naming Consistency**: "Pharma Data Factory" is now the canonical product name across all public pages
+6. **Naming Consistency**: "Nexora" is now the canonical product name across all public pages
 7. **Zero Breaking Changes**: All existing pages continue to work; additions are additive only
 
 ### 🎯 Business Value

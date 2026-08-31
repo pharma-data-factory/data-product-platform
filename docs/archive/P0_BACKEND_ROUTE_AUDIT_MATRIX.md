@@ -179,7 +179,7 @@ All custom backend plugins have been audited for authorization coverage:
 | `/proxy/aas/**` | * | Proxy to external AAS | Token-based (external) | ✅ | NOT_APPLICABLE |
 | `/schema/**` | GET | JSON schema for UI | Public | N/A | NOT_APPLICABLE |
 
-**Notes**: AAS backend is a proxy service for external AAS APIs. Authorization is delegated to the external AAS server. No Pharma Data Factory-specific authorization needed. Classified as NOT_APPLICABLE because the backend does not store or manage Pharma data directly.
+**Notes**: AAS backend is a proxy service for external AAS APIs. Authorization is delegated to the external AAS server. No Nexora-specific authorization needed. Classified as NOT_APPLICABLE because the backend does not store or manage Pharma data directly.
 
 **Result**: ✅ **NOT_APPLICABLE — External proxy service**
 
@@ -279,4 +279,4 @@ The following remain for P1 and P2 work:
 
 **P0_ACCESS_HARDENING_COMPLETE**
 
-All sensitive backend routes across the Pharma Data Factory are now protected by the Backstage Permission Framework. No custom authorization mechanisms remain. The architecture is consistent, testable, and maintainable.
+All sensitive backend routes across the Nexora are now protected by the Backstage Permission Framework. No custom authorization mechanisms remain. The architecture is consistent, testable, and maintainable.

@@ -1,4 +1,4 @@
-# Pharma Data Factory — Access Hardening & Admin UX Implementation Roadmap 1.0
+# Nexora — Access Hardening & Admin UX Implementation Roadmap 1.0
 
 **Status**: Ready for Implementation  
 **Mode**: Execution (from BACKSTAGE_ACCESS_AUDIT_1_0.md)  

@@ -813,7 +813,7 @@ Quality Checks:
 - Enables future regulatory impact analysis without claiming compliance
 
 **Portfolio Transparency**:
-- Report to customers and regulators: "Pharma Data Factory enables X business capabilities"
+- Report to customers and regulators: "Nexora enables X business capabilities"
 - Show validation coverage by capability
 
 ---

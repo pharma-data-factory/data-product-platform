@@ -132,9 +132,9 @@
 
 ---
 
-## Naming Consistency Check (Nexora → Pharma Data Factory)
+## Naming Consistency Check (Nexora → Nexora)
 
-| File | "Pharma Data Factory" Present | "Nexora" Absent | Status |
+| File | "Nexora" Present | "Nexora" Absent | Status |
 |------|------|------|--------|
 | ArchitecturePage.tsx | □ YES | □ YES | □ PASS |
 | DeveloperArchitecturePage.tsx | □ YES | □ YES | □ PASS |

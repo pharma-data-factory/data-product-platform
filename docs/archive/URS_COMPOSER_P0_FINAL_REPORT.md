@@ -9,7 +9,7 @@
 
 ## EXECUTIVE SUMMARY
 
-URS Composer P0 has been **successfully implemented** as a native Backstage plugin for the Pharma Data Factory. The implementation:
+URS Composer P0 has been **successfully implemented** as a native Backstage plugin for the Nexora. The implementation:
 
 - ✅ Establishes a **Business Capability-driven architecture** for requirements management
 - ✅ Implements a **structured, versioned domain model** with 6 aggregates

@@ -433,7 +433,7 @@ These are all captured for P1 and P2 work.
 
 ### ✅ P0_ACCESS_HARDENING_COMPLETE
 
-The Pharma Data Factory backend is now fully hardened with Backstage-native authorization. All sensitive routes are protected. No custom authorization mechanisms remain. The architecture is consistent, testable, and maintainable.
+The Nexora backend is now fully hardened with Backstage-native authorization. All sensitive routes are protected. No custom authorization mechanisms remain. The architecture is consistent, testable, and maintainable.
 
 **Next**: P1 Admin Access UX (NOT part of this work)
 

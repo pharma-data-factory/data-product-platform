@@ -208,7 +208,7 @@ The 4 failing backend suites + 2 failing frontend suites are **pre-existing** an
 
 Classification:
 - **A — URS Composer**: 6 entries (both `plugins/urs-composer*` trees, untracked/new).
-- **B — previous Pharma Data Factory work**: 237 entries (modified packages/app, platform-common, data-products, marketplace, nexora-*, templates, validation docs; untracked doc reports, plugins, scripts, contracts). Includes benign helper `scripts/prepare-production-local-env.ps1` (no secrets — prepares placeholder local envs).
+- **B — previous Nexora work**: 237 entries (modified packages/app, platform-common, data-products, marketplace, nexora-*, templates, validation docs; untracked doc reports, plugins, scripts, contracts). Includes benign helper `scripts/prepare-production-local-env.ps1` (no secrets — prepares placeholder local envs).
 - **C — generated/scratch artifacts**: 25 entries (`.*.tmp_*.py/.txt`, `tsc-output.txt`). Not git-ignored (`.gitignore` ignores `.tmp/` dir and `dist`/`coverage`/`.runtime`); should be added to `.gitignore` before baselining.
 - **D — suspicious/unexpected**: **0**. `.env` is untracked and git-ignored; no keys/PEM/credentials in the tree.
 

@@ -1,4 +1,4 @@
-# PHARMA DATA FACTORY — PLATFORM GUARDRAILS REPORT
+# NEXORA — PLATFORM GUARDRAILS REPORT
 
 **Gate:** Complete Platform Guardrails — automated Backstage Core + dependency protection
 **Date:** 2026-08-29

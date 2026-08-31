@@ -1,6 +1,6 @@
 # Validation Manager — Übersicht
 
-**GMP-Compliant Requirements Management Suite für Pharma Data Factory**
+**GMP-Compliant Requirements Management Suite für Nexora**
 
 ---
 
@@ -265,7 +265,7 @@ data-product-platform/
 
 ## 💡 Design-Konsistenz
 
-### Pharma Data Factory Design System (WIEDERVERWENDET)
+### Nexora Design System (WIEDERVERWENDET)
 
 Das Plugin nutzt **exakt das gleiche Design-System** wie der Rest der Plattform:
 
