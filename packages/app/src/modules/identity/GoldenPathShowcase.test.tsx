@@ -18,7 +18,7 @@ describe('Golden Path showcase filters', () => {
   it('lists certified and planned paths, then searches and filters by category', () => {
     renderShowcase();
 
-    expect(screen.getByText('Golden Paths (6)')).toBeInTheDocument();
+    expect(screen.getByText('Golden Paths (7)')).toBeInTheDocument();
     expect(
       screen.getByRole('textbox', { name: 'Search Golden Paths...' }),
     ).toBeInTheDocument();
@@ -26,6 +26,9 @@ describe('Golden Path showcase filters', () => {
     expect(screen.getByRole('button', { name: 'Explore MQTT Temperature' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Explore REST Equipment' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Explore OEE' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Explore AAS Asset Administration Shell' }),
+    ).toBeInTheDocument();
     expect(
       within(screen.getByRole('heading', { name: 'OEE Data Product' }).closest('article')!).getByLabelText(
         'Version 1.0',
@@ -47,6 +50,7 @@ describe('Golden Path showcase filters', () => {
     expect(screen.getByTestId('golden-path-visual-mqtt-temperature')).toBeInTheDocument();
     expect(screen.getByTestId('golden-path-visual-rest-equipment')).toBeInTheDocument();
     expect(screen.getByTestId('golden-path-visual-oee')).toBeInTheDocument();
+    expect(screen.getByTestId('golden-path-visual-aas-data-product')).toBeInTheDocument();
     expect(screen.getByTestId('golden-path-visual-snowflake')).toBeInTheDocument();
     expect(screen.getByTestId('golden-path-visual-sap')).toBeInTheDocument();
     expect(screen.getByTestId('golden-path-visual-cold-chain')).toBeInTheDocument();

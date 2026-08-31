@@ -36,7 +36,7 @@ function read(dir: string, relative: string): string {
 
 describe('Data Product conformance', () => {
   it.each(OFFICIAL_DATA_PRODUCT_TEMPLATES)(
-    'generates the Pharma Data Factory standard for $id',
+    'generates the Nexora standard for $id',
     template => {
       const contentDir = path.join(ROOT, template.dir, 'content');
       const templateEntity = yaml.parse(
@@ -135,7 +135,11 @@ describe('Data Product conformance', () => {
 
       expect(
         templateEntity.metadata.annotations['dataprod.platform/certification-status'],
-      ).toBe('CERTIFIED');
+      ).toBe(
+        template.id === 'machine-state-consumer-data-product'
+          ? 'TESTED'
+          : 'CERTIFIED',
+      );
       expect(
         templateEntity.metadata.annotations['dataprod.platform/templateVersion'],
       ).toBe('1.0.0');

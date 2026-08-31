@@ -226,7 +226,7 @@ describe('Platform Component library', () => {
         path.join(ROOT, 'packages/app/src/modules/nav/Sidebar.tsx'),
         'utf8',
       ),
-    ).toContain("nav.take('page:app/platform-components')");
+    ).toContain('to="/platform-components"');
     expect(read('mkdocs.yml')).toContain('platform-components/index.md');
     expect(read('docs/platform-components/composition.md')).toContain(
       'GoldenPathComposition',

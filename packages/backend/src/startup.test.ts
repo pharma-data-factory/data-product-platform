@@ -45,8 +45,8 @@ describe('Backstage foundation', () => {
     expect(appConfig).toContain('../../templates/unified-namespace/template.yaml');
     expect(appConfig).toContain('../../templates/machine-state-consumer/template.yaml');
     expect(appConfig).toContain('../../templates/oee-data-product/template.yaml');
-    expect(appConfig).toContain('../../templates/aas-asset/template.yaml');
-    expect(appConfig).toContain('allow: [Component, System, API, Resource, Location, Template]');
+    expect(appConfig).toContain('../../templates/aas-data-product/template.yaml');
+    expect(appConfig).toContain('allow: [Component, System, API, Resource, Location, Template, Domain]');
   });
 
   it('maps guest auth to the catalog guest user', () => {

@@ -81,18 +81,26 @@ describe('commercial edition model', () => {
       'MQTT Temperature Data Product',
       'REST Equipment Data Product',
       'OEE Data Product',
+      'AAS Asset Administration Shell',
     ]);
     expect(CERTIFIED_GOLDEN_PATHS.map(path => path.id)).toEqual([
       'mqtt-temperature',
       'rest-equipment',
       'oee',
+      'aas-data-product',
     ]);
     expect(CERTIFIED_GOLDEN_PATHS.map(path => path.category)).toEqual([
       'Telemetry',
       'Equipment',
       'Performance',
+      'Equipment',
     ]);
-    expect(CERTIFIED_GOLDEN_PATHS.map(path => path.version)).toEqual(['1.0', '1.0', '1.0']);
+    expect(CERTIFIED_GOLDEN_PATHS.map(path => path.version)).toEqual([
+      '1.0',
+      '1.0',
+      '1.0',
+      '1.0',
+    ]);
     expect(FUTURE_GOLDEN_PATHS.every(path => path.version === undefined)).toBe(true);
     expect(filterGoldenPaths(CERTIFIED_GOLDEN_PATHS, 'oee', 'All').map(path => path.id)).toEqual([
       'oee',
@@ -109,7 +117,7 @@ describe('commercial edition model', () => {
       'SAP',
       'Cold Chain',
     ]);
-    expect(SHOWCASE_GOLDEN_PATHS).toHaveLength(6);
+    expect(SHOWCASE_GOLDEN_PATHS).toHaveLength(7);
     expect(SHOWCASE_GOLDEN_PATHS.filter(path => path.availability === 'future')).toHaveLength(3);
     expect(HOW_IT_WORKS_STEPS).toEqual([
       'Discover',

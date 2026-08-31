@@ -84,10 +84,7 @@ describe('MVP developer journey', () => {
     );
 
     expect(dashboard).toContain('My Data Products');
-    expect(dashboard).toContain('Recent activity');
-    expect(dashboard).toContain('Quality & CI');
-    expect(dashboard).toContain('Platform updates');
-    expect(dashboard).toContain('Quick actions');
+    expect(dashboard).toContain('What can I do?');
     expect(success).toContain('Data Product created');
     expect(detail).toContain('title="Overview"');
     expect(detail).toContain('Health');

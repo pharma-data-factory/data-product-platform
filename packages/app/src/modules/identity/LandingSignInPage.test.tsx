@@ -89,11 +89,11 @@ describe('LandingSignInPage', () => {
     expect(screen.getAllByText('NEXORA').length).toBeGreaterThan(0);
     expect(
       screen.getByRole('heading', {
-        name: /Keep core systems standardized\.\s*Deliver Data Products around them\./i,
+        name: /Connect systems\.\s*Build capabilities\.\s*Share solutions\./i,
       }),
     ).toBeInTheDocument();
     expect(screen.getAllByText('Sign In').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: /See how it works/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /Build a Plugin/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Continue as Guest')).not.toBeInTheDocument();
     expect(screen.queryByText('Continue with GitHub')).not.toBeInTheDocument();
   });
@@ -368,7 +368,7 @@ describe('LandingSignInPage', () => {
     });
     expect(
       screen.getByRole('heading', {
-        name: /Keep core systems standardized\.\s*Deliver Data Products around them\./i,
+        name: /Connect systems\.\s*Build capabilities\.\s*Share solutions\./i,
       }),
     ).toBeInTheDocument();
   });
@@ -425,11 +425,11 @@ describe('LandingSignInPage', () => {
       ),
     ).toBeInTheDocument();
       expect(
-        screen.getByLabelText(/System architecture from core systems/i),
+        screen.getByRole('heading', { name: 'From core systems to Data Products' }),
       ).toBeInTheDocument();
       expect(
         screen.queryByText(
-          /open platform for Data Products and integrations in life science and industrial environments/i,
+          /open, extensible manufacturing platform/i,
         ),
       ).not.toBeInTheDocument();
     } finally {
@@ -458,9 +458,53 @@ describe('LandingSignInPage', () => {
       expect(screen.getByText('composition manifest')).toBeInTheDocument();
       expect(
         screen.queryByText(
-          /open platform for Data Products and integrations in life science and industrial environments/i,
+          /open, extensible manufacturing platform/i,
         ),
       ).not.toBeInTheDocument();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
+  it('opens the academy page on the public academy route', () => {
+    window.history.pushState({}, '', '/academy');
+
+    try {
+      renderLanding({
+        auth: {
+          environment: 'production',
+          providers: {
+            github: { production: { clientId: 'oauth-client' } },
+          },
+        },
+      });
+
+      expect(screen.getByLabelText('Nexora Academy')).toBeInTheDocument();
+      expect(
+        screen.queryByText(/open, extensible manufacturing platform/i),
+      ).not.toBeInTheDocument();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
+  it('opens a solution page on the public solutions route', () => {
+    window.history.pushState({}, '', '/solutions/life-sciences');
+
+    try {
+      renderLanding({
+        auth: {
+          environment: 'production',
+          providers: {
+            github: { production: { clientId: 'oauth-client' } },
+          },
+        },
+      });
+
+      expect(
+        screen.getByRole('heading', { name: 'Life Sciences' }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('The Nexora platform')).toBeInTheDocument();
     } finally {
       window.history.pushState({}, '', '/');
     }

@@ -43,10 +43,8 @@ describe('native Search discovery', () => {
     expect(appPackage.dependencies['@backstage/plugin-search']).toBeDefined();
     expect(sidebar).toContain('SidebarSearchModal');
     expect(sidebar).toContain('to="/search"');
-    expect(sidebar).toContain("nav.take('page:app/developer')");
-    expect(sidebar).toContain("nav.take('page:app/releases')");
-    expect(sidebar).toContain("nav.take('page:app/platform-components')");
-    expect(sidebar).toContain("nav.take('page:app/assets')");
+    expect(sidebar).toContain('to="/releases"');
+    expect(sidebar).toContain('to="/platform-components"');
     expect(sidebar).toContain('hasApprovedPlatformAccess');
     expect(
       fs.readFileSync(
