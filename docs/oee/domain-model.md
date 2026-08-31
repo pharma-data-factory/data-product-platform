@@ -5,7 +5,7 @@ Last reviewed: 2026-08-21
 Audience: INTERNAL ENGINEERING  
 Version: 1.0.0
 
-Canonical manufacturing OEE for Pharma Data Factory. This document
+Canonical manufacturing OEE for Nexora. This document
 defines meaning, units, and formulas. It does not implement calculation.
 
 OEE 1.0 follows the classic Availability × Performance × Quality model

@@ -20,7 +20,7 @@ Subscribe
    ↓
 Registration redirect (POST x-amzn-marketplace-token)
    ↓
-Pharma Data Factory backend  (ResolveCustomer)
+Nexora backend  (ResolveCustomer)
    ↓
 Resolve Marketplace customer
    ↓

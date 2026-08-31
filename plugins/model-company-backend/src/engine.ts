@@ -219,7 +219,7 @@ function pickState(
 }
 
 function makeMessage(
-  config: UnsConfig,
+  _config: UnsConfig,
   topic: string,
   informationType: string,
   envelopeFields: Parameters<typeof buildEnvelope>[0],

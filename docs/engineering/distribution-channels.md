@@ -11,7 +11,7 @@ to be distributed. It is not an entitlement, license, or billing system.
 
 | Channel | Status | Meaning |
 | --- | --- | --- |
-| INTERNAL | AVAILABLE | Used by Pharma Data Factory engineers |
+| INTERNAL | AVAILABLE | Used by Nexora engineers |
 | TEMPLATE_EDITION | AVAILABLE FOR PILOT | Approved certified templates for a controlled Template Edition pilot. Not commercially distributable while legal gates are OPEN |
 | PLATFORM_EDITION | PLANNED | Future customer-hosted Control Plane. Not available. |
 | SAAS | FUTURE | Future managed service entitlements. Not available. |

@@ -7,7 +7,7 @@ Version: MVP 1.1
 
 ## Control Plane
 
-Pharma Data Factory (Backstage) is the Control Plane:
+Nexora (Backstage) is the Control Plane:
 
 - Identity and RBAC
 - Marketplace / Golden Paths

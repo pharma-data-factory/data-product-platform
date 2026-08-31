@@ -125,7 +125,7 @@ export class PostgresURSRepository implements IURSRepository {
       .where({ status: 'ACTIVE' })
       .count('* as count')
       .first();
-    const total = countResult?.count || 0;
+    const total = Number(countResult?.count || 0);
 
     const results = await this.db('business_capabilities')
       .where({ status: 'ACTIVE' })
@@ -199,7 +199,7 @@ export class PostgresURSRepository implements IURSRepository {
     const countResult = await this.db('requirement_sets')
       .count('* as count')
       .first();
-    const total = countResult?.count || 0;
+    const total = Number(countResult?.count || 0);
 
     const results = await this.db('requirement_sets')
       .limit(limit)
@@ -359,7 +359,7 @@ export class PostgresURSRepository implements IURSRepository {
       .where({ requirement_set_id: requirementSetId })
       .count('* as count')
       .first();
-    const total = countResult?.count || 0;
+    const total = Number(countResult?.count || 0);
 
     const results = await this.db('baselines')
       .where({ requirement_set_id: requirementSetId })
@@ -426,7 +426,7 @@ export class PostgresURSRepository implements IURSRepository {
     const countResult = await this.db('approval_workflows')
       .count('* as count')
       .first();
-    const total = countResult?.count || 0;
+    const total = Number(countResult?.count || 0);
 
     const results = await this.db('approval_workflows')
       .limit(limit)
@@ -685,7 +685,7 @@ export class PostgresURSRepository implements IURSRepository {
       .where({ requirement_set_id: requirementSetId })
       .count('* as count')
       .first();
-    return result?.count || 0;
+    return Number(result?.count || 0);
   }
 
   async replaceRequirements(

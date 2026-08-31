@@ -66,7 +66,7 @@ const catalogItems: Entity[] = [
     name: 'rest-source',
     title: 'REST Source',
     description:
-      'Consume governed REST endpoints using the Pharma Data Factory runtime standard.',
+      'Consume governed REST endpoints using the Nexora runtime standard.',
     category: 'integration',
     certification: 'CERTIFIED',
   }),

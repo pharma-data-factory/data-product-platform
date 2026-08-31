@@ -21,6 +21,7 @@ import {
 } from '@internal/plugin-data-products';
 import { AccessDeniedPage } from '../identity/AccessDeniedPage';
 import { signOutToLanding } from '../identity/session';
+import { PLATFORM_POSITIONING } from '../theme/tokens';
 import { HomeDashboard } from './HomeDashboard';
 
 const RECENT_KEY = 'pharma-data-factory.recent-products';
@@ -116,7 +117,7 @@ export function HomePage() {
     <Page themeId="home">
       <Header
         title="Nexora"
-        subtitle="DATA PRODUCTS. BUILT FOR LIFE SCIENCE."
+        subtitle={PLATFORM_POSITIONING}
       />
       <Content>
         {loading && <Progress />}

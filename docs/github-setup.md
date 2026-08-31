@@ -25,7 +25,7 @@ GitHub user login and GitHub App publishing are separate. Do not use
 This is **user authentication only**. It is not used to create repositories.
 
 1. GitHub → Settings → Developer settings → OAuth Apps → **New OAuth App**
-2. Application name: `Pharma Data Factory Login`
+2. Application name: `Nexora Login`
 3. Homepage URL: `http://localhost:3000`
 4. Authorization callback URL:
    `http://localhost:7007/api/auth/github/handler/frame`

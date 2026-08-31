@@ -163,5 +163,5 @@ Downstream Data Products (MQTT Temperature, REST Equipment, OEE) can depend on A
 
 ---
 
-**Certified Golden Path Template** · Pharma Data Factory 2026  
+**Certified Golden Path Template** · Nexora 2026  
 **IEC 63278-1:2024 · IDTA-01001 v3.0 · IDTA-01002 v3.0**

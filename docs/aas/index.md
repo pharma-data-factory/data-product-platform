@@ -10,7 +10,7 @@
 
 The **Asset Administration Shell** is a standardized, vendor-neutral digital twin representation of manufacturing equipment, products, and infrastructure.
 
-### Pharma Data Factory AAS Implementation
+### Nexora AAS Implementation
 
 **Wave 2 Certified Golden Path**
 
@@ -207,4 +207,4 @@ Result:
 
 ---
 
-**Wave 2 Technical Baseline — Pharma Data Factory 2026**
+**Wave 2 Technical Baseline — Nexora 2026**

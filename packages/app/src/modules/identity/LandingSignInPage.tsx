@@ -28,6 +28,8 @@ import {
 import { createGuestIdentity } from './guestIdentity';
 import { LoginPage } from './LoginPage';
 import { PublicLanding } from './PublicLanding';
+import { isPublicEcosystemPath } from '../ecosystem/constants';
+import { EcosystemPage } from '../ecosystem/EcosystemPage';
 
 function isModelCompanyPath(pathname: string): boolean {
   return (
@@ -198,6 +200,15 @@ export function LandingSignInPage(props: SignInPageProps) {
       <PublicModelCompanyPage
         publicMode
         onBack={() => window.location.assign('/')}
+        onSignIn={openLogin}
+      />
+    );
+  }
+
+  if (isPublicEcosystemPath(window.location.pathname)) {
+    return (
+      <EcosystemPage
+        pathname={window.location.pathname}
         onSignIn={openLogin}
       />
     );

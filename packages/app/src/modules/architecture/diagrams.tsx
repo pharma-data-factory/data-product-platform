@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from '../identity/landingTokens';
+import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
 import {
   CATALOG_RELATIONSHIPS,
   DEVELOPER_FLOW_STEPS,
@@ -11,12 +11,22 @@ import {
   SYSTEM_OF_RECORD_SYSTEMS,
 } from './constants';
 
-type NodeTone = 'core' | 'interface' | 'factory' | 'product' | 'consumer' | 'step' | 'ok' | 'break';
+type NodeTone =
+  | 'core'
+  | 'interface'
+  | 'factory'
+  | 'kernel'
+  | 'product'
+  | 'consumer'
+  | 'step'
+  | 'ok'
+  | 'break';
 
 const TONE: Record<NodeTone, { bg: string; border: string; color: string }> = {
   core: { bg: '#F8FAFC', border: C.border, color: PHARMA_NAVY },
   interface: { bg: 'rgba(0,194,217,0.08)', border: 'rgba(0,194,217,0.35)', color: PHARMA_NAVY },
   factory: { bg: PHARMA_NAVY, border: PHARMA_NAVY, color: '#F8FAFC' },
+  kernel: { bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.28)', color: '#E2E8F0' },
   product: { bg: '#FFFFFF', border: 'rgba(0,194,217,0.45)', color: PHARMA_NAVY },
   consumer: { bg: '#EEF2F6', border: C.border, color: PHARMA_NAVY },
   step: { bg: '#FFFFFF', border: C.border, color: PHARMA_NAVY },
@@ -200,7 +210,7 @@ export function SystemArchitectureDiagram() {
           ))}
         </Layer>
         <Arrow />
-        <Layer title="Pharma Data Factory">
+        <Layer title="Nexora">
           {FACTORY_CAPABILITIES.map(label => (
             <Node key={label} label={label} tone="factory" />
           ))}
@@ -260,7 +270,7 @@ export function DataProductRuntimeDiagram() {
 }
 
 function stepTone(step: string): NodeTone {
-  if (step === 'Pharma Data Factory') {
+  if (step === 'Nexora') {
     return 'factory';
   }
   if (step === 'Certified Golden Path') {
@@ -396,5 +406,58 @@ export function DiagramExplanation({
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Foundation stack: Data Products sit on Nexora, which sits on
+ * the open-source Backstage platform kernel. We extend Backstage — we do not
+ * fork it.
+ */
+export function BackstageFoundationDiagram() {
+  return (
+    <div
+      className="pdf-diag"
+      role="group"
+      aria-label="Platform foundation: Data Products sit on Nexora, which sits on the open-source Backstage platform kernel"
+    >
+      <div className="pdf-diag-stack">
+        <Layer title="Data Products">
+          <Node label="MQTT Temperature" tone="product" />
+          <Node label="REST Equipment" tone="product" />
+          <Node label="OEE" tone="product" />
+        </Layer>
+        <div className="pdf-diag-arrow" aria-hidden="true">
+          ↑
+        </div>
+        <Layer title="Nexora">
+          <Node label="Data Product standard" tone="factory" />
+          <Node label="Platform Components" tone="factory" />
+          <Node label="Contracts & quality" tone="factory" />
+          <Node label="Golden Paths" tone="factory" />
+        </Layer>
+        <div className="pdf-diag-arrow" aria-hidden="true">
+          ↑
+        </div>
+        <div
+          className="pdf-diag-layer"
+          style={{ background: PHARMA_NAVY, borderColor: PHARMA_NAVY }}
+        >
+          <p className="pdf-diag-layer-title" style={{ color: PHARMA_TEAL_LIGHT }}>
+            Backstage — open-source platform kernel
+          </p>
+          <div className="pdf-diag-nodes">
+            <Node label="Software Catalog" tone="kernel" />
+            <Node label="Scaffolder" tone="kernel" />
+            <Node label="TechDocs" tone="kernel" />
+            <Node label="Search" tone="kernel" />
+            <Node label="Identity & RBAC" tone="kernel" />
+          </div>
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#94A3B8' }}>
+            Everything sits on this. We extend Backstage — we do not fork it.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -146,7 +146,7 @@ export function BuildingBlocksVisual() {
           fontWeight={600}
           letterSpacing="2"
         >
-          PHARMA DATA FACTORY
+          NEXORA
         </text>
         <rect
           x="70"

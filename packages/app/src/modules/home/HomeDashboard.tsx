@@ -152,10 +152,10 @@ export function HomeDashboard({ displayName, products }: HomeDashboardProps) {
   const classes = useStyles();
   return (
     <>
-      <section className={classes.hero} aria-label="Pharma Data Factory">
-        <p className={classes.eyebrow}>PHARMA DATA FACTORY</p>
+      <section className={classes.hero} aria-label="Nexora">
+        <p className={classes.eyebrow}>NEXORA</p>
         <h1 className={classes.welcome}>
-          {displayName ? `Welcome, ${displayName}` : 'Pharma Data Factory'}
+          {displayName ? `Welcome, ${displayName}` : 'Nexora'}
         </h1>
         <p className={classes.copy}>
           Build, validate, and operate Data Products for life science. Start by

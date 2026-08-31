@@ -6,7 +6,7 @@ Applicable Platform: Data Product Standard 1.0.x
 Last Reviewed: 2026-08  
 Audience: INTERNAL ENGINEERING
 
-Pharma Data Factory can be procured later through AWS Marketplace. That
+Nexora can be procured later through AWS Marketplace. That
 channel is **not** the in-product Marketplace, and it is **not** the
 RBAC model.
 

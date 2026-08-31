@@ -11,7 +11,7 @@ implemented.
 
 | Audience | Who | Default exposure |
 | --- | --- | --- |
-| INTERNAL ENGINEERING | Pharma Data Factory developers | Control Plane TechDocs. Not a public customer portal. |
+| INTERNAL ENGINEERING | Nexora developers | Control Plane TechDocs. Not a public customer portal. |
 | PLATFORM USER | Developers consuming Golden Paths | Hub how-to, Golden Path TechDocs, product TechDocs |
 | CUSTOMER PLATFORM | Future customer-hosted Platform Edition | Planned. Not published today. |
 | SAAS CUSTOMER | Future SaaS usage | Future. Not available. |

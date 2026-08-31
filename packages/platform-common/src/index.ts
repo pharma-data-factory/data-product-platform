@@ -127,7 +127,11 @@ export {
   goldenPathDocumentationHref,
   isCustomerFacingAudience,
   publicCustomerAudiences,
-  recentlyUpdatedPages,
+  documentationIndexPages,
+  AUDIENCE_LABELS,
+  audienceLabel,
+  documentationPagesForAudience,
+  DOCUMENTATION_PERSONAS,
 } from './documentation';
 export type {
   ContextualDocContext,
@@ -136,6 +140,7 @@ export type {
   DocAudience,
   DocSearchKind,
   DocumentationPage,
+  DocumentationPersona,
   FirstDayStep,
   HubGoldenPathCard,
 } from './documentation';

@@ -16,7 +16,7 @@ status. See [Status model](status-model.md) and
 - Wave 1 (MVP 1.0): MQTT Temperature, REST Equipment, OEE Data Product
 - Wave 2 (Extended): AAS Asset Administration Shell
 
-CERTIFIED means technical conformance to the Pharma Data Factory standard.
+CERTIFIED means technical conformance to the Nexora standard.
 It is not GxP, commercial approval, or an AWS Marketplace listing.
 
 | Capability | Class | Implementation / release | Commercial | Notes |

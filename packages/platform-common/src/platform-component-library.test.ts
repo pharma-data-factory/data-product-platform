@@ -61,7 +61,7 @@ const catalog = toRelatedPlatformComponents([
   component({
     name: 'rest-source',
     title: 'REST Source',
-    description: 'Consume governed REST endpoints using the Pharma Data Factory runtime standard.',
+    description: 'Consume governed REST endpoints using the Nexora runtime standard.',
   }),
   component({ name: 'mqtt-consumer', title: 'MQTT Consumer' }),
   component({

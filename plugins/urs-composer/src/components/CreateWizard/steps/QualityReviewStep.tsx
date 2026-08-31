@@ -4,7 +4,7 @@ import WarningIcon from '@material-ui/icons/Warning';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import { URSWizardState } from '../wizardState';
 
-const useStyles = require('@material-ui/core/styles').makeStyles(theme => ({
+const useStyles = require('@material-ui/core/styles').makeStyles((theme: any) => ({
   qualityMetric: {
     display: 'flex',
     alignItems: 'center',
@@ -27,17 +27,8 @@ interface QualityReviewStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const QualityReviewStep: React.FC<QualityReviewStepProps> = ({ state }) => {
+export const QualityReviewStep: React.FC<QualityReviewStepProps> = () => {
   const classes = useStyles();
-
-  // Mock quality checks - in production these would come from backend
-  const mockChecks = {
-    clarity: 'PASS' as const,
-    testability: 'PASS' as const,
-    solutionIndependence: 'WARNING' as const,
-    acceptanceCriteria: 'PASS' as const,
-    gxpClassification: 'PASS' as const,
-  };
 
   return (
     <Box>

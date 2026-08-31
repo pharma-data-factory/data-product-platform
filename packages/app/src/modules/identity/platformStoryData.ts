@@ -198,7 +198,7 @@ export const LAYER_ROLE_CARDS = [
   },
   {
     id: 'control-plane',
-    title: 'PHARMA DATA FACTORY',
+    title: 'NEXORA',
     body: 'Control Plane for engineering and governance. It does not process all operational data.',
   },
   {
@@ -229,7 +229,7 @@ export const LAYER_COMPARISON = [
   },
   {
     id: 'control-plane',
-    title: 'PHARMA DATA FACTORY',
+    title: 'NEXORA',
     question: 'How do we build and govern all of this?',
     owns: 'Control-plane standards and lifecycle.',
   },

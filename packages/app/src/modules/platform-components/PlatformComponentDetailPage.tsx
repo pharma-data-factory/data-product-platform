@@ -250,7 +250,7 @@ export function PlatformComponentDetailPage() {
                     }}
                   />
                   <Typography variant="body2" style={{ marginTop: 8 }}>
-                    CERTIFIED means conformance to the Pharma Data Factory
+                    CERTIFIED means conformance to the Nexora
                     technical Platform Component standard. It does not mean GxP
                     validated.
                   </Typography>

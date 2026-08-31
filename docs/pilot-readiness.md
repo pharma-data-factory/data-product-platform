@@ -17,7 +17,7 @@ CERTIFIED / RELEASED; commercial availability is FUTURE. The local OEE
 integration proof is in [pilot-integration.md](oee/pilot-integration.md).
 It is not GxP and not a live GitHub publish (`OEE_GITHUB_LIVE_PROOF_NOT_RUN`).
 
-CERTIFIED means technical conformance to the Pharma Data Factory standard.
+CERTIFIED means technical conformance to the Nexora standard.
 
 | Area | Status | Condition |
 | --- | --- | --- |

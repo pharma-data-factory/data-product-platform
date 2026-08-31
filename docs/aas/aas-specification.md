@@ -127,7 +127,7 @@ Types:
 
 ---
 
-## Pharma Data Factory Implementation
+## Nexora Implementation
 
 ### Compliance
 
@@ -179,7 +179,7 @@ Formats:
 
 **Unique identifier** for the digital twin shell.
 
-Convention in Pharma Data Factory:
+Convention in Nexora:
 ```
 http://pharma-data-factory/aas/{assetId}
 ```
@@ -409,4 +409,4 @@ Send enriched event
 
 ---
 
-**Wave 2 Technical Baseline — Pharma Data Factory 2026**
+**Wave 2 Technical Baseline — Nexora 2026**

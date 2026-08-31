@@ -19,7 +19,17 @@ import { BrandMark } from '../nav/BrandMark';
 import { GoldenPathShowcase } from './GoldenPathShowcase';
 import { HeroSection } from './home/HeroSection';
 import { HomeStyles } from './home/HomeStyles';
-import { WhyNexoraSection } from './home/WhyNexoraSection';
+import {
+  AcademySection,
+  BuildSection,
+  EcosystemFlywheelSection,
+  EnterpriseSection,
+  JourneySection,
+  MarketplaceSection,
+  PlatformSection,
+  ProblemSection,
+  TrustSection,
+} from './ecosystemSections';
 import {
   LANDING_LOCALES,
   LandingI18nProvider,
@@ -29,13 +39,14 @@ import { C, BRAND_NAME, BRAND_WORDMARK, LANDING, PHARMA_NAVY, PHARMA_TEAL, PHARM
 import { CookieConsentBanner } from '../legal/CookieConsentBanner';
 import { legalNavCopy } from '../legal/legalCopy';
 import { openCookieSettings } from '../legal/cookieConsent';
-import { ModelCompanySection } from './ModelCompanySection';
 
 const NAV_ITEMS = [
   { id: 'platform', href: '/platform/architecture' },
-  { id: 'goldenPaths', href: '#golden-paths' },
-  { id: 'developers', href: '/platform/architecture/developer' },
-  { id: 'editions', href: '#editions' },
+  { id: 'solutions', href: '/solutions' },
+  { id: 'ecosystem', href: '/ecosystem' },
+  { id: 'academy', href: '/academy' },
+  { id: 'trust', href: '/trust' },
+  { id: 'enterprise', href: '/enterprise' },
 ] as const;
 
 const animate =
@@ -213,53 +224,6 @@ function Reveal({
   );
 }
 
-function Eyebrow({ color, children }: { color: string; children: ReactNode }) {
-  return (
-    <div
-      className="pdf-mono"
-      style={{
-        color,
-        fontSize: 12,
-        letterSpacing: '0.16em',
-        textTransform: 'uppercase',
-        marginBottom: 16,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-      }}
-    >
-      <span style={{ display: 'inline-block', width: 24, height: 1, background: color }} />
-      {children}
-    </div>
-  );
-}
-
-function SectionHeading({
-  eyebrow,
-  color,
-  title,
-  sub,
-}: {
-  eyebrow: string;
-  color: string;
-  title: string;
-  sub?: string;
-}) {
-  return (
-    <div style={{ maxWidth: 720, marginBottom: 40 }}>
-      <Eyebrow color={color}>{eyebrow}</Eyebrow>
-      <h2 className="pdf-display" style={{ fontSize: 'clamp(28px, 4vw, 36px)', fontWeight: 600, lineHeight: 1.2, margin: 0 }}>
-        {title}
-      </h2>
-      {sub && (
-        <p className="pdf-muted" style={{ marginTop: 16, fontSize: 18, lineHeight: 1.7 }}>
-          {sub}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function StatusPill({
   label,
   tone,
@@ -364,7 +328,7 @@ function resolveNavHref(href: string, location: LandingChromeLocation): string {
   return `/${href}`;
 }
 
-export type LandingChromeLocation = 'landing' | 'architecture';
+export type LandingChromeLocation = 'landing' | 'architecture' | 'page';
 
 function menuPanelStyle(onDark: boolean): CSSProperties {
   return {
@@ -530,7 +494,7 @@ export function LandingNav({
         }}
       >
         <a
-          href={location === 'architecture' ? '/' : '#top'}
+          href={location === 'landing' ? '#top' : '/'}
           className="pdf-focus"
           style={{
             display: 'flex',
@@ -647,139 +611,6 @@ export function LandingNav({
         }
       `}</style>
     </header>
-  );
-}
-
-function HowItWorks() {
-  const { t } = useLandingI18n();
-  return (
-    <section id="how-it-works" aria-label="How it works" style={{ padding: '96px 24px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <SectionHeading
-          eyebrow={t.howItWorks.eyebrow}
-          color={PHARMA_NAVY}
-          title={t.howItWorks.title}
-          sub={t.howItWorks.sub}
-        />
-        <div className="pdf-home-steps" aria-label={t.howItWorks.journey}>
-          {t.howItWorks.steps.map((step, i) => (
-            <Reveal key={step} delay={i * 50}>
-              <article className="pdf-card" style={{ padding: 20, height: '100%' }}>
-                <div className="pdf-mono" style={{ color: PHARMA_TEAL, fontSize: 12, marginBottom: 8 }}>
-                  0{i + 1}
-                </div>
-                <h3 className="pdf-display" style={{ fontWeight: 600, fontSize: 18, margin: 0 }}>
-                  {step}
-                </h3>
-                <p className="pdf-muted" style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.5 }}>
-                  {t.howItWorks.sentences[i]}
-                </p>
-              </article>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DeveloperValue() {
-  const { t } = useLandingI18n();
-  return (
-    <section aria-label={t.developer.eyebrow} style={{ padding: '96px 24px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <SectionHeading
-          eyebrow={t.developer.eyebrow}
-          color={PHARMA_NAVY}
-          title={t.developer.headline}
-        />
-        <div className="pdf-home-equation" aria-label={t.developer.headline}>
-          <article className="pdf-card" style={{ padding: 24 }}>
-            <h3 className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.12em' }}>
-              {t.developer.platformLabel}
-            </h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
-              {t.developer.platformItems.map(item => (
-                <span
-                  key={item}
-                  className="pdf-mono"
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 999,
-                    border: `1px solid ${C.border}`,
-                    fontSize: 12,
-                  }}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-          </article>
-          <div className="pdf-home-op" aria-hidden="true">
-            +
-          </div>
-          <article className="pdf-card" style={{ padding: 24 }}>
-            <h3 className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.12em' }}>
-              {t.developer.developerLabel}
-            </h3>
-            <p style={{ margin: '16px 0 0', fontSize: 20, fontWeight: 700 }}>{t.developer.domainItem}</p>
-          </article>
-          <div className="pdf-home-op" aria-hidden="true">
-            =
-          </div>
-          <article
-            className="pdf-card"
-            style={{ padding: 24, borderColor: 'rgba(0,194,217,0.45)', background: 'rgba(0,194,217,0.06)' }}
-          >
-            <h3 className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.12em' }}>
-              {t.developer.resultLabel}
-            </h3>
-            <p style={{ margin: '16px 0 0', fontSize: 16, lineHeight: 1.5 }}>
-              MQTT · REST · OEE
-            </p>
-          </article>
-        </div>
-        <a
-          className="pdf-btn-ghost pdf-focus"
-          href="/platform/architecture/developer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            marginTop: 28,
-            padding: '10px 18px',
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
-        >
-          {t.developer.cta}
-        </a>
-      </div>
-    </section>
-  );
-}
-
-function ArchitecturePreview() {
-  const { t } = useLandingI18n();
-  return (
-    <section aria-label="Architecture overview" style={{ padding: '96px 24px', background: C.section }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <SectionHeading eyebrow={t.preview.eyebrow} color={PHARMA_TEAL} title={t.preview.title} sub={t.preview.body} />
-        <a
-          className="pdf-btn-primary pdf-focus"
-          href="/platform/architecture"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '12px 20px',
-            textDecoration: 'none',
-            fontWeight: 600,
-            fontSize: 15,
-          }}
-        >
-          {t.preview.cta}
-        </a>
-      </div>
-    </section>
   );
 }
 
@@ -915,7 +746,7 @@ function FinalCta(props: PublicLandingProps) {
   return (
     <section id="sign-in" style={{ padding: '112px 24px', position: 'relative', overflow: 'hidden', textAlign: 'center', background: PHARMA_NAVY, color: '#F8FAFC' }}>
       <div className="pdf-hero-glow" style={{ width: 320, height: 320, left: '50%', top: 40, marginLeft: -160, background: PHARMA_TEAL, opacity: 0.22 }} />
-      <div style={{ maxWidth: 768, margin: '0 auto', position: 'relative' }}>
+      <div style={{ maxWidth: 880, margin: '0 auto', position: 'relative' }}>
         <Reveal>
           <h2 className="pdf-display" style={{ fontSize: 'clamp(28px, 4vw, 44px)', fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
             {t.finalCta.title}
@@ -927,8 +758,17 @@ function FinalCta(props: PublicLandingProps) {
           </p>
         </Reveal>
         <Reveal delay={220}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 36 }}>
-            <Button className="pdf-btn-hero-primary pdf-focus" variant="contained" href="#contact">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginTop: 36 }}>
+            {t.finalCta.paths.map(path => (
+              <Button key={path.label} className="pdf-btn-hero-primary pdf-focus" variant="contained" href={path.href} style={{ whiteSpace: 'nowrap' }}>
+                {path.label}
+              </Button>
+            ))}
+          </div>
+        </Reveal>
+        <Reveal delay={300}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 28 }}>
+            <Button className="pdf-btn-hero-ghost pdf-focus" variant="outlined" href="#contact">
               {t.bookDemo}
             </Button>
             <SignInButton onSignIn={props.onSignIn} variant="hero" />
@@ -1018,12 +858,16 @@ export function PublicLanding(props: PublicLandingProps) {
         <HomeStyles />
         <LandingNav onSignIn={startCreate} />
         <HeroSection error={props.error} />
-        <WhyNexoraSection />
-        <HowItWorks />
+        <ProblemSection />
+        <PlatformSection />
+        <JourneySection />
+        <MarketplaceSection />
+        <BuildSection />
         <GoldenPathShowcase />
-        <ModelCompanySection />
-        <DeveloperValue />
-        <ArchitecturePreview />
+        <TrustSection />
+        <AcademySection />
+        <EcosystemFlywheelSection />
+        <EnterpriseSection />
         <ProductEditions />
         <FinalCta {...props} onSignIn={startCreate} />
         <LandingFooter />

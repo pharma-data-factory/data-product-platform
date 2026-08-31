@@ -215,7 +215,7 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionError(null);
     setValidating(true);
     try {
-      const { context, created } = await api.startValidationFromBaseline(
+      const { context } = await api.startValidationFromBaseline(
         id,
         approvedBaselineId,
       );

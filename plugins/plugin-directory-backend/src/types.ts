@@ -23,7 +23,9 @@ export type PluginSource =
   | 'WORKSPACE'
   | 'BACKSTAGE_CORE'
   | 'CONFIG'
-  | 'MANIFEST';
+  | 'MANIFEST'
+  | 'COMMUNITY'
+  | 'PARTNER';
 
 export interface NexoraPluginDescriptor {
   id: string;

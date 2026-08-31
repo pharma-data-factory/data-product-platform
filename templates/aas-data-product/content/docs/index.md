@@ -144,4 +144,4 @@ All assets must conform to the **asset-event.schema.json** contract:
 
 ---
 
-**Certified Golden Path Template** · Pharma Data Factory 2026
+**Certified Golden Path Template** · Nexora 2026

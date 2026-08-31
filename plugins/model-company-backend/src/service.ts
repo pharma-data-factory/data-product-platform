@@ -62,7 +62,7 @@ export class ModelCompanyService {
           (eq as { targetSpeed: number }).targetSpeed = 300;
         }
       }
-      this.state = { eventsPerSec: 0, ...loaded };
+      this.state = { ...loaded };
     } else {
       this.state = createInitialState(this.model);
     }

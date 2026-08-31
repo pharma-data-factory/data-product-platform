@@ -1,7 +1,7 @@
 import { documentationHref } from '@internal/platform-common';
 import { DEVELOPER_ARCHITECTURE_PATH } from './constants';
 import { DeveloperArchitectureDiagram } from './DeveloperArchitectureDiagram';
-import { ArchitectureDiagramStyles } from './diagrams';
+import { ArchitectureDiagramStyles, BackstageFoundationDiagram } from './diagrams';
 import {
   DEVELOPER_BUILD_STEPS,
   DEVELOPER_DOC_LINKS,
@@ -103,7 +103,7 @@ function Hero() {
           How a developer builds a Data Product.
         </h1>
         <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
-          The public architecture story explains why Pharma Data Factory exists.
+          The public architecture story explains why Nexora exists.
           This page explains how a developer uses Catalog, Marketplace, Create,
           Golden Paths and Platform Components to ship an independently running
           Data Product.
@@ -207,7 +207,7 @@ function BackstageFoundationSection() {
           </div>
           <div className="pdf-card" style={{ padding: 20 }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>
-              Pharma Data Factory adds
+              Nexora adds
             </h3>
             <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: C.text }}>
               <li>Data Product standard</li>
@@ -218,6 +218,9 @@ function BackstageFoundationSection() {
               <li>Validation & Trust layer</li>
             </ul>
           </div>
+        </div>
+        <div style={{ marginTop: 24 }}>
+          <BackstageFoundationDiagram />
         </div>
       </div>
     </section>

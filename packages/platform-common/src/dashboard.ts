@@ -42,7 +42,7 @@ export function quickActionsForRole(role: PlatformRole): QuickAction[] {
     case 'PLATFORM_ADMIN':
       return [
         CREATE_ACTION,
-        { id: 'platform', label: 'Manage Platform', to: '/settings' },
+        { id: 'platform', label: 'Manage Platform', to: '/admin' },
         { id: 'entitlements', label: 'Entitlements', to: '/admin/entitlements' },
         {
           id: 'plugin-directory',

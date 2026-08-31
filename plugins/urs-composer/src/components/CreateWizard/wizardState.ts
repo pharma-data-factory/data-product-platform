@@ -225,7 +225,7 @@ export function toCreateRequirementSetRequest(state: URSWizardState) {
     businessValue: state.businessNeed.businessValue,
     stakeholders: state.businessNeed.stakeholders,
     processContext: state.context.processContext,
-    solutionType: state.solutionType || 'PROJECT',
+    solutionType: state.solutionType || SolutionType.PROJECT,
     solutionName: state.solutionName || state.context.title || '',
     solutionCatalogRef: state.solutionCatalogRef,
     scope: state.context.scope,

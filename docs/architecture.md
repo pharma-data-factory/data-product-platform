@@ -84,7 +84,7 @@ value, and editions. Depth lives on `/platform/architecture` and
 
 - systems of record (ERP, MES, LIMS, EWM, Historian, CMO / other IT-OT)
 - governed integration (API, events, MQTT, REST, files / streams)
-- the Pharma Data Factory control plane
+- the Nexora control plane
 - independently managed Data Products
 
 It does not replace source systems, does not imply direct database access,

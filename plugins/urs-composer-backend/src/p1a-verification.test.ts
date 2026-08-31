@@ -25,16 +25,11 @@ import {
   RequirementSet,
   RequirementVersion,
   Baseline,
-  ApprovalWorkflow,
-  ApprovalInstance,
-  ApprovalStep,
   AuditEvent,
   BusinessCapabilityPersisted,
   SolutionType,
   URSStatus,
   RequirementPriority,
-  ApprovalInstanceStatus,
-  ApprovalStepStatus,
 } from './types';
 
 // Mock logger
@@ -63,7 +58,7 @@ async function getTestDatabase(): Promise<Knex> {
       },
     });
   }
-  return testDb;
+  return testDb!;
 }
 
 async function cleanupTestDatabase() {
@@ -149,25 +144,25 @@ describe('URS Composer P1A Persistence Verification', () => {
       await seeds.seed(db);
 
       const countAfterFirst = await db('business_capabilities').count('* as cnt').first();
-      const firstCount = parseInt(countAfterFirst?.cnt || '0', 10);
+      const firstCount = Number(countAfterFirst?.cnt || 0);
 
       await seeds.seed(db);
 
       const countAfterSecond = await db('business_capabilities').count('* as cnt').first();
-      const secondCount = parseInt(countAfterSecond?.cnt || '0', 10);
+      const secondCount = Number(countAfterSecond?.cnt || 0);
 
       expect(firstCount).toBe(secondCount);
     });
 
     test('should have seeded at least 10 business capabilities', async () => {
       const result = await db('business_capabilities').count('* as cnt').first();
-      const count = parseInt(result?.cnt || '0', 10);
+      const count = Number(result?.cnt || 0);
       expect(count).toBeGreaterThanOrEqual(10);
     });
 
     test('should have seeded at least 2 approval workflows', async () => {
       const result = await db('approval_workflows').count('* as cnt').first();
-      const count = parseInt(result?.cnt || '0', 10);
+      const count = Number(result?.cnt || 0);
       expect(count).toBeGreaterThanOrEqual(2);
     });
   });
@@ -183,7 +178,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         description: 'Testing contract',
         domain: 'make',
         status: 'ACTIVE',
-        source: 'test',
+        source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
       };
@@ -202,7 +197,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         description: 'For RS test',
         domain: 'make',
         status: 'ACTIVE',
-        source: 'test',
+        source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
       };
@@ -242,7 +237,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         description: 'Persist across restart',
         domain: 'make',
         status: 'ACTIVE',
-        source: 'test',
+        source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
       };
@@ -286,7 +281,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         versionNumber: 1,
         title: 'Test Requirement',
         statement: 'The system shall...',
-        priority: RequirementPriority.HIGH,
+        priority: RequirementPriority.MUST,
         status: URSStatus.DRAFT,
         createdBy: 'test-user',
         createdAt: new Date(),
@@ -337,7 +332,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         versionNumber: 1,
         title: 'Approved Requirement',
         statement: 'The system shall...',
-        priority: RequirementPriority.HIGH,
+        priority: RequirementPriority.MUST,
         status: URSStatus.APPROVED,
         createdBy: 'test-user',
         createdAt: new Date(),
@@ -348,7 +343,7 @@ describe('URS Composer P1A Persistence Verification', () => {
       await postgresRepo.createRequirementVersion(version);
 
       // Attempt to update APPROVED version should fail
-      const modified = { ...version, content: { title: 'Modified', priority: RequirementPriority.LOW }, revision: 1 };
+      const modified = { ...version, content: { title: 'Modified', priority: RequirementPriority.COULD }, revision: 1 };
       await expect(postgresRepo.updateRequirementVersion(modified)).rejects.toThrow();
     });
   });
@@ -380,8 +375,9 @@ describe('URS Composer P1A Persistence Verification', () => {
         status: URSStatus.DRAFT,
         createdAt: new Date(),
         createdBy: 'test-user',
+        revision: 1,
       };
-      const created = await postgresRepo.createBaseline(baseline);
+      await postgresRepo.createBaseline(baseline);
 
       const retrieved = await postgresRepo.getBaseline('baseline-001');
       expect(retrieved?.requirementVersionIds).toEqual(baseline.requirementVersionIds);
@@ -460,7 +456,7 @@ describe('URS Composer P1A Persistence Verification', () => {
 
       const transaction = await postgresRepo.beginTransaction();
       try {
-        await transaction.execute(async (trx) => {
+        await transaction.execute(async () => {
           // Create first version - this succeeds
           const version1: RequirementVersion = {
             id: 'rollback-req-v1',
@@ -488,7 +484,7 @@ describe('URS Composer P1A Persistence Verification', () => {
 
       // Verify state after rollback
       try {
-        const retrieved = await postgresRepo.getRequirementVersion('rollback-req-v1');
+        await postgresRepo.getRequirementVersion('rollback-req-v1');
         // Transaction behavior varies - document what actually happens
       } catch (e) {
         // May not exist after rollback
@@ -526,11 +522,15 @@ describe('URS Composer P1A Persistence Verification', () => {
       // Attempt to create requirement version with non-existent set should fail
       const version: RequirementVersion = {
         id: 'fk-test-req',
-        requirementSetId: 'non-existent-set',
+        requirementId: 'non-existent-set',
+        version: '1.0',
+        versionNumber: 1,
+        title: 'FK Test',
+        statement: 'The system shall...',
+        priority: RequirementPriority.MUST,
         status: URSStatus.DRAFT,
-        content: { title: 'FK Test' },
-        createdAt: new Date(),
         createdBy: 'test-user',
+        createdAt: new Date(),
         revision: 1,
       };
       await expect(postgresRepo.createRequirementVersion(version)).rejects.toThrow();

@@ -5,7 +5,7 @@ Last reviewed: 2026-08-21
 Audience: INTERNAL ENGINEERING  
 Version: 1.0.0
 
-Canonical product model for Pharma Data Factory:
+Canonical product model for Nexora:
 
 ## PLATFORM COMPONENT
 
@@ -37,7 +37,7 @@ Developer tool used to create and validate composition manifests.
 Route: `/compose`. YAML remains the canonical artifact.
 
 ```
-                 PHARMA DATA FACTORY
+                 NEXORA
 
      ┌─────────────────────────────────┐
      │       COMPONENT LIBRARY         │

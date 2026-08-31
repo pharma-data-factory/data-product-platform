@@ -13,7 +13,7 @@ is a future procurement channel, not a ZIP delivery mechanism.
 ```text
 Commercial entitlement
         ↓
-Pharma Data Factory Distribution Service
+Nexora Distribution Service
         ↓
 Approved RELEASED Golden Path
         ↓

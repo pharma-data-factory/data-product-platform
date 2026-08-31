@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the complete authorization architecture for the Pharma Data Factory platform, focusing on how domain-specific authorization profiles integrate with central Platform RBAC without duplicating roles or creating runtime dependencies.
+This document describes the complete authorization architecture for the Nexora platform, focusing on how domain-specific authorization profiles integrate with central Platform RBAC without duplicating roles or creating runtime dependencies.
 
 ---
 

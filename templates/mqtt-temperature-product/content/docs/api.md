@@ -29,7 +29,7 @@ curl -X POST http://localhost:8080/api/v1/temperatures ^
 
 ## `GET /api/v1/platform-metadata`
 
-Reports the Pharma Data Factory standard, SDK, template, and contract
+Reports the Nexora standard, SDK, template, and contract
 versions. This is technical platform metadata, not GxP validation.
 
 ```json

@@ -13,6 +13,7 @@ import {
   PRODUCT_EDITIONS,
 } from '@internal/platform-common';
 import { ARCHITECTURE_CONCEPTS } from '../architecture/constants';
+import { PLATFORM_POSITIONING } from '../theme/tokens';
 
 export const LANDING_LOCALE_STORAGE_KEY = 'pdf.landing.locale';
 
@@ -33,7 +34,13 @@ export interface LandingCopy {
   closeMenu: string;
   nav: {
     platform: string;
+    marketplace: string;
+    solutions: string;
     developers: string;
+    academy: string;
+    enterprise: string;
+    trust: string;
+    ecosystem: string;
     learn: string;
     editions: string;
     goldenPaths: string;
@@ -42,6 +49,7 @@ export interface LandingCopy {
     eyebrow: string;
     title: string;
     sub: string;
+    clarification: string;
     primary: string;
     secondary: string;
     discover: string;
@@ -120,6 +128,7 @@ export interface LandingCopy {
     api: string;
     mqttCard: string;
     restCard: string;
+    aasCard: string;
     footnote: string;
   };
   learn: {
@@ -274,6 +283,7 @@ export interface LandingCopy {
   finalCta: {
     title: string;
     sub: string;
+    paths: readonly { label: string; href: string }[];
   };
   consent: {
     title: string;
@@ -350,21 +360,28 @@ const en: LandingCopy = {
   closeMenu: 'Close menu',
   nav: {
     platform: 'Platform',
+    marketplace: 'Marketplace',
+    solutions: 'Solutions',
     developers: 'Developers',
+    academy: 'Academy',
+    enterprise: 'Enterprise',
+    trust: 'Trust',
+    ecosystem: 'Ecosystem',
     learn: 'Learn',
     editions: 'Editions',
     goldenPaths: 'Golden Paths',
   },
   hero: {
-    eyebrow: 'DATA PRODUCTS. BUILT FOR LIFE SCIENCE.',
-    title: 'Keep core systems standardized.\nDeliver Data Products around them.',
-    headlinePrimary: 'Keep core systems standardized.',
-    headlineAccent: 'Deliver Data Products around them.',
-    sub: 'Nexora is the open platform for Data Products and integrations in life science and industrial environments, based on an open-source concept.',
-    primary: 'See how it works',
-    secondary: 'See Golden Paths',
-    discover: 'Explore platform',
-    demo: 'Book a demo',
+    eyebrow: PLATFORM_POSITIONING,
+    title: 'Connect systems.\nBuild capabilities.\nShare solutions.',
+    headlinePrimary: 'Connect systems.',
+    headlineAccent: 'Build capabilities. Share solutions.',
+    sub: 'Nexora is an open, extensible manufacturing platform — a governed layer where life sciences teams, enterprise IT, consultants and technology partners build, discover and deploy manufacturing capabilities around the systems they already run.',
+    clarification: 'Open architecture · Open standards (OPC UA · MQTT · AAS) · Open extension model · Not open-source software',
+    primary: 'Build a Plugin',
+    secondary: 'For Enterprises',
+    discover: 'Explore the Platform',
+    demo: 'Explore Marketplace',
     coreLabel: 'Platform',
     coreLayers: [
       'User Engagement and Experiences',
@@ -509,8 +526,7 @@ const en: LandingCopy = {
     editions: EN_EDITIONS,
   },
   footer: {
-    tagline:
-      'DATA PRODUCTS. BUILT FOR LIFE SCIENCE. Technical certification is platform status only. It is not GxP or regulatory validation.',
+    tagline: `${PLATFORM_POSITIONING}. Technical certification is platform status only. It is not GxP or regulatory validation.`,
     note: 'Single-organization Control Plane. SaaS multi-tenancy is future.',
   },
   overview: {
@@ -898,8 +914,14 @@ const en: LandingCopy = {
     },
   },
   finalCta: {
-    title: 'See Temperature, Equipment and OEE on your terms.',
-    sub: 'Book a walkthrough of the factory — or sign in if your organization already has access.',
+    title: 'Choose your path.',
+    sub: 'Use Nexora, build on Nexora, publish on Nexora, or partner with Nexora — every path starts from the same open manufacturing platform.',
+    paths: [
+      { label: 'Use Nexora', href: '#journey' },
+      { label: 'Build on Nexora', href: '#build' },
+      { label: 'Publish on Nexora', href: '#marketplace' },
+      { label: 'Partner with Nexora', href: '#enterprise' },
+    ],
   },
   consent: {
     title: 'Cookie Settings',
@@ -930,21 +952,28 @@ const de: LandingCopy = {
   closeMenu: 'Menü schließen',
   nav: {
     platform: 'Plattform',
+    marketplace: 'Marketplace',
+    solutions: 'Lösungen',
     developers: 'Entwickler',
+    academy: 'Akademie',
+    enterprise: 'Enterprise',
+    trust: 'Vertrauen',
+    ecosystem: 'Ökosystem',
     learn: 'Wissen',
     editions: 'Editionen',
     goldenPaths: 'Golden Paths',
   },
   hero: {
-    eyebrow: 'DATA PRODUCTS. BUILT FOR LIFE SCIENCE.',
-    title: 'Kernsysteme standardisiert halten.\nData Products darum herum liefern.',
-    headlinePrimary: 'Kernsysteme standardisiert halten.',
-    headlineAccent: 'Data Products darum herum liefern.',
-    sub: 'Nexora ist die offene Plattform für Data Products und Integrationen in Life-Science- und industriellen Umgebungen basierend auf Open-Source Concept.',
-    primary: 'So funktioniert es',
-    secondary: 'Golden Paths ansehen',
+    eyebrow: 'DIE OFFENE MANUFACTURING-PLATTFORM FÜR LIFE SCIENCES',
+    title: 'Systeme verbinden.\nFähigkeiten bauen.\nLösungen teilen.',
+    headlinePrimary: 'Systeme verbinden.',
+    headlineAccent: 'Fähigkeiten bauen. Lösungen teilen.',
+    sub: 'Nexora ist eine offene, erweiterbare Manufacturing-Plattform — eine gesteuerte Schicht, in der Life-Sciences-Teams, Enterprise-IT, Consultants und Technologie-Partner Manufacturing-Fähigkeiten rund um ihre bestehenden Systeme bauen, finden und bereitstellen.',
+    clarification: 'Offene Architektur · Offene Standards (OPC UA · MQTT · AAS) · Offenes Erweiterungsmodell · Keine Open-Source-Software',
+    primary: 'Plugin bauen',
+    secondary: 'Für Unternehmen',
     discover: 'Plattform entdecken',
-    demo: 'Demo vereinbaren',
+    demo: 'Marketplace entdecken',
     coreLabel: 'Plattform',
     coreLayers: [
       'User Engagement und Experiences',
@@ -1063,6 +1092,7 @@ const de: LandingCopy = {
     api: 'REST API',
     mqttCard: 'MQTT-Temperatur-Telemetrie wird zum gesteuerten Product mit Contract, Quality Gate und REST-API.',
     restCard: 'Equipment-Zustand per REST als versioniertes Data Product — wiederverwendbar über Linien, kein einmaliger Extract.',
+    aasCard: 'Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) für Asset-Registry, Multi-Source-Ingestion und semantisches Asset-Management.',
     footnote: 'CERTIFIED ist technischer Plattformstatus. Das ist keine GxP-, CSV- oder regulatorische Validierung.',
   },
   learn: {
@@ -1165,7 +1195,7 @@ const de: LandingCopy = {
   },
   footer: {
     tagline:
-      'DATA PRODUCTS. BUILT FOR LIFE SCIENCE. Technische Zertifizierung ist nur Plattformstatus. Sie ist keine GxP- oder regulatorische Validierung.',
+      'DIE OFFENE MANUFACTURING-PLATTFORM FÜR LIFE SCIENCES. Technische Zertifizierung ist nur Plattformstatus. Sie ist keine GxP- oder regulatorische Validierung.',
     note: 'Control Plane für eine Organisation. SaaS-Mandantenfähigkeit ist Zukunft.',
   },
   overview: {
@@ -1602,8 +1632,14 @@ const de: LandingCopy = {
     },
   },
   finalCta: {
-    title: 'Temperature, Equipment und OEE auf Ihre Bedingungen sehen.',
-    sub: 'Vereinbaren Sie einen Rundgang durch die Factory — oder melden Sie sich an, wenn Ihre Organisation bereits Zugang hat.',
+    title: 'Wählen Sie Ihren Weg.',
+    sub: 'Nexora nutzen, auf Nexora bauen, auf Nexora publizieren oder Partner von Nexora werden — jeder Weg beginnt auf derselben offenen Manufacturing-Plattform.',
+    paths: [
+      { label: 'Nexora nutzen', href: '#journey' },
+      { label: 'Auf Nexora bauen', href: '#build' },
+      { label: 'Auf Nexora publizieren', href: '#marketplace' },
+      { label: 'Partner werden', href: '#enterprise' },
+    ],
   },
   consent: {
     title: 'Cookie-Einstellungen',

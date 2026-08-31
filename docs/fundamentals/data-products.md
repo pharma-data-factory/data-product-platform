@@ -1,11 +1,11 @@
-# What is Pharma Data Factory?
+# What is Nexora?
 
 Owner: Platform Team  
 Last reviewed: 2026-08-19  
 Audience: PLATFORM USER  
 Version: MVP 1.1
 
-Pharma Data Factory is the **engineering and governance Control Plane**
+Nexora is the **engineering and governance Control Plane**
 for manufacturing Data Products. Backstage is the framework, not the
 product identity.
 

@@ -1,6 +1,6 @@
 import { Button } from '@material-ui/core';
 import { BrandMark } from '../nav/BrandMark';
-import { BRAND_NAME, BRAND_WORDMARK, C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
+import { BRAND_NAME, BRAND_WORDMARK, C, PHARMA_NAVY, PHARMA_TEAL, PLATFORM_POSITIONING } from '../theme/tokens';
 
 export interface LoginPageProps {
   guestEnabled?: boolean;
@@ -74,7 +74,7 @@ export function LoginPage({
               fontWeight: 600,
             }}
           >
-            DATA PRODUCTS. BUILT FOR LIFE SCIENCE.
+            {PLATFORM_POSITIONING}
           </p>
           <h1
             style={{

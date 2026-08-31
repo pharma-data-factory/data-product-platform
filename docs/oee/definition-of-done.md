@@ -29,5 +29,5 @@ This checklist applies to the OEE Golden Path 1.0 implementation in
 - [x] No GxP / AVAILABLE / AWS Marketplace claims
 - [x] MQTT Temperature and REST Equipment unchanged
 
-CERTIFIED means Pharma Data Factory technical conformance only. It does
+CERTIFIED means Nexora technical conformance only. It does
 not mean GxP validated, regulatory approved, or production validated.

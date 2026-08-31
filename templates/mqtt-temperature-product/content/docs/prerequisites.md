@@ -3,7 +3,7 @@
 Owner: Golden Path Team  
 Template: mqtt-temperature-data-product
 
-- Developer, Data Product Owner, or Platform Admin in Pharma Data Factory
+- Developer, Data Product Owner, or Platform Admin in Nexora
 - Git, Python 3.12+, Docker
 - MQTT broker for live ingest (optional locally; use `POST /api/v1/temperatures`)
 

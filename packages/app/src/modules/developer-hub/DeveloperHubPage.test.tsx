@@ -96,6 +96,12 @@ describe('Developer Hub', () => {
     expect(screen.getByText('Component Upgrade Policy')).toBeInTheDocument();
     expect(screen.getByText('Contract Documentation')).toBeInTheDocument();
     expect(screen.getAllByText('Golden Path').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Build on Nexora')).toBeInTheDocument();
+    expect(screen.getByText('Adopt. Build. Partner.')).toBeInTheDocument();
+    expect(screen.getByText('Extension Catalog').closest('a')).toHaveAttribute(
+      'href',
+      '/plugin-directory',
+    );
   });
 
   it('links architecture and Golden Path docs without duplicating the public story', async () => {

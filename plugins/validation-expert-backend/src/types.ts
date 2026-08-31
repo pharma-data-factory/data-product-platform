@@ -194,5 +194,10 @@ export interface ValidationTestRunner {
   ): Promise<ValidationTestResult>;
 }
 
+export interface CreateValidationContextRequest {
+  requirementSetId: string;
+  baselineId: string;
+}
+
 export type { ApprovedURSReference, ValidationContext };
 

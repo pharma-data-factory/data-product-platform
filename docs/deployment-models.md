@@ -1,6 +1,6 @@
 # Deployment models
 
-Pharma Data Factory supports one current deployment shape and two future
+Nexora supports one current deployment shape and two future
 commercial deployment models. This document is architecture guidance. It
 does not add Kubernetes, AWS production, or multi-tenant runtime.
 
@@ -13,7 +13,7 @@ RBAC. Configured capabilities are treated as entitled.
 Customer / operator
         │
         v
-Pharma Data Factory Control Plane (Backstage)
+Nexora Control Plane (Backstage)
         │
         ├── Identity / RBAC
         ├── Marketplace (technical catalog)
@@ -54,7 +54,7 @@ A complete Control Plane in the customer's cloud. Planned, not a GA SKU.
 Customer Cloud
         │
         v
-Pharma Data Factory Control Plane
+Nexora Control Plane
         │
         ├── Customer Identity Provider
         ├── Customer GitHub
@@ -67,10 +67,10 @@ and annual license enforcement are not implemented.
 
 ## SaaS Edition
 
-Fully managed Pharma Data Factory. Future only.
+Fully managed Nexora. Future only.
 
 ```text
-Managed Pharma Data Factory
+Managed Nexora
         │
         v
 Organization Context

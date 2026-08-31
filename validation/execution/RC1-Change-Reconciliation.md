@@ -246,7 +246,7 @@ Inspected after snapshot `20d221bd3887134250c033b7467035137919289e`. Every liste
 | Path | Change |
 | --- | --- |
 | `README.md` | “pharmaceutical manufacturing” → “life science manufacturing”; audience wording |
-| `packages/app/src/modules/architecture/ArchitecturePage.tsx` | Diagram label “PHARMA DATA FACTORY CONTROL PLANE” → “NEXORA CONTROL PLANE” |
+| `packages/app/src/modules/architecture/ArchitecturePage.tsx` | Diagram label “NEXORA CONTROL PLANE” → “NEXORA CONTROL PLANE” |
 | `packages/app/src/modules/architecture/ArchitecturePage.test.tsx` | Matching assertion |
 | `packages/app/src/modules/home/HomePage.tsx` | Subtitle “BUILT FOR PHARMA” → “BUILT FOR LIFE SCIENCE” |
 | `packages/app/src/modules/identity/AccessDeniedPage.tsx` | Same tagline |

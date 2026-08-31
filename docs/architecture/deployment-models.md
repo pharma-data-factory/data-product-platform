@@ -44,11 +44,11 @@ distribution; procurement is not live.
 
 ## PLATFORM EDITION — PLANNED
 
-Customer operates its own Pharma Data Factory instance in its own
+Customer operates its own Nexora instance in its own
 environment. Not a GA SKU. Multi-tenancy is not implemented.
 
 ## SAAS EDITION — FUTURE
 
-Managed Pharma Data Factory service with future tenant isolation,
+Managed Nexora service with future tenant isolation,
 customer identity and entitlements. Not available. Do not treat current
 identity as tenant isolation.

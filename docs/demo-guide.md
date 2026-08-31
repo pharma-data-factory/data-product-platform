@@ -1,4 +1,4 @@
-# Pharma Data Factory — Developer demo guide
+# Nexora — Developer demo guide
 
 This is the reference developer journey for MVP 1.1. Use **MQTT Temperature
 Data Product** as the primary Golden Path. REST Equipment remains available

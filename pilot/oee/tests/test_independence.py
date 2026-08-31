@@ -31,7 +31,7 @@ def test_compose_stack_excludes_control_plane_and_uns() -> None:
 
 
 def test_runtime_works_without_control_plane(oee_client: TestClient) -> None:
-    """This pytest session does not start Pharma Data Factory / Backstage."""
+    """This pytest session does not start Nexora / Backstage."""
     oee_client.post("/api/v1/ingest", json=CONTEXT)
     for _topic, payload in iter_mqtt_messages("PERFECT"):
         assert oee_client.post("/api/v1/ingest", json=payload).status_code == 200

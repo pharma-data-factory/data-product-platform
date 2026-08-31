@@ -9,7 +9,7 @@
 
 ## Overview
 
-We have implemented the **AAS Asset Administration Shell Golden Path** as a Wave 2 addition to the Pharma Data Factory platform.
+We have implemented the **AAS Asset Administration Shell Golden Path** as a Wave 2 addition to the Nexora platform.
 
 AAS is a certified, production-ready template for asset management that enables organizations to:
 - Register and manage manufacturing equipment hierarchies

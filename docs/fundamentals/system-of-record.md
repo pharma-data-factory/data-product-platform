@@ -10,7 +10,7 @@ Version: MVP 1.1
 
 ERP, MES, LIMS, EWM, Historian, CMO platforms, and other IT/OT remain
 **systems of record** and operational platforms. Do not customize them
-into an unbounded integration layer. Do not treat Pharma Data Factory as
+into an unbounded integration layer. Do not treat Nexora as
 a replacement for those systems.
 
 ## Four roles
@@ -19,7 +19,7 @@ a replacement for those systems.
 | --- | --- | --- |
 | **System of Record** | Authoritative operational system (ERP, MES, LIMS, EWM, Historian, CMO, other IT/OT) | A Data Product, a consumer app, or the Control Plane |
 | **Data Product** | Independently evolving digital capability around a governed interface | A copy of the source database or a second system of record |
-| **Pharma Data Factory Control Plane** | Engineering, catalog, identity, Marketplace, TechDocs, Search, certification | The runtime that stores all enterprise data |
+| **Nexora Control Plane** | Engineering, catalog, identity, Marketplace, TechDocs, Search, certification | The runtime that stores all enterprise data |
 | **Consumer** | Application, dashboard, or another Data Product that binds to a contract | Direct access to source-system internals |
 
 ## System of Record vs Data Product

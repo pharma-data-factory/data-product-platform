@@ -13,7 +13,7 @@ export function PlatformGovernanceOverviewPage() {
           {/* Intro */}
           <section style={{ marginBottom: 48 }}>
             <p style={{ fontSize: 16, lineHeight: 1.7, color: '#475569', maxWidth: 800 }}>
-              Pharma Data Factory provides a layered architecture for governing industrial Data Products.
+              Nexora provides a layered architecture for governing industrial Data Products.
               Use this overview to understand relationships between components, Golden Paths, Data Products,
               and how validation and governance fit together.
             </p>
@@ -51,7 +51,7 @@ export function PlatformGovernanceOverviewPage() {
                 background: 'rgba(13, 148, 136, 0.05)',
               }}>
                 <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#0B1F3A' }}>
-                  Pharma Data Factory
+                  Nexora
                 </h3>
                 <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
                   Industrial Data Product platform layer: Standard, SDK, Components, Contracts, Quality,
@@ -185,7 +185,7 @@ export function PlatformGovernanceOverviewPage() {
                 background: '#FFFFFF',
               }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                  Pharma Data Factory Standardizes
+                  Nexora Standardizes
                 </h3>
                 <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.8, color: '#475569' }}>
                   <li>Reusable technical components</li>

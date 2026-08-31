@@ -23,13 +23,13 @@ import {
   ApprovalInstanceStatus,
   UpdateRequirementSetRequest,
 } from './types';
-import { URSRepository } from './repository';
+import { IURSRepository } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import { nextMinorVersion, getVersionNumber } from './services/versioningService';
 
 export interface URSServiceOptions {
   logger: LoggerService;
-  repository: URSRepository;
+  repository: IURSRepository;
 }
 
 /**
@@ -38,7 +38,7 @@ export interface URSServiceOptions {
  */
 export class URSService {
   private logger: LoggerService;
-  private repository: URSRepository;
+  private repository: IURSRepository;
 
   constructor(options: URSServiceOptions) {
     this.logger = options.logger;
@@ -664,37 +664,6 @@ export class URSService {
     return this.repository.getRequirementVersion(versionId);
   }
 
-  /**
-   * Supersede previous version when approving new one
-   */
-  private async supersedePreviousVersion(
-    newVersion: RequirementVersion,
-  ): Promise<void> {
-    const previousVersions = await this.repository.getRequirementVersions(
-      newVersion.requirementId,
-      'desc',
-    );
-
-    for (const prev of previousVersions) {
-      if (prev.id !== newVersion.id && prev.status === URSStatus.APPROVED) {
-        prev.status = URSStatus.SUPERSEDED;
-        prev.supersededBy = newVersion.id;
-        await this.repository.updateRequirementVersion(prev);
-
-        await this.repository.createAuditEvent({
-          id: this.generateUUID(),
-          entityType: 'REQUIREMENT_VERSION',
-          entityId: prev.id,
-          entityVersion: prev.version,
-          eventType: 'SUPERSEDED',
-          newValue: { status: URSStatus.SUPERSEDED },
-          actor: 'system',
-          timestamp: new Date(),
-        });
-      }
-    }
-  }
-
   // ============================================================================
   // P1A: BASELINES
   // ============================================================================
@@ -883,6 +852,7 @@ export class URSService {
         sequence: wfStep.sequence,
         role: wfStep.role,
         status: 'PENDING' as any,
+        required: wfStep.required,
       };
       instance.steps.push(step);
     }

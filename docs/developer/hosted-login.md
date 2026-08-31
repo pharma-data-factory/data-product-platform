@@ -13,7 +13,7 @@ development. Unknown GitHub users are denied.
 
 | Mechanism | Purpose | Variables | Client ID prefix |
 | --- | --- | --- | --- |
-| OAuth App “Pharma Data Factory Login” | Human sign-in | `AUTH_GITHUB_*` | `Ov23` |
+| OAuth App “Nexora Login” | Human sign-in | `AUTH_GITHUB_*` | `Ov23` |
 | GitHub App | Create Golden Path repositories | `GITHUB_APP_*` / `GITHUB_CLIENT_*` / `GITHUB_PRIVATE_KEY` | `Iv23` |
 
 Do not reuse GitHub App client values for login.
@@ -21,7 +21,7 @@ Do not reuse GitHub App client values for login.
 ## Hosted OAuth App
 
 1. GitHub → Settings → Developer settings → OAuth Apps → the existing
-   **Pharma Data Factory Login** app (or create one).
+   **Nexora Login** app (or create one).
 2. Homepage URL: `https://<domain>`
 3. Authorization callback URL:
    `https://<domain>/api/auth/github/handler/frame`

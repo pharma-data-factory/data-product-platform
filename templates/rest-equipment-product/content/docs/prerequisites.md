@@ -3,7 +3,7 @@
 Owner: Golden Path Team  
 Template: rest-equipment-data-product
 
-- Developer, Data Product Owner, or Platform Admin in Pharma Data Factory
+- Developer, Data Product Owner, or Platform Admin in Nexora
 - Git, Python 3.12+, Docker
 - `SOURCE_API_URL` for live sync (optional locally; use mock ingest)
 

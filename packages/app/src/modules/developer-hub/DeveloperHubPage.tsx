@@ -19,11 +19,17 @@ import {
   developerHubActionsForRole,
   documentationHref,
   platformComponentPath,
-  recentlyUpdatedPages,
+  documentationIndexPages,
   resolvePlatformRole,
+  DOC_AUDIENCES,
+  audienceLabel,
+  documentationPagesForAudience,
+  DOCUMENTATION_PERSONAS,
+  documentationPageById,
 } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
+import { ArchitectureStackVisual } from './ArchitectureStackVisual';
 
 const useStyles = makeStyles({
   hero: {
@@ -242,7 +248,7 @@ export function DeveloperHubPage() {
 
   const canCreate = canExecuteScaffolder(role);
   const actions = developerHubActionsForRole(role);
-  const recent = recentlyUpdatedPages();
+  const recent = documentationIndexPages();
 
   return (
     <Page themeId="documentation">
@@ -252,7 +258,7 @@ export function DeveloperHubPage() {
           <h1 className={classes.heroTitle}>Developer Hub</h1>
           <p className={classes.heroCopy}>
             Keep core systems standard. Innovate through Data Products. This
-            hub is the authenticated starting point for Pharma Data Factory
+            hub is the authenticated starting point for Nexora
             documentation. Pages are published with TechDocs and indexed by
             the existing Search plugin.
           </p>
@@ -274,58 +280,14 @@ export function DeveloperHubPage() {
             <section className={classes.card} aria-label="How the platform fits together">
               <Typography className={classes.title}>Platform Architecture at a Glance</Typography>
               <Typography variant="body2" className={classes.muted} paragraph>
-                Three layers working together:
+                Everything you build sits on Backstage, the open-source platform
+                kernel. Nexora is the product and extension layer;
+                Data Products are the independent services you ship on top.
               </Typography>
-              <Grid container spacing={2} style={{ marginTop: 0 }}>
-                <Grid item xs={12} md={4}>
-                  <div style={{
-                    background: '#F8FAFC',
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 12,
-                    padding: 16,
-                  }}>
-                    <Typography style={{ fontSize: 13, fontWeight: 600, color: PHARMA_TEAL, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
-                      Layer 1: Backstage
-                    </Typography>
-                    <Typography variant="body2" className={classes.muted}>
-                      Control Plane: Catalog, Scaffolder, TechDocs, Search, Identity. Open-source foundation.
-                    </Typography>
-                  </div>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <div style={{
-                    background: 'rgba(13, 148, 136, 0.08)',
-                    border: `2px solid ${PHARMA_TEAL}`,
-                    borderRadius: 12,
-                    padding: 16,
-                  }}>
-                    <Typography style={{ fontSize: 13, fontWeight: 600, color: PHARMA_TEAL, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
-                      Layer 2: Pharma Data Factory
-                    </Typography>
-                    <Typography variant="body2" className={classes.muted}>
-                      Standard, SDK, Components, Contracts, Quality, Compatibility, Golden Paths.
-                    </Typography>
-                  </div>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <div style={{
-                    background: '#F8FAFC',
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 12,
-                    padding: 16,
-                  }}>
-                    <Typography style={{ fontSize: 13, fontWeight: 600, color: PHARMA_TEAL, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
-                      Layer 3: Data Products
-                    </Typography>
-                    <Typography variant="body2" className={classes.muted}>
-                      Independent services: your domain logic + platform reuse = Data Product.
-                    </Typography>
-                  </div>
-                </Grid>
-              </Grid>
+              <ArchitectureStackVisual />
               <Typography variant="body2" style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
                 <strong>The key insight:</strong> Systems of record (ERP, MES, LIMS, etc.) stay authoritative.
-                Pharma Data Factory is the control plane around them, not a second system of record.
+                Nexora is the control plane around them, not a second system of record.
               </Typography>
             </section>
           </Grid>
@@ -357,11 +319,11 @@ export function DeveloperHubPage() {
             </section>
           </Grid>
           <Grid item xs={12} md={4}>
-            <section className={classes.card} aria-label="Recently updated">
-              <Typography className={classes.title}>Recently Updated</Typography>
+            <section className={classes.card} aria-label="More documentation">
+              <Typography className={classes.title}>More documentation</Typography>
               <Typography variant="body2" className={classes.muted} paragraph>
-                Derived from documentation metadata. Last reviewed {LAST_REVIEWED}.
-                No separate database.
+                Additional documentation pages beyond the sections above. Last
+                reviewed {LAST_REVIEWED}. No separate database.
               </Typography>
               <div className={classes.list}>
                 {recent.map(item => (
@@ -539,6 +501,69 @@ export function DeveloperHubPage() {
           </Grid>
 
           <Grid item xs={12}>
+            <section className={classes.card} aria-label="Build on Nexora">
+              <Typography className={classes.title}>Build on Nexora</Typography>
+              <Typography className={classes.principle}>
+                Adopt. Build. Partner.
+              </Typography>
+              <Typography variant="body2" className={classes.muted} paragraph>
+                Three ways to extend the platform — through the curated
+                Extension Catalog, the SDK and Golden Paths, or the partner
+                program.
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <div className={classes.featured}>
+                    <Typography variant="subtitle1">Adopt</Typography>
+                    <Typography variant="body2" className={classes.muted} paragraph>
+                      Discover community Backstage plugins and governed Nexora
+                      extensions in the curated catalog.
+                    </Typography>
+                    <Link className={classes.outlineAction} to="/plugin-directory">
+                      Extension Catalog
+                    </Link>
+                  </div>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <div className={classes.featured}>
+                    <Typography variant="subtitle1">Build</Typography>
+                    <Typography variant="body2" className={classes.muted} paragraph>
+                      Ship Data Products and integrations with the SDK, Golden
+                      Paths, and Platform Components.
+                    </Typography>
+                    <div className={classes.actions}>
+                      {canCreate ? (
+                        <Link className={classes.action} to="/create">
+                          Create
+                        </Link>
+                      ) : null}
+                      <Link className={classes.outlineAction} to="/compose">
+                        Compose
+                      </Link>
+                      <Link
+                        className={classes.outlineAction}
+                        to={documentationHref('build-golden-paths')}
+                      >
+                        Golden Paths
+                      </Link>
+                    </div>
+                  </div>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <div className={classes.featured}>
+                    <Typography variant="subtitle1">Partner</Typography>
+                    <Typography variant="body2" className={classes.muted} paragraph>
+                      Publish and certify extensions for Life Sciences
+                      customers. Partner program is planned — not available
+                      yet.
+                    </Typography>
+                  </div>
+                </Grid>
+              </Grid>
+            </section>
+          </Grid>
+
+          <Grid item xs={12}>
             <section className={classes.card} aria-label="Certified Golden Paths">
               <Typography className={classes.title}>Golden Paths</Typography>
               <Grid container spacing={2}>
@@ -666,6 +691,48 @@ export function DeveloperHubPage() {
               </section>
             </Grid>
           ))}
+          <Grid item xs={12}>
+            <section className={classes.card} aria-label="Documentation by role">
+              <Typography className={classes.title}>Documentation by role</Typography>
+              <Grid container spacing={2}>
+                {DOCUMENTATION_PERSONAS.map(persona => (
+                  <Grid item xs={12} md={4} key={persona.id}>
+                    <Typography variant="subtitle1">{persona.title}</Typography>
+                    <Typography variant="body2" className={classes.muted} paragraph>
+                      {persona.description}
+                    </Typography>
+                    <div className={classes.list}>
+                      {persona.pageIds.map(pageId => {
+                        const page = documentationPageById(pageId);
+                        return page ? (
+                          <Typography key={pageId} variant="body2">
+                            <Link to={documentationHref(pageId)}>{page.title}</Link>
+                          </Typography>
+                        ) : null;
+                      })}
+                    </div>
+                  </Grid>
+                ))}
+              </Grid>
+            </section>
+          </Grid>
+          <Grid item xs={12}>
+            <section className={classes.card} aria-label="Documentation audiences">
+              <Typography className={classes.title}>Documentation audiences</Typography>
+              <Typography variant="body2" className={classes.muted} paragraph>
+                Every page is classified for an audience. Customer-facing
+                documentation is not yet published.
+              </Typography>
+              <div className={classes.list}>
+                {DOC_AUDIENCES.map(audience => (
+                  <Typography key={audience} variant="body2">
+                    {audienceLabel(audience)} ·{' '}
+                    {documentationPagesForAudience(audience).length} pages
+                  </Typography>
+                ))}
+              </div>
+            </section>
+          </Grid>
         </Grid>
       </Content>
     </Page>

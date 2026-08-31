@@ -1,6 +1,6 @@
 id: plugin-directory
 name: Plugin Directory
-description: Admin inventory of installed Nexora / Backstage plugins
+description: Curated extension catalog for Nexora and Backstage plugins
 
 type: PLATFORM
 lifecycle: ENABLED

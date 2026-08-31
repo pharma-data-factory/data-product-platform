@@ -23,12 +23,6 @@ import { URSService } from './service';
 import { createRouter } from './router';
 import { URSRepository } from './repository';
 import { LoggerService } from '@backstage/backend-plugin-api';
-import {
-  ursReadPermission,
-  ursCreatePermission,
-  ursManagePermission,
-  ursApprovePermission,
-} from '@internal/platform-common';
 import { HttpAuthService, PermissionsService } from '@backstage/backend-plugin-api';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 
@@ -42,10 +36,7 @@ const mockLogger: LoggerService = {
 };
 
 // Test identities
-const testUserRead = 'user:default/reader';
-const testUserCreate = 'user:default/creator';
 const testUserManage = 'user:default/manager';
-const testUserApprove = 'user:default/approver';
 
 /**
  * Simple HTTP test client using Node.js http module
@@ -527,11 +518,9 @@ describe('P1B API FINAL HTTP VERIFICATION GATE', () => {
 
       // Create baseline (service setup)
       const baseline = await service.createBaseline(
-        {
-          requirementSetId: reqSet.id,
-          baselineVersion: '1.0',
-          requirementVersionIds: [],
-        },
+        reqSet.id,
+        [],
+        '1.0',
         testUserManage,
       );
 
@@ -568,11 +557,9 @@ describe('P1B API FINAL HTTP VERIFICATION GATE', () => {
 
       // Create baseline (service setup)
       const baseline = await service.createBaseline(
-        {
-          requirementSetId: reqSet.id,
-          baselineVersion: '1.0-reject',
-          requirementVersionIds: [],
-        },
+        reqSet.id,
+        [],
+        '1.0-reject',
         testUserManage,
       );
 

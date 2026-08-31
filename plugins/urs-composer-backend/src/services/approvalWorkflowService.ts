@@ -13,7 +13,6 @@ import {
   ApprovalRole,
   GxPRelevance,
   Baseline,
-  URSStatus,
 } from '../types';
 import { URSRepository } from '../repository';
 
@@ -23,11 +22,9 @@ export interface ApprovalWorkflowServiceOptions {
 }
 
 export class ApprovalWorkflowService {
-  private logger: LoggerService;
   private repository: URSRepository;
 
   constructor(options: ApprovalWorkflowServiceOptions) {
-    this.logger = options.logger;
     this.repository = options.repository;
   }
 

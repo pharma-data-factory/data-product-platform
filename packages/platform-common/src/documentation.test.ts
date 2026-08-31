@@ -17,8 +17,15 @@ import {
   goldenPathDocumentationHref,
   isCustomerFacingAudience,
   publicCustomerAudiences,
-  recentlyUpdatedPages,
+  documentationIndexPages,
+  DOC_AUDIENCES,
+  audienceLabel,
+  documentationPagesForAudience,
+  DOCUMENTATION_PERSONAS,
+  documentationPageById,
 } from './documentation';
+import fs from 'fs';
+import path from 'path';
 
 describe('developer hub documentation model', () => {
   it('exposes the authenticated Developer Hub route', () => {
@@ -107,7 +114,7 @@ describe('developer hub documentation model', () => {
       expect(page.applicablePlatform).toContain('Data Product Standard 1.0');
       expect(page.lastReviewed).toBe(LAST_REVIEWED);
     }
-    expect(recentlyUpdatedPages(4).length).toBe(4);
+    expect(documentationIndexPages(4).length).toBe(4);
   });
 
   it('links architecture and Golden Path documentation through TechDocs', () => {
@@ -237,5 +244,86 @@ describe('developer hub documentation model', () => {
     expect(
       developerHubActionsForRole('DEVELOPER').some(action => action.developerOnly),
     ).toBe(true);
+  });
+});
+
+describe('developer hub documentation drift guard', () => {
+  const ROOT = path.resolve(__dirname, '../../..');
+  const DOCS_DIR = path.join(ROOT, 'docs');
+
+  it('maps every registered page to an existing docs file', () => {
+    const missing = DOCUMENTATION_PAGES.filter(
+      page => !fs.existsSync(path.join(ROOT, documentationFilePath(page.path))),
+    ).map(page => `${page.id} -> ${documentationFilePath(page.path)}`);
+
+    expect(missing).toEqual([]);
+  });
+
+  it('resolves every mkdocs.yml nav target to a file under docs/', () => {
+    const mkdocs = fs.readFileSync(path.join(ROOT, 'mkdocs.yml'), 'utf8');
+    const targets = [...mkdocs.matchAll(/([\w./-]+\.md)/g)].map(match => match[1]);
+    const missing = targets.filter(
+      target => !fs.existsSync(path.join(DOCS_DIR, target)),
+    );
+
+    expect(missing).toEqual([]);
+  });
+
+  // DOCUMENTATION_PAGES is the canonical page registry; the mkdocs nav must
+  // stay a superset of it so hub links are always reachable in the sidebar.
+  it('keeps every registered page reachable in the mkdocs nav', () => {
+    const mkdocs = fs.readFileSync(path.join(ROOT, 'mkdocs.yml'), 'utf8');
+    const navTokens = new Set(
+      [...mkdocs.matchAll(/([\w./-]+\.md)/g)].map(match => match[1]),
+    );
+    const missing = DOCUMENTATION_PAGES.filter(
+      page =>
+        !navTokens.has(documentationFilePath(page.path).replace(/^docs\//, '')),
+    ).map(page => `${page.id} -> ${documentationFilePath(page.path)}`);
+
+    expect(missing).toEqual([]);
+  });
+});
+
+describe('developer hub documentation audiences', () => {
+  it('labels every declared audience', () => {
+    expect(DOC_AUDIENCES.map(audienceLabel)).toEqual([
+      'Internal Engineering',
+      'Platform User',
+      'Customer Platform',
+      'SaaS Customer',
+    ]);
+  });
+
+  it('filters pages by audience and keeps customer pages empty for now', () => {
+    for (const audience of DOC_AUDIENCES) {
+      for (const page of documentationPagesForAudience(audience)) {
+        expect(page.audience).toBe(audience);
+      }
+    }
+    expect(
+      documentationPagesForAudience('INTERNAL_ENGINEERING').length,
+    ).toBeGreaterThan(0);
+    expect(documentationPagesForAudience('PLATFORM_USER').length).toBeGreaterThan(
+      0,
+    );
+    expect(documentationPagesForAudience('CUSTOMER_PLATFORM')).toEqual([]);
+    expect(documentationPagesForAudience('SAAS_CUSTOMER')).toEqual([]);
+  });
+});
+
+describe('developer hub documentation personas', () => {
+  it('routes Developer, Product Manager, and Customer to existing pages', () => {
+    expect(DOCUMENTATION_PERSONAS.map(persona => persona.id)).toEqual([
+      'developer',
+      'product-manager',
+      'customer',
+    ]);
+    for (const persona of DOCUMENTATION_PERSONAS) {
+      expect(persona.pageIds.length).toBeGreaterThan(0);
+      for (const pageId of persona.pageIds) {
+        expect(documentationPageById(pageId)).toBeDefined();
+      }
+    }
   });
 });

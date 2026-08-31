@@ -1,4 +1,4 @@
-# Pharma Data Factory — Product Roadmap
+# Nexora — Product Roadmap
 
 This roadmap is the authoritative product plan. Status labels are exact.
 Planned and future capabilities are **not available** in the running product.
@@ -89,7 +89,7 @@ Status: **PLANNED**
 
 Not available:
 
-- Customer-hosted Pharma Data Factory
+- Customer-hosted Nexora
 - Customer Identity Provider
 - Microsoft Entra ID / OIDC
 - Customer GitHub integration

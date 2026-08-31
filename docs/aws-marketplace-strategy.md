@@ -1,6 +1,6 @@
 # AWS Marketplace strategy
 
-AWS Marketplace and the Pharma Data Factory Marketplace are different
+AWS Marketplace and the Nexora Marketplace are different
 products. Do not merge them in UI, architecture, or commercial copy.
 
 This platform is **designed for future AWS Marketplace distribution**.
@@ -13,12 +13,12 @@ AWS Marketplace
 =
 commercial procurement, subscription, billing and entitlement source
 
-Pharma Data Factory Marketplace
+Nexora Marketplace
 =
 technical discovery and provisioning of approved platform assets
 ```
 
-| | AWS Marketplace | Pharma Data Factory Marketplace |
+| | AWS Marketplace | Nexora Marketplace |
 | --- | --- | --- |
 | Purpose | Buy a license or subscription | Discover and create approved templates / data products |
 | Buyer | Procurement / platform owner | Developer / data product owner |
@@ -32,7 +32,7 @@ Template Edition:
 ```text
 AWS Marketplace
   → customer entitlement
-  → Pharma Data Factory Distribution Service
+  → Nexora Distribution Service
   → current RELEASED Golden Path
   → Customer GitHub / Customer AWS / customer pipeline
 ```

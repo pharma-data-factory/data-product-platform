@@ -255,5 +255,5 @@ docker push pharma-data-factory/pharma-filling-line-temperature:1.0.0
 
 ---
 
-**Certified Golden Path Template** · Pharma Data Factory 2026  
+**Certified Golden Path Template** · Nexora 2026  
 **MQTT Temperature Telemetry · Temperature Event v1.1.0**

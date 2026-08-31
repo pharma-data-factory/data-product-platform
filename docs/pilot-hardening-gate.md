@@ -117,7 +117,7 @@ Catalog remains the technical source of truth.
 | Observability | READY_WITH_CONDITION | Logs, health, in-process metrics, redaction | No central backend | Platform Admin |
 | CI | READY_WITH_CONDITION | lint/unit/contract/quality/compat/Docker + pip-audit | Actions Read-only env | Platform Admin |
 | Legal | READY_FOR_LEGAL_REVIEW | `LEGAL-READINESS-PHASE-0.md` gates OPEN | Commercial distribution yes | Counsel |
-| OSS attribution | OPEN | No LICENSE/NOTICE yet | Commercial distribution yes | Counsel |
+| OSS attribution | OPEN | `NOTICE` + `licenses/Apache-2.0.txt` prepared, pending counsel approval | Commercial distribution yes | Counsel |
 | Documentation | READY | Hub + this gate | No | Platform Team |
 | Operations | READY_WITH_CONDITION | [Pilot runbook](operations/pilot-runbook.md) | No | Platform Admin |
 | Developer journey | READY_WITH_CONDITION | Path exists; timing NOT_MEASURED | No | Platform Team |

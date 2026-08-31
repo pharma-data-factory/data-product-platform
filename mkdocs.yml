@@ -29,6 +29,7 @@ nav:
       - System of Record: fundamentals/system-of-record.md
       - Control Plane: fundamentals/control-plane.md
       - Golden Paths: fundamentals/golden-paths.md
+      - Glossary: fundamentals/glossary.md
   - Architecture:
       - Platform: architecture/platform.md
       - Data Product: architecture/data-product.md

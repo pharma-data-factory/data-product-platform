@@ -33,6 +33,6 @@ Default topic pattern:
 {root}/{site}/{area}/{line}/{equipment}/{domain}/{event}
 ```
 
-See Pharma Data Factory Developer Hub for architecture, namespace
+See Nexora Developer Hub for architecture, namespace
 convention, event envelope, producer/consumer guides, and OEE / Cold
 Chain readiness (no business logic in this component).

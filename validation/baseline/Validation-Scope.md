@@ -23,7 +23,7 @@ The baseline describes intended Control Plane capabilities already present in th
 
 | Field | Value | Evidence |
 | --- | --- | --- |
-| Product | Pharma Data Factory (UI brand: Nexora) | `PRODUCT.md`; `data-product-platform/app-config.yaml` (`app.title: Nexora`) |
+| Product | Nexora (UI brand: Nexora) | `PRODUCT.md`; `data-product-platform/app-config.yaml` (`app.title: Nexora`) |
 | System | Platform Core / Control Plane | `ARCHITECTURE.md` §2, §5; `architecture-model.yaml` layer L1 |
 | Foundation | Backstage (not forked) | `AGENTS.md` §3; `data-product-platform/packages/backend/src/index.ts` |
 | Technical MVP | TECHNICAL_MVP_COMPLETE / 1.0.0 | `data-product-platform/docs/mvp-1.0-baseline.md` |

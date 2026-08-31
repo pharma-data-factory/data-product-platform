@@ -97,6 +97,7 @@ describe('Plugin Directory UI', () => {
       'href',
       '/plugin-directory/validation-expert',
     );
+    expect(screen.getByText('Community')).toBeInTheDocument();
   });
 
   it('filters by validation status', async () => {
@@ -126,6 +127,34 @@ describe('Plugin Directory UI', () => {
       expect(api.listPlugins).toHaveBeenCalledWith(
         expect.objectContaining({ validationStatus: 'NOT_VALIDATED' }),
       );
+    });
+  });
+
+  it('filters by certification tier', async () => {
+    render(
+      <IndustrialTestRoot>
+        <MemoryRouter>
+          <TestApiProvider
+            apis={[
+              [pluginDirectoryApiRef, api as any],
+              [identityApiRef, identityApi as any],
+            ]}
+          >
+            <PluginDirectoryPage />
+          </TestApiProvider>
+        </MemoryRouter>
+      </IndustrialTestRoot>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('plugin-directory-table')).toBeInTheDocument();
+    });
+
+    fireEvent.mouseDown(screen.getByLabelText('Tier'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Certified' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Validation Expert')).not.toBeInTheDocument();
     });
   });
 

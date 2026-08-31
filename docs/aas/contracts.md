@@ -359,4 +359,4 @@ Content-Type: application/json
 
 ---
 
-**Wave 2 Technical Baseline — Pharma Data Factory 2026**
+**Wave 2 Technical Baseline — Nexora 2026**

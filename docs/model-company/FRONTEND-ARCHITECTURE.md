@@ -8,7 +8,7 @@ Present a **Factory Operations View** inside the existing Backstage app — not 
 
 ## Design system
 
-Reuses the Nexora / Pharma Data Factory tokens:
+Reuses the Nexora / Nexora tokens:
 
 | Token | Value | Source |
 | --- | --- | --- |

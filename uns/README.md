@@ -1,6 +1,6 @@
 # Unified Namespace
 
-Pharma Data Factory **platform component** that provides a governed MQTT
+Nexora **platform component** that provides a governed MQTT
 Unified Namespace. It is infrastructure, not a business Data Product.
 
 ```bash

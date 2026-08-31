@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "unified-namespace"
 version = "1.0.0"
-description = "Unified Namespace platform component for Pharma Data Factory"
+description = "Unified Namespace platform component for Nexora"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Data Product Platform" }]

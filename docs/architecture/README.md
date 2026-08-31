@@ -1,4 +1,4 @@
-# Pharma Data Factory — Architecture Documentation
+# Nexora — Architecture Documentation
 
 **Version**: 1.0  
 **Last Updated**: 2026-08-25  
@@ -8,7 +8,7 @@
 
 ## Overview
 
-This directory contains the authoritative architecture documentation for the Pharma Data Factory, an internal developer platform (IDP) built on Backstage for pharmaceutical manufacturing data integration, requirement management, and solution composition.
+This directory contains the authoritative architecture documentation for the Nexora, an internal developer platform (IDP) built on Backstage for pharmaceutical manufacturing data integration, requirement management, and solution composition.
 
 **Key Principles:**
 

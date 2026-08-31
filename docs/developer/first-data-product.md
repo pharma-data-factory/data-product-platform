@@ -113,7 +113,7 @@ flowchart LR
 
 ## 08. Start locally
 
-- **Why:** Prove the Data Plane starts without Pharma Data Factory.
+- **Why:** Prove the Data Plane starts without Nexora.
 - **Action:** Follow the product README. Copy `.env.example` and start with Docker Compose or Python 3.12.
 - **Expected result:** Health endpoint returns 200.
 - **Common error:** Missing MQTT broker or `SOURCE_API_URL` fails startup. Use the values from `.env.example`.

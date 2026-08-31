@@ -1,6 +1,6 @@
-# Pharma Data Factory documentation
+# Nexora documentation
 
-Internal documentation for the Pharma Data Factory Control Plane.
+Internal documentation for the Nexora Control Plane.
 The authenticated starting point is **Developer Hub** (`/developer`).
 These pages are published with Backstage TechDocs. There is no second wiki.
 

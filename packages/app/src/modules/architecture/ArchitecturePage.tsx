@@ -170,7 +170,7 @@ export function ArchitecturePage({
         diagram={<DeveloperFlowDiagram />}
         what="Golden Path → GitHub repo → CI/CD, tests, Docker, catalog and TechDocs by default."
         why="Teams without a large platform-engineering group still need a paved road."
-        how="Pharma Data Factory provisions the path. GitHub holds source. Catalog and TechDocs follow passing tests."
+        how="Nexora provisions the path. GitHub holds source. Catalog and TechDocs follow passing tests."
         decoupled="Generated products run independently of the Control Plane."
       />
       <DiagramSection
@@ -249,7 +249,7 @@ function OverviewHero() {
           Innovate Through Data Products.
         </h1>
         <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: '#CBD5E1', maxWidth: 720 }}>
-          <strong>Pharma Data Factory</strong> is the Internal Developer Platform for industrial Data
+          <strong>Nexora</strong> is the Internal Developer Platform for industrial Data
           Products, built on Backstage. It does not replace ERP, MES, LIMS, EWM, Historians
           or other IT/OT systems of record — it is the control plane
           around them.
@@ -345,14 +345,14 @@ function BoundarySection() {
   const items = [
     {
       title: 'SYSTEMS OF RECORD',
-      body: 'ERP, MES, LIMS, EWM and historians remain the authoritative operational source. Pharma Data Factory does not own that data and does not connect to those databases directly.',
+      body: 'ERP, MES, LIMS, EWM and historians remain the authoritative operational source. Nexora does not own that data and does not connect to those databases directly.',
     },
     {
       title: 'DATA PRODUCT',
       body: 'An independently versioned service with contract, quality gates, API and owner. It evolves around the core, not inside it.',
     },
     {
-      title: 'PHARMA DATA FACTORY CONTROL PLANE',
+      title: 'NEXORA CONTROL PLANE',
       body: 'Built on Backstage. Provides Golden Paths, catalog, contracts, quality, CI/CD and technical certification. It does not replace source systems and does not store all enterprise data.',
     },
   ];
@@ -468,7 +468,7 @@ function IdpFundamentalsSection() {
     <CardGrid
       label="Internal Developer Platform fundamentals"
       title="What makes an Internal Developer Platform"
-      lead="An IDP is a product for developers: self-service, a catalog of what exists, and guardrails so every team does not rebuild CI/CD, contracts and docs. Pharma Data Factory applies that model to industrial Data Products."
+      lead="An IDP is a product for developers: self-service, a catalog of what exists, and guardrails so every team does not rebuild CI/CD, contracts and docs. Nexora applies that model to industrial Data Products."
       items={IDP_PILLARS}
       background={C.paper}
     />
@@ -527,7 +527,7 @@ function ResponsibilityModelSection() {
             Platform innovation + Domain focus partnership
           </h2>
           <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: C.text }}>
-            Pharma Data Factory handles the technical baseline. Your team focuses on your domain. Together, you build better products faster.
+            Nexora handles the technical baseline. Your team focuses on your domain. Together, you build better products faster.
           </p>
         </div>
 
@@ -762,7 +762,7 @@ function ArchitectureCta({ onSignIn }: { onSignIn?: () => void }) {
       <p style={{ margin: '16px auto 0', maxWidth: 560, color: '#CBD5E1', lineHeight: 1.7 }}>
         {onSignIn
           ? 'Continue to Golden Paths, return to the public landing, or sign in to the Control Plane.'
-          : 'Return to the public landing to continue exploring Pharma Data Factory.'}
+          : 'Return to the public landing to continue exploring Nexora.'}
       </p>
       <div
         style={{

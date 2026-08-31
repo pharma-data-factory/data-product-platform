@@ -1,6 +1,6 @@
 # Commercial model
 
-Pharma Data Factory is sold as product editions, not as unmodified
+Nexora is sold as product editions, not as unmodified
 Backstage. This document describes the commercial model. It does not
 implement billing, checkout, or AWS Marketplace procurement.
 
@@ -26,7 +26,7 @@ The running MVP is a **single-organization Control Plane**.
 Technically available for a controlled pilot. **Not commercially
 distributable** until counsel approves LICENSE / NOTICE gates.
 
-Certified Pharma Data Factory Golden Paths for organizations that already
+Certified Nexora Golden Paths for organizations that already
 operate their own development platform.
 
 Includes:
@@ -45,7 +45,7 @@ Commercial model: Per-template license or subscription
 
 ### Platform Edition — PLANNED
 
-A complete Pharma Data Factory Control Plane deployed into the customer's
+A complete Nexora Control Plane deployed into the customer's
 own cloud environment.
 
 Includes:
@@ -70,7 +70,7 @@ deployment as a generally available customer-cloud product SKU.
 
 ### SaaS Edition — FUTURE
 
-Fully managed Pharma Data Factory operated as a service.
+Fully managed Nexora operated as a service.
 
 Future capabilities:
 
@@ -94,7 +94,7 @@ tenant provisioning, and no managed billing.
 | Edition | Model | Best for | Status |
 | --- | --- | --- | --- |
 | Template | Per Template / Subscription | Teams with an existing engineering platform | MVP |
-| Platform | Annual Platform License | Organizations wanting their own Pharma Data Factory | Planned |
+| Platform | Annual Platform License | Organizations wanting their own Nexora | Planned |
 | SaaS | Managed Subscription | Organizations wanting Data Product Factory as a Service | Future |
 
 Do not invent or display numeric prices until a commercial price list is
@@ -136,7 +136,7 @@ compliance.
 AWS Marketplace is commercial procurement, subscription, billing, and
 entitlement source.
 
-Pharma Data Factory Marketplace is technical discovery and provisioning
+Nexora Marketplace is technical discovery and provisioning
 of approved platform assets.
 
 Do not merge these concepts.

@@ -1,6 +1,6 @@
 # Wave 1 Platform Components (CERTIFIED 1.0.0)
 
-These packages are frozen snapshots of the Pharma Data Factory Wave 1
+These packages are frozen snapshots of the Nexora Wave 1
 libraries. They are not OEE domain code.
 
 - `health` → `pdf-health` 1.0.0

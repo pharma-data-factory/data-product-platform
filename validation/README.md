@@ -4,7 +4,7 @@
 **Validation status:** **NOT_VALIDATED**  
 **Part 11:** NOT_CLAIMED
 
-This directory holds the Platform Core **requirements baseline** and supporting review/evidence/remediation records. It does not claim that Pharma Data Factory is validated, qualified, or GxP compliant.
+This directory holds the Platform Core **requirements baseline** and supporting review/evidence/remediation records. It does not claim that Nexora is validated, qualified, or GxP compliant.
 
 `CERTIFIED` and `RELEASED` Golden Path states are technical product statuses. They are **not** GMP / CSV validation.
 

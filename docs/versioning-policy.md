@@ -1,6 +1,6 @@
 # Versioning Policy
 
-Semantic versioning for the Pharma Data Factory Data Product standard,
+Semantic versioning for the Nexora Data Product standard,
 shared SDK, and official templates.
 
 This is a technical platform policy. It is not GxP validation.
@@ -60,6 +60,6 @@ via `GET /api/v1/platform-metadata`.
 
 Template status `CERTIFIED` means only:
 
-> Conforms to the Pharma Data Factory technical standard.
+> Conforms to the Nexora technical standard.
 
 It does not mean GxP validated or regulatory approved.

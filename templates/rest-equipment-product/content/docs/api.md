@@ -33,7 +33,7 @@ Fetches equipment from `SOURCE_API_URL` when configured.
 
 ## `GET /api/v1/platform-metadata`
 
-Reports the Pharma Data Factory standard, SDK, template, and contract
+Reports the Nexora standard, SDK, template, and contract
 versions. This is technical platform metadata, not GxP validation.
 
 ```json

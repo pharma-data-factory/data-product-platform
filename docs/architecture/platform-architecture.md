@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Pharma Data Factory is a Backstage-based Internal Developer Platform (IDP) for pharmaceutical manufacturing data integration, requirement management, and solution composition.
+The Nexora is a Backstage-based Internal Developer Platform (IDP) for pharmaceutical manufacturing data integration, requirement management, and solution composition.
 
 The platform separates concerns into layers:
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Pharma Data Factory — Platform Guardrails Guard
+ * Nexora — Platform Guardrails Guard
  *
  * Mechanically verifies the AGENTS.md repository rules:
  *   - Backstage Core is extended, never patched / vendored / modified
@@ -589,7 +589,7 @@ function checkCrossPluginBoundaries() {
 // ---------------------------------------------------------------------------
 
 console.log('==============================================================');
-console.log('PHARMA DATA FACTORY — PLATFORM GUARDRAILS GUARD');
+console.log('NEXORA — PLATFORM GUARDRAILS GUARD');
 console.log('==============================================================');
 console.log('');
 

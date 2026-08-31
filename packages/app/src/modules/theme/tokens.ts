@@ -1,5 +1,6 @@
 export const BRAND_NAME = 'Nexora';
 export const BRAND_WORDMARK = 'NEXORA';
+export const PLATFORM_POSITIONING = 'THE OPEN MANUFACTURING PLATFORM FOR LIFE SCIENCES';
 
 export const C = {
   base: '#F4F6F8',

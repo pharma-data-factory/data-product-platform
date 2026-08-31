@@ -1,6 +1,6 @@
 # Dependency Governance
 
-Controlled dependency policy for the Pharma Data Factory / Nexora repository.
+Controlled dependency policy for the Nexora / Nexora repository.
 
 This document records the ACTUAL repository baseline (evidence from
 `backstage.json`, root `package.json`, `.yarnrc.yml`, and workspace

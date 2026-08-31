@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/brand/nexora-lockup.svg" alt="Nexora — Pharma Data Factory" width="640" />
+  <img src="docs/brand/nexora-lockup.svg" alt="Nexora — Nexora" width="640" />
 </p>
 
 <h1 align="center">Nexora</h1>
 
 <p align="center">
-  <strong>Pharma Data Factory</strong> Control Plane for governed Data Products
+  <strong>Nexora</strong> Control Plane for governed Data Products
   in life science manufacturing.
 </p>
 
@@ -24,7 +24,7 @@ Products run independently of the Control Plane.
 | --- | --- |
 | Product name | Nexora |
 | Wordmark | NEXORA |
-| Product line | Pharma Data Factory |
+| Product line | Nexora |
 | Brand mark | Hexagonal N mark (`docs/brand/nexora-lockup.svg`, `packages/app/public/favicon.svg`) |
 | Baseline | MVP 1.0 |
 | Technical status | TECHNICAL_MVP_COMPLETE |
@@ -164,22 +164,32 @@ Hosted: [docs/deployment/portainer.md](docs/deployment/portainer.md).
 
 **This product is not open source.** Custom Control Plane code (plugins,
 UI, templates, `platform-common`, generated-product SDK) is declared
-`UNLICENSED` / private. There is no outbound `LICENSE`, `NOTICE`, or
-`THIRD_PARTY_NOTICES.md` in this repository yet.
+`UNLICENSED` / private. There is no outbound license for the Nexora code
+itself.
+
+The Apache-2.0 attribution artifacts required when redistributing Backstage
+are prepared but **not yet counsel-approved**:
+
+- `NOTICE` — Backstage attribution (The Backstage Authors; originally
+  developed at Spotify AB; CNCF project; "Backstage" is a trademark of The
+  Linux Foundation).
+- `licenses/Apache-2.0.txt` — full Apache License 2.0 text.
+- `THIRD_PARTY_NOTICES.md` — third-party inventory (DRAFT).
 
 Counsel review is required before commercial distribution, Template
 Edition packaging, or publishing final legal pages.
 
 | Layer | Status |
 | --- | --- |
-| Nexora original code | Proprietary. `license: UNLICENSED`. Distribution blocked until counsel approves outbound terms. Nexora and Pharma Data Factory are product names, not an open-source grant. |
+| Nexora original code | Proprietary. `license: UNLICENSED`. Distribution blocked until counsel approves outbound terms. Nexora and Nexora are product names, not an open-source grant. |
 | Backstage 1.53.0 | [Apache License 2.0](https://github.com/backstage/backstage/blob/master/LICENSE). Apache-2.0 does not grant trademark rights in Backstage®. |
 | Upstream NOTICE | [The Backstage Authors](https://github.com/backstage/backstage/blob/master/NOTICE) plus third-party portions. |
 | Generated Data Products | Independent FastAPI services. Outbound LICENSE / NOTICE / third-party notices are counsel-gated placeholders, not invented here. |
 | Public legal pages | `/legal`, `/privacy`, `/terms`, `/open-source` are review placeholders, not binding terms. |
 
-Required OSS attribution will be published after Phase 0 counsel gates
-are APPROVED. Until then, do not treat this README as a license grant.
+Final OSS attribution and distribution approval require the Phase 0
+counsel gates to be APPROVED. Until then, do not treat this README as a
+license grant.
 
 Commercial editions (Template / Platform / SaaS): [docs/commercial-model.md](docs/commercial-model.md).
 List prices are not published.

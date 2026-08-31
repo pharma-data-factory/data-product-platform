@@ -202,5 +202,5 @@ The Unified Namespace is:
 
 ---
 
-**Platform Component (Prototype)** · Pharma Data Factory 2026  
+**Platform Component (Prototype)** · Nexora 2026  
 **MQTT Unified Namespace · Topic Registry · Contract Management**

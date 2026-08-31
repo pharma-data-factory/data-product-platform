@@ -8,7 +8,7 @@
 
 ## Overview
 
-Architecture Decision Records (ADRs) document significant architectural choices made in the Pharma Data Factory.
+Architecture Decision Records (ADRs) document significant architectural choices made in the Nexora.
 
 Each ADR follows a standard format:
 - **Context**: Why the decision was needed
@@ -90,7 +90,7 @@ Each ADR follows a standard format:
 **Status**: ACCEPTED  
 **Date**: MVP 1.0 (2026-08-25)
 
-**Decision**: The Pharma Data Factory is built on Backstage as the platform foundation.
+**Decision**: The Nexora is built on Backstage as the platform foundation.
 
 **Rationale**:
 - Backstage provides mature IDP capabilities (Catalog, Scaffolder, TechDocs, Permissions)

@@ -14,7 +14,7 @@ This document does **not** approve Intended Use. It proposes wording for Quality
 
 ## 1. Proposed Intended Use (summary)
 
-The **Pharma Data Factory / Data Product Platform (Platform Core / Control Plane)** is intended to provide an authenticated, authorization-controlled internal developer platform that enables authorized personnel to:
+The **Nexora / Data Product Platform (Platform Core / Control Plane)** is intended to provide an authenticated, authorization-controlled internal developer platform that enables authorized personnel to:
 
 1. **Discover** approved platform capabilities, documentation, and cataloged software/data-product assets.  
 2. **Create** standardized software repositories for Data Products and related services using governed Software Templates (Scaffolder), including technical integration with GitHub for repository publishing where configured.  

@@ -39,7 +39,6 @@ import ExtensionIcon from '@material-ui/icons/Extension';
 import AdminIcon from '@material-ui/icons/Security';
 import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
-import SettingsApplicationsIcon from '@material-ui/icons/SettingsApplications';
 import StoreIcon from '@material-ui/icons/Store';
 
 export const SidebarContent = NavContentBlueprint.make({
@@ -157,11 +156,6 @@ function PlatformSidebar() {
                   to="/plugin-directory"
                   title="Plugin Directory"
                 />
-                <SidebarSubmenuItem
-                  icon={SettingsApplicationsIcon}
-                  to="/settings"
-                  title="Platform Settings"
-                />
               </SidebarSubmenu>
             </SidebarItem>
           ) : null}
@@ -173,7 +167,7 @@ function PlatformSidebar() {
           <SidebarDivider />
           <NotificationsSidebarItem />
           <SidebarDivider />
-          <SidebarItem icon={SettingsIcon} to="/settings" text="Settings">
+          <SidebarItem icon={SettingsIcon} to="/access" text="Settings">
             <SidebarSubmenu title="Settings">
               <SidebarSubmenuItem
                 icon={VerifiedUserIcon}

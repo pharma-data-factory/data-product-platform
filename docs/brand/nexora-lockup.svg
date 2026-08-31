@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 168" role="img" aria-labelledby="nexoraTitle nexoraDesc">
   <title id="nexoraTitle">Nexora</title>
-  <desc id="nexoraDesc">Nexora  Pharma Data Factory Control Plane</desc>
+  <desc id="nexoraDesc">Nexora  Nexora Control Plane</desc>
   <defs>
     <linearGradient id="nexora-mark" x1="0" y1="0" x2="96" y2="96">
       <stop offset="0%" stop-color="#0A1929"/>
@@ -18,5 +18,5 @@
     <circle cx="64" cy="53" r="3.2" fill="#05101C" stroke="#5EE4F0" stroke-width="2"/>
   </g>
   <text x="148" y="88" fill="#F8FAFC" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="44" font-weight="700" letter-spacing="6">NEXORA</text>
-  <text x="148" y="122" fill="#00C2D9" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.2">PHARMA DATA FACTORY</text>
+  <text x="148" y="122" fill="#00C2D9" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.2">NEXORA</text>
 </svg>

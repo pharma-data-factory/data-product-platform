@@ -199,5 +199,5 @@ To adapt this for your use case:
 
 ---
 
-**Composition Proof (Reference Only)** · Pharma Data Factory 2026  
+**Composition Proof (Reference Only)** · Nexora 2026  
 **Machine State Events · Unified Namespace Integration**

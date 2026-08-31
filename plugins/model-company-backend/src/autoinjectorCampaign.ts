@@ -16,7 +16,6 @@ import type {
 import {
   batchTopic,
   buildEnvelope,
-  equipmentTopic,
   orderTopic,
   qosForInformationType,
   qualityTopic,
@@ -139,7 +138,7 @@ export function initialGenealogy(): GenealogyLink[] {
 }
 
 function msg(
-  config: UnsConfig,
+  _config: UnsConfig,
   topic: string,
   informationType: string,
   envelopeFields: Parameters<typeof buildEnvelope>[0],

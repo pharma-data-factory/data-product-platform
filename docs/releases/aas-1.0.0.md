@@ -8,7 +8,7 @@
 
 ## Release Summary
 
-The **Asset Administration Shell (AAS) 1.0.0** is the fourth certified Golden Path data product for Pharma Data Factory.
+The **Asset Administration Shell (AAS) 1.0.0** is the fourth certified Golden Path data product for Nexora.
 
 AAS provides a standardized digital representation of manufacturing assets and equipment, enabling organizations to:
 - Register and manage equipment hierarchies
@@ -321,7 +321,7 @@ If you were running AAS DEVELOPMENT version, migrate to v1.0.0:
 Developed in compliance with:
 - **IEC 63278-1:2024** — International electrotechnical commission standard
 - **IDTA Specifications** — Industrial Digital Twin Association
-- **Pharma Data Factory AGENTS.md** — Platform development guidelines
+- **Nexora AGENTS.md** — Platform development guidelines
 - **Wave 1 Baseline** — MQTT Temperature, REST Equipment, OEE patterns
 
 ---
@@ -384,6 +384,6 @@ Developed in compliance with:
 ---
 
 **Wave 2 Technical Baseline Release**  
-**Pharma Data Factory 2026**
+**Nexora 2026**
 
 Status: ✅ RELEASED

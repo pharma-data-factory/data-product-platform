@@ -26,7 +26,8 @@ import {
   PluginDirectorySummary,
   pluginDirectoryApiRef,
 } from '../api';
-import { StatusChip } from './shared';
+import { certificationTierFor } from '../tier';
+import { StatusChip, TierChip } from './shared';
 
 export function PluginDirectoryPage() {
   const classes = useNexoraToolStyles();
@@ -41,6 +42,7 @@ export function PluginDirectoryPage() {
   const [type, setType] = useState('');
   const [lifecycle, setLifecycle] = useState('');
   const [validationStatus, setValidationStatus] = useState('');
+  const [tier, setTier] = useState('');
 
   useEffect(() => {
     identityApi.getBackstageIdentity().then(identity => {
@@ -84,7 +86,7 @@ export function PluginDirectoryPage() {
       <NexoraToolPage
         eyebrow="Admin"
         title="Plugin Directory"
-        copy="Governance inventory of installed Nexora / Backstage plugins."
+        copy="Curated catalog of installed Nexora / Backstage extensions."
       >
         <Typography color="error">
           Plugin Directory requires Developer role or higher.
@@ -93,17 +95,21 @@ export function PluginDirectoryPage() {
     );
   }
 
+  const visibleItems = tier
+    ? items.filter(item => certificationTierFor(item) === tier)
+    : items;
+
   return (
     <NexoraToolPage
       eyebrow="Admin"
       title="Plugin Directory"
-      principle="Governed plugin inventory, not a Plugin Store."
+      principle="Curated Extension Catalog — discover, verify, and govern Nexora extensions."
       copy={
         isAdmin
-          ? 'Installed Nexora / Backstage plugins — discoverable, understandable, and validation-aware.'
-          : 'Read-only plugin inventory for developers. Install workflows are not available in v0.1.'
+          ? 'Installed Nexora / Backstage extensions — discoverable, verifiable, and validation-aware.'
+          : 'Read-only extension catalog for developers. Install workflows are not available in v0.1.'
       }
-      secondary="Distinguishes workspace presence, frontend/backend load state, and conservative validation metadata."
+      secondary="Distinguishes workspace presence, frontend/backend load state, certification tier, and conservative validation metadata."
     >
       {summary ? (
         <Grid container spacing={2} style={{ marginBottom: 16 }}>
@@ -209,6 +215,23 @@ export function PluginDirectoryPage() {
             ))}
           </Select>
         </FormControl>
+        <FormControl size="small" variant="outlined" style={{ minWidth: 160 }}>
+          <InputLabel id="plugin-tier-filter">Tier</InputLabel>
+          <Select
+            labelId="plugin-tier-filter"
+            label="Tier"
+            value={tier}
+            onChange={event => setTier(String(event.target.value))}
+            data-testid="tier-filter"
+          >
+            <MenuItem value="">All</MenuItem>
+            {['Community', 'Certified', 'Validated'].map(value => (
+              <MenuItem key={value} value={value}>
+                {value}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </div>
 
       {error ? <Typography color="error">{error}</Typography> : null}
@@ -223,12 +246,13 @@ export function PluginDirectoryPage() {
               <th>Frontend</th>
               <th>Backend</th>
               <th>Validation Status</th>
+              <th>Tier</th>
               <th>Owner</th>
               <th>Runtime Loaded</th>
             </tr>
           </thead>
           <tbody>
-            {items.map(row => (
+            {visibleItems.map(row => (
               <tr key={row.id}>
                 <td>
                   <RouterLink
@@ -260,6 +284,9 @@ export function PluginDirectoryPage() {
                 </td>
                 <td>
                   <StatusChip value={row.validationStatus} />
+                </td>
+                <td>
+                  <TierChip tier={certificationTierFor(row)} />
                 </td>
                 <td>{row.owner ?? '—'}</td>
                 <td>{row.runtimeLoaded ? 'Yes' : 'No'}</td>

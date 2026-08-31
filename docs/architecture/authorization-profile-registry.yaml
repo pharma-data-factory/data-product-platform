@@ -14,7 +14,7 @@ spec:
   registryVersion: "1.0.0"
   platformVersion: "1.0.0"
   description: |
-    Central registry of all authorization profiles for the Pharma Data Factory platform.
+    Central registry of all authorization profiles for the Nexora platform.
     Automatically loads all domain authorization profiles and registers permissions.
     Enables central Platform RBAC discovery of domain-specific permissions.
 

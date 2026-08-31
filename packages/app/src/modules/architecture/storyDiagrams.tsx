@@ -18,7 +18,7 @@ export function FullPlatformStackDiagram() {
       aria-label="Full platform stack from systems of record to consumers"
     >
       {[
-        ['CONTROL PLANE', 'Pharma Data Factory governs Catalog, Create, Marketplace, CI/CD, TechDocs, Search, RBAC and certification.'],
+        ['CONTROL PLANE', 'Nexora governs Catalog, Create, Marketplace, CI/CD, TechDocs, Search, RBAC and certification.'],
         ['GOLDEN PATHS', 'Certified compositions. MQTT Temperature, REST Equipment and OEE are CERTIFIED. Cold Chain, Quality, Energy and AI Assistant are future.'],
         ['PLATFORM COMPONENTS', 'Reusable technical capabilities. Intelligence components are planned.'],
         ['AAS AND UNS', 'AAS owns meaning. Unified Namespace owns operational data flow.'],
@@ -120,7 +120,7 @@ export function ControlPlaneVsDataPlaneDiagram() {
         <article className="pdf-diag-layer">
           <p className="pdf-diag-layer-title">CONTROL PLANE</p>
           <p style={{ margin: '0 0 12px', fontSize: 14, lineHeight: 1.6 }}>
-            Pharma Data Factory governs engineering: Catalog, Create, Marketplace,
+            Nexora governs engineering: Catalog, Create, Marketplace,
             Golden Paths, contracts, quality, compatibility, CI/CD, TechDocs,
             Search, RBAC, certification, versioning and Developer Hub.
           </p>

@@ -24,11 +24,6 @@ const ADMIN_LINKS = [
     to: '/plugin-directory',
     copy: 'Inventory of registered platform plugins.',
   },
-  {
-    title: 'Platform Settings',
-    to: '/settings',
-    copy: 'Platform configuration and settings.',
-  },
 ];
 
 const useStyles = makeStyles({

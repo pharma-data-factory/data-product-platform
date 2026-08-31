@@ -25,7 +25,7 @@
     "@backstage/core-components": "^0.18.12",
     "@backstage/core-plugin-api": "^1.12.8",
     "@backstage/frontend-plugin-api": "^0.17.3",
-    "@backstage/plugin-catalog-react": "^1.21.6",
+    "@backstage/plugin-catalog-react": "^3.2.0",
     "@internal/platform-common": "workspace:^",
     "@internal/plugin-data-products": "workspace:^",
     "@internal/plugin-nexora-common": "workspace:^",

@@ -20,9 +20,9 @@ backend:
   # Used for enabling authentication, secret is shared by all backend plugins
   # See https://backstage.io/docs/auth/service-to-service-auth for
   # information on the format
-  # auth:
-  #   keys:
-  #     - secret: ${BACKEND_SECRET}
+  auth:
+    keys:
+      - secret: ${BACKEND_SECRET}
   baseUrl: http://localhost:7007
   listen:
     port: 7007
@@ -51,6 +51,12 @@ backend:
     connection:
       directory: .sqlite
   # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
+
+# URS Composer runs in-memory for local development (matches the SQLite dev DB).
+# Production must set mode: postgres.
+ursComposer:
+  persistence:
+    mode: memory
 
 integrations:
   github:
@@ -93,6 +99,8 @@ auth:
     # The legacy frontend guest identity has no token and causes catalog 401s
     # when permission.enabled is true.
     guest:
+      # Frontend must see this key for the Guest sign-in button to appear.
+      # @visibility frontend
       userEntityRef: user:default/guest
       ownershipEntityRefs:
         - user:default/guest
@@ -109,6 +117,10 @@ auth:
         clientId: ${AUTH_GITHUB_CLIENT_ID}
         clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
         callbackUrl: ${AUTH_GITHUB_CALLBACK_URL:-http://localhost:7007/api/auth/github/handler/frame}
+        # The GitHub Actions tab needs repo/workflow scopes to read workflow runs.
+        additionalScopes:
+          - repo
+          - workflow
         signIn:
           resolvers:
             # Development-only convenience. Production must not set this.
@@ -128,6 +140,9 @@ catalog:
   locations:
     - type: file
       target: ../../catalog/entities.yaml
+
+    - type: file
+      target: ../../catalog/platform-apis.yaml
 
     # Local/demo fixtures only. Production and Docker must not load this.
     - type: file

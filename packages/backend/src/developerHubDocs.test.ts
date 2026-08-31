@@ -77,7 +77,7 @@ describe('Developer Hub TechDocs', () => {
     );
     expect(platform).toContain('```mermaid');
     expect(platform).toContain('IT/OT Systems');
-    expect(platform).toContain('Pharma Data Factory');
+    expect(platform).toContain('Nexora');
     expect(
       fs.readFileSync(
         path.join(ROOT, 'docs/architecture/data-product.md'),

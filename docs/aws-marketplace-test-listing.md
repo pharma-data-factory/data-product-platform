@@ -86,7 +86,7 @@ See [generated placeholders](legal/generated-placeholders.md) and
 
 ## Support boundary (test product only)
 
-Pharma Data Factory may support: Marketplace registration integration,
+Nexora may support: Marketplace registration integration,
 entitlement resolution, Golden Path generation, template defects, the
 `dataprod` contract framework, and Control Plane defects.
 

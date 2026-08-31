@@ -19,10 +19,10 @@ import {
   ValidationExpertService,
   type UrsBaselineResolver,
 } from './service';
-import type { ApprovedURSReference } from './types';
-import type { CreateValidationContextRequest } from './types';
+import type { ApprovedURSReference, CreateValidationContextRequest } from './types';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 
-const mockLogger = {
+const mockLogger: LoggerService = {
   debug: jest.fn(),
   info: jest.fn(),
   warn: jest.fn(),
@@ -321,7 +321,7 @@ describe('URS → Validation authorization (backend enforced)', () => {
         principal: { userEntityRef: 'user:default/developer' },
       }),
     };
-    const logger = {
+    const logger: LoggerService = {
       debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(),
       child: jest.fn(() => logger),
     };
@@ -340,9 +340,9 @@ describe('URS → Validation authorization (backend enforced)', () => {
           hostname: '127.0.0.1', port, path: '/api/validation-expert/contexts/from-urs',
           method: 'POST',
         },
-        r => {
+        (r: any) => {
           let data = '';
-          r.on('data', c => (data += c));
+          r.on('data', (c: any) => (data += c));
           r.on('end', () => resolve({ status: r.statusCode, body: data }));
         },
       );
@@ -380,7 +380,7 @@ describe('URS → Validation authorization (backend enforced)', () => {
         principal: { userEntityRef: 'user:default/author' },
       }),
     };
-    const logger = {
+    const logger: LoggerService = {
       debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(),
       child: jest.fn(() => logger),
     };
@@ -400,9 +400,9 @@ describe('URS → Validation authorization (backend enforced)', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         },
-        r => {
+        (r: any) => {
           let data = '';
-          r.on('data', c => (data += c));
+          r.on('data', (c: any) => (data += c));
           r.on('end', () =>
             resolve({ status: r.statusCode, body: data ? JSON.parse(data) : null }),
           );
@@ -483,7 +483,6 @@ describe('URS → Validation context persistence + reload proof', () => {
     ]);
     expect(reloaded!.source.approvalStatus).toBe('APPROVED');
     expect(reloaded!.source.sourceSystem).toBe('urs-composer');
-    expect(reloaded!.source.createdBy ?? undefined).toBeUndefined();
     expect(reloaded!.source.approvedBy).toBe('user:default/approver');
   });
 

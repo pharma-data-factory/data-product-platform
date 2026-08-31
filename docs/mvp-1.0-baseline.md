@@ -1,4 +1,4 @@
-# Pharma Data Factory — MVP 1.0 Baseline
+# Nexora — MVP 1.0 Baseline
 
 Owner: Platform Team  
 Last reviewed: 2026-08-21  
@@ -17,7 +17,7 @@ distribution license. Status dimensions must not be collapsed. See
 
 | Field | Value |
 | --- | --- |
-| Product | Pharma Data Factory |
+| Product | Nexora |
 | Baseline | MVP 1.0 |
 | Technical verdict | TECHNICAL_MVP_COMPLETE |
 | Customer pilot | PILOT_READY_WITH_CONDITIONS |
@@ -101,7 +101,7 @@ P0/P1 defect requires it.
 | MQTT Consumer | `component:default/mqtt-consumer` | `pdf-mqtt-consumer` | 1.0.0 | CERTIFIED | production |
 | Time-Series Storage | `component:default/timeseries` | `pdf-timeseries` | 1.0.0 | CERTIFIED | production |
 
-CERTIFIED means Pharma Data Factory technical conformance only.
+CERTIFIED means Nexora technical conformance only.
 
 CERTIFIED does **not** mean GxP validated, regulatory approved,
 commercially approved, or AWS Marketplace listed.

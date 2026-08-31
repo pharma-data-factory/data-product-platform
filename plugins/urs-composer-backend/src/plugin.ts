@@ -75,7 +75,7 @@ export const ursComposerPlugin = createBackendPlugin({
               'URS Composer requires PostgreSQL to be configured and running. ' +
               'Set ursComposer.persistence.mode=memory in app-config.yaml to use in-memory ' +
               '(development/testing only).',
-              error,
+              error as Error,
             );
             throw new Error(
               `URS Composer PostgreSQL initialization failed: ${error instanceof Error ? error.message : String(error)}`,

@@ -12,7 +12,7 @@ Quick Start command list here.
 
 ## Platform introduction
 
-Pharma Data Factory is the Control Plane for manufacturing Data Products.
+Nexora is the Control Plane for manufacturing Data Products.
 Backstage is the framework. The product experience is Marketplace, Create,
 Catalog, Data Products, TechDocs, Search, and Platform Components.
 

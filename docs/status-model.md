@@ -5,20 +5,20 @@ Last reviewed: 2026-08-21
 Audience: INTERNAL ENGINEERING / PRODUCT  
 Version: 1.0.0
 
-Pharma Data Factory never collapses these four dimensions into one badge.
+Nexora never collapses these four dimensions into one badge.
 
 Authoritative freeze: [MVP 1.0 baseline](mvp-1.0-baseline.md).
 
 ## Implementation status
 
 Technical conformance of an asset (template, component, or generated
-instance) to the Pharma Data Factory standard.
+instance) to the Nexora standard.
 
 | Status | Meaning |
 | --- | --- |
 | DEVELOPMENT | Work in progress. Not a certified product asset. |
 | TESTED | Automated/manual tests pass. Not yet CERTIFIED. |
-| CERTIFIED | Conforms to the applicable Pharma Data Factory technical standard. |
+| CERTIFIED | Conforms to the applicable Nexora technical standard. |
 
 CERTIFIED does **not** mean GxP validated, regulatory approved,
 commercially approved, or AWS Marketplace listed.

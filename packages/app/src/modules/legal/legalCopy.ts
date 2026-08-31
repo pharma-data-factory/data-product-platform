@@ -163,6 +163,7 @@ const enPages: Record<LegalPageKey, LegalPageCopy> = {
     body: [
       'REVIEW PLACEHOLDER — NOTICE and THIRD_PARTY_NOTICES text is not counsel-approved yet.',
       'Nexora is a commercial product. Backstage is the open-source framework (Apache-2.0). Apache-2.0 does not grant trademark rights in Backstage®.',
+      'Backstage® is a trademark of The Linux Foundation. Originally created at Spotify, Backstage is now a Cloud Native Computing Foundation (CNCF) project, licensed under Apache-2.0.',
       'Required OSS attribution will be published here after counsel completes the Phase 0 gates. This page does not replace LICENSE or NOTICE files.',
     ],
   },
@@ -304,6 +305,7 @@ const dePages: Record<LegalPageKey, LegalPageCopy> = {
     body: [
       'REVIEW PLACEHOLDER — NOTICE- und THIRD_PARTY_NOTICES-Text ist noch nicht counsel-freigegeben.',
       'Nexora ist ein kommerzielles Produkt. Backstage ist das Open-Source-Framework (Apache-2.0). Apache-2.0 gewährt keine Markenrechte an Backstage®.',
+      'Backstage® ist eine Marke der Linux Foundation. Ursprünglich bei Spotify entwickelt, ist Backstage heute ein Projekt der Cloud Native Computing Foundation (CNCF) unter Apache-2.0-Lizenz.',
       'Erforderliche OSS-Attribution wird hier veröffentlicht, sobald Counsel die Phase-0-Gates abgeschlossen hat. Diese Seite ersetzt keine LICENSE- oder NOTICE-Dateien.',
     ],
   },

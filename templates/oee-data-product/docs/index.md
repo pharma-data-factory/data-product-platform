@@ -137,5 +137,5 @@ At runtime, OEE does **not** depend on Backstage:
 
 ---
 
-**Certified Golden Path Template** · Pharma Data Factory 2026  
+**Certified Golden Path Template** · Nexora 2026  
 **Availability × Performance × Quality**

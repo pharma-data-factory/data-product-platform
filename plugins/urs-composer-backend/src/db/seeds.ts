@@ -11,7 +11,6 @@
  */
 
 import { Knex } from 'knex';
-import { v4 as uuid } from 'uuid';
 
 /**
  * Seed business capabilities

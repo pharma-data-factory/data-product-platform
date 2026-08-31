@@ -534,10 +534,9 @@ export async function createRouter(
           return;
         }
         const baseline = await service.createBaseline(
-          {
-            ...data,
-            requirementSetId: req.params.id,
-          },
+          req.params.id,
+          data.requirementVersionIds,
+          data.baselineVersion ?? '1.0',
           actor,
         );
         res.status(201).json(baseline);
@@ -736,7 +735,7 @@ export async function createRouter(
           req.params.id,
           req.params.stepId,
           actor,
-          data.reason || data.comment,
+          data.reason || data.comment || '',
         );
         res.json(updated);
       } catch (err) {

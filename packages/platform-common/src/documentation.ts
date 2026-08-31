@@ -150,7 +150,7 @@ export const DOCUMENTATION_PAGES: DocumentationPage[] = [
   }),
   page({
     id: 'fundamentals-data-products',
-    title: 'What is Pharma Data Factory?',
+    title: 'What is Nexora?',
     path: '/fundamentals/data-products',
     kind: 'Platform Documentation',
     audience: 'PLATFORM_USER',
@@ -182,6 +182,15 @@ export const DOCUMENTATION_PAGES: DocumentationPage[] = [
     kind: 'Golden Path',
     audience: 'PLATFORM_USER',
     owner: 'Golden Path Team',
+    section: 'PLATFORM FUNDAMENTALS',
+  }),
+  page({
+    id: 'glossary',
+    title: 'Glossary',
+    path: '/fundamentals/glossary',
+    kind: 'Platform Documentation',
+    audience: 'PLATFORM_USER',
+    owner: 'Platform Team',
     section: 'PLATFORM FUNDAMENTALS',
   }),
   page({
@@ -1706,7 +1715,7 @@ export const FIRST_DAY_STEPS: FirstDayStep[] = [
   {
     id: 'run-locally',
     title: 'Start locally',
-    why: 'Prove the Data Plane starts without Pharma Data Factory.',
+    why: 'Prove the Data Plane starts without Nexora.',
     action: 'Follow the product README. Copy .env.example and start with Docker Compose or Python 3.12.',
     expected: 'Health endpoint returns 200.',
     commonError: 'Missing MQTT broker or SOURCE_API_URL fails startup. Use the values from .env.example.',
@@ -2100,7 +2109,7 @@ export function contextualDocumentationHref(
   return documentationHref('versioning');
 }
 
-export function recentlyUpdatedPages(limit = 6): DocumentationPage[] {
+export function documentationIndexPages(limit = 6): DocumentationPage[] {
   const hubIds = new Set(
     DEVELOPER_HUB_SECTIONS.flatMap(section => section.pages.map(hub => hub.id)),
   );
@@ -2189,3 +2198,53 @@ export function isCustomerFacingAudience(audience: DocAudience): boolean {
 export function publicCustomerAudiences(): DocAudience[] {
   return ['CUSTOMER_PLATFORM', 'SAAS_CUSTOMER'];
 }
+
+export const AUDIENCE_LABELS: Record<DocAudience, string> = {
+  INTERNAL_ENGINEERING: 'Internal Engineering',
+  PLATFORM_USER: 'Platform User',
+  CUSTOMER_PLATFORM: 'Customer Platform',
+  SAAS_CUSTOMER: 'SaaS Customer',
+};
+
+export function audienceLabel(audience: DocAudience): string {
+  return AUDIENCE_LABELS[audience];
+}
+
+export function documentationPagesForAudience(
+  audience: DocAudience,
+): DocumentationPage[] {
+  return DOCUMENTATION_PAGES.filter(page => page.audience === audience);
+}
+
+export interface DocumentationPersona {
+  id: string;
+  title: string;
+  description: string;
+  pageIds: string[];
+}
+
+export const DOCUMENTATION_PERSONAS: DocumentationPersona[] = [
+  {
+    id: 'developer',
+    title: 'Developer',
+    description: 'Build, deliver, and operate Data Products.',
+    pageIds: ['first-data-product', 'platform-components', 'sdk', 'contracts'],
+  },
+  {
+    id: 'product-manager',
+    title: 'Product Manager',
+    description: 'Understand capabilities, status, and editions.',
+    pageIds: [
+      'capability-matrix',
+      'status-model',
+      'commercial-architecture',
+      'platform-edition',
+    ],
+  },
+  {
+    id: 'customer',
+    title: 'Customer',
+    description: 'Customer-facing documentation is planned, not yet published.',
+    pageIds: ['glossary', 'classification'],
+  },
+];

@@ -1,4 +1,4 @@
-"""Rasterize Pharma Data Factory brand icons. Run from packages/app/public."""
+"""Rasterize Nexora brand icons. Run from packages/app/public."""
 
 from __future__ import annotations
 

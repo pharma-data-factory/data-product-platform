@@ -1,6 +1,6 @@
 # Identity, RBAC, and landing experience
 
-Pharma Data Factory uses Backstage authentication and the Permission
+Nexora uses Backstage authentication and the Permission
 Framework. There is no third-party RBAC platform in this milestone.
 
 ## Auth architecture
@@ -35,7 +35,7 @@ GitHub OAuth scopes.
 The page message is:
 
 > Your GitHub identity was authenticated successfully, but you do not
-> currently have access to this Pharma Data Factory environment.
+> currently have access to this Nexora environment.
 >
 > Contact your platform administrator to request access.
 

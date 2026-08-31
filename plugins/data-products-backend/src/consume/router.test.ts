@@ -26,7 +26,7 @@ describe('consume router', () => {
     credentials: jest.fn(async () => ({ $$type: '@backstage/BackstageCredentials' })),
   };
   const permissions = {
-    authorize: jest.fn(async () => [{ result: AuthorizeResult.ALLOW }]),
+    authorize: jest.fn(async () => [{ result: AuthorizeResult.ALLOW }] as { result: AuthorizeResult }[]),
   };
   const logger = { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() };
 

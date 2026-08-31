@@ -5,7 +5,7 @@ Last reviewed: 2026-08-19
 Audience: INTERNAL ENGINEERING  
 Version: MVP 1.1
 
-Pharma Data Factory is the engineering and governance Control Plane.
+Nexora is the engineering and governance Control Plane.
 IT/OT systems stay systems of record. Data Products sit on governed
 interfaces. Consumers bind to contracts, not to source internals.
 
@@ -21,7 +21,7 @@ flowchart LR
   GI["Governed Interfaces<br/>API · Events · MQTT · REST · UNS"]
   DP["Data Products"]
   CONS["Consumers"]
-  CP["Pharma Data Factory<br/>Control Plane"]
+  CP["Nexora<br/>Control Plane"]
 
   ITOT --> GI --> DP --> CONS
   CP -.->|catalog · identity · Golden Paths · TechDocs| DP
@@ -111,7 +111,7 @@ flowchart TB
   classDef teal fill:#0D9488,stroke:#0D9488,color:#ffffff
   classDef light fill:#E8EEF4,stroke:#0B1F3A,color:#0B1F3A
 
-  CP[Pharma Data Factory Control Plane]
+  CP[Nexora Control Plane]
   CAT[Catalog]
   MKT[Marketplace]
   CRT[Create]
@@ -245,7 +245,7 @@ flowchart TB
   GP[Golden Path]
   DP[Data Product]
   CONS[Dashboard / Analytics / future AI Assistant]
-  CP[Pharma Data Factory Control Plane]
+  CP[Nexora Control Plane]
 
   SOR --> AAS
   SOR --> UNS

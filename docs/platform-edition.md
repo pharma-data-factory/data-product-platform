@@ -20,7 +20,7 @@ Platform Release
       ↓
 Customer AWS Account
       ↓
-Pharma Data Factory Control Plane
+Nexora Control Plane
       ↓
 Customer Identity Provider
       ↓

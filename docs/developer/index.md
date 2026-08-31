@@ -6,7 +6,7 @@ Applicable Platform: Data Product Standard 1.0.x
 Last Reviewed: 2026-08  
 Audience: INTERNAL ENGINEERING
 
-This is the TechDocs home for **Pharma Data Factory** developers. The
+This is the TechDocs home for **Nexora** developers. The
 authenticated portal entry is **Developer Hub** at `/developer`. These
 pages are versioned with the platform repository and published through
 Backstage TechDocs. Do not create a second wiki.

@@ -5,7 +5,7 @@ Last reviewed: 2026-08-21
 Audience: INTERNAL ENGINEERING  
 Version: 1.0.0
 
-Frozen baseline for the Pharma Data Factory pilot hardening gate.
+Frozen baseline for the Nexora pilot hardening gate.
 Do not change component APIs or runtime semantics unless a demonstrated
 P0/P1 defect requires it.
 

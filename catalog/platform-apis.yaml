@@ -1,0 +1,163 @@
+# Control-plane platform APIs (owned backend HTTP surfaces).
+# AAS Foundation is a PROTOTYPE adapter with in-memory persistence.
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: aas-foundation-api
+  title: AAS Foundation API
+  description: Asset Administration Shell control-plane adapter (prototype, in-memory storage).
+  tags:
+    - aas
+    - platform-api
+  annotations:
+    dataprod.platform/catalog-class: PLATFORM
+    dataprod.platform/prototype: 'true'
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: data-platform
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: AAS Foundation API
+      description: |
+        Asset Administration Shell control-plane adapter. PROTOTYPE with
+        in-memory persistence. Mounted under /api/aas.
+      version: 0.1.0
+    servers:
+      - url: /api/aas
+    paths:
+      /health:
+        get:
+          summary: Service health
+          responses:
+            '200':
+              description: OK
+      /assets:
+        get:
+          summary: List assets
+          responses:
+            '200':
+              description: Asset list
+        post:
+          summary: Create asset
+          responses:
+            '201':
+              description: Created
+            '400':
+              description: Validation error
+            '409':
+              description: Conflict
+      /assets/{assetId}:
+        get:
+          summary: Get asset
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Asset
+            '404':
+              description: Not found
+        put:
+          summary: Update asset
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Updated
+            '404':
+              description: Not found
+      /assets/{assetId}/deactivate:
+        post:
+          summary: Deactivate asset
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Updated
+      /assets/{assetId}/properties:
+        get:
+          summary: List properties
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Properties
+        post:
+          summary: Add property
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '201':
+              description: Created
+      /assets/{assetId}/submodels:
+        get:
+          summary: List submodels
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Submodels
+      /assets/{assetId}/relationships:
+        get:
+          summary: List relationships
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Relationships
+      /resolve/assets/{assetId}:
+        get:
+          summary: Resolve asset
+          parameters:
+            - name: assetId
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Asset
+      /audit:
+        get:
+          summary: List audit events
+          parameters:
+            - name: assetId
+              in: query
+              required: false
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Audit events

@@ -114,6 +114,7 @@ export interface RequirementSet {
   id: string; // UUID
   requirementSetId: string; // Human-readable: URS-WD, URS-EQ, etc. (generated server-side)
   versionNumber: number;
+  revision?: number; // Optimistic concurrency control
 
   // BUSINESS LAYER
   businessCapabilityRefs: string[]; // ["business-capability:make/equipment-performance-management"]
@@ -197,7 +198,15 @@ export interface Approval {
  */
 export interface AuditEvent {
   id: string; // UUID
-  entityType: 'REQUIREMENT_SET' | 'REQUIREMENT' | 'APPROVAL' | 'RELATIONSHIP';
+  entityType:
+    | 'REQUIREMENT_SET'
+    | 'REQUIREMENT'
+    | 'APPROVAL'
+    | 'RELATIONSHIP'
+    | 'REQUIREMENT_VERSION'
+    | 'BASELINE'
+    | 'APPROVAL_INSTANCE'
+    | 'APPROVAL_STEP';
   entityId: string;
   eventType: string;
   // Semantic/string version identifier of the audited entity when relevant
@@ -211,6 +220,7 @@ export interface AuditEvent {
   timestamp: Date;
   correlationId?: string;
   reason?: string;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -249,6 +259,7 @@ export interface CreateRequirementSetRequest {
   desiredOutcome?: string;
   businessValue?: string;
   stakeholders?: string[];
+  processContext?: string;
   solutionType: SolutionType;
   solutionName: string;
   solutionCatalogRef?: string;
@@ -446,6 +457,7 @@ export interface ApprovalStep {
   sequence: number;
   role: ApprovalRole;
   status: ApprovalStepStatus;
+  required?: boolean;
 
   assignedTo?: string; // User entity ref
   decision?: 'APPROVED' | 'REJECTED' | 'SKIPPED';

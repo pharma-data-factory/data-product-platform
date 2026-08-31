@@ -1,6 +1,5 @@
 import { Button } from '@material-ui/core';
 import ArrowForwardIcon from '@material-ui/icons/ArrowForward';
-import PlayArrowIcon from '@material-ui/icons/PlayArrow';
 import { useLandingI18n } from '../landingI18n';
 import { HeroArchitecture } from './HeroArchitecture';
 import { NX } from './icons';
@@ -17,18 +16,35 @@ export function HeroContent({ error }: Readonly<{ error?: string }>) {
         <span className="nx-hero-accent">{t.hero.headlineAccent}</span>
       </h1>
       <p className="nx-hero-body">{t.hero.sub}</p>
+      <p
+        className="pdf-mono"
+        style={{
+          margin: '14px 0 0',
+          fontSize: 12.5,
+          letterSpacing: '0.02em',
+          lineHeight: 1.6,
+          color: 'rgba(182,195,210,0.92)',
+          maxWidth: 560,
+        }}
+      >
+        {t.hero.clarification}
+      </p>
       <div className="nx-hero-actions">
-        <Button className="pdf-btn-hero-primary pdf-focus" variant="contained" href="#golden-paths">
+        <Button className="pdf-btn-hero-primary pdf-focus" variant="contained" href="#platform">
           {t.hero.discover}
         </Button>
-        <Button className="pdf-btn-hero-ghost pdf-focus" variant="outlined" href="#contact">
-          <PlayArrowIcon style={{ fontSize: 18, marginRight: 6 }} />
+        <Button className="pdf-btn-hero-ghost pdf-focus" variant="outlined" href="#marketplace">
           {t.hero.demo}
         </Button>
       </div>
-      <a href="#how-it-works" className="pdf-focus nx-hero-more">
-        {t.hero.primary} <ArrowForwardIcon style={{ fontSize: 16 }} />
-      </a>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 20 }}>
+        <a href="#build" className="pdf-focus nx-hero-more" style={{ marginTop: 0 }}>
+          {t.hero.primary} <ArrowForwardIcon style={{ fontSize: 16 }} />
+        </a>
+        <a href="#enterprise" className="pdf-focus nx-hero-more" style={{ marginTop: 0 }}>
+          {t.hero.secondary} <ArrowForwardIcon style={{ fontSize: 16 }} />
+        </a>
+      </div>
       {error ? (
         <p role="alert" style={{ color: '#FECACA', marginTop: 16 }}>
           {error}

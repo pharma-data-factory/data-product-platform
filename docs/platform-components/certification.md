@@ -12,12 +12,12 @@ Technical lifecycle for Platform Components:
 | PLANNED | Catalog placeholder. Not supported in compositions. |
 | DEVELOPMENT | Registered and evolving. Supported for composition validation. |
 | TESTED | Automated tests exist for the component contract. |
-| CERTIFIED | Conforms to the Pharma Data Factory **technical** Platform Component standard. |
+| CERTIFIED | Conforms to the Nexora **technical** Platform Component standard. |
 | DEPRECATED | Must not be used in new compositions. |
 
 CERTIFIED means only:
 
-> Conforms to the Pharma Data Factory technical Platform Component standard.
+> Conforms to the Nexora technical Platform Component standard.
 
 It does **not** mean:
 

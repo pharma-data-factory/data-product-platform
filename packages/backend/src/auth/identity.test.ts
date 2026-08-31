@@ -82,7 +82,7 @@ describe('GitHub user sign-in configuration', () => {
     expect(envExample).toContain('AUTH_GITHUB_CALLBACK_URL=');
     expect(envExample).toContain('GITHUB_APP_ID=');
     expect(envExample).toContain('Do not reuse these values for AUTH_GITHUB_');
-    expect(envExample).toContain('Pharma Data Factory Login');
+    expect(envExample).toContain('Nexora Login');
 
     expect(appConfig).not.toMatch(/personalAccessToken|PERSONAL_ACCESS_TOKEN/);
     expect(githubApp).not.toMatch(/personalAccessToken|GITHUB_TOKEN/);

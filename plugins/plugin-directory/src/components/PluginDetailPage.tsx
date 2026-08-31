@@ -13,7 +13,8 @@ import {
 } from '@internal/platform-common';
 import { Typography } from '@material-ui/core';
 import { NexoraPluginDescriptor, pluginDirectoryApiRef } from '../api';
-import { DetailRow, StatusChip } from './shared';
+import { certificationTierFor } from '../tier';
+import { DetailRow, StatusChip, TierChip } from './shared';
 
 export function PluginDetailPage() {
   const classes = useNexoraToolStyles();
@@ -99,6 +100,10 @@ export function PluginDetailPage() {
           value={<StatusChip value={plugin.lifecycle} />}
         />
         <DetailRow label="Source" value={plugin.source} />
+        <DetailRow
+          label="Certification Tier"
+          value={<TierChip tier={certificationTierFor(plugin)} />}
+        />
         <DetailRow label="Owner" value={plugin.owner} />
       </NexoraSection>
 

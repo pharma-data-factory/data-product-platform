@@ -141,3 +141,14 @@ spec:
   system: integration-platform
   definition: |
     Composition-proof machine-state-event 1.0.0. Distinct from the demonstration machine-state contract.
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: github-actions-test
+  annotations:
+    github.com/project-slug: pharma-data-factory/data-product-platform
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-team
