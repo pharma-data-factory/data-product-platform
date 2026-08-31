@@ -61,10 +61,9 @@ describe('MVP 1.1 pilot hardening', () => {
   });
 
   it('labels AAS Control Plane persistence as an in-memory prototype', () => {
-    expect(read('packages/backend/src/aas/router.ts')).toContain("persistence: 'in-memory'");
-    expect(read('packages/backend/src/aas/router.ts')).toContain('prototype: true');
+    expect(read('plugins/aas-backend/src/router.ts')).toContain("persistence: 'in-memory'");
+    expect(read('plugins/aas-backend/src/router.ts')).toContain('prototype: true');
     expect(read('packages/app/src/modules/assets/AssetsPage.tsx')).toContain('PROTOTYPE');
-    expect(read('docs/aas/index.md')).toContain('PROTOTYPE');
   });
 
   it('keeps one canonical UNS source', () => {

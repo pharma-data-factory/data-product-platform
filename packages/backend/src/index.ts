@@ -1,7 +1,7 @@
 import { createBackend } from '@backstage/backend-defaults';
 import { catalogModuleCertificationOverlay } from '@internal/plugin-data-products-backend';
 import { permissionModulePlatformPolicy } from './permission/module';
-import { aasPlugin } from './aas/plugin';
+import { aasPlugin } from '@internal/plugin-aas-backend';
 
 const backend = createBackend();
 
@@ -41,11 +41,9 @@ backend.add(aasPlugin);
 backend.add(import('@internal/plugin-entitlements-backend'));
 backend.add(import('@internal/plugin-nexora-backend'));
 backend.add(import('@internal/plugin-validation-expert-backend'));
-backend.add(import('@internal/plugin-validation-manager-backend'));
 backend.add(import('@internal/plugin-urs-composer-backend'));
 backend.add(import('@internal/plugin-directory-backend'));
 backend.add(import('@internal/plugin-model-company-backend'));
-backend.add(import('@internal/plugin-authorization-registry-backend'));
 
 backend.add(import('@backstage/plugin-events-backend'));
 backend.add(import('@backstage/plugin-signals-backend'));

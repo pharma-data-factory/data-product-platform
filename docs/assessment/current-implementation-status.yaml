@@ -99,7 +99,7 @@ components:
     mode_default: mock
   - id: COMP-008
     name: aas-adapter
-    location: packages/backend/src/aas
+    location: plugins/aas-backend
     status: PROTOTYPE
     maturity: PLUGIN_M2
     persistence: in_memory

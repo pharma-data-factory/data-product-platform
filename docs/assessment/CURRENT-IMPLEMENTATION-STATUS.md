@@ -27,7 +27,7 @@
 
 ## Executive Summary
 
-Pharma Data Factory is a Backstage 1.53.0 monorepo (`yarn@4.13.0`, Node 22/24) implementing a Control Plane (catalog, scaffolder, marketplace, data products, entitlements, Nexora industrial plugins) plus three official Golden Path templates whose **generated application content** builds/tests locally. Backend health was verified on the developer instance (`http://127.0.0.1:7007/.backstage/health/v1/liveness` → `{"status":"ok"}`) and on the Platform Core RC2 validation Compose stack (`:7008` → ok). Frontend on `:3000` was **not reachable** during this assessment (`NOT VERIFIED`). Authentication is Guest (development) + GitHub OAuth; production/docker configs forbid Guest. Authorization is a real permission policy (RBAC + commercial entitlement AND) with unit tests passing. Persistence is SQLite locally and PostgreSQL in Compose/validation stacks; AAS is explicitly in-memory prototype. Validation Expert and Plugin Directory exist as substantial WIP in the dirty working tree and respond on local `/api/*/health`, but are **untracked relative to HEAD** and must not be treated as released platform features. No true automated E2E (developer → scaffold → GitHub → running service) was executed. CSV Phase 0 may proceed **with conditions** (freeze baseline commit, exclude WIP plugins, keep `NOT_VALIDATED`).
+Nexora is a Backstage 1.53.0 monorepo (`yarn@4.13.0`, Node 22/24) implementing a Control Plane (catalog, scaffolder, marketplace, data products, entitlements, Nexora industrial plugins) plus three official Golden Path templates whose **generated application content** builds/tests locally. Backend health was verified on the developer instance (`http://127.0.0.1:7007/.backstage/health/v1/liveness` → `{"status":"ok"}`) and on the Platform Core RC2 validation Compose stack (`:7008` → ok). Frontend on `:3000` was **not reachable** during this assessment (`NOT VERIFIED`). Authentication is Guest (development) + GitHub OAuth; production/docker configs forbid Guest. Authorization is a real permission policy (RBAC + commercial entitlement AND) with unit tests passing. Persistence is SQLite locally and PostgreSQL in Compose/validation stacks; AAS is explicitly in-memory prototype. Validation Expert and Plugin Directory exist as substantial WIP in the dirty working tree and respond on local `/api/*/health`, but are **untracked relative to HEAD** and must not be treated as released platform features. No true automated E2E (developer → scaffold → GitHub → running service) was executed. CSV Phase 0 may proceed **with conditions** (freeze baseline commit, exclude WIP plugins, keep `NOT_VALIDATED`).
 
 ---
 
@@ -74,7 +74,7 @@ IMPLEMENTED_IN_WORKING_TREE_NOT_IN_HEAD
 | COMP-005 | Data Products FE/BE | `plugins/data-products*` | DP views, CI status, certification overlay | React + backend plugin | Node | JSON overlays + catalog | many unit tests | **IMPLEMENTED_NOT_VERIFIED** (API auth) |
 | COMP-006 | Entitlements BE | `plugins/entitlements-backend` | Commercial entitlement / create authorize | backend plugin | Node | config + optional file store | router tests | **IMPLEMENTED_NOT_VERIFIED** (runtime) |
 | COMP-007 | Nexora industrial | `plugins/nexora-*` | Equipment/contracts/quality UI + industrial API | React + BE | Node | mock/remote | unit tests | **PARTIAL** (mock default) |
-| COMP-008 | AAS adapter | `packages/backend/src/aas` | AAS prototype API | in-tree backend | Node | **IN MEMORY** | unit tests | **PROTOTYPE** |
+| COMP-008 | AAS adapter | `plugins/aas-backend` | AAS prototype API | backend plugin | Node | **IN MEMORY** | unit tests | **PROTOTYPE** |
 | COMP-009 | Validation Expert | `plugins/validation-expert*` | Validation workbench | React + BE | Node | validation/ MD + JSON runs | unit PASS (WT) | **PARTIAL / WIP** (not in HEAD) |
 | COMP-010 | Plugin Directory | `plugins/plugin-directory*` | Admin plugin inventory | React + BE | Node | FS scan | unit PASS (WT) | **PARTIAL / WIP** (not in HEAD) |
 | COMP-011 | Official GP templates | `templates/{mqtt-temperature,rest-equipment,oee}-product` | Golden Paths | FastAPI Python | generated services | app-local | pytest PASS | **CONTENT VERIFIED**; scaffold/publish **NOT TESTED** |
@@ -421,7 +421,7 @@ True E2E: **NOT PRESENT / NOT VERIFIED**.
 
 ### P3 — LOW
 
-13. Naming drift across docs (Pharma Data Factory / Nexora / PDF)  
+13. Naming drift across docs (Nexora / Nexora / PDF)  
 14. Multiple Compose files with overlapping purposes  
 
 ---

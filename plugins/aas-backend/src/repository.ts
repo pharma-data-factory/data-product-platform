@@ -236,7 +236,7 @@ export function defaultSeedPath(): string {
     path.resolve(process.cwd(), relative),
     path.resolve(process.cwd(), '..', relative),
     path.resolve(process.cwd(), '../..', relative),
-    resolvePackagePath('backend', `../../${relative}`),
+    resolvePackagePath('@internal/plugin-aas-backend', `../../${relative}`),
   ]);
   const match = candidates.find(item => fs.existsSync(item));
   if (!match) {

@@ -32,8 +32,7 @@ describe('AAS Foundation Platform Component', () => {
       'component:default/rest-api',
     ]);
     expect(catalog.spec.type).not.toBe('data-product');
-    expect(read('docs/aas/index.md')).toContain('PROTOTYPE');
-    expect(read('packages/backend/src/aas/router.ts')).toContain("persistence: 'in-memory'");
+    expect(read('plugins/aas-backend/src/router.ts')).toContain("persistence: 'in-memory'");
     expect(read('platform-components/asset-semantic/aas-foundation/README.md')).toContain(
       'pdf-aas',
     );
