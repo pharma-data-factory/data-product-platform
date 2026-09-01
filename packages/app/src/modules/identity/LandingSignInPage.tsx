@@ -2,7 +2,9 @@ import { useState } from 'react';
 import {
   configApiRef,
   discoveryApiRef,
+  fetchApiRef,
   githubAuthApiRef,
+  identityApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
 import { UserIdentity } from '@backstage/core-components';
@@ -45,6 +47,25 @@ export function LandingSignInPage(props: SignInPageProps) {
   const configApi = useApi(configApiRef);
   const discoveryApi = useApi(discoveryApiRef);
   const githubAuth = useApi(githubAuthApiRef);
+  const fetchApi = useApi(fetchApiRef);
+  const identityApi = useApi(identityApiRef);
+
+  const recordSignIn = async (provider: string) => {
+    try {
+      const baseUrl = await discoveryApi.getBaseUrl('users');
+      const { token } = await identityApi.getCredentials();
+      await fetchApi.fetch(`${baseUrl}/signins`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ provider }),
+      });
+    } catch {
+      // Best-effort audit; never block sign-in on a recording failure.
+    }
+  };
   const [error, setError] = useState<string>();
   const [view, setView] = useState<'landing' | 'login' | 'denied'>(() =>
     isModelCompanyPath(window.location.pathname) &&
@@ -113,6 +134,7 @@ export function LandingSignInPage(props: SignInPageProps) {
           profile: profile ?? undefined,
         }),
       );
+      void recordSignIn('github');
     } catch (err) {
       if (isUnapprovedGithubUserError(err) || isAccessDeniedError(err)) {
         try {
@@ -132,6 +154,7 @@ export function LandingSignInPage(props: SignInPageProps) {
       setError(undefined);
       const identity = await createGuestIdentity(discoveryApi);
       props.onSignInSuccess(identity);
+      void recordSignIn('guest');
     } catch (err) {
       setError(
         err instanceof Error

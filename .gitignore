@@ -79,6 +79,9 @@ pilot/oee/generated/
 # Runtime certification overlay. Catalog annotations remain canonical.
 catalog/certification-overrides.json
 
+# Runtime-managed catalog users and audit trail (regenerated)
+catalog/runtime/
+
 # Validation Expert runtime run store (regenerated state)
 packages/backend/validation/runtime/runs-store.json
 

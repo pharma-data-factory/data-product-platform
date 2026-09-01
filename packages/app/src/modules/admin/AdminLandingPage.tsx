@@ -20,6 +20,11 @@ const ADMIN_LINKS = [
     copy: 'Review platform architecture and governance overview.',
   },
   {
+    title: 'Users & Roles',
+    to: '/admin/users',
+    copy: 'Manage Catalog users and role assignment (groups).',
+  },
+  {
     title: 'Plugin Directory',
     to: '/plugin-directory',
     copy: 'Inventory of registered platform plugins.',

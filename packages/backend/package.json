@@ -54,6 +54,7 @@
     "@internal/plugin-entitlements-backend": "workspace:^",
     "@internal/plugin-model-company-backend": "workspace:^",
     "@internal/plugin-nexora-backend": "workspace:^",
+    "@internal/plugin-users-backend": "workspace:^",
     "@internal/plugin-validation-expert-backend": "workspace:^",
     "app": "link:../app",
     "better-sqlite3": "^12.0.0",

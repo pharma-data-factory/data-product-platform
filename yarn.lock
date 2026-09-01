@@ -6348,6 +6348,25 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@internal/plugin-users-backend@workspace:^, @internal/plugin-users-backend@workspace:plugins/users-backend":
+  version: 0.0.0-use.local
+  resolution: "@internal/plugin-users-backend@workspace:plugins/users-backend"
+  dependencies:
+    "@backstage/backend-plugin-api": "npm:^1.9.3"
+    "@backstage/catalog-model": "npm:^1.7.6"
+    "@backstage/cli": "npm:^0.36.4"
+    "@backstage/errors": "npm:^1.3.1"
+    "@backstage/plugin-catalog-node": "npm:^2.2.3"
+    "@backstage/plugin-permission-common": "npm:^0.9.9"
+    "@internal/platform-common": "workspace:^"
+    "@types/express": "npm:^4.17.21"
+    express: "npm:^4.22.0"
+    express-promise-router: "npm:^4.1.1"
+    jest: "npm:~30.2.0"
+    yaml: "npm:^2.7.0"
+  languageName: unknown
+  linkType: soft
+
 "@internal/plugin-validation-expert-backend@workspace:^, @internal/plugin-validation-expert-backend@workspace:plugins/validation-expert-backend":
   version: 0.0.0-use.local
   resolution: "@internal/plugin-validation-expert-backend@workspace:plugins/validation-expert-backend"
@@ -14123,6 +14142,7 @@ __metadata:
     "@internal/plugin-entitlements-backend": "workspace:^"
     "@internal/plugin-model-company-backend": "workspace:^"
     "@internal/plugin-nexora-backend": "workspace:^"
+    "@internal/plugin-users-backend": "workspace:^"
     "@internal/plugin-validation-expert-backend": "workspace:^"
     app: "link:../app"
     better-sqlite3: "npm:^12.0.0"
