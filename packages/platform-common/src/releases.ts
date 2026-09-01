@@ -52,14 +52,13 @@ export const AVAILABLE_DISTRIBUTION_CHANNELS: readonly DistributionChannel[] = [
   'TEMPLATE_EDITION',
 ];
 
-export const OFFICIAL_GOLDEN_PATHS = [
-  'aas-data-product',
-  'mqtt-temperature-data-product',
-  'rest-equipment-data-product',
-  'oee-data-product',
-] as const;
+export const OFFICIAL_GOLDEN_PATHS: readonly string[] = (
+  catalog as GoldenPathReleaseCatalog
+).releases
+  .filter(release => release.certification.status === 'CERTIFIED')
+  .map(release => release.template);
 
-export type OfficialGoldenPathId = (typeof OFFICIAL_GOLDEN_PATHS)[number];
+export type OfficialGoldenPathId = string;
 
 export const RELEASE_CATALOG_PATH = '/releases';
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button, MenuItem, TextField } from '@material-ui/core';
 import {
-  SHOWCASE_GOLDEN_PATHS,
+  showcaseGoldenPaths,
   filterGoldenPaths,
   type GoldenPathCategory,
 } from '@internal/platform-common';
@@ -142,10 +142,6 @@ function GoldenPathIcon({ id }: Readonly<{ id: string }>) {
   );
 }
 
-const SHOWCASE_CATEGORIES = [
-  ...new Set(SHOWCASE_GOLDEN_PATHS.map(path => path.category)),
-];
-
 function ShowcaseBody({
   compact,
   marketplaceLinks,
@@ -154,22 +150,27 @@ function ShowcaseBody({
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<GoldenPathCategory | 'All'>('All');
   const [openId, setOpenId] = useState<string | null>('mqtt-temperature');
+  const paths = useMemo(() => showcaseGoldenPaths(), []);
+  const categories = useMemo(
+    () => [...new Set(paths.map(p => p.category))],
+    [paths],
+  );
   const extraText = useMemo(() => {
     const haystack: Record<string, string> = {};
-    for (const path of SHOWCASE_GOLDEN_PATHS) {
+    for (const path of paths) {
       haystack[path.id] = t.goldenPaths.items[path.id]?.description ?? '';
     }
     return haystack;
-  }, [t]);
+  }, [t, paths]);
   const visible = useMemo(
-    () => filterGoldenPaths(SHOWCASE_GOLDEN_PATHS, query, category, extraText),
-    [category, extraText, query],
+    () => filterGoldenPaths(paths, query, category, extraText),
+    [category, extraText, paths, query],
   );
   const resolvedOpenId = visible.some(path => path.id === openId)
     ? openId
     : (visible[0]?.id ?? null);
   const openItem = resolvedOpenId ? t.goldenPaths.items[resolvedOpenId] : undefined;
-  const openPath = SHOWCASE_GOLDEN_PATHS.find(path => path.id === resolvedOpenId);
+  const openPath = paths.find(path => path.id === resolvedOpenId);
   const marketplaceHref =
     resolvedOpenId && openPath?.availability === 'current'
       ? MARKETPLACE_HREF[resolvedOpenId]
@@ -277,7 +278,7 @@ function ShowcaseBody({
               style={{ minWidth: 200 }}
             >
               <MenuItem value="All">{t.goldenPaths.categoryAll}</MenuItem>
-              {SHOWCASE_CATEGORIES.map(item => (
+              {categories.map(item => (
                 <MenuItem key={item} value={item}>
                   {t.goldenPaths.categoryLabels[item] ?? item}
                 </MenuItem>

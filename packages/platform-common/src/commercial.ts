@@ -1,3 +1,5 @@
+import { loadGoldenPathReleaseCatalog } from './releases';
+
 export type EditionAvailability = 'available' | 'planned' | 'future';
 
 export type ProductEditionId = 'template' | 'platform' | 'saas';
@@ -212,42 +214,43 @@ export const PRICING_MODELS: readonly PricingModel[] = PRODUCT_EDITIONS.map(
   }),
 );
 
-export const CERTIFIED_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
-  {
+/**
+ * Which Golden Paths are CERTIFIED is authoritative in the release catalog
+ * (`golden-path-releases.yaml`). The showcase adds marketing display fields
+ * (short id, marketing name/version, category) that do not live in the
+ * release model.
+ */
+const SHOWCASE_METADATA: Record<
+  string,
+  { id: string; name: string; version: string; category: GoldenPathCategory }
+> = {
+  'mqtt-temperature-data-product': {
     id: 'mqtt-temperature',
     name: 'MQTT Temperature Data Product',
-    statusLabel: 'CERTIFIED',
-    availability: 'current',
-    category: 'Telemetry',
     version: '1.0',
+    category: 'Telemetry',
   },
-  {
+  'rest-equipment-data-product': {
     id: 'rest-equipment',
     name: 'REST Equipment Data Product',
-    statusLabel: 'CERTIFIED',
-    availability: 'current',
-    category: 'Equipment',
     version: '1.0',
+    category: 'Equipment',
   },
-  {
+  'oee-data-product': {
     id: 'oee',
     name: 'OEE Data Product',
-    statusLabel: 'CERTIFIED',
-    availability: 'current',
-    category: 'Performance',
     version: '1.0',
+    category: 'Performance',
   },
-  {
+  'aas-data-product': {
     id: 'aas-data-product',
     name: 'AAS Asset Administration Shell',
-    statusLabel: 'CERTIFIED',
-    availability: 'current',
-    category: 'Equipment',
     version: '1.0',
+    category: 'Equipment',
   },
-];
+};
 
-export const FUTURE_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
+export const ROADMAP_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
   {
     id: 'snowflake',
     name: 'Snowflake',
@@ -271,10 +274,23 @@ export const FUTURE_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
   },
 ];
 
-export const SHOWCASE_GOLDEN_PATHS: readonly GoldenPathShowcaseItem[] = [
-  ...CERTIFIED_GOLDEN_PATHS,
-  ...FUTURE_GOLDEN_PATHS,
-];
+export function showcaseGoldenPaths(): GoldenPathShowcaseItem[] {
+  const certified = loadGoldenPathReleaseCatalog().releases
+    .filter(release => release.certification.status === 'CERTIFIED')
+    .flatMap(release => {
+      const meta = SHOWCASE_METADATA[release.template];
+      return meta
+        ? [
+            {
+              ...meta,
+              statusLabel: 'CERTIFIED',
+              availability: 'current' as const,
+            },
+          ]
+        : [];
+    });
+  return [...certified, ...ROADMAP_GOLDEN_PATHS];
+}
 
 export const PLATFORM_CAPABILITIES = [
   {

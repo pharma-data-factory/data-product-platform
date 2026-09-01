@@ -281,9 +281,8 @@ export type {
 } from './identity-context';
 
 export {
-  CERTIFIED_GOLDEN_PATHS,
-  FUTURE_GOLDEN_PATHS,
-  SHOWCASE_GOLDEN_PATHS,
+  ROADMAP_GOLDEN_PATHS,
+  showcaseGoldenPaths,
   GOLDEN_PATH_CATEGORIES,
   filterGoldenPaths,
   DEPLOYMENT_OPTIONS,
