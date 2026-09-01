@@ -102,7 +102,7 @@ export interface BusinessCapability {
   name: string;
   description: string;
   domain: string;
-  source: 'DOCUMENTATION';
+  source: 'DOCUMENTATION' | 'USER';
   documentationRef?: string;
 }
 
@@ -206,7 +206,8 @@ export interface AuditEvent {
     | 'REQUIREMENT_VERSION'
     | 'BASELINE'
     | 'APPROVAL_INSTANCE'
-    | 'APPROVAL_STEP';
+    | 'APPROVAL_STEP'
+    | 'BUSINESS_CAPABILITY';
   entityId: string;
   eventType: string;
   // Semantic/string version identifier of the audited entity when relevant
@@ -475,6 +476,8 @@ export interface BusinessCapabilityPersisted extends BusinessCapability {
   status: 'ACTIVE' | 'DEPRECATED' | 'RETIRED';
   createdAt: Date;
   updatedAt?: Date;
+  createdBy: string;
+  updatedBy?: string;
   version: number; // For optimistic concurrency
 }
 

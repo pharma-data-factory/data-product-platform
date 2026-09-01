@@ -2,6 +2,7 @@ export const PLATFORM_GROUPS = [
   'platform-viewers',
   'data-product-developers',
   'data-product-owners',
+  'business-capability-leads',
   'platform-admins',
 ] as const;
 
@@ -10,6 +11,7 @@ export type PlatformGroup = (typeof PLATFORM_GROUPS)[number];
 export const PLATFORM_ROLES = [
   'VIEWER',
   'DEVELOPER',
+  'BUSINESS_CAPABILITY_LEAD',
   'DATA_PRODUCT_OWNER',
   'PLATFORM_ADMIN',
 ] as const;
@@ -20,14 +22,16 @@ export const GROUP_TO_ROLE: Record<PlatformGroup, PlatformRole> = {
   'platform-viewers': 'VIEWER',
   'data-product-developers': 'DEVELOPER',
   'data-product-owners': 'DATA_PRODUCT_OWNER',
+  'business-capability-leads': 'BUSINESS_CAPABILITY_LEAD',
   'platform-admins': 'PLATFORM_ADMIN',
 };
 
 export const ROLE_RANK: Record<PlatformRole, number> = {
   VIEWER: 1,
   DEVELOPER: 2,
-  DATA_PRODUCT_OWNER: 3,
-  PLATFORM_ADMIN: 4,
+  BUSINESS_CAPABILITY_LEAD: 3,
+  DATA_PRODUCT_OWNER: 4,
+  PLATFORM_ADMIN: 5,
 };
 
 export const GUEST_USER_ENTITY_REF = 'user:default/guest';
@@ -36,6 +40,7 @@ export const GUEST_GROUP_ENTITY_REF = 'group:default/guests';
 export const ROLE_LABELS: Record<PlatformRole, string> = {
   VIEWER: 'Viewer',
   DEVELOPER: 'Developer',
+  BUSINESS_CAPABILITY_LEAD: 'Business Capability Lead',
   DATA_PRODUCT_OWNER: 'Data Product Owner',
   PLATFORM_ADMIN: 'Platform Admin',
 };

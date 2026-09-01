@@ -25,6 +25,7 @@ import {
   ursCreatePermission,
   ursManagePermission,
   ursApprovePermission,
+  businessCapabilityManagePermission,
 } from '@internal/platform-common';
 import { URSService } from './service';
 import {
@@ -132,6 +133,81 @@ export async function createRouter(
         return;
       }
       res.json(capability);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /capabilities
+   * Create a new business capability (Business Capability Lead).
+   */
+  router.post('/capabilities', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        businessCapabilityManagePermission,
+      );
+      const capability = await service.createBusinessCapability(req.body, actor);
+      res.status(201).json(capability);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * PUT /capabilities/:id
+   * Update a business capability.
+   */
+  router.put('/capabilities/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        businessCapabilityManagePermission,
+      );
+      const capability = await service.updateBusinessCapability(
+        req.params.id,
+        req.body,
+        actor,
+      );
+      res.json(capability);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * DELETE /capabilities/:id
+   * Retire (soft-delete) a business capability. Never hard-deleted.
+   */
+  router.delete('/capabilities/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        businessCapabilityManagePermission,
+      );
+      const capability = await service.retireBusinessCapability(req.params.id, actor);
+      res.json(capability);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /capabilities/:id/audit
+   * Append-only audit trail for a business capability.
+   */
+  router.get('/capabilities/:id/audit', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const auditTrail = await service.getCapabilityAuditTrail(req.params.id);
+      res.json(auditTrail);
     } catch (err) {
       respondError(res, logger, err);
     }

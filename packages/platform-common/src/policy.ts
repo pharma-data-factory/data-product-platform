@@ -1,6 +1,7 @@
 import { PlatformRole, isAtLeast } from './roles';
 import {
   ADMIN_PERMISSION_NAMES,
+  BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES,
   DEVELOPER_PERMISSION_NAMES,
   OWNER_PERMISSION_NAMES,
   VIEWER_PERMISSION_NAMES,
@@ -24,6 +25,8 @@ export function permissionsForRole(role: PlatformRole): Set<string> {
       return VIEWER_PERMISSION_NAMES;
     case 'DEVELOPER':
       return DEVELOPER_PERMISSION_NAMES;
+    case 'BUSINESS_CAPABILITY_LEAD':
+      return BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES;
     case 'DATA_PRODUCT_OWNER':
       return OWNER_PERMISSION_NAMES;
     case 'PLATFORM_ADMIN':
@@ -171,6 +174,14 @@ export function canReadPluginDirectory(role: PlatformRole): boolean {
 }
 
 export function canAdministerPluginDirectory(role: PlatformRole): boolean {
+  return role === 'PLATFORM_ADMIN';
+}
+
+export function canAdministerBusinessCapabilities(role: PlatformRole): boolean {
+  return role === 'BUSINESS_CAPABILITY_LEAD' || role === 'PLATFORM_ADMIN';
+}
+
+export function canManagePlatformUsers(role: PlatformRole): boolean {
   return role === 'PLATFORM_ADMIN';
 }
 

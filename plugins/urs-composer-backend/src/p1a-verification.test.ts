@@ -181,6 +181,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
+        createdBy: 'system',
       };
 
       const inMemResult = await inMemoryRepo.createBusinessCapability(cap);
@@ -200,6 +201,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
+        createdBy: 'system',
       };
       await inMemoryRepo.createBusinessCapability(cap);
       await postgresRepo.createBusinessCapability(cap);
@@ -240,6 +242,7 @@ describe('URS Composer P1A Persistence Verification', () => {
         source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
+        createdBy: 'system',
       };
       await postgresRepo.createBusinessCapability(cap);
 

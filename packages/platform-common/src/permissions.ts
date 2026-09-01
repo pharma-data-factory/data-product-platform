@@ -216,6 +216,18 @@ export const ursAdminPermission = createPermission({
   attributes: { action: 'update' },
 });
 
+/** Business Capability — manage the capability taxonomy (Business Capability Lead). */
+export const businessCapabilityManagePermission = createPermission({
+  name: 'business-capability.manage',
+  attributes: { action: 'update' },
+});
+
+/** Platform user/role management (assign Catalog group membership). */
+export const platformUserManagePermission = createPermission({
+  name: 'platform.user.manage',
+  attributes: { action: 'update' },
+});
+
 export const platformPermissions = [
   marketplaceViewPermission,
   marketplaceAdminPermission,
@@ -255,6 +267,8 @@ export const platformPermissions = [
   ursManagePermission,
   ursApprovePermission,
   ursAdminPermission,
+  businessCapabilityManagePermission,
+  platformUserManagePermission,
 ];
 
 export const VIEWER_PERMISSION_NAMES = new Set([
@@ -321,5 +335,12 @@ export const ADMIN_PERMISSION_NAMES = new Set([
   'modelCompany.admin',
   'data-product.admin',
   'urs.admin',
+  'business-capability.manage',
+  'platform.user.manage',
   // validation.approve, risk.accept, baseline.modify intentionally omitted
+]);
+
+export const BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES = new Set([
+  ...VIEWER_PERMISSION_NAMES,
+  'business-capability.manage',
 ]);

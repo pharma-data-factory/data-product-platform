@@ -13,7 +13,6 @@ import {
   ApprovalStatus,
   ApprovalRole,
   QualityCheckResult,
-  BusinessCapability,
   SolutionType,
   GxPRelevance,
   RequirementVersion,
@@ -22,9 +21,9 @@ import {
   ApprovalInstance,
   ApprovalInstanceStatus,
   UpdateRequirementSetRequest,
+  BusinessCapabilityPersisted,
 } from './types';
 import { IURSRepository } from './repository-interface';
-import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import { nextMinorVersion, getVersionNumber } from './services/versioningService';
 
 export interface URSServiceOptions {
@@ -46,18 +45,18 @@ export class URSService {
   }
 
   /**
-   * Get all business capabilities
+   * Get all business capabilities (persisted, ACTIVE)
    */
-  async getCapabilities(): Promise<BusinessCapability[]> {
-    return BUSINESS_CAPABILITIES;
+  async getCapabilities(): Promise<BusinessCapabilityPersisted[]> {
+    const { items } = await this.repository.listBusinessCapabilities(1000, 0);
+    return items;
   }
 
   /**
    * Get capability by ID
    */
-  async getCapability(id: string): Promise<BusinessCapability | null> {
-    const cap = BUSINESS_CAPABILITIES.find(c => c.id === id);
-    return cap || null;
+  async getCapability(id: string): Promise<BusinessCapabilityPersisted | null> {
+    return this.repository.getBusinessCapability(id);
   }
 
   /**
@@ -72,6 +71,122 @@ export class URSService {
       }
     }
     return true;
+  }
+
+  /**
+   * Create a business capability (Business Capability Lead). ALCOA-audited.
+   */
+  async createBusinessCapability(
+    data: { name: string; description?: string; domain: string },
+    actor: string,
+  ): Promise<BusinessCapabilityPersisted> {
+    const name = data.name?.trim();
+    const domain = data.domain?.trim();
+    if (!name || !domain) {
+      throw new Error('name and domain are required');
+    }
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const id = `business-capability:${domain}/${slug}`;
+    const existing = await this.repository.getBusinessCapability(id);
+    if (existing) {
+      throw new Error(`Business capability ${id} already exists`);
+    }
+    const now = new Date();
+    const cap: BusinessCapabilityPersisted = {
+      id,
+      name,
+      description: data.description?.trim() || '',
+      domain,
+      source: 'USER',
+      status: 'ACTIVE',
+      createdAt: now,
+      createdBy: actor,
+      version: 1,
+    };
+    const saved = await this.repository.createBusinessCapability(cap);
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BUSINESS_CAPABILITY',
+      entityId: saved.id,
+      eventType: 'CREATED',
+      newValue: saved,
+      actor,
+      timestamp: now,
+    });
+    return saved;
+  }
+
+  /**
+   * Update a business capability. ALCOA-audited (old + new value).
+   */
+  async updateBusinessCapability(
+    id: string,
+    data: { name?: string; description?: string; domain?: string },
+    actor: string,
+  ): Promise<BusinessCapabilityPersisted> {
+    const existing = await this.repository.getBusinessCapability(id);
+    if (!existing) {
+      throw new Error(`Business capability ${id} not found`);
+    }
+    const updated: BusinessCapabilityPersisted = {
+      ...existing,
+      name: data.name?.trim() || existing.name,
+      description:
+        data.description !== undefined
+          ? data.description.trim()
+          : existing.description,
+      domain: data.domain?.trim() || existing.domain,
+      updatedAt: new Date(),
+      updatedBy: actor,
+      version: existing.version + 1,
+    };
+    const saved = await this.repository.updateBusinessCapability(updated);
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BUSINESS_CAPABILITY',
+      entityId: saved.id,
+      eventType: 'UPDATED',
+      oldValue: existing,
+      newValue: saved,
+      actor,
+      timestamp: new Date(),
+    });
+    return saved;
+  }
+
+  /**
+   * Retire (soft-delete) a business capability. ALCOA-audited, never hard-deleted.
+   */
+  async retireBusinessCapability(
+    id: string,
+    actor: string,
+  ): Promise<BusinessCapabilityPersisted> {
+    const existing = await this.repository.getBusinessCapability(id);
+    if (!existing) {
+      throw new Error(`Business capability ${id} not found`);
+    }
+    const retired = await this.repository.retireBusinessCapability(id, actor);
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BUSINESS_CAPABILITY',
+      entityId: id,
+      eventType: 'RETIRED',
+      oldValue: existing,
+      newValue: retired,
+      actor,
+      timestamp: new Date(),
+    });
+    return retired;
+  }
+
+  /**
+   * Get the append-only audit trail for a business capability.
+   */
+  async getCapabilityAuditTrail(id: string): Promise<AuditEvent[]> {
+    return this.repository.getEntityAuditTrail(id, 'BUSINESS_CAPABILITY');
   }
 
   /**

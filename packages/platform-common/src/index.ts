@@ -56,11 +56,14 @@ export {
   ursManagePermission,
   ursApprovePermission,
   ursAdminPermission,
+  businessCapabilityManagePermission,
+  platformUserManagePermission,
   platformPermissions,
   VIEWER_PERMISSION_NAMES,
   DEVELOPER_PERMISSION_NAMES,
   OWNER_PERMISSION_NAMES,
   ADMIN_PERMISSION_NAMES,
+  BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES,
 } from './permissions';
 
 export {
@@ -82,6 +85,8 @@ export {
   canAdministerValidation,
   canReadPluginDirectory,
   canAdministerPluginDirectory,
+  canAdministerBusinessCapabilities,
+  canManagePlatformUsers,
   canReadModelCompany,
   canRunModelCompanyScenario,
   canControlModelCompany,

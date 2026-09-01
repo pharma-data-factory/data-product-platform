@@ -95,7 +95,7 @@ export class PostgresURSRepository implements IURSRepository {
       documentation_ref: cap.documentationRef || null,
       version: cap.version,
       created_at: cap.createdAt,
-      created_by: 'system',
+      created_by: cap.createdBy,
     });
     return cap;
   }
@@ -114,6 +114,9 @@ export class PostgresURSRepository implements IURSRepository {
       documentationRef: result.documentation_ref,
       version: result.version,
       createdAt: result.created_at,
+      updatedAt: result.updated_at,
+      createdBy: result.created_by,
+      updatedBy: result.updated_by,
     };
   }
 
@@ -143,9 +146,50 @@ export class PostgresURSRepository implements IURSRepository {
       documentationRef: r.documentation_ref,
       version: r.version,
       createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      createdBy: r.created_by,
+      updatedBy: r.updated_by,
     }));
 
     return { items, total };
+  }
+
+  async updateBusinessCapability(
+    cap: BusinessCapabilityPersisted,
+  ): Promise<BusinessCapabilityPersisted> {
+    await this.db('business_capabilities')
+      .where({ id: cap.id })
+      .update({
+        name: cap.name,
+        description: cap.description || null,
+        domain: cap.domain,
+        status: cap.status,
+        source: cap.source,
+        documentation_ref: cap.documentationRef || null,
+        version: cap.version,
+        updated_by: cap.updatedBy || null,
+        updated_at: cap.updatedAt || new Date(),
+      });
+    return cap;
+  }
+
+  async retireBusinessCapability(
+    id: string,
+    actor: string,
+  ): Promise<BusinessCapabilityPersisted> {
+    const existing = await this.getBusinessCapability(id);
+    if (!existing) {
+      throw new Error(`Business capability ${id} not found`);
+    }
+    const retired: BusinessCapabilityPersisted = {
+      ...existing,
+      status: 'RETIRED',
+      updatedAt: new Date(),
+      updatedBy: actor,
+      version: existing.version + 1,
+    };
+    await this.updateBusinessCapability(retired);
+    return retired;
   }
 
   // ============================================================================

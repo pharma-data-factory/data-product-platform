@@ -114,6 +114,16 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
+  name: business-capability-leads
+  title: Business Capability Leads
+  description: Govern the business capability taxonomy (create, update, retire capabilities) with an audit trail.
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
   name: platform-admins
   title: Platform Admins
   description: Full platform, template, marketplace, and policy administration.

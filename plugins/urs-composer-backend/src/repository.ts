@@ -21,6 +21,7 @@ import {
   URSStatus,
 } from './types';
 import { IURSRepository, Transaction } from './repository-interface';
+import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 
 /**
  * In-memory Transaction (no-op for P0)
@@ -53,6 +54,18 @@ export class URSRepository implements IURSRepository {
   private approvalWorkflows: Map<string, ApprovalWorkflow> = new Map();
   private approvalInstances: Map<string, ApprovalInstance> = new Map();
   private approvalSteps: Map<string, ApprovalStep> = new Map();
+
+  constructor() {
+    for (const cap of BUSINESS_CAPABILITIES) {
+      this.businessCapabilities.set(cap.id, {
+        ...cap,
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        createdBy: 'system',
+        version: 1,
+      });
+    }
+  }
 
   /**
    * Requirement Set CRUD
@@ -185,6 +198,32 @@ export class URSRepository implements IURSRepository {
     const total = allCaps.length;
     const items = allCaps.slice(offset, offset + limit);
     return { items, total };
+  }
+
+  async updateBusinessCapability(
+    cap: BusinessCapabilityPersisted,
+  ): Promise<BusinessCapabilityPersisted> {
+    this.businessCapabilities.set(cap.id, cap);
+    return cap;
+  }
+
+  async retireBusinessCapability(
+    id: string,
+    actor: string,
+  ): Promise<BusinessCapabilityPersisted> {
+    const existing = this.businessCapabilities.get(id);
+    if (!existing) {
+      throw new Error(`Business capability ${id} not found`);
+    }
+    const retired: BusinessCapabilityPersisted = {
+      ...existing,
+      status: 'RETIRED',
+      updatedAt: new Date(),
+      updatedBy: actor,
+      version: existing.version + 1,
+    };
+    this.businessCapabilities.set(id, retired);
+    return retired;
   }
 
   // ============================================================================

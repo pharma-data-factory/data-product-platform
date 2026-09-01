@@ -28,6 +28,13 @@ export interface IURSRepository {
     items: BusinessCapabilityPersisted[];
     total: number;
   }>;
+  updateBusinessCapability(
+    cap: BusinessCapabilityPersisted,
+  ): Promise<BusinessCapabilityPersisted>;
+  retireBusinessCapability(
+    id: string,
+    actor: string,
+  ): Promise<BusinessCapabilityPersisted>;
 
   // ============================================================================
   // REQUIREMENT SETS (P0 CRUD, preserved for backward compatibility)

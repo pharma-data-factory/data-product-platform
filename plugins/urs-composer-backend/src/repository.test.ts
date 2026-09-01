@@ -75,6 +75,7 @@ describe('URS Repository Contract', () => {
         source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
+        createdBy: 'system',
       };
 
       const inMemResult = await inMemoryRepo.createBusinessCapability(cap);
@@ -96,6 +97,7 @@ describe('URS Repository Contract', () => {
         source: 'DOCUMENTATION',
         version: 1,
         createdAt: new Date(),
+        createdBy: 'system',
       };
 
       await inMemoryRepo.createBusinessCapability(cap);
