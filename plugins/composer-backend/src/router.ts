@@ -1,0 +1,341 @@
+/**
+ * Product Composer backend router.
+ *
+ * HTTP endpoints for Product CRUD, version/component/contract management, and
+ * traceability links. All routes are gated through the Backstage Permission
+ * Framework (product.read / product.create / product.manage).
+ */
+
+import express from 'express';
+import Router from 'express-promise-router';
+import {
+  AuthenticationError,
+  InputError,
+  NotAllowedError,
+} from '@backstage/errors';
+import {
+  HttpAuthService,
+  LoggerService,
+  PermissionsService,
+} from '@backstage/backend-plugin-api';
+import {
+  AuthorizeResult,
+  BasicPermission,
+} from '@backstage/plugin-permission-common';
+import {
+  productCreatePermission,
+  productManagePermission,
+  productReadPermission,
+} from '@internal/platform-common';
+import { ComposerService } from './service';
+import {
+  CreateDataContractRequest,
+  CreateProductComponentRequest,
+  CreateProductRequest,
+  CreateProductVersionRequest,
+  CreateTraceabilityLinkRequest,
+} from './types';
+
+export interface RouterOptions {
+  logger: LoggerService;
+  httpAuth: HttpAuthService;
+  permissions?: PermissionsService;
+  service: ComposerService;
+}
+
+async function authorize(
+  permissions: PermissionsService | undefined,
+  httpAuth: HttpAuthService,
+  req: express.Request,
+  permission: BasicPermission,
+): Promise<string> {
+  if (!permissions) {
+    throw new NotAllowedError('Permission service is not configured');
+  }
+  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  const [decision] = await permissions.authorize([{ permission }], {
+    credentials,
+  });
+  if (decision.result !== AuthorizeResult.ALLOW) {
+    throw new NotAllowedError();
+  }
+  return credentials.principal?.userEntityRef || 'unknown';
+}
+
+function respondError(
+  res: express.Response,
+  logger: LoggerService,
+  error: unknown,
+) {
+  if (error instanceof AuthenticationError) {
+    res.status(401).json({ error: error.message || 'Unauthorized' });
+    return;
+  }
+  if (error instanceof NotAllowedError) {
+    const message = error.message || 'Forbidden';
+    if (message.includes('not configured')) {
+      logger.error(`Authorization service misconfiguration: ${message}`);
+      res.status(500).json({ error: 'Authorization service unavailable' });
+      return;
+    }
+    res.status(403).json({ error: message });
+    return;
+  }
+  if (error instanceof InputError) {
+    res.status(400).json({ error: String(error) });
+    return;
+  }
+  logger.error(`Unexpected error: ${error}`);
+  res.status(500).json({ error: 'Internal server error' });
+}
+
+function parsePagination(
+  req: express.Request,
+): { limit: number; offset: number } {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = parseInt(req.query.offset as string) || 0;
+  return { limit, offset };
+}
+
+export async function createRouter(
+  options: RouterOptions,
+): Promise<express.Router> {
+  const { logger, httpAuth, permissions, service } = options;
+  const router = Router();
+  router.use(express.json());
+
+  router.get('/health', (_req: express.Request, res: express.Response) => {
+    res.json({
+      status: 'ok',
+      service: 'composer',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ============================================================================
+  // PRODUCTS
+  // ============================================================================
+
+  router.post('/products', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        productCreatePermission,
+      );
+      const product = await service.createProduct(
+        req.body as CreateProductRequest,
+        actor,
+      );
+      res.status(201).json(product);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  router.get('/products', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      const { limit, offset } = parsePagination(req);
+      res.json(await service.listProducts(limit, offset));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  router.get(
+    '/products/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const product = await service.getProduct(req.params.id);
+        if (!product) {
+          res.status(404).json({ error: 'Product not found' });
+          return;
+        }
+        res.json(product);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.put('/products/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        productManagePermission,
+      );
+      const product = await service.updateProduct(
+        req.params.id,
+        req.body as Partial<CreateProductRequest>,
+        actor,
+      );
+      res.json(product);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  router.get(
+    '/products/:id/traceability',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.getProductTraceability(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // PRODUCT VERSIONS
+  // ============================================================================
+
+  router.post(
+    '/products/:id/versions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const version = await service.createProductVersion(
+          req.params.id,
+          req.body as CreateProductVersionRequest,
+          actor,
+        );
+        res.status(201).json(version);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/products/:id/versions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listProductVersions(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // PRODUCT COMPONENTS
+  // ============================================================================
+
+  router.post(
+    '/versions/:versionId/components',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const component = await service.addProductComponent(
+          req.params.versionId,
+          req.body as CreateProductComponentRequest,
+          actor,
+        );
+        res.status(201).json(component);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/components',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listProductComponents(req.params.versionId));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // DATA CONTRACTS
+  // ============================================================================
+
+  router.post(
+    '/components/:id/contracts',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const contract = await service.addDataContract(
+          req.params.id,
+          req.body as CreateDataContractRequest,
+          actor,
+        );
+        res.status(201).json(contract);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // TRACEABILITY LINKS
+  // ============================================================================
+
+  router.post(
+    '/traceability-links',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const link = await service.createTraceabilityLink(
+          req.body as CreateTraceabilityLinkRequest,
+          actor,
+        );
+        res.status(201).json(link);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.delete(
+    '/traceability-links/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        await service.deleteTraceabilityLink(req.params.id, actor);
+        res.status(204).end();
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  return router;
+}

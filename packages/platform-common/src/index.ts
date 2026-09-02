@@ -58,6 +58,9 @@ export {
   ursAdminPermission,
   businessCapabilityManagePermission,
   platformUserManagePermission,
+  productReadPermission,
+  productCreatePermission,
+  productManagePermission,
   platformPermissions,
   VIEWER_PERMISSION_NAMES,
   DEVELOPER_PERMISSION_NAMES,
@@ -73,6 +76,8 @@ export {
   canExecuteScaffolder,
   canCreateDataProduct,
   canManageGovernance,
+  canCreateProduct,
+  canManageProduct,
   canAdministerPlatform,
   canReadAas,
   canManageAas,
@@ -493,6 +498,62 @@ export type {
   GoldenPathComposition,
   GoldenPathCompositionComponent,
 } from './composition';
+
+export {
+  COMPONENT_TYPES,
+  REQUIREMENT_NATURES,
+  CRITICALITIES,
+  DATA_CLASSIFICATIONS,
+  INTERFACE_TYPES,
+  VALIDATION_LEVELS,
+  AUTOMATION_READINESS_LEVELS,
+  isComponentType,
+  isRequirementNature,
+  isCriticality,
+  isDataClassification,
+  isInterfaceType,
+  isValidationLevel,
+  isAutomationReadiness,
+} from './classification';
+export type {
+  ComponentType,
+  RequirementNature,
+  Criticality,
+  DataClassification,
+  InterfaceType,
+  ValidationLevel,
+  AutomationReadiness,
+  RequirementClassification,
+} from './classification';
+
+export {
+  PRODUCT_TYPES,
+  PRODUCT_LIFECYCLES,
+  PRODUCT_STATUSES,
+  PRODUCT_VERSION_STATUSES,
+  DATA_CONTRACT_STATUSES,
+  DATA_CONTRACT_SCHEMA_TYPES,
+  TRACEABILITY_RELATIONSHIP_TYPES,
+  isProductType,
+  isProductVersionStatus,
+  isDataContractStatus,
+  validateProduct,
+  validateTraceabilityLink,
+} from './product';
+export type {
+  Product,
+  ProductVersion,
+  ProductComponent,
+  DataContract,
+  TraceabilityLink,
+  ProductType,
+  ProductLifecycle,
+  ProductStatus,
+  ProductVersionStatus,
+  DataContractStatus,
+  DataContractSchemaType,
+  TraceabilityRelationshipType,
+} from './product';
 
 export {
   NEXORA_ANNOTATION_PREFIX,

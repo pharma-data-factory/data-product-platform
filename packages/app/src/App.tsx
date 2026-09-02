@@ -17,6 +17,7 @@ import { legalModule } from './modules/legal';
 import { developerHubModule } from './modules/developer-hub';
 import { platformComponentsModule } from './modules/platform-components';
 import { composerModule } from './modules/composer';
+import { productsModule } from './modules/products';
 import { assetsModule } from './modules/assets';
 import { releasesModule } from './modules/releases';
 import { homeModule } from './modules/home';
@@ -43,6 +44,7 @@ export default createApp({
     developerHubModule,
     platformComponentsModule,
     composerModule,
+    productsModule,
     assetsModule,
     releasesModule,
     searchModule,

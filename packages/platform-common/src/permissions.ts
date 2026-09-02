@@ -228,6 +228,24 @@ export const platformUserManagePermission = createPermission({
   attributes: { action: 'update' },
 });
 
+/** Product Composer — read products and their components. */
+export const productReadPermission = createPermission({
+  name: 'product.read',
+  attributes: { action: 'read' },
+});
+
+/** Product Composer — create products. */
+export const productCreatePermission = createPermission({
+  name: 'product.create',
+  attributes: { action: 'create' },
+});
+
+/** Product Composer — manage product versions, components, and contracts. */
+export const productManagePermission = createPermission({
+  name: 'product.manage',
+  attributes: { action: 'update' },
+});
+
 export const platformPermissions = [
   marketplaceViewPermission,
   marketplaceAdminPermission,
@@ -269,6 +287,9 @@ export const platformPermissions = [
   ursAdminPermission,
   businessCapabilityManagePermission,
   platformUserManagePermission,
+  productReadPermission,
+  productCreatePermission,
+  productManagePermission,
 ];
 
 export const VIEWER_PERMISSION_NAMES = new Set([
@@ -287,6 +308,7 @@ export const VIEWER_PERMISSION_NAMES = new Set([
   'traceability.read',
   'modelCompany.read',
   'urs.read',
+  'product.read',
 ]);
 
 export const DEVELOPER_PERMISSION_NAMES = new Set([
@@ -306,6 +328,7 @@ export const DEVELOPER_PERMISSION_NAMES = new Set([
   'modelCompany.runScenario',
   'modelCompany.control',
   'urs.create',
+  'product.create',
 ]);
 
 export const OWNER_PERMISSION_NAMES = new Set([
@@ -316,6 +339,7 @@ export const OWNER_PERMISSION_NAMES = new Set([
   'validation.review',
   'urs.manage',
   'urs.approve',
+  'product.manage',
 ]);
 
 export const ADMIN_PERMISSION_NAMES = new Set([

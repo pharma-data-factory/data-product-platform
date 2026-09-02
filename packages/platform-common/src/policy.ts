@@ -149,6 +149,14 @@ export function canManageGovernance(role: PlatformRole): boolean {
   return isAtLeast(role, 'DATA_PRODUCT_OWNER');
 }
 
+export function canCreateProduct(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DEVELOPER');
+}
+
+export function canManageProduct(role: PlatformRole): boolean {
+  return isAtLeast(role, 'DATA_PRODUCT_OWNER');
+}
+
 export function canAdministerPlatform(role: PlatformRole): boolean {
   return role === 'PLATFORM_ADMIN';
 }
