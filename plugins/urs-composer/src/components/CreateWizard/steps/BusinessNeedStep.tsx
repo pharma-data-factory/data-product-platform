@@ -3,10 +3,21 @@
  * (Shell - Structured form for business context)
  */
 
-import React from 'react';
-import { Box, Typography, TextField, Grid } from '@material-ui/core';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Grid,
+  Checkbox,
+  FormControlLabel,
+  CircularProgress,
+} from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
+import { useApi } from '@backstage/core-plugin-api';
 import { URSWizardState } from '../wizardState';
+import { ursComposerApiRef } from '../../../api/ursComposerApi';
+import { BusinessRole } from '../../../api/types';
 
 interface BusinessNeedStepProps {
   state: URSWizardState;
@@ -14,6 +25,18 @@ interface BusinessNeedStepProps {
 }
 
 export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onStateChange }) => {
+  const api = useApi(ursComposerApiRef);
+  const [roles, setRoles] = useState<BusinessRole[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .listBusinessRoles()
+      .then(setRoles)
+      .catch(() => setRoles([]))
+      .finally(() => setLoading(false));
+  }, [api]);
+
   const handleChange = (field: string, value: any) => {
     onStateChange({
       businessNeed: {
@@ -23,12 +46,13 @@ export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onSta
     });
   };
 
-  const handleStakeholdersChange = (value: string) => {
-    const stakeholders = value
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    handleChange('stakeholders', stakeholders);
+  const selected = state.businessNeed.stakeholders || [];
+
+  const toggleRole = (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter(s => s !== id)
+      : [...selected, id];
+    handleChange('stakeholders', next);
   };
 
   return (
@@ -99,15 +123,31 @@ export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onSta
         </Grid>
 
         <Grid item xs={12}>
-          <TextField
-            label="Stakeholders"
-            placeholder="e.g., Production Operators, Quality Manager, Engineering Lead"
-            fullWidth
-            value={state.businessNeed.stakeholders?.join(', ') || ''}
-            onChange={e => handleStakeholdersChange(e.target.value)}
-            variant="outlined"
-            helperText="Comma-separated list of key stakeholders"
-          />
+          <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
+            <strong>Business Roles</strong> — the roles that execute this capability
+          </Typography>
+          {loading ? (
+            <CircularProgress size={20} />
+          ) : roles.length === 0 ? (
+            <Typography variant="body2" color="textSecondary">
+              No roles defined yet. Create them under Admin → Business Roles.
+            </Typography>
+          ) : (
+            <Box>
+              {roles.map(role => (
+                <FormControlLabel
+                  key={role.id}
+                  control={
+                    <Checkbox
+                      checked={selected.includes(role.id)}
+                      onChange={() => toggleRole(role.id)}
+                    />
+                  }
+                  label={role.name}
+                />
+              ))}
+            </Box>
+          )}
         </Grid>
       </Grid>
     </Box>

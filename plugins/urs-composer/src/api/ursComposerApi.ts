@@ -14,6 +14,7 @@ import {
 import {
   URSApiError,
   BusinessCapability,
+  BusinessRole,
   RequirementSet,
   Requirement,
   RequirementVersion,
@@ -123,7 +124,91 @@ export class URSComposerApi {
    * Get a specific business capability
    */
   async getCapability(id: string): Promise<BusinessCapability> {
-    return this.get<BusinessCapability>(`/capabilities/${id}`);
+    return this.get<BusinessCapability>(`/capabilities/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * POST /capabilities
+   * Create a new business capability (Business Capability Lead).
+   */
+  async createBusinessCapability(
+    data: { name: string; description?: string; domain: string },
+  ): Promise<BusinessCapability> {
+    return this.post<BusinessCapability>('/capabilities', data);
+  }
+
+  /**
+   * DELETE /capabilities/:id
+   * Retire (soft-delete) a business capability.
+   */
+  async retireBusinessCapability(id: string): Promise<BusinessCapability> {
+    return this.request<BusinessCapability>(
+      'DELETE',
+      `/capabilities/${encodeURIComponent(id)}`,
+    );
+  }
+
+  /**
+   * PUT /capabilities/:id
+   * Update a business capability.
+   */
+  async updateBusinessCapability(
+    id: string,
+    data: { name?: string; description?: string; domain?: string },
+  ): Promise<BusinessCapability> {
+    return this.request<BusinessCapability>(
+      'PUT',
+      `/capabilities/${encodeURIComponent(id)}`,
+      data,
+    );
+  }
+
+  // ============================================================================
+  // BUSINESS ROLES (P1B)
+  // ============================================================================
+
+  /**
+   * GET /business-roles
+   * List all active business roles.
+   */
+  async listBusinessRoles(): Promise<BusinessRole[]> {
+    return this.get<BusinessRole[]>('/business-roles');
+  }
+
+  /**
+   * POST /business-roles
+   * Create a business role.
+   */
+  async createBusinessRole(
+    data: { name: string; description?: string },
+  ): Promise<BusinessRole> {
+    return this.post<BusinessRole>('/business-roles', data);
+  }
+
+  /**
+   * PUT /business-roles/:id
+   * Update a business role.
+   */
+  async updateBusinessRole(
+    id: string,
+    data: { name?: string; description?: string },
+  ): Promise<BusinessRole> {
+    return this.request<BusinessRole>(
+      'PUT',
+      `/business-roles/${encodeURIComponent(id)}`,
+      data,
+    );
+  }
+
+  /**
+   * DELETE /business-roles/:id
+   * Retire a business role.
+   */
+  async retireBusinessRole(id: string): Promise<BusinessRole> {
+    return this.request<BusinessRole>(
+      'DELETE',
+      `/business-roles/${encodeURIComponent(id)}`,
+    );
   }
 
   // ============================================================================

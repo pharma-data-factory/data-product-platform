@@ -45,6 +45,53 @@ export enum RequirementPriority {
 }
 
 // ============================================================================
+// REQUIREMENT CLASSIFICATION (multi-dimensional)
+// ============================================================================
+
+export const COMPONENT_TYPES = [
+  'INPUT_PORT',
+  'PROCESSING',
+  'DATA_STORAGE',
+  'OUTPUT_PORT',
+  'DISCOVERY_PORT',
+  'DATA_CONTRACT',
+  'GOVERNANCE',
+  'DOCUMENTATION',
+  'QUALITY_TESTING',
+  'OBSERVABILITY',
+  'CICD_DEPLOYMENT',
+  'CROSS_CUTTING',
+] as const;
+
+export const REQUIREMENT_NATURES = [
+  'FUNCTIONAL',
+  'NON_FUNCTIONAL',
+  'SECURITY',
+  'COMPLIANCE',
+  'DATA_QUALITY',
+  'PERFORMANCE',
+  'AVAILABILITY',
+  'USABILITY',
+  'MAINTAINABILITY',
+  'OPERABILITY',
+] as const;
+
+export const CRITICALITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
+
+export interface RequirementClassification {
+  componentType: string;
+  secondaryTypes?: string[];
+  requirementNature: string;
+  criticality: string;
+  interfaceType?: string;
+  dataClassification?: string;
+  validationLevel?: string;
+  sourceSystem?: string;
+  targetSystem?: string;
+  automationReadiness?: string;
+}
+
+// ============================================================================
 // ERROR HANDLING
 // ============================================================================
 
@@ -66,6 +113,12 @@ export interface BusinessCapability {
   domain: string;
   source: string;
   documentationRef?: string;
+}
+
+export interface BusinessRole {
+  id: string;
+  name: string;
+  description?: string;
 }
 
 export interface RequirementSet {
@@ -106,6 +159,7 @@ export interface Requirement {
   category?: string;
   priority?: RequirementPriority;
   acceptanceIntent?: string;
+  classification?: RequirementClassification;
   gxpRelevance?: GxPRelevance;
   source?: string;
   owner?: string;
@@ -235,6 +289,7 @@ export interface CreateRequirementRequest {
   priority?: RequirementPriority;
   gxpRelevance?: GxPRelevance;
   acceptanceIntent?: string;
+  classification?: RequirementClassification;
 }
 
 export interface CreateBaselineRequest {

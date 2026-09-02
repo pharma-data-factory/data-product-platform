@@ -15,6 +15,7 @@ import {
   Approval,
   AuditEvent,
   BusinessCapabilityPersisted,
+  BusinessRolePersisted,
 } from './types';
 
 export interface IURSRepository {
@@ -35,6 +36,19 @@ export interface IURSRepository {
     id: string,
     actor: string,
   ): Promise<BusinessCapabilityPersisted>;
+
+  // ============================================================================
+  // BUSINESS ROLES (P1B)
+  // ============================================================================
+
+  createBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted>;
+  getBusinessRole(id: string): Promise<BusinessRolePersisted | null>;
+  listBusinessRoles(limit: number, offset: number): Promise<{
+    items: BusinessRolePersisted[];
+    total: number;
+  }>;
+  updateBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted>;
+  retireBusinessRole(id: string, actor: string): Promise<BusinessRolePersisted>;
 
   // ============================================================================
   // REQUIREMENT SETS (P0 CRUD, preserved for backward compatibility)

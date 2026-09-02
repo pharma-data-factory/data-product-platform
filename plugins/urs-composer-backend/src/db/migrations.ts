@@ -50,6 +50,26 @@ export async function up(knex: Knex): Promise<void> {
   }
 
   // ============================================================================
+  // BUSINESS ROLES (P1B)
+  // ============================================================================
+
+  if (!(await knex.schema.hasTable('business_roles'))) {
+    await knex.schema.createTable('business_roles', table => {
+      table.string('id', 255).primary();
+      table.string('name', 255).notNullable();
+      table.text('description');
+      table.string('status', 50).notNullable().defaultTo('ACTIVE');
+      table.integer('version').defaultTo(1);
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.string('created_by', 255);
+      table.string('updated_by', 255);
+      table.timestamp('updated_at');
+
+      table.index(['status']);
+    });
+  }
+
+  // ============================================================================
   // REQUIREMENT SETS (P0 + P1A)
   // ============================================================================
 
@@ -124,6 +144,18 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['version_number']);
       table.index(['status']);
       table.unique(['requirement_id', 'version']);
+    });
+  }
+
+  // Idempotent: add multi-dimensional classification columns to existing
+  // requirement_versions tables (fresh installs also run this, since the
+  // createTable above does not include them).
+  if (!(await knex.schema.hasColumn('requirement_versions', 'component_type'))) {
+    await knex.schema.alterTable('requirement_versions', table => {
+      table.string('component_type', 50).index();
+      table.string('requirement_nature', 50);
+      table.string('criticality', 20);
+      table.text('classification_meta');
     });
   }
 
@@ -243,6 +275,16 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // Idempotent: add classification columns to the P0 draft requirements table.
+  if (!(await knex.schema.hasColumn('requirements', 'component_type'))) {
+    await knex.schema.alterTable('requirements', table => {
+      table.string('component_type', 50);
+      table.string('requirement_nature', 50);
+      table.string('criticality', 20);
+      table.text('classification_meta');
+    });
+  }
+
   // ============================================================================
   // AUDIT EVENTS (APPEND-ONLY)
   // ============================================================================
@@ -299,4 +341,5 @@ export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('requirements');
   await knex.schema.dropTableIfExists('requirement_sets');
   await knex.schema.dropTableIfExists('business_capabilities');
+  await knex.schema.dropTableIfExists('business_roles');
 }

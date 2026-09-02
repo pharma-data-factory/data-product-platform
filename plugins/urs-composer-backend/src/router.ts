@@ -214,6 +214,81 @@ export async function createRouter(
   });
 
   // ============================================================================
+  // BUSINESS ROLES
+  // ============================================================================
+
+  /**
+   * GET /business-roles
+   * List all active business roles.
+   */
+  router.get('/business-roles', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const roles = await service.getBusinessRoles();
+      res.json(roles);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /business-roles
+   * Create a business role (Business Capability Lead).
+   */
+  router.post('/business-roles', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        businessCapabilityManagePermission,
+      );
+      const role = await service.createBusinessRole(req.body, actor);
+      res.status(201).json(role);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * PUT /business-roles/:id
+   * Update a business role.
+   */
+  router.put('/business-roles/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        businessCapabilityManagePermission,
+      );
+      const role = await service.updateBusinessRole(req.params.id, req.body, actor);
+      res.json(role);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * DELETE /business-roles/:id
+   * Retire (soft-delete) a business role.
+   */
+  router.delete('/business-roles/:id', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        businessCapabilityManagePermission,
+      );
+      const role = await service.retireBusinessRole(req.params.id, actor);
+      res.json(role);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  // ============================================================================
   // REQUIREMENT SETS (URS)
   // ============================================================================
 

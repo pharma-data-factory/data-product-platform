@@ -126,6 +126,41 @@ export async function seedBusinessCapabilities(knex: Knex): Promise<void> {
 }
 
 /**
+ * Seed business roles
+ * Default executing roles for business capabilities.
+ * Idempotent: existing records are never overwritten.
+ */
+export async function seedBusinessRoles(knex: Knex): Promise<void> {
+  const roles = [
+    'Weighing Operator',
+    'Dispensing Operator',
+    'Line Lead',
+    'Production Supervisor',
+    'Quality Technician',
+    'Process Engineer',
+  ];
+
+  for (const name of roles) {
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const id = `role:${slug}`;
+    const existing = await knex('business_roles').where({ id }).first();
+    if (!existing) {
+      await knex('business_roles').insert({
+        id,
+        name,
+        status: 'ACTIVE',
+        version: 1,
+        created_at: new Date(),
+        created_by: 'system',
+      });
+    }
+  }
+}
+
+/**
  * Seed approval workflows
  * Standard templates for P1A approval process
  *
@@ -225,4 +260,5 @@ export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
 export async function seed(knex: Knex): Promise<void> {
   await seedBusinessCapabilities(knex);
   await seedApprovalWorkflows(knex);
+  await seedBusinessRoles(knex);
 }

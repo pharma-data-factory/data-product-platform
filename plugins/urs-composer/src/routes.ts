@@ -5,3 +5,5 @@ export const libraryRouteRef = createRouteRef();
 export const createRouteRef_ = createRouteRef();
 export const editRouteRef = createRouteRef();
 export const requirementSetRouteRef = createRouteRef();
+export const capabilitiesRouteRef = createRouteRef();
+export const businessRolesRouteRef = createRouteRef();

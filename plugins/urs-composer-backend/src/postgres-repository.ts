@@ -9,6 +9,7 @@
  */
 
 import { Knex } from 'knex';
+import type { RequirementClassification } from '@internal/platform-common';
 
 import {
   RequirementSet,
@@ -22,6 +23,7 @@ import {
   AuditEvent,
   URSStatus,
   BusinessCapabilityPersisted,
+  BusinessRolePersisted,
   ApprovalInstanceStatus,
   ApprovalStepStatus,
 } from './types';
@@ -193,6 +195,101 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   // ============================================================================
+  // BUSINESS ROLES (P1B)
+  // ============================================================================
+
+  async createBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted> {
+    await this.db('business_roles').insert({
+      id: role.id,
+      name: role.name,
+      description: role.description || null,
+      status: role.status,
+      version: role.version,
+      created_at: role.createdAt,
+      created_by: role.createdBy,
+    });
+    return role;
+  }
+
+  async getBusinessRole(id: string): Promise<BusinessRolePersisted | null> {
+    const r = await this.db('business_roles').where({ id }).first();
+    if (!r) return null;
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      status: r.status,
+      version: r.version,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      createdBy: r.created_by,
+      updatedBy: r.updated_by,
+    };
+  }
+
+  async listBusinessRoles(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: BusinessRolePersisted[]; total: number }> {
+    const countResult = await this.db('business_roles')
+      .where({ status: 'ACTIVE' })
+      .count('* as count')
+      .first();
+    const total = Number(countResult?.count || 0);
+
+    const results = await this.db('business_roles')
+      .where({ status: 'ACTIVE' })
+      .limit(limit)
+      .offset(offset)
+      .select();
+
+    const items = results.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      status: r.status,
+      version: r.version,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      createdBy: r.created_by,
+      updatedBy: r.updated_by,
+    }));
+
+    return { items, total };
+  }
+
+  async updateBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted> {
+    await this.db('business_roles').where({ id: role.id }).update({
+      name: role.name,
+      description: role.description || null,
+      status: role.status,
+      version: role.version,
+      updated_by: role.updatedBy || null,
+      updated_at: role.updatedAt || new Date(),
+    });
+    return role;
+  }
+
+  async retireBusinessRole(
+    id: string,
+    actor: string,
+  ): Promise<BusinessRolePersisted> {
+    const existing = await this.getBusinessRole(id);
+    if (!existing) {
+      throw new Error(`Business role ${id} not found`);
+    }
+    const retired: BusinessRolePersisted = {
+      ...existing,
+      status: 'RETIRED',
+      updatedAt: new Date(),
+      updatedBy: actor,
+      version: existing.version + 1,
+    };
+    await this.updateBusinessRole(retired);
+    return retired;
+  }
+
+  // ============================================================================
   // REQUIREMENT SETS
   // ============================================================================
 
@@ -286,6 +383,7 @@ export class PostgresURSRepository implements IURSRepository {
   async createRequirementVersion(version: RequirementVersion): Promise<RequirementVersion> {
     await this.db('requirement_versions').insert({
       id: version.id,
+      ...this.classificationToColumns(version.classification),
       requirement_id: version.requirementId,
       version: version.version,
       version_number: version.versionNumber,
@@ -682,6 +780,7 @@ export class PostgresURSRepository implements IURSRepository {
   async createRequirement(req: URSRequirement): Promise<URSRequirement> {
     await this.db('requirements').insert({
       id: req.id,
+      ...this.classificationToColumns(req.classification),
       requirement_set_id: req.requirementSetId,
       requirement_id: req.requirementId,
       title: req.title,
@@ -715,6 +814,7 @@ export class PostgresURSRepository implements IURSRepository {
       category: r.category,
       priority: r.priority,
       acceptanceIntent: r.acceptance_intent,
+      classification: this.classificationFromRow(r),
       gxpRelevance: r.gxp_relevance,
       source: r.source,
       owner: r.owner,
@@ -874,6 +974,59 @@ export class PostgresURSRepository implements IURSRepository {
     };
   }
 
+  private classificationToColumns(
+    classification?: RequirementClassification,
+  ): {
+    component_type: string | null;
+    requirement_nature: string | null;
+    criticality: string | null;
+    classification_meta: string | null;
+  } {
+    if (!classification) {
+      return {
+        component_type: null,
+        requirement_nature: null,
+        criticality: null,
+        classification_meta: null,
+      };
+    }
+    return {
+      component_type: classification.componentType,
+      requirement_nature: classification.requirementNature,
+      criticality: classification.criticality,
+      classification_meta: JSON.stringify({
+        secondaryTypes: classification.secondaryTypes,
+        interfaceType: classification.interfaceType,
+        dataClassification: classification.dataClassification,
+        validationLevel: classification.validationLevel,
+        sourceSystem: classification.sourceSystem,
+        targetSystem: classification.targetSystem,
+        automationReadiness: classification.automationReadiness,
+      }),
+    };
+  }
+
+  private classificationFromRow(row: any): RequirementClassification | undefined {
+    if (!row.component_type) {
+      return undefined;
+    }
+    const meta = row.classification_meta
+      ? JSON.parse(row.classification_meta)
+      : {};
+    return {
+      componentType: row.component_type,
+      secondaryTypes: meta.secondaryTypes,
+      requirementNature: row.requirement_nature,
+      criticality: row.criticality,
+      interfaceType: meta.interfaceType,
+      dataClassification: meta.dataClassification,
+      validationLevel: meta.validationLevel,
+      sourceSystem: meta.sourceSystem,
+      targetSystem: meta.targetSystem,
+      automationReadiness: meta.automationReadiness,
+    };
+  }
+
   private rowToRequirementVersion(row: any): RequirementVersion {
     return {
       id: row.id,
@@ -886,6 +1039,7 @@ export class PostgresURSRepository implements IURSRepository {
       category: row.category,
       priority: row.priority,
       acceptanceIntent: row.acceptance_intent,
+      classification: this.classificationFromRow(row),
       gxpRelevance: row.gxp_relevance,
       source: row.source,
       owner: row.owner,

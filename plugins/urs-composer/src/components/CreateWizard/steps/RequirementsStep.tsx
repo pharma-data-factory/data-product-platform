@@ -16,7 +16,13 @@ import {
 import { makeStyles } from '@material-ui/core/styles';
 import AddIcon from '@material-ui/icons/Add';
 import DeleteIcon from '@material-ui/icons/Delete';
-import { RequirementPriority, GxPRelevance } from '../../../api/types';
+import {
+  RequirementPriority,
+  GxPRelevance,
+  COMPONENT_TYPES,
+  REQUIREMENT_NATURES,
+  CRITICALITIES,
+} from '../../../api/types';
 import { URSWizardState, RequirementDraft } from '../wizardState';
 
 const useStyles = makeStyles(theme => ({
@@ -69,6 +75,13 @@ export const RequirementsStep: React.FC<RequirementsStepProps> = ({ state, onSta
   const handleUpdateRequirement = (index: number, field: keyof RequirementDraft, value: any) => {
     const updated = [...state.requirements];
     (updated[index] as any)[field] = value;
+    onStateChange({ requirements: updated });
+  };
+
+  const handleUpdateClassification = (index: number, key: string, value: string) => {
+    const updated = [...state.requirements];
+    const req = updated[index] as any;
+    req.classification = { ...(req.classification || {}), [key]: value };
     onStateChange({ requirements: updated });
   };
 
@@ -197,6 +210,66 @@ export const RequirementsStep: React.FC<RequirementsStepProps> = ({ state, onSta
                       <MenuItem value={GxPRelevance.DIRECT}>Direct</MenuItem>
                       <MenuItem value={GxPRelevance.INDIRECT}>Indirect</MenuItem>
                       <MenuItem value={GxPRelevance.NONE}>None</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} sm={4}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel>Component Type</InputLabel>
+                    <Select
+                      value={req.classification?.componentType || ''}
+                      onChange={e =>
+                        handleUpdateClassification(idx, 'componentType', e.target.value as string)
+                      }
+                      label="Component Type"
+                    >
+                      <MenuItem value="">Select...</MenuItem>
+                      {COMPONENT_TYPES.map(type => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} sm={4}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel>Nature</InputLabel>
+                    <Select
+                      value={req.classification?.requirementNature || ''}
+                      onChange={e =>
+                        handleUpdateClassification(idx, 'requirementNature', e.target.value as string)
+                      }
+                      label="Nature"
+                    >
+                      <MenuItem value="">Select...</MenuItem>
+                      {REQUIREMENT_NATURES.map(nature => (
+                        <MenuItem key={nature} value={nature}>
+                          {nature}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} sm={4}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel>Criticality</InputLabel>
+                    <Select
+                      value={req.classification?.criticality || ''}
+                      onChange={e =>
+                        handleUpdateClassification(idx, 'criticality', e.target.value as string)
+                      }
+                      label="Criticality"
+                    >
+                      <MenuItem value="">Select...</MenuItem>
+                      {CRITICALITIES.map(level => (
+                        <MenuItem key={level} value={level}>
+                          {level}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>

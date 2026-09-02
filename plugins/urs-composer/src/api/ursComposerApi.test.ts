@@ -248,5 +248,25 @@ describe('URSComposerApi', () => {
         expect.any(Object),
       );
     });
+
+    test('updateBusinessCapability URL-encodes slash-containing id', async () => {
+      const api = createApi();
+      await api.updateBusinessCapability('business-capability:make/oee', {
+        name: 'OEE Management',
+      });
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        'http://localhost:7007/api/urs-composer/capabilities/business-capability%3Amake%2Foee',
+        expect.any(Object),
+      );
+    });
+
+    test('retireBusinessCapability URL-encodes slash-containing id', async () => {
+      const api = createApi();
+      await api.retireBusinessCapability('business-capability:make/oee');
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        'http://localhost:7007/api/urs-composer/capabilities/business-capability%3Amake%2Foee',
+        expect.any(Object),
+      );
+    });
   });
 });

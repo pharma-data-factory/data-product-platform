@@ -22,6 +22,7 @@ import {
   ApprovalInstanceStatus,
   UpdateRequirementSetRequest,
   BusinessCapabilityPersisted,
+  BusinessRolePersisted,
 } from './types';
 import { IURSRepository } from './repository-interface';
 import { nextMinorVersion, getVersionNumber } from './services/versioningService';
@@ -189,6 +190,114 @@ export class URSService {
     return this.repository.getEntityAuditTrail(id, 'BUSINESS_CAPABILITY');
   }
 
+  // ============================================================================
+  // BUSINESS ROLES (P1B)
+  // ============================================================================
+
+  async getBusinessRoles(): Promise<BusinessRolePersisted[]> {
+    const { items } = await this.repository.listBusinessRoles(1000, 0);
+    return items;
+  }
+
+  async getBusinessRole(id: string): Promise<BusinessRolePersisted | null> {
+    return this.repository.getBusinessRole(id);
+  }
+
+  async createBusinessRole(
+    data: { name: string; description?: string },
+    actor: string,
+  ): Promise<BusinessRolePersisted> {
+    const name = data.name?.trim();
+    if (!name) {
+      throw new Error('name is required');
+    }
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const id = `role:${slug}`;
+    const existing = await this.repository.getBusinessRole(id);
+    if (existing) {
+      throw new Error(`Business role ${id} already exists`);
+    }
+    const role: BusinessRolePersisted = {
+      id,
+      name,
+      description: data.description?.trim() || undefined,
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      createdBy: actor,
+      version: 1,
+    };
+    const saved = await this.repository.createBusinessRole(role);
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BUSINESS_ROLE',
+      entityId: saved.id,
+      eventType: 'CREATED',
+      newValue: saved,
+      actor,
+      timestamp: new Date(),
+    });
+    return saved;
+  }
+
+  async updateBusinessRole(
+    id: string,
+    data: { name?: string; description?: string },
+    actor: string,
+  ): Promise<BusinessRolePersisted> {
+    const existing = await this.repository.getBusinessRole(id);
+    if (!existing) {
+      throw new Error(`Business role ${id} not found`);
+    }
+    const updated: BusinessRolePersisted = {
+      ...existing,
+      name: data.name?.trim() || existing.name,
+      description:
+        data.description !== undefined
+          ? data.description.trim() || undefined
+          : existing.description,
+      updatedAt: new Date(),
+      updatedBy: actor,
+      version: existing.version + 1,
+    };
+    const saved = await this.repository.updateBusinessRole(updated);
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BUSINESS_ROLE',
+      entityId: id,
+      eventType: 'UPDATED',
+      oldValue: existing,
+      newValue: saved,
+      actor,
+      timestamp: new Date(),
+    });
+    return saved;
+  }
+
+  async retireBusinessRole(
+    id: string,
+    actor: string,
+  ): Promise<BusinessRolePersisted> {
+    const existing = await this.repository.getBusinessRole(id);
+    if (!existing) {
+      throw new Error(`Business role ${id} not found`);
+    }
+    const retired = await this.repository.retireBusinessRole(id, actor);
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BUSINESS_ROLE',
+      entityId: id,
+      eventType: 'RETIRED',
+      oldValue: existing,
+      newValue: retired,
+      actor,
+      timestamp: new Date(),
+    });
+    return retired;
+  }
+
   /**
    * Create requirement set
    */
@@ -341,6 +450,7 @@ export class URSService {
         category: reqData.category,
         priority: reqData.priority,
         acceptanceIntent: reqData.acceptanceIntent,
+        classification: reqData.classification,
         gxpRelevance: reqData.gxpRelevance,
         source: reqData.source,
         owner: reqData.owner,
@@ -409,6 +519,7 @@ export class URSService {
       rationale: data.rationale,
       priority: data.priority!,
       acceptanceIntent: data.acceptanceIntent,
+      classification: data.classification,
       gxpRelevance: data.gxpRelevance,
       source: data.source,
       owner: data.owner,
@@ -734,6 +845,7 @@ export class URSService {
       category: previous.category,
       priority: previous.priority,
       acceptanceIntent: previous.acceptanceIntent,
+      classification: previous.classification,
       gxpRelevance: previous.gxpRelevance,
       source: previous.source,
       owner: previous.owner,

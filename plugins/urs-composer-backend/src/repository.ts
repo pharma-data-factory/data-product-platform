@@ -18,10 +18,28 @@ import {
   AuditEvent,
   ApprovalStatus,
   BusinessCapabilityPersisted,
+  BusinessRolePersisted,
   URSStatus,
 } from './types';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
+
+const DEFAULT_BUSINESS_ROLES = [
+  'Weighing Operator',
+  'Dispensing Operator',
+  'Line Lead',
+  'Production Supervisor',
+  'Quality Technician',
+  'Process Engineer',
+];
+
+function roleId(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `role:${slug}`;
+}
 
 /**
  * In-memory Transaction (no-op for P0)
@@ -49,6 +67,7 @@ export class URSRepository implements IURSRepository {
 
   // P1A storage
   private businessCapabilities: Map<string, BusinessCapabilityPersisted> = new Map();
+  private businessRoles: Map<string, BusinessRolePersisted> = new Map();
   private requirementVersions: Map<string, RequirementVersion> = new Map();
   private baselines: Map<string, Baseline> = new Map();
   private approvalWorkflows: Map<string, ApprovalWorkflow> = new Map();
@@ -59,6 +78,16 @@ export class URSRepository implements IURSRepository {
     for (const cap of BUSINESS_CAPABILITIES) {
       this.businessCapabilities.set(cap.id, {
         ...cap,
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        createdBy: 'system',
+        version: 1,
+      });
+    }
+    for (const name of DEFAULT_BUSINESS_ROLES) {
+      this.businessRoles.set(roleId(name), {
+        id: roleId(name),
+        name,
         status: 'ACTIVE',
         createdAt: new Date(),
         createdBy: 'system',
@@ -223,6 +252,53 @@ export class URSRepository implements IURSRepository {
       version: existing.version + 1,
     };
     this.businessCapabilities.set(id, retired);
+    return retired;
+  }
+
+  // ============================================================================
+  // P1B: BUSINESS ROLES (Persisted)
+  // ============================================================================
+
+  async createBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted> {
+    this.businessRoles.set(role.id, role);
+    return role;
+  }
+
+  async getBusinessRole(id: string): Promise<BusinessRolePersisted | null> {
+    return this.businessRoles.get(id) || null;
+  }
+
+  async listBusinessRoles(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: BusinessRolePersisted[]; total: number }> {
+    const all = Array.from(this.businessRoles.values()).filter(
+      r => r.status === 'ACTIVE',
+    );
+    return { items: all.slice(offset, offset + limit), total: all.length };
+  }
+
+  async updateBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted> {
+    this.businessRoles.set(role.id, role);
+    return role;
+  }
+
+  async retireBusinessRole(
+    id: string,
+    actor: string,
+  ): Promise<BusinessRolePersisted> {
+    const existing = this.businessRoles.get(id);
+    if (!existing) {
+      throw new Error(`Business role ${id} not found`);
+    }
+    const retired: BusinessRolePersisted = {
+      ...existing,
+      status: 'RETIRED',
+      updatedAt: new Date(),
+      updatedBy: actor,
+      version: existing.version + 1,
+    };
+    this.businessRoles.set(id, retired);
     return retired;
   }
 

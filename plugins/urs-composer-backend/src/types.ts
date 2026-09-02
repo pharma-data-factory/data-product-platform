@@ -12,6 +12,8 @@
  */
 
 
+import type { RequirementClassification } from '@internal/platform-common';
+
 /**
  * Solution Types
  * What is being built?
@@ -167,6 +169,7 @@ export interface URSRequirement {
   acceptanceIntent?: string; // How will you know it's satisfied?
 
   // CLASSIFICATION
+  classification?: RequirementClassification;
   gxpRelevance?: GxPRelevance;
   source?: string;
   owner?: string;
@@ -207,7 +210,8 @@ export interface AuditEvent {
     | 'BASELINE'
     | 'APPROVAL_INSTANCE'
     | 'APPROVAL_STEP'
-    | 'BUSINESS_CAPABILITY';
+    | 'BUSINESS_CAPABILITY'
+    | 'BUSINESS_ROLE';
   entityId: string;
   eventType: string;
   // Semantic/string version identifier of the audited entity when relevant
@@ -284,6 +288,7 @@ export interface CreateRequirementRequest {
   rationale?: string;
   priority: RequirementPriority;
   acceptanceIntent?: string;
+  classification?: RequirementClassification;
   gxpRelevance?: GxPRelevance;
   source?: string;
   owner?: string;
@@ -360,6 +365,7 @@ export interface RequirementVersion {
   acceptanceIntent?: string;
 
   // Classification
+  classification?: RequirementClassification;
   gxpRelevance?: GxPRelevance;
   source?: string;
   owner?: string;
@@ -479,6 +485,24 @@ export interface BusinessCapabilityPersisted extends BusinessCapability {
   createdBy: string;
   updatedBy?: string;
   version: number; // For optimistic concurrency
+}
+
+/**
+ * Business Role (P1B: Persisted)
+ *
+ * The executing roles that perform a business capability (e.g. "Weighing
+ * Operator", "Line Lead"). Attached to a URS via `RequirementSet.stakeholders`.
+ */
+export interface BusinessRolePersisted {
+  id: string; // role:<slug>
+  name: string;
+  description?: string;
+  status: 'ACTIVE' | 'RETIRED';
+  createdAt: Date;
+  updatedAt?: Date;
+  createdBy: string;
+  updatedBy?: string;
+  version: number;
 }
 
 /**

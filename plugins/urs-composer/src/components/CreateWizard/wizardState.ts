@@ -5,7 +5,12 @@
  * Separates temporary editing state (React) from persisted state (backend).
  */
 
-import { SolutionType, GxPRelevance, RequirementPriority } from '../../api/types';
+import {
+  SolutionType,
+  GxPRelevance,
+  RequirementPriority,
+  RequirementClassification,
+} from '../../api/types';
 
 /**
  * Draft requirement during editing
@@ -21,6 +26,7 @@ export interface RequirementDraft {
   gxpRelevance?: GxPRelevance;
   source?: string;
   owner?: string;
+  classification?: RequirementClassification;
   acceptanceCriteria?: AcceptanceCriteriaDraft[];
 }
 
@@ -52,7 +58,7 @@ export interface URSWizardState {
     title?: string;
     desiredOutcome?: string;
     businessValue?: string;
-    stakeholders?: string[]; // Backend stores as string[], UI manages as comma-separated
+    stakeholders?: string[]; // Role IDs (role:<slug>) of the executing roles
   };
 
   // === STEP 3: URS CONTEXT ===
@@ -284,6 +290,7 @@ export function toDraftRequirementsPayload(state: URSWizardState) {
     gxpRelevance: req.gxpRelevance,
     source: req.source,
     owner: req.owner,
+    classification: req.classification,
     acceptanceIntent: serializeAcceptanceCriteria(req.acceptanceCriteria),
   }));
 }
@@ -324,6 +331,7 @@ export function fromRequirementSetToWizardState(
       gxpRelevance: req.gxpRelevance,
       source: (req as any).source,
       owner: (req as any).owner,
+      classification: (req as any).classification,
       acceptanceCriteria: parseAcceptanceCriteria((req as any).acceptanceIntent),
     })),
     solutionType: set.solutionType,

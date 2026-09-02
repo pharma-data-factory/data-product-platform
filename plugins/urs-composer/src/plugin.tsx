@@ -13,6 +13,8 @@ import {
   libraryRouteRef,
   requirementSetRouteRef,
   rootRouteRef,
+  capabilitiesRouteRef,
+  businessRolesRouteRef,
 } from './routes';
 
 const ursComposerApi = ApiBlueprint.make({
@@ -60,6 +62,30 @@ const createPage = PageBlueprint.make({
   },
 });
 
+const capabilitiesPage = PageBlueprint.make({
+  name: 'capabilities',
+  params: {
+    path: '/urs-composer/capabilities',
+    routeRef: capabilitiesRouteRef,
+    title: 'Business Capabilities',
+    loader: () =>
+      import('./pages/BusinessCapabilitiesPage').then(
+        m => <m.BusinessCapabilitiesPage />,
+      ),
+  },
+});
+
+const businessRolesPage = PageBlueprint.make({
+  name: 'business-roles',
+  params: {
+    path: '/urs-composer/business-roles',
+    routeRef: businessRolesRouteRef,
+    title: 'Business Roles',
+    loader: () =>
+      import('./pages/BusinessRolesPage').then(m => <m.BusinessRolesPage />),
+  },
+});
+
 const editPage = PageBlueprint.make({
   name: 'edit',
   params: {
@@ -87,6 +113,8 @@ export const ursComposerPlugin = createFrontendPlugin({
     overviewPage,
     libraryPage,
     createPage,
+    capabilitiesPage,
+    businessRolesPage,
     editPage,
     detailPage,
   ],
@@ -94,6 +122,8 @@ export const ursComposerPlugin = createFrontendPlugin({
     root: rootRouteRef,
     library: libraryRouteRef,
     create: createRouteRef_,
+    capabilities: capabilitiesRouteRef,
+    businessRoles: businessRolesRouteRef,
     edit: editRouteRef,
     requirementSet: requirementSetRouteRef,
   },
