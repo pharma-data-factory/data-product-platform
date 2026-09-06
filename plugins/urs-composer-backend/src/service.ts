@@ -1523,7 +1523,7 @@ export class URSService {
       throw new Error(`Requirement set not found: ${requirementSetId}`);
     }
 
-    const existingRequirements = await this.repository.listRequirements(requirementSetId);
+    const existingRequirements = await this.repository.getRequirements(requirementSetId);
 
     const capabilities: string[] = [];
     for (const ref of set.businessCapabilityRefs) {

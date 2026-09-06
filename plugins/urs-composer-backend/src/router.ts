@@ -917,8 +917,8 @@ export async function createRouter(
     '/requirement-sets/:id/generate-suggestions',
     async (req: express.Request, res: express.Response) => {
       try {
-        const credentials = await httpAuth.credentials(req);
-        const actor = credentials.principal.userEntityRef;
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+        const actor = credentials.principal?.userEntityRef ?? 'unknown';
 
         const suggestions = await service.generateRequirementSuggestions(
           req.params.id,
