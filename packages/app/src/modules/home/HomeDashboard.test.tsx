@@ -27,71 +27,59 @@ const product: DataProduct = {
   entityRef: 'component:default/sample-mqtt-temperature-product',
 };
 
+const other: DataProduct = {
+  ...product,
+  name: 'other-product',
+  title: 'Other Product',
+};
+
 describe('authenticated home', () => {
-  it('renders Viewer quick actions', () => {
+  it('shows the build CTA and core actions for developers', () => {
+    render(
+      <MemoryRouter>
+        <HomeDashboard
+          platformRole="DEVELOPER"
+          displayName="Developer"
+          products={[product]}
+          recentlyUsed={[]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Welcome, Developer')).toBeInTheDocument();
+    expect(screen.getByText('Build a Data Product')).toBeInTheDocument();
+    expect(screen.getByText('What can I do?')).toBeInTheDocument();
+    expect(screen.getByText('Build')).toBeInTheDocument();
+    expect(screen.getByText('My Products')).toBeInTheDocument();
+    expect(screen.getByText('Validate')).toBeInTheDocument();
+    expect(screen.queryByText('Marketplace')).not.toBeInTheDocument();
+    expect(screen.queryByText('Model Company')).not.toBeInTheDocument();
+    expect(screen.getByText('My Data Products')).toBeInTheDocument();
+    expect(screen.getByText('MQTT Temperature Data Product')).toBeInTheDocument();
+  });
+
+  it('points viewers at the Marketplace instead of Build', () => {
     render(
       <MemoryRouter>
         <HomeDashboard
           platformRole="VIEWER"
           displayName="Viewer"
-          githubLogin="viewer"
-          products={[product]}
-          recentlyUsed={[product]}
+          products={[]}
+          recentlyUsed={[]}
         />
       </MemoryRouter>,
     );
-    expect(screen.getByText('Open Developer Hub')).toBeInTheDocument();
+
     expect(screen.getByText('Explore Marketplace')).toBeInTheDocument();
-    expect(screen.getByText('Browse Data Products')).toBeInTheDocument();
-    expect(screen.getByText('Search Documentation')).toBeInTheDocument();
-    expect(screen.getByText('Release Catalog')).toBeInTheDocument();
-    expect(screen.getByText('Golden Paths (6)')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Search Golden Paths...' })).toBeInTheDocument();
-    expect(screen.getByTestId('golden-path-category-filter')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Explore MQTT Temperature' })).toBeInTheDocument();
-    expect(screen.getByText('What it is')).toBeInTheDocument();
-    expect(screen.getByText('Why it exists as a product')).toBeInTheDocument();
-    expect(screen.queryByText('Create Data Product')).not.toBeInTheDocument();
-    expect(screen.getByText('My Data Products')).toBeInTheDocument();
-    expect(screen.getByText('Recent activity')).toBeInTheDocument();
-    expect(screen.getByText('Quality & CI')).toBeInTheDocument();
-    expect(screen.getByText('Platform updates')).toBeInTheDocument();
-    expect(screen.getByText('CI Quality Gate')).toBeInTheDocument();
-    expect(screen.getAllByText('SAMPLE').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Role: Viewer/i)).toBeInTheDocument();
-    expect(screen.getByText(/GitHub: viewer/i)).toBeInTheDocument();
-    expect(screen.queryByText('View Catalog')).not.toBeInTheDocument();
+    expect(screen.getByText('Marketplace')).toBeInTheDocument();
+    expect(screen.getByText('Model Company')).toBeInTheDocument();
+    expect(screen.queryByText('Build')).not.toBeInTheDocument();
+    expect(screen.queryByText('Build a Data Product')).not.toBeInTheDocument();
+    expect(screen.queryByText('Manage Platform')).not.toBeInTheDocument();
   });
 
-  it('renders Developer, Owner, and Admin actions', () => {
-    const { rerender } = render(
-      <MemoryRouter>
-        <HomeDashboard
-          platformRole="DEVELOPER"
-          products={[]}
-          recentlyUsed={[]}
-        />
-      </MemoryRouter>,
-    );
-    expect(screen.getByText('Create Data Product')).toBeInTheDocument();
-    expect(screen.getByText('Explore Marketplace')).toBeInTheDocument();
-    expect(
-      screen.getByText('You have no Data Products yet. Create one from the Marketplace.'),
-    ).toBeInTheDocument();
-
-    rerender(
-      <MemoryRouter>
-        <HomeDashboard
-          platformRole="DATA_PRODUCT_OWNER"
-          products={[]}
-          recentlyUsed={[]}
-        />
-      </MemoryRouter>,
-    );
-    expect(screen.getByText('Create Data Product')).toBeInTheDocument();
-    expect(screen.getByText('Browse Data Products')).toBeInTheDocument();
-
-    rerender(
+  it('points platform admins at platform management', () => {
+    render(
       <MemoryRouter>
         <HomeDashboard
           platformRole="PLATFORM_ADMIN"
@@ -100,25 +88,61 @@ describe('authenticated home', () => {
         />
       </MemoryRouter>,
     );
+
     expect(screen.getByText('Manage Platform')).toBeInTheDocument();
-    expect(screen.getByText('Create Data Product')).toBeInTheDocument();
+    expect(screen.queryByText('Build a Data Product')).not.toBeInTheDocument();
   });
 
-  it('does not grant Viewer messaging on the authenticated home', () => {
+  it('caps the product list at six and shows a view-all link', () => {
+    const many: DataProduct[] = Array.from({ length: 10 }, (_, i) => ({
+      ...product,
+      name: `product-${i}`,
+      title: `Product ${i}`,
+    }));
+
+    render(
+      <MemoryRouter>
+        <HomeDashboard
+          platformRole="PLATFORM_ADMIN"
+          products={many}
+          recentlyUsed={[]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText(/^Product \d$/)).toHaveLength(6);
+    expect(screen.getByText('View all Data Products →')).toBeInTheDocument();
+  });
+
+  it('shows recently used products as cards without duplicating them in the list', () => {
+    render(
+      <MemoryRouter>
+        <HomeDashboard
+          platformRole="DEVELOPER"
+          products={[product, other]}
+          recentlyUsed={[product]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Continue where you left off')).toBeInTheDocument();
+    expect(screen.getByText('MQTT Temperature Data Product')).toBeInTheDocument();
+    expect(screen.getByText('Other Product')).toBeInTheDocument();
+    expect(screen.queryByText('View all Data Products →')).not.toBeInTheDocument();
+  });
+
+  it('renders the empty state when there are no products', () => {
     render(
       <MemoryRouter>
         <HomeDashboard
           platformRole="VIEWER"
           displayName="Viewer"
-          githubLogin="viewer"
           products={[]}
           recentlyUsed={[]}
         />
       </MemoryRouter>,
     );
-    expect(screen.queryByText(/Viewer access/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/do not have an approved platform role/i),
-    ).not.toBeInTheDocument();
+
+    expect(screen.getByText(/No Data Products yet/i)).toBeInTheDocument();
   });
 });

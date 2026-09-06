@@ -55,13 +55,11 @@ describe('authenticated home', () => {
       );
     });
 
-    expect(await screen.findByText(/Role: Viewer/i)).toBeInTheDocument();
-    expect(screen.getByText(/GitHub: viewer/i)).toBeInTheDocument();
+    expect(await screen.findByText('Welcome, Viewer')).toBeInTheDocument();
     expect(screen.getByText('Explore Marketplace')).toBeInTheDocument();
-    expect(screen.getByText('Browse Data Products')).toBeInTheDocument();
-    expect(screen.queryByText('Create Data Product')).not.toBeInTheDocument();
+    expect(screen.getByText('What can I do?')).toBeInTheDocument();
     expect(screen.getByText('My Data Products')).toBeInTheDocument();
-    expect(screen.getByText('Recent activity')).toBeInTheDocument();
+    expect(screen.getByText(/No Data Products yet/i)).toBeInTheDocument();
   });
 
   it('shows Access Denied when a GitHub identity has no approved platform group', async () => {

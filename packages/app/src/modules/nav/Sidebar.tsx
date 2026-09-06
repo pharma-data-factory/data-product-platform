@@ -38,6 +38,7 @@ import BusinessIcon from '@material-ui/icons/Business';
 import ExtensionIcon from '@material-ui/icons/Extension';
 import AdminIcon from '@material-ui/icons/Security';
 import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
+import GroupIcon from '@material-ui/icons/Group';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
 import StoreIcon from '@material-ui/icons/Store';
 
@@ -136,6 +137,21 @@ function PlatformSidebar() {
           {admin ? (
             <SidebarItem icon={AdminIcon} to="/admin" text="Admin">
               <SidebarSubmenu title="Admin">
+                <SidebarSubmenuItem
+                  icon={GroupIcon}
+                  to="/admin/users"
+                  title="Users & Roles"
+                />
+                <SidebarSubmenuItem
+                  icon={CategoryIcon}
+                  to="/urs-composer/capabilities"
+                  title="Business Capabilities"
+                />
+                <SidebarSubmenuItem
+                  icon={AssignmentTurnedInIcon}
+                  to="/urs-composer/business-roles"
+                  title="Business Roles"
+                />
                 <SidebarSubmenuItem
                   icon={VerifiedUserIcon}
                   to="/admin/entitlements"
