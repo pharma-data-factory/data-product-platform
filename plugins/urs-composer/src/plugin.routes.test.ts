@@ -16,5 +16,6 @@ describe('ursComposerPlugin routes', () => {
     expect(pluginSource).toContain("path: '/urs-composer/new'");
     expect(pluginSource).toContain("path: '/urs-composer/:id/edit'");
     expect(pluginSource).toContain("path: '/urs-composer/:id'");
+    expect(pluginSource).toContain("path: '/urs-composer/baselines/:id/changes'");
   });
 });

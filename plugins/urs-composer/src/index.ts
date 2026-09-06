@@ -5,4 +5,5 @@ export {
   createRouteRef_,
   editRouteRef,
   requirementSetRouteRef,
+  changeSetRouteRef,
 } from './routes';

@@ -7,3 +7,4 @@ export const editRouteRef = createRouteRef();
 export const requirementSetRouteRef = createRouteRef();
 export const capabilitiesRouteRef = createRouteRef();
 export const businessRolesRouteRef = createRouteRef();
+export const changeSetRouteRef = createRouteRef();

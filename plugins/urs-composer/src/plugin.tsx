@@ -15,6 +15,7 @@ import {
   rootRouteRef,
   capabilitiesRouteRef,
   businessRolesRouteRef,
+  changeSetRouteRef,
 } from './routes';
 
 const ursComposerApi = ApiBlueprint.make({
@@ -96,6 +97,16 @@ const editPage = PageBlueprint.make({
   },
 });
 
+const changeSetPage = PageBlueprint.make({
+  name: 'change-set',
+  params: {
+    path: '/urs-composer/baselines/:id/changes',
+    routeRef: changeSetRouteRef,
+    loader: () =>
+      import('./pages/ChangeSetPage').then(m => <m.ChangeSetPage />),
+  },
+});
+
 const detailPage = PageBlueprint.make({
   name: 'detail',
   params: {
@@ -116,6 +127,7 @@ export const ursComposerPlugin = createFrontendPlugin({
     capabilitiesPage,
     businessRolesPage,
     editPage,
+    changeSetPage,
     detailPage,
   ],
   routes: {
@@ -125,6 +137,7 @@ export const ursComposerPlugin = createFrontendPlugin({
     capabilities: capabilitiesRouteRef,
     businessRoles: businessRolesRouteRef,
     edit: editRouteRef,
+    changeSet: changeSetRouteRef,
     requirementSet: requirementSetRouteRef,
   },
 });

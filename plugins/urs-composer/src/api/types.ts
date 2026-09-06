@@ -324,3 +324,62 @@ export interface ApproveStepRequest {
 export interface RejectStepRequest {
   reason: string;
 }
+
+// ============================================================================
+// CHANGE SET — Delta between two URS Baselines
+// ============================================================================
+
+export type ChangeType = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'UNCHANGED';
+
+export interface ChangeSetRequirementVersion {
+  id: string;
+  requirementId: string;
+  version: string;
+  versionNumber: number;
+  title: string;
+  statement: string;
+  rationale?: string;
+  category?: string;
+  priority?: RequirementPriority;
+  acceptanceIntent?: string;
+  classification?: RequirementClassification;
+  gxpRelevance?: GxPRelevance;
+  source?: string;
+  owner?: string;
+  status: URSStatus;
+  revisionOf?: string;
+  revisionReason?: string;
+  supersededBy?: string;
+  createdBy: string;
+  createdAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  revision: number;
+}
+
+export interface RequirementChange {
+  requirementId: string;
+  changeType: ChangeType;
+  previousVersion?: ChangeSetRequirementVersion;
+  currentVersion?: ChangeSetRequirementVersion;
+  changedFields?: string[];
+}
+
+export interface ChangeSetSummary {
+  added: number;
+  modified: number;
+  removed: number;
+  unchanged: number;
+}
+
+export interface ChangeSet {
+  id: string;
+  baselineId: string;
+  previousBaselineId?: string;
+  baselineVersion: string;
+  previousBaselineVersion?: string;
+  changes: RequirementChange[];
+  summary: ChangeSetSummary;
+  computedAt: string;
+  computedBy: string;
+}

@@ -32,6 +32,7 @@ import {
   RejectStepRequest,
   RequirementSetListResponse,
   ApprovalRecord,
+  ChangeSet,
 } from './types';
 
 export type { URSApiError };
@@ -440,6 +441,14 @@ export class URSComposerApi {
    */
   async submitBaseline(id: string, req?: SubmitBaselineRequest): Promise<ApprovalInstance> {
     return this.post<ApprovalInstance>(`/baselines/${id}/submit`, req || {});
+  }
+
+  /**
+   * GET /baselines/:id/change-set
+   * Compute delta between this baseline and its predecessor
+   */
+  async getChangeSet(baselineId: string): Promise<ChangeSet> {
+    return this.get<ChangeSet>(`/baselines/${encodeURIComponent(baselineId)}/change-set`);
   }
 
   // ============================================================================

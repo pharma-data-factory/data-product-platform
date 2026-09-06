@@ -38,6 +38,7 @@ import {
   Requirement,
   AuditEvent,
   ApprovalRecord,
+  Baseline,
   URSStatus,
 } from '../api/types';
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
@@ -75,6 +76,7 @@ export const URSRequirementSetPage: React.FC = () => {
   const [approvedBaselineId, setApprovedBaselineId] = useState<string | null>(
     null,
   );
+  const [baselines, setBaselines] = useState<Baseline[]>([]);
   const [validating, setValidating] = useState(false);
   const [validationContextId, setValidationContextId] = useState<string | null>(
     null,
@@ -194,6 +196,7 @@ export const URSRequirementSetPage: React.FC = () => {
       .listBaselines(id)
       .then(baselines => {
         if (mounted) {
+          setBaselines(baselines);
           const approved = baselines.find(
             b => String(b.status).toUpperCase() === 'APPROVED',
           );
@@ -457,6 +460,32 @@ export const URSRequirementSetPage: React.FC = () => {
                     >
                       View Validation
                     </Button>
+                  </Box>
+                )}
+                {baselines.length > 1 && (
+                  <Box style={{ marginTop: 24 }}>
+                    <Divider style={{ marginBottom: 16 }} />
+                    <Typography variant="subtitle2" gutterBottom>
+                      Baseline Change Sets
+                    </Typography>
+                    <List dense>
+                      {baselines.slice(1).map(b => (
+                        <ListItem key={b.id}>
+                          <ListItemText
+                            primary={`v${b.baselineVersion}`}
+                            secondary={`${b.createdAt} · ${b.createdBy}`}
+                          />
+                          <Button
+                            size="small"
+                            onClick={() =>
+                              navigate(`/urs-composer/baselines/${b.id}/changes`)
+                            }
+                          >
+                            View Changes
+                          </Button>
+                        </ListItem>
+                      ))}
+                    </List>
                   </Box>
                 )}
               </CardContent>
