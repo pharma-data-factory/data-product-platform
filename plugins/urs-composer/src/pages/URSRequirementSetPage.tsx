@@ -26,10 +26,19 @@ import {
   ListItem,
   ListItemText,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Collapse,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
+import HistoryIcon from '@material-ui/icons/History';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
 import { ursApprovePermission, ursManagePermission } from '@internal/platform-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
@@ -40,6 +49,9 @@ import {
   ApprovalRecord,
   Baseline,
   URSStatus,
+  RequirementVersion,
+  ApprovalInstance,
+  ApprovalStepInstance,
 } from '../api/types';
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
 
@@ -81,6 +93,18 @@ export const URSRequirementSetPage: React.FC = () => {
   const [validationContextId, setValidationContextId] = useState<string | null>(
     null,
   );
+  // Version History state
+  const [versionHistory, setVersionHistory] = useState<Record<string, RequirementVersion[]>>({});
+  const [expandedReqId, setExpandedReqId] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<RequirementVersion | null>(null);
+  // Revision dialog state
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [revisionTargetId, setRevisionTargetId] = useState<string | null>(null);
+  const [revisionReason, setRevisionReason] = useState('');
+  // Approval Instance state
+  const [approvalInstance, setApprovalInstance] = useState<ApprovalInstance | null>(null);
+  const [stepComment, setStepComment] = useState('');
+  const [stepRejectReason, setStepRejectReason] = useState('');
 
   const approveAllowed = usePermission({ permission: ursApprovePermission });
   const manageAllowed = usePermission({ permission: ursManagePermission });
@@ -231,6 +255,112 @@ export const URSRequirementSetPage: React.FC = () => {
     }
   };
 
+  const handleToggleVersionHistory = async (reqId: string) => {
+    if (expandedReqId === reqId) {
+      setExpandedReqId(null);
+      setSelectedVersion(null);
+      return;
+    }
+    setExpandedReqId(reqId);
+    if (!versionHistory[reqId]) {
+      try {
+        const versions = await api.listRequirementVersions(reqId);
+        setVersionHistory(prev => ({ ...prev, [reqId]: versions }));
+      } catch {
+        // ignore — requirement may not have versions yet
+      }
+    }
+  };
+
+  const handleCreateRevision = async () => {
+    if (!revisionTargetId || !revisionReason.trim()) {
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await api.createRevision(revisionTargetId, { revisionReason: revisionReason.trim() });
+      setRevisionDialogOpen(false);
+      setRevisionReason('');
+      setRevisionTargetId(null);
+      if (expandedReqId) {
+        const versions = await api.listRequirementVersions(expandedReqId);
+        setVersionHistory(prev => ({ ...prev, [expandedReqId]: versions }));
+      }
+      await reload();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create revision');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSubmitBaseline = async (baselineId: string) => {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const instance = await api.submitBaseline(baselineId);
+      setApprovalInstance(instance);
+      await reload();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to submit baseline');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApproveStep = async (stepId: string) => {
+    if (!approvalInstance) {
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const updated = await api.approveStep(approvalInstance.id, stepId, {
+        comment: stepComment || undefined,
+      });
+      setApprovalInstance(updated);
+      setStepComment('');
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to approve step');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectStep = async (stepId: string) => {
+    if (!approvalInstance || !stepRejectReason.trim()) {
+      setActionError('Rejection reason is required');
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const updated = await api.rejectStep(approvalInstance.id, stepId, {
+        reason: stepRejectReason.trim(),
+      });
+      setApprovalInstance(updated);
+      setStepRejectReason('');
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to reject step');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Load approval instance when a baseline has one
+  useEffect(() => {
+    const baselineWithApproval = baselines.find(
+      b => (b as any).approvalInstanceId,
+    );
+    if (baselineWithApproval && (baselineWithApproval as any).approvalInstanceId) {
+      api
+        .getApprovalInstance((baselineWithApproval as any).approvalInstanceId)
+        .then(setApprovalInstance)
+        .catch(() => {});
+    }
+  }, [baselines, api]);
+
   if (loading) {
     return (
       <Page themeId="tool">
@@ -347,14 +477,29 @@ export const URSRequirementSetPage: React.FC = () => {
             ) : (
               requirements.map(req => {
                 const acceptanceCriteria = parseAcceptanceCriteria(req.acceptanceIntent);
+                const isExpanded = expandedReqId === req.id;
+                const versions = versionHistory[req.id];
                 return (
                   <Card key={req.id} style={{ marginBottom: 12 }}>
                     <CardContent>
-                      <Typography variant="h6">{req.title}</Typography>
-                      <Typography paragraph>{req.statement}</Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        {req.category || 'Uncategorized'} · {req.priority || '—'}
-                      </Typography>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Box flex={1}>
+                          <Typography variant="h6">{req.title}</Typography>
+                          <Typography paragraph>{req.statement}</Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            {req.category || 'Uncategorized'} · {req.priority || '—'}
+                          </Typography>
+                        </Box>
+                        {req.id && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleToggleVersionHistory(req.id)}
+                            title="Version History"
+                          >
+                            {isExpanded ? <ExpandLessIcon /> : <HistoryIcon />}
+                          </IconButton>
+                        )}
+                      </Box>
                       {acceptanceCriteria.length > 0 && (
                         <>
                           <Divider style={{ margin: '12px 0' }} />
@@ -368,11 +513,100 @@ export const URSRequirementSetPage: React.FC = () => {
                           </List>
                         </>
                       )}
+                      {req.id && (
+                        <Collapse in={isExpanded}>
+                          <Divider style={{ margin: '12px 0' }} />
+                          <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Typography variant="subtitle2">Version History</Typography>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                setRevisionTargetId(req.id);
+                                setRevisionDialogOpen(true);
+                              }}
+                            >
+                              New Revision
+                            </Button>
+                          </Box>
+                          {!versions || versions.length === 0 ? (
+                            <Typography variant="body2" color="textSecondary" style={{ marginTop: 8 }}>
+                              No versions recorded yet.
+                            </Typography>
+                          ) : (
+                            <List dense>
+                              {versions.map(v => (
+                                <ListItem
+                                  key={v.id}
+                                  button
+                                  selected={selectedVersion?.id === v.id}
+                                  onClick={() => setSelectedVersion(v)}
+                                >
+                                  <ListItemText
+                                    primary={`v${v.version || v.versionNumber} — ${v.status}`}
+                                    secondary={`${v.createdAt} · ${v.createdBy}`}
+                                  />
+                                  <Chip label={v.priority} size="small" variant="outlined" />
+                                </ListItem>
+                              ))}
+                            </List>
+                          )}
+                          {selectedVersion && (
+                            <Card variant="outlined" style={{ marginTop: 8, padding: 12 }}>
+                              <Typography variant="subtitle2">
+                                {selectedVersion.title || 'Requirement'} (v{selectedVersion.version || selectedVersion.versionNumber})
+                              </Typography>
+                              <Typography variant="body2" paragraph>
+                                {selectedVersion.statement}
+                              </Typography>
+                              {selectedVersion.rationale && (
+                                <Typography variant="body2" color="textSecondary">
+                                  Rationale: {selectedVersion.rationale}
+                                </Typography>
+                              )}
+                            </Card>
+                          )}
+                        </Collapse>
+                      )}
                     </CardContent>
                   </Card>
                 );
               })
             )}
+
+            {/* Revision Dialog */}
+            <Dialog
+              open={revisionDialogOpen}
+              onClose={() => setRevisionDialogOpen(false)}
+              maxWidth="sm"
+              fullWidth
+            >
+              <DialogTitle>Create New Revision</DialogTitle>
+              <DialogContent>
+                <TextField
+                  autoFocus
+                  label="Revision Reason"
+                  placeholder="Why is this revision needed?"
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={revisionReason}
+                  onChange={e => setRevisionReason(e.target.value)}
+                  style={{ marginTop: 8 }}
+                />
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setRevisionDialogOpen(false)}>Cancel</Button>
+                <Button
+                  color="primary"
+                  variant="contained"
+                  disabled={!revisionReason.trim() || actionLoading}
+                  onClick={handleCreateRevision}
+                >
+                  Create Revision
+                </Button>
+              </DialogActions>
+            </Dialog>
           </TabPanel>
 
           <TabPanel value={tabValue} index={2}>
@@ -380,59 +614,165 @@ export const URSRequirementSetPage: React.FC = () => {
               <CardContent>
                 <Typography variant="subtitle2">Current State</Typography>
                 <Typography paragraph>{set.status}</Typography>
-                {approvals.length > 0 ? (
-                  <List dense>
-                    {approvals.map(record => (
-                      <ListItem key={record.id}>
-                        <ListItemText
-                          primary={`${record.approvalRole}: ${record.status}`}
-                          secondary={
-                            record.approver
-                              ? `${record.approver} · ${record.decidedAt || ''}`
-                              : undefined
-                          }
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
+
+                {/* P1B Approval Instance Display */}
+                {approvalInstance ? (
+                  <Box style={{ marginTop: 16 }}>
+                    <Typography variant="h6" gutterBottom>Approval Workflow</Typography>
+                    <Typography variant="body2" color="textSecondary" paragraph>
+                      Status: {approvalInstance.status} · Started by {approvalInstance.startedBy || approvalInstance.createdBy}
+                    </Typography>
+                    <List>
+                      {approvalInstance.steps.map((step: ApprovalStepInstance) => {
+                        const stepStatus = String(step.status);
+                        const isActive = stepStatus === 'ACTIVE';
+                        const statusColor =
+                          stepStatus === 'APPROVED' ? '#4caf50' :
+                          stepStatus === 'REJECTED' ? '#f44336' :
+                          stepStatus === 'ACTIVE' ? '#2196f3' :
+                          stepStatus === 'SKIPPED' ? '#ff9800' : '#9e9e9e';
+                        return (
+                          <ListItem key={step.id} style={{ borderLeft: `3px solid ${statusColor}`, paddingLeft: 12 }}>
+                            <ListItemText
+                              primary={
+                                <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+                                  <Typography variant="subtitle2">
+                                    Step {step.sequence ?? '?'}: {step.role || 'Reviewer'}
+                                  </Typography>
+                                  <Chip label={stepStatus} size="small" style={{ backgroundColor: statusColor, color: '#fff' }} />
+                                </Box>
+                              }
+                              secondary={
+                                step.approvedBy
+                                  ? `${step.approvedBy} · ${step.approvedAt || ''}${step.comment ? ` · "${step.comment}"` : ''}`
+                                  : step.rejectionReason
+                                    ? `Rejected: ${step.rejectionReason}`
+                                    : undefined
+                              }
+                            />
+                            {isActive && !approveAllowed.loading && approveAllowed.allowed && (
+                              <Box display="flex" alignItems="center" style={{ gap: 4 }}>
+                                <TextField
+                                  placeholder="Comment (optional)"
+                                  size="small"
+                                  value={stepComment}
+                                  onChange={e => setStepComment(e.target.value)}
+                                  style={{ width: 160 }}
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleApproveStep(step.id)}
+                                  disabled={actionLoading}
+                                  title="Approve"
+                                  style={{ color: '#4caf50' }}
+                                >
+                                  <CheckIcon />
+                                </IconButton>
+                                <TextField
+                                  placeholder="Reason (required)"
+                                  size="small"
+                                  value={stepRejectReason}
+                                  onChange={e => setStepRejectReason(e.target.value)}
+                                  style={{ width: 160 }}
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRejectStep(step.id)}
+                                  disabled={actionLoading || !stepRejectReason.trim()}
+                                  title="Reject"
+                                  style={{ color: '#f44336' }}
+                                >
+                                  <CloseIcon />
+                                </IconButton>
+                              </Box>
+                            )}
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  </Box>
                 ) : (
-                  <Typography color="textSecondary" paragraph>
-                    Approval gate details are tracked through requirement set status and
-                    technical audit events.
-                  </Typography>
+                  <>
+                    {/* Fallback: Old-style approval records */}
+                    {approvals.length > 0 ? (
+                      <List dense>
+                        {approvals.map(record => (
+                          <ListItem key={record.id}>
+                            <ListItemText
+                              primary={`${record.approvalRole}: ${record.status}`}
+                              secondary={
+                                record.approver
+                                  ? `${record.approver} · ${record.decidedAt || ''}`
+                                  : undefined
+                              }
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    ) : (
+                      <Typography color="textSecondary" paragraph>
+                        No approval workflow active. Submit a baseline to start the approval process.
+                      </Typography>
+                    )}
+                    {canApprove && (
+                      <Box display="flex" alignItems="center" style={{ gap: 8, marginTop: 16 }}>
+                        <Button
+                          color="primary"
+                          variant="contained"
+                          startIcon={<CheckIcon />}
+                          disabled={actionLoading}
+                          onClick={handleApprove}
+                        >
+                          Approve
+                        </Button>
+                        <TextField
+                          label="Rejection reason"
+                          value={rejectReason}
+                          onChange={e => setRejectReason(e.target.value)}
+                          size="small"
+                          style={{ minWidth: 280 }}
+                        />
+                        <Button
+                          color="secondary"
+                          variant="outlined"
+                          startIcon={<CloseIcon />}
+                          disabled={actionLoading}
+                          onClick={handleReject}
+                        >
+                          Reject
+                        </Button>
+                      </Box>
+                    )}
+                  </>
                 )}
-                {canApprove && (
-                  <Box display="flex" alignItems="center" style={{ gap: 8, marginTop: 16 }}>
-                    <Button
-                      color="primary"
-                      variant="contained"
-                      startIcon={<CheckIcon />}
-                      disabled={actionLoading}
-                      onClick={handleApprove}
-                    >
-                      Approve
-                    </Button>
-                    <TextField
-                      label="Rejection reason"
-                      value={rejectReason}
-                      onChange={e => setRejectReason(e.target.value)}
-                      size="small"
-                      style={{ minWidth: 280 }}
-                    />
-                    <Button
-                      color="secondary"
-                      variant="outlined"
-                      startIcon={<CloseIcon />}
-                      disabled={actionLoading}
-                      onClick={handleReject}
-                    >
-                      Reject
-                    </Button>
+
+                {/* Baseline Submission */}
+                {baselines.length > 0 && !approvalInstance && manageAllowed.allowed && (
+                  <Box style={{ marginTop: 16 }}>
+                    <Divider style={{ marginBottom: 12 }} />
+                    <Typography variant="subtitle2" gutterBottom>Baselines</Typography>
+                    {baselines.map(b => (
+                      <Box key={b.id} display="flex" alignItems="center" style={{ gap: 8, marginBottom: 8 }}>
+                        <Typography variant="body2">
+                          v{b.baselineVersion} — {b.status}
+                        </Typography>
+                        {String(b.status).toUpperCase() !== 'APPROVED' && !(b as any).approvalInstanceId && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                            disabled={actionLoading}
+                            onClick={() => handleSubmitBaseline(b.id)}
+                          >
+                            Submit for Approval
+                          </Button>
+                        )}
+                      </Box>
+                    ))}
                   </Box>
                 )}
 
-                {/* URS → Validation Expert integration. Visibility is convenience;
-                    the backend enforces the APPROVED-baseline entry gate. */}
+                {/* URS → Validation Expert integration */}
                 {approvedBaselineId && !validationContextId && (
                   <Box style={{ marginTop: 16 }}>
                     <Button

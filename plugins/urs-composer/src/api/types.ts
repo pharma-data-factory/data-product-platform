@@ -173,10 +173,16 @@ export interface RequirementVersion {
   id: string;
   requirementSetId: string;
   versionNumber: string;
+  version?: string;
+  title?: string;
   statement: string;
+  rationale?: string;
+  priority?: string;
   status: URSStatus;
   revision: number;
   supersededBy?: string;
+  classification?: Record<string, unknown>;
+  gxpRelevance?: string;
   createdAt: string;
   createdBy: string;
 }
@@ -214,18 +220,21 @@ export interface ApprovalInstance {
   id: string;
   baselineId: string;
   workflowId: string;
-  status: ApprovalStatus;
+  status: ApprovalStatus | string;
   currentStepId?: string;
   steps: ApprovalStepInstance[];
   createdAt: string;
   createdBy: string;
+  startedBy?: string;
   completedAt?: string;
 }
 
 export interface ApprovalStepInstance {
   id: string;
   stepId: string;
-  status: ApprovalStatus;
+  sequence?: number;
+  role?: string;
+  status: ApprovalStatus | string;
   approvedBy?: string;
   approvedAt?: string;
   rejectionReason?: string;
