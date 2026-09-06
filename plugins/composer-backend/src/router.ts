@@ -30,10 +30,12 @@ import {
 import { ComposerService } from './service';
 import {
   CreateDataContractRequest,
+  CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
   CreateProductVersionRequest,
   CreateTraceabilityLinkRequest,
+  TransitionProductVersionRequest,
 } from './types';
 
 export interface RouterOptions {
@@ -331,6 +333,169 @@ export async function createRouter(
         );
         await service.deleteTraceabilityLink(req.params.id, actor);
         res.status(204).end();
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // VERSION TRANSITIONS & RELEASE GATE
+  // ============================================================================
+
+  router.post(
+    '/versions/:versionId/transition',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const version = await service.transitionProductVersionStatus(
+          req.params.versionId,
+          req.body as TransitionProductVersionRequest,
+          actor,
+        );
+        res.json(version);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/release-gate',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.checkReleaseGate(req.params.versionId));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // PRODUCT BASELINES
+  // ============================================================================
+
+  router.post(
+    '/versions/:versionId/baselines',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const baseline = await service.createProductBaseline(
+          req.params.versionId,
+          req.body as CreateProductBaselineRequest,
+          actor,
+        );
+        res.status(201).json(baseline);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/baselines',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listProductBaselines(req.params.versionId));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/baselines/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const baseline = await service.getProductBaseline(req.params.id);
+        if (!baseline) {
+          res.status(404).json({ error: 'Baseline not found' });
+          return;
+        }
+        res.json(baseline);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.post(
+    '/baselines/:id/approve',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const baseline = await service.approveProductBaseline(
+          req.params.id,
+          actor,
+        );
+        res.json(baseline);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // AUDIT TRAIL & TRACEABILITY MATRIX
+  // ============================================================================
+
+  router.get(
+    '/versions/:versionId/audit',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(
+          await service.getEntityAuditTrail('PRODUCT_VERSION', req.params.versionId),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/traceability-matrix',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const version = await service.getProductVersion(req.params.versionId);
+        if (!version) {
+          res.status(404).json({ error: 'Version not found' });
+          return;
+        }
+        const components = await service.listProductComponents(
+          req.params.versionId,
+        );
+        const traceability = await service.getProductTraceability(
+          version.productId,
+        );
+        const componentIds = new Set(components.map(c => c.id));
+        const relevantLinks = traceability.links.filter(
+          l => componentIds.has(l.sourceId) || componentIds.has(l.targetId),
+        );
+        res.json({
+          versionId: req.params.versionId,
+          components,
+          links: relevantLinks,
+        });
       } catch (err) {
         respondError(res, logger, err);
       }

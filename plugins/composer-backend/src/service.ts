@@ -11,6 +11,7 @@ import {
   DataClassification,
   InterfaceType,
   Product,
+  ProductBaseline,
   ProductComponent,
   ProductVersion,
   TraceabilityLink,
@@ -20,12 +21,27 @@ import {
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import {
   CreateDataContractRequest,
+  CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
   CreateProductVersionRequest,
   CreateTraceabilityLinkRequest,
   DataContract,
+  TransitionProductVersionRequest,
 } from './types';
+
+export interface ReleaseGateBlocker {
+  code: string;
+  message: string;
+}
+
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ['APPROVED'],
+  APPROVED: ['RELEASE_CANDIDATE'],
+  RELEASE_CANDIDATE: ['RELEASED', 'DRAFT'],
+  RELEASED: ['SUPERSEDED'],
+  SUPERSEDED: [],
+};
 
 export interface ComposerServiceOptions {
   logger: LoggerService;
@@ -149,6 +165,10 @@ export class ComposerService {
     return this.repository.listProductVersions(productId);
   }
 
+  async getProductVersion(id: string): Promise<ProductVersion | null> {
+    return this.repository.getProductVersion(id);
+  }
+
   async addProductComponent(
     versionId: string,
     request: CreateProductComponentRequest,
@@ -222,10 +242,12 @@ export class ComposerService {
       id: randomUUID(),
       sourceType: request.sourceType,
       sourceId: request.sourceId,
+      sourceRevision: request.sourceRevision,
       relationshipType:
         request.relationshipType as TraceabilityLink['relationshipType'],
       targetType: request.targetType,
       targetId: request.targetId,
+      targetRevision: request.targetRevision,
       metadata: request.metadata,
       createdBy: actor,
       createdAt: new Date(),
@@ -238,6 +260,204 @@ export class ComposerService {
   async deleteTraceabilityLink(id: string, actor: string): Promise<void> {
     await this.repository.deleteTraceabilityLink(id);
     await this.audit('TRACEABILITY_LINK', id, 'TRACEABILITY_LINK_DELETED', actor);
+  }
+
+  async transitionProductVersionStatus(
+    versionId: string,
+    request: TransitionProductVersionRequest,
+    actor: string,
+  ): Promise<ProductVersion> {
+    const version = await this.repository.getProductVersion(versionId);
+    if (!version) {
+      throw new Error(`Product version ${versionId} not found`);
+    }
+    const allowed = VALID_TRANSITIONS[version.status] ?? [];
+    if (!allowed.includes(request.targetStatus)) {
+      throw new Error(
+        `Invalid transition from ${version.status} to ${request.targetStatus}`,
+      );
+    }
+    if (request.targetStatus === 'RELEASED') {
+      const gate = await this.checkReleaseGate(versionId);
+      if (!gate.passed) {
+        throw new Error(
+          `Release gate failed: ${gate.blockers.map(b => b.code).join(', ')}`,
+        );
+      }
+    }
+    const oldStatus = version.status;
+    const updated: ProductVersion = {
+      ...version,
+      status: request.targetStatus as ProductVersion['status'],
+      releaseCommitSha: request.releaseCommitSha ?? version.releaseCommitSha,
+      artifactDigest: request.artifactDigest ?? version.artifactDigest,
+    };
+    if (request.targetStatus === 'APPROVED' || request.targetStatus === 'RELEASED') {
+      updated.approvedBy = actor;
+      updated.approvedAt = new Date();
+    }
+    await this.repository.updateProductVersion(updated);
+    await this.audit('PRODUCT_VERSION', versionId, 'STATUS_TRANSITION', actor, {
+      oldValue: oldStatus,
+      newValue: request.targetStatus,
+    });
+    return updated;
+  }
+
+  async checkReleaseGate(versionId: string): Promise<{
+    passed: boolean;
+    blockers: ReleaseGateBlocker[];
+  }> {
+    const blockers: ReleaseGateBlocker[] = [];
+    const version = await this.repository.getProductVersion(versionId);
+    if (!version) {
+      throw new Error(`Product version ${versionId} not found`);
+    }
+    if (version.status !== 'RELEASE_CANDIDATE') {
+      blockers.push({
+        code: 'INVALID_STATUS',
+        message: `Version must be RELEASE_CANDIDATE, got ${version.status}`,
+      });
+    }
+    const components = await this.repository.listProductComponents(versionId);
+    if (components.length === 0) {
+      blockers.push({
+        code: 'NO_COMPONENTS',
+        message: 'Version must have at least one component',
+      });
+    }
+    const allLinks = await this.repository.listTraceabilityLinks();
+    const componentIds = new Set(components.map(c => c.id));
+    const linkedComponentIds = new Set(
+      allLinks
+        .filter(l => componentIds.has(l.sourceId) || componentIds.has(l.targetId))
+        .map(l => (componentIds.has(l.sourceId) ? l.sourceId : l.targetId)),
+    );
+    for (const comp of components) {
+      if (!linkedComponentIds.has(comp.id)) {
+        blockers.push({
+          code: 'INCOMPLETE_TRACEABILITY',
+          message: `Component ${comp.name} (${comp.id}) has no traceability link`,
+        });
+        break;
+      }
+    }
+    const baselines = await this.repository.listProductBaselines(versionId);
+    const hasApproved = baselines.some(b => b.status === 'APPROVED');
+    if (!hasApproved) {
+      blockers.push({
+        code: 'NO_APPROVED_BASELINE',
+        message: 'An approved product baseline is required',
+      });
+    }
+    return { passed: blockers.length === 0, blockers };
+  }
+
+  async createProductBaseline(
+    productVersionId: string,
+    request: CreateProductBaselineRequest,
+    actor: string,
+  ): Promise<ProductBaseline> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new Error(`Product version ${productVersionId} not found`);
+    }
+    const existing = await this.repository.listProductBaselines(productVersionId);
+    for (const prev of existing) {
+      if (prev.status === 'APPROVED') {
+        const superseded: ProductBaseline = {
+          ...prev,
+          status: 'SUPERSEDED',
+          supersededBy: 'pending',
+        };
+        await this.repository.updateProductBaseline(superseded);
+      }
+    }
+    const components = await this.repository.listProductComponents(productVersionId);
+    const contracts: DataContract[] = [];
+    for (const comp of components) {
+      contracts.push(...(await this.repository.listDataContracts(comp.id)));
+    }
+    const links = (await this.repository.listTraceabilityLinks()).filter(
+      l =>
+        components.some(c => c.id === l.sourceId) ||
+        components.some(c => c.id === l.targetId),
+    );
+    const snapshot = {
+      version: { id: version.id, version: version.version },
+      components: components.map(c => ({
+        id: c.id,
+        name: c.name,
+        componentType: c.componentType,
+      })),
+      contracts: contracts.map(c => ({
+        id: c.id,
+        schemaType: c.schemaType,
+        version: c.version,
+      })),
+      traceabilityLinks: links.map(l => ({
+        id: l.id,
+        sourceId: l.sourceId,
+        targetType: l.targetType,
+        targetId: l.targetId,
+        relationshipType: l.relationshipType,
+      })),
+    };
+    const baselineVersion =
+      request.baselineVersion ?? `${existing.length + 1}.0`;
+    const baseline: ProductBaseline = {
+      id: randomUUID(),
+      productVersionId,
+      baselineVersion,
+      status: 'DRAFT',
+      snapshot,
+      ursBaselineIds: request.ursBaselineIds,
+      createdBy: actor,
+      createdAt: new Date(),
+      revision: 1,
+    };
+    await this.repository.createProductBaseline(baseline);
+    await this.audit('PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', actor);
+    return baseline;
+  }
+
+  async approveProductBaseline(
+    baselineId: string,
+    actor: string,
+  ): Promise<ProductBaseline> {
+    const baseline = await this.repository.getProductBaseline(baselineId);
+    if (!baseline) {
+      throw new Error(`Product baseline ${baselineId} not found`);
+    }
+    if (baseline.status !== 'DRAFT') {
+      throw new Error(`Cannot approve baseline in status ${baseline.status}`);
+    }
+    const approved: ProductBaseline = {
+      ...baseline,
+      status: 'APPROVED',
+      approvedBy: actor,
+      approvedAt: new Date(),
+    };
+    await this.repository.updateProductBaseline(approved);
+    await this.audit('PRODUCT_BASELINE', baselineId, 'BASELINE_APPROVED', actor);
+    return approved;
+  }
+
+  async getProductBaseline(id: string): Promise<ProductBaseline | null> {
+    return this.repository.getProductBaseline(id);
+  }
+
+  async listProductBaselines(
+    productVersionId: string,
+  ): Promise<ProductBaseline[]> {
+    return this.repository.listProductBaselines(productVersionId);
+  }
+
+  async getEntityAuditTrail(
+    entityType: string,
+    entityId: string,
+  ): Promise<ComposerAuditEvent[]> {
+    return this.repository.getEntityAuditTrail(entityType, entityId);
   }
 
   async getProductTraceability(productId: string): Promise<{
@@ -277,6 +497,7 @@ export class ComposerService {
     entityId: string,
     eventType: string,
     actor: string,
+    options?: { oldValue?: string; newValue?: string },
   ): Promise<void> {
     this.logger.info(
       `[composer] ${eventType} ${entityType}:${entityId} by ${actor}`,
@@ -288,6 +509,8 @@ export class ComposerService {
       eventType,
       actor,
       timestamp: new Date(),
+      oldValue: options?.oldValue,
+      newValue: options?.newValue,
     };
     await this.repository.createAuditEvent(event);
   }

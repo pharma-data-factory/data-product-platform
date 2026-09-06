@@ -12,6 +12,7 @@ export type {
   ProductComponent,
   DataContract,
   TraceabilityLink,
+  ProductBaseline,
 } from '@internal/platform-common';
 
 export interface CreateProductRequest {
@@ -58,8 +59,21 @@ export interface CreateDataContractRequest {
 export interface CreateTraceabilityLinkRequest {
   sourceType: string;
   sourceId: string;
+  sourceRevision?: number;
   relationshipType: string;
   targetType: string;
   targetId: string;
+  targetRevision?: number;
   metadata?: Record<string, unknown>;
+}
+
+export interface TransitionProductVersionRequest {
+  targetStatus: string;
+  releaseCommitSha?: string;
+  artifactDigest?: string;
+}
+
+export interface CreateProductBaselineRequest {
+  baselineVersion?: string;
+  ursBaselineIds?: string[];
 }

@@ -142,14 +142,84 @@ export async function up(knex: Knex): Promise<void> {
       table.text('metadata');
       table.string('actor', 255).notNullable();
       table.timestamp('timestamp').notNullable().defaultTo(knex.fn.now());
+      table.text('old_value');
+      table.text('new_value');
 
       table.index(['entity_id']);
       table.index(['timestamp']);
+    });
+  } else {
+    if (!(await knex.schema.hasColumn('composer_audit_events', 'old_value'))) {
+      await knex.schema.alterTable('composer_audit_events', table => {
+        table.text('old_value');
+      });
+    }
+    if (!(await knex.schema.hasColumn('composer_audit_events', 'new_value'))) {
+      await knex.schema.alterTable('composer_audit_events', table => {
+        table.text('new_value');
+      });
+    }
+  }
+
+  // Phase 1: versioning foundation columns on product_versions
+  if (await knex.schema.hasTable('product_versions')) {
+    const cols = ['parent_version_id', 'release_commit_sha', 'artifact_digest', 'baseline_id'];
+    for (const col of cols) {
+      if (!(await knex.schema.hasColumn('product_versions', col))) {
+        await knex.schema.alterTable('product_versions', table => {
+          if (col === 'parent_version_id') {
+            table.string('parent_version_id', 255);
+          } else if (col === 'release_commit_sha') {
+            table.string('release_commit_sha', 255);
+          } else if (col === 'artifact_digest') {
+            table.string('artifact_digest', 512);
+          } else if (col === 'baseline_id') {
+            table.string('baseline_id', 255);
+          }
+        });
+      }
+    }
+  }
+
+  // Phase 1: revision-specific traceability links
+  if (await knex.schema.hasTable('traceability_links')) {
+    if (!(await knex.schema.hasColumn('traceability_links', 'source_revision'))) {
+      await knex.schema.alterTable('traceability_links', table => {
+        table.integer('source_revision');
+      });
+    }
+    if (!(await knex.schema.hasColumn('traceability_links', 'target_revision'))) {
+      await knex.schema.alterTable('traceability_links', table => {
+        table.integer('target_revision');
+      });
+    }
+  }
+
+  // Phase 1: product baselines
+  if (!(await knex.schema.hasTable('product_baselines'))) {
+    await knex.schema.createTable('product_baselines', table => {
+      table.string('id', 255).primary();
+      table.string('product_version_id', 255).notNullable();
+      table.string('baseline_version', 50).notNullable();
+      table.string('status', 50).notNullable().defaultTo('DRAFT');
+      table.text('snapshot').notNullable();
+      table.text('urs_baseline_ids');
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.string('approved_by', 255);
+      table.timestamp('approved_at');
+      table.string('superseded_by', 255);
+      table.integer('revision').defaultTo(1);
+
+      table.index(['product_version_id']);
+      table.index(['status']);
+      table.foreign('product_version_id').references('id').inTable('product_versions');
     });
   }
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');
   await knex.schema.dropTableIfExists('traceability_links');
   await knex.schema.dropTableIfExists('data_contracts');

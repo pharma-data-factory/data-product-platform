@@ -4,6 +4,7 @@ import {
   ProductComponent,
   DataContract,
   TraceabilityLink,
+  ProductBaseline,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -14,6 +15,8 @@ export interface ComposerAuditEvent {
   actor: string;
   timestamp: Date;
   metadata?: Record<string, unknown>;
+  oldValue?: string;
+  newValue?: string;
 }
 
 export interface IComposerRepository {
@@ -28,6 +31,7 @@ export interface IComposerRepository {
   createProductVersion(version: ProductVersion): Promise<ProductVersion>;
   getProductVersion(id: string): Promise<ProductVersion | null>;
   listProductVersions(productId: string): Promise<ProductVersion[]>;
+  updateProductVersion(version: ProductVersion): Promise<void>;
 
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
@@ -39,5 +43,11 @@ export interface IComposerRepository {
   deleteTraceabilityLink(id: string): Promise<void>;
   listTraceabilityLinks(): Promise<TraceabilityLink[]>;
 
+  createProductBaseline(baseline: ProductBaseline): Promise<ProductBaseline>;
+  getProductBaseline(id: string): Promise<ProductBaseline | null>;
+  listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
+  updateProductBaseline(baseline: ProductBaseline): Promise<void>;
+
   createAuditEvent(event: ComposerAuditEvent): Promise<void>;
+  getEntityAuditTrail(entityType: string, entityId: string): Promise<ComposerAuditEvent[]>;
 }

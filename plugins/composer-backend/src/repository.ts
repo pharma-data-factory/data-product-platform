@@ -13,6 +13,7 @@ import {
   ProductComponent,
   DataContract,
   TraceabilityLink,
+  ProductBaseline,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -128,6 +129,20 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToProductVersion(r));
   }
 
+  async updateProductVersion(version: ProductVersion): Promise<void> {
+    await this.db('product_versions').where({ id: version.id }).update({
+      status: version.status,
+      changelog: version.changelog || null,
+      parent_version_id: version.parentVersionId || null,
+      release_commit_sha: version.releaseCommitSha || null,
+      artifact_digest: version.artifactDigest || null,
+      baseline_id: version.baselineId || null,
+      approved_by: version.approvedBy || null,
+      approved_at: version.approvedAt || null,
+      revision: (version.revision || 1) + 1,
+    });
+  }
+
   async createProductComponent(
     component: ProductComponent,
   ): Promise<ProductComponent> {
@@ -188,9 +203,11 @@ export class ComposerRepository implements IComposerRepository {
       id: link.id,
       source_type: link.sourceType,
       source_id: link.sourceId,
+      source_revision: link.sourceRevision ?? null,
       relationship_type: link.relationshipType,
       target_type: link.targetType,
       target_id: link.targetId,
+      target_revision: link.targetRevision ?? null,
       metadata: link.metadata ? JSON.stringify(link.metadata) : null,
       created_by: link.createdBy,
       created_at: link.createdAt,
@@ -216,6 +233,59 @@ export class ComposerRepository implements IComposerRepository {
       metadata: event.metadata ? JSON.stringify(event.metadata) : null,
       actor: event.actor,
       timestamp: event.timestamp,
+      old_value: event.oldValue || null,
+      new_value: event.newValue || null,
+    });
+  }
+
+  async getEntityAuditTrail(
+    entityType: string,
+    entityId: string,
+  ): Promise<ComposerAuditEvent[]> {
+    const rows = await this.db('composer_audit_events')
+      .where({ entity_type: entityType, entity_id: entityId })
+      .orderBy('timestamp', 'asc')
+      .select();
+    return rows.map((r: any) => this.rowToAuditEvent(r));
+  }
+
+  async createProductBaseline(baseline: ProductBaseline): Promise<ProductBaseline> {
+    await this.db('product_baselines').insert({
+      id: baseline.id,
+      product_version_id: baseline.productVersionId,
+      baseline_version: baseline.baselineVersion,
+      status: baseline.status,
+      snapshot: JSON.stringify(baseline.snapshot),
+      urs_baseline_ids: baseline.ursBaselineIds
+        ? JSON.stringify(baseline.ursBaselineIds)
+        : null,
+      created_by: baseline.createdBy,
+      created_at: baseline.createdAt,
+      revision: baseline.revision || 1,
+    });
+    return baseline;
+  }
+
+  async getProductBaseline(id: string): Promise<ProductBaseline | null> {
+    const row = await this.db('product_baselines').where({ id }).first();
+    return row ? this.rowToProductBaseline(row) : null;
+  }
+
+  async listProductBaselines(productVersionId: string): Promise<ProductBaseline[]> {
+    const rows = await this.db('product_baselines')
+      .where({ product_version_id: productVersionId })
+      .orderBy('created_at', 'desc')
+      .select();
+    return rows.map((r: any) => this.rowToProductBaseline(r));
+  }
+
+  async updateProductBaseline(baseline: ProductBaseline): Promise<void> {
+    await this.db('product_baselines').where({ id: baseline.id }).update({
+      status: baseline.status,
+      approved_by: baseline.approvedBy || null,
+      approved_at: baseline.approvedAt || null,
+      superseded_by: baseline.supersededBy || null,
+      revision: (baseline.revision || 1) + 1,
     });
   }
 
@@ -254,6 +324,10 @@ export class ComposerRepository implements IComposerRepository {
       versionNumber: row.version_number,
       status: row.status,
       changelog: row.changelog,
+      parentVersionId: row.parent_version_id || undefined,
+      releaseCommitSha: row.release_commit_sha || undefined,
+      artifactDigest: row.artifact_digest || undefined,
+      baselineId: row.baseline_id || undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       approvedBy: row.approved_by,
@@ -304,12 +378,47 @@ export class ComposerRepository implements IComposerRepository {
       id: row.id,
       sourceType: row.source_type,
       sourceId: row.source_id,
+      sourceRevision: row.source_revision ?? undefined,
       relationshipType: row.relationship_type,
       targetType: row.target_type,
       targetId: row.target_id,
+      targetRevision: row.target_revision ?? undefined,
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
+    };
+  }
+
+  private rowToAuditEvent(row: any): ComposerAuditEvent {
+    return {
+      id: row.id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      eventType: row.event_type,
+      actor: row.actor,
+      timestamp: row.timestamp,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      oldValue: row.old_value || undefined,
+      newValue: row.new_value || undefined,
+    };
+  }
+
+  private rowToProductBaseline(row: any): ProductBaseline {
+    return {
+      id: row.id,
+      productVersionId: row.product_version_id,
+      baselineVersion: row.baseline_version,
+      status: row.status,
+      snapshot: JSON.parse(row.snapshot),
+      ursBaselineIds: row.urs_baseline_ids
+        ? JSON.parse(row.urs_baseline_ids)
+        : undefined,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      approvedBy: row.approved_by || undefined,
+      approvedAt: row.approved_at || undefined,
+      supersededBy: row.superseded_by || undefined,
+      revision: row.revision,
     };
   }
 }

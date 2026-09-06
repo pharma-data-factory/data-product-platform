@@ -1,0 +1,321 @@
+/**
+ * Phase 1 versioning foundation tests.
+ *
+ * Covers status transitions, release gate checks, product baselines, and
+ * revision-specific traceability links against an in-memory SQLite database.
+ */
+
+import knex, { Knex } from 'knex';
+import { ComposerRepository } from './repository';
+import { ComposerService } from './service';
+
+const mockLogger: any = {
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  child: jest.fn((): any => mockLogger),
+};
+
+function createDb(): Knex {
+  return knex({
+    client: 'better-sqlite3',
+    connection: { filename: ':memory:' },
+    useNullAsDefault: true,
+  });
+}
+
+describe('Phase 1: Versioning Foundation', () => {
+  let db: Knex;
+  let service: ComposerService;
+
+  beforeAll(async () => {
+    db = createDb();
+    await db.raw('select 1');
+    const repository = await ComposerRepository.create({ getClient: () => db });
+    service = new ComposerService({ logger: mockLogger, repository });
+  });
+
+  afterAll(async () => {
+    await db?.destroy();
+  });
+
+  const actor = 'user:default/test-user';
+
+  async function createFullSetup() {
+    const product = await service.createProduct(
+      { name: `Test Product ${Date.now()}`, productType: 'DATA_PRODUCT' },
+      actor,
+    );
+    const version = await service.createProductVersion(
+      product.id,
+      { version: '1.0' },
+      actor,
+    );
+    const component = await service.addProductComponent(
+      version.id,
+      { componentType: 'SOURCE', name: 'Test Source' },
+      actor,
+    );
+    return { product, version, component };
+  }
+
+  describe('Status Transitions', () => {
+    it('allows valid transition DRAFT → APPROVED', async () => {
+      const { version } = await createFullSetup();
+      const result = await service.transitionProductVersionStatus(
+        version.id,
+        { targetStatus: 'APPROVED' },
+        actor,
+      );
+      expect(result.status).toBe('APPROVED');
+      expect(result.approvedBy).toBe(actor);
+      expect(result.approvedAt).toBeDefined();
+    });
+
+    it('allows valid transition APPROVED → RELEASE_CANDIDATE', async () => {
+      const { version } = await createFullSetup();
+      await service.transitionProductVersionStatus(
+        version.id,
+        { targetStatus: 'APPROVED' },
+        actor,
+      );
+      const result = await service.transitionProductVersionStatus(
+        version.id,
+        { targetStatus: 'RELEASE_CANDIDATE' },
+        actor,
+      );
+      expect(result.status).toBe('RELEASE_CANDIDATE');
+    });
+
+    it('rejects invalid transition DRAFT → RELEASED', async () => {
+      const { version } = await createFullSetup();
+      await expect(
+        service.transitionProductVersionStatus(
+          version.id,
+          { targetStatus: 'RELEASED' },
+          actor,
+        ),
+      ).rejects.toThrow('Invalid transition');
+    });
+
+    it('rejects invalid transition APPROVED → SUPERSEDED', async () => {
+      const { version } = await createFullSetup();
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await expect(
+        service.transitionProductVersionStatus(
+          version.id,
+          { targetStatus: 'SUPERSEDED' },
+          actor,
+        ),
+      ).rejects.toThrow('Invalid transition');
+    });
+
+    it('records audit event with oldValue/newValue on transition', async () => {
+      const { version } = await createFullSetup();
+      await service.transitionProductVersionStatus(
+        version.id,
+        { targetStatus: 'APPROVED' },
+        actor,
+      );
+      const trail = await service.getEntityAuditTrail('PRODUCT_VERSION', version.id);
+      const transitionEvent = trail.find(e => e.eventType === 'STATUS_TRANSITION');
+      expect(transitionEvent).toBeDefined();
+      expect(transitionEvent!.oldValue).toBe('DRAFT');
+      expect(transitionEvent!.newValue).toBe('APPROVED');
+    });
+  });
+
+  describe('Release Gate', () => {
+    it('fails with INVALID_STATUS when not RELEASE_CANDIDATE', async () => {
+      const { version } = await createFullSetup();
+      const result = await service.checkReleaseGate(version.id);
+      expect(result.passed).toBe(false);
+      expect(result.blockers.some(b => b.code === 'INVALID_STATUS')).toBe(true);
+    });
+
+    it('fails with NO_COMPONENTS when version has no components', async () => {
+      const product = await service.createProduct(
+        { name: `Empty Product ${Date.now()}`, productType: 'SERVICE' },
+        actor,
+      );
+      const version = await service.createProductVersion(product.id, {}, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await service.checkReleaseGate(version.id);
+      expect(result.passed).toBe(false);
+      expect(result.blockers.some(b => b.code === 'NO_COMPONENTS')).toBe(true);
+    });
+
+    it('fails with INCOMPLETE_TRACEABILITY when component has no link', async () => {
+      const { version } = await createFullSetup();
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await service.checkReleaseGate(version.id);
+      expect(result.passed).toBe(false);
+      expect(result.blockers.some(b => b.code === 'INCOMPLETE_TRACEABILITY')).toBe(true);
+    });
+
+    it('fails with NO_APPROVED_BASELINE when no approved baseline exists', async () => {
+      const { version, component } = await createFullSetup();
+      await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await service.checkReleaseGate(version.id);
+      expect(result.passed).toBe(false);
+      expect(result.blockers.some(b => b.code === 'NO_APPROVED_BASELINE')).toBe(true);
+    });
+
+    it('passes when all conditions are met', async () => {
+      const { version, component } = await createFullSetup();
+      await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(baseline.id, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await service.checkReleaseGate(version.id);
+      expect(result.passed).toBe(true);
+      expect(result.blockers).toHaveLength(0);
+    });
+  });
+
+  describe('Product Baselines', () => {
+    it('creates a baseline with snapshot of components and contracts', async () => {
+      const { version, component } = await createFullSetup();
+      await service.addDataContract(
+        component.id,
+        { schemaType: 'JSON_SCHEMA', version: '1.0' },
+        actor,
+      );
+      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      expect(baseline.status).toBe('DRAFT');
+      expect(baseline.snapshot).toBeDefined();
+      expect((baseline.snapshot as any).components).toHaveLength(1);
+      expect((baseline.snapshot as any).contracts).toHaveLength(1);
+    });
+
+    it('supersedes previous APPROVED baseline when creating new one', async () => {
+      const { version } = await createFullSetup();
+      const b1 = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(b1.id, actor);
+      const b2 = await service.createProductBaseline(version.id, {}, actor);
+      const baselines = await service.listProductBaselines(version.id);
+      const superseded = baselines.find(b => b.id === b1.id);
+      expect(superseded?.status).toBe('SUPERSEDED');
+      expect(b2.status).toBe('DRAFT');
+    });
+
+    it('approves a DRAFT baseline', async () => {
+      const { version } = await createFullSetup();
+      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      const approved = await service.approveProductBaseline(baseline.id, actor);
+      expect(approved.status).toBe('APPROVED');
+      expect(approved.approvedBy).toBe(actor);
+      expect(approved.approvedAt).toBeDefined();
+    });
+
+    it('rejects approval of non-DRAFT baseline', async () => {
+      const { version } = await createFullSetup();
+      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(baseline.id, actor);
+      await expect(
+        service.approveProductBaseline(baseline.id, actor),
+      ).rejects.toThrow('Cannot approve baseline');
+    });
+  });
+
+  describe('Traceability Links with Revisions', () => {
+    it('persists sourceRevision and targetRevision', async () => {
+      const { component } = await createFullSetup();
+      const link = await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          sourceRevision: 2,
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+          targetRevision: 1,
+        },
+        actor,
+      );
+      expect(link.sourceRevision).toBe(2);
+      expect(link.targetRevision).toBe(1);
+    });
+
+    it('works without revisions (backward compatibility)', async () => {
+      const { component } = await createFullSetup();
+      const link = await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-002',
+          relationshipType: 'VERIFIED_BY',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+      expect(link.sourceRevision).toBeUndefined();
+      expect(link.targetRevision).toBeUndefined();
+    });
+  });
+
+  describe('Full Lifecycle Integration', () => {
+    it('completes Product → Version → Components → Baseline → Approve → Transition → RELEASED', async () => {
+      const { version, component } = await createFullSetup();
+
+      await service.addDataContract(
+        component.id,
+        { schemaType: 'JSON_SCHEMA', version: '1.0' },
+        actor,
+      );
+      await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+
+      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(baseline.id, actor);
+
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+
+      const gate = await service.checkReleaseGate(version.id);
+      expect(gate.passed).toBe(true);
+
+      const released = await service.transitionProductVersionStatus(
+        version.id,
+        { targetStatus: 'RELEASED', releaseCommitSha: 'abc123', artifactDigest: 'sha256:def456' },
+        actor,
+      );
+      expect(released.status).toBe('RELEASED');
+      expect(released.releaseCommitSha).toBe('abc123');
+      expect(released.artifactDigest).toBe('sha256:def456');
+      expect(released.approvedBy).toBe(actor);
+    });
+  });
+});

@@ -33,6 +33,7 @@ export enum URSStatus {
   DRAFT = 'DRAFT',
   IN_REVIEW = 'IN_REVIEW',
   APPROVED = 'APPROVED',
+  BASELINED = 'BASELINED',
   SUPERSEDED = 'SUPERSEDED',
   RETIRED = 'RETIRED',
 }
@@ -259,6 +260,13 @@ export interface QualityCheckResult {
  */
 
 export interface CreateRequirementSetRequest {
+  /**
+   * Optional stable business key (e.g. "URS-WD"). When omitted the server
+   * generates a timestamp-based key. Supplying it keeps requirement IDs
+   * (URS-WD-001, …) stable across environments, which validation documents
+   * depend on. Must be unique and match /^URS-[A-Z0-9]{2,12}$/.
+   */
+  requirementSetId?: string;
   businessCapabilityRefs: string[];
   businessNeed: string;
   desiredOutcome?: string;

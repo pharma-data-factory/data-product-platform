@@ -31,6 +31,7 @@ export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 export const PRODUCT_VERSION_STATUSES = [
   'DRAFT',
   'APPROVED',
+  'RELEASE_CANDIDATE',
   'RELEASED',
   'SUPERSEDED',
 ] as const;
@@ -92,6 +93,10 @@ export interface ProductVersion {
   versionNumber: number;
   status: ProductVersionStatus;
   changelog?: string;
+  parentVersionId?: string;
+  releaseCommitSha?: string;
+  artifactDigest?: string;
+  baselineId?: string;
   createdBy: string;
   createdAt: Date;
   approvedBy?: string;
@@ -136,9 +141,11 @@ export interface TraceabilityLink {
   id: string;
   sourceType: string;
   sourceId: string;
+  sourceRevision?: number;
   relationshipType: TraceabilityRelationshipType;
   targetType: string;
   targetId: string;
+  targetRevision?: number;
   metadata?: Record<string, unknown>;
   createdBy: string;
   createdAt: Date;
@@ -156,6 +163,35 @@ export function isProductVersionStatus(
 
 export function isDataContractStatus(value: string): value is DataContractStatus {
   return (DATA_CONTRACT_STATUSES as readonly string[]).includes(value);
+}
+
+export const PRODUCT_BASELINE_STATUSES = [
+  'DRAFT',
+  'APPROVED',
+  'SUPERSEDED',
+] as const;
+
+export type ProductBaselineStatus = (typeof PRODUCT_BASELINE_STATUSES)[number];
+
+export interface ProductBaseline {
+  id: string;
+  productVersionId: string;
+  baselineVersion: string;
+  status: ProductBaselineStatus;
+  snapshot: Record<string, unknown>;
+  ursBaselineIds?: string[];
+  createdBy: string;
+  createdAt: Date;
+  approvedBy?: string;
+  approvedAt?: Date;
+  supersededBy?: string;
+  revision: number;
+}
+
+export function isProductBaselineStatus(
+  value: string,
+): value is ProductBaselineStatus {
+  return (PRODUCT_BASELINE_STATUSES as readonly string[]).includes(value);
 }
 
 export function validateProduct(product: {
