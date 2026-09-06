@@ -333,6 +333,17 @@ export class PostgresURSRepository implements IURSRepository {
     return this.rowToRequirementSet(result);
   }
 
+  async findRequirementSetByKey(
+    requirementSetId: string,
+  ): Promise<RequirementSet | null> {
+    const result = await this.db('requirement_sets')
+      .where({ requirement_set_id: requirementSetId })
+      .first();
+    if (!result) return null;
+
+    return this.rowToRequirementSet(result);
+  }
+
   async listRequirementSets(
     limit: number,
     offset: number,
@@ -462,6 +473,14 @@ export class PostgresURSRepository implements IURSRepository {
         `Another process may have updated this version.`,
       );
     }
+  }
+
+  async getRequirementVersionsByIds(ids: string[]): Promise<RequirementVersion[]> {
+    if (ids.length === 0) return [];
+    const results = await this.db('requirement_versions')
+      .whereIn('id', ids)
+      .select();
+    return results.map((r: any) => this.rowToRequirementVersion(r));
   }
 
   // ============================================================================
@@ -961,9 +980,9 @@ export class PostgresURSRepository implements IURSRepository {
       scope: row.scope,
       outOfScope: row.out_of_scope,
       gxpRelevance: row.gxp_relevance,
-      patientImpact: row.patient_impact,
-      dataIntegrityImpact: row.data_integrity_impact,
-      electronicRecords: row.electronic_records,
+      patientImpact: Boolean(row.patient_impact),
+      dataIntegrityImpact: Boolean(row.data_integrity_impact),
+      electronicRecords: Boolean(row.electronic_records),
       status: row.status,
       templateVersion: row.template_version,
       createdBy: row.created_by,

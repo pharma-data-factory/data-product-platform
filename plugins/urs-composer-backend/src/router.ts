@@ -744,6 +744,20 @@ export async function createRouter(
     }
   });
 
+  /**
+   * GET /baselines/:id/change-set
+   * Compute delta between this baseline and its predecessor
+   */
+  router.get('/baselines/:id/change-set', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursReadPermission);
+      const changeSet = await service.computeChangeSet(req.params.id, actor);
+      res.json(changeSet);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
   // ============================================================================
   // P1A/P1B APPROVAL WORKFLOWS
   // ============================================================================

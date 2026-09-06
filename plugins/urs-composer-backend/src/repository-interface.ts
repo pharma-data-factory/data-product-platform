@@ -56,6 +56,13 @@ export interface IURSRepository {
 
   createRequirementSet(set: RequirementSet): Promise<RequirementSet>;
   getRequirementSet(id: string): Promise<RequirementSet | null>;
+
+  /**
+   * Look up a requirement set by its human-readable key
+   * (`requirementSetId`, e.g. "URS-WD"), as opposed to the internal UUID.
+   */
+  findRequirementSetByKey(requirementSetId: string): Promise<RequirementSet | null>;
+
   listRequirementSets(limit: number, offset: number): Promise<{
     items: RequirementSet[];
     total: number;
@@ -87,6 +94,12 @@ export interface IURSRepository {
    * Update version status (used for supersession, approval, retirement)
    */
   updateRequirementVersion(version: RequirementVersion): Promise<void>;
+
+  /**
+   * Batch-load requirement versions by their UUIDs.
+   * Used for efficient baseline delta computation.
+   */
+  getRequirementVersionsByIds(ids: string[]): Promise<RequirementVersion[]>;
 
   // ============================================================================
   // BASELINES (P1A: Immutable requirement set snapshots)

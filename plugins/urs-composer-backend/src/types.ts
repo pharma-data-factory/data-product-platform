@@ -534,3 +534,36 @@ export interface RejectApprovalStepRequest {
   reason: string;
   comment?: string;
 }
+
+/**
+ * ============================================================================
+ * CHANGE SET — Delta between two URS Baselines
+ * ============================================================================
+ */
+
+export type ChangeType = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'UNCHANGED';
+
+export interface RequirementChange {
+  requirementId: string;
+  changeType: ChangeType;
+  previousVersion?: RequirementVersion;
+  currentVersion?: RequirementVersion;
+  changedFields?: string[];
+}
+
+export interface ChangeSet {
+  id: string;
+  baselineId: string;
+  previousBaselineId?: string;
+  baselineVersion: string;
+  previousBaselineVersion?: string;
+  changes: RequirementChange[];
+  summary: {
+    added: number;
+    modified: number;
+    removed: number;
+    unchanged: number;
+  };
+  computedAt: Date;
+  computedBy: string;
+}

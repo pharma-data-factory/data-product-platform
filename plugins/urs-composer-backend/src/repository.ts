@@ -110,6 +110,17 @@ export class URSRepository implements IURSRepository {
     return this.requirementSets.get(id) || null;
   }
 
+  async findRequirementSetByKey(
+    requirementSetId: string,
+  ): Promise<RequirementSet | null> {
+    for (const set of this.requirementSets.values()) {
+      if (set.requirementSetId === requirementSetId) {
+        return set;
+      }
+    }
+    return null;
+  }
+
   async listRequirementSets(
     limit: number,
     offset: number,
@@ -341,6 +352,15 @@ export class URSRepository implements IURSRepository {
 
   async updateRequirementVersion(version: RequirementVersion): Promise<void> {
     this.requirementVersions.set(version.id, version);
+  }
+
+  async getRequirementVersionsByIds(ids: string[]): Promise<RequirementVersion[]> {
+    const results: RequirementVersion[] = [];
+    for (const id of ids) {
+      const v = this.requirementVersions.get(id);
+      if (v) results.push(v);
+    }
+    return results;
   }
 
   // ============================================================================

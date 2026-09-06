@@ -23,6 +23,8 @@ import {
   UpdateRequirementSetRequest,
   BusinessCapabilityPersisted,
   BusinessRolePersisted,
+  ChangeSet,
+  RequirementChange,
 } from './types';
 import { IURSRepository } from './repository-interface';
 import { nextMinorVersion, getVersionNumber } from './services/versioningService';
@@ -31,6 +33,12 @@ export interface URSServiceOptions {
   logger: LoggerService;
   repository: IURSRepository;
 }
+
+/**
+ * Format for a caller-supplied stable requirement set key, e.g. "URS-WD".
+ * Generated keys carry a timestamp segment and are not held to this pattern.
+ */
+const STABLE_REQUIREMENT_SET_KEY = /^URS-[A-Z0-9]{2,12}$/;
 
 /**
  * URS Composer Service
@@ -320,8 +328,9 @@ export class URSService {
       throw new Error('Invalid business capability reference');
     }
 
-    // Generate human-readable requirement set ID (server-side)
-    const requirementSetId = this.generateRequirementSetId(data.solutionType);
+    // Human-readable requirement set ID: honor a caller-supplied stable key,
+    // otherwise generate one server-side.
+    const requirementSetId = await this.resolveRequirementSetKey(data);
 
     const now = new Date();
     const requirementSet: RequirementSet = {
@@ -788,6 +797,33 @@ export class URSService {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
+  /**
+   * Resolve the human-readable requirement set key. A caller-supplied stable
+   * key is validated and checked for uniqueness; otherwise a timestamp-based
+   * key is generated.
+   */
+  private async resolveRequirementSetKey(
+    data: Partial<RequirementSet>,
+  ): Promise<string> {
+    const requested = data.requirementSetId?.trim();
+    if (!requested) {
+      return this.generateRequirementSetId(data.solutionType);
+    }
+
+    if (!STABLE_REQUIREMENT_SET_KEY.test(requested)) {
+      throw new Error(
+        `Invalid requirement set key "${requested}": expected URS-<CODE> with 2-12 uppercase letters or digits (e.g. URS-WD)`,
+      );
+    }
+
+    const existing = await this.repository.findRequirementSetByKey(requested);
+    if (existing) {
+      throw new Error(`Requirement set key "${requested}" is already in use`);
+    }
+
+    return requested;
+  }
+
   private generateRequirementSetId(solutionType?: SolutionType): string {
     const prefix = this.getSolutionTypePrefix(solutionType);
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -954,6 +990,115 @@ export class URSService {
    */
   async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {
     return this.repository.getCurrentApprovedBaseline(requirementSetId);
+  }
+
+  async computeChangeSet(baselineId: string, actor: string): Promise<ChangeSet> {
+    const baseline = await this.repository.getBaseline(baselineId);
+    if (!baseline) {
+      throw new Error(`Baseline ${baselineId} not found`);
+    }
+
+    // Find previous baseline for the same requirement set
+    const allBaselines = await this.repository.listBaselines(
+      baseline.requirementSetId,
+      200,
+      0,
+    );
+    const sorted = allBaselines.items
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const idx = sorted.findIndex(b => b.id === baseline.id);
+    const previousBaseline = idx > 0 ? sorted[idx - 1] : undefined;
+
+    // Load all requirement versions from both baselines
+    const currentVersionIds = baseline.requirementVersionIds || [];
+    const previousVersionIds = previousBaseline?.requirementVersionIds || [];
+    const allIds = [...new Set([...currentVersionIds, ...previousVersionIds])];
+    const allVersions = await this.repository.getRequirementVersionsByIds(allIds);
+
+    const currentMap = new Map<string, RequirementVersion>();
+    const previousMap = new Map<string, RequirementVersion>();
+
+    for (const v of allVersions) {
+      if (currentVersionIds.includes(v.id)) {
+        currentMap.set(v.requirementId, v);
+      }
+      if (previousVersionIds.includes(v.id)) {
+        previousMap.set(v.requirementId, v);
+      }
+    }
+
+    const allReqIds = new Set([...currentMap.keys(), ...previousMap.keys()]);
+    const changes: RequirementChange[] = [];
+
+    for (const reqId of allReqIds) {
+      const current = currentMap.get(reqId);
+      const previous = previousMap.get(reqId);
+
+      if (current && !previous) {
+        changes.push({ requirementId: reqId, changeType: 'ADDED', currentVersion: current });
+      } else if (!current && previous) {
+        changes.push({ requirementId: reqId, changeType: 'REMOVED', previousVersion: previous });
+      } else if (current && previous) {
+        const changedFields = this.diffRequirementVersions(previous, current);
+        if (changedFields.length > 0) {
+          changes.push({
+            requirementId: reqId,
+            changeType: 'MODIFIED',
+            previousVersion: previous,
+            currentVersion: current,
+            changedFields,
+          });
+        } else {
+          changes.push({
+            requirementId: reqId,
+            changeType: 'UNCHANGED',
+            currentVersion: current,
+            previousVersion: previous,
+          });
+        }
+      }
+    }
+
+    return {
+      id: this.generateUUID(),
+      baselineId: baseline.id,
+      previousBaselineId: previousBaseline?.id,
+      baselineVersion: baseline.baselineVersion,
+      previousBaselineVersion: previousBaseline?.baselineVersion,
+      changes,
+      summary: {
+        added: changes.filter(c => c.changeType === 'ADDED').length,
+        modified: changes.filter(c => c.changeType === 'MODIFIED').length,
+        removed: changes.filter(c => c.changeType === 'REMOVED').length,
+        unchanged: changes.filter(c => c.changeType === 'UNCHANGED').length,
+      },
+      computedAt: new Date(),
+      computedBy: actor,
+    };
+  }
+
+  private diffRequirementVersions(a: RequirementVersion, b: RequirementVersion): string[] {
+    const fields: Array<{ key: string; getA: () => unknown; getB: () => unknown }> = [
+      { key: 'title', getA: () => a.title, getB: () => b.title },
+      { key: 'statement', getA: () => a.statement, getB: () => b.statement },
+      { key: 'rationale', getA: () => a.rationale, getB: () => b.rationale },
+      { key: 'category', getA: () => a.category, getB: () => b.category },
+      { key: 'priority', getA: () => a.priority, getB: () => b.priority },
+      { key: 'acceptanceIntent', getA: () => a.acceptanceIntent, getB: () => b.acceptanceIntent },
+      { key: 'gxpRelevance', getA: () => a.gxpRelevance, getB: () => b.gxpRelevance },
+      { key: 'source', getA: () => a.source, getB: () => b.source },
+      { key: 'owner', getA: () => a.owner, getB: () => b.owner },
+    ];
+    const changed: string[] = [];
+    for (const f of fields) {
+      const va = f.getA();
+      const vb = f.getB();
+      if (JSON.stringify(va) !== JSON.stringify(vb)) {
+        changed.push(f.key);
+      }
+    }
+    return changed;
   }
 
   /**
