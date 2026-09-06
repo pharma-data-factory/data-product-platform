@@ -15,11 +15,30 @@ import {
   Progress,
   Link,
 } from '@backstage/core-components';
-import { Button, TextField, Box, Chip } from '@material-ui/core';
+import {
+  Button,
+  TextField,
+  Box,
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from '@material-ui/core';
 import AddIcon from '@material-ui/icons/Add';
 import EditIcon from '@material-ui/icons/Edit';
+import GetAppIcon from '@material-ui/icons/GetApp';
 import { ursComposerApiRef } from '../api/ursComposerApi';
-import { RequirementSet, URSStatus } from '../api/types';
+import { RequirementSet, URSStatus, SolutionType } from '../api/types';
+
+const STATUS_ORDER: Record<string, number> = {
+  DRAFT: 0,
+  IN_REVIEW: 1,
+  APPROVED: 2,
+  BASELINED: 3,
+  SUPERSEDED: 4,
+  RETIRED: 5,
+};
 
 export const URSLibraryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,6 +47,9 @@ export const URSLibraryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<RequirementSet[]>([]);
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [selectedRows, setSelectedRows] = useState<RequirementSet[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -54,23 +76,50 @@ export const URSLibraryPage: React.FC = () => {
   }, [api]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) {
-      return items;
+    let result = items;
+
+    if (statusFilter !== 'ALL') {
+      result = result.filter(item => item.status === statusFilter);
     }
-    return items.filter(item =>
-      [
-        item.requirementSetId,
-        item.solutionName,
-        item.businessNeed,
-        item.status,
-        ...(item.businessCapabilityRefs || []),
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [items, query]);
+
+    if (typeFilter !== 'ALL') {
+      result = result.filter(item => item.solutionType === typeFilter);
+    }
+
+    const q = query.trim().toLowerCase();
+    if (q) {
+      result = result.filter(item =>
+        [
+          item.requirementSetId,
+          item.solutionName,
+          item.businessNeed,
+          item.status,
+          ...(item.businessCapabilityRefs || []),
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+
+    return result;
+  }, [items, query, statusFilter, typeFilter]);
+
+  const handleExportSelected = () => {
+    if (selectedRows.length === 0) {
+      return;
+    }
+    const data = JSON.stringify(selectedRows, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `urs-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const columns: TableColumn<RequirementSet>[] = [
     {
@@ -98,7 +147,13 @@ export const URSLibraryPage: React.FC = () => {
     },
     {
       title: 'Status',
+      field: 'status',
       render: row => <Chip size="small" label={row.status} />,
+      customSort: (a, b) => {
+        const orderA = STATUS_ORDER[a.status] ?? 99;
+        const orderB = STATUS_ORDER[b.status] ?? 99;
+        return orderA - orderB;
+      },
     },
     {
       title: 'Version',
@@ -110,10 +165,13 @@ export const URSLibraryPage: React.FC = () => {
     },
     {
       title: 'Updated',
+      field: 'updatedAt',
       render: row => row.updatedAt || row.createdAt,
+      defaultSort: 'desc',
     },
     {
       title: 'Actions',
+      sorting: false,
       render: row => (
         <Box display="flex" style={{ gap: 8 }}>
           <Button size="small" onClick={() => navigate(`/urs-composer/${row.id}`)}>
@@ -147,26 +205,73 @@ export const URSLibraryPage: React.FC = () => {
           </Button>
         </ContentHeader>
 
-        <Box marginBottom={2}>
+        <Box display="flex" alignItems="center" style={{ gap: 12, marginBottom: 16 }}>
           <TextField
             label="Search"
             placeholder="Filter by ID, title, capability, or status"
-            fullWidth
             value={query}
             onChange={e => setQuery(e.target.value)}
             variant="outlined"
             size="small"
+            style={{ flex: 1 }}
           />
+          <FormControl variant="outlined" size="small" style={{ minWidth: 140 }}>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as string)}
+              label="Status"
+            >
+              <MenuItem value="ALL">All Statuses</MenuItem>
+              <MenuItem value={URSStatus.DRAFT}>Draft</MenuItem>
+              <MenuItem value={URSStatus.IN_REVIEW}>In Review</MenuItem>
+              <MenuItem value={URSStatus.APPROVED}>Approved</MenuItem>
+              <MenuItem value="BASELINED">Baselined</MenuItem>
+              <MenuItem value={URSStatus.SUPERSEDED}>Superseded</MenuItem>
+              <MenuItem value={URSStatus.RETIRED}>Retired</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl variant="outlined" size="small" style={{ minWidth: 160 }}>
+            <InputLabel>Solution Type</InputLabel>
+            <Select
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value as string)}
+              label="Solution Type"
+            >
+              <MenuItem value="ALL">All Types</MenuItem>
+              <MenuItem value={SolutionType.PROJECT}>Project</MenuItem>
+              <MenuItem value={SolutionType.PLUGIN}>Plugin</MenuItem>
+              <MenuItem value={SolutionType.COMPONENT}>Component</MenuItem>
+              <MenuItem value={SolutionType.DATA_PRODUCT}>Data Product</MenuItem>
+            </Select>
+          </FormControl>
+          {selectedRows.length > 0 && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<GetAppIcon />}
+              onClick={handleExportSelected}
+            >
+              Export ({selectedRows.length})
+            </Button>
+          )}
         </Box>
 
         {loading && <Progress />}
         {error && <Box color="error.main">{error}</Box>}
         {!loading && !error && (
           <Table
-            options={{ paging: true, pageSize: 10, search: false }}
+            options={{
+              paging: true,
+              pageSize: 10,
+              search: false,
+              selection: true,
+              sorting: true,
+            }}
             columns={columns}
             data={filtered}
             title="Requirement Sets"
+            onSelectionChange={rows => setSelectedRows(rows)}
           />
         )}
       </Content>
