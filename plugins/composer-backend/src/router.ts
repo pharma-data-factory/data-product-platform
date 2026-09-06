@@ -453,6 +453,19 @@ export async function createRouter(
     },
   );
 
+  router.get(
+    '/baselines/:id/delta',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productReadPermission);
+        const delta = await service.computeProductBaselineDelta(req.params.id, actor);
+        res.json(delta);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   // ============================================================================
   // AUDIT TRAIL & TRACEABILITY MATRIX
   // ============================================================================

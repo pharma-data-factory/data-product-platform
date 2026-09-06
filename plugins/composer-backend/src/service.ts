@@ -12,8 +12,10 @@ import {
   InterfaceType,
   Product,
   ProductBaseline,
+  ProductBaselineDelta,
   ProductComponent,
   ProductVersion,
+  SnapshotItemChange,
   TraceabilityLink,
   validateProduct,
   validateTraceabilityLink,
@@ -474,6 +476,111 @@ export class ComposerService {
     productVersionId: string,
   ): Promise<ProductBaseline[]> {
     return this.repository.listProductBaselines(productVersionId);
+  }
+
+  async computeProductBaselineDelta(
+    baselineId: string,
+    actor: string,
+  ): Promise<ProductBaselineDelta> {
+    const baseline = await this.repository.getProductBaseline(baselineId);
+    if (!baseline) {
+      throw new Error(`Product baseline ${baselineId} not found`);
+    }
+
+    const allBaselines = await this.repository.listProductBaselines(
+      baseline.productVersionId,
+    );
+    const sorted = allBaselines
+      .slice()
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const idx = sorted.findIndex(b => b.id === baseline.id);
+    const previousBaseline = idx > 0 ? sorted[idx - 1] : undefined;
+
+    const currentSnapshot = (baseline.snapshot ?? {}) as Record<string, unknown[]>;
+    const previousSnapshot = (previousBaseline?.snapshot ?? {}) as Record<string, unknown[]>;
+
+    const changes: SnapshotItemChange[] = [
+      ...this.diffSnapshotItems(
+        (previousSnapshot.components ?? []) as Record<string, unknown>[],
+        (currentSnapshot.components ?? []) as Record<string, unknown>[],
+        'component',
+      ),
+      ...this.diffSnapshotItems(
+        (previousSnapshot.contracts ?? []) as Record<string, unknown>[],
+        (currentSnapshot.contracts ?? []) as Record<string, unknown>[],
+        'contract',
+      ),
+      ...this.diffSnapshotItems(
+        (previousSnapshot.traceabilityLinks ?? []) as Record<string, unknown>[],
+        (currentSnapshot.traceabilityLinks ?? []) as Record<string, unknown>[],
+        'traceabilityLink',
+      ),
+    ];
+
+    return {
+      id: randomUUID(),
+      baselineId: baseline.id,
+      previousBaselineId: previousBaseline?.id,
+      baselineVersion: baseline.baselineVersion,
+      previousBaselineVersion: previousBaseline?.baselineVersion,
+      changes,
+      summary: {
+        added: changes.filter(c => c.changeType === 'ADDED').length,
+        modified: changes.filter(c => c.changeType === 'MODIFIED').length,
+        removed: changes.filter(c => c.changeType === 'REMOVED').length,
+        unchanged: changes.filter(c => c.changeType === 'UNCHANGED').length,
+      },
+      computedAt: new Date(),
+      computedBy: actor,
+    };
+  }
+
+  private diffSnapshotItems(
+    previous: Record<string, unknown>[],
+    current: Record<string, unknown>[],
+    itemType: SnapshotItemChange['itemType'],
+  ): SnapshotItemChange[] {
+    const prevMap = new Map<string, Record<string, unknown>>();
+    const currMap = new Map<string, Record<string, unknown>>();
+
+    for (const item of previous) {
+      if (item.id) prevMap.set(String(item.id), item);
+    }
+    for (const item of current) {
+      if (item.id) currMap.set(String(item.id), item);
+    }
+
+    const allIds = new Set([...prevMap.keys(), ...currMap.keys()]);
+    const changes: SnapshotItemChange[] = [];
+
+    for (const id of allIds) {
+      const prev = prevMap.get(id);
+      const curr = currMap.get(id);
+
+      if (curr && !prev) {
+        changes.push({ itemId: id, itemType, changeType: 'ADDED', current: curr });
+      } else if (!curr && prev) {
+        changes.push({ itemId: id, itemType, changeType: 'REMOVED', previous: prev });
+      } else if (curr && prev) {
+        const changedFields = Object.keys(curr).filter(
+          key => JSON.stringify(curr[key]) !== JSON.stringify(prev[key]),
+        );
+        if (changedFields.length > 0) {
+          changes.push({
+            itemId: id,
+            itemType,
+            changeType: 'MODIFIED',
+            previous: prev,
+            current: curr,
+            changedFields,
+          });
+        } else {
+          changes.push({ itemId: id, itemType, changeType: 'UNCHANGED', previous: prev, current: curr });
+        }
+      }
+    }
+
+    return changes;
   }
 
   async getEntityAuditTrail(

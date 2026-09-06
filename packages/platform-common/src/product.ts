@@ -194,6 +194,38 @@ export function isProductBaselineStatus(
   return (PRODUCT_BASELINE_STATUSES as readonly string[]).includes(value);
 }
 
+// ============================================================================
+// PRODUCT BASELINE DELTA — Snapshot comparison between two baselines
+// ============================================================================
+
+export type ProductChangeType = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'UNCHANGED';
+
+export interface SnapshotItemChange {
+  itemId: string;
+  itemType: 'component' | 'contract' | 'traceabilityLink';
+  changeType: ProductChangeType;
+  previous?: Record<string, unknown>;
+  current?: Record<string, unknown>;
+  changedFields?: string[];
+}
+
+export interface ProductBaselineDelta {
+  id: string;
+  baselineId: string;
+  previousBaselineId?: string;
+  baselineVersion: string;
+  previousBaselineVersion?: string;
+  changes: SnapshotItemChange[];
+  summary: {
+    added: number;
+    modified: number;
+    removed: number;
+    unchanged: number;
+  };
+  computedAt: Date;
+  computedBy: string;
+}
+
 export function validateProduct(product: {
   name?: string;
   productType?: string;
