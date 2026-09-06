@@ -32,6 +32,11 @@ import {
   TransitionProductVersionRequest,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
+import type {
+  AvailableComponentSummary,
+  ComposerLLMClient,
+} from './llm-client';
+import { buildSystemPrompt } from './prompt-template';
 
 export interface ReleaseGateBlocker {
   code: string;
@@ -50,17 +55,20 @@ export interface ComposerServiceOptions {
   logger: LoggerService;
   repository: IComposerRepository;
   ursBaselineResolver?: UrsBaselineResolver;
+  llmClient?: ComposerLLMClient;
 }
 
 export class ComposerService {
   private readonly logger: LoggerService;
   private readonly repository: IComposerRepository;
   private readonly ursBaselineResolver?: UrsBaselineResolver;
+  private readonly llmClient?: ComposerLLMClient;
 
   constructor(options: ComposerServiceOptions) {
     this.logger = options.logger;
     this.repository = options.repository;
     this.ursBaselineResolver = options.ursBaselineResolver;
+    this.llmClient = options.llmClient;
   }
 
   async createProduct(
@@ -620,6 +628,39 @@ export class ComposerService {
       coverage: components.length === 0 ? 0 : covered.size / components.length,
       links,
     };
+  }
+
+  async suggestComponents(
+    productName: string,
+    description: string,
+    domain: string,
+    existingSelections: string[],
+    availableComponents: AvailableComponentSummary[],
+    actor: string,
+  ) {
+    if (!this.llmClient) {
+      throw new Error('AI suggestions are not enabled');
+    }
+
+    const context = {
+      productName,
+      description,
+      domain,
+      existingSelections,
+      availableComponents,
+    };
+
+    const systemPrompt = buildSystemPrompt();
+    const suggestions = await this.llmClient.suggestComponents(
+      context,
+      systemPrompt,
+    );
+
+    await this.audit('composition', 'ai-suggestion', 'AI_SUGGEST_COMPONENTS', actor, {
+      newValue: JSON.stringify({ productName, suggestionCount: suggestions.length }),
+    });
+
+    return suggestions;
   }
 
   private async audit(

@@ -8,13 +8,16 @@ import {
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
+import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import {
   Checkbox,
+  Chip,
   FormControlLabel,
   Grid,
   TextField,
   Typography,
 } from '@material-ui/core';
+import BuildIcon from '@material-ui/icons/Build';
 import { makeStyles } from '@material-ui/core/styles';
 import {
   COMPOSER_COMPONENT_VERSION,
@@ -38,6 +41,7 @@ import {
   officialGoldenPathForDraft,
   platformComponentPath,
   serializeCompositionYaml,
+  slugifyCompositionName,
   toLibraryComponents,
   toRelatedPlatformComponents,
   validateComposerDraft,
@@ -46,6 +50,10 @@ import { usePlatformRole } from '@internal/plugin-data-products';
 import { CompositionArchitectureVisual } from './CompositionArchitectureVisual';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
+import {
+  suggestComponents,
+  SuggestedComponent,
+} from './composerApi';
 
 const useStyles = makeStyles(theme => ({
   hero: {
@@ -204,6 +212,35 @@ const useStyles = makeStyles(theme => ({
   ok: {
     color: PHARMA_TEAL,
   },
+  aiSection: {
+    border: '2px dashed #CBD5E1',
+    borderRadius: 12,
+    marginBottom: 20,
+    padding: 16,
+  },
+  aiButton: {
+    background: PHARMA_NAVY,
+    border: 0,
+    borderRadius: 10,
+    color: '#FFFFFF',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontSize: 13,
+    fontWeight: 600,
+    gap: 6,
+    padding: '8px 14px',
+    '&:disabled': {
+      cursor: 'not-allowed',
+      opacity: 0.45,
+    },
+  },
+  suggestionCard: {
+    border: `1px solid ${C.border}`,
+    borderRadius: 10,
+    marginTop: 8,
+    padding: 10,
+  },
 }));
 
 function shortPurpose(component: LibraryPlatformComponent): string {
@@ -218,6 +255,7 @@ function checklistLabel(ok: boolean, text: string): string {
 export function ComposePage() {
   const classes = useStyles();
   const catalogApi = useApi(catalogApiRef);
+  const scaffolderApi = useApi(scaffolderApiRef);
   const { role } = usePlatformRole();
   const canEdit = canCreateDataProduct(role);
   const [params] = useSearchParams();
@@ -226,6 +264,7 @@ export function ComposePage() {
   const [error, setError] = useState<Error>();
   const [notice, setNotice] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [presetId, setPresetId] = useState<string>();
   const [draft, setDraft] = useState({
     name: 'new-data-product',
@@ -234,6 +273,10 @@ export function ComposePage() {
     domain: '',
     selectedNames: [] as string[],
   });
+  const [aiSuggestions, setAiSuggestions] = useState<SuggestedComponent[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | undefined>();
+  const [selectedSuggestionNames, setSelectedSuggestionNames] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -342,6 +385,99 @@ export function ComposePage() {
     setCopied(true);
   };
 
+  const generate = async () => {
+    if (!canEdit || !goldenPath || !validation.validated) {
+      return;
+    }
+    setGenerating(true);
+    setError(undefined);
+    try {
+      const name = slugifyCompositionName(draft.name);
+      const response = await scaffolderApi.scaffold({
+        templateRef: `template:default/${goldenPath}`,
+        values: {
+          name,
+          description: draft.description.trim() || draft.name,
+          owner: draft.owner.trim() || 'group:default/platform-team',
+          domain: draft.domain.trim() || 'manufacturing',
+          system: 'data-platform',
+          site: '',
+          area: '',
+          line: '',
+          equipmentId: 'filler-01',
+          defaultWindow: 'HOUR',
+          machineStateTopic: 'pharma/oee/+/state',
+          counterTopic: 'pharma/oee/+/count',
+          mqttTopic: 'pharma/oee/+/+',
+          contextUrlRef: 'SOURCE_API_URL',
+          repoUrl: `github.com?owner=pharma-data-factory&repo=${name}`,
+        },
+      });
+      setNotice(
+        `Scaffolding started (task ${response.taskId}). Track it in the Scaffolder.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleGenerateSuggestions = async () => {
+    if (!canEdit) {
+      return;
+    }
+    setAiLoading(true);
+    setAiError(undefined);
+    setAiSuggestions([]);
+    setSelectedSuggestionNames([]);
+    try {
+      const available = components.map(c => ({
+        name: c.name,
+        title: c.title,
+        category: c.category,
+        purpose: c.profile.purpose || c.description || '',
+        certificationStatus: c.certificationStatus,
+      }));
+      const results = await suggestComponents({
+        productName: draft.name,
+        description: draft.description || draft.name,
+        domain: draft.domain || 'manufacturing',
+        existingSelections: draft.selectedNames,
+        availableComponents: available,
+      });
+      setAiSuggestions(results);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleToggleSuggestion = (name: string) => {
+    setSelectedSuggestionNames(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name],
+    );
+  };
+
+  const handleAcceptSuggestions = () => {
+    if (!canEdit || selectedSuggestionNames.length === 0) {
+      return;
+    }
+    setDraft(current => {
+      const newNames = current.selectedNames.slice();
+      for (const name of selectedSuggestionNames) {
+        if (!newNames.includes(name)) {
+          newNames.push(name);
+        }
+      }
+      return { ...current, selectedNames: newNames };
+    });
+    setAiSuggestions([]);
+    setSelectedSuggestionNames([]);
+    setCopied(false);
+  };
+
   return (
     <Page themeId="tool">
       <Content>
@@ -425,6 +561,71 @@ export function ComposePage() {
                   </p>
                 </div>
               )}
+
+              <div className={classes.aiSection}>
+                <Typography variant="subtitle2">AI Component Suggestions</Typography>
+                <p className={classes.meta}>
+                  Describe your data product above, then let AI suggest platform components.
+                </p>
+                <button
+                  type="button"
+                  className={classes.aiButton}
+                  disabled={!canEdit || aiLoading}
+                  onClick={handleGenerateSuggestions}
+                  data-testid="ai-suggest-components"
+                >
+                  <BuildIcon style={{ fontSize: 16 }} />
+                  {aiLoading ? 'Generating…' : 'Suggest Components'}
+                </button>
+                {aiError && (
+                  <p className={classes.error} style={{ marginTop: 8 }}>
+                    {aiError}
+                  </p>
+                )}
+                {aiSuggestions.length > 0 && (
+                  <>
+                    {aiSuggestions.map(suggestion => {
+                      const isSelected = selectedSuggestionNames.includes(suggestion.name);
+                      return (
+                        <div key={suggestion.name} className={classes.suggestionCard}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                color="primary"
+                                checked={isSelected}
+                                onChange={() => handleToggleSuggestion(suggestion.name)}
+                              />
+                            }
+                            label={
+                              <span>
+                                <strong>{suggestion.name}</strong>{' '}
+                                <Chip
+                                  label={suggestion.priority}
+                                  size="small"
+                                  color={suggestion.priority === 'required' ? 'secondary' : 'default'}
+                                  style={{ marginLeft: 4 }}
+                                />
+                              </span>
+                            }
+                          />
+                          <p className={classes.meta}>{suggestion.reason}</p>
+                        </div>
+                      );
+                    })}
+                    {selectedSuggestionNames.length > 0 && (
+                      <button
+                        type="button"
+                        className={classes.action}
+                        style={{ marginTop: 12 }}
+                        onClick={handleAcceptSuggestions}
+                        data-testid="ai-accept-suggestions"
+                      >
+                        Accept {selectedSuggestionNames.length} Selected
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
 
               {groups.map(group => (
                 <fieldset
@@ -669,13 +870,28 @@ export function ComposePage() {
                   Download Composition
                 </a>
                 {goldenPath ? (
-                  <Link
-                    className={classes.action}
-                    to={`/marketplace/${goldenPath}`}
-                    style={{ display: 'inline-flex', alignItems: 'center' }}
-                  >
-                    Continue to Golden Path
-                  </Link>
+                  <>
+                    <button
+                      type="button"
+                      className={classes.action}
+                      disabled={!canEdit || generating || !validation.validated}
+                      onClick={generate}
+                      data-testid="generate-data-product"
+                    >
+                      {generating ? 'Starting scaffold…' : 'Generate Data Product'}
+                    </button>
+                    <Link
+                      className={classes.ghost}
+                      to={`/marketplace/${goldenPath}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      Continue to Golden Path
+                    </Link>
+                  </>
                 ) : (
                   <p className={classes.meta} data-testid="custom-composition">
                     CUSTOM COMPOSITION. No official Golden Path currently exists.

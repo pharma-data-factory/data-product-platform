@@ -28,6 +28,7 @@ import {
   productReadPermission,
 } from '@internal/platform-common';
 import { ComposerService } from './service';
+import type { AvailableComponentSummary } from './llm-client';
 import {
   CreateDataContractRequest,
   CreateProductBaselineRequest,
@@ -510,6 +511,49 @@ export async function createRouter(
           links: relevantLinks,
         });
       } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.post(
+    '/ai/suggest-components',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+        const actor = credentials.principal?.userEntityRef ?? 'unknown';
+
+        const { productName, description, domain, existingSelections, availableComponents } =
+          req.body as {
+            productName?: string;
+            description?: string;
+            domain?: string;
+            existingSelections?: string[];
+            availableComponents?: AvailableComponentSummary[];
+          };
+
+        if (!productName || !description || !domain || !availableComponents) {
+          res.status(400).json({
+            error: 'Missing required fields: productName, description, domain, availableComponents',
+          });
+          return;
+        }
+
+        const suggestions = await service.suggestComponents(
+          productName,
+          description,
+          domain,
+          existingSelections ?? [],
+          availableComponents,
+          actor,
+        );
+
+        res.json({ suggestions });
+      } catch (err) {
+        if (err instanceof Error && err.message === 'AI suggestions are not enabled') {
+          res.status(501).json({ error: 'AI suggestions are not enabled' });
+          return;
+        }
         respondError(res, logger, err);
       }
     },

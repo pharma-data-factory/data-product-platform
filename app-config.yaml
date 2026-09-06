@@ -64,6 +64,14 @@ ursComposer:
     apiKey: ${URS_AI_API_KEY}
     model: gpt-4o-mini
 
+composer:
+  ai:
+    enabled: false
+    provider: openai
+    baseUrl: https://api.openai.com
+    apiKey: ${COMPOSER_AI_API_KEY}
+    model: gpt-4o-mini
+
 integrations:
   github:
     - host: github.com
