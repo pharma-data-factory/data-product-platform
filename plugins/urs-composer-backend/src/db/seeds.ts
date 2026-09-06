@@ -2,8 +2,10 @@
  * URS Composer Database Seeds
  *
  * Idempotent seed operations for:
- * - Business Capabilities (from capability-matrix.md)
+ * - Business Capabilities (canonical list in data/businessCapabilities.ts)
+ * - Business Roles (default executing roles)
  * - Approval Workflows (standard templates)
+ * - Requirement Sets (data/seedRequirementSets.ts, e.g. the W&D URS)
  *
  * All operations are idempotent:
  * Running seeds multiple times produces the same result.
@@ -11,113 +13,34 @@
  */
 
 import { Knex } from 'knex';
+import { BUSINESS_CAPABILITIES } from '../data/businessCapabilities';
+import { SEED_REQUIREMENT_SETS } from '../data/seedRequirementSets';
+import { URSStatus } from '../types';
 
 /**
- * Seed business capabilities
- * Source: docs/capability-matrix.md (MVP 1.0)
+ * Seed business capabilities.
+ *
+ * Derives from the canonical BUSINESS_CAPABILITIES list so the Postgres mirror
+ * and the in-memory repository cannot drift apart.
  *
  * Idempotency: Check if records exist before inserting.
  */
 export async function seedBusinessCapabilities(knex: Knex): Promise<void> {
-  const capabilities = [
-    {
-      id: 'business-capability:make/equipment-performance-management',
-      name: 'Equipment Performance Management',
-      description: 'Monitor, track, and optimize pharmaceutical equipment performance',
-      domain: 'make',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:make/production-scheduling',
-      name: 'Production Scheduling',
-      description: 'Plan and schedule manufacturing operations',
-      domain: 'make',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:make/quality-monitoring',
-      name: 'Quality Monitoring',
-      description: 'Real-time quality parameter monitoring and control',
-      domain: 'make',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:make/material-tracking',
-      name: 'Material Tracking',
-      description: 'Track raw materials, work-in-progress, and finished products',
-      domain: 'make',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:make/regulatory-compliance',
-      name: 'Regulatory Compliance',
-      description: 'Ensure compliance with pharmaceutical regulations and standards',
-      domain: 'make',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:plan/demand-forecasting',
-      name: 'Demand Forecasting',
-      description: 'Forecast product demand for production planning',
-      domain: 'plan',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:plan/inventory-management',
-      name: 'Inventory Management',
-      description: 'Manage inventory levels and supply chain optimization',
-      domain: 'plan',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:control/process-control',
-      name: 'Process Control',
-      description: 'Control pharmaceutical manufacturing processes',
-      domain: 'control',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:control/risk-management',
-      name: 'Risk Management',
-      description: 'Identify, assess, and mitigate manufacturing risks',
-      domain: 'control',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-    {
-      id: 'business-capability:control/continuous-improvement',
-      name: 'Continuous Improvement',
-      description: 'Implement continuous manufacturing process improvement',
-      domain: 'control',
-      status: 'ACTIVE',
-      source: 'capability-matrix.md',
-      version: 1,
-    },
-  ];
-
-  for (const cap of capabilities) {
+  for (const cap of BUSINESS_CAPABILITIES) {
     // Check if already exists (idempotent)
-    const existing = await knex('business_capabilities').where({ id: cap.id }).first();
+    const existing = await knex('business_capabilities')
+      .where({ id: cap.id })
+      .first();
     if (!existing) {
       await knex('business_capabilities').insert({
-        ...cap,
+        id: cap.id,
+        name: cap.name,
+        description: cap.description,
+        domain: cap.domain,
+        status: 'ACTIVE',
+        source: cap.source,
+        documentation_ref: cap.documentationRef || null,
+        version: 1,
         created_at: new Date(),
         created_by: 'system',
       });
@@ -126,26 +49,36 @@ export async function seedBusinessCapabilities(knex: Knex): Promise<void> {
 }
 
 /**
+ * Default executing roles seeded into `business_roles`.
+ */
+export const SEED_BUSINESS_ROLE_NAMES = [
+  'Weighing Operator',
+  'Dispensing Operator',
+  'Line Lead',
+  'Production Supervisor',
+  'Quality Technician',
+  'Process Engineer',
+];
+
+/**
+ * Derive the `role:<slug>` entity id for a business role name.
+ */
+export function businessRoleIdFromName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `role:${slug}`;
+}
+
+/**
  * Seed business roles
  * Default executing roles for business capabilities.
  * Idempotent: existing records are never overwritten.
  */
 export async function seedBusinessRoles(knex: Knex): Promise<void> {
-  const roles = [
-    'Weighing Operator',
-    'Dispensing Operator',
-    'Line Lead',
-    'Production Supervisor',
-    'Quality Technician',
-    'Process Engineer',
-  ];
-
-  for (const name of roles) {
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    const id = `role:${slug}`;
+  for (const name of SEED_BUSINESS_ROLE_NAMES) {
+    const id = businessRoleIdFromName(name);
     const existing = await knex('business_roles').where({ id }).first();
     if (!existing) {
       await knex('business_roles').insert({
@@ -254,6 +187,75 @@ export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
 }
 
 /**
+ * Seed requirement sets and their requirements as DRAFT.
+ *
+ * Seeded sets use a stable requirement set key (e.g. URS-WD) so requirement IDs
+ * are identical in every environment. A set that already exists is left
+ * untouched, so operator edits and approvals survive a restart.
+ *
+ * Idempotency: skip when the requirement set key already exists.
+ */
+export async function seedRequirementSets(knex: Knex): Promise<void> {
+  for (const seedSet of SEED_REQUIREMENT_SETS) {
+    const existing = await knex('requirement_sets')
+      .where({ requirement_set_id: seedSet.requirementSetId })
+      .first();
+    if (existing) {
+      continue;
+    }
+
+    const now = new Date();
+    const setId = `seed:${seedSet.requirementSetId.toLowerCase()}`;
+
+    await knex('requirement_sets').insert({
+      id: setId,
+      requirement_set_id: seedSet.requirementSetId,
+      version_number: 1,
+      business_capability_refs: JSON.stringify(seedSet.businessCapabilityRefs),
+      business_need: seedSet.businessNeed,
+      stakeholders: JSON.stringify(seedSet.stakeholders),
+      solution_type: seedSet.solutionType,
+      solution_name: seedSet.solutionName,
+      gxp_relevance: seedSet.gxpRelevance,
+      patient_impact: seedSet.patientImpact,
+      data_integrity_impact: seedSet.dataIntegrityImpact,
+      electronic_records: seedSet.electronicRecords,
+      status: URSStatus.DRAFT,
+      created_by: 'system',
+      created_at: now,
+      revision: 1,
+    });
+
+    const rows = seedSet.requirements.map(req => ({
+      id: `${setId}-${req.requirementId.toLowerCase()}`,
+      requirement_set_id: setId,
+      requirement_id: req.requirementId,
+      title: req.title,
+      statement: req.statement,
+      priority: req.priority,
+      gxp_relevance: req.gxpRelevance,
+      component_type: req.classification.componentType,
+      requirement_nature: req.classification.requirementNature,
+      criticality: req.classification.criticality,
+      classification_meta: JSON.stringify({
+        secondaryTypes: req.classification.secondaryTypes,
+        interfaceType: req.classification.interfaceType,
+        dataClassification: req.classification.dataClassification,
+        validationLevel: req.classification.validationLevel,
+        sourceSystem: req.classification.sourceSystem,
+        targetSystem: req.classification.targetSystem,
+        automationReadiness: req.classification.automationReadiness,
+      }),
+      status: URSStatus.DRAFT,
+      created_by: 'system',
+      created_at: now,
+    }));
+
+    await knex('requirements').insert(rows);
+  }
+}
+
+/**
  * Run all seeds
  * Safe to call multiple times (all operations idempotent)
  */
@@ -261,4 +263,5 @@ export async function seed(knex: Knex): Promise<void> {
   await seedBusinessCapabilities(knex);
   await seedApprovalWorkflows(knex);
   await seedBusinessRoles(knex);
+  await seedRequirementSets(knex);
 }

@@ -7,3 +7,11 @@
 
 app:
   title: Nexora
+
+# Local dev auth key. Hardcoded because `.env` loading via --env-file is
+# unreliable with the multi-line GITHUB_PRIVATE_KEY (resolves BACKEND_SECRET
+# to empty, which fails backend startup with "Missing required config value").
+backend:
+  auth:
+    keys:
+      - secret: dev-local-auth-key

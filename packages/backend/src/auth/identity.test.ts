@@ -12,7 +12,7 @@ describe('Guest development fallback', () => {
   it('keeps Guest only as a local development identity', () => {
     const appConfig = read('app-config.yaml');
     const production = read('app-config.production.yaml');
-    const org = read('catalog/org.yaml');
+    const users = read('catalog/users.seed.yaml');
 
     expect(appConfig).toContain('environment: development');
     expect(appConfig).toContain('userEntityRef: user:default/guest');
@@ -35,9 +35,9 @@ describe('Guest development fallback', () => {
       'dangerouslyAllowSignInWithoutUserInCatalog',
     );
 
-    expect(org).toContain('name: guest');
-    expect(org).toContain('Local development fallback identity');
-    expect(org).toContain('dataprod.platform/identity: development-fallback');
+    expect(users).toContain('name: guest');
+    expect(users).toContain('Local development fallback identity');
+    expect(users).toContain('dataprod.platform/identity: development-fallback');
     const docker = read('app-config.docker.yaml');
     expect(docker).not.toMatch(/^\s+guest:/m);
     expect(docker).not.toContain('dangerouslyAllowSignInWithoutUserInCatalog');
@@ -107,6 +107,9 @@ describe('user and group mapping', () => {
     const org = yaml.parseAllDocuments(read('catalog/org.yaml')).map(doc =>
       doc.toJSON(),
     );
+    const seed = yaml.parseAllDocuments(read('catalog/users.seed.yaml')).map(doc =>
+      doc.toJSON(),
+    );
 
     const groups = org
       .filter(entity => entity.kind === 'Group')
@@ -120,7 +123,7 @@ describe('user and group mapping', () => {
       ]),
     );
 
-    const users = org.filter(entity => entity.kind === 'User');
+    const users = seed.filter(entity => entity.kind === 'User');
     const byName = Object.fromEntries(
       users.map(user => [user.metadata.name, user]),
     );

@@ -20,7 +20,7 @@ import type { Entity } from '@backstage/catalog-model';
 import { platformUserManagePermission } from '@internal/platform-common';
 
 const LOCATION_TYPE = 'file';
-const LOCATION_TARGET = '../../catalog/runtime/users.yaml';
+const LOCATION_TARGET = '../../catalog/users.seed.yaml';
 
 interface RouterOptions {
   logger: LoggerService;
@@ -54,8 +54,13 @@ function readUsers(file: string): Entity[] {
     return [];
   }
   try {
-    const parsed = YAML.parse(fs.readFileSync(file, 'utf8'));
-    return Array.isArray(parsed) ? (parsed as Entity[]) : [];
+    return YAML.parseAllDocuments(fs.readFileSync(file, 'utf8'))
+      .filter(doc => Boolean(doc) && !doc.errors?.length)
+      .map(doc => doc.toJS())
+      .filter(
+        (value): value is Entity =>
+          value !== null && typeof value === 'object' && !Array.isArray(value),
+      );
   } catch {
     return [];
   }
@@ -63,7 +68,8 @@ function readUsers(file: string): Entity[] {
 
 function writeUsers(file: string, users: Entity[]): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, YAML.stringify(users) || '[]\n', 'utf8');
+  const content = users.map(user => YAML.stringify(user)).join('---\n');
+  fs.writeFileSync(file, content ? `${content}\n` : '', 'utf8');
 }
 
 function appendAudit(file: string, record: AuditRecord): void {

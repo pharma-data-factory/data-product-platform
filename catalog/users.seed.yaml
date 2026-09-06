@@ -1,0 +1,73 @@
+# Committed Catalog Users. The users-backend edits this file in place (dev);
+# metadata.name must match the GitHub login (lowercase).
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: guest
+  title: Guest
+  description: Local development fallback identity. Not a production identity.
+  annotations:
+    dataprod.platform/identity: development-fallback
+spec:
+  memberOf: [guests, data-product-developers]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: schmeckm
+  title: Markus Schmeckenbecher
+  annotations:
+    github.com/user-login: schmeckm
+spec:
+  profile:
+    displayName: Markus Schmeckenbecher
+  memberOf: [platform-admins]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: viewer
+  title: Viewer
+  annotations:
+    github.com/user-login: viewer
+spec:
+  profile:
+    displayName: Platform Viewer
+  memberOf: [platform-viewers]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: developer
+  title: Developer
+  annotations:
+    github.com/user-login: developer
+spec:
+  profile:
+    displayName: Data Product Developer
+  memberOf: [data-product-developers]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: owner
+  title: Owner
+  annotations:
+    github.com/user-login: owner
+spec:
+  profile:
+    displayName: Data Product Owner
+  memberOf: [data-product-owners]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: admin
+  title: Admin
+  annotations:
+    github.com/user-login: admin
+spec:
+  profile:
+    displayName: Platform Admin
+  memberOf: [platform-admins]

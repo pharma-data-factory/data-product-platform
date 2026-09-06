@@ -312,12 +312,13 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['timestamp']);
       table.index(['entity_type']);
     });
-  } else {
+  } else if (knex.client.config.client === 'pg') {
     // Existing database: ensure entity_version is text (it was created as
     // integer, but the active version model emits semantic/string versions such
     // as "1.0"). Idempotent — remove any integer-typed column default and
     // widen the type. Existing audit rows (if any) are NULL or integers and
-    // widen losslessly to text.
+    // widen losslessly to text. This migration is PostgreSQL-specific; other
+    // dialects store values dynamically and have no information_schema.columns.
     const [col] = await knex('information_schema.columns')
       .where({ table_schema: 'public', table_name: 'audit_events', column_name: 'entity_version' })
       .select('data_type');

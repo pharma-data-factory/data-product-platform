@@ -49,7 +49,11 @@ catalog:
     - type: file
       target: ./catalog/org.yaml
       rules:
-        - allow: [User, Group]
+        - allow: [Group]
+    - type: file
+      target: ./catalog/users.seed.yaml
+      rules:
+        - allow: [User]
     - type: file
       target: ./templates/python-service/template.yaml
       rules:

@@ -50,8 +50,8 @@ describe('MVP 1.1 pilot hardening', () => {
   });
 
   it('does not grant Guest Platform Admin', () => {
-    expect(read('catalog/org.yaml')).toContain('memberOf: [guests, data-product-developers]');
-    expect(read('catalog/org.yaml')).not.toContain(
+    expect(read('catalog/users.seed.yaml')).toContain('memberOf: [guests, data-product-developers]');
+    expect(read('catalog/users.seed.yaml')).not.toContain(
       'memberOf: [guests, platform-admins]',
     );
     expect(read('app-config.yaml')).toContain('group:default/data-product-developers');
