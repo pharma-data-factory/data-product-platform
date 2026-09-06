@@ -383,3 +383,23 @@ export interface ChangeSet {
   computedAt: string;
   computedBy: string;
 }
+
+// ============================================================================
+// AI REQUIREMENT SUGGESTIONS
+// ============================================================================
+
+export interface GeneratedRequirementClassification {
+  componentType: string;
+  requirementNature: string;
+  criticality: string;
+  interfaceType?: string;
+}
+
+export interface GeneratedRequirement {
+  title: string;
+  statement: string;
+  rationale: string;
+  priority: string;
+  classification: GeneratedRequirementClassification;
+  gxpRelevance: string;
+}

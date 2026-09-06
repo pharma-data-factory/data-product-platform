@@ -33,6 +33,7 @@ import {
   RequirementSetListResponse,
   ApprovalRecord,
   ChangeSet,
+  GeneratedRequirement,
 } from './types';
 
 export type { URSApiError };
@@ -503,6 +504,24 @@ export class URSComposerApi {
       `/approvals/${approvalId}/steps/${stepId}/reject`,
       req,
     );
+  }
+
+  // ============================================================================
+  // AI REQUIREMENT SUGGESTIONS
+  // ============================================================================
+
+  /**
+   * POST /requirement-sets/:id/generate-suggestions
+   * Generate AI-powered requirement suggestions based on requirement set context
+   */
+  async generateRequirementSuggestions(
+    setId: string,
+  ): Promise<GeneratedRequirement[]> {
+    const result = await this.post<{ suggestions: GeneratedRequirement[] }>(
+      `/requirement-sets/${encodeURIComponent(setId)}/generate-suggestions`,
+      {},
+    );
+    return result.suggestions;
   }
 
   // ============================================================================

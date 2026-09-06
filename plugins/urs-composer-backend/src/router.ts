@@ -910,6 +910,38 @@ export async function createRouter(
   );
 
   // ============================================================================
+  // AI REQUIREMENT SUGGESTIONS
+  // ============================================================================
+
+  router.post(
+    '/requirement-sets/:id/generate-suggestions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req);
+        const actor = credentials.principal.userEntityRef;
+
+        const suggestions = await service.generateRequirementSuggestions(
+          req.params.id,
+          actor,
+        );
+
+        res.json({ suggestions });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('not found')) {
+          res.status(404).json({ error: error.message });
+        } else if (error instanceof Error && error.message.includes('not configured')) {
+          res.status(501).json({ error: error.message });
+        } else {
+          logger.error('Failed to generate AI suggestions', error as Error);
+          res.status(502).json({
+            error: error instanceof Error ? error.message : 'AI generation failed',
+          });
+        }
+      }
+    },
+  );
+
+  // ============================================================================
   // HEALTH
   // ============================================================================
 

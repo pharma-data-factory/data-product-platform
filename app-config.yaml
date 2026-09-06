@@ -57,6 +57,12 @@ backend:
 ursComposer:
   persistence:
     mode: memory
+  ai:
+    enabled: false
+    provider: openai
+    baseUrl: https://api.openai.com
+    apiKey: ${URS_AI_API_KEY}
+    model: gpt-4o-mini
 
 integrations:
   github:
@@ -93,7 +99,7 @@ auth:
   environment: development
   # see https://backstage.io/docs/auth/ to learn about auth providers
   providers:
-    # Token-based guest for local development only. Must match catalog/org.yaml.
+    # Token-based guest for local development only. Must match catalog/users.seed.yaml.
     # Guest is not a production identity. Do not set
     # dangerouslyAllowOutsideDevelopment.
     # The legacy frontend guest identity has no token and causes catalog 401s
@@ -162,7 +168,12 @@ catalog:
     - type: file
       target: ../../catalog/org.yaml
       rules:
-        - allow: [User, Group]
+        - allow: [Group]
+
+    - type: file
+      target: ../../catalog/users.seed.yaml
+      rules:
+        - allow: [User]
 
     - type: file
       target: ../../templates/python-service/template.yaml

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -12,17 +12,24 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
+  CircularProgress,
 } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import AddIcon from '@material-ui/icons/Add';
 import DeleteIcon from '@material-ui/icons/Delete';
+import BuildIcon from '@material-ui/icons/Build';
+import { Alert } from '@material-ui/lab';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   RequirementPriority,
   GxPRelevance,
   COMPONENT_TYPES,
   REQUIREMENT_NATURES,
   CRITICALITIES,
+  GeneratedRequirement,
 } from '../../../api/types';
+import { ursComposerApiRef } from '../../../api/ursComposerApi';
 import { URSWizardState, RequirementDraft } from '../wizardState';
 
 const useStyles = makeStyles(theme => ({
@@ -45,6 +52,26 @@ const useStyles = makeStyles(theme => ({
     backgroundColor: theme.palette.action.hover,
     borderLeft: `4px solid ${theme.palette.info.main}`,
   },
+  aiSection: {
+    marginTop: theme.spacing(3),
+    marginBottom: theme.spacing(3),
+    padding: theme.spacing(2),
+    border: `1px dashed ${theme.palette.primary.main}`,
+    borderRadius: theme.shape.borderRadius,
+  },
+  suggestionCard: {
+    marginBottom: theme.spacing(1),
+    cursor: 'pointer',
+    transition: 'background-color 0.15s',
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover,
+    },
+  },
+  suggestionSelected: {
+    borderColor: theme.palette.primary.main,
+    borderWidth: 2,
+    borderStyle: 'solid',
+  },
 }));
 
 interface RequirementsStepProps {
@@ -58,6 +85,11 @@ function createTempId(): string {
 
 export const RequirementsStep: React.FC<RequirementsStepProps> = ({ state, onStateChange }) => {
   const classes = useStyles();
+  const api = useApi(ursComposerApiRef);
+  const [aiSuggestions, setAiSuggestions] = useState<GeneratedRequirement[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
   const handleAddRequirement = () => {
     const newReq: RequirementDraft = {
@@ -89,6 +121,59 @@ export const RequirementsStep: React.FC<RequirementsStepProps> = ({ state, onSta
     onStateChange({
       requirements: state.requirements.filter((_, i) => i !== index),
     });
+  };
+
+  const handleGenerateSuggestions = async () => {
+    if (!state.requirementSetId) {
+      setAiError('Save the draft first before generating AI suggestions.');
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    setAiSuggestions([]);
+    setSelectedIndices(new Set());
+    try {
+      const suggestions = await api.generateRequirementSuggestions(state.requirementSetId);
+      setAiSuggestions(suggestions);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'Failed to generate suggestions');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleToggleSuggestion = (index: number) => {
+    setSelectedIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const handleAcceptSuggestions = () => {
+    const newReqs: RequirementDraft[] = [];
+    selectedIndices.forEach(idx => {
+      const s = aiSuggestions[idx];
+      newReqs.push({
+        tempId: createTempId(),
+        title: s.title,
+        statement: s.statement,
+        rationale: s.rationale,
+        priority: s.priority as RequirementPriority,
+        gxpRelevance: s.gxpRelevance as GxPRelevance,
+        classification: s.classification as any,
+        acceptanceCriteria: [],
+      });
+    });
+    onStateChange({
+      requirements: [...state.requirements, ...newReqs],
+    });
+    setAiSuggestions([]);
+    setSelectedIndices(new Set());
   };
 
   return (
@@ -289,6 +374,89 @@ export const RequirementsStep: React.FC<RequirementsStepProps> = ({ state, onSta
           </Card>
         ))
       )}
+
+      {/* AI Suggestions Section */}
+      <Box className={classes.aiSection}>
+        <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Typography variant="subtitle2">
+            AI Requirement Suggestions
+          </Typography>
+          <Button
+            variant="outlined"
+            color="primary"
+            size="small"
+            startIcon={aiLoading ? <CircularProgress size={16} /> : <BuildIcon />}
+            onClick={handleGenerateSuggestions}
+            disabled={aiLoading || !state.requirementSetId}
+          >
+            {aiLoading ? 'Generating...' : 'Generate Suggestions'}
+          </Button>
+        </Box>
+
+        {!state.requirementSetId && (
+          <Typography variant="body2" color="textSecondary">
+            Save the draft first to enable AI suggestions.
+          </Typography>
+        )}
+
+        {aiError && (
+          <Alert severity="error" style={{ marginBottom: 8 }}>
+            {aiError}
+          </Alert>
+        )}
+
+        {aiSuggestions.length > 0 && (
+          <Box>
+            <Alert severity="info" style={{ marginBottom: 12 }}>
+              AI-generated suggestions must be reviewed before acceptance. Select the ones you want to add.
+            </Alert>
+            {aiSuggestions.map((suggestion, idx) => (
+              <Card
+                key={idx}
+                className={`${classes.suggestionCard} ${selectedIndices.has(idx) ? classes.suggestionSelected : ''}`}
+                onClick={() => handleToggleSuggestion(idx)}
+              >
+                <CardContent style={{ padding: '8px 16px', paddingBottom: 8 }}>
+                  <Box style={{ display: 'flex', alignItems: 'flex-start' }}>
+                    <Checkbox
+                      checked={selectedIndices.has(idx)}
+                      color="primary"
+                      style={{ padding: 4 }}
+                    />
+                    <Box style={{ flex: 1 }}>
+                      <Typography variant="subtitle2">{suggestion.title}</Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        {suggestion.statement}
+                      </Typography>
+                      <Box style={{ marginTop: 4, display: 'flex', gap: 8 }}>
+                        <Typography variant="caption" color="primary">
+                          {suggestion.priority}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {suggestion.classification?.componentType} / {suggestion.classification?.requirementNature}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          GxP: {suggestion.gxpRelevance}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              onClick={handleAcceptSuggestions}
+              disabled={selectedIndices.size === 0}
+              style={{ marginTop: 8 }}
+            >
+              Accept Selected ({selectedIndices.size})
+            </Button>
+          </Box>
+        )}
+      </Box>
 
       <Button
         startIcon={<AddIcon />}

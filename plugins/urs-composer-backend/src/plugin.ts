@@ -23,6 +23,11 @@ import { URSService } from './service';
 import { URSRepository } from './repository';
 import { PostgresURSRepository } from './postgres-repository';
 import { IURSRepository } from './repository-interface';
+import {
+  LLMClient,
+  OpenAILLMClient,
+  MockLLMClient,
+} from './llm-client';
 
 type PersistenceMode = 'postgres' | 'memory';
 
@@ -44,6 +49,37 @@ function getPersistenceMode(config: Config): PersistenceMode {
     `Invalid ursComposer.persistence.mode: '${mode}'. ` +
     `Allowed values: 'postgres', 'memory'`,
   );
+}
+
+function createLLMClient(config: Config, logger: any): LLMClient {
+  const enabled = config.getOptionalBoolean('ursComposer.ai.enabled') ?? false;
+
+  if (!enabled) {
+    logger.info('URS Composer AI is disabled (ursComposer.ai.enabled=false)');
+    return new MockLLMClient();
+  }
+
+  const apiKey = config.getOptionalString('ursComposer.ai.apiKey');
+  if (!apiKey) {
+    logger.warn(
+      'URS Composer AI is enabled but no API key configured (ursComposer.ai.apiKey). Falling back to mock.',
+    );
+    return new MockLLMClient();
+  }
+
+  const baseUrl =
+    config.getOptionalString('ursComposer.ai.baseUrl') ?? 'https://api.openai.com';
+  const model =
+    config.getOptionalString('ursComposer.ai.model') ?? 'gpt-4o-mini';
+
+  logger.info(`URS Composer AI enabled: provider=openai, model=${model}`);
+
+  return new OpenAILLMClient({
+    baseUrl,
+    apiKey,
+    model,
+    fetchApi: globalThis.fetch.bind(globalThis),
+  });
 }
 
 export const ursComposerPlugin = createBackendPlugin({
@@ -94,9 +130,12 @@ export const ursComposerPlugin = createBackendPlugin({
           throw new Error(`Unexpected persistence mode: ${persistenceMode}`);
         }
 
+        const llmClient = createLLMClient(config, logger);
+
         const service = new URSService({
           logger,
           repository,
+          llmClient,
         });
 
         httpRouter.use(

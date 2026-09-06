@@ -28,10 +28,12 @@ import {
 } from './types';
 import { IURSRepository } from './repository-interface';
 import { nextMinorVersion, getVersionNumber } from './services/versioningService';
+import type { LLMClient, GeneratedRequirement } from './llm-client';
 
 export interface URSServiceOptions {
   logger: LoggerService;
   repository: IURSRepository;
+  llmClient?: LLMClient;
 }
 
 /**
@@ -47,10 +49,12 @@ const STABLE_REQUIREMENT_SET_KEY = /^URS-[A-Z0-9]{2,12}$/;
 export class URSService {
   private logger: LoggerService;
   private repository: IURSRepository;
+  private llmClient?: LLMClient;
 
   constructor(options: URSServiceOptions) {
     this.logger = options.logger;
     this.repository = options.repository;
+    this.llmClient = options.llmClient;
   }
 
   /**
@@ -1504,5 +1508,76 @@ export class URSService {
     });
 
     return instance;
+  }
+
+  async generateRequirementSuggestions(
+    requirementSetId: string,
+    actor: string,
+  ): Promise<GeneratedRequirement[]> {
+    if (!this.llmClient) {
+      throw new Error('AI is not configured');
+    }
+
+    const set = await this.repository.getRequirementSet(requirementSetId);
+    if (!set) {
+      throw new Error(`Requirement set not found: ${requirementSetId}`);
+    }
+
+    const existingRequirements = await this.repository.listRequirements(requirementSetId);
+
+    const capabilities: string[] = [];
+    for (const ref of set.businessCapabilityRefs) {
+      try {
+        const cap = await this.repository.getBusinessCapability(ref);
+        if (cap) {
+          capabilities.push(cap.name);
+        } else {
+          capabilities.push(ref);
+        }
+      } catch {
+        capabilities.push(ref);
+      }
+    }
+
+    const context = {
+      businessCapabilities: capabilities,
+      businessNeed: {
+        title: set.businessNeed,
+        desiredOutcome: set.desiredOutcome,
+        businessValue: set.businessValue,
+      },
+      context: {
+        title: set.solutionName,
+        scope: set.scope,
+        outOfScope: set.outOfScope,
+        processContext: set.processContext,
+        gxpRelevance: set.gxpRelevance,
+        patientImpact: set.patientImpact,
+        dataIntegrityImpact: set.dataIntegrityImpact,
+        electronicRecords: set.electronicRecords,
+      },
+      existingRequirements: existingRequirements.map(r => r.title),
+    };
+
+    const { buildSystemPrompt } = await import('./prompt-template');
+    const systemPrompt = buildSystemPrompt();
+
+    this.logger.info(
+      `Generating AI requirement suggestions for set ${requirementSetId} by ${actor}`,
+    );
+
+    const suggestions = await this.llmClient.generateRequirements(context, systemPrompt);
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_SET',
+      entityId: requirementSetId,
+      eventType: 'AI_SUGGESTIONS_GENERATED',
+      newValue: { count: suggestions.length },
+      actor,
+      timestamp: new Date(),
+    });
+
+    return suggestions;
   }
 }
