@@ -1,18 +1,231 @@
 import {
   Content,
   Header,
+  Link,
   Page,
 } from '@backstage/core-components';
+import { Grid } from '@material-ui/core';
+import { makeStyles } from '@material-ui/core/styles';
+import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../theme/tokens';
+
+const useStyles = makeStyles({
+  container: {
+    maxWidth: 1280,
+    margin: '0 auto',
+    padding: '24px',
+  },
+  section: {
+    marginBottom: 48,
+  },
+  intro: {
+    color: C.muted,
+    fontSize: 16,
+    lineHeight: 1.7,
+    margin: 0,
+    maxWidth: 800,
+  },
+  sectionTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 24,
+    fontWeight: 600,
+    margin: '0 0 24px',
+  },
+  layerCard: {
+    background: C.section,
+    border: `1px solid ${C.border}`,
+    borderRadius: 12,
+    padding: 20,
+  },
+  featuredLayerCard: {
+    background: 'rgba(0, 194, 217, 0.05)',
+    border: `2px solid ${PHARMA_TEAL}`,
+    borderRadius: 12,
+    padding: 20,
+  },
+  cardTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 16,
+    fontWeight: 600,
+    margin: '0 0 8px',
+  },
+  cardBody: {
+    color: C.muted,
+    fontSize: 14,
+    lineHeight: 1.6,
+    margin: 0,
+  },
+  layerLink: {
+    margin: '12px 0 0',
+  },
+  backstageLink: {
+    color: `${PHARMA_TEAL_DARK} !important`,
+    fontSize: 13,
+    textDecoration: 'none !important',
+  },
+  workspaceCard: {
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 12,
+    color: 'inherit',
+    display: 'block',
+    padding: 20,
+    textDecoration: 'none !important',
+    transition: 'border-color 0.2s',
+    '&:hover, &:focus-visible': {
+      borderColor: PHARMA_TEAL,
+    },
+  },
+  workspaceTitle: {
+    color: PHARMA_TEAL_DARK,
+    fontSize: 15,
+    fontWeight: 600,
+    margin: 0,
+  },
+  workspaceDesc: {
+    color: C.muted,
+    fontSize: 13,
+    lineHeight: 1.5,
+    margin: '8px 0 0',
+  },
+  conceptCard: {
+    background: C.section,
+    border: `1px solid ${C.border}`,
+    borderRadius: 12,
+    padding: 20,
+  },
+  conceptTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 15,
+    fontWeight: 600,
+    margin: 0,
+  },
+  conceptDesc: {
+    color: C.muted,
+    fontSize: 13,
+    lineHeight: 1.6,
+    margin: '8px 0 0',
+  },
+  modelCard: {
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 12,
+    padding: 24,
+  },
+  modelTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 15,
+    fontWeight: 600,
+    margin: '0 0 16px',
+  },
+  list: {
+    color: C.muted,
+    fontSize: 13,
+    lineHeight: 1.8,
+    margin: 0,
+    paddingLeft: 20,
+  },
+  dashboardCard: {
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 12,
+    padding: 24,
+  },
+  dashboardTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 15,
+    fontWeight: 600,
+    margin: '0 0 12px',
+  },
+  dashboardBody: {
+    color: C.muted,
+    fontSize: 13,
+    lineHeight: 1.6,
+    margin: '0 0 12px',
+  },
+  dashboardLink: {
+    color: `${PHARMA_TEAL_DARK} !important`,
+    fontSize: 13,
+    fontWeight: 600,
+    textDecoration: 'none !important',
+  },
+  statusSection: {
+    background: 'rgba(0, 194, 217, 0.08)',
+    border: `1px solid ${PHARMA_TEAL}`,
+    borderRadius: 12,
+    marginBottom: 48,
+    padding: 24,
+  },
+  statusTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 18,
+    fontWeight: 600,
+    margin: '0 0 16px',
+  },
+  statusCard: {
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    padding: 16,
+  },
+  statusLabel: {
+    color: PHARMA_TEAL_DARK,
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: '0.12em',
+    margin: '0 0 8px',
+    textTransform: 'uppercase',
+  },
+  statusValues: {
+    color: C.muted,
+    fontSize: 13,
+    lineHeight: 1.5,
+    margin: 0,
+  },
+  statusNote: {
+    color: C.muted,
+    fontSize: 12,
+    lineHeight: 1.6,
+    margin: '16px 0 0',
+  },
+  learnMore: {
+    background: C.section,
+    borderRadius: 12,
+    marginBottom: 48,
+    padding: 32,
+  },
+  learnMoreTitle: {
+    color: PHARMA_NAVY,
+    fontSize: 18,
+    fontWeight: 600,
+    margin: '0 0 16px',
+  },
+  learnMoreList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  learnMoreItem: {
+    margin: 0,
+  },
+  learnMoreLink: {
+    color: `${PHARMA_TEAL_DARK} !important`,
+    fontSize: 14,
+    fontWeight: 600,
+    textDecoration: 'none !important',
+  },
+});
 
 export function PlatformGovernanceOverviewPage() {
+  const classes = useStyles();
+
   return (
     <Page themeId="service">
       <Header title="Platform Architecture & Governance" subtitle="How the platform is organized and governed" />
       <Content>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px' }}>
+        <div className={classes.container}>
           {/* Intro */}
-          <section style={{ marginBottom: 48 }}>
-            <p style={{ fontSize: 16, lineHeight: 1.7, color: '#475569', maxWidth: 800 }}>
+          <section className={classes.section} aria-label="Introduction">
+            <p className={classes.intro}>
               Nexora provides a layered architecture for governing industrial Data Products.
               Use this overview to understand relationships between components, Golden Paths, Data Products,
               and how validation and governance fit together.
@@ -20,67 +233,48 @@ export function PlatformGovernanceOverviewPage() {
           </section>
 
           {/* Architecture Layers */}
-          <section style={{ marginBottom: 48 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 600, color: '#0B1F3A', marginBottom: 24 }}>
-              Platform Layers
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-              <div style={{
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                padding: 20,
-                background: '#F8FAFC',
-              }}>
-                <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#0B1F3A' }}>
-                  Backstage Foundation
-                </h3>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
-                  Open-source Control Plane: Catalog, Scaffolder, TechDocs, Search, Plugin architecture, Identity & RBAC.
-                </p>
-                <p style={{ margin: '12px 0 0', fontSize: 13, color: '#64748B' }}>
-                  <a href="https://backstage.io" style={{ color: '#0D9488', textDecoration: 'none' }}>
-                    Learn about Backstage →
-                  </a>
-                </p>
-              </div>
+          <section className={classes.section} aria-label="Platform Layers">
+            <h2 className={classes.sectionTitle}>Platform Layers</h2>
+            <Grid container direction="column" spacing={2}>
+              <Grid item>
+                <div className={classes.layerCard}>
+                  <h3 className={classes.cardTitle}>Backstage Foundation</h3>
+                  <p className={classes.cardBody}>
+                    Open-source Control Plane: Catalog, Scaffolder, TechDocs, Search, Plugin architecture, Identity &amp; RBAC.
+                  </p>
+                  <p className={classes.layerLink}>
+                    <Link className={classes.backstageLink} to="https://backstage.io">
+                      Learn about Backstage →
+                    </Link>
+                  </p>
+                </div>
+              </Grid>
 
-              <div style={{
-                border: '2px solid #0D9488',
-                borderRadius: 12,
-                padding: 20,
-                background: 'rgba(13, 148, 136, 0.05)',
-              }}>
-                <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#0B1F3A' }}>
-                  Nexora
-                </h3>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
-                  Industrial Data Product platform layer: Standard, SDK, Components, Contracts, Quality,
-                  Compatibility, Golden Paths, Validation & Trust.
-                </p>
-              </div>
+              <Grid item>
+                <div className={classes.featuredLayerCard}>
+                  <h3 className={classes.cardTitle}>Nexora</h3>
+                  <p className={classes.cardBody}>
+                    Industrial Data Product platform layer: Standard, SDK, Components, Contracts, Quality,
+                    Compatibility, Golden Paths, Validation &amp; Trust.
+                  </p>
+                </div>
+              </Grid>
 
-              <div style={{
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                padding: 20,
-                background: '#F8FAFC',
-              }}>
-                <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#0B1F3A' }}>
-                  Governance & Validation
-                </h3>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
-                  Traceability, evidence collection, change impact analysis, and formal validation readiness.
-                </p>
-              </div>
-            </div>
+              <Grid item>
+                <div className={classes.layerCard}>
+                  <h3 className={classes.cardTitle}>Governance &amp; Validation</h3>
+                  <p className={classes.cardBody}>
+                    Traceability, evidence collection, change impact analysis, and formal validation readiness.
+                  </p>
+                </div>
+              </Grid>
+            </Grid>
           </section>
 
           {/* Key Workspaces */}
-          <section style={{ marginBottom: 48 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 600, color: '#0B1F3A', marginBottom: 24 }}>
-              Key Workspaces & Functions
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+          <section className={classes.section} aria-label="Key Workspaces and Functions">
+            <h2 className={classes.sectionTitle}>Key Workspaces &amp; Functions</h2>
+            <Grid container spacing={2}>
               {[
                 { label: 'Component Library', href: '/platform-components', desc: 'Reusable technical building blocks' },
                 { label: 'Catalog', href: '/catalog', desc: 'System of record for products and relationships' },
@@ -89,43 +283,20 @@ export function PlatformGovernanceOverviewPage() {
                 { label: 'Data Products', href: '/data-products', desc: 'View all products, owners, and APIs' },
                 { label: 'Validation Expert', href: '/validation-expert', desc: 'Evidence, traceability, and validation' },
               ].map(item => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  style={{
-                    display: 'block',
-                    padding: 20,
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    background: '#FFFFFF',
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.borderColor = '#0D9488';
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.borderColor = '#E2E8F0';
-                  }}
-                >
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0D9488' }}>
-                    {item.label}
-                  </h3>
-                  <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.5, color: '#475569' }}>
-                    {item.desc}
-                  </p>
-                </a>
+                <Grid item xs={12} sm={6} md={4} key={item.label}>
+                  <Link className={classes.workspaceCard} to={item.href}>
+                    <h3 className={classes.workspaceTitle}>{item.label}</h3>
+                    <p className={classes.workspaceDesc}>{item.desc}</p>
+                  </Link>
+                </Grid>
               ))}
-            </div>
+            </Grid>
           </section>
 
           {/* Understanding Concepts */}
-          <section style={{ marginBottom: 48 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 600, color: '#0B1F3A', marginBottom: 24 }}>
-              Key Concepts
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+          <section className={classes.section} aria-label="Key Concepts">
+            <h2 className={classes.sectionTitle}>Key Concepts</h2>
+            <Grid container spacing={3}>
               {[
                 {
                   title: 'Platform Components',
@@ -152,191 +323,143 @@ export function PlatformGovernanceOverviewPage() {
                   desc: 'Technical evidence (tests, CI results, contracts) is created during delivery. Validation Expert connects evidence to requirements.'
                 },
               ].map(item => (
-                <div
-                  key={item.title}
-                  style={{
-                    padding: 20,
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    background: '#F8FAFC',
-                  }}
-                >
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                    {item.title}
-                  </h3>
-                  <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.6, color: '#475569' }}>
-                    {item.desc}
-                  </p>
-                </div>
+                <Grid item xs={12} sm={6} md={4} key={item.title}>
+                  <div className={classes.conceptCard}>
+                    <h3 className={classes.conceptTitle}>{item.title}</h3>
+                    <p className={classes.conceptDesc}>{item.desc}</p>
+                  </div>
+                </Grid>
               ))}
-            </div>
+            </Grid>
           </section>
 
           {/* Responsibility Model */}
-          <section style={{ marginBottom: 48 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 600, color: '#0B1F3A', marginBottom: 24 }}>
-              Responsibility Model
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
-              <div style={{
-                padding: 24,
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                background: '#FFFFFF',
-              }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                  Nexora Standardizes
-                </h3>
-                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.8, color: '#475569' }}>
-                  <li>Reusable technical components</li>
-                  <li>Golden Path structure and CI/CD</li>
-                  <li>Contracts and quality conventions</li>
-                  <li>Compatibility validation</li>
-                  <li>Version metadata</li>
-                  <li>Composition patterns</li>
-                </ul>
-              </div>
+          <section className={classes.section} aria-label="Responsibility Model">
+            <h2 className={classes.sectionTitle}>Responsibility Model</h2>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <div className={classes.modelCard}>
+                  <h3 className={classes.modelTitle}>Nexora Standardizes</h3>
+                  <ul className={classes.list}>
+                    <li>Reusable technical components</li>
+                    <li>Golden Path structure and CI/CD</li>
+                    <li>Contracts and quality conventions</li>
+                    <li>Compatibility validation</li>
+                    <li>Version metadata</li>
+                    <li>Composition patterns</li>
+                  </ul>
+                </div>
+              </Grid>
 
-              <div style={{
-                padding: 24,
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                background: '#FFFFFF',
-              }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                  Product Team Owns
-                </h3>
-                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.8, color: '#475569' }}>
-                  <li>Intended use and business purpose</li>
-                  <li>Domain-specific requirements</li>
-                  <li>Business logic implementation</li>
-                  <li>Plant and source-system integration</li>
-                  <li>Infrastructure and security</li>
-                  <li>Risk assessment</li>
-                  <li>Validation acceptance</li>
-                </ul>
-              </div>
-            </div>
+              <Grid item xs={12} md={6}>
+                <div className={classes.modelCard}>
+                  <h3 className={classes.modelTitle}>Product Team Owns</h3>
+                  <ul className={classes.list}>
+                    <li>Intended use and business purpose</li>
+                    <li>Domain-specific requirements</li>
+                    <li>Business logic implementation</li>
+                    <li>Plant and source-system integration</li>
+                    <li>Infrastructure and security</li>
+                    <li>Risk assessment</li>
+                    <li>Validation acceptance</li>
+                  </ul>
+                </div>
+              </Grid>
+            </Grid>
           </section>
 
           {/* Governance Dashboard */}
-          <section style={{ marginBottom: 48 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 600, color: '#0B1F3A', marginBottom: 24 }}>
-              Admin Dashboard & Monitoring
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
-              <div style={{
-                padding: 24,
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                background: '#FFFFFF',
-              }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                  Component Lifecycle
-                </h3>
-                <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6, color: '#475569' }}>
-                  Track platform components from DEVELOPMENT → TESTED → CERTIFIED. Monitor status changes and compatibility impacts.
-                </p>
-                <p style={{ margin: 0 }}>
-                  <a href="/platform-components" style={{ color: '#0D9488', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                    Open Component Library →
-                  </a>
-                </p>
-              </div>
+          <section className={classes.section} aria-label="Admin Dashboard and Monitoring">
+            <h2 className={classes.sectionTitle}>Admin Dashboard &amp; Monitoring</h2>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4}>
+                <div className={classes.dashboardCard}>
+                  <h3 className={classes.dashboardTitle}>Component Lifecycle</h3>
+                  <p className={classes.dashboardBody}>
+                    Track platform components from DEVELOPMENT → TESTED → CERTIFIED. Monitor status changes and compatibility impacts.
+                  </p>
+                  <p className={classes.learnMoreItem}>
+                    <Link className={classes.dashboardLink} to="/platform-components">
+                      Open Component Library →
+                    </Link>
+                  </p>
+                </div>
+              </Grid>
 
-              <div style={{
-                padding: 24,
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                background: '#FFFFFF',
-              }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                  Data Product Status
-                </h3>
-                <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6, color: '#475569' }}>
-                  Monitor all Data Products: Implementation status, Release status, Validation readiness. View composition dependencies.
-                </p>
-                <p style={{ margin: 0 }}>
-                  <a href="/data-products" style={{ color: '#0D9488', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                    Open Data Products →
-                  </a>
-                </p>
-              </div>
+              <Grid item xs={12} md={4}>
+                <div className={classes.dashboardCard}>
+                  <h3 className={classes.dashboardTitle}>Data Product Status</h3>
+                  <p className={classes.dashboardBody}>
+                    Monitor all Data Products: Implementation status, Release status, Validation readiness. View composition dependencies.
+                  </p>
+                  <p className={classes.learnMoreItem}>
+                    <Link className={classes.dashboardLink} to="/data-products">
+                      Open Data Products →
+                    </Link>
+                  </p>
+                </div>
+              </Grid>
 
-              <div style={{
-                padding: 24,
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                background: '#FFFFFF',
-              }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#0B1F3A' }}>
-                  Validation Evidence
-                </h3>
-                <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6, color: '#475569' }}>
-                  Central place for traceability, test results, requirements verification, and formal validation sign-off.
-                </p>
-                <p style={{ margin: 0 }}>
-                  <a href="/validation-expert" style={{ color: '#0D9488', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                    Open Validation Expert →
-                  </a>
-                </p>
-              </div>
-            </div>
+              <Grid item xs={12} md={4}>
+                <div className={classes.dashboardCard}>
+                  <h3 className={classes.dashboardTitle}>Validation Evidence</h3>
+                  <p className={classes.dashboardBody}>
+                    Central place for traceability, test results, requirements verification, and formal validation sign-off.
+                  </p>
+                  <p className={classes.learnMoreItem}>
+                    <Link className={classes.dashboardLink} to="/validation-expert">
+                      Open Validation Expert →
+                    </Link>
+                  </p>
+                </div>
+              </Grid>
+            </Grid>
           </section>
 
           {/* Status Model */}
-          <section style={{ marginBottom: 48, padding: '24px', background: 'rgba(13, 148, 136, 0.08)', border: '1px solid #0D9488', borderRadius: 12 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600, color: '#0B1F3A' }}>
-              Status Model: Four Independent Dimensions
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+          <section className={classes.statusSection} aria-label="Status Model">
+            <h2 className={classes.statusTitle}>Status Model: Four Independent Dimensions</h2>
+            <Grid container spacing={2}>
               {[
                 { title: 'Implementation', values: 'DEVELOPMENT → TESTED → CERTIFIED' },
                 { title: 'Release', values: 'DRAFT → TESTING → RELEASED → RETIRED' },
                 { title: 'Commercial', values: 'AVAILABLE, PLANNED, FUTURE, BLOCKED' },
                 { title: 'Validation', values: 'NOT VALIDATED → GxP VALIDATED' },
               ].map(item => (
-                <div key={item.title} style={{
-                  padding: 16,
-                  background: '#FFFFFF',
-                  borderRadius: 8,
-                  border: '1px solid #E2E8F0',
-                }}>
-                  <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, color: '#0D9488', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                    {item.title}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
-                    {item.values}
-                  </p>
-                </div>
+                <Grid item xs={12} sm={6} md={3} key={item.title}>
+                  <div className={classes.statusCard}>
+                    <p className={classes.statusLabel}>{item.title}</p>
+                    <p className={classes.statusValues}>{item.values}</p>
+                  </div>
+                </Grid>
               ))}
-            </div>
-            <p style={{ margin: '16px 0 0', fontSize: 12, color: '#64748B', lineHeight: 1.6 }}>
-              <strong>Important:</strong> These dimensions must never be collapsed. A CERTIFIED component is not GxP VALIDATED. 
+            </Grid>
+            <p className={classes.statusNote}>
+              <strong>Important:</strong> These dimensions must never be collapsed. A CERTIFIED component is not GxP VALIDATED.
               A RELEASED product may be PLANNED for commercial availability. Status model clarity prevents validation confusion.
             </p>
           </section>
 
           {/* More Info */}
-          <section style={{ marginBottom: 48, padding: '32px', background: '#F8FAFC', borderRadius: 12 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600, color: '#0B1F3A' }}>
-              Learn More
-            </h2>
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
-              <a href="/platform/architecture" style={{ color: '#0D9488', textDecoration: 'none', fontWeight: 600 }}>
-                View the full public architecture story →
-              </a>
-            </p>
-            <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
-              <a href="/platform/architecture/developer" style={{ color: '#0D9488', textDecoration: 'none', fontWeight: 600 }}>
-                Developer technical architecture →
-              </a>
-            </p>
-            <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
-              <a href="/developer" style={{ color: '#0D9488', textDecoration: 'none', fontWeight: 600 }}>
-                Developer Hub (authenticated) →
-              </a>
-            </p>
+          <section className={classes.learnMore} aria-label="Learn More">
+            <h2 className={classes.learnMoreTitle}>Learn More</h2>
+            <div className={classes.learnMoreList}>
+              <p className={classes.learnMoreItem}>
+                <Link className={classes.learnMoreLink} to="/platform/architecture">
+                  View the full public architecture story →
+                </Link>
+              </p>
+              <p className={classes.learnMoreItem}>
+                <Link className={classes.learnMoreLink} to="/platform/architecture/developer">
+                  Developer technical architecture →
+                </Link>
+              </p>
+              <p className={classes.learnMoreItem}>
+                <Link className={classes.learnMoreLink} to="/developer">
+                  Developer Hub (authenticated) →
+                </Link>
+              </p>
+            </div>
           </section>
         </div>
       </Content>

@@ -5,9 +5,9 @@ import { Grid, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import {
   NEXORA_MUTED,
-  NEXORA_NAVY,
   NexoraSection,
   NexoraToolPage,
+  StatusBadge,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 import {
@@ -22,14 +22,6 @@ import {
 } from '@internal/plugin-marketplace';
 
 const useLabelStyles = makeStyles({
-  status: {
-    color: NEXORA_NAVY,
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
-    fontSize: 12,
-    fontWeight: 600,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-  },
   note: {
     color: NEXORA_MUTED,
     fontSize: 13,
@@ -132,7 +124,7 @@ export function EntitlementsAdminPage() {
                         <td>{data.edition}</td>
                         <td>{row.source}</td>
                         <td>
-                          <span className={labelClasses.status}>{row.status}</span>
+                          <StatusBadge state={row.status} kind="entitlement" />
                         </td>
                         <td>{row.validFrom || '—'}</td>
                         <td>{row.validUntil || '—'}</td>

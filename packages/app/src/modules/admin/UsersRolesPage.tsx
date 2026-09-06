@@ -14,13 +14,7 @@ import {
 } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import type { Entity } from '@backstage/catalog-model';
-import {
-  Button,
-  TextField,
-  Typography,
-  Checkbox,
-  FormControlLabel,
-} from '@material-ui/core';
+import { Button, TextField, Typography, MenuItem } from '@material-ui/core';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import {
   canManagePlatformUsers,
@@ -29,8 +23,26 @@ import {
   GROUP_TO_ROLE,
   ROLE_LABELS,
 } from '@internal/platform-common';
+import type { PlatformRole } from '@internal/platform-common';
 
 const USER_KIND = 'User';
+const BLOCKED = '__blocked__';
+
+const ROLE_OPTIONS = PLATFORM_GROUPS.map(group => ({
+  group,
+  label: ROLE_LABELS[GROUP_TO_ROLE[group]],
+}));
+
+function groupForRole(role: PlatformRole): string {
+  const match = PLATFORM_GROUPS.find(group => GROUP_TO_ROLE[group] === role);
+  return match ?? 'platform-viewers';
+}
+
+function isBlocked(memberOf: string[]): boolean {
+  return !memberOf.some(group =>
+    PLATFORM_GROUPS.includes(group as (typeof PLATFORM_GROUPS)[number]),
+  );
+}
 
 function userMemberOf(user: Entity): string[] {
   const memberOf = (user.spec as { memberOf?: string[] } | undefined)?.memberOf;
@@ -52,7 +64,7 @@ export function UsersRolesPage() {
 
   const [newLogin, setNewLogin] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
-  const [newGroups, setNewGroups] = useState<string[]>([]);
+  const [newRoleGroup, setNewRoleGroup] = useState('platform-viewers');
 
   const admin = canManagePlatformUsers(role);
 
@@ -119,17 +131,38 @@ export function UsersRolesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin]);
 
-  const toggleMembership = async (user: Entity, group: string) => {
-    const current = userMemberOf(user);
-    const next = current.includes(group)
-      ? current.filter(g => g !== group)
-      : [...current, group];
+  const setUserRole = async (user: Entity, value: string) => {
+    const nonPlatform = userMemberOf(user).filter(
+      g => !PLATFORM_GROUPS.includes(g as (typeof PLATFORM_GROUPS)[number]),
+    );
+    const next = value === BLOCKED ? nonPlatform : [value, ...nonPlatform];
     setSaving(true);
     setNotice(null);
     try {
       await apiCall('PUT', `/${user.metadata.name}`, { memberOf: next });
       await load();
       setNotice(`Updated ${user.metadata.name}`);
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteUser = async (user: Entity) => {
+    if (
+      !window.confirm(
+        `Delete user "${user.metadata.name}"? This removes them from the platform catalog.`,
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setNotice(null);
+    try {
+      await apiCall('DELETE', `/${user.metadata.name}`);
+      await load();
+      setNotice(`Deleted ${user.metadata.name}`);
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -149,11 +182,11 @@ export function UsersRolesPage() {
       await apiCall('POST', '/', {
         login,
         displayName: newDisplayName.trim() || login,
-        memberOf: newGroups,
+        memberOf: [newRoleGroup],
       });
       setNewLogin('');
       setNewDisplayName('');
-      setNewGroups([]);
+      setNewRoleGroup('platform-viewers');
       await load();
       setNotice(`Created user ${login}`);
     } catch (e) {
@@ -161,12 +194,6 @@ export function UsersRolesPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const toggleNewGroup = (group: string) => {
-    setNewGroups(prev =>
-      prev.includes(group) ? prev.filter(g => g !== group) : [...prev, group],
-    );
   };
 
   return (
@@ -210,29 +237,26 @@ export function UsersRolesPage() {
                     onChange={e => setNewDisplayName(e.target.value)}
                     style={{ minWidth: 240 }}
                   />
-                </div>
-                <div style={{ margin: '16px 0' }}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Roles (groups)
-                  </Typography>
-                  {PLATFORM_GROUPS.map(group => (
-                    <FormControlLabel
-                      key={group}
-                      control={
-                        <Checkbox
-                          checked={newGroups.includes(group)}
-                          onChange={() => toggleNewGroup(group)}
-                        />
-                      }
-                      label={`${group} (${ROLE_LABELS[GROUP_TO_ROLE[group]]})`}
-                    />
-                  ))}
+                  <TextField
+                    select
+                    label="Role"
+                    value={newRoleGroup}
+                    onChange={e => setNewRoleGroup(e.target.value)}
+                    style={{ minWidth: 240 }}
+                  >
+                    {ROLE_OPTIONS.map(option => (
+                      <MenuItem key={option.group} value={option.group}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </div>
                 <Button
                   variant="contained"
                   color="primary"
                   disabled={saving}
                   onClick={createUser}
+                  style={{ marginTop: 16 }}
                 >
                   Create user
                 </Button>
@@ -257,6 +281,9 @@ export function UsersRolesPage() {
                 users.map(user => {
                   const memberOf = userMemberOf(user);
                   const userRole = resolvePlatformRole(memberOf);
+                  const roleValue = isBlocked(memberOf)
+                    ? BLOCKED
+                    : groupForRole(userRole);
                   return (
                     <section
                       key={user.metadata.uid ?? user.metadata.name}
@@ -271,32 +298,46 @@ export function UsersRolesPage() {
                         style={{
                           display: 'flex',
                           justifyContent: 'space-between',
-                          alignItems: 'baseline',
+                          alignItems: 'center',
                           flexWrap: 'wrap',
-                          gap: 8,
+                          gap: 12,
                         }}
                       >
                         <Typography variant="subtitle1">
                           {user.metadata.name}
                         </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Role: {ROLE_LABELS[userRole]}
-                        </Typography>
-                      </div>
-                      <div style={{ marginTop: 8 }}>
-                        {PLATFORM_GROUPS.map(group => (
-                          <FormControlLabel
-                            key={group}
-                            control={
-                              <Checkbox
-                                checked={memberOf.includes(group)}
-                                disabled={saving}
-                                onChange={() => toggleMembership(user, group)}
-                              />
-                            }
-                            label={group}
-                          />
-                        ))}
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 8,
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <TextField
+                            select
+                            label="Role"
+                            value={roleValue}
+                            onChange={e => setUserRole(user, e.target.value)}
+                            disabled={saving}
+                            style={{ minWidth: 240 }}
+                          >
+                            {ROLE_OPTIONS.map(option => (
+                              <MenuItem key={option.group} value={option.group}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                            <MenuItem value={BLOCKED}>Blocked (no access)</MenuItem>
+                          </TextField>
+                          <Button
+                            variant="outlined"
+                            color="secondary"
+                            disabled={saving}
+                            onClick={() => deleteUser(user)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </section>
                   );

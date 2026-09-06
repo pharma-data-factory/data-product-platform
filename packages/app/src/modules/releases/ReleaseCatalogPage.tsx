@@ -66,6 +66,16 @@ const useStyles = makeStyles({
   table: {
     minWidth: 640,
   },
+  head: {
+    backgroundColor: C.section,
+  },
+  row: {
+    cursor: 'pointer',
+    transition: 'background-color 0.15s ease',
+    '&:hover': {
+      backgroundColor: 'rgba(0, 194, 217, 0.07)',
+    },
+  },
 });
 
 export function ReleaseCatalogPage() {
@@ -117,19 +127,18 @@ export function ReleaseCatalogPage() {
               <Table className={classes.table}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Golden Path</TableCell>
-                    <TableCell>Version</TableCell>
-                    <TableCell>Lifecycle</TableCell>
-                    <TableCell>Certification</TableCell>
-                    <TableCell>Distribution</TableCell>
+                    <TableCell className={classes.head}>Golden Path</TableCell>
+                    <TableCell className={classes.head}>Version</TableCell>
+                    <TableCell className={classes.head}>Lifecycle</TableCell>
+                    <TableCell className={classes.head}>Certification</TableCell>
+                    <TableCell className={classes.head}>Distribution</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {rows.map(row => (
                     <TableRow
                       key={`${row.template}@${row.version}`}
-                      hover
-                      style={{ cursor: 'pointer' }}
+                      className={classes.row}
                       onClick={() => navigate(`/releases/${row.template}`)}
                     >
                       <TableCell>{row.name}</TableCell>
