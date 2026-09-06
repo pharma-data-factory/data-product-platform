@@ -376,6 +376,7 @@ export async function createRouter(
   /**
    * POST /requirement-sets/:id/submit
    * Submit for review
+   * @deprecated Use POST /baselines/:id/submit for baseline-level approval workflow
    */
   router.post(
     '/requirement-sets/:id/submit',
@@ -399,6 +400,7 @@ export async function createRouter(
   /**
    * POST /requirement-sets/:id/approve
    * Approve requirement set
+   * @deprecated Use POST /approvals/:id/steps/:stepId/approve for step-level approval
    */
   router.post(
     '/requirement-sets/:id/approve',

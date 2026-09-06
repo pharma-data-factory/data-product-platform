@@ -1086,6 +1086,7 @@ export class PostgresURSRepository implements IURSRepository {
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
       supersededBy: row.superseded_by,
+      approvalInstanceId: row.approval_instance_id,
       revision: row.revision,
     };
   }

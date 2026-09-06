@@ -231,14 +231,15 @@ export interface ApprovalInstance {
 
 export interface ApprovalStepInstance {
   id: string;
-  stepId: string;
-  sequence?: number;
-  role?: string;
+  sequence: number;
+  role: string;
   status: ApprovalStatus | string;
-  approvedBy?: string;
-  approvedAt?: string;
-  rejectionReason?: string;
+  required?: boolean;
+  assignedTo?: string;
+  decision?: 'APPROVED' | 'REJECTED' | 'SKIPPED';
   comment?: string;
+  actedBy?: string;
+  actedAt?: string;
 }
 
 export interface ApprovalRecord {

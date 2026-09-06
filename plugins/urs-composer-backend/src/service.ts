@@ -20,6 +20,7 @@ import {
   ApprovalWorkflow,
   ApprovalInstance,
   ApprovalInstanceStatus,
+  ApprovalStepStatus,
   UpdateRequirementSetRequest,
   BusinessCapabilityPersisted,
   BusinessRolePersisted,
@@ -1227,7 +1228,7 @@ export class URSService {
         id: this.generateUUID(),
         sequence: wfStep.sequence,
         role: wfStep.role,
-        status: 'PENDING' as any,
+        status: ApprovalStepStatus.PENDING,
         required: wfStep.required,
       };
       instance.steps.push(step);
@@ -1300,7 +1301,7 @@ export class URSService {
     // Update baseline status to IN_REVIEW
     await this.repository.updateBaseline({
       ...baseline,
-      status: 'IN_REVIEW' as any,
+      status: URSStatus.IN_REVIEW,
       revision: baseline.revision || 1,
     });
 
@@ -1349,7 +1350,7 @@ export class URSService {
     }
 
     // Update step: mark as APPROVED
-    step.status = 'APPROVED' as any;
+    step.status = ApprovalStepStatus.APPROVED;
     step.actedBy = actor;
     step.decision = 'APPROVED';
     step.comment = comment;
@@ -1381,7 +1382,7 @@ export class URSService {
       // Update baseline to APPROVED
       await this.repository.updateBaseline({
         ...baseline,
-        status: 'APPROVED' as any,
+        status: URSStatus.APPROVED,
         approvedBy: actor,
         approvedAt: new Date(),
         revision: baseline.revision || 1,
@@ -1393,7 +1394,7 @@ export class URSService {
         if (version && version.status !== 'APPROVED') {
           await this.repository.updateRequirementVersion({
             ...version,
-            status: 'APPROVED' as any,
+            status: URSStatus.APPROVED,
             approvedBy: actor,
             approvedAt: new Date(),
           });
@@ -1406,7 +1407,7 @@ export class URSService {
             if (prev.id !== versionId && prev.status === 'APPROVED') {
               await this.repository.updateRequirementVersion({
                 ...prev,
-                status: 'SUPERSEDED' as any,
+                status: URSStatus.SUPERSEDED,
                 supersededBy: versionId,
               });
             }
@@ -1433,7 +1434,7 @@ export class URSService {
       // Activate next required step
       const nextStep = instance.steps.find(s => s.required && s.status === 'PENDING');
       if (nextStep) {
-        nextStep.status = 'ACTIVE' as any;
+        nextStep.status = ApprovalStepStatus.ACTIVE;
       }
 
       instance.status = ApprovalInstanceStatus.IN_PROGRESS;
@@ -1482,7 +1483,7 @@ export class URSService {
     }
 
     // Update step: mark as REJECTED
-    step.status = 'REJECTED' as any;
+    step.status = ApprovalStepStatus.REJECTED;
     step.actedBy = actor;
     step.decision = 'REJECTED';
     step.comment = reason;

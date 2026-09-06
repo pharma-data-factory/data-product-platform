@@ -411,6 +411,7 @@ export interface Baseline {
   approvedBy?: string;
   approvedAt?: Date;
   supersededBy?: string; // Baseline ID that superseded this
+  approvalInstanceId?: string; // Linked ApprovalInstance when submitted for approval
 
   revision: number; // Optimistic concurrency
 }

@@ -350,11 +350,11 @@ export const URSRequirementSetPage: React.FC = () => {
   // Load approval instance when a baseline has one
   useEffect(() => {
     const baselineWithApproval = baselines.find(
-      b => (b as any).approvalInstanceId,
+      b => b.approvalInstanceId,
     );
-    if (baselineWithApproval && (baselineWithApproval as any).approvalInstanceId) {
+    if (baselineWithApproval && baselineWithApproval.approvalInstanceId) {
       api
-        .getApprovalInstance((baselineWithApproval as any).approvalInstanceId)
+        .getApprovalInstance(baselineWithApproval.approvalInstanceId)
         .then(setApprovalInstance)
         .catch(() => {});
     }
@@ -642,10 +642,10 @@ export const URSRequirementSetPage: React.FC = () => {
                                 </Box>
                               }
                               secondary={
-                                step.approvedBy
-                                  ? `${step.approvedBy} · ${step.approvedAt || ''}${step.comment ? ` · "${step.comment}"` : ''}`
-                                  : step.rejectionReason
-                                    ? `Rejected: ${step.rejectionReason}`
+                                step.actedBy
+                                  ? `${step.actedBy} · ${step.actedAt || ''}${step.comment ? ` · "${step.comment}"` : ''}`
+                                  : step.decision === 'REJECTED' && step.comment
+                                    ? `Rejected: ${step.comment}`
                                     : undefined
                               }
                             />
@@ -693,6 +693,9 @@ export const URSRequirementSetPage: React.FC = () => {
                 ) : (
                   <>
                     {/* Fallback: Old-style approval records */}
+                    <Typography variant="caption" color="textSecondary" style={{ display: 'block', marginBottom: 8 }}>
+                      Legacy approval — create a baseline and submit for step-based workflow.
+                    </Typography>
                     {approvals.length > 0 ? (
                       <List dense>
                         {approvals.map(record => (
@@ -755,7 +758,7 @@ export const URSRequirementSetPage: React.FC = () => {
                         <Typography variant="body2">
                           v{b.baselineVersion} — {b.status}
                         </Typography>
-                        {String(b.status).toUpperCase() !== 'APPROVED' && !(b as any).approvalInstanceId && (
+                        {String(b.status).toUpperCase() !== 'APPROVED' && !b.approvalInstanceId && (
                           <Button
                             size="small"
                             variant="outlined"
