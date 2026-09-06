@@ -4,6 +4,9 @@
  */
 
 import { LoggerService } from '@backstage/backend-plugin-api';
+import { NotAllowedError } from '@backstage/errors';
+import type { CatalogService } from '@backstage/plugin-catalog-node';
+import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
   RequirementSet,
   URSRequirement,
@@ -35,6 +38,7 @@ export interface URSServiceOptions {
   logger: LoggerService;
   repository: IURSRepository;
   llmClient?: LLMClient;
+  catalog?: CatalogService;
 }
 
 /**
@@ -51,11 +55,67 @@ export class URSService {
   private logger: LoggerService;
   private repository: IURSRepository;
   private llmClient?: LLMClient;
+  private catalog?: CatalogService;
 
   constructor(options: URSServiceOptions) {
     this.logger = options.logger;
     this.repository = options.repository;
     this.llmClient = options.llmClient;
+    this.catalog = options.catalog;
+  }
+
+  /**
+   * Map Backstage groups to URS approval roles.
+   * A user can hold multiple approval roles simultaneously.
+   */
+  private static readonly GROUP_TO_APPROVAL_ROLE: Record<string, ApprovalRole> = {
+    'platform-admins': ApprovalRole.ADMIN,
+    'business-capability-leads': ApprovalRole.BUSINESS_REVIEWER,
+    'data-product-owners': ApprovalRole.PRODUCT_MANAGER,
+    'quality-assurance': ApprovalRole.QUALITY_REVIEWER,
+  };
+
+  /**
+   * Resolve a user's approval roles from their Backstage group memberships.
+   * Returns empty array if catalog is unavailable (fail-open with warning).
+   */
+  async getUserApprovalRoles(actor: string, credentials?: BackstageCredentials): Promise<ApprovalRole[]> {
+    if (!this.catalog) {
+      this.logger.warn(
+        `Catalog not available — skipping role check for ${actor}. ` +
+        'Approval steps will not enforce role-based access.',
+      );
+      return [];
+    }
+
+    try {
+      const entity = await this.catalog.getEntityByRef(actor, { credentials: credentials! });
+      if (!entity) {
+        this.logger.warn(`User entity not found in catalog: ${actor}`);
+        return [];
+      }
+
+      const memberOf = (entity.spec as any)?.memberOf as string[] | undefined;
+      if (!memberOf || memberOf.length === 0) {
+        return [];
+      }
+
+      const roles = new Set<ApprovalRole>();
+      for (const groupRef of memberOf) {
+        const groupName = groupRef.replace(/^group:default\//, '');
+        const role = URSService.GROUP_TO_APPROVAL_ROLE[groupName];
+        if (role) {
+          roles.add(role);
+        }
+      }
+
+      return Array.from(roles);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to resolve approval roles for ${actor}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return [];
+    }
   }
 
   /**
@@ -64,6 +124,16 @@ export class URSService {
   async getCapabilities(): Promise<BusinessCapabilityPersisted[]> {
     const { items } = await this.repository.listBusinessCapabilities(1000, 0);
     return items;
+  }
+
+  /**
+   * List business capabilities with pagination
+   */
+  async listCapabilities(
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<{ items: BusinessCapabilityPersisted[]; total: number }> {
+    return this.repository.listBusinessCapabilities(limit, offset);
   }
 
   /**
@@ -210,6 +280,13 @@ export class URSService {
   async getBusinessRoles(): Promise<BusinessRolePersisted[]> {
     const { items } = await this.repository.listBusinessRoles(1000, 0);
     return items;
+  }
+
+  async listBusinessRolesPaginated(
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<{ items: BusinessRolePersisted[]; total: number }> {
+    return this.repository.listBusinessRoles(limit, offset);
   }
 
   async getBusinessRole(id: string): Promise<BusinessRolePersisted | null> {
@@ -1334,6 +1411,7 @@ export class URSService {
     stepId: string,
     actor: string,
     comment?: string,
+    credentials?: BackstageCredentials,
   ): Promise<ApprovalInstance> {
     const instance = await this.repository.getApprovalInstance(approvalInstanceId);
     if (!instance) {
@@ -1347,6 +1425,16 @@ export class URSService {
 
     if (step.status !== 'PENDING' && step.status !== 'ACTIVE') {
       throw new Error(`Cannot approve step in ${step.status} status`);
+    }
+
+    // Role-based access: verify actor holds the step's required role
+    if (step.role) {
+      const actorRoles = await this.getUserApprovalRoles(actor, credentials);
+      if (actorRoles.length > 0 && !actorRoles.includes(step.role)) {
+        throw new NotAllowedError(
+          `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
+        );
+      }
     }
 
     // Update step: mark as APPROVED
@@ -1463,6 +1551,7 @@ export class URSService {
     stepId: string,
     actor: string,
     reason: string,
+    credentials?: BackstageCredentials,
   ): Promise<ApprovalInstance> {
     if (!reason) {
       throw new Error('Rejection reason is required');
@@ -1480,6 +1569,16 @@ export class URSService {
 
     if (step.status !== 'PENDING' && step.status !== 'ACTIVE') {
       throw new Error(`Cannot reject step in ${step.status} status`);
+    }
+
+    // Role-based access: verify actor holds the step's required role
+    if (step.role) {
+      const actorRoles = await this.getUserApprovalRoles(actor, credentials);
+      if (actorRoles.length > 0 && !actorRoles.includes(step.role)) {
+        throw new NotAllowedError(
+          `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
+        );
+      }
     }
 
     // Update step: mark as REJECTED
@@ -1504,6 +1603,63 @@ export class URSService {
       entityId: instance.id,
       eventType: 'REJECTED',
       newValue: { reason, rejectedByStep: stepId },
+      actor,
+      timestamp: new Date(),
+    });
+
+    return instance;
+  }
+
+  /**
+   * Cancel an approval instance
+   *
+   * - Only NOT_STARTED or IN_PROGRESS instances can be cancelled
+   * - All open steps (PENDING/ACTIVE) are marked SKIPPED
+   * - Instance status → CANCELLED
+   * - Baseline status is NOT changed (remains DRAFT/IN_REVIEW, can be re-submitted)
+   * - Audit event created
+   */
+  async cancelApprovalInstance(
+    approvalInstanceId: string,
+    actor: string,
+    reason?: string,
+  ): Promise<ApprovalInstance> {
+    const instance = await this.repository.getApprovalInstance(approvalInstanceId);
+    if (!instance) {
+      throw new Error('Approval instance not found');
+    }
+
+    if (
+      instance.status !== ApprovalInstanceStatus.NOT_STARTED &&
+      instance.status !== ApprovalInstanceStatus.IN_PROGRESS
+    ) {
+      throw new Error(
+        `Cannot cancel approval in ${instance.status} status. Only NOT_STARTED or IN_PROGRESS can be cancelled.`,
+      );
+    }
+
+    // Skip all open steps
+    for (const step of instance.steps) {
+      if (step.status === ApprovalStepStatus.PENDING || step.status === ApprovalStepStatus.ACTIVE) {
+        step.status = ApprovalStepStatus.SKIPPED;
+        step.actedBy = actor;
+        step.actedAt = new Date();
+      }
+    }
+
+    // Mark instance as CANCELLED
+    instance.status = ApprovalInstanceStatus.CANCELLED;
+    instance.completedBy = actor;
+    instance.completedAt = new Date();
+
+    await this.repository.updateApprovalInstance(instance);
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'APPROVAL_INSTANCE',
+      entityId: instance.id,
+      eventType: 'CANCELLED',
+      newValue: { reason: reason || null },
       actor,
       timestamp: new Date(),
     });

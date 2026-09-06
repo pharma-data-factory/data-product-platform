@@ -19,7 +19,6 @@ import {
   Requirement,
   RequirementVersion,
   Baseline,
-  ApprovalWorkflow,
   ApprovalInstance,
   AuditEvent,
   CreateRequirementSetRequest,
@@ -31,6 +30,9 @@ import {
   ApproveStepRequest,
   RejectStepRequest,
   RequirementSetListResponse,
+  CapabilityListResponse,
+  BusinessRoleListResponse,
+  ApprovalWorkflowListResponse,
   ApprovalRecord,
   ChangeSet,
   GeneratedRequirement,
@@ -117,8 +119,8 @@ export class URSComposerApi {
    * GET /capabilities
    * List all business capabilities
    */
-  async listCapabilities(): Promise<BusinessCapability[]> {
-    return this.get<BusinessCapability[]>('/capabilities');
+  async listCapabilities(): Promise<CapabilityListResponse> {
+    return this.get<CapabilityListResponse>('/capabilities');
   }
 
   /**
@@ -173,8 +175,8 @@ export class URSComposerApi {
    * GET /business-roles
    * List all active business roles.
    */
-  async listBusinessRoles(): Promise<BusinessRole[]> {
-    return this.get<BusinessRole[]>('/business-roles');
+  async listBusinessRoles(): Promise<BusinessRoleListResponse> {
+    return this.get<BusinessRoleListResponse>('/business-roles');
   }
 
   /**
@@ -460,8 +462,8 @@ export class URSComposerApi {
    * GET /approval-workflows
    * List available approval workflow definitions
    */
-  async listApprovalWorkflows(): Promise<ApprovalWorkflow[]> {
-    return this.get<ApprovalWorkflow[]>('/approval-workflows');
+  async listApprovalWorkflows(): Promise<ApprovalWorkflowListResponse> {
+    return this.get<ApprovalWorkflowListResponse>('/approval-workflows');
   }
 
   // ============================================================================
@@ -503,6 +505,20 @@ export class URSComposerApi {
     return this.post<ApprovalInstance>(
       `/approvals/${approvalId}/steps/${stepId}/reject`,
       req,
+    );
+  }
+
+  /**
+   * POST /approvals/:id/cancel
+   * Cancel an in-progress approval workflow
+   */
+  async cancelApprovalInstance(
+    approvalId: string,
+    reason?: string,
+  ): Promise<ApprovalInstance> {
+    return this.post<ApprovalInstance>(
+      `/approvals/${approvalId}/cancel`,
+      { reason },
     );
   }
 

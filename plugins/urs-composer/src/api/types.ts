@@ -258,6 +258,21 @@ export interface RequirementSetListResponse {
   total: number;
 }
 
+export interface CapabilityListResponse {
+  items: BusinessCapability[];
+  total: number;
+}
+
+export interface BusinessRoleListResponse {
+  items: BusinessRole[];
+  total: number;
+}
+
+export interface ApprovalWorkflowListResponse {
+  items: ApprovalWorkflow[];
+  total: number;
+}
+
 export interface AuditEvent {
   id: string;
   entityType: string;

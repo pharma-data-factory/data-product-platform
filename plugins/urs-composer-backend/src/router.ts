@@ -88,11 +88,30 @@ function respondError(res: express.Response, logger: LoggerService, error: unkno
     return;
   }
   if (error instanceof InputError) {
-    res.status(400).json({ error: String(error) });
+    res.status(400).json({ error: error.message });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
   res.status(500).json({ error: 'Internal server error' });
+}
+
+/**
+ * Validate that required body fields are present and non-empty.
+ * Returns true if valid, false if a 400 response was sent.
+ */
+function requireBody(
+  res: express.Response,
+  body: object,
+  ...fields: string[]
+): boolean {
+  for (const f of fields) {
+    const val = (body as Record<string, unknown>)[f];
+    if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
+      res.status(400).json({ error: `${f} is required` });
+      return false;
+    }
+  }
+  return true;
 }
 
 export async function createRouter(
@@ -113,8 +132,10 @@ export async function createRouter(
   router.get('/capabilities', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const capabilities = await service.getCapabilities();
-      res.json(capabilities);
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const result = await service.listCapabilities(limit, offset);
+      res.json(result);
     } catch (err) {
       respondError(res, logger, err);
     }
@@ -224,8 +245,10 @@ export async function createRouter(
   router.get('/business-roles', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const roles = await service.getBusinessRoles();
-      res.json(roles);
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const result = await service.listBusinessRolesPaginated(limit, offset);
+      res.json(result);
     } catch (err) {
       respondError(res, logger, err);
     }
@@ -438,8 +461,7 @@ export async function createRouter(
           ursApprovePermission,
         );
         const data = req.body as RejectRequest;
-        if (!data.reason) {
-          res.status(400).json({ error: 'Rejection reason is required' });
+        if (!requireBody(res, data, 'reason')) {
           return;
         }
         const updated = await service.rejectRequirementSet(
@@ -603,8 +625,7 @@ export async function createRouter(
           ursCreatePermission,
         );
         const data = req.body as CreateRevisionRequest;
-        if (!data.revisionReason) {
-          res.status(400).json({ error: 'revisionReason is required' });
+        if (!requireBody(res, data, 'revisionReason')) {
           return;
         }
         const revision = await service.createRevision(
@@ -680,10 +701,11 @@ export async function createRouter(
           ursManagePermission,
         );
         const data = req.body as CreateBaselineRequest;
-        if (!data.requirementVersionIds || data.requirementVersionIds.length === 0) {
-          res.status(400).json({
-            error: 'requirementVersionIds is required and must not be empty',
-          });
+        if (!requireBody(res, data, 'requirementVersionIds')) {
+          return;
+        }
+        if (!Array.isArray(data.requirementVersionIds) || data.requirementVersionIds.length === 0) {
+          res.status(400).json({ error: 'requirementVersionIds must be a non-empty array' });
           return;
         }
         const baseline = await service.createBaseline(
@@ -773,8 +795,10 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const workflows = await service.listApprovalWorkflows();
-        res.json(workflows);
+        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+        const offset = parseInt(req.query.offset as string) || 0;
+        const result = await service.listApprovalWorkflows(limit, offset);
+        res.json(result);
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -861,12 +885,14 @@ export async function createRouter(
           req,
           ursApprovePermission,
         );
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
         const data = req.body as ApproveApprovalStepRequest;
         const updated = await service.approveApprovalStep(
           req.params.id,
           req.params.stepId,
           actor,
           data.comment,
+          credentials,
         );
         res.json(updated);
       } catch (err) {
@@ -893,9 +919,10 @@ export async function createRouter(
           req,
           ursApprovePermission,
         );
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
         const data = req.body as RejectApprovalStepRequest;
         if (!data.reason && !data.comment) {
-          res.status(400).json({ error: 'Rejection reason or comment is required' });
+          res.status(400).json({ error: 'reason or comment is required' });
           return;
         }
         const updated = await service.rejectApprovalStep(
@@ -903,6 +930,35 @@ export async function createRouter(
           req.params.stepId,
           actor,
           data.reason || data.comment || '',
+          credentials,
+        );
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /approvals/:id/cancel
+   * Cancel an in-progress approval workflow.
+   * Sets instance to CANCELLED, skips open steps. Baseline remains unchanged.
+   */
+  router.post(
+    '/approvals/:id/cancel',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursApprovePermission,
+        );
+        const data = req.body as { reason?: string };
+        const updated = await service.cancelApprovalInstance(
+          req.params.id,
+          actor,
+          data?.reason,
         );
         res.json(updated);
       } catch (err) {

@@ -32,7 +32,7 @@ export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onSta
   useEffect(() => {
     api
       .listBusinessRoles()
-      .then(setRoles)
+      .then(result => setRoles(Array.isArray(result) ? result : result.items ?? []))
       .catch(() => setRoles([]))
       .finally(() => setLoading(false));
   }, [api]);

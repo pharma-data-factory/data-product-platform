@@ -32,25 +32,29 @@ describe('URSComposerApi', () => {
   // ============================================================================
 
   describe('Success mapping', () => {
-    test('listCapabilities returns typed array', async () => {
+    test('listCapabilities returns typed paginated response', async () => {
       (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: async () => [
-          {
-            id: 'business-capability:make/oee',
-            name: 'OEE Management',
-            description: 'Manage equipment performance',
-            domain: 'Production',
-          },
-        ],
+        json: async () => ({
+          items: [
+            {
+              id: 'business-capability:make/oee',
+              name: 'OEE Management',
+              description: 'Manage equipment performance',
+              domain: 'Production',
+            },
+          ],
+          total: 1,
+        }),
       });
 
       const api = createApi();
       const result = await api.listCapabilities();
 
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('business-capability:make/oee');
-      expect(result[0].name).toBe('OEE Management');
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('business-capability:make/oee');
+      expect(result.items[0].name).toBe('OEE Management');
+      expect(result.total).toBe(1);
     });
 
     test('createRequirementSet returns typed response', async () => {

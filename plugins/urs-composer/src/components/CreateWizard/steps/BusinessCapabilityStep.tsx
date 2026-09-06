@@ -98,8 +98,8 @@ export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
       try {
         setLoading(true);
         setError(null);
-        const data = await api.listCapabilities();
-        setCapabilities(data);
+        const result = await api.listCapabilities();
+        setCapabilities(Array.isArray(result) ? result : result.items ?? []);
       } catch (err) {
         const apiError = err as URSApiError;
         setError(`Failed to load capabilities: ${apiError.message}`);

@@ -31,7 +31,8 @@ export function BusinessRolesPage() {
     setLoading(true);
     setError(null);
     try {
-      setRoles(await api.listBusinessRoles());
+      const result = await api.listBusinessRoles();
+      setRoles(Array.isArray(result) ? result : result.items ?? []);
     } catch (e) {
       setError(e as Error);
     } finally {

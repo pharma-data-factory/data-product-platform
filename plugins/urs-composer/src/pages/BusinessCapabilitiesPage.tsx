@@ -41,7 +41,8 @@ export function BusinessCapabilitiesPage() {
     setLoading(true);
     setError(null);
     try {
-      setCapabilities(await api.listCapabilities());
+      const result = await api.listCapabilities();
+      setCapabilities(Array.isArray(result) ? result : result.items ?? []);
     } catch (e) {
       setError(e as Error);
     } finally {

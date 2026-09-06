@@ -61,7 +61,7 @@ describe('BusinessCapabilityStep', () => {
   describe('Loading', () => {
     test('shows loading spinner while fetching capabilities', async () => {
       mockApi.listCapabilities.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve(mockCapabilities), 100)),
+        () => new Promise(resolve => setTimeout(() => resolve({ items: mockCapabilities, total: mockCapabilities.length }), 100)),
       );
 
       renderStep(mockState, mockOnStateChange);
@@ -99,7 +99,7 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Capability selection', () => {
     beforeEach(() => {
-      mockApi.listCapabilities.mockResolvedValueOnce(mockCapabilities);
+      mockApi.listCapabilities.mockResolvedValueOnce({ items: mockCapabilities, total: mockCapabilities.length });
     });
 
     test('loads and displays capabilities', async () => {
@@ -152,7 +152,7 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Search/filter', () => {
     beforeEach(() => {
-      mockApi.listCapabilities.mockResolvedValueOnce(mockCapabilities);
+      mockApi.listCapabilities.mockResolvedValueOnce({ items: mockCapabilities, total: mockCapabilities.length });
     });
 
     test('filters capabilities by search term', async () => {
@@ -178,7 +178,7 @@ describe('BusinessCapabilityStep', () => {
 
   describe('Empty state', () => {
     test('shows empty state message when no capabilities match search', async () => {
-      mockApi.listCapabilities.mockResolvedValueOnce(mockCapabilities);
+      mockApi.listCapabilities.mockResolvedValueOnce({ items: mockCapabilities, total: mockCapabilities.length });
 
       renderStep(mockState, mockOnStateChange);
 

@@ -16,15 +16,18 @@ import { ursComposerApiRef } from '../../api/ursComposerApi';
 // The wizard's Step 1 (BusinessCapabilityStep) loads capabilities asynchronously.
 // Provide a mock API via the ApiRef so Step 1 content resolves and renders.
 const mockApi = {
-  listCapabilities: jest.fn().mockResolvedValue([
-    {
-      id: 'business-capability:make/oee',
-      name: 'OEE Management',
-      description: 'Equipment performance management',
-      domain: 'Production',
-      source: 'DOCUMENTATION',
-    },
-  ]),
+  listCapabilities: jest.fn().mockResolvedValue({
+    items: [
+      {
+        id: 'business-capability:make/oee',
+        name: 'OEE Management',
+        description: 'Equipment performance management',
+        domain: 'Production',
+        source: 'DOCUMENTATION',
+      },
+    ],
+    total: 1,
+  }),
   createRequirementSet: jest.fn(),
   updateRequirementSet: jest.fn(),
   submitRequirementSet: jest.fn(),

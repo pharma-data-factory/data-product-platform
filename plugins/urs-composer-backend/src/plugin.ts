@@ -17,6 +17,7 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
+import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { Config } from '@backstage/config';
 import { createRouter } from './router';
 import { URSService } from './service';
@@ -93,8 +94,9 @@ export const ursComposerPlugin = createBackendPlugin({
         permissions: coreServices.permissions,
         database: coreServices.database,
         config: coreServices.rootConfig,
+        catalog: catalogServiceRef,
       },
-      async init({ httpRouter, logger, httpAuth, permissions, database, config }) {
+      async init({ httpRouter, logger, httpAuth, permissions, database, config, catalog }) {
         const persistenceMode = getPersistenceMode(config);
         let repository: IURSRepository;
 
@@ -136,6 +138,7 @@ export const ursComposerPlugin = createBackendPlugin({
           logger,
           repository,
           llmClient,
+          catalog,
         });
 
         httpRouter.use(

@@ -32,10 +32,15 @@ import {
   DialogActions,
   IconButton,
   Collapse,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
+import CancelIcon from '@material-ui/icons/Cancel';
 import HistoryIcon from '@material-ui/icons/History';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
@@ -347,6 +352,22 @@ export const URSRequirementSetPage: React.FC = () => {
     }
   };
 
+  const handleCancelWorkflow = async () => {
+    if (!approvalInstance) {
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const updated = await api.cancelApprovalInstance(approvalInstance.id);
+      setApprovalInstance(updated);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to cancel workflow');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Load approval instance when a baseline has one
   useEffect(() => {
     const baselineWithApproval = baselines.find(
@@ -621,74 +642,108 @@ export const URSRequirementSetPage: React.FC = () => {
                     <Typography variant="body2" color="textSecondary" paragraph>
                       Status: {approvalInstance.status} · Started by {approvalInstance.startedBy || approvalInstance.createdBy}
                     </Typography>
-                    <List>
+                    <Stepper
+                      activeStep={approvalInstance.steps.findIndex((s: ApprovalStepInstance) => String(s.status) === 'ACTIVE')}
+                      orientation="vertical"
+                    >
                       {approvalInstance.steps.map((step: ApprovalStepInstance) => {
                         const stepStatus = String(step.status);
                         const isActive = stepStatus === 'ACTIVE';
-                        const statusColor =
-                          stepStatus === 'APPROVED' ? '#4caf50' :
-                          stepStatus === 'REJECTED' ? '#f44336' :
-                          stepStatus === 'ACTIVE' ? '#2196f3' :
-                          stepStatus === 'SKIPPED' ? '#ff9800' : '#9e9e9e';
+                        const isApproved = stepStatus === 'APPROVED';
+                        const isRejected = stepStatus === 'REJECTED';
+                        const isSkipped = stepStatus === 'SKIPPED';
+                        const completed = isApproved || isRejected || isSkipped;
                         return (
-                          <ListItem key={step.id} style={{ borderLeft: `3px solid ${statusColor}`, paddingLeft: 12 }}>
-                            <ListItemText
-                              primary={
-                                <Box display="flex" alignItems="center" style={{ gap: 8 }}>
-                                  <Typography variant="subtitle2">
-                                    Step {step.sequence ?? '?'}: {step.role || 'Reviewer'}
-                                  </Typography>
-                                  <Chip label={stepStatus} size="small" style={{ backgroundColor: statusColor, color: '#fff' }} />
-                                </Box>
+                          <Step key={step.id} completed={completed} active={isActive}>
+                            <StepLabel
+                              icon={
+                                isApproved ? <CheckIcon style={{ color: '#4caf50' }} /> :
+                                isRejected ? <CloseIcon style={{ color: '#f44336' }} /> :
+                                isSkipped ? <CancelIcon style={{ color: '#ff9800' }} /> :
+                                undefined
                               }
-                              secondary={
-                                step.actedBy
-                                  ? `${step.actedBy} · ${step.actedAt || ''}${step.comment ? ` · "${step.comment}"` : ''}`
-                                  : step.decision === 'REJECTED' && step.comment
-                                    ? `Rejected: ${step.comment}`
-                                    : undefined
-                              }
-                            />
-                            {isActive && !approveAllowed.loading && approveAllowed.allowed && (
-                              <Box display="flex" alignItems="center" style={{ gap: 4 }}>
-                                <TextField
-                                  placeholder="Comment (optional)"
-                                  size="small"
-                                  value={stepComment}
-                                  onChange={e => setStepComment(e.target.value)}
-                                  style={{ width: 160 }}
-                                />
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleApproveStep(step.id)}
-                                  disabled={actionLoading}
-                                  title="Approve"
-                                  style={{ color: '#4caf50' }}
-                                >
-                                  <CheckIcon />
-                                </IconButton>
-                                <TextField
-                                  placeholder="Reason (required)"
-                                  size="small"
-                                  value={stepRejectReason}
-                                  onChange={e => setStepRejectReason(e.target.value)}
-                                  style={{ width: 160 }}
-                                />
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleRejectStep(step.id)}
-                                  disabled={actionLoading || !stepRejectReason.trim()}
-                                  title="Reject"
-                                  style={{ color: '#f44336' }}
-                                >
-                                  <CloseIcon />
-                                </IconButton>
+                              StepIconProps={{
+                                style: {
+                                  color: isActive ? '#2196f3' : isApproved ? '#4caf50' : isRejected ? '#f44336' : isSkipped ? '#ff9800' : '#9e9e9e',
+                                },
+                              }}
+                            >
+                              <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+                                <Typography variant="subtitle2">
+                                  {step.role || 'Reviewer'}
+                                </Typography>
+                                <Chip label={stepStatus} size="small" style={{
+                                  backgroundColor: isApproved ? '#4caf50' : isRejected ? '#f44336' : isActive ? '#2196f3' : isSkipped ? '#ff9800' : '#9e9e9e',
+                                  color: '#fff',
+                                }} />
                               </Box>
-                            )}
-                          </ListItem>
+                            </StepLabel>
+                            <StepContent>
+                              {step.actedBy && (
+                                <Typography variant="body2" color="textSecondary" paragraph>
+                                  {step.actedBy} · {step.actedAt || ''}{step.comment ? ` · "${step.comment}"` : ''}
+                                </Typography>
+                              )}
+                              {isRejected && step.comment && (
+                                <Typography variant="body2" color="error" paragraph>
+                                  Rejected: {step.comment}
+                                </Typography>
+                              )}
+                              {isActive && !approveAllowed.loading && approveAllowed.allowed && (
+                                <Box display="flex" alignItems="center" style={{ gap: 4, flexWrap: 'wrap' }}>
+                                  <TextField
+                                    placeholder="Comment (optional)"
+                                    size="small"
+                                    value={stepComment}
+                                    onChange={e => setStepComment(e.target.value)}
+                                    style={{ width: 160 }}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleApproveStep(step.id)}
+                                    disabled={actionLoading}
+                                    title="Approve"
+                                    style={{ color: '#4caf50' }}
+                                  >
+                                    <CheckIcon />
+                                  </IconButton>
+                                  <TextField
+                                    placeholder="Reason (required)"
+                                    size="small"
+                                    value={stepRejectReason}
+                                    onChange={e => setStepRejectReason(e.target.value)}
+                                    style={{ width: 160 }}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleRejectStep(step.id)}
+                                    disabled={actionLoading || !stepRejectReason.trim()}
+                                    title="Reject"
+                                    style={{ color: '#f44336' }}
+                                  >
+                                    <CloseIcon />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </StepContent>
+                          </Step>
                         );
                       })}
-                    </List>
+                    </Stepper>
+                    {(String(approvalInstance.status) === 'NOT_STARTED' || String(approvalInstance.status) === 'IN_PROGRESS') && (
+                      <Box style={{ marginTop: 12 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<CancelIcon />}
+                          onClick={handleCancelWorkflow}
+                          disabled={actionLoading}
+                          style={{ color: '#ff9800', borderColor: '#ff9800' }}
+                        >
+                          Cancel Workflow
+                        </Button>
+                      </Box>
+                    )}
                   </Box>
                 ) : (
                   <>
