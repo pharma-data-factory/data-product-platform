@@ -77,14 +77,57 @@ const COMPATIBILITY_TONE: Record<
   },
 };
 
+const ENTITLEMENT_TONE: Record<
+  string,
+  { backgroundColor: string; color: string }
+> = {
+  ACTIVE: {
+    backgroundColor: NEXORA_STATUS.passBg,
+    color: NEXORA_STATUS.passFg,
+  },
+  PENDING: {
+    backgroundColor: NEXORA_STATUS.warnBg,
+    color: NEXORA_STATUS.warnFg,
+  },
+  SUSPENDED: {
+    backgroundColor: NEXORA_STATUS.failBg,
+    color: NEXORA_STATUS.failFg,
+  },
+  EXPIRED: {
+    backgroundColor: NEXORA_STATUS.neutralBg,
+    color: NEXORA_STATUS.neutralFg,
+  },
+  UNKNOWN: {
+    backgroundColor: NEXORA_STATUS.neutralBg,
+    color: NEXORA_STATUS.neutralFg,
+  },
+};
+
 export function StatusBadge({
   state,
   kind = 'health',
 }: {
   state?: string;
-  kind?: 'health' | 'connectivity' | 'compatibility';
+  kind?: 'health' | 'connectivity' | 'compatibility' | 'entitlement';
 }) {
   const classes = useStyles();
+
+  if (kind === 'entitlement') {
+    const label = state && ENTITLEMENT_TONE[state] ? state : 'UNKNOWN';
+    const tone = ENTITLEMENT_TONE[label];
+    return (
+      <Chip
+        size="small"
+        label={label}
+        className={classes.chip}
+        style={{
+          backgroundColor: tone.backgroundColor,
+          color: tone.color,
+        }}
+        aria-label={`entitlement status ${label}`}
+      />
+    );
+  }
 
   if (kind === 'compatibility') {
     const label = parseCompatibility(state);

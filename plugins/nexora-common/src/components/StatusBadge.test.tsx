@@ -25,6 +25,20 @@ describe('shared industrial components', () => {
     ).toHaveTextContent('UNKNOWN');
   });
 
+  it('renders entitlement status as a chip', () => {
+    render(<StatusBadge state="ACTIVE" kind="entitlement" />);
+    expect(
+      screen.getByLabelText('entitlement status ACTIVE'),
+    ).toHaveTextContent('ACTIVE');
+  });
+
+  it('falls back to UNKNOWN for unrecognized entitlement status', () => {
+    render(<StatusBadge state="not-a-status" kind="entitlement" />);
+    expect(
+      screen.getByLabelText('entitlement status UNKNOWN'),
+    ).toHaveTextContent('UNKNOWN');
+  });
+
   it('falls back for missing integrations', () => {
     render(
       <EmptyIntegrationState
