@@ -7,7 +7,9 @@ import {
   Page,
   Progress,
 } from '@backstage/core-components';
-import { Button, MenuItem, TextField, Typography } from '@material-ui/core';
+import { Button, MenuItem, TextField, Typography, Chip, Box, Card, CardContent, List, ListItem, ListItemText } from '@material-ui/core';
+import CheckCircleIcon from '@material-ui/icons/CheckCircle';
+import ErrorIcon from '@material-ui/icons/Error';
 import {
   COMPONENT_TYPES,
   INTERFACE_TYPES,
@@ -18,7 +20,7 @@ import type {
   ProductComponent,
   ProductVersion,
 } from '@internal/platform-common';
-import { useComposerClient, ProductTraceability } from './api';
+import { useComposerClient, ProductTraceability, ReleaseGateResult } from './api';
 
 export function ProductDetailPage() {
   const { productId = '' } = useParams();
@@ -41,6 +43,12 @@ export function ProductDetailPage() {
   const [targetId, setTargetId] = useState('');
   const [relationshipType, setRelationshipType] = useState('IMPLEMENTS');
 
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('');
+  const [gateResult, setGateResult] = useState<ReleaseGateResult | null>(null);
+  const [gateLoading, setGateLoading] = useState(false);
+  const [transitionLoading, setTransitionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -50,12 +58,14 @@ export function ProductDetailPage() {
       const versionList = await client.listProductVersions(productId);
       setVersions(versionList);
       if (versionList.length > 0) {
+        const latest = versionList[versionList.length - 1];
+        setSelectedVersionId(latest.id);
         setComponents(
-          await client.listProductComponents(
-            versionList[versionList.length - 1].id,
-          ),
+          await client.listProductComponents(latest.id),
         );
       }
+      setGateResult(null);
+      setActionError(null);
       setTraceability(await client.getProductTraceability(productId));
     } catch (e) {
       setError(e as Error);
@@ -119,6 +129,55 @@ export function ProductDetailPage() {
     }
   };
 
+  const STATUS_COLORS: Record<string, string> = {
+    DRAFT: '#9e9e9e',
+    APPROVED: '#2196f3',
+    RELEASE_CANDIDATE: '#ff9800',
+    RELEASED: '#4caf50',
+    SUPERSEDED: '#f44336',
+  };
+
+  const selectedVersion = versions.find(v => v.id === selectedVersionId);
+
+  const checkGate = async () => {
+    if (!selectedVersionId) return;
+    setGateLoading(true);
+    setActionError(null);
+    try {
+      const result = await client.checkReleaseGate(selectedVersionId);
+      setGateResult(result);
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setGateLoading(false);
+    }
+  };
+
+  const doTransition = async (targetStatus: string) => {
+    if (!selectedVersionId) return;
+    setTransitionLoading(true);
+    setActionError(null);
+    try {
+      await client.transitionVersionStatus(selectedVersionId, targetStatus);
+      setGateResult(null);
+      await load();
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setTransitionLoading(false);
+    }
+  };
+
+  const TRANSITIONS: Record<string, Array<{ label: string; target: string }>> = {
+    DRAFT: [{ label: 'Approve', target: 'APPROVED' }],
+    APPROVED: [{ label: 'Mark as Release Candidate', target: 'RELEASE_CANDIDATE' }],
+    RELEASE_CANDIDATE: [
+      { label: 'Release', target: 'RELEASED' },
+      { label: 'Revert to Draft', target: 'DRAFT' },
+    ],
+    RELEASED: [{ label: 'Supersede', target: 'SUPERSEDED' }],
+  };
+
   if (loading) {
     return (
       <Page themeId="service">
@@ -164,22 +223,112 @@ export function ProductDetailPage() {
                 marginBottom: 12,
               }}
             >
-              <Typography variant="h6">Versions</Typography>
+              <Typography variant="h6">Release Management</Typography>
               <Button variant="contained" color="primary" onClick={createVersion}>
                 New version
               </Button>
             </div>
+
             {versions.length === 0 ? (
               <Typography variant="body2" color="textSecondary">
                 No versions yet. Create a version to add components.
               </Typography>
             ) : (
-              versions.map(version => (
-                <Typography key={version.id} variant="body2">
-                  {version.version} — {version.status}
-                  {version === latestVersion ? ' (latest)' : ''}
-                </Typography>
-              ))
+              <>
+                <Box display="flex" alignItems="center" gap={2} marginBottom={2}>
+                  <TextField
+                    select
+                    label="Version"
+                    value={selectedVersionId}
+                    onChange={e => {
+                      setSelectedVersionId(e.target.value);
+                      setGateResult(null);
+                      setActionError(null);
+                    }}
+                    style={{ minWidth: 200 }}
+                  >
+                    {versions.map(v => (
+                      <MenuItem key={v.id} value={v.id}>
+                        {v.version} ({v.status})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  {selectedVersion && (
+                    <Chip
+                      label={selectedVersion.status}
+                      style={{
+                        backgroundColor: STATUS_COLORS[selectedVersion.status] ?? '#9e9e9e',
+                        color: '#fff',
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Box>
+
+                {actionError && (
+                  <Box marginBottom={2}>
+                    <Typography color="error">{actionError}</Typography>
+                  </Box>
+                )}
+
+                {/* Transition Buttons */}
+                {selectedVersion && TRANSITIONS[selectedVersion.status] && (
+                  <Box display="flex" gap={1} marginBottom={2}>
+                    {TRANSITIONS[selectedVersion.status].map(t => (
+                      <Button
+                        key={t.target}
+                        variant={t.target === 'RELEASED' ? 'contained' : 'outlined'}
+                        color={t.target === 'RELEASED' ? 'primary' : 'default'}
+                        disabled={transitionLoading}
+                        onClick={() => doTransition(t.target)}
+                      >
+                        {t.label}
+                      </Button>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Release Gate */}
+                {selectedVersion && selectedVersion.status === 'RELEASE_CANDIDATE' && (
+                  <Card variant="outlined" style={{ marginBottom: 16 }}>
+                    <CardContent>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom={1}>
+                        <Typography variant="subtitle2">Release Gate</Typography>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={gateLoading}
+                          onClick={checkGate}
+                        >
+                          {gateLoading ? 'Checking...' : 'Check Gate'}
+                        </Button>
+                      </Box>
+                      {gateResult && (
+                        gateResult.passed ? (
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <CheckCircleIcon style={{ color: '#4caf50' }} />
+                            <Typography style={{ color: '#4caf50', fontWeight: 600 }}>
+                              All checks passed — ready to release
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <List dense>
+                            {gateResult.blockers.map((b, i) => (
+                              <ListItem key={i}>
+                                <ErrorIcon style={{ color: '#f44336', marginRight: 8 }} fontSize="small" />
+                                <ListItemText
+                                  primary={b.code}
+                                  secondary={b.message}
+                                />
+                              </ListItem>
+                            ))}
+                          </List>
+                        )
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
           </section>
 

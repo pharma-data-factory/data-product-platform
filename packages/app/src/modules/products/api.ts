@@ -19,6 +19,16 @@ export interface ProductTraceability {
   links: TraceabilityLink[];
 }
 
+export interface ReleaseGateBlocker {
+  code: string;
+  message: string;
+}
+
+export interface ReleaseGateResult {
+  passed: boolean;
+  blockers: ReleaseGateBlocker[];
+}
+
 export interface ComposerClient {
   createProduct(input: Record<string, unknown>): Promise<Product>;
   listProducts(): Promise<{ items: Product[]; total: number }>;
@@ -34,6 +44,20 @@ export interface ComposerClient {
     input: Record<string, unknown>,
   ): Promise<TraceabilityLink>;
   getProductTraceability(productId: string): Promise<ProductTraceability>;
+  checkReleaseGate(versionId: string): Promise<ReleaseGateResult>;
+  transitionVersionStatus(
+    versionId: string,
+    targetStatus: string,
+  ): Promise<ProductVersion>;
+  listProductBaselines(
+    versionId: string,
+  ): Promise<Array<Record<string, unknown>>>;
+  createProductBaseline(
+    versionId: string,
+  ): Promise<Record<string, unknown>>;
+  approveProductBaseline(
+    baselineId: string,
+  ): Promise<Record<string, unknown>>;
 }
 
 export function useComposerClient(): ComposerClient {
@@ -80,5 +104,15 @@ export function useComposerClient(): ComposerClient {
       request('POST', '/traceability-links', input),
     getProductTraceability: productId =>
       request('GET', `/products/${productId}/traceability`),
+    checkReleaseGate: versionId =>
+      request('GET', `/versions/${versionId}/release-gate`),
+    transitionVersionStatus: (versionId, targetStatus) =>
+      request('POST', `/versions/${versionId}/transition`, { targetStatus }),
+    listProductBaselines: versionId =>
+      request('GET', `/versions/${versionId}/baselines`),
+    createProductBaseline: versionId =>
+      request('POST', `/versions/${versionId}/baselines`, {}),
+    approveProductBaseline: baselineId =>
+      request('POST', `/baselines/${baselineId}/approve`, {}),
   };
 }
