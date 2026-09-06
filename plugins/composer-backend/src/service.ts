@@ -29,6 +29,7 @@ import {
   DataContract,
   TransitionProductVersionRequest,
 } from './types';
+import type { UrsBaselineResolver } from './urs-baseline-resolver';
 
 export interface ReleaseGateBlocker {
   code: string;
@@ -46,15 +47,18 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 export interface ComposerServiceOptions {
   logger: LoggerService;
   repository: IComposerRepository;
+  ursBaselineResolver?: UrsBaselineResolver;
 }
 
 export class ComposerService {
   private readonly logger: LoggerService;
   private readonly repository: IComposerRepository;
+  private readonly ursBaselineResolver?: UrsBaselineResolver;
 
   constructor(options: ComposerServiceOptions) {
     this.logger = options.logger;
     this.repository = options.repository;
+    this.ursBaselineResolver = options.ursBaselineResolver;
   }
 
   async createProduct(
@@ -343,13 +347,32 @@ export class ComposerService {
       }
     }
     const baselines = await this.repository.listProductBaselines(versionId);
-    const hasApproved = baselines.some(b => b.status === 'APPROVED');
-    if (!hasApproved) {
+    const approvedBaseline = baselines.find(b => b.status === 'APPROVED');
+    if (!approvedBaseline) {
       blockers.push({
         code: 'NO_APPROVED_BASELINE',
         message: 'An approved product baseline is required',
       });
     }
+
+    // Cross-plugin: verify referenced URS baselines are APPROVED
+    if (
+      this.ursBaselineResolver &&
+      approvedBaseline?.ursBaselineIds &&
+      approvedBaseline.ursBaselineIds.length > 0
+    ) {
+      for (const ursId of approvedBaseline.ursBaselineIds) {
+        try {
+          await this.ursBaselineResolver.resolveApprovedBaseline(ursId);
+        } catch (err) {
+          blockers.push({
+            code: 'NO_APPROVED_URS_BASELINE',
+            message: `URS baseline ${ursId} is not approved: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+      }
+    }
+
     return { passed: blockers.length === 0, blockers };
   }
 

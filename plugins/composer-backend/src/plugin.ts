@@ -14,6 +14,7 @@ import {
 import { createRouter } from './router';
 import { ComposerService } from './service';
 import { ComposerRepository } from './repository';
+import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 
 export const composerPlugin = createBackendPlugin({
   pluginId: 'composer',
@@ -25,10 +26,13 @@ export const composerPlugin = createBackendPlugin({
         httpAuth: coreServices.httpAuth,
         permissions: coreServices.permissions,
         database: coreServices.database,
+        discovery: coreServices.discovery,
+        auth: coreServices.auth,
       },
-      async init({ httpRouter, logger, httpAuth, permissions, database }) {
+      async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth }) {
         const repository = await ComposerRepository.create(database);
-        const service = new ComposerService({ logger, repository });
+        const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
+        const service = new ComposerService({ logger, repository, ursBaselineResolver });
 
         httpRouter.use(
           await createRouter({ logger, httpAuth, permissions, service }),

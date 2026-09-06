@@ -8,6 +8,7 @@
 import knex, { Knex } from 'knex';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
+import type { UrsBaselineResolver } from './urs-baseline-resolver';
 
 const mockLogger: any = {
   debug: jest.fn(),
@@ -316,6 +317,102 @@ describe('Phase 1: Versioning Foundation', () => {
       expect(released.releaseCommitSha).toBe('abc123');
       expect(released.artifactDigest).toBe('sha256:def456');
       expect(released.approvedBy).toBe(actor);
+    });
+  });
+
+  describe('Cross-Plugin URS Baseline Check', () => {
+    let serviceWithResolver: ComposerService;
+    let mockResolver: UrsBaselineResolver;
+
+    beforeAll(async () => {
+      mockResolver = {
+        resolveApprovedBaseline: jest.fn(),
+      };
+      const repository = await ComposerRepository.create({ getClient: () => db });
+      serviceWithResolver = new ComposerService({
+        logger: mockLogger,
+        repository,
+        ursBaselineResolver: mockResolver,
+      });
+    });
+
+    async function createFullSetupWithResolver() {
+      const product = await serviceWithResolver.createProduct(
+        { name: `XPlugin Product ${Date.now()}`, productType: 'DATA_PRODUCT' },
+        actor,
+      );
+      const version = await serviceWithResolver.createProductVersion(
+        product.id,
+        { version: '1.0' },
+        actor,
+      );
+      const component = await serviceWithResolver.addProductComponent(
+        version.id,
+        { componentType: 'SOURCE', name: 'Test Source' },
+        actor,
+      );
+      return { product, version, component };
+    }
+
+    it('fails with NO_APPROVED_URS_BASELINE when resolver throws', async () => {
+      const { version, component } = await createFullSetupWithResolver();
+      await serviceWithResolver.createTraceabilityLink(
+        { sourceType: 'URS', sourceId: 'urs-1', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        actor,
+      );
+      const baseline = await serviceWithResolver.createProductBaseline(
+        version.id,
+        { ursBaselineIds: ['urs-baseline-1'] },
+        actor,
+      );
+      await serviceWithResolver.approveProductBaseline(baseline.id, actor);
+      (mockResolver.resolveApprovedBaseline as jest.Mock).mockRejectedValueOnce(
+        new Error('URS baseline urs-baseline-1 is DRAFT; expected APPROVED'),
+      );
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await serviceWithResolver.checkReleaseGate(version.id);
+      expect(result.passed).toBe(false);
+      expect(result.blockers.some(b => b.code === 'NO_APPROVED_URS_BASELINE')).toBe(true);
+    });
+
+    it('passes when URS baselines are all APPROVED', async () => {
+      const { version, component } = await createFullSetupWithResolver();
+      await serviceWithResolver.createTraceabilityLink(
+        { sourceType: 'URS', sourceId: 'urs-2', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        actor,
+      );
+      const baseline = await serviceWithResolver.createProductBaseline(
+        version.id,
+        { ursBaselineIds: ['urs-baseline-2'] },
+        actor,
+      );
+      await serviceWithResolver.approveProductBaseline(baseline.id, actor);
+      (mockResolver.resolveApprovedBaseline as jest.Mock).mockResolvedValueOnce({
+        id: 'urs-baseline-2',
+        status: 'APPROVED',
+        baselineVersion: '1.0',
+      });
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await serviceWithResolver.checkReleaseGate(version.id);
+      expect(result.passed).toBe(true);
+    });
+
+    it('skips URS check when baseline has no ursBaselineIds', async () => {
+      (mockResolver.resolveApprovedBaseline as jest.Mock).mockClear();
+      const { version, component } = await createFullSetupWithResolver();
+      await serviceWithResolver.createTraceabilityLink(
+        { sourceType: 'URS', sourceId: 'urs-3', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        actor,
+      );
+      const baseline = await serviceWithResolver.createProductBaseline(version.id, {}, actor);
+      await serviceWithResolver.approveProductBaseline(baseline.id, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      const result = await serviceWithResolver.checkReleaseGate(version.id);
+      expect(result.passed).toBe(true);
+      expect(mockResolver.resolveApprovedBaseline).not.toHaveBeenCalled();
     });
   });
 });
