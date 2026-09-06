@@ -213,7 +213,7 @@ export const ChangeSetPage: React.FC = () => {
         </Grid>
 
         {/* Filter Chips */}
-        <Box marginBottom={2} display="flex" gap={1}>
+        <Box style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
           {FILTER_OPTIONS.map(opt => (
             <Chip
               key={opt.value}

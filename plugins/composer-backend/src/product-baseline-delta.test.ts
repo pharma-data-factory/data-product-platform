@@ -92,7 +92,7 @@ describe('Product Baseline Delta', () => {
   it('detects ADDED component in newer baseline', async () => {
     const versionId = await createVersionWithComponents(['Initial']);
 
-    const b1 = await service.createProductBaseline(versionId, {}, actor);
+    await service.createProductBaseline(versionId, {}, actor);
 
     // Add another component after first baseline
     await service.addProductComponent(

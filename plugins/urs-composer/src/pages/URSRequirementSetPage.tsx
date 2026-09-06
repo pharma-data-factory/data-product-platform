@@ -37,7 +37,6 @@ import EditIcon from '@material-ui/icons/Edit';
 import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
 import HistoryIcon from '@material-ui/icons/History';
-import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
 import { ursApprovePermission, ursManagePermission } from '@internal/platform-common';

@@ -235,7 +235,7 @@ export function ProductDetailPage() {
               </Typography>
             ) : (
               <>
-                <Box display="flex" alignItems="center" gap={2} marginBottom={2}>
+                <Box style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                   <TextField
                     select
                     label="Version"
@@ -273,7 +273,7 @@ export function ProductDetailPage() {
 
                 {/* Transition Buttons */}
                 {selectedVersion && TRANSITIONS[selectedVersion.status] && (
-                  <Box display="flex" gap={1} marginBottom={2}>
+                  <Box style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                     {TRANSITIONS[selectedVersion.status].map(t => (
                       <Button
                         key={t.target}
@@ -305,7 +305,7 @@ export function ProductDetailPage() {
                       </Box>
                       {gateResult && (
                         gateResult.passed ? (
-                          <Box display="flex" alignItems="center" gap={1}>
+                          <Box style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <CheckCircleIcon style={{ color: '#4caf50' }} />
                             <Typography style={{ color: '#4caf50', fontWeight: 600 }}>
                               All checks passed — ready to release
