@@ -36,6 +36,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Snackbar,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import CheckIcon from '@material-ui/icons/Check';
@@ -105,6 +106,11 @@ export const URSRequirementSetPage: React.FC = () => {
   // Approval Instance state
   const [approvalInstance, setApprovalInstance] = useState<ApprovalInstance | null>(null);
   const [stepComment, setStepComment] = useState('');
+  // Create Baseline dialog state
+  const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
+  const [baselineVersion, setBaselineVersion] = useState('1.0');
+  const [creatingBaseline, setCreatingBaseline] = useState(false);
+  const [baselineSuccess, setBaselineSuccess] = useState(false);
   const [stepRejectReason, setStepRejectReason] = useState('');
 
   const approveAllowed = usePermission({ permission: ursApprovePermission });
@@ -684,27 +690,12 @@ export const URSRequirementSetPage: React.FC = () => {
                     <Button
                       color="primary"
                       variant="contained"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        setActionLoading(true);
-                        setActionError(null);
-                        try {
-                          const reqIds = requirements.map(r => r.id);
-                          if (reqIds.length === 0) {
-                            setActionError('No requirements available for baseline');
-                            return;
-                          }
-                          await api.createBaseline(id!, {
-                            requirementSetId: id!,
-                            baselineVersion: '1.0',
-                            requirementVersionIds: reqIds,
-                          });
-                          await reload();
-                        } catch (err: any) {
-                          setActionError(err.message || 'Failed to create baseline');
-                        } finally {
-                          setActionLoading(false);
-                        }
+                      onClick={() => {
+                        const nextVersion = baselines.length > 0
+                          ? `${parseInt(baselines[baselines.length - 1].baselineVersion || '1', 10) + 1}.0`
+                          : '1.0';
+                        setBaselineVersion(nextVersion);
+                        setBaselineDialogOpen(true);
                       }}
                     >
                       Create Baseline
@@ -821,6 +812,72 @@ export const URSRequirementSetPage: React.FC = () => {
           </TabPanel>
         </Box>
       </Content>
+
+      {/* Create Baseline Dialog */}
+      <Dialog open={baselineDialogOpen} onClose={() => setBaselineDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Baseline</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            This will snapshot all current requirement versions into an immutable baseline.
+          </Typography>
+          <Box display="flex" alignItems="center" style={{ gap: 16, marginBottom: 12 }}>
+            <TextField
+              label="Baseline Version"
+              value={baselineVersion}
+              onChange={e => setBaselineVersion(e.target.value)}
+              size="small"
+              variant="outlined"
+              style={{ width: 140 }}
+            />
+            <Typography variant="body2">
+              {requirements.length} requirement(s) will be included
+            </Typography>
+          </Box>
+          {actionError && (
+            <Typography color="error" variant="body2">{actionError}</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setBaselineDialogOpen(false); setActionError(null); }} disabled={creatingBaseline}>
+            Cancel
+          </Button>
+          <Button
+            color="primary"
+            variant="contained"
+            disabled={creatingBaseline || !baselineVersion.trim()}
+            onClick={async () => {
+              setCreatingBaseline(true);
+              setActionError(null);
+              try {
+                const reqIds = requirements.map(r => r.id);
+                await api.createBaseline(id!, {
+                  requirementSetId: id!,
+                  baselineVersion: baselineVersion.trim(),
+                  requirementVersionIds: reqIds,
+                });
+                setBaselineDialogOpen(false);
+                setBaselineSuccess(true);
+                await reload();
+              } catch (err: any) {
+                setActionError(err.message || 'Failed to create baseline');
+              } finally {
+                setCreatingBaseline(false);
+              }
+            }}
+          >
+            {creatingBaseline ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={baselineSuccess}
+        autoHideDuration={4000}
+        onClose={() => setBaselineSuccess(false)}
+        message="Baseline created successfully"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      />
     </Page>
   );
 };
