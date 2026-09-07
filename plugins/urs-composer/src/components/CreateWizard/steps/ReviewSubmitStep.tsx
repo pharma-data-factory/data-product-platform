@@ -20,10 +20,10 @@ export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({ state, onSta
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
-        Review and create controlled baseline
+        Review and save requirement set
       </Typography>
       <Typography color="textSecondary" paragraph>
-        Final review before creating an immutable baseline and submitting for approval.
+        Final review before saving as draft. Create a baseline on the detail page to start the approval workflow.
       </Typography>
 
       {/* Summary Cards */}
@@ -125,7 +125,7 @@ export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({ state, onSta
       <Card>
         <CardContent>
           <Typography variant="subtitle2" gutterBottom>
-            Ready to Submit:
+            Ready to Save:
           </Typography>
 
           <Table size="small">

@@ -124,6 +124,11 @@ function PlatformSidebar() {
                 title="URS Composer"
               />
               <SidebarSubmenuItem
+                icon={ViewListIcon}
+                to="/urs-composer/library"
+                title="URS Library"
+              />
+              <SidebarSubmenuItem
                 icon={AssignmentTurnedInIcon}
                 to="/validation-expert"
                 title="Validation Expert"

@@ -2,7 +2,7 @@
  * URS Requirement Set Detail Page
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -37,6 +37,7 @@ import {
   ListItem,
   ListItemText,
   Snackbar,
+  MenuItem,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import CheckIcon from '@material-ui/icons/Check';
@@ -45,7 +46,7 @@ import CancelIcon from '@material-ui/icons/Cancel';
 import HistoryIcon from '@material-ui/icons/History';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
-import { ursApprovePermission, ursManagePermission } from '@internal/platform-common';
+import { ursApprovePermission, ursManagePermission, formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
   RequirementSet,
@@ -99,19 +100,41 @@ export const URSRequirementSetPage: React.FC = () => {
   const [versionHistory, setVersionHistory] = useState<Record<string, RequirementVersion[]>>({});
   const [expandedReqId, setExpandedReqId] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<RequirementVersion | null>(null);
+  // Requirements search/filter state
+  const [reqSearch, setReqSearch] = useState('');
+  const [reqCategoryFilter, setReqCategoryFilter] = useState<string>('');
+  const [reqPriorityFilter, setReqPriorityFilter] = useState<string>('');
   // Revision dialog state
   const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
   const [revisionTargetId, setRevisionTargetId] = useState<string | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
   // Approval Instance state
   const [approvalInstance, setApprovalInstance] = useState<ApprovalInstance | null>(null);
-  const [stepComment, setStepComment] = useState('');
+  const [stepComments, setStepComments] = useState<Record<string, string>>({});
   // Create Baseline dialog state
   const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
   const [baselineVersion, setBaselineVersion] = useState('1.0');
   const [creatingBaseline, setCreatingBaseline] = useState(false);
   const [baselineSuccess, setBaselineSuccess] = useState(false);
-  const [stepRejectReason, setStepRejectReason] = useState('');
+  const [stepRejectReasons, setStepRejectReasons] = useState<Record<string, string>>({});
+  // Confirmation dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'cancel' | null>(null);
+  const [confirmStepId, setConfirmStepId] = useState<string | null>(null);
+  const [confirmReason, setConfirmReason] = useState('');
+
+  const filteredRequirements = useMemo(() => {
+    const q = reqSearch.toLowerCase();
+    return requirements.filter(r => {
+      if (q && !r.title.toLowerCase().includes(q) && !r.statement.toLowerCase().includes(q)) return false;
+      if (reqCategoryFilter && r.category !== reqCategoryFilter) return false;
+      if (reqPriorityFilter && r.priority !== reqPriorityFilter) return false;
+      return true;
+    });
+  }, [requirements, reqSearch, reqCategoryFilter, reqPriorityFilter]);
+
+  const categoryOptions = useMemo(() => [...new Set(requirements.map(r => r.category).filter(Boolean))] as string[], [requirements]);
+  const priorityOptions = useMemo(() => [...new Set(requirements.map(r => r.priority).filter(Boolean))] as string[], [requirements]);
 
   const approveAllowed = usePermission({ permission: ursApprovePermission });
   const manageAllowed = usePermission({ permission: ursManagePermission });
@@ -201,7 +224,7 @@ export const URSRequirementSetPage: React.FC = () => {
         approvedBaselineId,
       );
       setValidationContextId(context.id);
-      window.location.href = `/validation-expert`;
+      navigate('/validation-expert');
     } catch (err: any) {
       setActionError(err.message || 'Failed to start validation');
     } finally {
@@ -271,10 +294,10 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionError(null);
     try {
       const updated = await api.approveStep(approvalInstance.id, stepId, {
-        comment: stepComment || undefined,
+        comment: stepComments[stepId] || undefined,
       });
       setApprovalInstance(updated);
-      setStepComment('');
+      setStepComments(prev => { const next = { ...prev }; delete next[stepId]; return next; });
     } catch (err: any) {
       setActionError(err.message || 'Failed to approve step');
     } finally {
@@ -283,7 +306,8 @@ export const URSRequirementSetPage: React.FC = () => {
   };
 
   const handleRejectStep = async (stepId: string) => {
-    if (!approvalInstance || !stepRejectReason.trim()) {
+    const reason = (stepRejectReasons[stepId] || '').trim();
+    if (!approvalInstance || !reason) {
       setActionError('Rejection reason is required');
       return;
     }
@@ -291,10 +315,10 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionError(null);
     try {
       const updated = await api.rejectStep(approvalInstance.id, stepId, {
-        reason: stepRejectReason.trim(),
+        reason,
       });
       setApprovalInstance(updated);
-      setStepRejectReason('');
+      setStepRejectReasons(prev => { const next = { ...prev }; delete next[stepId]; return next; });
     } catch (err: any) {
       setActionError(err.message || 'Failed to reject step');
     } finally {
@@ -345,9 +369,11 @@ export const URSRequirementSetPage: React.FC = () => {
   if (error || !set) {
     return (
       <Page themeId="tool">
-        <Header title="Requirement Set" />
+        <Header title={isUnauthorizedError(error) ? 'Unauthorized' : 'Unable to load Requirement Set'} />
         <Content>
-          <Typography color="error">{error || 'Requirement set not found'}</Typography>
+          <Typography color="error">
+            {error ? formatJourneyError(error) : 'Requirement set not found'}
+          </Typography>
         </Content>
       </Page>
     );
@@ -427,7 +453,54 @@ export const URSRequirementSetPage: React.FC = () => {
             {requirements.length === 0 ? (
               <Typography color="textSecondary">No requirements persisted yet.</Typography>
             ) : (
-              requirements.map(req => {
+              <>
+                <Box display="flex" alignItems="center" style={{ gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <TextField
+                    placeholder="Search requirements..."
+                    size="small"
+                    variant="outlined"
+                    value={reqSearch}
+                    onChange={e => setReqSearch(e.target.value)}
+                    style={{ minWidth: 220 }}
+                  />
+                  {categoryOptions.length > 0 && (
+                    <TextField
+                      select
+                      label="Category"
+                      size="small"
+                      variant="outlined"
+                      value={reqCategoryFilter}
+                      onChange={e => setReqCategoryFilter(e.target.value)}
+                      style={{ minWidth: 140 }}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      {categoryOptions.map(c => <MenuItem key={c} value={c!}>{c}</MenuItem>)}
+                    </TextField>
+                  )}
+                  {priorityOptions.length > 0 && (
+                    <TextField
+                      select
+                      label="Priority"
+                      size="small"
+                      variant="outlined"
+                      value={reqPriorityFilter}
+                      onChange={e => setReqPriorityFilter(e.target.value)}
+                      style={{ minWidth: 120 }}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      {priorityOptions.map(p => <MenuItem key={p} value={p!}>{p}</MenuItem>)}
+                    </TextField>
+                  )}
+                  {(reqSearch || reqCategoryFilter || reqPriorityFilter) && (
+                    <Typography variant="caption" color="textSecondary">
+                      {filteredRequirements.length} of {requirements.length} shown
+                    </Typography>
+                  )}
+                </Box>
+                {filteredRequirements.length === 0 ? (
+                  <Typography color="textSecondary">No requirements match your filters.</Typography>
+                ) : (
+              filteredRequirements.map(req => {
                 const acceptanceCriteria = parseAcceptanceCriteria(req.acceptanceIntent);
                 const isExpanded = expandedReqId === req.id;
                 const versions = versionHistory[req.id];
@@ -524,6 +597,8 @@ export const URSRequirementSetPage: React.FC = () => {
                   </Card>
                 );
               })
+                )}
+              </>
             )}
 
             {/* Revision Dialog */}
@@ -622,39 +697,35 @@ export const URSRequirementSetPage: React.FC = () => {
                                 </Typography>
                               )}
                               {isActive && !approveAllowed.loading && approveAllowed.allowed && (
-                                <Box display="flex" alignItems="center" style={{ gap: 4, flexWrap: 'wrap' }}>
-                                  <TextField
-                                    placeholder="Comment (optional)"
+                                <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+                                  <Button
                                     size="small"
-                                    value={stepComment}
-                                    onChange={e => setStepComment(e.target.value)}
-                                    style={{ width: 160 }}
-                                  />
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleApproveStep(step.id)}
+                                    variant="outlined"
+                                    onClick={() => {
+                                      setConfirmAction('approve');
+                                      setConfirmStepId(step.id);
+                                      setConfirmReason(stepComments[step.id] || '');
+                                      setConfirmOpen(true);
+                                    }}
                                     disabled={actionLoading}
-                                    title="Approve"
-                                    style={{ color: '#4caf50' }}
+                                    style={{ color: '#4caf50', borderColor: '#4caf50' }}
                                   >
-                                    <CheckIcon />
-                                  </IconButton>
-                                  <TextField
-                                    placeholder="Reason (required)"
+                                    Approve
+                                  </Button>
+                                  <Button
                                     size="small"
-                                    value={stepRejectReason}
-                                    onChange={e => setStepRejectReason(e.target.value)}
-                                    style={{ width: 160 }}
-                                  />
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleRejectStep(step.id)}
-                                    disabled={actionLoading || !stepRejectReason.trim()}
-                                    title="Reject"
-                                    style={{ color: '#f44336' }}
+                                    variant="outlined"
+                                    onClick={() => {
+                                      setConfirmAction('reject');
+                                      setConfirmStepId(step.id);
+                                      setConfirmReason(stepRejectReasons[step.id] || '');
+                                      setConfirmOpen(true);
+                                    }}
+                                    disabled={actionLoading}
+                                    style={{ color: '#f44336', borderColor: '#f44336' }}
                                   >
-                                    <CloseIcon />
-                                  </IconButton>
+                                    Reject
+                                  </Button>
                                 </Box>
                               )}
                             </StepContent>
@@ -668,7 +739,12 @@ export const URSRequirementSetPage: React.FC = () => {
                           variant="outlined"
                           size="small"
                           startIcon={<CancelIcon />}
-                          onClick={handleCancelWorkflow}
+                          onClick={() => {
+                            setConfirmAction('cancel');
+                            setConfirmStepId(null);
+                            setConfirmReason('');
+                            setConfirmOpen(true);
+                          }}
                           disabled={actionLoading}
                           style={{ color: '#ff9800', borderColor: '#ff9800' }}
                         >
@@ -755,7 +831,7 @@ export const URSRequirementSetPage: React.FC = () => {
                       color="primary"
                       variant="outlined"
                       onClick={() => {
-                        window.location.href = `/validation-expert`;
+                        navigate('/validation-expert');
                       }}
                     >
                       View Validation
@@ -812,6 +888,88 @@ export const URSRequirementSetPage: React.FC = () => {
           </TabPanel>
         </Box>
       </Content>
+
+      {/* Approval Action Confirmation Dialog */}
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {confirmAction === 'approve' ? 'Approve Step' : confirmAction === 'reject' ? 'Reject Step' : 'Cancel Workflow'}
+        </DialogTitle>
+        <DialogContent>
+          {confirmAction === 'approve' && (
+            <>
+              <Typography variant="body2" color="textSecondary" paragraph>
+                Confirm approval for step <strong>{approvalInstance?.steps.find(s => s.id === confirmStepId)?.role}</strong>.
+              </Typography>
+              <TextField
+                label="Comment (optional)"
+                value={confirmReason}
+                onChange={e => setConfirmReason(e.target.value)}
+                fullWidth
+                multiline
+                rows={2}
+                variant="outlined"
+                size="small"
+              />
+            </>
+          )}
+          {confirmAction === 'reject' && (
+            <>
+              <Typography variant="body2" color="textSecondary" paragraph>
+                Confirm rejection for step <strong>{approvalInstance?.steps.find(s => s.id === confirmStepId)?.role}</strong>.
+                A reason is required.
+              </Typography>
+              <TextField
+                label="Rejection reason (required)"
+                value={confirmReason}
+                onChange={e => setConfirmReason(e.target.value)}
+                fullWidth
+                multiline
+                rows={3}
+                variant="outlined"
+                size="small"
+                error={!confirmReason.trim()}
+                helperText={!confirmReason.trim() ? 'Reason is required' : undefined}
+              />
+            </>
+          )}
+          {confirmAction === 'cancel' && (
+            <Typography variant="body2" color="textSecondary">
+              This will cancel the entire approval workflow. All pending steps will be skipped.
+              This action cannot be undone.
+            </Typography>
+          )}
+          {actionError && (
+            <Typography color="error" variant="body2" style={{ marginTop: 8 }}>{actionError}</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setConfirmOpen(false); setActionError(null); }} disabled={actionLoading}>
+            Cancel
+          </Button>
+          <Button
+            color={confirmAction === 'reject' || confirmAction === 'cancel' ? 'secondary' : 'primary'}
+            variant="contained"
+            disabled={actionLoading || (confirmAction === 'reject' && !confirmReason.trim())}
+            onClick={async () => {
+              if (confirmAction === 'approve' && confirmStepId) {
+                setStepComments(prev => ({ ...prev, [confirmStepId]: confirmReason }));
+                await handleApproveStep(confirmStepId);
+              } else if (confirmAction === 'reject' && confirmStepId) {
+                setStepRejectReasons(prev => ({ ...prev, [confirmStepId]: confirmReason }));
+                await handleRejectStep(confirmStepId);
+              } else if (confirmAction === 'cancel') {
+                await handleCancelWorkflow();
+              }
+              if (!actionError) {
+                setConfirmOpen(false);
+                setConfirmReason('');
+              }
+            }}
+          >
+            {actionLoading ? 'Processing...' : confirmAction === 'approve' ? 'Approve' : confirmAction === 'reject' ? 'Reject' : 'Cancel Workflow'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Create Baseline Dialog */}
       <Dialog open={baselineDialogOpen} onClose={() => setBaselineDialogOpen(false)} maxWidth="sm" fullWidth>

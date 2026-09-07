@@ -2,7 +2,7 @@
  * URS Create Wizard (8-Step)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import {
   Stepper,
@@ -76,7 +76,7 @@ const STEPS = [
   'Acceptance Criteria',
   'Quality & GxP Review',
   'Traceability',
-  'Review & Submit',
+  'Review & Save',
 ];
 
 interface CreateWizardProps {
@@ -101,6 +101,16 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!state.dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [state.dirty]);
 
   const persistDraft = useCallback(async () => {
     const base = toCreateRequirementSetRequest(state);
@@ -313,7 +323,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
                     onClick={handleSubmit}
                     disabled={isSaving || !canContinue}
                   >
-                    Submit for Review
+                    Save Draft
                   </Button>
                 </>
               )}

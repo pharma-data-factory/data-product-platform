@@ -52,8 +52,9 @@ export const URSComposerPage: React.FC = () => {
                   ASSURANCE
                 </Typography>
                 <Typography color="textSecondary">
-                  Approved URS can later inform Validation Expert workflows. No
-                  runtime Validation Expert integration is provided in URS Composer 1.0.
+                  Create baselines from approved requirements and submit them for
+                  role-based approval. Approved baselines can be forwarded to
+                  Validation Expert for execution tracking.
                 </Typography>
               </CardContent>
             </Card>
@@ -114,7 +115,7 @@ export const URSComposerPage: React.FC = () => {
                   <Typography paragraph>
                     URS Composer anchors engineering work to business capabilities,
                     captures controlled user requirements, and supports draft,
-                    review, and approval before downstream validation planning.
+                    baseline creation, role-based approval, and downstream validation planning.
                   </Typography>
                 </Box>
               </CardContent>

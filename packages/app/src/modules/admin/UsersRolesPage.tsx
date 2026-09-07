@@ -14,7 +14,7 @@ import {
 } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import type { Entity } from '@backstage/catalog-model';
-import { Button, TextField, Typography, MenuItem } from '@material-ui/core';
+import { Button, TextField, Typography, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@material-ui/core';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import {
   canManagePlatformUsers,
@@ -61,6 +61,7 @@ export function UsersRolesPage() {
   const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null);
 
   const [newLogin, setNewLogin] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
@@ -149,24 +150,23 @@ export function UsersRolesPage() {
     }
   };
 
-  const deleteUser = async (user: Entity) => {
-    if (
-      !window.confirm(
-        `Delete user "${user.metadata.name}"? This removes them from the platform catalog.`,
-      )
-    ) {
-      return;
-    }
+  const confirmDelete = (user: Entity) => {
+    setDeleteTarget(user);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
     setSaving(true);
     setNotice(null);
     try {
-      await apiCall('DELETE', `/${user.metadata.name}`);
+      await apiCall('DELETE', `/${deleteTarget.metadata.name}`);
       await load();
-      setNotice(`Deleted ${user.metadata.name}`);
+      setNotice(`Deleted ${deleteTarget.metadata.name}`);
     } catch (e) {
       setError(e as Error);
     } finally {
       setSaving(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -333,7 +333,7 @@ export function UsersRolesPage() {
                             variant="outlined"
                             color="secondary"
                             disabled={saving}
-                            onClick={() => deleteUser(user)}
+                            onClick={() => confirmDelete(user)}
                           >
                             Delete
                           </Button>
@@ -377,6 +377,22 @@ export function UsersRolesPage() {
           {error ? <ErrorPanel error={error} /> : null}
         </div>
       </Content>
+
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="sm">
+        <DialogTitle>Delete User</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete user <strong>{deleteTarget?.metadata.name}</strong>?
+            This removes them from the platform catalog and cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={saving}>Cancel</Button>
+          <Button color="secondary" variant="contained" onClick={executeDelete} disabled={saving}>
+            {saving ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   );
 }
