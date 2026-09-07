@@ -30,7 +30,6 @@ const mockApi = {
   }),
   createRequirementSet: jest.fn(),
   updateRequirementSet: jest.fn(),
-  submitRequirementSet: jest.fn(),
 };
 
 const renderWizard = (onCancel?: () => void) =>

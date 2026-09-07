@@ -33,7 +33,6 @@ import {
   CreateRequirementRequest,
   UpdateRequirementSetRequest,
   QualityCheckRequest,
-  RejectRequest,
   CreateRevisionRequest,
   CreateBaselineRequest,
   ApproveApprovalStepRequest,
@@ -395,117 +394,6 @@ export async function createRouter(
       respondError(res, logger, err);
     }
   });
-
-  /**
-   * POST /requirement-sets/:id/submit
-   * Submit for review
-   * @deprecated Use POST /baselines/:id/submit for baseline-level approval workflow
-   */
-  router.post(
-    '/requirement-sets/:id/submit',
-    async (req: express.Request, res: express.Response) => {
-      try {
-        const actor = await authorize(
-          permissions,
-          httpAuth,
-          req,
-          ursCreatePermission,
-        );
-        const data = req.body as { reason?: string };
-        const updated = await service.submitForReview(req.params.id, actor, data.reason);
-        res.json(updated);
-      } catch (err) {
-        respondError(res, logger, err);
-      }
-    },
-  );
-
-  /**
-   * POST /requirement-sets/:id/approve
-   * Approve requirement set
-   * @deprecated Use POST /approvals/:id/steps/:stepId/approve for step-level approval
-   */
-  router.post(
-    '/requirement-sets/:id/approve',
-    async (req: express.Request, res: express.Response) => {
-      try {
-        const actor = await authorize(
-          permissions,
-          httpAuth,
-          req,
-          ursApprovePermission,
-        );
-        const updated = await service.approveRequirementSet(
-          req.params.id,
-          actor,
-        );
-        res.json(updated);
-      } catch (err) {
-        respondError(res, logger, err);
-      }
-    },
-  );
-
-  /**
-   * POST /requirement-sets/:id/reject
-   * Reject requirement set
-   */
-  router.post(
-    '/requirement-sets/:id/reject',
-    async (req: express.Request, res: express.Response) => {
-      try {
-        const actor = await authorize(
-          permissions,
-          httpAuth,
-          req,
-          ursApprovePermission,
-        );
-        const data = req.body as RejectRequest;
-        if (!requireBody(res, data, 'reason')) {
-          return;
-        }
-        const updated = await service.rejectRequirementSet(
-          req.params.id,
-          actor,
-          data.reason,
-        );
-        res.json(updated);
-      } catch (err) {
-        respondError(res, logger, err);
-      }
-    },
-  );
-
-  /**
-   * GET /requirement-sets/:id/audit
-   * Get audit trail
-   */
-  router.get('/requirement-sets/:id/audit', async (req: express.Request, res: express.Response) => {
-    try {
-      await authorize(permissions, httpAuth, req, ursReadPermission);
-      const auditTrail = await service.getAuditTrail(req.params.id);
-      res.json(auditTrail);
-    } catch (err) {
-      respondError(res, logger, err);
-    }
-  });
-
-  /**
-   * GET /requirement-sets/:id/approvals
-   * Get approval status
-   */
-  router.get(
-    '/requirement-sets/:id/approvals',
-    async (req: express.Request, res: express.Response) => {
-      try {
-        await authorize(permissions, httpAuth, req, ursReadPermission);
-        const approvals = await service.getApprovals(req.params.id);
-        res.json(approvals);
-      } catch (err) {
-        respondError(res, logger, err);
-      }
-    },
-  );
 
   // ============================================================================
   // REQUIREMENTS

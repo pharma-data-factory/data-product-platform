@@ -33,7 +33,6 @@ import {
   CapabilityListResponse,
   BusinessRoleListResponse,
   ApprovalWorkflowListResponse,
-  ApprovalRecord,
   ChangeSet,
   GeneratedRequirement,
 } from './types';
@@ -252,34 +251,6 @@ export class URSComposerApi {
     req: UpdateRequirementSetRequest,
   ): Promise<{ requirementSet: RequirementSet; requirements: Requirement[] }> {
     return this.request('PUT', `/requirement-sets/${id}`, req);
-  }
-
-  /**
-   * POST /requirement-sets/:id/submit
-   */
-  async submitRequirementSet(id: string, reason?: string): Promise<RequirementSet> {
-    return this.post<RequirementSet>(`/requirement-sets/${id}/submit`, { reason });
-  }
-
-  /**
-   * POST /requirement-sets/:id/approve
-   */
-  async approveRequirementSet(id: string): Promise<RequirementSet> {
-    return this.post<RequirementSet>(`/requirement-sets/${id}/approve`, {});
-  }
-
-  /**
-   * POST /requirement-sets/:id/reject
-   */
-  async rejectRequirementSet(id: string, reason: string): Promise<RequirementSet> {
-    return this.post<RequirementSet>(`/requirement-sets/${id}/reject`, { reason });
-  }
-
-  /**
-   * GET /requirement-sets/:id/approvals
-   */
-  async getApprovals(id: string): Promise<ApprovalRecord[]> {
-    return this.get<ApprovalRecord[]>(`/requirement-sets/${id}/approvals`);
   }
 
   /**

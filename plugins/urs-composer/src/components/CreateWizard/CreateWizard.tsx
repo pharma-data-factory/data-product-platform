@@ -169,16 +169,13 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     setSaveError(null);
     try {
       const saved = await persistDraft();
-      const submitted = await api.submitRequirementSet(
-        saved.requirementSet.id,
-      );
-      onComplete?.(submitted.id);
+      onComplete?.(saved.requirementSet.id);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Failed to submit URS');
+      setSaveError(error instanceof Error ? error.message : 'Failed to save URS');
     } finally {
       setIsSaving(false);
     }
-  }, [state, onComplete, persistDraft, api]);
+  }, [state, onComplete, persistDraft]);
 
   const renderStepContent = () => {
     const props = { state, onStateChange: handleStateChange };

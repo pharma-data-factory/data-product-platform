@@ -10,10 +10,8 @@ import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
   RequirementSet,
   URSRequirement,
-  Approval,
   AuditEvent,
   URSStatus,
-  ApprovalStatus,
   ApprovalRole,
   QualityCheckResult,
   SolutionType,
@@ -77,15 +75,13 @@ export class URSService {
 
   /**
    * Resolve a user's approval roles from their Backstage group memberships.
-   * Returns empty array if catalog is unavailable (fail-open with warning).
+   * Throws NotAllowedError if catalog is unavailable (fail-closed).
    */
   async getUserApprovalRoles(actor: string, credentials?: BackstageCredentials): Promise<ApprovalRole[]> {
     if (!this.catalog) {
-      this.logger.warn(
-        `Catalog not available — skipping role check for ${actor}. ` +
-        'Approval steps will not enforce role-based access.',
+      throw new NotAllowedError(
+        'Catalog service unavailable — cannot verify approval roles. Please retry later.',
       );
-      return [];
     }
 
     try {
@@ -111,10 +107,9 @@ export class URSService {
 
       return Array.from(roles);
     } catch (err) {
-      this.logger.warn(
+      throw new NotAllowedError(
         `Failed to resolve approval roles for ${actor}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return [];
     }
   }
 
@@ -642,142 +637,6 @@ export class URSService {
   }
 
   /**
-   * Submit requirement set for review
-   */
-  async submitForReview(
-    requirementSetId: string,
-    actor: string,
-    reason?: string,
-  ): Promise<RequirementSet> {
-    const requirementSet = await this.repository.getRequirementSet(
-      requirementSetId,
-    );
-    if (!requirementSet) {
-      throw new Error('Requirement set not found');
-    }
-
-    if (requirementSet.status !== URSStatus.DRAFT) {
-      throw new Error('Only DRAFT requirement sets can be submitted');
-    }
-
-    // Update status
-    const updated = { ...requirementSet, status: URSStatus.IN_REVIEW };
-    await this.repository.updateRequirementSet(updated);
-
-    // Create approval gates
-    const roles = [
-      ApprovalRole.BUSINESS_REVIEWER,
-      ApprovalRole.PRODUCT_MANAGER,
-      ApprovalRole.QUALITY_REVIEWER,
-    ];
-
-    for (let i = 0; i < roles.length; i++) {
-      await this.repository.createApproval({
-        id: this.generateUUID(),
-        requirementSetId,
-        approvalRole: roles[i],
-        status: ApprovalStatus.PENDING,
-        sequenceNumber: i + 1,
-      });
-    }
-
-    // Audit
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'REQUIREMENT_SET',
-      entityId: requirementSetId,
-      eventType: 'SUBMITTED',
-      oldValue: { status: URSStatus.DRAFT },
-      newValue: { status: URSStatus.IN_REVIEW },
-      actor,
-      timestamp: new Date(),
-      reason,
-    });
-
-    return updated;
-  }
-
-  /**
-   * Approve requirement set
-   */
-  async approveRequirementSet(
-    requirementSetId: string,
-    actor: string,
-  ): Promise<RequirementSet> {
-    const requirementSet = await this.repository.getRequirementSet(
-      requirementSetId,
-    );
-    if (!requirementSet) {
-      throw new Error('Requirement set not found');
-    }
-
-    if (requirementSet.status !== URSStatus.IN_REVIEW) {
-      throw new Error('Only IN_REVIEW requirement sets can be approved');
-    }
-
-    // Mark all approvals as approved
-    await this.repository.approveAll(requirementSetId, actor);
-
-    // Update status to APPROVED
-    const updated = { ...requirementSet, status: URSStatus.APPROVED };
-    await this.repository.updateRequirementSet(updated);
-
-    // Audit
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'REQUIREMENT_SET',
-      entityId: requirementSetId,
-      eventType: 'APPROVED',
-      oldValue: { status: URSStatus.IN_REVIEW },
-      newValue: { status: URSStatus.APPROVED },
-      actor,
-      timestamp: new Date(),
-    });
-
-    return updated;
-  }
-
-  /**
-   * Reject requirement set
-   */
-  async rejectRequirementSet(
-    requirementSetId: string,
-    actor: string,
-    reason: string,
-  ): Promise<RequirementSet> {
-    const requirementSet = await this.repository.getRequirementSet(
-      requirementSetId,
-    );
-    if (!requirementSet) {
-      throw new Error('Requirement set not found');
-    }
-
-    if (requirementSet.status !== URSStatus.IN_REVIEW) {
-      throw new Error('Only IN_REVIEW requirement sets can be rejected');
-    }
-
-    // Clear approvals, reset to DRAFT
-    await this.repository.clearApprovals(requirementSetId);
-    const updated = { ...requirementSet, status: URSStatus.DRAFT };
-    await this.repository.updateRequirementSet(updated);
-
-    // Audit
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'REQUIREMENT_SET',
-      entityId: requirementSetId,
-      eventType: 'REJECTED',
-      oldValue: { status: URSStatus.IN_REVIEW },
-      newValue: { status: URSStatus.DRAFT },
-      actor,
-      timestamp: new Date(),
-      reason,
-    });
-
-    return updated;
-  }
-
-  /**
    * Run quality checks on a requirement
    */
   async checkRequirementQuality(req: {
@@ -864,13 +723,6 @@ export class URSService {
    */
   async getAuditTrail(requirementSetId: string): Promise<AuditEvent[]> {
     return this.repository.getAuditTrail(requirementSetId);
-  }
-
-  /**
-   * Get approvals for requirement set
-   */
-  async getApprovals(requirementSetId: string): Promise<Approval[]> {
-    return this.repository.getApprovals(requirementSetId);
   }
 
   // PRIVATE HELPERS
@@ -1430,7 +1282,7 @@ export class URSService {
     // Role-based access: verify actor holds the step's required role
     if (step.role) {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
-      if (actorRoles.length > 0 && !actorRoles.includes(step.role)) {
+      if (!actorRoles.includes(step.role)) {
         throw new NotAllowedError(
           `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
         );
@@ -1574,7 +1426,7 @@ export class URSService {
     // Role-based access: verify actor holds the step's required role
     if (step.role) {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
-      if (actorRoles.length > 0 && !actorRoles.includes(step.role)) {
+      if (!actorRoles.includes(step.role)) {
         throw new NotAllowedError(
           `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
         );

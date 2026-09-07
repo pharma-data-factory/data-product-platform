@@ -116,7 +116,9 @@ describe('Unauthorized approve denied by backend', () => {
       ],
       'user:default/author',
     );
-    await service.submitForReview(created.id, 'user:default/author');
+    // Set status to IN_REVIEW directly (legacy submitForReview removed)
+    const rs = await service.getRequirementSet(created.id);
+    await (service as any).repository.updateRequirementSet({ ...rs!, status: URSStatus.IN_REVIEW });
     expect((await service.getRequirementSet(created.id))!.status).toBe(
       URSStatus.IN_REVIEW,
     );
@@ -180,7 +182,9 @@ describe('Unauthorized approve denied by backend', () => {
       },
       'user:default/author',
     );
-    await service.submitForReview(created.id, 'user:default/author');
+    // Set status to IN_REVIEW directly (legacy submitForReview removed)
+    const rs2 = await service.getRequirementSet(created.id);
+    await (service as any).repository.updateRequirementSet({ ...rs2!, status: URSStatus.IN_REVIEW });
 
     const allowPermissions = {
       authorize: jest

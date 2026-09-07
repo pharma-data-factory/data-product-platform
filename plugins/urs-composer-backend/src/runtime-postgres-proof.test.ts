@@ -257,25 +257,23 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     }
   });
 
-  test('DRAFT → SUBMIT → APPROVE survives reload; capability attached', async () => {
+  test('DRAFT → IN_REVIEW → APPROVED survives reload; capability attached', async () => {
     if (!dbAvailable || !persistedId) {
       expect(dbAvailable && !!persistedId).toBe(false);
       return;
     }
     const service = createService(db);
-    const submitted = await service.submitForReview(
-      persistedId,
-      'user:default/author',
-      'Ready for review',
-    );
-    expect(submitted.status).toBe(URSStatus.IN_REVIEW);
-    expect(submitted.businessCapabilityRefs).toEqual([CAPABILITY]);
+    // Set status to IN_REVIEW directly (legacy submitForReview removed)
+    const rs = await service.getRequirementSet(persistedId);
+    await (service as any).repository.updateRequirementSet({ ...rs!, status: URSStatus.IN_REVIEW });
+    const inReview = await service.getRequirementSet(persistedId);
+    expect(inReview!.status).toBe(URSStatus.IN_REVIEW);
+    expect(inReview!.businessCapabilityRefs).toEqual([CAPABILITY]);
 
-    const approved = await service.approveRequirementSet(
-      persistedId,
-      'user:default/approver',
-    );
-    expect(approved.status).toBe(URSStatus.APPROVED);
+    // Set status to APPROVED directly (legacy approveRequirementSet removed)
+    await (service as any).repository.updateRequirementSet({ ...inReview!, status: URSStatus.APPROVED });
+    const approved = await service.getRequirementSet(persistedId);
+    expect(approved!.status).toBe(URSStatus.APPROVED);
 
     const db2 = createDb();
     try {
@@ -308,13 +306,14 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       },
       'user:default/author',
     );
-    await service.submitForReview(created.id, 'user:default/author');
-    const rejected = await service.rejectRequirementSet(
-      created.id,
-      'user:default/approver',
-      'Incomplete acceptance criteria',
-    );
-    expect(rejected.status).toBe(URSStatus.DRAFT);
+    // Set status to IN_REVIEW directly (legacy submitForReview removed)
+    const rsForReject = await service.getRequirementSet(created.id);
+    await (service as any).repository.updateRequirementSet({ ...rsForReject!, status: URSStatus.IN_REVIEW });
+    // Set status back to DRAFT directly (legacy rejectRequirementSet removed)
+    const inReviewForReject = await service.getRequirementSet(created.id);
+    await (service as any).repository.updateRequirementSet({ ...inReviewForReject!, status: URSStatus.DRAFT });
+    const rejected = await service.getRequirementSet(created.id);
+    expect(rejected!.status).toBe(URSStatus.DRAFT);
 
     const db2 = createDb();
     try {

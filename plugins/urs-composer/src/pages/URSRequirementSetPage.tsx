@@ -22,9 +22,6 @@ import {
   Button,
   TextField,
   Chip,
-  List,
-  ListItem,
-  ListItemText,
   Divider,
   Dialog,
   DialogTitle,
@@ -36,6 +33,9 @@ import {
   Step,
   StepLabel,
   StepContent,
+  List,
+  ListItem,
+  ListItemText,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import CheckIcon from '@material-ui/icons/Check';
@@ -50,7 +50,6 @@ import {
   RequirementSet,
   Requirement,
   AuditEvent,
-  ApprovalRecord,
   Baseline,
   URSStatus,
   RequirementVersion,
@@ -84,8 +83,6 @@ export const URSRequirementSetPage: React.FC = () => {
   const [set, setSet] = useState<RequirementSet | null>(null);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
-  const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
-  const [rejectReason, setRejectReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   // URS → Validation Expert integration
@@ -122,16 +119,14 @@ export const URSRequirementSetPage: React.FC = () => {
       api.getRequirementSet(id),
       api.listRequirements(id),
       api.getRequirementSetAudit(id),
-      api.getApprovals(id),
     ])
-      .then(([requirementSet, reqs, auditEvents, approvalRecords]) => {
+      .then(([requirementSet, reqs, auditEvents]) => {
         if (!mounted) {
           return;
         }
         setSet(requirementSet);
         setRequirements(reqs);
         setAudit(auditEvents);
-        setApprovals(approvalRecords);
       })
       .catch(err => {
         if (mounted) {
@@ -152,65 +147,14 @@ export const URSRequirementSetPage: React.FC = () => {
     if (!id) {
       return;
     }
-    const [requirementSet, reqs, auditEvents, approvalRecords] = await Promise.all([
+    const [requirementSet, reqs, auditEvents] = await Promise.all([
       api.getRequirementSet(id),
       api.listRequirements(id),
       api.getRequirementSetAudit(id),
-      api.getApprovals(id),
     ]);
     setSet(requirementSet);
     setRequirements(reqs);
     setAudit(auditEvents);
-    setApprovals(approvalRecords);
-  };
-
-  const handleSubmit = async () => {
-    if (!id) {
-      return;
-    }
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      await api.submitRequirementSet(id);
-      await reload();
-    } catch (err: any) {
-      setActionError(err.message || 'Submit failed');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!id) {
-      return;
-    }
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      await api.approveRequirementSet(id);
-      await reload();
-    } catch (err: any) {
-      setActionError(err.message || 'Approval denied or failed');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!id || !rejectReason.trim()) {
-      setActionError('Rejection reason is required');
-      return;
-    }
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      await api.rejectRequirementSet(id, rejectReason.trim());
-      await reload();
-    } catch (err: any) {
-      setActionError(err.message || 'Rejection denied or failed');
-    } finally {
-      setActionLoading(false);
-    }
   };
 
   // Load any approved baseline for this requirement set (entry gate for a
@@ -404,14 +348,6 @@ export const URSRequirementSetPage: React.FC = () => {
   }
 
   const canEdit = set.status === URSStatus.DRAFT;
-  const canSubmit =
-    set.status === URSStatus.DRAFT &&
-    !manageAllowed.loading &&
-    manageAllowed.allowed === true;
-  const canApprove =
-    set.status === URSStatus.IN_REVIEW &&
-    !approveAllowed.loading &&
-    approveAllowed.allowed === true;
 
   return (
     <Page themeId="tool">
@@ -444,16 +380,6 @@ export const URSRequirementSetPage: React.FC = () => {
               <Typography color="error" paragraph>
                 {actionError}
               </Typography>
-            )}
-            {canSubmit && (
-              <Button
-                color="primary"
-                variant="contained"
-                disabled={actionLoading}
-                onClick={handleSubmit}
-              >
-                Submit for Review
-              </Button>
             )}
           </CardContent>
         </Card>
@@ -746,61 +672,47 @@ export const URSRequirementSetPage: React.FC = () => {
                     )}
                   </Box>
                 ) : (
-                  <>
-                    {/* Fallback: Old-style approval records */}
-                    <Typography variant="caption" color="textSecondary" style={{ display: 'block', marginBottom: 8 }}>
-                      Legacy approval — create a baseline and submit for step-based workflow.
+                  <Typography color="textSecondary" paragraph>
+                    No approval workflow active. Create a baseline and submit it to start the approval process.
+                  </Typography>
+                )}
+
+                {/* Create Baseline */}
+                {!approvalInstance && manageAllowed.allowed && requirements.length > 0 && (
+                  <Box style={{ marginTop: 16 }}>
+                    <Divider style={{ marginBottom: 12 }} />
+                    <Button
+                      color="primary"
+                      variant="contained"
+                      disabled={actionLoading}
+                      onClick={async () => {
+                        setActionLoading(true);
+                        setActionError(null);
+                        try {
+                          const reqIds = requirements.map(r => r.id);
+                          if (reqIds.length === 0) {
+                            setActionError('No requirements available for baseline');
+                            return;
+                          }
+                          await api.createBaseline(id!, {
+                            requirementSetId: id!,
+                            baselineVersion: '1.0',
+                            requirementVersionIds: reqIds,
+                          });
+                          await reload();
+                        } catch (err: any) {
+                          setActionError(err.message || 'Failed to create baseline');
+                        } finally {
+                          setActionLoading(false);
+                        }
+                      }}
+                    >
+                      Create Baseline
+                    </Button>
+                    <Typography variant="caption" color="textSecondary" style={{ display: 'block', marginTop: 4 }}>
+                      Snapshot {requirements.length} requirement(s) into a new baseline for approval.
                     </Typography>
-                    {approvals.length > 0 ? (
-                      <List dense>
-                        {approvals.map(record => (
-                          <ListItem key={record.id}>
-                            <ListItemText
-                              primary={`${record.approvalRole}: ${record.status}`}
-                              secondary={
-                                record.approver
-                                  ? `${record.approver} · ${record.decidedAt || ''}`
-                                  : undefined
-                              }
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    ) : (
-                      <Typography color="textSecondary" paragraph>
-                        No approval workflow active. Submit a baseline to start the approval process.
-                      </Typography>
-                    )}
-                    {canApprove && (
-                      <Box display="flex" alignItems="center" style={{ gap: 8, marginTop: 16 }}>
-                        <Button
-                          color="primary"
-                          variant="contained"
-                          startIcon={<CheckIcon />}
-                          disabled={actionLoading}
-                          onClick={handleApprove}
-                        >
-                          Approve
-                        </Button>
-                        <TextField
-                          label="Rejection reason"
-                          value={rejectReason}
-                          onChange={e => setRejectReason(e.target.value)}
-                          size="small"
-                          style={{ minWidth: 280 }}
-                        />
-                        <Button
-                          color="secondary"
-                          variant="outlined"
-                          startIcon={<CloseIcon />}
-                          disabled={actionLoading}
-                          onClick={handleReject}
-                        >
-                          Reject
-                        </Button>
-                      </Box>
-                    )}
-                  </>
+                  </Box>
                 )}
 
                 {/* Baseline Submission */}
