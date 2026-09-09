@@ -300,8 +300,8 @@ describeWhenPg('URS Composer 1.0 PostgreSQL runtime proof', () => {
       'user:default/author',
     );
 
-    // Create a requirement, then an initial RequirementVersion (via the repo),
-    // then a controlled revision — the version chain used by a baseline.
+    // createRequirement now seeds genesis 0.1. Promote that version to
+    // APPROVED so createRevision is legal (open drafts block a new revision).
     const createdReq = await service.createRequirement(
       set.id,
       {
@@ -312,20 +312,33 @@ describeWhenPg('URS Composer 1.0 PostgreSQL runtime proof', () => {
       'user:default/author',
     );
     const repo = new PostgresURSRepository(db) as any;
+    const genesis = (await service.getVersionHistory(createdReq.requirementId))[0];
+    expect(genesis.versionLabel ?? genesis.version).toBe('0.1');
+    // Bypass the signature path for this persistence proof: stamp the genesis
+    // row as released 1.0 so createRevision can open 1.1-draft. The legal
+    // status walk + QA signature are covered elsewhere.
+    await db('requirement_versions')
+      .where({ id: genesis.id })
+      .update({
+        status: URSStatus.APPROVED,
+        version: '1.0',
+        version_label: '1.0',
+        major: 1,
+        minor: 0,
+        approved_by: 'user:default/author',
+        approved_at: new Date(),
+        released_at: new Date(),
+        revision: (genesis.revision ?? 1) + 1,
+      });
     const initialVersion = {
-      id: `baseline-version-v1-${Date.now()}`,
-      requirementId: createdReq.requirementId,
+      ...genesis,
+      id: genesis.id,
       version: '1.0',
-      versionNumber: 1,
-      title: 'Baseline requirement',
-      statement: 'The solution shall persist baselines without data loss.',
-      priority: RequirementPriority.MUST,
+      versionLabel: '1.0',
+      major: 1,
+      minor: 0,
       status: URSStatus.APPROVED,
-      createdBy: 'user:default/author',
-      createdAt: new Date(),
-      revision: 1,
     };
-    await repo.createRequirementVersion(initialVersion);
 
     // The initial version is released, so invariant 8 requires an approved
     // change request before it can be revised. Seeded through the repository

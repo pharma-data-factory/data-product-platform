@@ -163,6 +163,13 @@ describe('URSService', () => {
       expect(req).toBeDefined();
       expect(req.requirementId).toMatch(/^URS-DP-/);
       expect(req.status).toBe(URSStatus.DRAFT);
+
+      const versions = await service.getVersionHistory(req.requirementId);
+      expect(versions).toHaveLength(1);
+      expect(versions[0].versionLabel ?? versions[0].version).toBe('0.1');
+      expect(versions[0].status).toBe(URSStatus.DRAFT);
+      expect(versions[0].requirementId).toBe(req.requirementId);
+      expect(versions[0].contentHash).toBeDefined();
     });
 
     test('getRequirements returns requirements for set', async () => {
@@ -228,6 +235,53 @@ describe('URSService', () => {
       expect(updated.requirements).toHaveLength(1);
       expect(updated.requirements[0].title).toBe('Display OEE');
       expect(updated.requirements[0].acceptanceIntent).toContain('visible');
+
+      // Wizard persist never calls createRequirement; genesis 0.1 must still
+      // appear so baselines and revisions have a starting version.
+      const versions = await service.getVersionHistory(
+        updated.requirements[0].requirementId,
+      );
+      expect(versions).toHaveLength(1);
+      expect(versions[0].versionLabel ?? versions[0].version).toBe('0.1');
+    });
+
+    test('updateRequirementSetDraft does not duplicate genesis on re-save', async () => {
+      const set = await service.createRequirementSet(
+        {
+          businessCapabilityRefs: [
+            'business-capability:make/equipment-performance-management',
+          ],
+          businessNeed: 'Need',
+          solutionType: SolutionType.DATA_PRODUCT,
+          solutionName: 'Solution',
+        },
+        'user:default/test',
+      );
+
+      const first = await service.updateRequirementSetDraft(
+        set.id,
+        {},
+        [
+          {
+            title: 'Keep stable',
+            statement: 'The system shall keep a stable id.',
+            priority: RequirementPriority.MUST,
+            requirementId: 'URS-DP-STABLE-001',
+          },
+        ],
+        'user:default/test',
+      );
+
+      await service.updateRequirementSetDraft(
+        set.id,
+        {},
+        first.requirements,
+        'user:default/test',
+      );
+
+      const versions = await service.getVersionHistory('URS-DP-STABLE-001');
+      expect(versions).toHaveLength(1);
+      expect(versions[0].versionLabel ?? versions[0].version).toBe('0.1');
     });
   });
 

@@ -54,6 +54,7 @@ import {
 } from './domain/signature-service';
 import { IURSRepository } from './repository-interface';
 import {
+  firstVersion,
   nextDraft,
   parseLabel,
   versionOrdinal,
@@ -588,6 +589,12 @@ export class URSService {
       persistedRequirements,
     );
 
+    // Wizard persist never called createRequirement; seed 0.1 for any row
+    // that still has no version history so baselines and revisions have a start.
+    for (const requirement of savedRequirements) {
+      await this.seedInitialRequirementVersion(requirement, actor);
+    }
+
     await this.repository.createAuditEvent({
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
@@ -791,7 +798,73 @@ export class URSService {
       timestamp: now,
     });
 
+    // A requirement without a version cannot be baselined, signed or revised.
+    // createRevision requires a predecessor; this is the only genesis path.
+    await this.seedInitialRequirementVersion(saved, actor);
+
     return saved;
+  }
+
+  /**
+   * Open version 0.1 for a brand-new requirement.
+   *
+   * Idempotent: if any version already exists for the logical requirement id,
+   * this is a no-op. Used by createRequirement and by the wizard draft replace
+   * path, which can introduce requirements that never went through create.
+   */
+  private async seedInitialRequirementVersion(
+    requirement: URSRequirement,
+    actor: string,
+  ): Promise<RequirementVersion | undefined> {
+    const existing = await this.repository.getRequirementVersions(
+      requirement.requirementId,
+    );
+    if (existing.length > 0) {
+      return undefined;
+    }
+
+    const first = firstVersion();
+    const now = new Date();
+    const version: RequirementVersion = {
+      id: this.generateUUID(),
+      requirementId: requirement.requirementId,
+      version: first.label,
+      versionLabel: first.label,
+      major: first.major,
+      minor: first.minor,
+      versionNumber: versionOrdinal(first),
+      title: requirement.title,
+      statement: requirement.statement,
+      rationale: requirement.rationale,
+      category: requirement.category,
+      priority: requirement.priority,
+      acceptanceIntent: requirement.acceptanceIntent,
+      classification: requirement.classification,
+      gxpRelevance: requirement.gxpRelevance,
+      source: requirement.source,
+      owner: requirement.owner,
+      status: URSStatus.DRAFT,
+      createdBy: actor,
+      createdAt: now,
+      revision: 1,
+    };
+    version.contentHash = hashOf(version);
+
+    await this.repository.createRequirementVersion(version);
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_VERSION',
+      entityId: version.id,
+      entityVersion: version.version,
+      eventType: 'CREATED',
+      newValue: version,
+      actor,
+      timestamp: now,
+      reason: 'Genesis version 0.1',
+    });
+
+    return version;
   }
 
   /**
