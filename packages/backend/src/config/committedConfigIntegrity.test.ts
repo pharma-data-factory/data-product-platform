@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { parse as parseYaml } from 'yaml';
+import { ConfigReader } from '@backstage/config';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 
@@ -23,13 +25,26 @@ function read(relative: string): string {
   return fs.readFileSync(path.join(ROOT, relative), 'utf8');
 }
 
+/** Layers config files the way the container entrypoints pass them to the backend. */
+function mergeConfigs(relatives: readonly string[]): ConfigReader {
+  return ConfigReader.fromConfigs(
+    relatives.map(relative => ({
+      context: relative,
+      data: parseYaml(read(relative)) ?? {},
+    })),
+  );
+}
+
 describe('committed Control Plane configuration integrity', () => {
   it('enables the Permission Framework on every intended RBAC deployment overlay', () => {
     for (const relative of RBAC_DEPLOYMENT_CONFIGS) {
-      const text = read(relative);
-      expect(text).toMatch(/^\s*permission:\s*$/m);
-      expect(text).toMatch(/^\s+enabled:\s*true\s*$/m);
-      expect(text).not.toMatch(/^\s+enabled:\s*false\s*$/m);
+      // Read the parsed key rather than scanning the text for `enabled:`,
+      // which cannot tell the Permission Framework apart from any other
+      // feature flag in the file and reported a failure for an unrelated
+      // `ursComposer.ai.enabled: false`.
+      expect(mergeConfigs([relative]).getOptionalBoolean('permission.enabled')).toBe(
+        true,
+      );
     }
   });
 
@@ -68,6 +83,31 @@ describe('committed Control Plane configuration integrity', () => {
     expect(read('app-config.docker.yaml')).not.toContain('catalog/samples');
     expect(read('app-config.production.yaml')).not.toContain('catalog/samples');
     expect(read('app-config.yaml')).toContain('catalog/samples/entities.yaml');
+  });
+
+  // The deployed configuration is the base file plus an overlay, in that
+  // order. Reading an overlay on its own says nothing about what the backend
+  // actually sees, which is how production came to run the URS audit trail in
+  // memory: the overlay simply did not mention the key, so the base value won.
+  // These assertions merge the files the way the container entrypoints do.
+  describe.each([
+    ['production', ['app-config.yaml', 'app-config.production.yaml']],
+    ['docker', ['app-config.yaml', 'app-config.docker.yaml']],
+  ])('merged %s configuration', (_name, files) => {
+    const config = mergeConfigs(files);
+
+    it('stores URS records in Postgres, not in memory', () => {
+      // In-memory mode has no audit trail, no immutability triggers and no
+      // transactions, and loses every record on restart.
+      expect(config.getOptionalString('ursComposer.persistence.mode')).toBe(
+        'postgres',
+      );
+    });
+
+    it('runs as a production auth environment with permissions enabled', () => {
+      expect(config.getOptionalString('auth.environment')).toBe('production');
+      expect(config.getOptionalBoolean('permission.enabled')).toBe(true);
+    });
   });
 
   it('does not embed credential values in frontend source', () => {

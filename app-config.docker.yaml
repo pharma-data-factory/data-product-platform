@@ -40,6 +40,12 @@ auth:
 permission:
   enabled: true
 
+# Overrides the memory mode that app-config.yaml sets; this file is layered on
+# top of it. See app-config.production.yaml for the reasoning.
+ursComposer:
+  persistence:
+    mode: postgres
+
 catalog:
   locations:
     - type: file

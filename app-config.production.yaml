@@ -47,6 +47,14 @@ auth:
 permission:
   enabled: true
 
+# Set explicitly, not left to the plugin default. app-config.yaml is layered
+# first and sets memory there; without this line that value survives the merge
+# and the URS audit trail, signatures and immutability triggers would exist
+# only in process memory.
+ursComposer:
+  persistence:
+    mode: postgres
+
 catalog:
   rules:
     - allow: [Component, System, API, Resource, Location, Template]
