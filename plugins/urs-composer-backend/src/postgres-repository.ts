@@ -924,6 +924,17 @@ export class PostgresURSRepository implements IURSRepository {
     return new PostgresTransaction(trx);
   }
 
+  async withTransaction<T>(
+    fn: (repo: IURSRepository) => Promise<T>,
+  ): Promise<T> {
+    // A Knex transaction is itself a query builder, so binding a repository
+    // instance to it routes every query through the transaction. Knex commits
+    // when the callback resolves and rolls back when it throws.
+    return this.db.transaction(async trx =>
+      fn(new PostgresURSRepository(trx)),
+    );
+  }
+
   // ============================================================================
   // PRIVATE HELPERS
   // ============================================================================

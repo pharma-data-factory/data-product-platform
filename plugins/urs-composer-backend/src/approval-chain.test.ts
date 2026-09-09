@@ -225,6 +225,58 @@ describe('Approval steps', () => {
     expect(stored?.status).toBe(URSStatus.IN_REVIEW);
   });
 
+  test('a failing cascade rolls back the whole approval', async () => {
+    const { repository, service } = await setup(GxPRelevance.DIRECT, [
+      'group:default/urs-business-reviewers',
+    ]);
+    await repository.createApprovalWorkflow({
+      id: 'single-step-urs',
+      name: 'Single Step',
+      steps: [
+        { sequence: 1, role: ApprovalRole.BUSINESS_REVIEWER, required: true },
+      ],
+      createdAt: new Date(),
+    } as any);
+
+    const instance = await service.createApprovalInstance(
+      'baseline-001',
+      'single-step-urs',
+      'user:default/author',
+    );
+    const onlyStep = instance.steps[0];
+
+    // Fail part-way through the final cascade, after the step audit event
+    // has already been written.
+    jest
+      .spyOn(repository, 'updateBaseline')
+      .mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(
+      service.approveApprovalStep(
+        instance.id,
+        onlyStep.id,
+        'user:default/reviewer',
+        undefined,
+        {} as any,
+      ),
+    ).rejects.toThrow('storage unavailable');
+
+    const stepAudit = await repository.getEntityAuditTrail(
+      onlyStep.id,
+      'APPROVAL_STEP',
+    );
+    expect(stepAudit).toHaveLength(0);
+
+    const storedInstance = await repository.getApprovalInstance(instance.id);
+    expect(storedInstance?.status).not.toBe(ApprovalInstanceStatus.APPROVED);
+    expect(storedInstance?.steps[0].status).not.toBe(
+      ApprovalStepStatus.APPROVED,
+    );
+
+    const storedBaseline = await repository.getBaseline('baseline-001');
+    expect(storedBaseline?.status).toBe(URSStatus.DRAFT);
+  });
+
   test('a reviewer cannot approve the quality step', async () => {
     const { service } = await setup(GxPRelevance.DIRECT, [
       'group:default/urs-business-reviewers',
@@ -245,5 +297,44 @@ describe('Approval steps', () => {
         {} as any,
       ),
     ).rejects.toThrow(/requires role 'QUALITY_REVIEWER'/);
+  });
+});
+
+describe('Repository transactions', () => {
+  test('withTransaction discards writes when the callback throws', async () => {
+    const repository = new URSRepository();
+
+    await expect(
+      repository.withTransaction(async repo => {
+        await repo.createBusinessRole({
+          id: 'role:temporary',
+          name: 'Temporary',
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          createdBy: 'tester',
+          version: 1,
+        });
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+
+    expect(await repository.getBusinessRole('role:temporary')).toBeNull();
+  });
+
+  test('withTransaction keeps writes when the callback resolves', async () => {
+    const repository = new URSRepository();
+
+    await repository.withTransaction(async repo => {
+      await repo.createBusinessRole({
+        id: 'role:kept',
+        name: 'Kept',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        createdBy: 'tester',
+        version: 1,
+      });
+    });
+
+    expect(await repository.getBusinessRole('role:kept')).not.toBeNull();
   });
 });

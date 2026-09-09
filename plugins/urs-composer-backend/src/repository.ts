@@ -560,4 +560,64 @@ export class URSRepository implements IURSRepository {
   async beginTransaction(): Promise<Transaction> {
     return new InMemoryTransaction();
   }
+
+  async withTransaction<T>(
+    fn: (repo: IURSRepository) => Promise<T>,
+  ): Promise<T> {
+    // There is no engine to roll back, so take a deep snapshot of the stores
+    // and restore it on failure. This keeps memory mode behaviourally equal to
+    // Postgres, which the shared repository contract tests rely on.
+    const snapshot = this.snapshot();
+    try {
+      return await fn(this);
+    } catch (err) {
+      this.restore(snapshot);
+      throw err;
+    }
+  }
+
+  private snapshot(): InMemoryState {
+    return structuredClone({
+      requirementSets: this.requirementSets,
+      requirements: this.requirements,
+      approvals: this.approvals,
+      auditEvents: this.auditEvents,
+      businessCapabilities: this.businessCapabilities,
+      businessRoles: this.businessRoles,
+      requirementVersions: this.requirementVersions,
+      baselines: this.baselines,
+      approvalWorkflows: this.approvalWorkflows,
+      approvalInstances: this.approvalInstances,
+      approvalSteps: this.approvalSteps,
+    });
+  }
+
+  private restore(state: InMemoryState): void {
+    this.requirementSets = state.requirementSets;
+    this.requirements = state.requirements;
+    this.approvals = state.approvals;
+    this.auditEvents = state.auditEvents;
+    this.businessCapabilities = state.businessCapabilities;
+    this.businessRoles = state.businessRoles;
+    this.requirementVersions = state.requirementVersions;
+    this.baselines = state.baselines;
+    this.approvalWorkflows = state.approvalWorkflows;
+    this.approvalInstances = state.approvalInstances;
+    this.approvalSteps = state.approvalSteps;
+  }
+}
+
+/** Deep copy of every in-memory store, used to roll back a failed transaction. */
+interface InMemoryState {
+  requirementSets: Map<string, RequirementSet>;
+  requirements: Map<string, URSRequirement[]>;
+  approvals: Map<string, Approval[]>;
+  auditEvents: AuditEvent[];
+  businessCapabilities: Map<string, BusinessCapabilityPersisted>;
+  businessRoles: Map<string, BusinessRolePersisted>;
+  requirementVersions: Map<string, RequirementVersion>;
+  baselines: Map<string, Baseline>;
+  approvalWorkflows: Map<string, ApprovalWorkflow>;
+  approvalInstances: Map<string, ApprovalInstance>;
+  approvalSteps: Map<string, ApprovalStep>;
 }

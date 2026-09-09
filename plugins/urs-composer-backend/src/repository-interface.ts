@@ -196,8 +196,21 @@ export interface IURSRepository {
   /**
    * Execute operations in a transaction
    * Rolls back all if any fail
+   *
+   * @deprecated Only the raw handle is transactional. Repository methods
+   * called inside `execute()` still run against the base connection, so they
+   * are neither committed nor rolled back with it. Use `withTransaction`.
    */
   beginTransaction(): Promise<Transaction>;
+
+  /**
+   * Run `fn` against a repository bound to a single transaction.
+   *
+   * Every repository call made on the passed instance participates in that
+   * transaction. The transaction commits when `fn` resolves and rolls back
+   * when it throws.
+   */
+  withTransaction<T>(fn: (repo: IURSRepository) => Promise<T>): Promise<T>;
 }
 
 /**

@@ -1432,146 +1432,155 @@ export class URSService {
       }
     }
 
-    // Update step: mark as APPROVED
-    step.status = ApprovalStepStatus.APPROVED;
-    step.actedBy = actor;
-    step.decision = 'APPROVED';
-    step.comment = comment;
-    step.actedAt = new Date();
+    // Everything below mutates state. The final approval fans out across the
+    // baseline, the requirement set, its predecessor and every pinned version,
+    // so it runs as one transaction: a failure part-way through must not leave
+    // an approved baseline behind a half-updated version chain.
+    return this.repository.withTransaction(async repo => {
+      // Update step: mark as APPROVED
+      step.status = ApprovalStepStatus.APPROVED;
+      step.actedBy = actor;
+      step.decision = 'APPROVED';
+      step.comment = comment;
+      step.actedAt = new Date();
 
-    // Create audit event for step approval
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'APPROVAL_STEP',
-      entityId: stepId,
-      eventType: 'APPROVED',
-      newValue: step,
-      actor,
-      timestamp: new Date(),
-    });
-
-    // Check if this is the final required step
-    const remainingSteps = instance.steps.filter(
-      s => s.required && s.status !== 'APPROVED' && s.id !== stepId,
-    );
-
-    if (remainingSteps.length === 0) {
-      // Final approval: cascade to baseline and versions
-      const baseline = await this.repository.getBaseline(instance.baselineId);
-      if (!baseline) {
-        throw new Error('Baseline not found');
-      }
-
-      // Update baseline to APPROVED
-      await this.repository.updateBaseline({
-        ...baseline,
-        status: URSStatus.APPROVED,
-        approvedBy: actor,
-        approvedAt: new Date(),
-        revision: baseline.revision || 1,
+      // Create audit event for step approval
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'APPROVAL_STEP',
+        entityId: stepId,
+        eventType: 'APPROVED',
+        newValue: step,
+        actor,
+        timestamp: new Date(),
       });
 
-      // Propagate approval to the requirement set and close the version chain:
-      // once a revision is approved, its predecessor stops being effective.
-      const approvedSet = await this.repository.getRequirementSet(
-        baseline.requirementSetId,
+      // Check if this is the final required step
+      const remainingSteps = instance.steps.filter(
+        s => s.required && s.status !== 'APPROVED' && s.id !== stepId,
       );
-      if (approvedSet) {
-        if (approvedSet.status !== URSStatus.APPROVED) {
-          await this.repository.updateRequirementSet({
-            ...approvedSet,
-            status: URSStatus.APPROVED,
-            updatedBy: actor,
-            updatedAt: new Date(),
-          });
+
+      if (remainingSteps.length === 0) {
+        // Final approval: cascade to baseline and versions
+        const baseline = await repo.getBaseline(instance.baselineId);
+        if (!baseline) {
+          throw new Error('Baseline not found');
         }
 
-        if (approvedSet.supersedesRef) {
-          const predecessor = await this.repository.getRequirementSet(
-            approvedSet.supersedesRef,
-          );
-          if (predecessor && predecessor.status !== URSStatus.SUPERSEDED) {
-            await this.repository.updateRequirementSet({
-              ...predecessor,
-              status: URSStatus.SUPERSEDED,
+        // Update baseline to APPROVED
+        await repo.updateBaseline({
+          ...baseline,
+          status: URSStatus.APPROVED,
+          approvedBy: actor,
+          approvedAt: new Date(),
+          revision: baseline.revision || 1,
+        });
+
+        // Propagate approval to the requirement set and close the version
+        // chain: once a revision is approved, its predecessor stops being
+        // effective.
+        const approvedSet = await repo.getRequirementSet(
+          baseline.requirementSetId,
+        );
+        if (approvedSet) {
+          if (approvedSet.status !== URSStatus.APPROVED) {
+            await repo.updateRequirementSet({
+              ...approvedSet,
+              status: URSStatus.APPROVED,
               updatedBy: actor,
               updatedAt: new Date(),
             });
-
-            await this.repository.createAuditEvent({
-              id: this.generateUUID(),
-              entityType: 'REQUIREMENT_SET',
-              entityId: predecessor.id,
-              entityVersion: `v${predecessor.versionNumber}`,
-              eventType: 'SUPERSEDED',
-              newValue: {
-                status: URSStatus.SUPERSEDED,
-                supersededBy: approvedSet.id,
-              },
-              actor: 'system',
-              timestamp: new Date(),
-            });
           }
-        }
-      }
 
-      // Approve all requirement versions in this baseline
-      for (const versionId of baseline.requirementVersionIds) {
-        const version = await this.repository.getRequirementVersion(versionId);
-        if (version && version.status !== 'APPROVED') {
-          await this.repository.updateRequirementVersion({
-            ...version,
-            status: URSStatus.APPROVED,
-            approvedBy: actor,
-            approvedAt: new Date(),
-          });
-
-          // Supersede any previous versions
-          const previousVersions = await this.repository.getRequirementVersions(
-            version.requirementId,
-          );
-          for (const prev of previousVersions) {
-            if (prev.id !== versionId && prev.status === 'APPROVED') {
-              await this.repository.updateRequirementVersion({
-                ...prev,
+          if (approvedSet.supersedesRef) {
+            const predecessor = await repo.getRequirementSet(
+              approvedSet.supersedesRef,
+            );
+            if (predecessor && predecessor.status !== URSStatus.SUPERSEDED) {
+              await repo.updateRequirementSet({
+                ...predecessor,
                 status: URSStatus.SUPERSEDED,
-                supersededBy: versionId,
+                updatedBy: actor,
+                updatedAt: new Date(),
+              });
+
+              await repo.createAuditEvent({
+                id: this.generateUUID(),
+                entityType: 'REQUIREMENT_SET',
+                entityId: predecessor.id,
+                entityVersion: `v${predecessor.versionNumber}`,
+                eventType: 'SUPERSEDED',
+                newValue: {
+                  status: URSStatus.SUPERSEDED,
+                  supersededBy: approvedSet.id,
+                },
+                actor: 'system',
+                timestamp: new Date(),
               });
             }
           }
         }
+
+        // Approve all requirement versions in this baseline
+        for (const versionId of baseline.requirementVersionIds) {
+          const version = await repo.getRequirementVersion(versionId);
+          if (version && version.status !== 'APPROVED') {
+            await repo.updateRequirementVersion({
+              ...version,
+              status: URSStatus.APPROVED,
+              approvedBy: actor,
+              approvedAt: new Date(),
+            });
+
+            // Supersede any previous versions
+            const previousVersions = await repo.getRequirementVersions(
+              version.requirementId,
+            );
+            for (const prev of previousVersions) {
+              if (prev.id !== versionId && prev.status === 'APPROVED') {
+                await repo.updateRequirementVersion({
+                  ...prev,
+                  status: URSStatus.SUPERSEDED,
+                  supersededBy: versionId,
+                });
+              }
+            }
+          }
+        }
+
+        // Mark approval instance as APPROVED
+        instance.status = ApprovalInstanceStatus.APPROVED;
+        instance.completedBy = actor;
+        instance.completedAt = new Date();
+
+        // Audit final approval
+        await repo.createAuditEvent({
+          id: this.generateUUID(),
+          entityType: 'APPROVAL_INSTANCE',
+          entityId: instance.id,
+          eventType: 'COMPLETED',
+          newValue: instance,
+          actor,
+          timestamp: new Date(),
+        });
+      } else {
+        // Activate next required step
+        const nextStep = instance.steps.find(
+          s => s.required && s.status === 'PENDING',
+        );
+        if (nextStep) {
+          nextStep.status = ApprovalStepStatus.ACTIVE;
+        }
+
+        instance.status = ApprovalInstanceStatus.IN_PROGRESS;
+        instance.currentStepSequence = (instance.currentStepSequence || 0) + 1;
       }
 
-      // Mark approval instance as APPROVED
-      instance.status = ApprovalInstanceStatus.APPROVED;
-      instance.completedBy = actor;
-      instance.completedAt = new Date();
+      // Update approval instance
+      await repo.updateApprovalInstance(instance);
 
-      // Audit final approval
-      await this.repository.createAuditEvent({
-        id: this.generateUUID(),
-        entityType: 'APPROVAL_INSTANCE',
-        entityId: instance.id,
-        eventType: 'COMPLETED',
-        newValue: instance,
-        actor,
-        timestamp: new Date(),
-      });
-    } else {
-      // Activate next required step
-      const nextStep = instance.steps.find(s => s.required && s.status === 'PENDING');
-      if (nextStep) {
-        nextStep.status = ApprovalStepStatus.ACTIVE;
-      }
-
-      instance.status = ApprovalInstanceStatus.IN_PROGRESS;
-      instance.currentStepSequence = (instance.currentStepSequence || 0) + 1;
-    }
-
-    // Update approval instance
-    await this.repository.updateApprovalInstance(instance);
-
-    return instance;
+      return instance;
+    });
   }
 
   /**
