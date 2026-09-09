@@ -176,8 +176,12 @@ describe('P1B API FINAL HTTP VERIFICATION GATE', () => {
 
       const result = await client.get('/api/urs-composer/capabilities');
 
+      // The route is paginated and answers { items, total }; it stopped being
+      // a bare array when limit and offset were added, and the UI client is
+      // typed against that shape.
       expect(result.status).toBe(200);
-      expect(Array.isArray(result.body)).toBe(true);
+      expect(Array.isArray(result.body.items)).toBe(true);
+      expect(typeof result.body.total).toBe('number');
 
       await client.cleanup();
     });
@@ -596,8 +600,8 @@ describe('P1B API FINAL HTTP VERIFICATION GATE', () => {
       const result = await client.get('/api/urs-composer/capabilities');
 
       expect(result.status).toBe(200);
-      expect(Array.isArray(result.body)).toBe(true);
-      expect(result.body.length).toBeGreaterThan(0);
+      expect(Array.isArray(result.body.items)).toBe(true);
+      expect(result.body.items.length).toBeGreaterThan(0);
 
       await client.cleanup();
     });
