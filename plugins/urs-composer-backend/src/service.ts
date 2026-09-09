@@ -2298,6 +2298,15 @@ export class URSService {
       step.comment = comment;
       step.actedAt = new Date();
 
+      // updateApprovalInstance writes the instance row only, so the step has
+      // to be written on its own. Without this the record of who approved
+      // which step, and when, never reaches the database, and the chain can
+      // never complete: the next call re-reads the step as still pending. The
+      // in-memory repository hands back the same object it stores, so the
+      // mutation above appeared to persist and hid this everywhere but
+      // against PostgreSQL.
+      await repo.updateApprovalStep(step);
+
       // Create audit event for step approval
       await repo.createAuditEvent({
         id: this.generateUUID(),
@@ -2411,6 +2420,7 @@ export class URSService {
         );
         if (nextStep) {
           nextStep.status = ApprovalStepStatus.ACTIVE;
+          await repo.updateApprovalStep(nextStep);
         }
 
         instance.status = ApprovalInstanceStatus.IN_PROGRESS;
@@ -2480,6 +2490,9 @@ export class URSService {
     step.comment = reason;
     step.actedAt = new Date();
 
+    // See approveApprovalStep: the instance update does not carry its steps.
+    await this.repository.updateApprovalStep(step);
+
     // Mark approval instance as REJECTED
     instance.status = ApprovalInstanceStatus.REJECTED;
     instance.completedBy = actor;
@@ -2536,6 +2549,7 @@ export class URSService {
         step.status = ApprovalStepStatus.SKIPPED;
         step.actedBy = actor;
         step.actedAt = new Date();
+        await this.repository.updateApprovalStep(step);
       }
     }
 

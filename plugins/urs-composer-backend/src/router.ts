@@ -150,8 +150,8 @@ export async function createRouter(
   router.get('/capabilities', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
       const result = await service.listCapabilities(limit, offset);
       res.json(result);
     } catch (err) {
@@ -263,8 +263,8 @@ export async function createRouter(
   router.get('/business-roles', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
       const result = await service.listBusinessRolesPaginated(limit, offset);
       res.json(result);
     } catch (err) {
@@ -360,8 +360,8 @@ export async function createRouter(
   router.get('/requirement-sets', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
       const result = await service.listRequirementSets(limit, offset);
       res.json(result);
     } catch (err) {
@@ -728,8 +728,8 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-        const offset = parseInt(req.query.offset as string) || 0;
+        const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+        const offset = parseInt(req.query.offset as string, 10) || 0;
         const result = await service.listBaselines(
           req.params.id,
           limit,
@@ -793,8 +793,8 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-        const offset = parseInt(req.query.offset as string) || 0;
+        const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+        const offset = parseInt(req.query.offset as string, 10) || 0;
         const result = await service.listApprovalWorkflows(limit, offset);
         res.json(result);
       } catch (err) {

@@ -1,4 +1,4 @@
-import { renderWithApp } from '../../testUtils';
+import { renderWithApp } from '../../__testUtils__';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { ESignatureDialog } from './ESignatureDialog';
 import { SignatureMeaning } from '../../api/types';

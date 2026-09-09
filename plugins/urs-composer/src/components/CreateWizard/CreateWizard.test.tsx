@@ -8,7 +8,7 @@
  * - Required field blocking
  */
 
-import { renderWithApp } from '../../testUtils';
+import { renderWithApp } from '../../__testUtils__';
 import { screen, waitFor } from '@testing-library/react';
 import { CreateWizard } from './CreateWizard';
 import { ursComposerApiRef } from '../../api/ursComposerApi';

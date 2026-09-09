@@ -178,6 +178,27 @@ describe('URS → Validation integration against real PostgreSQL', () => {
     database: process.env.TEST_DB_NAME || 'urs_composer_test',
   };
   const CAPABILITY = 'business-capability:make/equipment-performance-management';
+
+  // The URS service resolves approval roles from catalog group membership and
+  // fails closed without a catalog. The approver drives every step of the
+  // baseline chain here, so it needs each reviewing group.
+  const CATALOG: any = {
+    getEntityByRef: async (ref: string) => ({
+      kind: 'User',
+      metadata: { name: ref },
+      spec: {
+        memberOf:
+          ref === 'user:default/approver'
+            ? [
+                'group:default/urs-business-reviewers',
+                'group:default/urs-product-managers',
+                'group:default/urs-quality-reviewers',
+              ]
+            : ['group:default/urs-authors'],
+      },
+    }),
+  };
+
   let db: Knex;
   let available = false;
 
@@ -185,9 +206,9 @@ describe('URS → Validation integration against real PostgreSQL', () => {
     db = knex({ client: 'pg', connection: PG });
     try {
       await db.raw('select 1');
-      const migrations = require('../../urs-composer-backend/src/db/migrations');
+      const migrations = require('@internal/plugin-urs-composer-backend/src/db/migrations');
       await migrations.up(db);
-      const seeds = require('../../urs-composer-backend/src/db/seeds');
+      const seeds = require('@internal/plugin-urs-composer-backend/src/db/seeds');
       await seeds.seed(db);
       available = true;
     } catch (err) {
@@ -206,10 +227,18 @@ describe('URS → Validation integration against real PostgreSQL', () => {
       expect(available).toBe(false);
       return;
     }
-    const { URSService } = require('../../urs-composer-backend/src/service');
-    const { PostgresURSRepository } = require('../../urs-composer-backend/src/postgres-repository');
-    const repository = new PostgresURSRepository({ getClient: () => db });
-    const service = new URSService({ logger: mockLogger, repository });
+    const { URSService } = require('@internal/plugin-urs-composer-backend/src/service');
+    const { PostgresURSRepository } = require('@internal/plugin-urs-composer-backend/src/postgres-repository');
+    // The constructor takes a Knex directly; the getClient wrapper belongs to
+    // the static create() factory, which is what the Backstage DatabaseService
+    // shape needs. Passing the wrapper here made every query fail with
+    // "this.db is not a function".
+    const repository = new PostgresURSRepository(db);
+    const service = new URSService({
+      logger: mockLogger,
+      repository,
+      catalog: CATALOG,
+    });
 
     // Create an approved requirement set; then create + fully approve a
     // baseline through its approval workflow so the baseline itself is
