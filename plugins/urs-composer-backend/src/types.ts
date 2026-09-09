@@ -555,6 +555,27 @@ export interface SignatureCredential {
 }
 
 /**
+ * What a pinned version means relative to the predecessor baseline.
+ *
+ * Tells a reviewer where to look: an unchanged requirement was reviewed
+ * before, a modified one has not been.
+ */
+export enum ReviewScope {
+  ADDED = 'ADDED',
+  MODIFIED = 'MODIFIED',
+  UNCHANGED = 'UNCHANGED',
+  /** Backfilled from the old JSON array, where no comparison was recorded. */
+  UNKNOWN = 'UNKNOWN',
+}
+
+/** One requirement version pinned by a baseline. */
+export interface BaselineItem {
+  requirementVersionId: string;
+  reviewScope: ReviewScope;
+  position: number;
+}
+
+/**
  * Baseline
  * Immutable snapshot of a requirement set at a specific point (approval)
  */
@@ -564,8 +585,17 @@ export interface Baseline {
   baselineVersion: string; // e.g., "1.0", "1.1"
   status: URSStatus; // DRAFT, APPROVED, SUPERSEDED, RETIRED
 
-  // References to exact requirement versions
-  requirementVersionIds: string[]; // List of RequirementVersion IDs
+  /**
+   * The pinned versions, in order.
+   *
+   * Backed by the baseline_items table. The requirement_version_ids column on
+   * `baselines` is kept in sync for readers that predate that table but is
+   * deprecated and must not be used as the source of truth.
+   */
+  requirementVersionIds: string[];
+
+  /** Pinned versions with their review scope. Empty for legacy rows. */
+  items?: BaselineItem[];
 
   // Metadata
   createdBy: string;

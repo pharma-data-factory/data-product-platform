@@ -41,6 +41,7 @@ import {
   ImpactAssessment,
 } from './types';
 import { SignaturePinReAuth } from './domain/reauth';
+import { computeReviewScopes } from './domain/baseline';
 import {
   hashOf,
   SignatureService,
@@ -1569,12 +1570,23 @@ export class URSService {
     baselineVersion: string,
     actor: string,
   ): Promise<Baseline> {
+    const pinned = await this.loadPinnedVersions(
+      requirementSetId,
+      requirementVersionIds,
+    );
+    const items = computeReviewScopes(
+      requirementVersionIds,
+      pinned,
+      await this.predecessorContents(requirementSetId),
+    );
+
     const baseline: Baseline = {
       id: this.generateUUID(),
       requirementSetId,
       baselineVersion,
       status: URSStatus.DRAFT,
       requirementVersionIds,
+      items,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -1594,6 +1606,238 @@ export class URSService {
     });
 
     return baseline;
+  }
+
+  /**
+   * Load the versions a baseline is about to pin, refusing anything that does
+   * not exist or belongs to a different requirement set.
+   *
+   * Baselining a version from another set would produce a snapshot that claims
+   * to describe this set but does not.
+   */
+  private async loadPinnedVersions(
+    requirementSetId: string,
+    versionIds: string[],
+  ): Promise<Map<string, RequirementVersion>> {
+    const unique = [...new Set(versionIds)];
+    if (unique.length !== versionIds.length) {
+      throw new InputError(
+        'A baseline cannot pin the same requirement version twice.',
+      );
+    }
+    if (!unique.length) {
+      return new Map();
+    }
+
+    const found = await this.repository.getRequirementVersionsByIds(unique);
+    const byId = new Map(found.map(v => [v.id, v]));
+
+    const missing = unique.filter(id => !byId.has(id));
+    if (missing.length) {
+      throw new NotFoundError(
+        `Requirement version(s) not found: ${missing.join(', ')}`,
+      );
+    }
+
+    // A version belongs to the set through its requirement.
+    const requirements = await this.repository.getRequirements(requirementSetId);
+    const ownRequirementIds = new Set(requirements.map(r => r.requirementId));
+
+    const foreign = found.filter(v => !ownRequirementIds.has(v.requirementId));
+    if (foreign.length) {
+      throw new InputError(
+        `Requirement version(s) do not belong to requirement set ${requirementSetId}: ` +
+          foreign.map(v => `${v.id} (${v.requirementId})`).join(', '),
+      );
+    }
+
+    return byId;
+  }
+
+  /**
+   * The versions pinned by the most recent baseline of a set, or null when
+   * this is the first one.
+   */
+  private async predecessorContents(
+    requirementSetId: string,
+  ): Promise<RequirementVersion[] | null> {
+    const baselines = await this.repository.listBaselines(
+      requirementSetId,
+      200,
+      0,
+    );
+    if (!baselines.items.length) {
+      return null;
+    }
+
+    const latest = baselines.items
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .pop()!;
+
+    return this.repository.getRequirementVersionsByIds(
+      latest.requirementVersionIds ?? [],
+    );
+  }
+
+  /**
+   * Invariant 9: a released baseline never contains unreleased content.
+   *
+   * Checked when the baseline is released rather than when it is assembled, so
+   * that a draft baseline can still be put together from work in progress.
+   */
+  private async assertPinnedVersionsReleased(
+    repo: IURSRepository,
+    baseline: Baseline,
+  ): Promise<void> {
+    const versionIds = baseline.requirementVersionIds ?? [];
+    if (!versionIds.length) {
+      return;
+    }
+
+    const versions = await repo.getRequirementVersionsByIds(versionIds);
+    const unreleased = versions.filter(v => v.status !== URSStatus.APPROVED);
+
+    if (unreleased.length) {
+      throw new ConflictError(
+        `Baseline ${baseline.baselineVersion} cannot be released: ` +
+          `${unreleased.length} pinned version(s) are not approved — ` +
+          unreleased
+            .map(v => `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`)
+            .join(', '),
+      );
+    }
+  }
+
+  /**
+   * Invariant 16: a version pinned by a released baseline cannot be retired.
+   *
+   * The baseline is the record of what was released; dropping a requirement
+   * out from under it would leave that record pointing at nothing.
+   */
+  async obsoleteRequirementVersion(
+    versionId: string,
+    reason: string,
+    actor: string,
+  ): Promise<RequirementVersion> {
+    if (!reason?.trim()) {
+      throw new InputError('A reason is required to make a version obsolete');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const version = await repo.getRequirementVersion(versionId);
+      if (!version) {
+        throw new NotFoundError(`Requirement version ${versionId} not found`);
+      }
+
+      const blocking = (
+        await repo.getBaselinesPinningVersion(versionId)
+      ).filter(b => b.status === URSStatus.APPROVED);
+
+      if (blocking.length) {
+        throw new ConflictError(
+          `Requirement version ${versionId} is pinned by released baseline(s) ` +
+            `and cannot be made obsolete: ` +
+            blocking.map(b => `${b.baselineVersion} (${b.id})`).join(', '),
+        );
+      }
+
+      // The transition map rejects anything that was not released.
+      const obsolete = {
+        ...version,
+        status: URSStatus.OBSOLETE,
+      };
+      await repo.updateRequirementVersion(obsolete);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'REQUIREMENT_VERSION',
+        entityId: versionId,
+        entityVersion: version.versionLabel ?? version.version,
+        eventType: 'OBSOLETED',
+        oldValue: { status: version.status },
+        newValue: { status: URSStatus.OBSOLETE },
+        actor,
+        timestamp: new Date(),
+        reason,
+      });
+
+      return obsolete;
+    });
+  }
+
+  /**
+   * Release a baseline.
+   *
+   * Invariant 9 is enforced here: nothing unreleased may be pinned by a
+   * baseline that is going out. Invariant 10 is the ordering — the predecessor
+   * is superseded as part of the successor's release, in the same transaction,
+   * so there is never a moment with two effective baselines or none.
+   */
+  private async releaseBaseline(
+    repo: IURSRepository,
+    baseline: Baseline,
+    actor: string,
+  ): Promise<void> {
+    await this.assertPinnedVersionsReleased(repo, baseline);
+
+    const previous = await repo.getCurrentApprovedBaseline(
+      baseline.requirementSetId,
+    );
+
+    // The lifecycle runs DRAFT -> IN_REVIEW -> IN_APPROVAL -> APPROVED. The
+    // caller has just recorded the final step, which is the point the baseline
+    // is under decision rather than under review, so that state is recorded
+    // before the approval instead of being skipped over.
+    let current = baseline;
+    if (current.status === URSStatus.IN_REVIEW) {
+      await repo.updateBaseline({
+        ...current,
+        status: URSStatus.IN_APPROVAL,
+      });
+      current = (await repo.getBaseline(current.id))!;
+    }
+
+    await repo.updateBaseline({
+      ...current,
+      status: URSStatus.APPROVED,
+      approvedBy: actor,
+      approvedAt: new Date(),
+      revision: current.revision || 1,
+    });
+
+    if (previous && previous.id !== baseline.id) {
+      await repo.updateBaseline({
+        ...previous,
+        status: URSStatus.SUPERSEDED,
+        supersededBy: baseline.id,
+      });
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'BASELINE',
+        entityId: previous.id,
+        entityVersion: previous.baselineVersion,
+        eventType: 'SUPERSEDED',
+        newValue: {
+          status: URSStatus.SUPERSEDED,
+          supersededBy: baseline.id,
+        },
+        actor: 'system',
+        timestamp: new Date(),
+      });
+    }
+
+    await repo.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BASELINE',
+      entityId: baseline.id,
+      entityVersion: baseline.baselineVersion,
+      eventType: 'APPROVED',
+      newValue: { status: URSStatus.APPROVED, approvedBy: actor },
+      actor,
+      timestamp: new Date(),
+    });
   }
 
   /**
@@ -1738,54 +1982,27 @@ export class URSService {
     actor: string,
     workflowId?: string,
   ): Promise<{ baseline: Baseline; workflow: ApprovalWorkflow | null }> {
-    const baseline = await this.repository.getBaseline(baselineId);
+    let baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
       throw new Error('Baseline not found');
     }
 
-    if (baseline.status !== URSStatus.DRAFT) {
-      throw new Error(`Cannot approve baseline in ${baseline.status} status`);
+    // A baseline is released by completing its approval chain, which is what
+    // records who approved what. Releasing it from here would skip that.
+    if (baseline.status !== URSStatus.IN_APPROVAL) {
+      throw new ConflictError(
+        `Baseline ${baselineId} is ${baseline.status}. A baseline is released by ` +
+          `completing its approval chain, not directly.`,
+      );
     }
 
-    // Supersede previous approved baseline
-    const prevApproved = await this.repository.getCurrentApprovedBaseline(
-      baseline.requirementSetId,
+    // Releasing the baseline and superseding its predecessor is one act; a
+    // failure in between must not leave the set with two effective baselines.
+    const toRelease = baseline;
+    await this.repository.withTransaction(repo =>
+      this.releaseBaseline(repo, toRelease, actor),
     );
-    if (prevApproved) {
-      prevApproved.status = URSStatus.SUPERSEDED;
-      prevApproved.supersededBy = baseline.id;
-      await this.repository.updateBaseline(prevApproved);
-
-      await this.repository.createAuditEvent({
-        id: this.generateUUID(),
-        entityType: 'BASELINE',
-        entityId: prevApproved.id,
-        entityVersion: prevApproved.baselineVersion,
-        eventType: 'SUPERSEDED',
-        newValue: { status: URSStatus.SUPERSEDED },
-        actor: 'system',
-        timestamp: new Date(),
-      });
-    }
-
-    // Update baseline
-    baseline.status = URSStatus.APPROVED;
-    baseline.approvedBy = actor;
-    baseline.approvedAt = new Date();
-    baseline.revision++;
-    await this.repository.updateBaseline(baseline);
-
-    // Audit
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'BASELINE',
-      entityId: baseline.id,
-      entityVersion: baseline.baselineVersion,
-      eventType: 'APPROVED',
-      newValue: baseline,
-      actor,
-      timestamp: new Date(),
-    });
+    baseline = (await this.repository.getBaseline(baselineId))!;
 
     // Get workflow if specified
     let workflow: ApprovalWorkflow | null = null;
@@ -2025,14 +2242,11 @@ export class URSService {
           throw new Error('Baseline not found');
         }
 
-        // Update baseline to APPROVED
-        await repo.updateBaseline({
-          ...baseline,
-          status: URSStatus.APPROVED,
-          approvedBy: actor,
-          approvedAt: new Date(),
-          revision: baseline.revision || 1,
-        });
+        // Completing the chain releases the baseline, not its contents: a
+        // requirement version is released on its own quality signature. If any
+        // pinned version is still unreleased, invariant 9 refuses here and
+        // names them, rather than approving them as a side effect.
+        await this.releaseBaseline(repo, baseline, actor);
 
         // Propagate approval to the requirement set and close the version
         // chain: once a revision is approved, its predecessor stops being
@@ -2075,33 +2289,6 @@ export class URSService {
                 actor: 'system',
                 timestamp: new Date(),
               });
-            }
-          }
-        }
-
-        // Approve all requirement versions in this baseline
-        for (const versionId of baseline.requirementVersionIds) {
-          const version = await repo.getRequirementVersion(versionId);
-          if (version && version.status !== 'APPROVED') {
-            await repo.updateRequirementVersion({
-              ...version,
-              status: URSStatus.APPROVED,
-              approvedBy: actor,
-              approvedAt: new Date(),
-            });
-
-            // Supersede any previous versions
-            const previousVersions = await repo.getRequirementVersions(
-              version.requirementId,
-            );
-            for (const prev of previousVersions) {
-              if (prev.id !== versionId && prev.status === 'APPROVED') {
-                await repo.updateRequirementVersion({
-                  ...prev,
-                  status: URSStatus.SUPERSEDED,
-                  supersededBy: versionId,
-                });
-              }
             }
           }
         }

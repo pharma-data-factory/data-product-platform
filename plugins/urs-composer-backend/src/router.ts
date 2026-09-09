@@ -1021,6 +1021,34 @@ export async function createRouter(
   });
 
   /**
+   * POST /requirement-versions/:id/obsolete
+   * Retire a released version. Refused with 409 while a released baseline
+   * still pins it (invariant 16).
+   */
+  router.post('/requirement-versions/:id/obsolete', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursManagePermission,
+      );
+      if (!requireBody(res, req.body, 'reason')) {
+        return;
+      }
+      res.json(
+        await service.obsoleteRequirementVersion(
+          req.params.id,
+          req.body.reason,
+          actor,
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * GET /requirement-versions/:id/signatures
    * The signatures applied to a requirement version.
    */

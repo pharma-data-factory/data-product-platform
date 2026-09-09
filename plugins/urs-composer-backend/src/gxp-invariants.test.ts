@@ -16,6 +16,7 @@ import { IURSRepository } from './repository-interface';
 import {
   AuditEvent,
   ChangeRequestStatus,
+  ReviewScope,
   RequirementPriority,
   RequirementVersion,
   SignatureMeaning,
@@ -258,6 +259,105 @@ describe('GxP invariants enforced by the database', () => {
           meaning: SignatureMeaning.AUTHORED,
         }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('Baseline contents are a snapshot', () => {
+    async function aBaseline(id: string, status: URSStatus) {
+      await db('requirement_sets')
+        .insert({
+          id: `set-${id}`,
+          requirement_set_id: `URS-${id}`.slice(0, 20),
+          version_number: 1,
+          business_capability_refs: '[]',
+          business_need: 'Baseline snapshot',
+          solution_type: 'PROJECT',
+          solution_name: 'Snapshot',
+          gxp_relevance: 'NONE',
+          status: 'DRAFT',
+          created_by: 'user:default/author',
+          created_at: new Date(),
+        })
+        .onConflict('id')
+        .ignore();
+
+      await repo.createBaseline({
+        id,
+        requirementSetId: `set-${id}`,
+        baselineVersion: '1.0',
+        status,
+        requirementVersionIds: [],
+        items: [
+          {
+            requirementVersionId: 'ver-pinned',
+            reviewScope: ReviewScope.ADDED,
+            position: 0,
+          },
+        ],
+        createdBy: 'user:default/author',
+        createdAt: new Date(),
+        revision: 1,
+      });
+    }
+
+    test('a draft baseline may still be assembled', async () => {
+      await aBaseline('bl-draft', URSStatus.DRAFT);
+
+      await expect(
+        db('baseline_items').insert({
+          baseline_id: 'bl-draft',
+          requirement_version_id: 'ver-second',
+          review_scope: 'ADDED',
+          position: 1,
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    test('a released baseline cannot gain, lose or change items', async () => {
+      await aBaseline('bl-released', URSStatus.DRAFT);
+      await db('baselines')
+        .where({ id: 'bl-released' })
+        .update({ status: URSStatus.APPROVED });
+
+      await expect(
+        db('baseline_items').insert({
+          baseline_id: 'bl-released',
+          requirement_version_id: 'ver-extra',
+          review_scope: 'ADDED',
+          position: 1,
+        }),
+      ).rejects.toThrow(/URS_IMMUTABLE/);
+
+      await expect(
+        db('baseline_items')
+          .where({ baseline_id: 'bl-released' })
+          .update({ review_scope: 'UNCHANGED' }),
+      ).rejects.toThrow(/URS_IMMUTABLE/);
+
+      await expect(
+        db('baseline_items').where({ baseline_id: 'bl-released' }).del(),
+      ).rejects.toThrow(/URS_IMMUTABLE/);
+    });
+
+    test('items round-trip through the repository, not the legacy column', async () => {
+      await aBaseline('bl-roundtrip', URSStatus.DRAFT);
+
+      const loaded = await repo.getBaseline('bl-roundtrip');
+      expect(loaded!.items).toEqual([
+        {
+          requirementVersionId: 'ver-pinned',
+          reviewScope: ReviewScope.ADDED,
+          position: 0,
+        },
+      ]);
+      expect(loaded!.requirementVersionIds).toEqual(['ver-pinned']);
+    });
+
+    test('the deprecated JSON column is kept in step for older readers', async () => {
+      await aBaseline('bl-legacy', URSStatus.DRAFT);
+
+      const row = await db('baselines').where({ id: 'bl-legacy' }).first();
+      expect(JSON.parse(row.requirement_version_ids)).toEqual(['ver-pinned']);
     });
   });
 

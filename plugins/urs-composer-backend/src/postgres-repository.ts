@@ -32,7 +32,10 @@ import {
   ChangeRequest,
   ChangeRequestStatus,
   ImpactAssessment,
+  BaselineItem,
+  ReviewScope,
 } from './types';
+import { baselineItemsOf } from './domain/baseline';
 import { ConflictError, NotFoundError } from '@backstage/errors';
 import {
   assertChangeRequestTransition,
@@ -530,12 +533,17 @@ export class PostgresURSRepository implements IURSRepository {
   // ============================================================================
 
   async createBaseline(baseline: Baseline): Promise<Baseline> {
+    const items = baselineItemsOf(baseline);
+
     await this.db('baselines').insert({
       id: baseline.id,
       requirement_set_id: baseline.requirementSetId,
       baseline_version: baseline.baselineVersion,
       status: baseline.status,
-      requirement_version_ids: JSON.stringify(baseline.requirementVersionIds),
+      // Deprecated; kept in sync for readers that predate baseline_items.
+      requirement_version_ids: JSON.stringify(
+        items.map(i => i.requirementVersionId),
+      ),
       created_by: baseline.createdBy,
       created_at: baseline.createdAt,
       approved_by: baseline.approvedBy || null,
@@ -543,14 +551,27 @@ export class PostgresURSRepository implements IURSRepository {
       superseded_by: baseline.supersededBy || null,
       revision: baseline.revision || 1,
     });
-    return baseline;
+
+    if (items.length) {
+      await this.db('baseline_items').insert(
+        items.map(item => ({
+          baseline_id: baseline.id,
+          requirement_version_id: item.requirementVersionId,
+          review_scope: item.reviewScope,
+          position: item.position,
+        })),
+      );
+    }
+
+    return { ...baseline, items };
   }
 
   async getBaseline(id: string): Promise<Baseline | null> {
     const result = await this.db('baselines').where({ id }).first();
     if (!result) return null;
 
-    return this.rowToBaseline(result);
+    const [baseline] = await this.withItems([result]);
+    return baseline;
   }
 
   async listBaselines(
@@ -570,7 +591,7 @@ export class PostgresURSRepository implements IURSRepository {
       .offset(offset)
       .select();
 
-    return { items: results.map((r: any) => this.rowToBaseline(r)), total };
+    return { items: await this.withItems(results), total };
   }
 
   async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {
@@ -580,7 +601,55 @@ export class PostgresURSRepository implements IURSRepository {
       .first();
 
     if (!result) return null;
-    return this.rowToBaseline(result);
+    const [baseline] = await this.withItems([result]);
+    return baseline;
+  }
+
+  /**
+   * Attach pinned items to baseline rows in one query.
+   *
+   * Reads from baseline_items rather than the deprecated JSON column; the
+   * migration backfilled it, so every row has its contents there.
+   */
+  private async withItems(rows: any[]): Promise<Baseline[]> {
+    if (!rows.length) return [];
+
+    const itemRows = await this.db('baseline_items')
+      .whereIn(
+        'baseline_id',
+        rows.map(r => r.id),
+      )
+      .orderBy('position', 'asc')
+      .select();
+
+    const byBaseline = new Map<string, BaselineItem[]>();
+    for (const row of itemRows) {
+      const list = byBaseline.get(row.baseline_id) ?? [];
+      list.push({
+        requirementVersionId: row.requirement_version_id,
+        reviewScope: row.review_scope as ReviewScope,
+        position: row.position,
+      });
+      byBaseline.set(row.baseline_id, list);
+    }
+
+    return rows.map(row => {
+      const items = byBaseline.get(row.id) ?? [];
+      return {
+        ...this.rowToBaseline(row),
+        items,
+        requirementVersionIds: items.map(i => i.requirementVersionId),
+      };
+    });
+  }
+
+  async getBaselinesPinningVersion(versionId: string): Promise<Baseline[]> {
+    const rows = await this.db('baselines')
+      .join('baseline_items', 'baselines.id', 'baseline_items.baseline_id')
+      .where('baseline_items.requirement_version_id', versionId)
+      .select('baselines.*');
+
+    return this.withItems(rows);
   }
 
   async updateBaseline(baseline: Baseline): Promise<void> {

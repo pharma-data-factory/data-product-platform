@@ -194,6 +194,14 @@ export interface IURSRepository {
     entityType: string,
   ): Promise<AuditEvent[]>;
 
+  /**
+   * Baselines that pin a given requirement version.
+   *
+   * Used to refuse making a version obsolete while a released baseline still
+   * depends on it (invariant 16).
+   */
+  getBaselinesPinningVersion(versionId: string): Promise<Baseline[]>;
+
   // ============================================================================
   // CHANGE CONTROL
   // ============================================================================

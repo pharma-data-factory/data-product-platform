@@ -404,6 +404,63 @@ export async function up(knex: Knex): Promise<void> {
   }
 
   // ============================================================================
+  // BASELINE ITEMS
+  // ============================================================================
+
+  // Replaces the requirement_version_ids JSON array on `baselines`, which
+  // could not carry per-item data and could not be joined against. That column
+  // is kept in sync for readers that predate this table, but it is deprecated:
+  // baseline_items is the source of truth.
+  if (!(await knex.schema.hasTable('baseline_items'))) {
+    await knex.schema.createTable('baseline_items', table => {
+      table.string('baseline_id', 255).notNullable();
+      table.string('requirement_version_id', 255).notNullable();
+      // What changed relative to the predecessor baseline; computed
+      // server-side. UNKNOWN marks rows backfilled from the JSON array, where
+      // the comparison was never recorded.
+      table.string('review_scope', 20).notNullable().defaultTo('UNKNOWN');
+      table.integer('position').notNullable().defaultTo(0);
+
+      table.primary(['baseline_id', 'requirement_version_id']);
+      table.index(['requirement_version_id']);
+      table.foreign('baseline_id').references('id').inTable('baselines');
+    });
+
+    // Backfill from the JSON array so existing baselines keep their contents.
+    const legacy = await knex('baselines').select(
+      'id',
+      'requirement_version_ids',
+    );
+    const rows: Array<{
+      baseline_id: string;
+      requirement_version_id: string;
+      review_scope: string;
+      position: number;
+    }> = [];
+
+    for (const baseline of legacy) {
+      let ids: string[] = [];
+      try {
+        ids = JSON.parse(baseline.requirement_version_ids || '[]');
+      } catch {
+        ids = [];
+      }
+      ids.forEach((versionId, position) => {
+        rows.push({
+          baseline_id: baseline.id,
+          requirement_version_id: versionId,
+          review_scope: 'UNKNOWN',
+          position,
+        });
+      });
+    }
+
+    if (rows.length) {
+      await knex.batchInsert('baseline_items', rows, 100);
+    }
+  }
+
+  // ============================================================================
   // CHANGE CONTROL
   // ============================================================================
 
@@ -625,6 +682,29 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
     $fn$ LANGUAGE plpgsql
   `);
 
+  // A baseline is a snapshot. Once it is released, what it pins is the record
+  // of what was released, so its contents stop being editable.
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION urs_baseline_item_frozen()
+    RETURNS trigger AS $fn$
+    DECLARE
+      target_id text;
+      baseline_status text;
+    BEGIN
+      target_id := COALESCE(NEW.baseline_id, OLD.baseline_id);
+      SELECT status INTO baseline_status FROM baselines WHERE id = target_id;
+
+      IF baseline_status IS DISTINCT FROM 'DRAFT' THEN
+        RAISE EXCEPTION
+          'URS_IMMUTABLE: baseline % is % and its contents are frozen',
+          target_id, baseline_status USING ERRCODE = '23514';
+      END IF;
+
+      RETURN COALESCE(NEW, OLD);
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
   // A decided change request is the authority a later version was raised
   // under. Rewriting it afterwards would rewrite that justification.
   await knex.raw(`
@@ -692,6 +772,12 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
       'BEFORE UPDATE',
       'urs_change_request_immutability',
     ],
+    [
+      'baseline_items_frozen',
+      'baseline_items',
+      'BEFORE INSERT OR UPDATE OR DELETE',
+      'urs_baseline_item_frozen',
+    ],
   ];
 
   for (const [name, table, timing, fn] of triggers) {
@@ -708,6 +794,7 @@ export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('signatures');
   await knex.schema.dropTableIfExists('impact_assessments');
   await knex.schema.dropTableIfExists('change_requests');
+  await knex.schema.dropTableIfExists('baseline_items');
   await knex.schema.dropTableIfExists('audit_events');
   await knex.schema.dropTableIfExists('approval_steps');
   await knex.schema.dropTableIfExists('approval_instances');

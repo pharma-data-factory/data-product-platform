@@ -31,6 +31,7 @@ import {
   assertChangeRequestTransition,
   assertTransition,
 } from './domain/transitions';
+import { baselineItemsOf } from './domain/baseline';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import {
@@ -472,8 +473,22 @@ export class URSRepository implements IURSRepository {
   // ============================================================================
 
   async createBaseline(baseline: Baseline): Promise<Baseline> {
-    this.baselines.set(baseline.id, baseline);
-    return baseline;
+    // Items and the id list are two views of the same thing; normalising here
+    // keeps them from drifting apart, as they do in Postgres by construction.
+    const items = baselineItemsOf(baseline);
+    const stored: Baseline = {
+      ...baseline,
+      items,
+      requirementVersionIds: items.map(i => i.requirementVersionId),
+    };
+    this.baselines.set(baseline.id, stored);
+    return stored;
+  }
+
+  async getBaselinesPinningVersion(versionId: string): Promise<Baseline[]> {
+    return Array.from(this.baselines.values()).filter(b =>
+      baselineItemsOf(b).some(i => i.requirementVersionId === versionId),
+    );
   }
 
   async getBaseline(id: string): Promise<Baseline | null> {
@@ -516,6 +531,9 @@ export class URSRepository implements IURSRepository {
 
     this.baselines.set(baseline.id, {
       ...baseline,
+      // Contents are set at creation. Postgres never updates them either.
+      items: existing.items,
+      requirementVersionIds: existing.requirementVersionIds,
       revision: (existing.revision || 1) + 1,
     });
   }
