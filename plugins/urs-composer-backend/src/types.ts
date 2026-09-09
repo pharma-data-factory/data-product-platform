@@ -235,7 +235,8 @@ export interface AuditEvent {
     | 'APPROVAL_STEP'
     | 'BUSINESS_CAPABILITY'
     | 'BUSINESS_ROLE'
-    | 'SIGNATURE_CREDENTIAL';
+    | 'SIGNATURE_CREDENTIAL'
+    | 'CHANGE_REQUEST';
   entityId: string;
   eventType: string;
   // Semantic/string version identifier of the audited entity when relevant
@@ -426,6 +427,13 @@ export interface RequirementVersion {
    * @internal/platform-common. Bound to every signature on this version.
    */
   contentHash?: string;
+  /**
+   * The approved change request this version was raised under.
+   *
+   * Required once the requirement has a released version (invariant 8); the
+   * first version of a requirement needs none.
+   */
+  changeRequestId?: string;
   revision: number; // Optimistic concurrency control
 }
 
@@ -446,6 +454,7 @@ export enum SignatureMeaning {
 export enum SignatureTargetType {
   REQUIREMENT_VERSION = 'REQUIREMENT_VERSION',
   BASELINE = 'BASELINE',
+  CHANGE_REQUEST = 'CHANGE_REQUEST',
 }
 
 /**
@@ -468,6 +477,65 @@ export interface Signature {
    */
   contentHashAtSigning: string;
   comment?: string;
+}
+
+/**
+ * Change request lifecycle.
+ *
+ * A change to a released requirement is decided before it is made, not
+ * afterwards. The impact has to be assessed before anyone can approve it, so
+ * approval never happens without a written assessment on record.
+ */
+export enum ChangeRequestStatus {
+  DRAFT = 'DRAFT',
+  ASSESSED = 'ASSESSED',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+/**
+ * A request to change one or more released requirements.
+ *
+ * Identified by CR-<year>-<sequence>, assigned server-side. Clients never
+ * choose the identifier.
+ */
+export interface ChangeRequest {
+  id: string;
+  title: string;
+  description: string;
+  /** Why the change is needed — the business justification. */
+  reason: string;
+  /** Logical requirement ids the change is expected to touch. */
+  affectedRequirementIds: string[];
+  status: ChangeRequestStatus;
+  requestedBy: string;
+  requestedAt: Date;
+  /** Set when the request is approved or rejected. */
+  decidedBy?: string;
+  decidedAt?: Date;
+  decisionReason?: string;
+  revision: number;
+}
+
+/**
+ * The assessment of what a change request would affect.
+ *
+ * Required before approval: an approval without a recorded assessment is a
+ * decision taken without evidence.
+ */
+export interface ImpactAssessment {
+  id: string;
+  changeRequestId: string;
+  /** Free text: what breaks, what has to be retested, what stays. */
+  summary: string;
+  /** Whether the change touches GxP-relevant behaviour. */
+  gxpImpact: boolean;
+  /** What this means for existing validation evidence. */
+  validationImpact: string;
+  /** Requirement versions the assessor identified as affected. */
+  affectedVersionIds: string[];
+  assessedBy: string;
+  assessedAt: Date;
 }
 
 /**
@@ -620,6 +688,11 @@ export interface BusinessRolePersisted {
 
 export interface CreateRevisionRequest {
   revisionReason: string;
+  /**
+   * Required when the requirement already has a released version
+   * (invariant 8); ignored for a requirement that has never been released.
+   */
+  changeRequestId?: string;
 }
 
 export interface CreateBaselineRequest {

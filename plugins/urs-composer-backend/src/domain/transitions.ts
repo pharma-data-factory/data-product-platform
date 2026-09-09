@@ -10,7 +10,7 @@
  */
 
 import { ConflictError } from '@backstage/errors';
-import { URSStatus } from '../types';
+import { ChangeRequestStatus, URSStatus } from '../types';
 
 /** Requirement version lifecycle (spec invariant 3). */
 export const VERSION_TRANSITIONS: Readonly<Record<URSStatus, URSStatus[]>> = {
@@ -76,6 +76,29 @@ export const SET_TRANSITIONS: Readonly<Record<URSStatus, URSStatus[]>> = {
   [URSStatus.OBSOLETE]: [],
 };
 
+/**
+ * Change request lifecycle.
+ *
+ * Assessment comes before the decision, so there is no path from DRAFT
+ * straight to APPROVED: nobody approves a change whose impact nobody wrote
+ * down. A rejected request is closed for good; the next attempt is a new
+ * request, which keeps the earlier refusal in the record.
+ */
+export const CHANGE_REQUEST_TRANSITIONS: Readonly<
+  Record<ChangeRequestStatus, ChangeRequestStatus[]>
+> = {
+  [ChangeRequestStatus.DRAFT]: [
+    ChangeRequestStatus.ASSESSED,
+    ChangeRequestStatus.REJECTED,
+  ],
+  [ChangeRequestStatus.ASSESSED]: [
+    ChangeRequestStatus.APPROVED,
+    ChangeRequestStatus.REJECTED,
+  ],
+  [ChangeRequestStatus.APPROVED]: [],
+  [ChangeRequestStatus.REJECTED]: [],
+};
+
 export type TransitionKind = 'version' | 'baseline' | 'set';
 
 const MAPS: Record<TransitionKind, Readonly<Record<URSStatus, URSStatus[]>>> = {
@@ -89,6 +112,34 @@ const LABELS: Record<TransitionKind, string> = {
   baseline: 'Baseline',
   set: 'Requirement set',
 };
+
+/**
+ * Throw unless the change request transition is legal.
+ *
+ * Separate from assertTransition because change requests run on their own
+ * status enum rather than URSStatus.
+ *
+ * @throws ConflictError mapped to HTTP 409 by the router.
+ */
+export function assertChangeRequestTransition(
+  from: ChangeRequestStatus,
+  to: ChangeRequestStatus,
+  context?: string,
+): void {
+  const allowed = CHANGE_REQUEST_TRANSITIONS[from] ?? [];
+  if (allowed.includes(to)) {
+    return;
+  }
+
+  const target = context ? ` ${context}` : '';
+  const options = allowed.length
+    ? `Allowed from ${from}: ${allowed.join(', ')}.`
+    : `${from} is an end state.`;
+
+  throw new ConflictError(
+    `Change request${target} cannot move from ${from} to ${to}. ${options}`,
+  );
+}
 
 /** Whether `to` is reachable from `from` for the given entity kind. */
 export function canTransition(

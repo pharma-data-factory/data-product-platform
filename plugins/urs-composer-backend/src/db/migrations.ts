@@ -404,6 +404,60 @@ export async function up(knex: Knex): Promise<void> {
   }
 
   // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  if (!(await knex.schema.hasTable('change_requests'))) {
+    await knex.schema.createTable('change_requests', table => {
+      // Human-readable and assigned server-side: CR-<year>-<sequence>.
+      table.string('id', 64).primary();
+      table.string('title', 255).notNullable();
+      table.text('description').notNullable();
+      table.text('reason').notNullable();
+      table.text('affected_requirement_ids').notNullable();
+      table.string('status', 50).notNullable().defaultTo('DRAFT');
+      table.string('requested_by', 255).notNullable();
+      table.timestamp('requested_at').notNullable().defaultTo(knex.fn.now());
+      table.string('decided_by', 255);
+      table.timestamp('decided_at');
+      table.text('decision_reason');
+      table.integer('revision').notNullable().defaultTo(1);
+
+      table.index(['status']);
+      table.index(['requested_by']);
+    });
+  }
+
+  if (!(await knex.schema.hasTable('impact_assessments'))) {
+    await knex.schema.createTable('impact_assessments', table => {
+      table.string('id', 255).primary();
+      // One assessment per request: a second one would leave it ambiguous
+      // which assessment the approval was based on.
+      table.string('change_request_id', 64).notNullable().unique();
+      table.text('summary').notNullable();
+      table.boolean('gxp_impact').notNullable().defaultTo(false);
+      table.text('validation_impact').notNullable();
+      table.text('affected_version_ids').notNullable();
+      table.string('assessed_by', 255).notNullable();
+      table.timestamp('assessed_at').notNullable().defaultTo(knex.fn.now());
+
+      table
+        .foreign('change_request_id')
+        .references('id')
+        .inTable('change_requests');
+    });
+  }
+
+  // Idempotent: the approved change request a version was raised under.
+  if (
+    !(await knex.schema.hasColumn('requirement_versions', 'change_request_id'))
+  ) {
+    await knex.schema.alterTable('requirement_versions', table => {
+      table.string('change_request_id', 64).index();
+    });
+  }
+
+  // ============================================================================
   // ELECTRONIC SIGNATURES (21 CFR Part 11 / EU Annex 11)
   // ============================================================================
 
@@ -514,6 +568,7 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
          OR NEW.component_type     IS DISTINCT FROM OLD.component_type
          OR NEW.requirement_nature IS DISTINCT FROM OLD.requirement_nature
          OR NEW.content_hash       IS DISTINCT FROM OLD.content_hash
+         OR NEW.change_request_id  IS DISTINCT FROM OLD.change_request_id
       ) THEN
         RAISE EXCEPTION
           'URS_IMMUTABLE: requirement version % is content-frozen at status %',
@@ -570,6 +625,31 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
     $fn$ LANGUAGE plpgsql
   `);
 
+  // A decided change request is the authority a later version was raised
+  // under. Rewriting it afterwards would rewrite that justification.
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION urs_change_request_immutability()
+    RETURNS trigger AS $fn$
+    BEGIN
+      IF OLD.status IN ('APPROVED', 'REJECTED') THEN
+        RAISE EXCEPTION
+          'URS_IMMUTABLE: change request % was already %; it cannot be changed',
+          OLD.id, OLD.status USING ERRCODE = '23514';
+      END IF;
+
+      IF NEW.id            IS DISTINCT FROM OLD.id
+      OR NEW.requested_by  IS DISTINCT FROM OLD.requested_by
+      OR NEW.requested_at  IS DISTINCT FROM OLD.requested_at THEN
+        RAISE EXCEPTION
+          'URS_IMMUTABLE: origin of change request % cannot be changed', OLD.id
+          USING ERRCODE = '23514';
+      END IF;
+
+      RETURN NEW;
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
   // CREATE TRIGGER has no IF NOT EXISTS before PostgreSQL 14, and this
   // migration runs on every boot, so each trigger is dropped and recreated.
   const triggers: Array<[string, string, string, string]> = [
@@ -599,6 +679,19 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
       'BEFORE UPDATE OR DELETE',
       'urs_append_only',
     ],
+    // The assessment an approval was based on stays as it was written.
+    [
+      'impact_assessments_append_only',
+      'impact_assessments',
+      'BEFORE UPDATE OR DELETE',
+      'urs_append_only',
+    ],
+    [
+      'change_requests_immutability',
+      'change_requests',
+      'BEFORE UPDATE',
+      'urs_change_request_immutability',
+    ],
   ];
 
   for (const [name, table, timing, fn] of triggers) {
@@ -613,6 +706,8 @@ export async function down(knex: Knex): Promise<void> {
   // Tables removed in reverse dependency order
   await knex.schema.dropTableIfExists('signature_credentials');
   await knex.schema.dropTableIfExists('signatures');
+  await knex.schema.dropTableIfExists('impact_assessments');
+  await knex.schema.dropTableIfExists('change_requests');
   await knex.schema.dropTableIfExists('audit_events');
   await knex.schema.dropTableIfExists('approval_steps');
   await knex.schema.dropTableIfExists('approval_instances');

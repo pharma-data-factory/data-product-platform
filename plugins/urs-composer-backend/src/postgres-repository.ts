@@ -29,9 +29,15 @@ import {
   Signature,
   SignatureCredential,
   SignatureTargetType,
+  ChangeRequest,
+  ChangeRequestStatus,
+  ImpactAssessment,
 } from './types';
-import { NotFoundError } from '@backstage/errors';
-import { assertTransition } from './domain/transitions';
+import { ConflictError, NotFoundError } from '@backstage/errors';
+import {
+  assertChangeRequestTransition,
+  assertTransition,
+} from './domain/transitions';
 import { IURSRepository, Transaction } from './repository-interface';
 import { up } from './db/migrations';
 import { seed } from './db/seeds';
@@ -429,6 +435,7 @@ export class PostgresURSRepository implements IURSRepository {
       approved_at: version.approvedAt || null,
       released_at: version.releasedAt || null,
       content_hash: version.contentHash || null,
+      change_request_id: version.changeRequestId || null,
       revision: version.revision || 1,
     });
     return version;
@@ -961,6 +968,169 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  async createChangeRequest(request: ChangeRequest): Promise<ChangeRequest> {
+    await this.db('change_requests').insert({
+      id: request.id,
+      title: request.title,
+      description: request.description,
+      reason: request.reason,
+      affected_requirement_ids: JSON.stringify(request.affectedRequirementIds),
+      status: request.status,
+      requested_by: request.requestedBy,
+      requested_at: request.requestedAt,
+      decided_by: request.decidedBy || null,
+      decided_at: request.decidedAt || null,
+      decision_reason: request.decisionReason || null,
+      revision: request.revision || 1,
+    });
+    return request;
+  }
+
+  async getChangeRequest(id: string): Promise<ChangeRequest | null> {
+    const row = await this.db('change_requests').where({ id }).first();
+    return row ? this.rowToChangeRequest(row) : null;
+  }
+
+  async listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }> {
+    const countResult = await this.db('change_requests')
+      .count('* as count')
+      .first();
+    const rows = await this.db('change_requests')
+      .orderBy('requested_at', 'desc')
+      .limit(limit)
+      .offset(offset)
+      .select();
+
+    return {
+      items: rows.map((r: any) => this.rowToChangeRequest(r)),
+      total: Number(countResult?.count || 0),
+    };
+  }
+
+  async updateChangeRequest(request: ChangeRequest): Promise<void> {
+    const existing = await this.db('change_requests')
+      .where({ id: request.id })
+      .first();
+    if (!existing) {
+      throw new NotFoundError(`Change request ${request.id} not found`);
+    }
+
+    if (existing.status !== request.status) {
+      assertChangeRequestTransition(
+        existing.status as ChangeRequestStatus,
+        request.status,
+        request.id,
+      );
+    }
+
+    const currentRevision = request.revision || 1;
+    const updated = await this.db('change_requests')
+      .where({ id: request.id, revision: currentRevision })
+      .update({
+        title: request.title,
+        description: request.description,
+        reason: request.reason,
+        affected_requirement_ids: JSON.stringify(
+          request.affectedRequirementIds,
+        ),
+        status: request.status,
+        decided_by: request.decidedBy || null,
+        decided_at: request.decidedAt || null,
+        decision_reason: request.decisionReason || null,
+        revision: currentRevision + 1,
+      });
+
+    if (updated === 0) {
+      throw new ConflictError(
+        `Optimistic concurrency conflict on change request ${request.id}. ` +
+          `Expected revision ${currentRevision}; another process has changed it.`,
+      );
+    }
+  }
+
+  async getHighestChangeRequestSequence(year: number): Promise<number> {
+    // Sequences are compared as text within a year, so they are zero-padded to
+    // a fixed width and sort correctly.
+    const row = await this.db('change_requests')
+      .where('id', 'like', `CR-${year}-%`)
+      .max('id as highest')
+      .first();
+
+    const highest = (row as any)?.highest as string | undefined;
+    if (!highest) return 0;
+
+    const suffix = highest.slice(`CR-${year}-`.length);
+    return parseInt(suffix, 10) || 0;
+  }
+
+  async createImpactAssessment(assessment: ImpactAssessment): Promise<void> {
+    await this.db('impact_assessments').insert({
+      id: assessment.id,
+      change_request_id: assessment.changeRequestId,
+      summary: assessment.summary,
+      gxp_impact: assessment.gxpImpact,
+      validation_impact: assessment.validationImpact,
+      affected_version_ids: JSON.stringify(assessment.affectedVersionIds),
+      assessed_by: assessment.assessedBy,
+      assessed_at: assessment.assessedAt,
+    });
+  }
+
+  async getImpactAssessment(
+    changeRequestId: string,
+  ): Promise<ImpactAssessment | null> {
+    const row = await this.db('impact_assessments')
+      .where({ change_request_id: changeRequestId })
+      .first();
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      changeRequestId: row.change_request_id,
+      summary: row.summary,
+      // SQLite hands booleans back as 0/1.
+      gxpImpact: Boolean(row.gxp_impact),
+      validationImpact: row.validation_impact,
+      affectedVersionIds: JSON.parse(row.affected_version_ids),
+      assessedBy: row.assessed_by,
+      assessedAt: row.assessed_at,
+    };
+  }
+
+  async getVersionsByChangeRequest(
+    changeRequestId: string,
+  ): Promise<RequirementVersion[]> {
+    const rows = await this.db('requirement_versions')
+      .where({ change_request_id: changeRequestId })
+      .orderBy('version_number', 'asc')
+      .select();
+    return rows.map((r: any) => this.rowToRequirementVersion(r));
+  }
+
+  private rowToChangeRequest(row: any): ChangeRequest {
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      reason: row.reason,
+      affectedRequirementIds: JSON.parse(row.affected_requirement_ids),
+      status: row.status,
+      requestedBy: row.requested_by,
+      requestedAt: row.requested_at,
+      decidedBy: row.decided_by ?? undefined,
+      decidedAt: row.decided_at ?? undefined,
+      decisionReason: row.decision_reason ?? undefined,
+      revision: row.revision,
+    };
+  }
+
+  // ============================================================================
   // ELECTRONIC SIGNATURES
   // ============================================================================
 
@@ -1193,6 +1363,7 @@ export class PostgresURSRepository implements IURSRepository {
       approvedAt: row.approved_at,
       releasedAt: row.released_at ?? undefined,
       contentHash: row.content_hash ?? undefined,
+      changeRequestId: row.change_request_id ?? undefined,
       revision: row.revision,
     };
   }

@@ -23,9 +23,14 @@ import {
   Signature,
   SignatureCredential,
   SignatureTargetType,
+  ChangeRequest,
+  ImpactAssessment,
 } from './types';
 import { ConflictError, NotFoundError } from '@backstage/errors';
-import { assertTransition } from './domain/transitions';
+import {
+  assertChangeRequestTransition,
+  assertTransition,
+} from './domain/transitions';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import {
@@ -86,6 +91,11 @@ export class URSRepository implements IURSRepository {
   // Phase 2 storage
   private signatures: Signature[] = [];
   private signatureCredentials: Map<string, SignatureCredential> = new Map();
+
+  // Phase 3 storage; assessments are keyed by change request, which is also
+  // the uniqueness rule in Postgres.
+  private changeRequests: Map<string, ChangeRequest> = new Map();
+  private impactAssessments: Map<string, ImpactAssessment> = new Map();
 
   constructor() {
     for (const cap of BUSINESS_CAPABILITIES) {
@@ -599,6 +609,88 @@ export class URSRepository implements IURSRepository {
   }
 
   // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  async createChangeRequest(request: ChangeRequest): Promise<ChangeRequest> {
+    if (this.changeRequests.has(request.id)) {
+      throw new ConflictError(`Change request ${request.id} already exists`);
+    }
+    this.changeRequests.set(request.id, request);
+    return request;
+  }
+
+  async getChangeRequest(id: string): Promise<ChangeRequest | null> {
+    return this.changeRequests.get(id) ?? null;
+  }
+
+  async listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }> {
+    const all = Array.from(this.changeRequests.values()).sort(
+      (a, b) => b.requestedAt.getTime() - a.requestedAt.getTime(),
+    );
+    return { items: all.slice(offset, offset + limit), total: all.length };
+  }
+
+  async updateChangeRequest(request: ChangeRequest): Promise<void> {
+    const existing = this.changeRequests.get(request.id);
+    if (!existing) {
+      throw new NotFoundError(`Change request ${request.id} not found`);
+    }
+
+    if (existing.status !== request.status) {
+      assertChangeRequestTransition(
+        existing.status,
+        request.status,
+        request.id,
+      );
+    }
+
+    this.changeRequests.set(request.id, {
+      ...request,
+      // Origin is fixed, mirroring the Postgres trigger.
+      requestedBy: existing.requestedBy,
+      requestedAt: existing.requestedAt,
+      revision: (existing.revision || 1) + 1,
+    });
+  }
+
+  async getHighestChangeRequestSequence(year: number): Promise<number> {
+    const prefix = `CR-${year}-`;
+    let highest = 0;
+    for (const id of this.changeRequests.keys()) {
+      if (!id.startsWith(prefix)) continue;
+      highest = Math.max(highest, parseInt(id.slice(prefix.length), 10) || 0);
+    }
+    return highest;
+  }
+
+  async createImpactAssessment(assessment: ImpactAssessment): Promise<void> {
+    if (this.impactAssessments.has(assessment.changeRequestId)) {
+      throw new ConflictError(
+        `Change request ${assessment.changeRequestId} has already been assessed`,
+      );
+    }
+    this.impactAssessments.set(assessment.changeRequestId, assessment);
+  }
+
+  async getImpactAssessment(
+    changeRequestId: string,
+  ): Promise<ImpactAssessment | null> {
+    return this.impactAssessments.get(changeRequestId) ?? null;
+  }
+
+  async getVersionsByChangeRequest(
+    changeRequestId: string,
+  ): Promise<RequirementVersion[]> {
+    return Array.from(this.requirementVersions.values())
+      .filter(v => v.changeRequestId === changeRequestId)
+      .sort((a, b) => a.versionNumber - b.versionNumber);
+  }
+
+  // ============================================================================
   // ELECTRONIC SIGNATURES
   // ============================================================================
 
@@ -691,6 +783,8 @@ export class URSRepository implements IURSRepository {
       approvalInstances: this.approvalInstances,
       approvalSteps: this.approvalSteps,
       signatures: this.signatures,
+      changeRequests: this.changeRequests,
+      impactAssessments: this.impactAssessments,
       // signatureCredentials is deliberately absent. A failed re-authentication
       // attempt has to be counted even though the signature it was meant for is
       // rolled back, otherwise the lockout could be defeated by provoking a
@@ -712,6 +806,8 @@ export class URSRepository implements IURSRepository {
     this.approvalInstances = state.approvalInstances;
     this.approvalSteps = state.approvalSteps;
     this.signatures = state.signatures;
+    this.changeRequests = state.changeRequests;
+    this.impactAssessments = state.impactAssessments;
   }
 }
 
@@ -729,4 +825,6 @@ interface InMemoryState {
   approvalInstances: Map<string, ApprovalInstance>;
   approvalSteps: Map<string, ApprovalStep>;
   signatures: Signature[];
+  changeRequests: Map<string, ChangeRequest>;
+  impactAssessments: Map<string, ImpactAssessment>;
 }

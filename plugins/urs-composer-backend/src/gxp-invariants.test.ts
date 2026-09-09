@@ -15,6 +15,7 @@ import { PostgresURSRepository } from './postgres-repository';
 import { IURSRepository } from './repository-interface';
 import {
   AuditEvent,
+  ChangeRequestStatus,
   RequirementPriority,
   RequirementVersion,
   SignatureMeaning,
@@ -257,6 +258,90 @@ describe('GxP invariants enforced by the database', () => {
           meaning: SignatureMeaning.AUTHORED,
         }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('Change control is a permanent record', () => {
+    async function aRequest(id: string, status = ChangeRequestStatus.DRAFT) {
+      const request = {
+        id,
+        title: 'Raise sampling rate',
+        description: 'Record every 30 seconds.',
+        reason: 'Regulator asked for finer granularity.',
+        affectedRequirementIds: ['URS-X-001'],
+        status,
+        requestedBy: 'user:default/requester',
+        requestedAt: new Date(),
+        revision: 1,
+      };
+      await repo.createChangeRequest(request);
+      return request;
+    }
+
+    test('a decided request cannot be changed', async () => {
+      const request = await aRequest('CR-9999-0001', ChangeRequestStatus.APPROVED);
+
+      await expect(
+        db('change_requests').where({ id: request.id }).update({ reason: 'Rewritten' }),
+      ).rejects.toThrow(/URS_IMMUTABLE/);
+    });
+
+    test('the origin of an open request cannot be changed', async () => {
+      const request = await aRequest('CR-9999-0002');
+
+      await expect(
+        db('change_requests')
+          .where({ id: request.id })
+          .update({ requested_by: 'user:default/someone-else' }),
+      ).rejects.toThrow(/URS_IMMUTABLE/);
+
+      // The parts that are still open may still move.
+      await expect(
+        db('change_requests')
+          .where({ id: request.id })
+          .update({ status: ChangeRequestStatus.ASSESSED }),
+      ).resolves.toBe(1);
+    });
+
+    test('an impact assessment cannot be rewritten or deleted', async () => {
+      const request = await aRequest('CR-9999-0003');
+      await repo.createImpactAssessment({
+        id: 'ia-001',
+        changeRequestId: request.id,
+        summary: 'Touches the sampling loop.',
+        gxpImpact: true,
+        validationImpact: 'Re-execute the sampling test.',
+        affectedVersionIds: [],
+        assessedBy: 'user:default/assessor',
+        assessedAt: new Date(),
+      });
+
+      await expect(
+        db('impact_assessments').where({ id: 'ia-001' }).update({ summary: 'No impact' }),
+      ).rejects.toThrow(/URS_APPEND_ONLY/);
+
+      await expect(
+        db('impact_assessments').where({ id: 'ia-001' }).del(),
+      ).rejects.toThrow(/URS_APPEND_ONLY/);
+    });
+
+    test('a request is assessed at most once', async () => {
+      const request = await aRequest('CR-9999-0004');
+      const assessment = {
+        id: 'ia-002',
+        changeRequestId: request.id,
+        summary: 'First assessment.',
+        gxpImpact: false,
+        validationImpact: 'None.',
+        affectedVersionIds: [],
+        assessedBy: 'user:default/assessor',
+        assessedAt: new Date(),
+      };
+      await repo.createImpactAssessment(assessment);
+
+      await expect(
+        repo.createImpactAssessment({ ...assessment, id: 'ia-003' }),
+      ).rejects.toThrow();
     });
   });
 

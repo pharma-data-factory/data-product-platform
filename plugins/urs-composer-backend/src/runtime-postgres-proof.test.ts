@@ -15,6 +15,7 @@ import {
   GxPRelevance,
   RequirementPriority,
   URSStatus,
+  ChangeRequestStatus,
 } from './types';
 
 const PG = {
@@ -375,11 +376,32 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     };
     await repo.createRequirementVersion(initialVersion);
 
+    // The initial version is released, so invariant 8 requires an approved
+    // change request before it can be revised. Seeded through the repository
+    // like the version above: this test is about baseline persistence, and the
+    // approval path itself is covered in change-request.test.ts.
+    const changeRequest = {
+      id: `CR-9998-${String(Date.now()).slice(-4)}`,
+      title: 'Revise the baseline requirement',
+      description: 'Adjust the requirement ahead of the baseline.',
+      reason: 'Baseline runtime proof',
+      affectedRequirementIds: [createdReq.requirementId],
+      status: ChangeRequestStatus.APPROVED,
+      requestedBy: 'user:default/author',
+      requestedAt: new Date(),
+      decidedBy: 'user:default/qa',
+      decidedAt: new Date(),
+      revision: 1,
+    };
+    await repo.createChangeRequest(changeRequest);
+
     const revision = await service.createRevision(
       initialVersion.id,
       'Revised for baseline proof',
       'user:default/author',
+      changeRequest.id,
     );
+    expect(revision.changeRequestId).toBe(changeRequest.id);
     expect(revision).toBeDefined();
     expect(revision.status).toBe(URSStatus.DRAFT);
 

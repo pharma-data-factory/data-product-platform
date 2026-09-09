@@ -32,6 +32,7 @@ import {
   ursManagePermission,
   ursApprovePermission,
   ursSignPermission,
+  ursChangeRequestManagePermission,
   businessCapabilityManagePermission,
 } from '@internal/platform-common';
 import { URSService } from './service';
@@ -581,6 +582,7 @@ export async function createRouter(
           req.params.id,
           data.revisionReason,
           actor,
+          data.changeRequestId,
         );
         res.status(201).json(revision);
       } catch (err) {
@@ -849,6 +851,152 @@ export async function createRouter(
       }
     },
   );
+
+  // ==========================================================================
+  // CHANGE CONTROL
+  // ==========================================================================
+
+  /**
+   * POST /change-requests
+   * Raise a change request. The identifier is assigned server-side.
+   */
+  router.post('/change-requests', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursChangeRequestManagePermission,
+      );
+      if (!requireBody(res, req.body, 'title', 'description', 'reason')) {
+        return;
+      }
+      const created = await service.createChangeRequest(req.body, actor);
+      res.status(201).json(created);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /change-requests
+   */
+  router.get('/change-requests', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const limit = parseInt(String(req.query.limit ?? '50'), 10);
+      const offset = parseInt(String(req.query.offset ?? '0'), 10);
+      res.json(await service.listChangeRequests(limit, offset));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /change-requests/:id
+   */
+  router.get('/change-requests/:id', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getChangeRequest(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /change-requests/:id/impact-assessment
+   * Record what the change would affect. Required before approval.
+   */
+  router.post('/change-requests/:id/impact-assessment', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursChangeRequestManagePermission,
+      );
+      if (!requireBody(res, req.body, 'summary', 'validationImpact')) {
+        return;
+      }
+      const assessment = await service.assessChangeRequest(
+        req.params.id,
+        {
+          summary: req.body.summary,
+          gxpImpact: Boolean(req.body.gxpImpact),
+          validationImpact: req.body.validationImpact,
+          affectedVersionIds: req.body.affectedVersionIds,
+        },
+        actor,
+      );
+      res.status(201).json(assessment);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /change-requests/:id/approve
+   * Approve with a quality signature; requires the signing PIN.
+   */
+  router.post('/change-requests/:id/approve', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const { pin, comment } = req.body as { pin?: string; comment?: string };
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required to approve' });
+        return;
+      }
+      res.json(
+        await service.approveChangeRequest(
+          req.params.id,
+          actor,
+          pin,
+          comment,
+          credentials,
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /change-requests/:id/reject
+   * No signature: leaving the released state untouched attests to nothing.
+   */
+  router.post('/change-requests/:id/reject', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursChangeRequestManagePermission,
+      );
+      if (!requireBody(res, req.body, 'reason')) {
+        return;
+      }
+      res.json(
+        await service.rejectChangeRequest(req.params.id, req.body.reason, actor),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /change-requests/:id/traceability
+   * The request, its assessment, its signatures and what it produced.
+   */
+  router.get('/change-requests/:id/traceability', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getChangeRequestTraceability(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
 
   /**
    * PUT /signing-pin

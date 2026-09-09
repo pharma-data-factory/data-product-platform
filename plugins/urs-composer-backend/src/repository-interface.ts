@@ -19,6 +19,8 @@ import {
   Signature,
   SignatureCredential,
   SignatureTargetType,
+  ChangeRequest,
+  ImpactAssessment,
 } from './types';
 
 export interface IURSRepository {
@@ -191,6 +193,34 @@ export interface IURSRepository {
     entityId: string,
     entityType: string,
   ): Promise<AuditEvent[]>;
+
+  // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  createChangeRequest(request: ChangeRequest): Promise<ChangeRequest>;
+  getChangeRequest(id: string): Promise<ChangeRequest | null>;
+  listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }>;
+  updateChangeRequest(request: ChangeRequest): Promise<void>;
+
+  /**
+   * Highest sequence number issued for a year, or 0 if none.
+   *
+   * Used to allocate the next CR-<year>-<sequence>. Kept in the repository
+   * because it needs a query the service should not be writing.
+   */
+  getHighestChangeRequestSequence(year: number): Promise<number>;
+
+  createImpactAssessment(assessment: ImpactAssessment): Promise<void>;
+  getImpactAssessment(changeRequestId: string): Promise<ImpactAssessment | null>;
+
+  /** Requirement versions raised under a given change request. */
+  getVersionsByChangeRequest(
+    changeRequestId: string,
+  ): Promise<RequirementVersion[]>;
 
   // ============================================================================
   // ELECTRONIC SIGNATURES (Append-only)

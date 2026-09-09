@@ -26,6 +26,9 @@ import {
 import { computeContentHash } from '@internal/platform-common';
 import {
   ApprovalRole,
+  ChangeRequest,
+  ChangeRequestStatus,
+  ImpactAssessment,
   RequirementVersion,
   Signature,
   SignatureMeaning,
@@ -74,6 +77,29 @@ export function hashOf(version: RequirementVersion): string {
   });
 }
 
+/**
+ * Hash of a change request and the assessment it was decided on.
+ *
+ * Reuses the requirement hash rather than introducing a second scheme: the
+ * request's title, description and reason map onto title, description and
+ * rationale, and the assessment summary onto acceptanceCriteria, so an
+ * approval is bound to the assessment it was based on as well as to the
+ * request itself.
+ */
+export function hashOfChangeRequest(
+  request: ChangeRequest,
+  assessment: ImpactAssessment | null,
+): string {
+  return computeContentHash({
+    title: request.title,
+    description: request.description,
+    rationale: request.reason,
+    acceptanceCriteria: assessment?.summary,
+    gxpRelevance: assessment ? String(assessment.gxpImpact) : null,
+    category: request.affectedRequirementIds.join(','),
+  });
+}
+
 export interface SignatureServiceOptions {
   repository: IURSRepository;
   reAuth: ReAuthProvider;
@@ -102,13 +128,23 @@ export class SignatureService {
   async validate(
     request: SignRequest,
     repository: IURSRepository = this.repository,
-  ): Promise<{ version: RequirementVersion; contentHash: string }> {
-    if (request.targetType !== SignatureTargetType.REQUIREMENT_VERSION) {
-      throw new InputError(
-        `Signing ${request.targetType} is not supported yet.`,
-      );
+  ): Promise<{ contentHash: string }> {
+    switch (request.targetType) {
+      case SignatureTargetType.REQUIREMENT_VERSION:
+        return this.validateVersionSignature(request, repository);
+      case SignatureTargetType.CHANGE_REQUEST:
+        return this.validateChangeRequestSignature(request, repository);
+      default:
+        throw new InputError(
+          `Signing ${request.targetType} is not supported yet.`,
+        );
     }
+  }
 
+  private async validateVersionSignature(
+    request: SignRequest,
+    repository: IURSRepository,
+  ): Promise<{ contentHash: string }> {
     const version = await repository.getRequirementVersion(request.targetId);
     if (!version) {
       throw new NotFoundError(
@@ -131,7 +167,58 @@ export class SignatureService {
     // the other conditions hold.
     await this.verifySecondFactor(request);
 
-    return { version, contentHash };
+    return { contentHash };
+  }
+
+  /**
+   * A change request is approved by quality, by someone who neither raised nor
+   * assessed it, and only once an assessment exists.
+   */
+  private async validateChangeRequestSignature(
+    request: SignRequest,
+    repository: IURSRepository,
+  ): Promise<{ contentHash: string }> {
+    if (request.meaning !== SignatureMeaning.APPROVED_QA) {
+      throw new InputError(
+        `A change request takes only an ${SignatureMeaning.APPROVED_QA} signature.`,
+      );
+    }
+
+    const changeRequest = await repository.getChangeRequest(request.targetId);
+    if (!changeRequest) {
+      throw new NotFoundError(`Change request ${request.targetId} not found`);
+    }
+
+    if (changeRequest.status !== ChangeRequestStatus.ASSESSED) {
+      throw new ConflictError(
+        `Change request ${request.targetId} must be ${ChangeRequestStatus.ASSESSED} ` +
+          `before it can be approved; it is ${changeRequest.status}.`,
+      );
+    }
+
+    const assessment = await repository.getImpactAssessment(request.targetId);
+    if (!assessment) {
+      throw new ConflictError(
+        `Change request ${request.targetId} has no impact assessment on record.`,
+      );
+    }
+
+    await this.verifyRole(request);
+
+    if (request.signedBy === changeRequest.requestedBy) {
+      throw new NotAllowedError(
+        `${request.signedBy} raised ${changeRequest.id} and cannot approve it.`,
+      );
+    }
+    if (request.signedBy === assessment.assessedBy) {
+      throw new NotAllowedError(
+        `${request.signedBy} assessed ${changeRequest.id} and cannot also approve it.`,
+      );
+    }
+
+    await this.verifySecondFactor(request);
+
+    return { contentHash: hashOfChangeRequest(changeRequest, assessment) };
   }
 
   /**
@@ -162,7 +249,10 @@ export class SignatureService {
 
     await repository.createAuditEvent({
       id: randomUUID(),
-      entityType: 'REQUIREMENT_VERSION',
+      entityType:
+        request.targetType === SignatureTargetType.CHANGE_REQUEST
+          ? 'CHANGE_REQUEST'
+          : 'REQUIREMENT_VERSION',
       entityId: request.targetId,
       eventType: 'SIGNED',
       newValue: {

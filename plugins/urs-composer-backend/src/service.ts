@@ -36,6 +36,9 @@ import {
   Signature,
   SignatureMeaning,
   SignatureTargetType,
+  ChangeRequest,
+  ChangeRequestStatus,
+  ImpactAssessment,
 } from './types';
 import { SignaturePinReAuth } from './domain/reauth';
 import {
@@ -958,6 +961,49 @@ export class URSService {
   ];
 
   /**
+   * Invariant 8: changing a released requirement needs prior authorisation.
+   *
+   * Once a requirement has been released, someone is relying on it, so a new
+   * version may only be raised under an approved change request. A requirement
+   * that has never been released is still being drafted and needs none.
+   */
+  private async requireApprovedChangeRequest(
+    existingVersions: RequirementVersion[],
+    requirementId: string,
+    changeRequestId?: string,
+  ): Promise<void> {
+    const hasBeenReleased = existingVersions.some(
+      v =>
+        v.status === URSStatus.APPROVED ||
+        v.status === URSStatus.SUPERSEDED ||
+        v.status === URSStatus.OBSOLETE,
+    );
+    if (!hasBeenReleased) {
+      return;
+    }
+
+    if (!changeRequestId) {
+      throw new ConflictError(
+        `Requirement ${requirementId} has a released version, so a new version ` +
+          `requires an approved change request. Supply changeRequestId.`,
+      );
+    }
+
+    const changeRequest = await this.repository.getChangeRequest(
+      changeRequestId,
+    );
+    if (!changeRequest) {
+      throw new NotFoundError(`Change request ${changeRequestId} not found`);
+    }
+    if (changeRequest.status !== ChangeRequestStatus.APPROVED) {
+      throw new ConflictError(
+        `Change request ${changeRequestId} is ${changeRequest.status}; ` +
+          `only an ${ChangeRequestStatus.APPROVED} request authorises a new version.`,
+      );
+    }
+  }
+
+  /**
    * Read a version's number, falling back to its label for rows written before
    * major/minor were stored separately.
    */
@@ -975,6 +1021,7 @@ export class URSService {
     previousVersionId: string,
     revisionReason: string,
     actor: string,
+    changeRequestId?: string,
   ): Promise<RequirementVersion> {
     const previous = await this.repository.getRequirementVersion(previousVersionId);
     if (!previous) {
@@ -996,6 +1043,12 @@ export class URSService {
           `Complete or reject it before starting a new revision.`,
       );
     }
+
+    await this.requireApprovedChangeRequest(
+      siblings,
+      previous.requirementId,
+      changeRequestId,
+    );
 
     const next = nextDraft(
       this.versionNumberOf(previous),
@@ -1025,6 +1078,7 @@ export class URSService {
       revisionReason,
       createdBy: actor,
       createdAt: new Date(),
+      changeRequestId,
       revision: 1,
     };
     // Stamped at creation and frozen from IN_REVIEW onward by a database
@@ -1056,6 +1110,296 @@ export class URSService {
     requirementId: string,
   ): Promise<RequirementVersion[]> {
     return this.repository.getRequirementVersions(requirementId, 'desc');
+  }
+
+  // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  /**
+   * Allocate the next change request identifier for the current year.
+   *
+   * The sequence restarts each year, which is what makes CR-2026-0001 readable
+   * as "the first change of 2026". Two requests raised at the same moment
+   * would compute the same number; the primary key rejects the loser and the
+   * caller retries, which is cheaper and more obvious than a lock.
+   */
+  private async nextChangeRequestId(): Promise<string> {
+    const year = new Date().getFullYear();
+    const highest = await this.repository.getHighestChangeRequestSequence(year);
+    return `CR-${year}-${String(highest + 1).padStart(4, '0')}`;
+  }
+
+  async createChangeRequest(
+    data: {
+      title: string;
+      description: string;
+      reason: string;
+      affectedRequirementIds?: string[];
+    },
+    actor: string,
+  ): Promise<ChangeRequest> {
+    for (const field of ['title', 'description', 'reason'] as const) {
+      if (!data[field]?.trim()) {
+        throw new InputError(`${field} is required`);
+      }
+    }
+
+    const attempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      const request: ChangeRequest = {
+        id: await this.nextChangeRequestId(),
+        title: data.title,
+        description: data.description,
+        reason: data.reason,
+        affectedRequirementIds: data.affectedRequirementIds ?? [],
+        status: ChangeRequestStatus.DRAFT,
+        requestedBy: actor,
+        requestedAt: new Date(),
+        revision: 1,
+      };
+
+      try {
+        const created = await this.repository.createChangeRequest(request);
+
+        await this.repository.createAuditEvent({
+          id: this.generateUUID(),
+          entityType: 'CHANGE_REQUEST',
+          entityId: created.id,
+          eventType: 'CREATED',
+          newValue: {
+            title: created.title,
+            affectedRequirementIds: created.affectedRequirementIds,
+          },
+          actor,
+          timestamp: created.requestedAt,
+          reason: created.reason,
+        });
+
+        return created;
+      } catch (err) {
+        // Another request took the number between the query and the insert.
+        if (attempt >= attempts) {
+          throw err;
+        }
+      }
+    }
+  }
+
+  async getChangeRequest(id: string): Promise<ChangeRequest> {
+    const request = await this.repository.getChangeRequest(id);
+    if (!request) {
+      throw new NotFoundError(`Change request ${id} not found`);
+    }
+    return request;
+  }
+
+  async listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }> {
+    return this.repository.listChangeRequests(limit, offset);
+  }
+
+  /**
+   * Record what the change would affect, moving the request to ASSESSED.
+   *
+   * The assessor may be the requester: assessing is describing consequences,
+   * not deciding. The decision is where the separation applies.
+   */
+  async assessChangeRequest(
+    changeRequestId: string,
+    data: {
+      summary: string;
+      gxpImpact: boolean;
+      validationImpact: string;
+      affectedVersionIds?: string[];
+    },
+    actor: string,
+  ): Promise<ImpactAssessment> {
+    if (!data.summary?.trim()) {
+      throw new InputError('summary is required');
+    }
+    if (!data.validationImpact?.trim()) {
+      throw new InputError('validationImpact is required');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const request = await repo.getChangeRequest(changeRequestId);
+      if (!request) {
+        throw new NotFoundError(`Change request ${changeRequestId} not found`);
+      }
+
+      const assessment: ImpactAssessment = {
+        id: this.generateUUID(),
+        changeRequestId,
+        summary: data.summary,
+        gxpImpact: data.gxpImpact,
+        validationImpact: data.validationImpact,
+        affectedVersionIds: data.affectedVersionIds ?? [],
+        assessedBy: actor,
+        assessedAt: new Date(),
+      };
+
+      await repo.createImpactAssessment(assessment);
+      // Rejected by the transition map if the request was already decided.
+      await repo.updateChangeRequest({
+        ...request,
+        status: ChangeRequestStatus.ASSESSED,
+      });
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'CHANGE_REQUEST',
+        entityId: changeRequestId,
+        eventType: 'ASSESSED',
+        newValue: {
+          gxpImpact: assessment.gxpImpact,
+          affectedVersionIds: assessment.affectedVersionIds,
+        },
+        actor,
+        timestamp: assessment.assessedAt,
+        reason: assessment.summary,
+      });
+
+      return assessment;
+    });
+  }
+
+  /**
+   * Approve a change request with a quality signature.
+   *
+   * Goes through the same signature service as a requirement approval, so the
+   * second factor, the role check and the separation of duties are the same
+   * rules rather than a parallel set.
+   */
+  async approveChangeRequest(
+    changeRequestId: string,
+    actor: string,
+    secret: string,
+    comment?: string,
+    credentials?: BackstageCredentials,
+  ): Promise<ChangeRequest> {
+    const signatures = this.signatureService(credentials);
+
+    return this.repository.withTransaction(async repo => {
+      await signatures.sign(
+        {
+          targetType: SignatureTargetType.CHANGE_REQUEST,
+          targetId: changeRequestId,
+          meaning: SignatureMeaning.APPROVED_QA,
+          signedBy: actor,
+          secret,
+          comment,
+        },
+        repo,
+      );
+
+      const request = await repo.getChangeRequest(changeRequestId);
+      const decidedAt = new Date();
+      const approved: ChangeRequest = {
+        ...request!,
+        status: ChangeRequestStatus.APPROVED,
+        decidedBy: actor,
+        decidedAt,
+        decisionReason: comment,
+      };
+      await repo.updateChangeRequest(approved);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'CHANGE_REQUEST',
+        entityId: changeRequestId,
+        eventType: 'APPROVED',
+        newValue: { decidedBy: actor, decidedAt },
+        actor,
+        timestamp: decidedAt,
+        reason: comment,
+      });
+
+      return { ...approved, revision: approved.revision + 1 };
+    });
+  }
+
+  /**
+   * Reject a change request.
+   *
+   * No signature: refusing to change something leaves the released state as it
+   * is, so there is nothing new to attest to. A reason is required.
+   */
+  async rejectChangeRequest(
+    changeRequestId: string,
+    reason: string,
+    actor: string,
+  ): Promise<ChangeRequest> {
+    if (!reason?.trim()) {
+      throw new InputError('A rejection reason is required');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const request = await repo.getChangeRequest(changeRequestId);
+      if (!request) {
+        throw new NotFoundError(`Change request ${changeRequestId} not found`);
+      }
+
+      const decidedAt = new Date();
+      const rejected: ChangeRequest = {
+        ...request,
+        status: ChangeRequestStatus.REJECTED,
+        decidedBy: actor,
+        decidedAt,
+        decisionReason: reason,
+      };
+      await repo.updateChangeRequest(rejected);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'CHANGE_REQUEST',
+        entityId: changeRequestId,
+        eventType: 'REJECTED',
+        newValue: { decidedBy: actor, decidedAt },
+        actor,
+        timestamp: decidedAt,
+        reason,
+      });
+
+      return { ...rejected, revision: rejected.revision + 1 };
+    });
+  }
+
+  /**
+   * What a change request led to.
+   *
+   * Answers the question an inspector asks: this requirement changed — who
+   * authorised it, on what assessment, and what came out of it.
+   */
+  async getChangeRequestTraceability(changeRequestId: string): Promise<{
+    changeRequest: ChangeRequest;
+    assessment: ImpactAssessment | null;
+    signatures: Signature[];
+    resultingVersions: RequirementVersion[];
+    auditTrail: AuditEvent[];
+  }> {
+    const changeRequest = await this.getChangeRequest(changeRequestId);
+
+    const [assessment, signatures, resultingVersions, auditTrail] =
+      await Promise.all([
+        this.repository.getImpactAssessment(changeRequestId),
+        this.repository.listSignatures(
+          SignatureTargetType.CHANGE_REQUEST,
+          changeRequestId,
+        ),
+        this.repository.getVersionsByChangeRequest(changeRequestId),
+        this.repository.getEntityAuditTrail(changeRequestId, 'CHANGE_REQUEST'),
+      ]);
+
+    return {
+      changeRequest,
+      assessment,
+      signatures,
+      resultingVersions,
+      auditTrail,
+    };
   }
 
   // ============================================================================
