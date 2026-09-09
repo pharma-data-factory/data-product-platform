@@ -216,6 +216,24 @@ export const ursAdminPermission = createPermission({
   attributes: { action: 'update' },
 });
 
+/**
+ * URS Composer — apply an electronic signature.
+ *
+ * Separate from urs.approve on purpose: holding it only means a user may sign
+ * at all. Which signature they may apply to which record is decided by the
+ * approval role and the segregation-of-duties rules, not by this permission.
+ */
+export const ursSignPermission = createPermission({
+  name: 'urs.sign',
+  attributes: { action: 'update' },
+});
+
+/** URS Composer — raise and decide change requests. */
+export const ursChangeRequestManagePermission = createPermission({
+  name: 'urs.changerequest.manage',
+  attributes: { action: 'update' },
+});
+
 /** Business Capability — manage the capability taxonomy (Business Capability Lead). */
 export const businessCapabilityManagePermission = createPermission({
   name: 'business-capability.manage',
@@ -285,6 +303,8 @@ export const platformPermissions = [
   ursManagePermission,
   ursApprovePermission,
   ursAdminPermission,
+  ursSignPermission,
+  ursChangeRequestManagePermission,
   businessCapabilityManagePermission,
   platformUserManagePermission,
   productReadPermission,
@@ -339,6 +359,12 @@ export const OWNER_PERMISSION_NAMES = new Set([
   'validation.review',
   'urs.manage',
   'urs.approve',
+  // Signing sits at the same level as approving: the permission only says a
+  // user may sign at all. Whether a particular signature is admissible is
+  // decided by the approval role and the segregation-of-duties checks in the
+  // signature service.
+  'urs.sign',
+  'urs.changerequest.manage',
   'product.manage',
 ]);
 

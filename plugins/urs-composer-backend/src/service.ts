@@ -33,7 +33,16 @@ import {
   BusinessRolePersisted,
   ChangeSet,
   RequirementChange,
+  Signature,
+  SignatureMeaning,
+  SignatureTargetType,
 } from './types';
+import { SignaturePinReAuth } from './domain/reauth';
+import {
+  hashOf,
+  SignatureService,
+  type SignRequest,
+} from './domain/signature-service';
 import { IURSRepository } from './repository-interface';
 import {
   nextDraft,
@@ -1018,6 +1027,9 @@ export class URSService {
       createdAt: new Date(),
       revision: 1,
     };
+    // Stamped at creation and frozen from IN_REVIEW onward by a database
+    // trigger, so every later signature can be checked against it.
+    newVersion.contentHash = hashOf(newVersion);
 
     await this.repository.createRequirementVersion(newVersion);
 
@@ -1044,6 +1056,153 @@ export class URSService {
     requirementId: string,
   ): Promise<RequirementVersion[]> {
     return this.repository.getRequirementVersions(requirementId, 'desc');
+  }
+
+  // ============================================================================
+  // ELECTRONIC SIGNATURES
+  // ============================================================================
+
+  /**
+   * Build the signature service for one request.
+   *
+   * Constructed per call because role resolution needs the caller's
+   * credentials for the catalog lookup, and threading those through the domain
+   * layer would put an HTTP concern where it does not belong.
+   *
+   * The re-authentication provider is bound to the base repository on purpose:
+   * a failed attempt has to be counted even when the surrounding transaction
+   * rolls the signature back.
+   */
+  private signatureService(
+    credentials?: BackstageCredentials,
+  ): SignatureService {
+    return new SignatureService({
+      repository: this.repository,
+      reAuth: new SignaturePinReAuth(this.repository),
+      resolveRoles: userRef => this.getUserApprovalRoles(userRef, credentials),
+    });
+  }
+
+  /** Set or replace the caller's own signing PIN. */
+  async setSigningPin(actor: string, pin: string): Promise<void> {
+    await new SignaturePinReAuth(this.repository).enroll(actor, pin);
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'SIGNATURE_CREDENTIAL',
+      entityId: actor,
+      eventType: 'PIN_SET',
+      actor,
+      timestamp: new Date(),
+    });
+  }
+
+  async listSignatures(versionId: string): Promise<Signature[]> {
+    return this.repository.listSignatures(
+      SignatureTargetType.REQUIREMENT_VERSION,
+      versionId,
+    );
+  }
+
+  /**
+   * Apply an electronic signature to a requirement version.
+   *
+   * An APPROVED_QA signature releases the version as part of the same
+   * transaction (invariant 6). There is deliberately no endpoint that sets a
+   * version to APPROVED directly: release is a consequence of a valid quality
+   * signature, never an independent act.
+   */
+  async signRequirementVersion(
+    versionId: string,
+    meaning: SignatureMeaning,
+    actor: string,
+    secret: string,
+    comment?: string,
+    credentials?: BackstageCredentials,
+  ): Promise<Signature> {
+    const signatures = this.signatureService(credentials);
+    const request: SignRequest = {
+      targetType: SignatureTargetType.REQUIREMENT_VERSION,
+      targetId: versionId,
+      meaning,
+      signedBy: actor,
+      secret,
+      comment,
+    };
+
+    return this.repository.withTransaction(async repo => {
+      const signature = await signatures.sign(request, repo);
+
+      if (meaning === SignatureMeaning.APPROVED_QA) {
+        await this.releaseSignedVersion(repo, versionId, actor);
+      }
+
+      return signature;
+    });
+  }
+
+  /**
+   * Release a version that has just received its quality signature.
+   *
+   * Runs inside the signing transaction, so the signature and the release are
+   * either both recorded or neither is.
+   */
+  private async releaseSignedVersion(
+    repo: IURSRepository,
+    versionId: string,
+    actor: string,
+  ): Promise<void> {
+    const version = await repo.getRequirementVersion(versionId);
+    if (!version) {
+      throw new NotFoundError(`Requirement version ${versionId} not found`);
+    }
+
+    const releasedAt = new Date();
+    await repo.updateRequirementVersion({
+      ...version,
+      status: URSStatus.APPROVED,
+      approvedBy: actor,
+      approvedAt: releasedAt,
+      releasedAt,
+    });
+
+    await repo.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_VERSION',
+      entityId: versionId,
+      entityVersion: version.versionLabel ?? version.version,
+      eventType: 'RELEASED',
+      oldValue: { status: version.status },
+      newValue: { status: URSStatus.APPROVED, releasedAt },
+      actor,
+      timestamp: releasedAt,
+      reason: 'Quality signature applied',
+    });
+
+    // Only one version of a requirement is in force at a time.
+    const siblings = await repo.getRequirementVersions(version.requirementId);
+    for (const previous of siblings) {
+      if (previous.id === versionId || previous.status !== URSStatus.APPROVED) {
+        continue;
+      }
+
+      await repo.updateRequirementVersion({
+        ...previous,
+        status: URSStatus.SUPERSEDED,
+        supersededBy: versionId,
+      });
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'REQUIREMENT_VERSION',
+        entityId: previous.id,
+        entityVersion: previous.versionLabel ?? previous.version,
+        eventType: 'SUPERSEDED',
+        newValue: { supersededBy: versionId },
+        actor,
+        timestamp: releasedAt,
+      });
+    }
   }
 
   /**

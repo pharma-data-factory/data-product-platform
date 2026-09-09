@@ -26,6 +26,9 @@ import {
   BusinessRolePersisted,
   ApprovalInstanceStatus,
   ApprovalStepStatus,
+  Signature,
+  SignatureCredential,
+  SignatureTargetType,
 } from './types';
 import { NotFoundError } from '@backstage/errors';
 import { assertTransition } from './domain/transitions';
@@ -425,6 +428,7 @@ export class PostgresURSRepository implements IURSRepository {
       approved_by: version.approvedBy || null,
       approved_at: version.approvedAt || null,
       released_at: version.releasedAt || null,
+      content_hash: version.contentHash || null,
       revision: version.revision || 1,
     });
     return version;
@@ -957,6 +961,99 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   // ============================================================================
+  // ELECTRONIC SIGNATURES
+  // ============================================================================
+
+  async createSignature(signature: Signature): Promise<void> {
+    await this.db('signatures').insert({
+      id: signature.id,
+      target_type: signature.targetType,
+      target_id: signature.targetId,
+      meaning: signature.meaning,
+      signed_by: signature.signedBy,
+      signed_at: signature.signedAt,
+      content_hash_at_signing: signature.contentHashAtSigning,
+      comment: signature.comment || null,
+    });
+  }
+
+  async listSignatures(
+    targetType: SignatureTargetType,
+    targetId: string,
+  ): Promise<Signature[]> {
+    const rows = await this.db('signatures')
+      .where({ target_type: targetType, target_id: targetId })
+      .orderBy('signed_at', 'asc')
+      .select();
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      meaning: row.meaning,
+      signedBy: row.signed_by,
+      signedAt: row.signed_at,
+      contentHashAtSigning: row.content_hash_at_signing,
+      comment: row.comment ?? undefined,
+    }));
+  }
+
+  async getSignatureCredential(
+    userRef: string,
+  ): Promise<SignatureCredential | null> {
+    const row = await this.db('signature_credentials')
+      .where({ user_ref: userRef })
+      .first();
+    if (!row) return null;
+
+    return {
+      userRef: row.user_ref,
+      pinHash: row.pin_hash,
+      salt: row.salt,
+      algo: row.algo,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at ?? undefined,
+      failedAttempts: Number(row.failed_attempts ?? 0),
+      lockedUntil: row.locked_until ?? undefined,
+    };
+  }
+
+  async upsertSignatureCredential(
+    credential: SignatureCredential,
+  ): Promise<void> {
+    await this.db('signature_credentials')
+      .insert({
+        user_ref: credential.userRef,
+        pin_hash: credential.pinHash,
+        salt: credential.salt,
+        algo: credential.algo,
+        created_at: credential.createdAt,
+        updated_at: credential.updatedAt || null,
+        failed_attempts: credential.failedAttempts,
+        locked_until: credential.lockedUntil || null,
+      })
+      .onConflict('user_ref')
+      .merge([
+        'pin_hash',
+        'salt',
+        'algo',
+        'updated_at',
+        'failed_attempts',
+        'locked_until',
+      ]);
+  }
+
+  async recordSignatureAttempt(
+    userRef: string,
+    failedAttempts: number,
+    lockedUntil: Date | null,
+  ): Promise<void> {
+    await this.db('signature_credentials')
+      .where({ user_ref: userRef })
+      .update({ failed_attempts: failedAttempts, locked_until: lockedUntil });
+  }
+
+  // ============================================================================
   // TRANSACTIONS
   // ============================================================================
 
@@ -1095,6 +1192,7 @@ export class PostgresURSRepository implements IURSRepository {
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
       releasedAt: row.released_at ?? undefined,
+      contentHash: row.content_hash ?? undefined,
       revision: row.revision,
     };
   }

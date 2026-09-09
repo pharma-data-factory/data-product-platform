@@ -16,6 +16,9 @@ import {
   AuditEvent,
   BusinessCapabilityPersisted,
   BusinessRolePersisted,
+  Signature,
+  SignatureCredential,
+  SignatureTargetType,
 } from './types';
 
 export interface IURSRepository {
@@ -188,6 +191,35 @@ export interface IURSRepository {
     entityId: string,
     entityType: string,
   ): Promise<AuditEvent[]>;
+
+  // ============================================================================
+  // ELECTRONIC SIGNATURES (Append-only)
+  // ============================================================================
+
+  createSignature(signature: Signature): Promise<void>;
+
+  /** All signatures on a target, oldest first. */
+  listSignatures(
+    targetType: SignatureTargetType,
+    targetId: string,
+  ): Promise<Signature[]>;
+
+  // Signing credentials — the second factor. See domain/reauth.ts.
+  getSignatureCredential(userRef: string): Promise<SignatureCredential | null>;
+  upsertSignatureCredential(credential: SignatureCredential): Promise<void>;
+
+  /**
+   * Record the outcome of a verification attempt.
+   *
+   * Separate from upsert because it must not touch the hash, and because it
+   * runs outside the signing transaction: a failed attempt has to be counted
+   * even though the signature itself is rolled back.
+   */
+  recordSignatureAttempt(
+    userRef: string,
+    failedAttempts: number,
+    lockedUntil: Date | null,
+  ): Promise<void>;
 
   // ============================================================================
   // TRANSACTIONS (P1A)

@@ -20,8 +20,11 @@ import {
   BusinessCapabilityPersisted,
   BusinessRolePersisted,
   URSStatus,
+  Signature,
+  SignatureCredential,
+  SignatureTargetType,
 } from './types';
-import { NotFoundError } from '@backstage/errors';
+import { ConflictError, NotFoundError } from '@backstage/errors';
 import { assertTransition } from './domain/transitions';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
@@ -79,6 +82,10 @@ export class URSRepository implements IURSRepository {
   private approvalWorkflows: Map<string, ApprovalWorkflow> = new Map();
   private approvalInstances: Map<string, ApprovalInstance> = new Map();
   private approvalSteps: Map<string, ApprovalStep> = new Map();
+
+  // Phase 2 storage
+  private signatures: Signature[] = [];
+  private signatureCredentials: Map<string, SignatureCredential> = new Map();
 
   constructor() {
     for (const cap of BUSINESS_CAPABILITIES) {
@@ -592,6 +599,62 @@ export class URSRepository implements IURSRepository {
   }
 
   // ============================================================================
+  // ELECTRONIC SIGNATURES
+  // ============================================================================
+
+  async createSignature(signature: Signature): Promise<void> {
+    // Mirrors the unique constraint in Postgres.
+    const duplicate = this.signatures.some(
+      s =>
+        s.targetType === signature.targetType &&
+        s.targetId === signature.targetId &&
+        s.meaning === signature.meaning &&
+        s.signedBy === signature.signedBy,
+    );
+    if (duplicate) {
+      throw new ConflictError(
+        `${signature.signedBy} has already signed ${signature.targetId} as ${signature.meaning}.`,
+      );
+    }
+    this.signatures.push(signature);
+  }
+
+  async listSignatures(
+    targetType: SignatureTargetType,
+    targetId: string,
+  ): Promise<Signature[]> {
+    return this.signatures
+      .filter(s => s.targetType === targetType && s.targetId === targetId)
+      .sort((a, b) => a.signedAt.getTime() - b.signedAt.getTime());
+  }
+
+  async getSignatureCredential(
+    userRef: string,
+  ): Promise<SignatureCredential | null> {
+    return this.signatureCredentials.get(userRef) ?? null;
+  }
+
+  async upsertSignatureCredential(
+    credential: SignatureCredential,
+  ): Promise<void> {
+    this.signatureCredentials.set(credential.userRef, credential);
+  }
+
+  async recordSignatureAttempt(
+    userRef: string,
+    failedAttempts: number,
+    lockedUntil: Date | null,
+  ): Promise<void> {
+    const existing = this.signatureCredentials.get(userRef);
+    if (!existing) return;
+    this.signatureCredentials.set(userRef, {
+      ...existing,
+      failedAttempts,
+      lockedUntil: lockedUntil ?? undefined,
+    });
+  }
+
+  // ============================================================================
   // P1A: TRANSACTIONS (No-op for in-memory)
   // ============================================================================
 
@@ -627,6 +690,12 @@ export class URSRepository implements IURSRepository {
       approvalWorkflows: this.approvalWorkflows,
       approvalInstances: this.approvalInstances,
       approvalSteps: this.approvalSteps,
+      signatures: this.signatures,
+      // signatureCredentials is deliberately absent. A failed re-authentication
+      // attempt has to be counted even though the signature it was meant for is
+      // rolled back, otherwise the lockout could be defeated by provoking a
+      // rollback. In Postgres this falls out of the credential store writing on
+      // its own connection; here it has to be said explicitly.
     });
   }
 
@@ -642,6 +711,7 @@ export class URSRepository implements IURSRepository {
     this.approvalWorkflows = state.approvalWorkflows;
     this.approvalInstances = state.approvalInstances;
     this.approvalSteps = state.approvalSteps;
+    this.signatures = state.signatures;
   }
 }
 
@@ -658,4 +728,5 @@ interface InMemoryState {
   approvalWorkflows: Map<string, ApprovalWorkflow>;
   approvalInstances: Map<string, ApprovalInstance>;
   approvalSteps: Map<string, ApprovalStep>;
+  signatures: Signature[];
 }

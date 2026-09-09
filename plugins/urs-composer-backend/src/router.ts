@@ -31,6 +31,7 @@ import {
   ursCreatePermission,
   ursManagePermission,
   ursApprovePermission,
+  ursSignPermission,
   businessCapabilityManagePermission,
 } from '@internal/platform-common';
 import { URSService } from './service';
@@ -43,6 +44,7 @@ import {
   CreateBaselineRequest,
   ApproveApprovalStepRequest,
   RejectApprovalStepRequest,
+  SignatureMeaning,
 } from './types';
 
 export interface RouterOptions {
@@ -847,6 +849,83 @@ export async function createRouter(
       }
     },
   );
+
+  /**
+   * PUT /signing-pin
+   * Set or replace the caller's own signing PIN.
+   *
+   * There is no route to set someone else's PIN, and there will not be: an
+   * administrator who could do that could sign in another person's name.
+   */
+  router.put('/signing-pin', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const { pin } = req.body as { pin?: string };
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required' });
+        return;
+      }
+      await service.setSigningPin(actor, pin);
+      res.status(204).end();
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-versions/:id/signatures
+   * The signatures applied to a requirement version.
+   */
+  router.get('/requirement-versions/:id/signatures', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json({ items: await service.listSignatures(req.params.id) });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-versions/:id/signatures
+   * Apply an electronic signature.
+   *
+   * An APPROVED_QA signature releases the version; that is the only way a
+   * version becomes released, so there is no separate status endpoint.
+   */
+  router.post('/requirement-versions/:id/signatures', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const { meaning, pin, comment } = req.body as {
+        meaning?: string;
+        pin?: string;
+        comment?: string;
+      };
+
+      if (!meaning || !(meaning in SignatureMeaning)) {
+        res.status(400).json({
+          error: `meaning must be one of ${Object.keys(SignatureMeaning).join(', ')}`,
+        });
+        return;
+      }
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required to sign' });
+        return;
+      }
+
+      const signature = await service.signRequirementVersion(
+        req.params.id,
+        meaning as SignatureMeaning,
+        actor,
+        pin,
+        comment,
+        credentials,
+      );
+      res.status(201).json(signature);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
 
   /**
    * POST /approvals/:id/steps/:stepId/reject

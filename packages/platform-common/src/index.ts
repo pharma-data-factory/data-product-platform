@@ -56,6 +56,8 @@ export {
   ursManagePermission,
   ursApprovePermission,
   ursAdminPermission,
+  ursSignPermission,
+  ursChangeRequestManagePermission,
   businessCapabilityManagePermission,
   platformUserManagePermission,
   productReadPermission,
@@ -98,6 +100,15 @@ export {
   canAdministerModelCompany,
 } from './policy';
 export type { PolicyDecisionName, PolicyPermission } from './policy';
+
+// Content hash binding electronic signatures to what was signed.
+export {
+  computeContentHash,
+  canonicalizeContent,
+  HASHED_CONTENT_FIELDS,
+  CONTENT_HASH_ALGORITHM,
+} from './content-hash';
+export type { RequirementContent } from './content-hash';
 
 // URS Composer → Validation Expert integration contract
 export type {

@@ -17,6 +17,8 @@ import {
   AuditEvent,
   RequirementPriority,
   RequirementVersion,
+  SignatureMeaning,
+  SignatureTargetType,
   URSStatus,
 } from './types';
 
@@ -213,6 +215,48 @@ describe('GxP invariants enforced by the database', () => {
       await expect(
         db('audit_events').where({ id: event.id }).del(),
       ).rejects.toThrow(/URS_APPEND_ONLY/);
+    });
+  });
+
+  describe('Signatures are a permanent record', () => {
+    const signature = {
+      id: 'sig-append-only',
+      targetType: SignatureTargetType.REQUIREMENT_VERSION,
+      targetId: 'some-version',
+      meaning: SignatureMeaning.REVIEWED,
+      signedBy: 'user:default/reviewer',
+      signedAt: new Date(),
+      contentHashAtSigning: 'b'.repeat(64),
+    };
+
+    test('a signature cannot be rewritten or withdrawn', async () => {
+      await repo.createSignature(signature);
+
+      await expect(
+        db('signatures')
+          .where({ id: signature.id })
+          .update({ signed_by: 'user:default/someone-else' }),
+      ).rejects.toThrow(/URS_APPEND_ONLY/);
+
+      await expect(
+        db('signatures').where({ id: signature.id }).del(),
+      ).rejects.toThrow(/URS_APPEND_ONLY/);
+    });
+
+    test('the same user cannot sign the same record twice with one meaning', async () => {
+      await expect(
+        repo.createSignature({ ...signature, id: 'sig-duplicate' }),
+      ).rejects.toThrow();
+    });
+
+    test('a different meaning by the same user is allowed', async () => {
+      await expect(
+        repo.createSignature({
+          ...signature,
+          id: 'sig-other-meaning',
+          meaning: SignatureMeaning.AUTHORED,
+        }),
+      ).resolves.toBeUndefined();
     });
   });
 

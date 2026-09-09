@@ -213,6 +213,15 @@ export async function up(knex: Knex): Promise<void> {
     }
   }
 
+  // Idempotent: hash of the signed content. Written when a version is created
+  // and never afterwards; a signature stores the hash it saw, and a mismatch
+  // means the content moved underneath an existing signature.
+  if (!(await knex.schema.hasColumn('requirement_versions', 'content_hash'))) {
+    await knex.schema.alterTable('requirement_versions', table => {
+      table.string('content_hash', 64);
+    });
+  }
+
   // ============================================================================
   // BASELINES (P1A)
   // ============================================================================
@@ -394,6 +403,52 @@ export async function up(knex: Knex): Promise<void> {
     }
   }
 
+  // ============================================================================
+  // ELECTRONIC SIGNATURES (21 CFR Part 11 / EU Annex 11)
+  // ============================================================================
+
+  if (!(await knex.schema.hasTable('signatures'))) {
+    await knex.schema.createTable('signatures', table => {
+      table.string('id', 255).primary();
+      // What was signed. Kept as a loose reference rather than a foreign key
+      // because signatures outlive the records they describe.
+      table.string('target_type', 50).notNullable();
+      table.string('target_id', 255).notNullable();
+      // AUTHORED | REVIEWED | APPROVED_QA
+      table.string('meaning', 50).notNullable();
+      table.string('signed_by', 255).notNullable();
+      table.timestamp('signed_at').notNullable().defaultTo(knex.fn.now());
+      // The content hash at the moment of signing. This is what makes the
+      // signature verifiable after the fact.
+      table.string('content_hash_at_signing', 64).notNullable();
+      table.text('comment');
+
+      table.index(['target_id']);
+      table.index(['signed_by']);
+      table.index(['meaning']);
+      // A given user signs a given record with a given meaning at most once.
+      table.unique(['target_type', 'target_id', 'meaning', 'signed_by']);
+    });
+  }
+
+  // Signature credentials: the second factor for signing ("something you
+  // know"). Deliberately separate from Backstage authentication, which stays
+  // untouched — see domain/reauth.ts.
+  if (!(await knex.schema.hasTable('signature_credentials'))) {
+    await knex.schema.createTable('signature_credentials', table => {
+      table.string('user_ref', 255).primary();
+      table.string('pin_hash', 255).notNullable();
+      table.string('salt', 255).notNullable();
+      // Recorded per row so the hash parameters can be strengthened later
+      // without invalidating existing credentials.
+      table.string('algo', 50).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.timestamp('updated_at');
+      table.integer('failed_attempts').notNullable().defaultTo(0);
+      table.timestamp('locked_until');
+    });
+  }
+
   await applyGxpConstraints(knex);
 }
 
@@ -458,6 +513,7 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
          OR NEW.criticality        IS DISTINCT FROM OLD.criticality
          OR NEW.component_type     IS DISTINCT FROM OLD.component_type
          OR NEW.requirement_nature IS DISTINCT FROM OLD.requirement_nature
+         OR NEW.content_hash       IS DISTINCT FROM OLD.content_hash
       ) THEN
         RAISE EXCEPTION
           'URS_IMMUTABLE: requirement version % is content-frozen at status %',
@@ -535,6 +591,14 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
       'BEFORE UPDATE OR DELETE',
       'urs_append_only',
     ],
+    // A signature is a statement someone made at a point in time. It can be
+    // superseded by a later one, never edited or withdrawn.
+    [
+      'signatures_append_only',
+      'signatures',
+      'BEFORE UPDATE OR DELETE',
+      'urs_append_only',
+    ],
   ];
 
   for (const [name, table, timing, fn] of triggers) {
@@ -547,6 +611,8 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   // Tables removed in reverse dependency order
+  await knex.schema.dropTableIfExists('signature_credentials');
+  await knex.schema.dropTableIfExists('signatures');
   await knex.schema.dropTableIfExists('audit_events');
   await knex.schema.dropTableIfExists('approval_steps');
   await knex.schema.dropTableIfExists('approval_instances');

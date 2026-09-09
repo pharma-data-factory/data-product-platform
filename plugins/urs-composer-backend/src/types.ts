@@ -234,7 +234,8 @@ export interface AuditEvent {
     | 'APPROVAL_INSTANCE'
     | 'APPROVAL_STEP'
     | 'BUSINESS_CAPABILITY'
-    | 'BUSINESS_ROLE';
+    | 'BUSINESS_ROLE'
+    | 'SIGNATURE_CREDENTIAL';
   entityId: string;
   eventType: string;
   // Semantic/string version identifier of the audited entity when relevant
@@ -420,7 +421,69 @@ export interface RequirementVersion {
   approvedAt?: Date;
   /** Set when the version reaches APPROVED; the effective date of the record. */
   releasedAt?: Date;
+  /**
+   * SHA-256 over the signed content, from computeContentHash in
+   * @internal/platform-common. Bound to every signature on this version.
+   */
+  contentHash?: string;
   revision: number; // Optimistic concurrency control
+}
+
+/**
+ * What a signatory is attesting to.
+ *
+ * The meanings are ordered: a version is authored, then reviewed, then
+ * approved by quality. Each is a distinct statement by a distinct person
+ * (see the segregation-of-duties rules in domain/signature-service.ts).
+ */
+export enum SignatureMeaning {
+  AUTHORED = 'AUTHORED',
+  REVIEWED = 'REVIEWED',
+  APPROVED_QA = 'APPROVED_QA',
+}
+
+/** What a signature can be applied to. */
+export enum SignatureTargetType {
+  REQUIREMENT_VERSION = 'REQUIREMENT_VERSION',
+  BASELINE = 'BASELINE',
+}
+
+/**
+ * An electronic signature (21 CFR Part 11 / EU Annex 11).
+ *
+ * Append-only: enforced by a database trigger, not just by convention.
+ */
+export interface Signature {
+  id: string;
+  targetType: SignatureTargetType;
+  targetId: string;
+  meaning: SignatureMeaning;
+  /** Entity ref of the signatory, e.g. "user:default/jane". */
+  signedBy: string;
+  signedAt: Date;
+  /**
+   * The content hash as it stood when this signature was applied. Recomputing
+   * the hash later and finding a difference proves the record was altered
+   * after signing.
+   */
+  contentHashAtSigning: string;
+  comment?: string;
+}
+
+/**
+ * A user's signing credential.
+ *
+ * The secret itself is never stored; only a salted scrypt hash.
+ */
+export interface SignatureCredential {
+  userRef: string;
+  pinHash: string;
+  salt: string;
+  algo: string;
+  createdAt: Date;
+  updatedAt?: Date;
+  failedAttempts: number;
+  lockedUntil?: Date;
 }
 
 /**
