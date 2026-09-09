@@ -1,3 +1,5 @@
+import type { AvailableComponentSummary } from './llm-client';
+
 export function buildSystemPrompt(): string {
   return [
     'You are a GxP Data Platform architect specializing in life sciences manufacturing data products.',
@@ -29,4 +31,90 @@ export function buildSystemPrompt(): string {
     '',
     'Respond ONLY with a JSON object: { "suggestions": [...] }',
   ].join('\n');
+}
+
+// ============================================================================
+// Product Spec Generation Prompts
+// ============================================================================
+
+export interface ProductSpecContext {
+  businessNeed: string;
+  solutionType: string;
+  solutionName: string;
+  requirements: Array<{
+    id: string;
+    title: string;
+    statement: string;
+    category?: string;
+    priority?: string;
+    classification?: {
+      componentType?: string;
+      requirementNature?: string;
+      criticality?: string;
+    };
+  }>;
+  businessCapabilities: string[];
+  availableComponents: AvailableComponentSummary[];
+}
+
+export function buildProductSpecSystemPrompt(): string {
+  return [
+    'You are a GxP Data Platform Solution Architect specializing in life sciences manufacturing.',
+    '',
+    'Your task is to generate a complete product specification from approved URS requirements.',
+    'The product is a BLACK BOX: URS requirements are inputs, the product transforms them into validated outputs.',
+    '',
+    'Rules:',
+    '- Only suggest components from the provided available components list',
+    '- Use exact component names as they appear in the list',
+    '- Every suggested component MUST reference at least one URS requirement ID (traceability)',
+    '- Assign priority: "required" (directly satisfies a MUST-have URS), "recommended" (best practice for SHOULD-have), "optional" (nice-to-have)',
+    '- Consider ISA-88 batch control model: map requirements to recipe layers (General → Site → Master → Control)',
+    '- Consider GxP compliance: audit, governance, and observability components are required for regulated environments',
+    '- Suggest data contracts that define input/output interfaces between components',
+    '- Generate a descriptive product name and domain based on the business need',
+    '',
+    'Output format (JSON):',
+    '{',
+    '  "productName": "descriptive-name",',
+    '  "description": "What this product does and why",',
+    '  "domain": "manufacturing|quality|lab|supply-chain|...",',
+    '  "components": [',
+    '    { "name": "exact-component-name", "reason": "...", "priority": "required|recommended|optional", "traceabilityRefs": ["req-id-1"] }',
+    '  ],',
+    '  "contracts": [',
+    '    { "name": "contract-name", "type": "input|output|internal", "description": "...", "traceabilityRefs": ["req-id-1"] }',
+    '  ]',
+    '}',
+  ].join('\n');
+}
+
+export function buildProductSpecUserPrompt(context: ProductSpecContext): string {
+  const parts: string[] = [];
+
+  parts.push('Generate a product specification from the following approved URS baseline:\n');
+  parts.push(`Business Need: ${context.businessNeed}`);
+  parts.push(`Solution Type: ${context.solutionType}`);
+  parts.push(`Solution Name: ${context.solutionName}`);
+
+  if (context.businessCapabilities.length > 0) {
+    parts.push(`\nBusiness Capabilities: ${context.businessCapabilities.join(', ')}`);
+  }
+
+  parts.push(`\nURS Requirements (${context.requirements.length}):`);
+  for (const req of context.requirements) {
+    const classInfo = req.classification
+      ? ` [${req.classification.componentType || '-'}/${req.classification.requirementNature || '-'}/${req.classification.criticality || '-'}]`
+      : '';
+    parts.push(`- [${req.id}] ${req.title}: ${req.statement} (${req.priority || 'unspecified'})${classInfo}`);
+  }
+
+  parts.push('\nAvailable platform components:');
+  for (const c of context.availableComponents) {
+    parts.push(`- ${c.name} (${c.title}): ${c.purpose} [${c.category}, ${c.certificationStatus}]`);
+  }
+
+  parts.push('\nRespond with a JSON object matching the specified output format.');
+
+  return parts.join('\n');
 }

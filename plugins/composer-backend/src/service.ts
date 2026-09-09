@@ -30,6 +30,7 @@ import {
   CreateTraceabilityLinkRequest,
   DataContract,
   TransitionProductVersionRequest,
+  AISpecDraft,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type {
@@ -37,6 +38,7 @@ import type {
   ComposerLLMClient,
 } from './llm-client';
 import { buildSystemPrompt } from './prompt-template';
+import type { ProductSpecContext } from './prompt-template';
 
 export interface ReleaseGateBlocker {
   code: string;
@@ -63,6 +65,7 @@ export class ComposerService {
   private readonly repository: IComposerRepository;
   private readonly ursBaselineResolver?: UrsBaselineResolver;
   private readonly llmClient?: ComposerLLMClient;
+  private readonly specDrafts = new Map<string, AISpecDraft>();
 
   constructor(options: ComposerServiceOptions) {
     this.logger = options.logger;
@@ -661,6 +664,140 @@ export class ComposerService {
     });
 
     return suggestions;
+  }
+
+  async generateProductSpec(
+    ursBaselineId: string,
+    actor: string,
+  ): Promise<AISpecDraft> {
+    if (!this.llmClient) {
+      throw new Error('AI product spec generation is not enabled');
+    }
+    if (!this.ursBaselineResolver) {
+      throw new Error('URS baseline resolver is not configured');
+    }
+
+    const ctx = await this.ursBaselineResolver.resolveBaselineContext(ursBaselineId);
+
+    const catalogComponents = await this.loadCatalogComponents();
+
+    const promptContext: ProductSpecContext = {
+      businessNeed: ctx.businessNeed ?? ctx.solutionName ?? 'Unknown',
+      solutionType: ctx.solutionType ?? 'data-product',
+      solutionName: ctx.solutionName ?? 'Unnamed Solution',
+      requirements: ctx.requirements,
+      businessCapabilities: ctx.businessCapabilities,
+      availableComponents: catalogComponents,
+    };
+
+    const result = await this.llmClient.generateProductSpec(promptContext);
+
+    const draft: AISpecDraft = {
+      id: randomUUID(),
+      ursBaselineId,
+      status: 'PENDING_REVIEW',
+      productName: result.productName,
+      description: result.description,
+      domain: result.domain,
+      suggestedComponents: result.components,
+      suggestedContracts: result.contracts,
+      generatedBy: actor,
+      generatedAt: new Date().toISOString(),
+    };
+
+    this.specDrafts.set(draft.id, draft);
+
+    await this.audit('AI_SPEC_DRAFT', draft.id, 'AI_PRODUCT_SPEC_GENERATED', actor, {
+      newValue: JSON.stringify({
+        ursBaselineId,
+        productName: draft.productName,
+        componentCount: draft.suggestedComponents.length,
+        contractCount: draft.suggestedContracts.length,
+      }),
+    });
+
+    return draft;
+  }
+
+  getSpecDraft(id: string): AISpecDraft | undefined {
+    return this.specDrafts.get(id);
+  }
+
+  async applySpecDraft(
+    draftId: string,
+    actor: string,
+  ): Promise<Product> {
+    const draft = this.specDrafts.get(draftId);
+    if (!draft) {
+      throw new Error(`AI spec draft ${draftId} not found`);
+    }
+    if (draft.status !== 'PENDING_REVIEW') {
+      throw new Error(`Cannot apply draft in status ${draft.status}`);
+    }
+
+    const product = await this.createProduct(
+      {
+        name: draft.productName,
+        description: draft.description,
+        productType: 'data-product',
+        domain: draft.domain,
+      },
+      actor,
+    );
+
+    const version = await this.createProductVersion(
+      product.id,
+      { changelog: `Generated from URS baseline ${draft.ursBaselineId} via AI spec draft ${draftId}` },
+      actor,
+    );
+
+    for (const comp of draft.suggestedComponents) {
+      await this.addProductComponent(
+        version.id,
+        {
+          componentType: 'service',
+          name: comp.name,
+          description: comp.reason,
+        },
+        actor,
+      );
+    }
+
+    draft.status = 'APPLIED';
+    draft.appliedBy = actor;
+    draft.appliedAt = new Date().toISOString();
+
+    await this.audit('AI_SPEC_DRAFT', draftId, 'AI_SPEC_APPLIED', actor, {
+      newValue: JSON.stringify({ productId: product.id, versionId: version.id }),
+    });
+
+    return product;
+  }
+
+  async rejectSpecDraft(
+    draftId: string,
+    actor: string,
+  ): Promise<void> {
+    const draft = this.specDrafts.get(draftId);
+    if (!draft) {
+      throw new Error(`AI spec draft ${draftId} not found`);
+    }
+    if (draft.status !== 'PENDING_REVIEW') {
+      throw new Error(`Cannot reject draft in status ${draft.status}`);
+    }
+
+    draft.status = 'REJECTED';
+
+    await this.audit('AI_SPEC_DRAFT', draftId, 'AI_SPEC_REJECTED', actor);
+  }
+
+  private async loadCatalogComponents(): Promise<AvailableComponentSummary[]> {
+    // Placeholder — returns empty list when catalog is unavailable.
+    // In production, this would call the Backstage Catalog API to fetch
+    // platform component entities. The suggestComponents method already
+    // receives components from the frontend, so this is a fallback for
+    // the AI spec generation path where components aren't passed in.
+    return [];
   }
 
   private async audit(

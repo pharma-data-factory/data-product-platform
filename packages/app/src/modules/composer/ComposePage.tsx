@@ -6,7 +6,7 @@ import {
   Page,
   Progress,
 } from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApi, discoveryApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import {
@@ -53,6 +53,10 @@ import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisua
 import {
   suggestComponents,
   SuggestedComponent,
+  generateProductSpec,
+  applySpecDraft,
+  rejectSpecDraft,
+  AISpecDraft,
 } from './composerApi';
 
 const useStyles = makeStyles(theme => ({
@@ -256,6 +260,12 @@ export function ComposePage() {
   const classes = useStyles();
   const catalogApi = useApi(catalogApiRef);
   const scaffolderApi = useApi(scaffolderApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+  const [backendBaseUrl, setBackendBaseUrl] = useState('');
+
+  useEffect(() => {
+    discoveryApi.getBaseUrl('composer').then(url => setBackendBaseUrl(url));
+  }, [discoveryApi]);
   const { role } = usePlatformRole();
   const canEdit = canCreateDataProduct(role);
   const [params] = useSearchParams();
@@ -277,6 +287,11 @@ export function ComposePage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | undefined>();
   const [selectedSuggestionNames, setSelectedSuggestionNames] = useState<string[]>([]);
+  const [specBaselineId, setSpecBaselineId] = useState('');
+  const [specDraft, setSpecDraft] = useState<AISpecDraft | null>(null);
+  const [specLoading, setSpecLoading] = useState(false);
+  const [specError, setSpecError] = useState<string | undefined>();
+  const [specApplying, setSpecApplying] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -439,7 +454,7 @@ export function ComposePage() {
         purpose: c.profile.purpose || c.description || '',
         certificationStatus: c.certificationStatus,
       }));
-      const results = await suggestComponents({
+      const results = await suggestComponents(backendBaseUrl, {
         productName: draft.name,
         description: draft.description || draft.name,
         domain: draft.domain || 'manufacturing',
@@ -476,6 +491,47 @@ export function ComposePage() {
     setAiSuggestions([]);
     setSelectedSuggestionNames([]);
     setCopied(false);
+  };
+
+  const handleGenerateSpec = async () => {
+    if (!canEdit || !specBaselineId.trim()) return;
+    setSpecLoading(true);
+    setSpecError(undefined);
+    setSpecDraft(null);
+    try {
+      const draft = await generateProductSpec(backendBaseUrl, specBaselineId.trim());
+      setSpecDraft(draft);
+    } catch (err) {
+      setSpecError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSpecLoading(false);
+    }
+  };
+
+  const handleApplySpec = async () => {
+    if (!specDraft || !canEdit) return;
+    setSpecApplying(true);
+    setSpecError(undefined);
+    try {
+      await applySpecDraft(backendBaseUrl, specDraft.id);
+      setNotice(`Product "${specDraft.productName}" created from AI spec draft.`);
+      setSpecDraft(prev => prev ? { ...prev, status: 'APPLIED' } : null);
+    } catch (err) {
+      setSpecError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSpecApplying(false);
+    }
+  };
+
+  const handleRejectSpec = async () => {
+    if (!specDraft || !canEdit) return;
+    setSpecError(undefined);
+    try {
+      await rejectSpecDraft(backendBaseUrl, specDraft.id);
+      setSpecDraft(prev => prev ? { ...prev, status: 'REJECTED' } : null);
+    } catch (err) {
+      setSpecError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -624,6 +680,143 @@ export function ComposePage() {
                       </button>
                     )}
                   </>
+                )}
+              </div>
+
+              <div className={classes.aiSection}>
+                <Typography variant="subtitle2">AI Product Spec Generator</Typography>
+                <p className={classes.meta}>
+                  Generate a complete product specification from an approved URS baseline.
+                  The AI analyzes requirements and suggests components with full traceability.
+                  Human review is mandatory before applying.
+                </p>
+                <TextField
+                  fullWidth
+                  label="URS Baseline ID"
+                  value={specBaselineId}
+                  disabled={!canEdit || specLoading}
+                  onChange={event => setSpecBaselineId(event.target.value)}
+                  margin="normal"
+                  placeholder="Paste an approved URS baseline ID"
+                />
+                <button
+                  type="button"
+                  className={classes.aiButton}
+                  disabled={!canEdit || specLoading || !specBaselineId.trim()}
+                  onClick={handleGenerateSpec}
+                  data-testid="ai-generate-spec"
+                >
+                  <BuildIcon style={{ fontSize: 16 }} />
+                  {specLoading ? 'Generating…' : 'Generate from URS'}
+                </button>
+                {specError && (
+                  <p className={classes.error} style={{ marginTop: 8 }}>
+                    {specError}
+                  </p>
+                )}
+                {specDraft && specDraft.status === 'PENDING_REVIEW' && (
+                  <div style={{ marginTop: 16 }}>
+                    <Typography variant="subtitle2">Review AI Specification</Typography>
+                    <TextField
+                      fullWidth
+                      label="Product Name"
+                      value={specDraft.productName}
+                      disabled={!canEdit}
+                      onChange={event =>
+                        setSpecDraft(prev => prev ? { ...prev, productName: event.target.value } : null)
+                      }
+                      margin="dense"
+                    />
+                    <TextField
+                      fullWidth
+                      label="Description"
+                      value={specDraft.description}
+                      disabled={!canEdit}
+                      onChange={event =>
+                        setSpecDraft(prev => prev ? { ...prev, description: event.target.value } : null)
+                      }
+                      margin="dense"
+                      multiline
+                    />
+                    <TextField
+                      fullWidth
+                      label="Domain"
+                      value={specDraft.domain}
+                      disabled={!canEdit}
+                      onChange={event =>
+                        setSpecDraft(prev => prev ? { ...prev, domain: event.target.value } : null)
+                      }
+                      margin="dense"
+                    />
+                    <Typography variant="subtitle2" style={{ marginTop: 12 }}>
+                      Suggested Components ({specDraft.suggestedComponents.length})
+                    </Typography>
+                    {specDraft.suggestedComponents.map((comp, idx) => (
+                      <div key={`${comp.name}-${idx}`} className={classes.suggestionCard}>
+                        <strong>{comp.name}</strong>
+                        <Chip
+                          label={comp.priority}
+                          size="small"
+                          color={comp.priority === 'required' ? 'secondary' : 'default'}
+                          style={{ marginLeft: 4 }}
+                        />
+                        <p className={classes.meta}>{comp.reason}</p>
+                        {comp.traceabilityRefs.length > 0 && (
+                          <p className={classes.meta}>
+                            Traceability: {comp.traceabilityRefs.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                    {specDraft.suggestedContracts.length > 0 && (
+                      <>
+                        <Typography variant="subtitle2" style={{ marginTop: 12 }}>
+                          Suggested Contracts ({specDraft.suggestedContracts.length})
+                        </Typography>
+                        {specDraft.suggestedContracts.map((contract, idx) => (
+                          <div key={`${contract.name}-${idx}`} className={classes.suggestionCard}>
+                            <strong>{contract.name}</strong>
+                            <Chip label={contract.type} size="small" style={{ marginLeft: 4 }} />
+                            <p className={classes.meta}>{contract.description}</p>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    <div className={classes.actions} style={{ marginTop: 16 }}>
+                      <button
+                        type="button"
+                        className={classes.action}
+                        disabled={!canEdit || specApplying}
+                        onClick={handleApplySpec}
+                        data-testid="ai-apply-spec"
+                      >
+                        {specApplying ? 'Applying…' : 'Apply AI Spec'}
+                      </button>
+                      <button
+                        type="button"
+                        className={classes.ghost}
+                        disabled={!canEdit}
+                        onClick={handleRejectSpec}
+                        data-testid="ai-reject-spec"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                    <p className={classes.meta} style={{ marginTop: 8 }}>
+                      Generated by {specDraft.generatedBy} at {new Date(specDraft.generatedAt).toLocaleString()}.
+                      Applying creates a new Product with version and components. This action is audited.
+                    </p>
+                  </div>
+                )}
+                {specDraft && specDraft.status === 'APPLIED' && (
+                  <p className={classes.banner} style={{ marginTop: 12 }}>
+                    Spec applied successfully. Product &quot;{specDraft.productName}&quot; has been created.
+                  </p>
+                )}
+                {specDraft && specDraft.status === 'REJECTED' && (
+                  <p className={classes.meta} style={{ marginTop: 12 }}>
+                    Spec draft rejected.
+                  </p>
                 )}
               </div>
 
