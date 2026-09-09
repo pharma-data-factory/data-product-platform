@@ -227,15 +227,27 @@ describe('marketplace data', () => {
     expect(filterMarketplaceItems(marketplaceItems, '', 'Templates')).toHaveLength(
       2,
     );
-    expect(filterMarketplaceItems(marketplaceItems, '', 'Data Products')).toHaveLength(
-      4,
-    );
+    // Named rather than counted: the count said 4 and went stale when the AAS
+    // data product was added, and a bare length does not say which one moved.
+    expect(
+      filterMarketplaceItems(marketplaceItems, '', 'Data Products').map(
+        item => item.id,
+      ),
+    ).toEqual([
+      'mqtt-temperature-data-product',
+      'rest-equipment-data-product',
+      'machine-state-consumer-data-product',
+      'aas-data-product',
+      'oee-data-product',
+    ]);
     expect(filterMarketplaceItems(marketplaceItems, 'mqtt', 'All').map(item => item.id)).toEqual(
       [
         'mqtt-data-connector',
         'mqtt-temperature-data-product',
         'unified-namespace',
         'machine-state-consumer-data-product',
+        // Matches on its compatibility string, which lists MQTT.
+        'aas-data-product',
         'oee-data-product',
       ],
     );

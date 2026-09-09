@@ -41,11 +41,19 @@ describe('MockComposerLLMClient', () => {
 
 describe('OpenAIComposerLLMClient parsing', () => {
   function createClientWithMockFetch(mockResponse: string, status = 200) {
+    // The client reads the model's answer out of the chat-completions
+    // envelope. The mock used to return the answer as the whole body, so
+    // choices[0].message.content was undefined and every parsing case failed
+    // with "LLM returned empty response" before reaching the parser it was
+    // meant to exercise.
+    const envelope = {
+      choices: [{ message: { content: mockResponse } }],
+    };
     const mockFetch = jest.fn().mockResolvedValue({
       ok: status === 200,
       status,
-      text: () => Promise.resolve(mockResponse),
-      json: () => Promise.resolve(JSON.parse(mockResponse)),
+      text: () => Promise.resolve(JSON.stringify(envelope)),
+      json: () => Promise.resolve(envelope),
     });
     return new OpenAIComposerLLMClient({
       baseUrl: 'https://test.api',
