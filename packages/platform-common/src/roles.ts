@@ -115,3 +115,54 @@ export function hasApprovedPlatformAccess(
     PLATFORM_GROUPS.includes(name as PlatformGroup),
   );
 }
+
+/**
+ * Catalog groups that grant URS Composer domain permissions.
+ *
+ * These are not platform tiers. Membership alone does not make someone a
+ * Viewer/Developer/Owner; it only adds the URS permissions listed in
+ * URS_DOMAIN_PERMISSIONS. Seed users combine a platform group for base
+ * access with one of these for workflow eligibility.
+ */
+export const URS_DOMAIN_GROUPS = [
+  'urs-authors',
+  'urs-owners',
+  'urs-business-reviewers',
+  'urs-product-managers',
+  'urs-quality-reviewers',
+] as const;
+
+export type UrsDomainGroup = (typeof URS_DOMAIN_GROUPS)[number];
+
+/**
+ * Permission names granted by each URS catalog group.
+ *
+ * Aligns with docs/rbac/platform-roles.md. Quality reviewers also receive
+ * urs.sign so they can apply APPROVED_QA; that permission only means "may
+ * sign at all" — segregation of duties still decides which signature.
+ */
+export const URS_DOMAIN_PERMISSIONS: Readonly<
+  Record<UrsDomainGroup, readonly string[]>
+> = {
+  'urs-authors': ['urs.read', 'urs.create', 'urs.manage'],
+  'urs-owners': ['urs.read', 'urs.create', 'urs.manage'],
+  'urs-business-reviewers': ['urs.read', 'urs.approve'],
+  'urs-product-managers': ['urs.read', 'urs.approve'],
+  'urs-quality-reviewers': ['urs.read', 'urs.approve', 'urs.sign'],
+};
+
+export function ursDomainPermissionNames(
+  ownershipEntityRefs: readonly string[],
+): Set<string> {
+  const names = new Set<string>();
+  for (const ref of ownershipEntityRefs) {
+    const group = parseGroupName(ref);
+    if (!group || !(URS_DOMAIN_GROUPS as readonly string[]).includes(group)) {
+      continue;
+    }
+    for (const permission of URS_DOMAIN_PERMISSIONS[group as UrsDomainGroup]) {
+      names.add(permission);
+    }
+  }
+  return names;
+}

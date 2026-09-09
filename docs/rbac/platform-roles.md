@@ -186,6 +186,7 @@ These roles define the fundamental access tiers available to all users on the pl
 **Permissions:**
 - `urs.read`
 - `urs.approve`
+- `urs.sign` (electronic signatures such as APPROVED_QA; SoD still applies)
 
 **Excludes:**
 - `urs.create`, `urs.manage`

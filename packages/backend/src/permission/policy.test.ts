@@ -50,6 +50,14 @@ const guest = userWith('user:default/guest', [
   'group:default/platform-admins',
 ]);
 const unknownGithubUser = userWith('user:default/new-github-user', []);
+const ursQa = userWith('user:default/urs-qa', [
+  'group:default/platform-viewers',
+  'group:default/urs-quality-reviewers',
+]);
+const ursAuthor = userWith('user:default/urs-author', [
+  'group:default/platform-viewers',
+  'group:default/urs-authors',
+]);
 
 describe('PlatformPermissionPolicy', () => {
   it('denies unauthenticated access', async () => {
@@ -252,6 +260,92 @@ describe('PlatformPermissionPolicy', () => {
           },
         },
         unknownGithubUser,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.DENY });
+  });
+
+  it('allows seeded URS quality reviewers to approve and sign', async () => {
+    const qa = userWith('user:default/urs-qa', [
+      'group:default/platform-viewers',
+      'group:default/urs-quality-reviewers',
+    ]);
+    await expect(
+      policy.handle(
+        {
+          permission: {
+            name: 'urs.approve',
+            attributes: { action: 'update' },
+            type: 'basic',
+          },
+        },
+        qa,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.ALLOW });
+    await expect(
+      policy.handle(
+        {
+          permission: {
+            name: 'urs.sign',
+            attributes: { action: 'update' },
+            type: 'basic',
+          },
+        },
+        qa,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.ALLOW });
+    await expect(
+      policy.handle(
+        {
+          permission: {
+            name: 'urs.create',
+            attributes: { action: 'create' },
+            type: 'basic',
+          },
+        },
+        qa,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.DENY });
+  });
+
+  it('allows seeded URS authors to create and manage drafts', async () => {
+    const author = userWith('user:default/urs-author', [
+      'group:default/platform-viewers',
+      'group:default/urs-authors',
+    ]);
+    await expect(
+      policy.handle(
+        {
+          permission: {
+            name: 'urs.create',
+            attributes: { action: 'create' },
+            type: 'basic',
+          },
+        },
+        author,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.ALLOW });
+    await expect(
+      policy.handle(
+        {
+          permission: {
+            name: 'urs.manage',
+            attributes: { action: 'update' },
+            type: 'basic',
+          },
+        },
+        author,
+      ),
+    ).resolves.toEqual({ result: AuthorizeResult.ALLOW });
+    await expect(
+      policy.handle(
+        {
+          permission: {
+            name: 'urs.approve',
+            attributes: { action: 'update' },
+            type: 'basic',
+          },
+        },
+        author,
       ),
     ).resolves.toEqual({ result: AuthorizeResult.DENY });
   });

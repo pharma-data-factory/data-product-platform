@@ -14,8 +14,11 @@ export {
   githubLoginFromEntityRef,
   platformGroupNames,
   hasApprovedPlatformAccess,
+  URS_DOMAIN_GROUPS,
+  URS_DOMAIN_PERMISSIONS,
+  ursDomainPermissionNames,
 } from './roles';
-export type { PlatformGroup, PlatformRole } from './roles';
+export type { PlatformGroup, PlatformRole, UrsDomainGroup } from './roles';
 
 export {
   marketplaceViewPermission,
