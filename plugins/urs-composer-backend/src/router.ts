@@ -614,14 +614,18 @@ export async function createRouter(
 
   /**
    * GET /requirements/:id/versions/:version
-   * Get one exact controlled version (do not auto-resolve to latest)
+   * One exact controlled version of a requirement, by version label
+   * (e.g. "1.0"). Does not auto-resolve to the latest.
    */
   router.get(
     '/requirements/:id/versions/:version',
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const version = await service.getVersion(req.params.version);
+        const version = await service.getVersionOfRequirement(
+          req.params.id,
+          req.params.version,
+        );
         if (!version) {
           res.status(404).json({ error: 'Version not found' });
           return;
@@ -632,6 +636,49 @@ export async function createRouter(
       }
     },
   );
+
+  /**
+   * GET /requirement-versions/:id
+   * One version by its own id, when the caller already has it.
+   */
+  router.get('/requirement-versions/:id', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const version = await service.getVersion(req.params.id);
+      if (!version) {
+        res.status(404).json({ error: 'Version not found' });
+        return;
+      }
+      res.json(version);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-versions/:id/workflow
+   * Where the version stands: created, review, QA approval, released.
+   */
+  router.get('/requirement-versions/:id/workflow', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getRequirementVersionWorkflow(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /baselines/:id/workflow
+   */
+  router.get('/baselines/:id/workflow', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getBaselineWorkflow(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
 
   // ============================================================================
   // P1A/P1B BASELINES (Immutable Snapshots)

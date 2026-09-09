@@ -43,6 +43,11 @@ import {
 import { SignaturePinReAuth } from './domain/reauth';
 import { computeReviewScopes } from './domain/baseline';
 import {
+  baselineWorkflow,
+  requirementVersionWorkflow,
+  WorkflowView,
+} from './domain/workflow';
+import {
   hashOf,
   SignatureService,
   type SignRequest,
@@ -1114,6 +1119,64 @@ export class URSService {
   }
 
   // ============================================================================
+  // WORKFLOW VIEW (invariant 17)
+  // ============================================================================
+
+  /**
+   * Where a requirement version stands, as a timeline.
+   *
+   * Derived on request from the version's status, its signatures and its audit
+   * trail, so it cannot drift from them.
+   */
+  async getRequirementVersionWorkflow(
+    versionId: string,
+  ): Promise<WorkflowView> {
+    const version = await this.repository.getRequirementVersion(versionId);
+    if (!version) {
+      throw new NotFoundError(`Requirement version ${versionId} not found`);
+    }
+
+    const [signatures, audit] = await Promise.all([
+      this.repository.listSignatures(
+        SignatureTargetType.REQUIREMENT_VERSION,
+        versionId,
+      ),
+      this.repository.getEntityAuditTrail(versionId, 'REQUIREMENT_VERSION'),
+    ]);
+
+    return requirementVersionWorkflow(version, signatures, audit);
+  }
+
+  /**
+   * Where a baseline stands, as a timeline.
+   *
+   * Reads the approval chain rather than signatures, because that is what
+   * decides a baseline.
+   */
+  async getBaselineWorkflow(baselineId: string): Promise<WorkflowView> {
+    const baseline = await this.repository.getBaseline(baselineId);
+    if (!baseline) {
+      throw new NotFoundError(`Baseline ${baselineId} not found`);
+    }
+
+    const [instances, audit] = await Promise.all([
+      this.repository.listApprovalInstances(baselineId),
+      this.repository.getEntityAuditTrail(baselineId, 'BASELINE'),
+    ]);
+
+    // The most recent instance is the one in force; earlier ones belong to
+    // attempts that were rejected and resubmitted.
+    const instance = instances.length
+      ? instances
+          .slice()
+          .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
+          .pop()!
+      : null;
+
+    return baselineWorkflow(baseline, instance, audit);
+  }
+
+  // ============================================================================
   // CHANGE CONTROL
   // ============================================================================
 
@@ -1555,6 +1618,22 @@ export class URSService {
    */
   async getVersion(versionId: string): Promise<RequirementVersion | null> {
     return this.repository.getRequirementVersion(versionId);
+  }
+
+  /**
+   * One version of a requirement, addressed the way a reader thinks of it:
+   * the requirement and the version label, not an opaque id.
+   */
+  async getVersionOfRequirement(
+    requirementId: string,
+    versionLabel: string,
+  ): Promise<RequirementVersion | null> {
+    const versions = await this.repository.getRequirementVersions(requirementId);
+    return (
+      versions.find(
+        v => v.versionLabel === versionLabel || v.version === versionLabel,
+      ) ?? null
+    );
   }
 
   // ============================================================================
@@ -2261,6 +2340,23 @@ export class URSService {
               status: URSStatus.APPROVED,
               updatedBy: actor,
               updatedAt: new Date(),
+            });
+
+            // The set's own approval was previously unrecorded, which left a
+            // hole in its audit trail and in the workflow view derived from it.
+            await repo.createAuditEvent({
+              id: this.generateUUID(),
+              entityType: 'REQUIREMENT_SET',
+              entityId: approvedSet.id,
+              entityVersion: `v${approvedSet.versionNumber}`,
+              eventType: 'APPROVED',
+              oldValue: { status: approvedSet.status },
+              newValue: {
+                status: URSStatus.APPROVED,
+                baselineId: baseline.id,
+              },
+              actor,
+              timestamp: new Date(),
             });
           }
 

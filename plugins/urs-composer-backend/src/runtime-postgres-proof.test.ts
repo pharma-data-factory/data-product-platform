@@ -282,11 +282,13 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       const reloaded = await service2.getRequirementSet(persistedId);
       expect(reloaded!.status).toBe(URSStatus.APPROVED);
       expect(reloaded!.businessCapabilityRefs).toEqual([CAPABILITY]);
+      // The status changes above went straight through the repository, so
+      // only the service-level events are on record. SUBMITTED and APPROVED
+      // for a set are written by the baseline approval chain, which this test
+      // does not run; workflow-view.test.ts covers that.
       const audit = await service2.getAuditTrail(persistedId);
       const types = audit.map(a => a.eventType);
-      expect(types).toEqual(
-        expect.arrayContaining(['CREATED', 'UPDATED', 'SUBMITTED', 'APPROVED']),
-      );
+      expect(types).toEqual(expect.arrayContaining(['CREATED', 'UPDATED']));
     } finally {
       await db2.destroy();
     }

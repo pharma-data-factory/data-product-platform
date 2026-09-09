@@ -162,7 +162,7 @@ export function createHttpUrsBaselineResolver(options: {
       for (const vid of versionIds) {
         try {
           const vRes = await doFetch(
-            `${base}/requirements/_/versions/${encodeURIComponent(vid)}`,
+            `${base}/requirement-versions/${encodeURIComponent(vid)}`,
             { headers },
           );
           if (vRes.ok) {
