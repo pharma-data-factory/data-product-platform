@@ -150,6 +150,8 @@ export interface RequirementSet {
   updatedBy?: string;
   updatedAt?: Date;
   versionComment?: string;
+  /** Internal UUID of the predecessor set this version revises. */
+  supersedesRef?: string;
 }
 
 /**

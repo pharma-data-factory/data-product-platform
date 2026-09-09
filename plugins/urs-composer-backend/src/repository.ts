@@ -23,6 +23,10 @@ import {
 } from './types';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
+import {
+  SEED_REQUIREMENT_SETS,
+  acceptanceIntentFromSeed,
+} from './data/seedRequirementSets';
 
 const DEFAULT_BUSINESS_ROLES = [
   'Weighing Operator',
@@ -93,6 +97,63 @@ export class URSRepository implements IURSRepository {
         createdBy: 'system',
         version: 1,
       });
+    }
+  }
+
+  /**
+   * Seeds the example requirement sets (one per business capability) into the
+   * in-memory store. Idempotent. Called only from the in-memory production
+   * path so that unit tests start from an empty repository.
+   */
+  seedRequirementSets(): void {
+    const now = new Date();
+    for (const seedSet of SEED_REQUIREMENT_SETS) {
+      const setId = `seed:${seedSet.requirementSetId.toLowerCase()}`;
+      if (this.requirementSets.has(setId)) {
+        continue;
+      }
+
+      this.requirementSets.set(setId, {
+        id: setId,
+        requirementSetId: seedSet.requirementSetId,
+        versionNumber: 1,
+        revision: 1,
+        businessCapabilityRefs: seedSet.businessCapabilityRefs,
+        businessNeed: seedSet.businessNeed,
+        desiredOutcome: seedSet.desiredOutcome,
+        businessValue: seedSet.businessValue,
+        stakeholders: seedSet.stakeholders,
+        processContext: seedSet.processContext,
+        scope: seedSet.scope,
+        outOfScope: seedSet.outOfScope,
+        solutionType: seedSet.solutionType,
+        solutionName: seedSet.solutionName,
+        gxpRelevance: seedSet.gxpRelevance,
+        patientImpact: seedSet.patientImpact,
+        dataIntegrityImpact: seedSet.dataIntegrityImpact,
+        electronicRecords: seedSet.electronicRecords,
+        status: URSStatus.DRAFT,
+        createdAt: now,
+        createdBy: 'system',
+      });
+
+      const reqs: URSRequirement[] = seedSet.requirements.map(req => ({
+        id: `${setId}-${req.requirementId.toLowerCase()}`,
+        requirementSetId: setId,
+        requirementId: req.requirementId,
+        title: req.title,
+        statement: req.statement,
+        rationale: req.rationale,
+        category: req.category,
+        priority: req.priority,
+        acceptanceIntent: acceptanceIntentFromSeed(req.acceptanceCriteria),
+        classification: req.classification,
+        gxpRelevance: req.gxpRelevance,
+        status: URSStatus.DRAFT,
+        createdAt: now,
+        createdBy: 'system',
+      }));
+      this.requirements.set(setId, reqs);
     }
   }
 

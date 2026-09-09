@@ -100,6 +100,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('updated_by', 255);
       table.timestamp('updated_at');
       table.integer('revision').defaultTo(1);
+      table.string('supersedes_ref', 255);
 
       table.index(['status']);
       table.index(['created_at']);
@@ -108,6 +109,12 @@ export async function up(knex: Knex): Promise<void> {
   } else if (!(await knex.schema.hasColumn('requirement_sets', 'business_capability_refs'))) {
     await knex.schema.alterTable('requirement_sets', table => {
       table.text('business_capability_refs');
+    });
+  }
+
+  if (!(await knex.schema.hasColumn('requirement_sets', 'supersedes_ref'))) {
+    await knex.schema.alterTable('requirement_sets', table => {
+      table.string('supersedes_ref', 255);
     });
   }
 

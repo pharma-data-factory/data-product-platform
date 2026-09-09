@@ -4,7 +4,7 @@
  */
 
 import { LoggerService } from '@backstage/backend-plugin-api';
-import { NotAllowedError } from '@backstage/errors';
+import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
@@ -567,6 +567,134 @@ export class URSService {
       requirementSet: refreshed || updated,
       requirements: savedRequirements,
     };
+  }
+
+  /**
+   * Open a controlled revision of an approved/baselined requirement set.
+   *
+   * The source record stays immutable; a new DRAFT set (versionNumber + 1) is
+   * created with cloned requirements and a `supersedesRef` back to the source.
+   * Logical requirement IDs are preserved so version history and traceability
+   * chain across set versions.
+   */
+  async reviseRequirementSet(
+    id: string,
+    actor: string,
+    reason?: string,
+  ): Promise<RequirementSet> {
+    const source = await this.repository.getRequirementSet(id);
+    if (!source) {
+      throw new NotFoundError('Requirement set not found');
+    }
+
+    if (
+      source.status === URSStatus.SUPERSEDED ||
+      source.status === URSStatus.RETIRED
+    ) {
+      throw new InputError(`Cannot revise a ${source.status} requirement set`);
+    }
+
+    const approvedBaseline = await this.repository.getCurrentApprovedBaseline(
+      id,
+    );
+    const isFrozen =
+      source.status === URSStatus.APPROVED ||
+      source.status === URSStatus.BASELINED ||
+      Boolean(approvedBaseline);
+    if (!isFrozen) {
+      throw new InputError(
+        'Only approved or baselined requirement sets can be revised — edit the draft instead',
+      );
+    }
+
+    const { items: allSets } = await this.repository.listRequirementSets(
+      1000,
+      0,
+    );
+    const openRevision = allSets.find(
+      candidate =>
+        candidate.supersedesRef === id &&
+        (candidate.status === URSStatus.DRAFT ||
+          candidate.status === URSStatus.IN_REVIEW),
+    );
+    if (openRevision) {
+      throw new InputError(
+        `An open revision already exists: ${openRevision.requirementSetId}`,
+      );
+    }
+
+    const now = new Date();
+    const nextVersionNumber = (source.versionNumber || 1) + 1;
+    const draft: RequirementSet = {
+      ...source,
+      id: this.generateUUID(),
+      requirementSetId: `${source.requirementSetId}-V${nextVersionNumber}`,
+      versionNumber: nextVersionNumber,
+      revision: 1,
+      status: URSStatus.DRAFT,
+      supersedesRef: source.id,
+      versionComment: reason,
+      createdBy: actor,
+      createdAt: now,
+      updatedBy: undefined,
+      updatedAt: undefined,
+    };
+    const saved = await this.repository.createRequirementSet(draft);
+
+    const sourceRequirements = await this.repository.getRequirements(id);
+    await this.repository.replaceRequirements(
+      saved.id,
+      sourceRequirements.map(req => ({
+        ...req,
+        id: this.generateUUID(),
+        requirementSetId: saved.id,
+        status: URSStatus.DRAFT,
+        createdBy: actor,
+        createdAt: now,
+      })),
+    );
+
+    // Freeze the source record: it stays effective, but is no longer editable
+    // while the revision is open.
+    if (source.status === URSStatus.DRAFT) {
+      await this.repository.updateRequirementSet({
+        ...source,
+        status: URSStatus.BASELINED,
+        updatedBy: actor,
+        updatedAt: now,
+      });
+    }
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_SET',
+      entityId: saved.id,
+      entityVersion: `v${saved.versionNumber}`,
+      eventType: 'REVISION_CREATED',
+      newValue: {
+        requirementSetId: saved.requirementSetId,
+        versionNumber: saved.versionNumber,
+        supersedesRef: source.id,
+        clonedRequirements: sourceRequirements.length,
+      },
+      actor,
+      timestamp: now,
+      reason,
+    });
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_SET',
+      entityId: source.id,
+      entityVersion: `v${source.versionNumber}`,
+      eventType: 'REVISION_OPENED',
+      newValue: { revisionSetId: saved.id },
+      actor,
+      timestamp: now,
+      reason,
+    });
+
+    return saved;
   }
 
   /**
@@ -1327,6 +1455,50 @@ export class URSService {
         approvedAt: new Date(),
         revision: baseline.revision || 1,
       });
+
+      // Propagate approval to the requirement set and close the version chain:
+      // once a revision is approved, its predecessor stops being effective.
+      const approvedSet = await this.repository.getRequirementSet(
+        baseline.requirementSetId,
+      );
+      if (approvedSet) {
+        if (approvedSet.status !== URSStatus.APPROVED) {
+          await this.repository.updateRequirementSet({
+            ...approvedSet,
+            status: URSStatus.APPROVED,
+            updatedBy: actor,
+            updatedAt: new Date(),
+          });
+        }
+
+        if (approvedSet.supersedesRef) {
+          const predecessor = await this.repository.getRequirementSet(
+            approvedSet.supersedesRef,
+          );
+          if (predecessor && predecessor.status !== URSStatus.SUPERSEDED) {
+            await this.repository.updateRequirementSet({
+              ...predecessor,
+              status: URSStatus.SUPERSEDED,
+              updatedBy: actor,
+              updatedAt: new Date(),
+            });
+
+            await this.repository.createAuditEvent({
+              id: this.generateUUID(),
+              entityType: 'REQUIREMENT_SET',
+              entityId: predecessor.id,
+              entityVersion: `v${predecessor.versionNumber}`,
+              eventType: 'SUPERSEDED',
+              newValue: {
+                status: URSStatus.SUPERSEDED,
+                supersededBy: approvedSet.id,
+              },
+              actor: 'system',
+              timestamp: new Date(),
+            });
+          }
+        }
+      }
 
       // Approve all requirement versions in this baseline
       for (const versionId of baseline.requirementVersionIds) {

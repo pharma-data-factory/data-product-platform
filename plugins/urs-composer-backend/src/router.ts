@@ -13,7 +13,7 @@
 
 import express from 'express';
 import Router from 'express-promise-router';
-import { AuthenticationError, InputError, NotAllowedError } from '@backstage/errors';
+import { AuthenticationError, InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
@@ -88,6 +88,10 @@ function respondError(res: express.Response, logger: LoggerService, error: unkno
   }
   if (error instanceof InputError) {
     res.status(400).json({ error: error.message });
+    return;
+  }
+  if (error instanceof NotFoundError) {
+    res.status(404).json({ error: error.message });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -369,6 +373,20 @@ export async function createRouter(
   });
 
   /**
+   * GET /requirement-sets/:id/audit
+   * Append-only audit trail for a requirement set.
+   */
+  router.get('/requirement-sets/:id/audit', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const auditTrail = await service.getAuditTrail(req.params.id);
+      res.json(auditTrail);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * PUT /requirement-sets/:id
    * Update requirement set (draft only)
    */
@@ -390,6 +408,35 @@ export async function createRouter(
         actor,
       );
       res.json(result);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-sets/:id/revise
+   * Open a controlled revision of an approved/baselined requirement set.
+   * Creates a new DRAFT version; the source record stays immutable.
+   */
+  router.post('/requirement-sets/:id/revise', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursManagePermission,
+      );
+      const body = (req.body || {}) as { reason?: string };
+      const reason =
+        typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim()
+          : undefined;
+      const revision = await service.reviseRequirementSet(
+        req.params.id,
+        actor,
+        reason,
+      );
+      res.status(201).json(revision);
     } catch (err) {
       respondError(res, logger, err);
     }

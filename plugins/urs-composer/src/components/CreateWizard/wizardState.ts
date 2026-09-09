@@ -10,6 +10,7 @@ import {
   GxPRelevance,
   RequirementPriority,
   RequirementClassification,
+  URSStatus,
 } from '../../api/types';
 
 /**
@@ -48,6 +49,8 @@ export interface URSWizardState {
   requirementSetId?: string; // Backend ID if loaded from draft
   isDraft: boolean; // Loaded from backend vs new draft
   dirty: boolean; // Unsaved changes
+  ursStatus?: URSStatus; // Status of the persisted set (edit mode)
+  versionNumber?: number; // Version of the persisted set (edit mode)
 
   // === STEP 1: BUSINESS CAPABILITY ===
   businessCapabilityRefs: string[]; // Array of capability IDs
@@ -303,6 +306,8 @@ export function fromRequirementSetToWizardState(
     requirementSetId: set.id,
     isDraft: true,
     dirty: false,
+    ursStatus: set.status,
+    versionNumber: set.versionNumber,
     businessCapabilityRefs: set.businessCapabilityRefs || [],
     businessNeed: {
       title: set.businessNeed,
@@ -339,5 +344,115 @@ export function fromRequirementSetToWizardState(
     solutionCatalogRef: set.solutionCatalogRef,
     currentStep: 0,
   };
+}
+
+export interface ImportValidationResult {
+  valid: boolean;
+  errors: string[];
+  state?: URSWizardState;
+}
+
+export function fromImportJson(json: unknown): ImportValidationResult {
+  const errors: string[] = [];
+
+  if (Array.isArray(json)) {
+    if (json.length === 1) {
+      json = json[0];
+    } else {
+      return {
+        valid: false,
+        errors: [
+          `File contains ${json.length} requirement sets; import supports one set per file`,
+        ],
+      };
+    }
+  }
+
+  if (!json || typeof json !== 'object') {
+    return { valid: false, errors: ['Invalid JSON: expected an object'] };
+  }
+
+  const obj = json as Record<string, unknown>;
+
+  if (!Array.isArray(obj.businessCapabilityRefs) || obj.businessCapabilityRefs.length === 0) {
+    errors.push('Missing or empty "businessCapabilityRefs" array');
+  }
+  if (typeof obj.businessNeed !== 'string' || !obj.businessNeed.trim()) {
+    errors.push('Missing or empty "businessNeed" string');
+  }
+  if (typeof obj.solutionType !== 'string') {
+    errors.push('Missing "solutionType" (COMPONENT, PROJECT, PLATFORM, SERVICE)');
+  }
+  if (typeof obj.solutionName !== 'string' || !obj.solutionName.trim()) {
+    errors.push('Missing or empty "solutionName" string');
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  const reqs: RequirementDraft[] = [];
+  if (Array.isArray(obj.requirements)) {
+    for (let i = 0; i < obj.requirements.length; i++) {
+      const r = obj.requirements[i] as Record<string, unknown>;
+      if (!r || typeof r.title !== 'string' || typeof r.statement !== 'string') {
+        errors.push(`requirements[${i}]: missing "title" or "statement"`);
+        continue;
+      }
+      reqs.push({
+        tempId: createTempId(),
+        title: r.title,
+        statement: r.statement,
+        rationale: typeof r.rationale === 'string' ? r.rationale : undefined,
+        category: typeof r.category === 'string' ? r.category : undefined,
+        priority: r.priority as RequirementPriority | undefined,
+        gxpRelevance: r.gxpRelevance as GxPRelevance | undefined,
+        source: typeof r.source === 'string' ? r.source : undefined,
+        owner: typeof r.owner === 'string' ? r.owner : undefined,
+        classification: r.classification as RequirementClassification | undefined,
+        acceptanceCriteria: Array.isArray(r.acceptanceCriteria)
+          ? (r.acceptanceCriteria as Record<string, unknown>[]).map(ac => ({
+              tempId: createTempId(),
+              title: String(ac.title || ''),
+              description: ac.description ? String(ac.description) : undefined,
+              verificationMethod: ac.verificationMethod ? String(ac.verificationMethod) : undefined,
+            }))
+          : undefined,
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  const state: URSWizardState = {
+    isDraft: false,
+    dirty: true,
+    businessCapabilityRefs: obj.businessCapabilityRefs as string[],
+    businessNeed: {
+      title: obj.businessNeed as string,
+      desiredOutcome: typeof obj.desiredOutcome === 'string' ? obj.desiredOutcome : undefined,
+      businessValue: typeof obj.businessValue === 'string' ? obj.businessValue : undefined,
+      stakeholders: Array.isArray(obj.stakeholders) ? obj.stakeholders as string[] : undefined,
+    },
+    context: {
+      title: (obj.solutionName as string) || (obj.businessNeed as string),
+      scope: typeof obj.scope === 'string' ? obj.scope : undefined,
+      outOfScope: typeof obj.outOfScope === 'string' ? obj.outOfScope : undefined,
+      processContext: typeof obj.processContext === 'string' ? obj.processContext : undefined,
+      gxpRelevance: obj.gxpRelevance as GxPRelevance | undefined,
+      patientImpact: typeof obj.patientImpact === 'boolean' ? obj.patientImpact : undefined,
+      dataIntegrityImpact: typeof obj.dataIntegrityImpact === 'boolean' ? obj.dataIntegrityImpact : undefined,
+      electronicRecords: typeof obj.electronicRecords === 'boolean' ? obj.electronicRecords : undefined,
+    },
+    requirements: reqs,
+    solutionType: obj.solutionType as SolutionType,
+    solutionName: obj.solutionName as string,
+    solutionCatalogRef: typeof obj.solutionCatalogRef === 'string' ? obj.solutionCatalogRef : undefined,
+    currentStep: 0,
+  };
+
+  return { valid: true, errors: [], state };
 }
 

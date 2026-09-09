@@ -322,6 +322,7 @@ export class PostgresURSRepository implements IURSRepository {
       updated_by: set.updatedBy || null,
       updated_at: set.updatedAt || null,
       revision: set.revision || 1,
+      supersedes_ref: set.supersedesRef || null,
     });
     return set;
   }
@@ -384,6 +385,7 @@ export class PostgresURSRepository implements IURSRepository {
       updated_by: set.updatedBy,
       updated_at: set.updatedAt || new Date(),
       revision: (set.revision || 1) + 1,
+      supersedes_ref: set.supersedesRef || null,
     });
   }
 
@@ -990,6 +992,7 @@ export class PostgresURSRepository implements IURSRepository {
       updatedBy: row.updated_by,
       updatedAt: row.updated_at,
       revision: row.revision,
+      supersedesRef: row.supersedes_ref || undefined,
     };
   }
 

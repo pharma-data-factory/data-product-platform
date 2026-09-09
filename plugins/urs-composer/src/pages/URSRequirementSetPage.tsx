@@ -11,6 +11,7 @@ import {
   Content,
   ContentHeader,
   Progress,
+  Link,
 } from '@backstage/core-components';
 import {
   Typography,
@@ -40,6 +41,7 @@ import {
   MenuItem,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
+import AddIcon from '@material-ui/icons/Add';
 import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
 import CancelIcon from '@material-ui/icons/Cancel';
@@ -122,6 +124,10 @@ export const URSRequirementSetPage: React.FC = () => {
   const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'cancel' | null>(null);
   const [confirmStepId, setConfirmStepId] = useState<string | null>(null);
   const [confirmReason, setConfirmReason] = useState('');
+  // Controlled revision ("New Version") state
+  const [reviseDialogOpen, setReviseDialogOpen] = useState(false);
+  const [reviseReason, setReviseReason] = useState('');
+  const [predecessor, setPredecessor] = useState<RequirementSet | null>(null);
 
   const filteredRequirements = useMemo(() => {
     const q = reqSearch.toLowerCase();
@@ -211,6 +217,29 @@ export const URSRequirementSetPage: React.FC = () => {
       mounted = false;
     };
   }, [id, api]);
+
+  // Resolve the predecessor version when this set is a revision.
+  const supersedesRef = set?.supersedesRef;
+  useEffect(() => {
+    if (!supersedesRef) {
+      setPredecessor(null);
+      return;
+    }
+    let mounted = true;
+    api
+      .getRequirementSet(supersedesRef)
+      .then(previous => {
+        if (mounted) {
+          setPredecessor(previous);
+        }
+      })
+      .catch(() => {
+        // predecessor may be unavailable — not fatal
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [supersedesRef, api]);
 
   const handleStartValidation = async () => {
     if (!id || !approvedBaselineId) {
@@ -342,6 +371,25 @@ export const URSRequirementSetPage: React.FC = () => {
     }
   };
 
+  const handleRevise = async () => {
+    if (!id || !reviseReason.trim()) {
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const revision = await api.reviseRequirementSet(id, reviseReason.trim());
+      setReviseDialogOpen(false);
+      setReviseReason('');
+      setLoading(true);
+      navigate(`/urs-composer/${revision.id}`);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create a new version');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Load approval instance when a baseline has one
   useEffect(() => {
     const baselineWithApproval = baselines.find(
@@ -380,34 +428,61 @@ export const URSRequirementSetPage: React.FC = () => {
   }
 
   const canEdit = set.status === URSStatus.DRAFT;
+  const canRevise =
+    manageAllowed &&
+    set.status !== URSStatus.SUPERSEDED &&
+    set.status !== URSStatus.RETIRED &&
+    (set.status === URSStatus.APPROVED ||
+      set.status === URSStatus.BASELINED ||
+      Boolean(approvedBaselineId));
 
   return (
     <Page themeId="tool">
       <Header
         title={set.solutionName || set.requirementSetId}
-        subtitle={set.requirementSetId}
+        subtitle={`${set.requirementSetId} · v${set.versionNumber}`}
       />
       <Content>
         <ContentHeader title="Requirement Set Detail">
-          {canEdit && (
-            <Button
-              startIcon={<EditIcon />}
-              onClick={() => navigate(`/urs-composer/${set.id}/edit`)}
-            >
-              Edit Draft
-            </Button>
-          )}
+          <Box display="flex" style={{ gap: 8 }}>
+            {canRevise && (
+              <Button
+                startIcon={<AddIcon />}
+                onClick={() => setReviseDialogOpen(true)}
+              >
+                New Version
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                startIcon={<EditIcon />}
+                onClick={() => navigate(`/urs-composer/${set.id}/edit`)}
+              >
+                Edit Draft
+              </Button>
+            )}
+          </Box>
         </ContentHeader>
 
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" style={{ gap: 8, marginBottom: 8 }}>
               <Chip label={set.status} color="primary" />
+              <Chip label={`v${set.versionNumber}`} variant="outlined" />
               <Typography color="textSecondary">
                 Created {set.createdBy} · {set.createdAt}
                 {set.updatedAt ? ` · Updated ${set.updatedAt}` : ''}
               </Typography>
             </Box>
+            {predecessor && (
+              <Typography variant="body2" color="textSecondary">
+                Revision of{' '}
+                <Link to={`/urs-composer/${predecessor.id}`}>
+                  {predecessor.requirementSetId} (v{predecessor.versionNumber})
+                </Link>
+                {set.versionComment ? ` — ${set.versionComment}` : ''}
+              </Typography>
+            )}
             {actionError && (
               <Typography color="error" paragraph>
                 {actionError}
@@ -1024,6 +1099,46 @@ export const URSRequirementSetPage: React.FC = () => {
             }}
           >
             {creatingBaseline ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* New Version (controlled revision) dialog */}
+      <Dialog
+        open={reviseDialogOpen}
+        onClose={() => setReviseDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create a New Version</DialogTitle>
+        <DialogContent>
+          <Typography paragraph>
+            {set.requirementSetId} (v{set.versionNumber}) is approved and stays immutable. A new
+            DRAFT version v{set.versionNumber + 1} is created with a copy of all requirements. The
+            current version remains the effective record until the new one is approved.
+          </Typography>
+          <TextField
+            label="Reason for change"
+            fullWidth
+            required
+            multiline
+            rows={3}
+            value={reviseReason}
+            onChange={e => setReviseReason(e.target.value)}
+            helperText="Recorded in the audit trail."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReviseDialogOpen(false)} disabled={actionLoading}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleRevise}
+            disabled={!reviseReason.trim() || actionLoading}
+          >
+            {actionLoading ? 'Creating...' : 'Create New Version'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -20,6 +20,7 @@ export enum URSStatus {
   DRAFT = 'DRAFT',
   IN_REVIEW = 'IN_REVIEW',
   APPROVED = 'APPROVED',
+  BASELINED = 'BASELINED',
   SUPERSEDED = 'SUPERSEDED',
   RETIRED = 'RETIRED',
 }
@@ -147,6 +148,8 @@ export interface RequirementSet {
   updatedBy?: string;
   updatedAt?: string;
   versionComment?: string;
+  /** Internal UUID of the predecessor set this version revises. */
+  supersedesRef?: string;
 }
 
 export interface Requirement {

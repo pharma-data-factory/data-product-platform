@@ -254,6 +254,20 @@ export class URSComposerApi {
   }
 
   /**
+   * POST /requirement-sets/:id/revise
+   * Open a controlled revision of an approved/baselined requirement set.
+   * Returns the new DRAFT version; the source record stays immutable.
+   */
+  async reviseRequirementSet(
+    id: string,
+    reason?: string,
+  ): Promise<RequirementSet> {
+    return this.post<RequirementSet>(`/requirement-sets/${id}/revise`, {
+      reason,
+    });
+  }
+
+  /**
    * URS → Validation Expert integration.
    *
    * POST /api/validation-expert/contexts/from-urs
@@ -398,7 +412,10 @@ export class URSComposerApi {
    * List baselines for a requirement set
    */
   async listBaselines(setId: string): Promise<Baseline[]> {
-    return this.get<Baseline[]>(`/requirement-sets/${setId}/baselines`);
+    const result = await this.get<{ items: Baseline[]; total: number }>(
+      `/requirement-sets/${setId}/baselines`,
+    );
+    return result.items ?? [];
   }
 
   /**

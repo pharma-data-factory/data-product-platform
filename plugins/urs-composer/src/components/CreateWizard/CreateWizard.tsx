@@ -2,7 +2,7 @@
  * URS Create Wizard (8-Step)
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import {
   Stepper,
@@ -14,11 +14,13 @@ import {
   CardContent,
   Typography,
   CircularProgress,
+  Chip,
 } from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
 import { makeStyles } from '@material-ui/core/styles';
 import SaveIcon from '@material-ui/icons/Save';
 import ArrowBackIcon from '@material-ui/icons/ArrowBack';
+import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { Header, Page, Content } from '@backstage/core-components';
 
 import {
@@ -29,6 +31,7 @@ import {
   markSaved,
   toCreateRequirementSetRequest,
   toDraftRequirementsPayload,
+  fromImportJson,
 } from './wizardState';
 import { BusinessCapabilityStep } from './steps/BusinessCapabilityStep';
 import { BusinessNeedStep } from './steps/BusinessNeedStep';
@@ -39,6 +42,8 @@ import { QualityReviewStep } from './steps/QualityReviewStep';
 import { TraceabilityStep } from './steps/TraceabilityStep';
 import { ReviewSubmitStep } from './steps/ReviewSubmitStep';
 import { ursComposerApiRef } from '../../api/ursComposerApi';
+import type { BusinessCapability } from '../../api/types';
+import { URSStatus } from '../../api/types';
 
 const useStyles = makeStyles(theme => ({
   root: {
@@ -65,6 +70,13 @@ const useStyles = makeStyles(theme => ({
   },
   draftIndicator: {
     marginBottom: theme.spacing(2),
+  },
+  capabilityBar: {
+    display: 'flex',
+    gap: theme.spacing(0.5),
+    padding: theme.spacing(0, 0, 0.5, 0),
+    flexWrap: 'wrap',
+    alignItems: 'center',
   },
 }));
 
@@ -101,6 +113,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [capabilityNames, setCapabilityNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!state.dirty) return;
@@ -111,6 +124,26 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [state.dirty]);
+
+  useEffect(() => {
+    if (state.businessCapabilityRefs.length === 0) {
+      setCapabilityNames(new Map());
+      return;
+    }
+    let cancelled = false;
+    api.listCapabilities().then(result => {
+      if (cancelled) return;
+      const caps: BusinessCapability[] = Array.isArray(result) ? result : (result as any).items ?? [];
+      const map = new Map<string, string>();
+      for (const cap of caps) {
+        if (state.businessCapabilityRefs.includes(cap.id)) {
+          map.set(cap.id, cap.name);
+        }
+      }
+      setCapabilityNames(map);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [state.businessCapabilityRefs, api]);
 
   const persistDraft = useCallback(async () => {
     const base = toCreateRequirementSetRequest(state);
@@ -187,6 +220,38 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     }
   }, [state, onComplete, persistDraft]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportJson = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const json = JSON.parse(ev.target?.result as string);
+        const result = fromImportJson(json);
+        if (result.valid && result.state) {
+          setState(result.state);
+          setStepErrors([]);
+          setSaveError(null);
+          setSaveSuccess(`Imported ${result.state.requirements.length} requirement(s) from ${file.name}`);
+          setTimeout(() => setSaveSuccess(null), 4000);
+        } else {
+          setStepErrors(result.errors);
+        }
+      } catch {
+        setStepErrors(['Failed to parse JSON file. Check the file format.']);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, []);
+
   const renderStepContent = () => {
     const props = { state, onStateChange: handleStateChange };
     switch (state.currentStep) {
@@ -221,6 +286,38 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
         subtitle="8-Step Guided Wizard"
       />
       <Content>
+        {(capabilityNames.size > 0 && state.currentStep > 0) || state.ursStatus ? (
+          <Box className={classes.capabilityBar}>
+            {capabilityNames.size > 0 && state.currentStep > 0 && (
+              <>
+                <Typography variant="caption" color="textSecondary">
+                  Business Capability:
+                </Typography>
+                {Array.from(capabilityNames.values()).map(name => (
+                  <Chip key={name} label={name} size="small" color="primary" variant="outlined" />
+                ))}
+              </>
+            )}
+            {state.ursStatus && (
+              <>
+                <Chip
+                  label={`v${state.versionNumber ?? 1}`}
+                  size="small"
+                  variant="outlined"
+                />
+                <Chip
+                  label={state.ursStatus}
+                  size="small"
+                  color={
+                    state.ursStatus === URSStatus.APPROVED || state.ursStatus === URSStatus.BASELINED
+                      ? 'primary'
+                      : 'default'
+                  }
+                />
+              </>
+            )}
+          </Box>
+        ) : null}
         <Box className={classes.root}>
           {state.dirty && (
             <Alert severity="info" className={classes.draftIndicator}>
@@ -275,6 +372,14 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
             </CardContent>
           </Card>
 
+          <input
+            type="file"
+            accept=".json,application/json"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileSelected}
+          />
+
           <Box className={classes.actions}>
             <Box>
               {state.currentStep > 0 && (
@@ -282,6 +387,13 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
                   Back
                 </Button>
               )}
+              <Button
+                startIcon={<CloudUploadIcon />}
+                onClick={handleImportJson}
+                disabled={isSaving}
+              >
+                Import JSON
+              </Button>
             </Box>
 
             <Box display="flex" style={{ gap: 8 }}>

@@ -126,7 +126,9 @@ export const ursComposerPlugin = createBackendPlugin({
             'Data will NOT persist across restarts. ' +
             'For production, use ursComposer.persistence.mode=postgres (default).',
           );
-          repository = new URSRepository();
+          const inMemoryRepository = new URSRepository();
+          inMemoryRepository.seedRequirementSets();
+          repository = inMemoryRepository;
         } else {
           // Defensive: should never reach here
           throw new Error(`Unexpected persistence mode: ${persistenceMode}`);

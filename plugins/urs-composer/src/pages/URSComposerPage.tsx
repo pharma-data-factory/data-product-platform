@@ -61,8 +61,8 @@ export const URSComposerPage: React.FC = () => {
           </Grid>
 
           <Grid item xs={12} sm={6}>
-            <Card>
-              <CardContent>
+            <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent style={{ flexGrow: 1 }}>
                 <Typography variant="h5" gutterBottom>
                   Create URS
                 </Typography>
@@ -84,8 +84,8 @@ export const URSComposerPage: React.FC = () => {
           </Grid>
 
           <Grid item xs={12} sm={6}>
-            <Card>
-              <CardContent>
+            <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent style={{ flexGrow: 1 }}>
                 <Typography variant="h5" gutterBottom>
                   Browse Requirement Sets
                 </Typography>
