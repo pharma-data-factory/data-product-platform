@@ -52,6 +52,14 @@ export const AVAILABLE_DISTRIBUTION_CHANNELS: readonly DistributionChannel[] = [
   'TEMPLATE_EDITION',
 ];
 
+export const DISTRIBUTION_DESCRIPTIONS: Record<DistributionChannel, string> = {
+  INTERNAL: 'Used by Nexora engineers.',
+  TEMPLATE_EDITION:
+    'Certified templates for a controlled pilot. Not commercially distributable while legal gates are OPEN.',
+  PLATFORM_EDITION: 'Future customer-hosted Control Plane.',
+  SAAS: 'Future managed service.',
+};
+
 export const OFFICIAL_GOLDEN_PATHS: readonly string[] = (
   catalog as GoldenPathReleaseCatalog
 ).releases
@@ -400,17 +408,25 @@ export function distributionLabel(channel: DistributionChannel): string {
   }
 }
 
+export function distributionDescription(
+  channel: DistributionChannel,
+): string {
+  return DISTRIBUTION_DESCRIPTIONS[channel] ?? '';
+}
+
 export function distributionStatusLines(
   approved: readonly DistributionChannel[] = [],
 ): Array<{
   channel: DistributionChannel;
   label: string;
+  description: string;
   availability: DistributionAvailability;
   offered: boolean;
 }> {
   return DISTRIBUTION_CHANNELS.map(channel => ({
     channel,
     label: distributionLabel(channel),
+    description: distributionDescription(channel),
     availability: DISTRIBUTION_AVAILABILITY[channel],
     offered:
       AVAILABLE_DISTRIBUTION_CHANNELS.includes(channel) &&

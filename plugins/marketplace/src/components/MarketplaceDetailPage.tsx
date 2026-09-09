@@ -11,7 +11,7 @@ import {
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
-import { Grid, Typography } from '@material-ui/core';
+import { Grid, Typography, Box } from '@material-ui/core';
 import {
   CertificationChip,
   JourneyState,
@@ -203,9 +203,16 @@ export function MarketplaceDetailPage() {
               {release && (
                 <InfoCard title="Distribution">
                   {distributionStatusLines(release.distribution).map(row => (
-                    <Typography key={row.channel} variant="body2">
-                      {row.label} — {row.availability}
-                    </Typography>
+                    <Box key={row.channel} marginBottom={1}>
+                      <Typography variant="body2">
+                        {row.label} — {row.availability}
+                      </Typography>
+                      {row.description ? (
+                        <Typography variant="body2" color="textSecondary">
+                          {row.description}
+                        </Typography>
+                      ) : null}
+                    </Box>
                   ))}
                   <Typography variant="body2" style={{ marginTop: 12 }}>
                     Marketplace Create uses Internal and Template Edition only.
