@@ -6,6 +6,7 @@ These pages are published with Backstage TechDocs. There is no second wiki.
 
 - [MVP 1.0 baseline](mvp-1.0-baseline.md)
 - [Status model](status-model.md)
+- [Subsystem status and GxP position](subsystem-status.md)
 - [Developer Hub](developer/index.md)
 - [Developer Quick Start](developer/quick-start.md)
 - [Getting started](developer/getting-started.md)

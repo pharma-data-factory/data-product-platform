@@ -5,6 +5,9 @@ Planned and future capabilities are **not available** in the running product.
 
 MVP 1.0 freeze: [mvp-1.0-baseline.md](docs/mvp-1.0-baseline.md).
 Status dimensions: [status-model.md](docs/status-model.md).
+Control Plane subsystems outside Golden Paths (URS Composer, Validation
+Expert, e-sign GxP position, AAS honesty):
+[subsystem-status.md](docs/subsystem-status.md).
 
 ## MVP 1.0 — TECHNICAL BASELINE
 
