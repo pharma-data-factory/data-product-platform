@@ -273,4 +273,72 @@ describe('URSComposerApi', () => {
       );
     });
   });
+
+  // ============================================================================
+  // SIGNATURE ENDPOINTS
+  // ============================================================================
+
+  describe('Signature endpoints', () => {
+    test('setSigningPin accepts an empty 204 response', async () => {
+      // The route answers 204 with no body. Parsing that as JSON throws, and
+      // a PIN is the precondition for every signature, so this has to work.
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        json: async () => {
+          throw new SyntaxError('Unexpected end of JSON input');
+        },
+      });
+
+      const api = createApi();
+
+      await expect(api.setSigningPin('123456')).resolves.toBeUndefined();
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/signing-pin'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ pin: '123456' }),
+        }),
+      );
+    });
+
+    test('listSignatures unwraps the items the route wraps them in', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              id: 'sig-1',
+              targetType: 'REQUIREMENT_VERSION',
+              targetId: 'ver-1',
+              meaning: 'REVIEWED',
+              signedBy: 'user:default/anna',
+              signedAt: '2026-01-01T00:00:00.000Z',
+              contentHashAtSigning: 'abc',
+            },
+          ],
+        }),
+      });
+
+      const api = createApi();
+      const result = await api.listSignatures('ver-1');
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(1);
+      expect(result[0].signedBy).toBe('user:default/anna');
+    });
+
+    test('listSignatures reports no signatures as an empty list', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+
+      const api = createApi();
+
+      await expect(api.listSignatures('ver-1')).resolves.toEqual([]);
+    });
+  });
 });

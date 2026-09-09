@@ -99,6 +99,13 @@ export class URSComposerApi {
       throw error;
     }
 
+    // A route that answers 204 sends no body, and parsing one throws. The
+    // signing-pin route does exactly that, so this is on the path of every
+    // signature.
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     // Parse success response
     const data = await response.json();
     return data as T;
@@ -498,9 +505,10 @@ export class URSComposerApi {
    * GET /requirement-versions/:id/signatures
    */
   async listSignatures(versionId: string): Promise<Signature[]> {
-    return this.get<Signature[]>(
+    const result = await this.get<{ items: Signature[] }>(
       `/requirement-versions/${encodeURIComponent(versionId)}/signatures`,
     );
+    return result.items ?? [];
   }
 
   /**
