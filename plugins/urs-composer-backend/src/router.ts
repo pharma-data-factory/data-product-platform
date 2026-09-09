@@ -13,7 +13,13 @@
 
 import express from 'express';
 import Router from 'express-promise-router';
-import { AuthenticationError, InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import {
+  AuthenticationError,
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+} from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
@@ -92,6 +98,12 @@ function respondError(res: express.Response, logger: LoggerService, error: unkno
   }
   if (error instanceof NotFoundError) {
     res.status(404).json({ error: error.message });
+    return;
+  }
+  // Raised by the status transition engine and by the single-open-version
+  // rule: the request was well formed but conflicts with the current state.
+  if (error instanceof ConflictError) {
+    res.status(409).json({ error: error.message });
     return;
   }
   logger.error(`Unexpected error: ${error}`);

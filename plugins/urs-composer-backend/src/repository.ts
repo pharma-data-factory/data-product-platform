@@ -21,6 +21,8 @@ import {
   BusinessRolePersisted,
   URSStatus,
 } from './types';
+import { NotFoundError } from '@backstage/errors';
+import { assertTransition } from './domain/transitions';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import {
@@ -412,7 +414,31 @@ export class URSRepository implements IURSRepository {
   }
 
   async updateRequirementVersion(version: RequirementVersion): Promise<void> {
-    this.requirementVersions.set(version.id, version);
+    const existing = this.requirementVersions.get(version.id);
+    if (!existing) {
+      throw new NotFoundError(`Requirement version ${version.id} not found`);
+    }
+
+    // Mirrors the Postgres repository so that both backends reject the same
+    // status changes; see its updateRequirementVersion for the reasoning.
+    if (existing.status !== version.status) {
+      assertTransition('version', existing.status, version.status, version.id);
+    }
+
+    const releasedAt =
+      version.status === URSStatus.APPROVED
+        ? version.releasedAt ?? version.approvedAt ?? new Date()
+        : existing.releasedAt;
+
+    this.requirementVersions.set(version.id, {
+      ...existing,
+      status: version.status,
+      supersededBy: version.supersededBy,
+      approvedBy: version.approvedBy,
+      approvedAt: version.approvedAt,
+      releasedAt,
+      revision: (existing.revision || 1) + 1,
+    });
   }
 
   async getRequirementVersionsByIds(ids: string[]): Promise<RequirementVersion[]> {
@@ -462,7 +488,19 @@ export class URSRepository implements IURSRepository {
   }
 
   async updateBaseline(baseline: Baseline): Promise<void> {
-    this.baselines.set(baseline.id, baseline);
+    const existing = this.baselines.get(baseline.id);
+    if (!existing) {
+      throw new NotFoundError(`Baseline ${baseline.id} not found`);
+    }
+
+    if (existing.status !== baseline.status) {
+      assertTransition('baseline', existing.status, baseline.status, baseline.id);
+    }
+
+    this.baselines.set(baseline.id, {
+      ...baseline,
+      revision: (existing.revision || 1) + 1,
+    });
   }
 
   // ============================================================================

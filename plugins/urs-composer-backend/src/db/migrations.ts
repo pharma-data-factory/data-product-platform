@@ -175,6 +175,44 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // Idempotent: structured major/minor version numbering. The legacy `version`
+  // column keeps carrying the label for existing readers; `version_label` is
+  // the value the versioning domain computes from now on. Backfilled below so
+  // that upgraded databases are indistinguishable from fresh ones.
+  if (!(await knex.schema.hasColumn('requirement_versions', 'major'))) {
+    await knex.schema.alterTable('requirement_versions', table => {
+      table.integer('major');
+      table.integer('minor');
+      table.string('version_label', 50);
+      table.timestamp('released_at');
+    });
+
+    // Parsed inline rather than through the versioning domain: a migration has
+    // to keep interpreting the data as it was written, even if the label
+    // format later changes.
+    const rows = await knex('requirement_versions').select(
+      'id',
+      'version',
+      'status',
+      'approved_at',
+    );
+
+    for (const row of rows) {
+      const match = /^(\d+)\.(\d+)/.exec(String(row.version ?? ''));
+      const major = match ? parseInt(match[1], 10) : 0;
+      const minor = match ? parseInt(match[2], 10) : 1;
+
+      await knex('requirement_versions')
+        .where({ id: row.id })
+        .update({
+          major,
+          minor,
+          version_label: row.version ?? `${major}.${minor}`,
+          released_at: row.status === 'APPROVED' ? row.approved_at : null,
+        });
+    }
+  }
+
   // ============================================================================
   // BASELINES (P1A)
   // ============================================================================
@@ -354,6 +392,156 @@ export async function up(knex: Knex): Promise<void> {
         table.text('entity_version').alter();
       });
     }
+  }
+
+  await applyGxpConstraints(knex);
+}
+
+/**
+ * Database-level enforcement of the GxP invariants.
+ *
+ * These are guarantees, not conveniences: the application layer already
+ * refuses the same operations, but a regulated audit trail may not depend on
+ * application code being correct. Anything that reaches the database through
+ * another path — a console, a repair script, a future plugin — is stopped here
+ * too.
+ *
+ * PostgreSQL only. Partial indexes and row triggers have no portable
+ * equivalent, and SQLite is used for unit tests rather than regulated data.
+ */
+async function applyGxpConstraints(knex: Knex): Promise<void> {
+  if (knex.client.config.client !== 'pg') {
+    return;
+  }
+
+  // Statuses in which a requirement version is still being worked on.
+  const OPEN_STATUSES = ['DRAFT', 'IN_REVIEW', 'REVIEWED', 'IN_APPROVAL'];
+
+  // Invariant 15: a requirement has at most one open version at a time.
+  // Pre-existing violations would make the index creation fail with a message
+  // that does not say what to do, so they are reported explicitly instead.
+  const conflicting = await knex('requirement_versions')
+    .whereIn('status', OPEN_STATUSES)
+    .groupBy('requirement_id')
+    .havingRaw('count(*) > 1')
+    .select('requirement_id');
+
+  if (conflicting.length > 0) {
+    const ids = conflicting.map(r => r.requirement_id).join(', ');
+    throw new Error(
+      `Cannot enforce the single-open-version rule: these requirements already ` +
+        `have more than one version in ${OPEN_STATUSES.join('/')}: ${ids}. ` +
+        `Resolve the duplicates (reject or supersede the stale versions) and restart.`,
+    );
+  }
+
+  await knex.raw(`
+    CREATE UNIQUE INDEX IF NOT EXISTS requirement_versions_single_open
+      ON requirement_versions (requirement_id)
+      WHERE status IN ('DRAFT', 'IN_REVIEW', 'REVIEWED', 'IN_APPROVAL')
+  `);
+
+  // Invariant 1: content is frozen once a version leaves DRAFT, and a released
+  // version may only change its status (to superseded or obsolete).
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION urs_requirement_version_immutability()
+    RETURNS trigger AS $fn$
+    BEGIN
+      IF OLD.status <> 'DRAFT' AND (
+            NEW.title              IS DISTINCT FROM OLD.title
+         OR NEW.statement          IS DISTINCT FROM OLD.statement
+         OR NEW.rationale          IS DISTINCT FROM OLD.rationale
+         OR NEW.acceptance_intent  IS DISTINCT FROM OLD.acceptance_intent
+         OR NEW.category           IS DISTINCT FROM OLD.category
+         OR NEW.priority           IS DISTINCT FROM OLD.priority
+         OR NEW.gxp_relevance      IS DISTINCT FROM OLD.gxp_relevance
+         OR NEW.criticality        IS DISTINCT FROM OLD.criticality
+         OR NEW.component_type     IS DISTINCT FROM OLD.component_type
+         OR NEW.requirement_nature IS DISTINCT FROM OLD.requirement_nature
+      ) THEN
+        RAISE EXCEPTION
+          'URS_IMMUTABLE: requirement version % is content-frozen at status %',
+          OLD.id, OLD.status USING ERRCODE = '23514';
+      END IF;
+
+      IF OLD.status IN ('APPROVED', 'SUPERSEDED', 'OBSOLETE', 'REJECTED') AND (
+            NEW.requirement_id IS DISTINCT FROM OLD.requirement_id
+         OR NEW.version        IS DISTINCT FROM OLD.version
+         OR NEW.version_label  IS DISTINCT FROM OLD.version_label
+         OR NEW.major          IS DISTINCT FROM OLD.major
+         OR NEW.minor          IS DISTINCT FROM OLD.minor
+         OR NEW.created_by     IS DISTINCT FROM OLD.created_by
+         OR NEW.created_at     IS DISTINCT FROM OLD.created_at
+         OR NEW.approved_by    IS DISTINCT FROM OLD.approved_by
+         OR NEW.approved_at    IS DISTINCT FROM OLD.approved_at
+         OR NEW.released_at    IS DISTINCT FROM OLD.released_at
+      ) THEN
+        RAISE EXCEPTION
+          'URS_IMMUTABLE: released requirement version % may only change status',
+          OLD.id USING ERRCODE = '23514';
+      END IF;
+
+      RETURN NEW;
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
+  // A version that was ever reviewed is part of the record and cannot be
+  // removed; abandoned drafts may still be deleted.
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION urs_requirement_version_no_delete()
+    RETURNS trigger AS $fn$
+    BEGIN
+      IF OLD.status <> 'DRAFT' THEN
+        RAISE EXCEPTION
+          'URS_IMMUTABLE: requirement version % cannot be deleted at status %',
+          OLD.id, OLD.status USING ERRCODE = '23514';
+      END IF;
+      RETURN OLD;
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
+  // Invariant 2: the audit trail is append-only.
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION urs_append_only()
+    RETURNS trigger AS $fn$
+    BEGIN
+      RAISE EXCEPTION
+        'URS_APPEND_ONLY: % is append-only; % is not permitted',
+        TG_TABLE_NAME, TG_OP USING ERRCODE = '23514';
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
+  // CREATE TRIGGER has no IF NOT EXISTS before PostgreSQL 14, and this
+  // migration runs on every boot, so each trigger is dropped and recreated.
+  const triggers: Array<[string, string, string, string]> = [
+    [
+      'requirement_versions_immutability',
+      'requirement_versions',
+      'BEFORE UPDATE',
+      'urs_requirement_version_immutability',
+    ],
+    [
+      'requirement_versions_no_delete',
+      'requirement_versions',
+      'BEFORE DELETE',
+      'urs_requirement_version_no_delete',
+    ],
+    [
+      'audit_events_append_only',
+      'audit_events',
+      'BEFORE UPDATE OR DELETE',
+      'urs_append_only',
+    ],
+  ];
+
+  for (const [name, table, timing, fn] of triggers) {
+    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON ${table}`);
+    await knex.raw(
+      `CREATE TRIGGER ${name} ${timing} ON ${table} FOR EACH ROW EXECUTE FUNCTION ${fn}()`,
+    );
   }
 }
 

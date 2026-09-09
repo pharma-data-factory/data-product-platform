@@ -27,6 +27,8 @@ import {
   ApprovalInstanceStatus,
   ApprovalStepStatus,
 } from './types';
+import { NotFoundError } from '@backstage/errors';
+import { assertTransition } from './domain/transitions';
 import { IURSRepository, Transaction } from './repository-interface';
 import { up } from './db/migrations';
 import { seed } from './db/seeds';
@@ -402,6 +404,9 @@ export class PostgresURSRepository implements IURSRepository {
       requirement_id: version.requirementId,
       version: version.version,
       version_number: version.versionNumber,
+      major: version.major ?? null,
+      minor: version.minor ?? null,
+      version_label: version.versionLabel ?? version.version,
       title: version.title,
       statement: version.statement,
       rationale: version.rationale || null,
@@ -419,6 +424,7 @@ export class PostgresURSRepository implements IURSRepository {
       created_at: version.createdAt,
       approved_by: version.approvedBy || null,
       approved_at: version.approvedAt || null,
+      released_at: version.releasedAt || null,
       revision: version.revision || 1,
     });
     return version;
@@ -454,10 +460,23 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   async updateRequirementVersion(version: RequirementVersion): Promise<void> {
-    // Enforce: Cannot modify APPROVED or SUPERSEDED versions (immutability)
     const existing = await this.db('requirement_versions').where({ id: version.id }).first();
-    if (existing && (existing.status === URSStatus.APPROVED || existing.status === URSStatus.SUPERSEDED)) {
-      throw new Error(`Cannot update ${existing.status} requirement version. Versions in this state are immutable.`);
+    if (!existing) {
+      throw new NotFoundError(`Requirement version ${version.id} not found`);
+    }
+
+    // Content is immutable throughout; only the status and the fields that
+    // belong to a status change are written. Which changes are legal is
+    // decided by the transition map, not here — that is what allows an
+    // approved version to be superseded while still refusing, say, a jump back
+    // to draft.
+    if (existing.status !== version.status) {
+      assertTransition(
+        'version',
+        existing.status as URSStatus,
+        version.status,
+        version.id,
+      );
     }
 
     // Optimistic concurrency control: update only if revision matches
@@ -467,6 +486,14 @@ export class PostgresURSRepository implements IURSRepository {
       .update({
         status: version.status,
         superseded_by: version.supersededBy || null,
+        approved_by: version.approvedBy || null,
+        approved_at: version.approvedAt || null,
+        // The release date is stamped on the transition into APPROVED and is
+        // never rewritten afterwards.
+        released_at:
+          version.status === URSStatus.APPROVED
+            ? version.releasedAt || version.approvedAt || new Date()
+            : existing.released_at ?? null,
         revision: currentRevision + 1,
       });
 
@@ -546,6 +573,20 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   async updateBaseline(baseline: Baseline): Promise<void> {
+    const existing = await this.db('baselines').where({ id: baseline.id }).first();
+    if (!existing) {
+      throw new NotFoundError(`Baseline ${baseline.id} not found`);
+    }
+
+    if (existing.status !== baseline.status) {
+      assertTransition(
+        'baseline',
+        existing.status as URSStatus,
+        baseline.status,
+        baseline.id,
+      );
+    }
+
     await this.db('baselines').where({ id: baseline.id }).update({
       status: baseline.status,
       approved_by: baseline.approvedBy || null,
@@ -1032,6 +1073,9 @@ export class PostgresURSRepository implements IURSRepository {
       requirementId: row.requirement_id,
       version: row.version,
       versionNumber: row.version_number,
+      major: row.major ?? undefined,
+      minor: row.minor ?? undefined,
+      versionLabel: row.version_label ?? row.version,
       title: row.title,
       statement: row.statement,
       rationale: row.rationale,
@@ -1050,6 +1094,7 @@ export class PostgresURSRepository implements IURSRepository {
       createdAt: row.created_at,
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
+      releasedAt: row.released_at ?? undefined,
       revision: row.revision,
     };
   }

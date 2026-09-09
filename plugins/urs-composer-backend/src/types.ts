@@ -26,15 +26,35 @@ export enum SolutionType {
 }
 
 /**
- * Requirement/Requirement Set Status
- * URS Lifecycle: DRAFT → IN_REVIEW → APPROVED → [SUPERSEDED|RETIRED]
+ * Requirement/Requirement Set/Baseline Status
+ *
+ * Shared across the three entities; which subset an entity may use, and which
+ * moves between them are legal, is defined by the transition maps in
+ * ./domain/transitions.ts.
+ *
+ * Requirement version lifecycle:
+ *   DRAFT → IN_REVIEW → REVIEWED → IN_APPROVAL → APPROVED
+ *   APPROVED → SUPERSEDED | OBSOLETE
+ *   IN_REVIEW | IN_APPROVAL → REJECTED
+ *
+ * Baseline lifecycle:
+ *   DRAFT → IN_REVIEW → IN_APPROVAL → APPROVED → SUPERSEDED
+ *
+ * APPROVED is the released state. The spec calls it `released`; renaming it is
+ * pure nomenclature and would reach across plugin boundaries (see
+ * composer-backend/src/urs-baseline-resolver.ts), so it is deliberately
+ * deferred to its own change.
  */
 export enum URSStatus {
   DRAFT = 'DRAFT',
   IN_REVIEW = 'IN_REVIEW',
+  REVIEWED = 'REVIEWED',
+  IN_APPROVAL = 'IN_APPROVAL',
   APPROVED = 'APPROVED',
   BASELINED = 'BASELINED',
   SUPERSEDED = 'SUPERSEDED',
+  OBSOLETE = 'OBSOLETE',
+  REJECTED = 'REJECTED',
   RETIRED = 'RETIRED',
 }
 
@@ -366,6 +386,13 @@ export interface RequirementVersion {
   version: string; // e.g., "1.0", "1.1", "2.0"
   versionNumber: number; // numeric for comparison
 
+  // Structured version number. Computed server-side by ./domain/versioning and
+  // never accepted from a client. `version` carries the same label and is kept
+  // for readers that predate these fields.
+  major?: number;
+  minor?: number;
+  versionLabel?: string;
+
   // Content
   title: string;
   statement: string;
@@ -391,6 +418,8 @@ export interface RequirementVersion {
   createdAt: Date;
   approvedBy?: string;
   approvedAt?: Date;
+  /** Set when the version reaches APPROVED; the effective date of the record. */
+  releasedAt?: Date;
   revision: number; // Optimistic concurrency control
 }
 

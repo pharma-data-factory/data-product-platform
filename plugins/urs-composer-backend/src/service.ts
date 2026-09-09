@@ -5,7 +5,12 @@
 
 import { randomUUID } from 'crypto';
 import { LoggerService } from '@backstage/backend-plugin-api';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+} from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
@@ -30,7 +35,12 @@ import {
   RequirementChange,
 } from './types';
 import { IURSRepository } from './repository-interface';
-import { nextMinorVersion, getVersionNumber } from './services/versioningService';
+import {
+  nextDraft,
+  parseLabel,
+  versionOrdinal,
+  type VersionNumber,
+} from './domain/versioning';
 import type { LLMClient, GeneratedRequirement } from './llm-client';
 
 export interface URSServiceOptions {
@@ -928,6 +938,28 @@ export class URSService {
   // ============================================================================
 
   /**
+   * Statuses in which a requirement version is still being worked on. A
+   * requirement may have only one such version at a time (invariant 15).
+   */
+  private static readonly OPEN_VERSION_STATUSES: readonly URSStatus[] = [
+    URSStatus.DRAFT,
+    URSStatus.IN_REVIEW,
+    URSStatus.REVIEWED,
+    URSStatus.IN_APPROVAL,
+  ];
+
+  /**
+   * Read a version's number, falling back to its label for rows written before
+   * major/minor were stored separately.
+   */
+  private versionNumberOf(version: RequirementVersion): VersionNumber {
+    if (version.major !== undefined && version.minor !== undefined) {
+      return { major: version.major, minor: version.minor };
+    }
+    return parseLabel(version.versionLabel ?? version.version);
+  }
+
+  /**
    * Create a revision of an existing requirement version
    */
   async createRevision(
@@ -937,15 +969,38 @@ export class URSService {
   ): Promise<RequirementVersion> {
     const previous = await this.repository.getRequirementVersion(previousVersionId);
     if (!previous) {
-      throw new Error('Previous version not found');
+      throw new NotFoundError(`Requirement version ${previousVersionId} not found`);
     }
 
-    const nextVersion = nextMinorVersion(previous.version);
+    // Checked here as well as by the database index, so that the caller gets a
+    // message naming the version that is in the way.
+    const siblings = await this.repository.getRequirementVersions(
+      previous.requirementId,
+    );
+    const open = siblings.find(v =>
+      URSService.OPEN_VERSION_STATUSES.includes(v.status),
+    );
+    if (open) {
+      throw new ConflictError(
+        `Requirement ${previous.requirementId} already has an open version ` +
+          `(${open.versionLabel ?? open.version}, ${open.status}). ` +
+          `Complete or reject it before starting a new revision.`,
+      );
+    }
+
+    const next = nextDraft(
+      this.versionNumberOf(previous),
+      previous.status === URSStatus.APPROVED,
+    );
+
     const newVersion: RequirementVersion = {
       id: this.generateUUID(),
       requirementId: previous.requirementId,
-      version: nextVersion,
-      versionNumber: getVersionNumber(nextVersion),
+      version: next.label,
+      versionLabel: next.label,
+      major: next.major,
+      minor: next.minor,
+      versionNumber: versionOrdinal(next),
       title: previous.title,
       statement: previous.statement,
       rationale: previous.rationale,
