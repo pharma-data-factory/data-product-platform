@@ -2,8 +2,9 @@ import '@testing-library/jest-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
-import { configApiRef, identityApiRef } from '@backstage/core-plugin-api';
+import { configApiRef, discoveryApiRef, identityApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
+import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import { UnifiedThemeProvider } from '@backstage/theme';
 import { Entity } from '@backstage/catalog-model';
 import { ComposePage } from './ComposePage';
@@ -123,6 +124,20 @@ async function renderCompose(path = '/compose', groups = ['data-product-develope
             apis={[
               [configApiRef, mockApis.config()],
               [catalogApiRef, { getEntities: async () => ({ items: catalogItems }) }],
+              [
+                discoveryApiRef,
+                {
+                  getBaseUrl: async () =>
+                    'http://localhost:7007/api/composer',
+                },
+              ],
+              // Mounted for Generate; unused by most cases but required by useApi.
+              [
+                scaffolderApiRef,
+                {
+                  scaffold: async () => ({ taskId: 'test-task' }),
+                } as never,
+              ],
               [
                 identityApiRef,
                 {

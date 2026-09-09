@@ -3,7 +3,9 @@ import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
 import {
   configApiRef,
   discoveryApiRef,
+  fetchApiRef,
   githubAuthApiRef,
+  identityApiRef,
 } from '@backstage/core-plugin-api';
 import type {
   BackstageIdentityResponse,
@@ -51,6 +53,17 @@ function renderLanding(
           [
             discoveryApiRef,
             { getBaseUrl: async () => 'http://localhost:7007/api/auth' },
+          ],
+          // Sign-in audit posts through fetchApi; failure is swallowed, but the
+          // ref must still be present or the page throws on mount.
+          [fetchApiRef, { fetch: async () => ({ ok: true }) } as never],
+          [
+            identityApiRef,
+            {
+              getCredentials: async () => ({ token: undefined }),
+              getBackstageIdentity: async () => undefined,
+              getProfileInfo: async () => ({}),
+            },
           ],
           [modelCompanyApiRef, { getPublicDemo: async () => publicDemo }],
           [
