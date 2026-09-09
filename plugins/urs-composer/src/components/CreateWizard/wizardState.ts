@@ -173,7 +173,7 @@ export function validateStep(state: URSWizardState, step: number): { isValid: bo
       });
       break;
 
-    case 4: // Acceptance Criteria
+    case 4: { // Acceptance Criteria
       const reqsWithoutAC = state.requirements.filter(
         r => !r.acceptanceCriteria || r.acceptanceCriteria.length === 0,
       );
@@ -181,6 +181,7 @@ export function validateStep(state: URSWizardState, step: number): { isValid: bo
         errors.push(`${reqsWithoutAC.length} requirement(s) lack acceptance criteria`);
       }
       break;
+    }
 
     case 5: // Quality Review
       // Warning level, not blocking
@@ -355,24 +356,25 @@ export interface ImportValidationResult {
 export function fromImportJson(json: unknown): ImportValidationResult {
   const errors: string[] = [];
 
-  if (Array.isArray(json)) {
-    if (json.length === 1) {
-      json = json[0];
+  let payload = json;
+  if (Array.isArray(payload)) {
+    if (payload.length === 1) {
+      payload = payload[0];
     } else {
       return {
         valid: false,
         errors: [
-          `File contains ${json.length} requirement sets; import supports one set per file`,
+          `File contains ${payload.length} requirement sets; import supports one set per file`,
         ],
       };
     }
   }
 
-  if (!json || typeof json !== 'object') {
+  if (!payload || typeof payload !== 'object') {
     return { valid: false, errors: ['Invalid JSON: expected an object'] };
   }
 
-  const obj = json as Record<string, unknown>;
+  const obj = payload as Record<string, unknown>;
 
   if (!Array.isArray(obj.businessCapabilityRefs) || obj.businessCapabilityRefs.length === 0) {
     errors.push('Missing or empty "businessCapabilityRefs" array');

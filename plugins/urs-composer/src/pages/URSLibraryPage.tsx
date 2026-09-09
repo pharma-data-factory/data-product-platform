@@ -2,7 +2,7 @@
  * URS Library Page
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -66,7 +66,7 @@ function parseAcceptanceCriteriaJson(acceptanceIntent?: string) {
   return undefined;
 }
 
-export const URSLibraryPage: React.FC = () => {
+export const URSLibraryPage: FC = () => {
   const navigate = useNavigate();
   const api = useApi(ursComposerApiRef);
   const [loading, setLoading] = useState(true);

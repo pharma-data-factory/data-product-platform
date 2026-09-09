@@ -499,8 +499,8 @@ export function ComposePage() {
     setSpecError(undefined);
     setSpecDraft(null);
     try {
-      const draft = await generateProductSpec(backendBaseUrl, specBaselineId.trim());
-      setSpecDraft(draft);
+      const productSpec = await generateProductSpec(backendBaseUrl, specBaselineId.trim());
+      setSpecDraft(productSpec);
     } catch (err) {
       setSpecError(err instanceof Error ? err.message : String(err));
     } finally {

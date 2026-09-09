@@ -1,6 +1,7 @@
 import {
   coreServices,
   createBackendPlugin,
+  resolvePackagePath,
 } from '@backstage/backend-plugin-api';
 import { resolveWorkspaceRoot } from './inventory';
 import { createRouter } from './router';
@@ -22,7 +23,10 @@ export const pluginDirectoryPlugin = createBackendPlugin({
           'pluginDirectory.workspaceRoot',
         );
         const workspaceRoot =
-          configuredRoot ?? resolveWorkspaceRoot(__dirname);
+          configuredRoot ??
+          resolveWorkspaceRoot(
+            resolvePackagePath('@internal/plugin-directory-backend'),
+          );
 
         const service = new PluginDirectoryService(workspaceRoot, logger);
 

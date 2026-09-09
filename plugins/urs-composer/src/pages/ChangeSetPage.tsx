@@ -2,7 +2,7 @@
  * Change Set Page — displays delta between two URS baselines.
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type FC } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -45,7 +45,7 @@ const FILTER_OPTIONS: Array<{ label: string; value: ChangeType | 'ALL' }> = [
   { label: 'Unchanged', value: 'UNCHANGED' },
 ];
 
-export const ChangeSetPage: React.FC = () => {
+export const ChangeSetPage: FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const api = useApi(ursComposerApiRef);
@@ -57,7 +57,9 @@ export const ChangeSetPage: React.FC = () => {
   const [filterType, setFilterType] = useState<ChangeType | 'ALL'>('ALL');
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      return undefined;
+    }
     let mounted = true;
     setLoading(true);
     api

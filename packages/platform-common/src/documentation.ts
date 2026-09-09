@@ -2213,7 +2213,7 @@ export function audienceLabel(audience: DocAudience): string {
 export function documentationPagesForAudience(
   audience: DocAudience,
 ): DocumentationPage[] {
-  return DOCUMENTATION_PAGES.filter(page => page.audience === audience);
+  return DOCUMENTATION_PAGES.filter(entry => entry.audience === audience);
 }
 
 export interface DocumentationPersona {

@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import {
   Box,
   Typography,
@@ -46,7 +46,7 @@ interface AcceptanceCriteriaStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const AcceptanceCriteriaStep: React.FC<AcceptanceCriteriaStepProps> = ({
+export const AcceptanceCriteriaStep: FC<AcceptanceCriteriaStepProps> = ({
   state,
   onStateChange,
 }) => {

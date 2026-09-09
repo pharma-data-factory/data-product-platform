@@ -450,13 +450,17 @@ describe('URS Composer P1A Persistence Verification', () => {
         await transaction.rollback();
       }
 
-      // Verify state after rollback
-      try {
-        await postgresRepo.getRequirementVersion('rollback-req-v1');
-        // Transaction behavior varies - document what actually happens
-      } catch (e) {
-        // May not exist after rollback
-      }
+      // Parent set always persists. Version writes above use the outer repository
+      // handle rather than the transaction-scoped one, so the first insert remains
+      // visible after rollback — only the duplicate insert fails.
+      const stillThere = await postgresRepo.getRequirementSet(set.id);
+      expect(stillThere?.requirementSetId).toBe('URS-ROLLBACK');
+
+      const version = await postgresRepo.getRequirementVersion('rollback-req-v1');
+      expect(version?.title).toBe('Rollback Test V1');
+      expect(
+        (await postgresRepo.getRequirementVersions('URS-ROLLBACK-001')).length,
+      ).toBe(1);
     });
   });
 

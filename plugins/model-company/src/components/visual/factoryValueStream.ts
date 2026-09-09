@@ -73,12 +73,12 @@ export function buildFactoryValueStream(input: {
     )?.some(dp => /oee/i.test(dp.goldenPath ?? '')),
   );
   const huTotal = input.warehouse.length;
-  const aggregateLabel =
-    huTotal === 0
-      ? 'AWAITING RECEIPT'
-      : huTotal > 24
-        ? `▣ ${kpis.fgHus || huTotal} HUs`
-        : `${huTotal} HUs`;
+  let aggregateLabel = `${huTotal} HUs`;
+  if (huTotal === 0) {
+    aggregateLabel = 'AWAITING RECEIPT';
+  } else if (huTotal > 24) {
+    aggregateLabel = `▣ ${kpis.fgHus || huTotal} HUs`;
+  }
 
   return {
     stages,

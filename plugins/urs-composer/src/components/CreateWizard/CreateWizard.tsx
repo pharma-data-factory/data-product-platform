@@ -2,7 +2,14 @@
  * URS Create Wizard (8-Step)
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type FC,
+  type ChangeEvent,
+} from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import {
   Stepper,
@@ -98,7 +105,7 @@ interface CreateWizardProps {
   onCancel?: () => void;
 }
 
-export const CreateWizard: React.FC<CreateWizardProps> = ({
+export const CreateWizard: FC<CreateWizardProps> = ({
   initialState,
   editMode = false,
   onComplete,
@@ -116,7 +123,9 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
   const [capabilityNames, setCapabilityNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    if (!state.dirty) return;
+    if (!state.dirty) {
+      return undefined;
+    }
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
@@ -128,7 +137,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
   useEffect(() => {
     if (state.businessCapabilityRefs.length === 0) {
       setCapabilityNames(new Map());
-      return;
+      return undefined;
     }
     let cancelled = false;
     api.listCapabilities().then(result => {
@@ -226,7 +235,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 

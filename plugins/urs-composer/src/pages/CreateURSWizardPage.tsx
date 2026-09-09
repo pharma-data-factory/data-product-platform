@@ -2,7 +2,7 @@
  * Create / Edit URS Wizard Pages
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FC } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import { Progress } from '@backstage/core-components';
@@ -11,7 +11,7 @@ import { CreateWizard } from '../components/CreateWizard/CreateWizard';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import { fromRequirementSetToWizardState, URSWizardState } from '../components/CreateWizard/wizardState';
 
-export const CreateURSWizardPage: React.FC = () => {
+export const CreateURSWizardPage: FC = () => {
   const navigate = useNavigate();
 
   const handleComplete = useCallback(
@@ -28,7 +28,7 @@ export const CreateURSWizardPage: React.FC = () => {
   return <CreateWizard onComplete={handleComplete} onCancel={handleCancel} />;
 };
 
-export const EditURSWizardPage: React.FC = () => {
+export const EditURSWizardPage: FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const api = useApi(ursComposerApiRef);

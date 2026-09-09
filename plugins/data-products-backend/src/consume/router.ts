@@ -107,11 +107,17 @@ export function mountConsumeRoutes(
             return;
           }
           const body = (await upstream.json()) as unknown;
-          const rows = Array.isArray(body)
-            ? body
-            : Array.isArray((body as { items?: unknown[] }).items)
-              ? ((body as { items: unknown[] }).items as Record<string, unknown>[])
-              : [body as Record<string, unknown>];
+          let rows: Record<string, unknown>[];
+          if (Array.isArray(body)) {
+            rows = body as Record<string, unknown>[];
+          } else if (Array.isArray((body as { items?: unknown[] }).items)) {
+            rows = (body as { items: unknown[] }).items as Record<
+              string,
+              unknown
+            >[];
+          } else {
+            rows = [body as Record<string, unknown>];
+          }
           const columns = Object.keys(rows[0] ?? {}).map(id => ({ id }));
           res.json({ source: 'upstream', columns, rows, total: rows.length });
           return;

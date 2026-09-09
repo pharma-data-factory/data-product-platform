@@ -7,7 +7,7 @@
  * - Error code mapping
  */
 
-import { URSComposerApi, URSApiError } from './ursComposerApi';
+import { URSComposerApi } from './ursComposerApi';
 
 const discoveryApi = {
   getBaseUrl: jest
@@ -104,19 +104,17 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.createRequirementSet({
+      await expect(
+        api.createRequirementSet({
           businessCapabilityRefs: [],
           businessNeed: '',
           solutionType: 'PROJECT' as any,
           solutionName: '',
-        });
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(400);
-        expect(error.message).toContain('Missing required field');
-      }
+        }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining('Missing required field'),
+      });
     });
 
     test('HTTP 401 throws URSApiError', async () => {
@@ -130,13 +128,9 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.listCapabilities();
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(401);
-      }
+      await expect(api.listCapabilities()).rejects.toMatchObject({
+        status: 401,
+      });
     });
 
     test('HTTP 403 throws URSApiError', async () => {
@@ -150,18 +144,16 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.createRequirementSet({
+      await expect(
+        api.createRequirementSet({
           businessCapabilityRefs: [],
           businessNeed: '',
           solutionType: 'PROJECT' as any,
           solutionName: '',
-        });
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(403);
-      }
+        }),
+      ).rejects.toMatchObject({
+        status: 403,
+      });
     });
 
     test('HTTP 404 throws URSApiError', async () => {
@@ -175,13 +167,9 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.getRequirementSet('nonexistent');
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(404);
-      }
+      await expect(api.getRequirementSet('nonexistent')).rejects.toMatchObject({
+        status: 404,
+      });
     });
 
     test('HTTP 500 throws URSApiError', async () => {
@@ -195,13 +183,9 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.health();
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(500);
-      }
+      await expect(api.health()).rejects.toMatchObject({
+        status: 500,
+      });
     });
   });
 

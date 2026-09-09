@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import { Box, Typography, Card, CardContent, Grid, Table, TableBody, TableCell, TableRow } from '@material-ui/core';
 import { SolutionType } from '../../../api/types';
 import { URSWizardState } from '../wizardState';
@@ -8,7 +8,7 @@ interface ReviewSubmitStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({ state, onStateChange }) => {
+export const ReviewSubmitStep: FC<ReviewSubmitStepProps> = ({ state, onStateChange }) => {
   const handleChange = (field: string, value: string) => {
     onStateChange({
       solutionName: field === 'solutionName' ? value : state.solutionName,

@@ -132,13 +132,14 @@ export function ProductsPage() {
           <Typography variant="h6" style={{ marginBottom: 16 }}>
             Products
           </Typography>
-          {loading ? (
-            <Progress />
-          ) : products.length === 0 ? (
+          {loading && <Progress />}
+          {!loading && products.length === 0 && (
             <Typography variant="body2" color="textSecondary">
               No products yet.
             </Typography>
-          ) : (
+          )}
+          {!loading &&
+            products.length > 0 &&
             products.map(product => (
               <section
                 key={product.id}
@@ -160,8 +161,7 @@ export function ProductsPage() {
                   <Typography variant="body2">{product.description}</Typography>
                 ) : null}
               </section>
-            ))
-          )}
+            ))}
           {error ? <ErrorPanel error={error} /> : null}
         </div>
       </Content>

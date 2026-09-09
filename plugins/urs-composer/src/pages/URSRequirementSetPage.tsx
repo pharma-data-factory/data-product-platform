@@ -2,7 +2,7 @@
  * URS Requirement Set Detail Page
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type FC, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -63,9 +63,73 @@ import {
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
 
 interface TabPanelProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   index: number;
   value: number;
+}
+
+function approvalStepIcon(
+  isApproved: boolean,
+  isRejected: boolean,
+  isSkipped: boolean,
+) {
+  if (isApproved) {
+    return <CheckIcon style={{ color: '#4caf50' }} />;
+  }
+  if (isRejected) {
+    return <CloseIcon style={{ color: '#f44336' }} />;
+  }
+  if (isSkipped) {
+    return <CancelIcon style={{ color: '#ff9800' }} />;
+  }
+  return undefined;
+}
+
+function approvalStepColor(
+  isActive: boolean,
+  isApproved: boolean,
+  isRejected: boolean,
+  isSkipped: boolean,
+) {
+  if (isActive) {
+    return '#2196f3';
+  }
+  if (isApproved) {
+    return '#4caf50';
+  }
+  if (isRejected) {
+    return '#f44336';
+  }
+  if (isSkipped) {
+    return '#ff9800';
+  }
+  return '#9e9e9e';
+}
+
+function confirmDialogTitle(action: 'approve' | 'reject' | 'cancel' | null) {
+  if (action === 'approve') {
+    return 'Approve Step';
+  }
+  if (action === 'reject') {
+    return 'Reject Step';
+  }
+  return 'Cancel Workflow';
+}
+
+function confirmDialogButtonLabel(
+  actionLoading: boolean,
+  action: 'approve' | 'reject' | 'cancel' | null,
+) {
+  if (actionLoading) {
+    return 'Processing...';
+  }
+  if (action === 'approve') {
+    return 'Approve';
+  }
+  if (action === 'reject') {
+    return 'Reject';
+  }
+  return 'Cancel Workflow';
 }
 
 function TabPanel(props: TabPanelProps) {
@@ -77,7 +141,7 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-export const URSRequirementSetPage: React.FC = () => {
+export const URSRequirementSetPage: FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const api = useApi(ursComposerApiRef);
@@ -147,7 +211,7 @@ export const URSRequirementSetPage: React.FC = () => {
 
   useEffect(() => {
     if (!id) {
-      return;
+      return undefined;
     }
     let mounted = true;
     Promise.all([
@@ -196,15 +260,15 @@ export const URSRequirementSetPage: React.FC = () => {
   // Validation Context). Backend remains authoritative.
   useEffect(() => {
     if (!id) {
-      return;
+      return undefined;
     }
     let mounted = true;
     api
       .listBaselines(id)
-      .then(baselines => {
+      .then(baselineItems => {
         if (mounted) {
-          setBaselines(baselines);
-          const approved = baselines.find(
+          setBaselines(baselineItems);
+          const approved = baselineItems.find(
             b => String(b.status).toUpperCase() === 'APPROVED',
           );
           setApprovedBaselineId(approved ? approved.id : null);
@@ -223,7 +287,7 @@ export const URSRequirementSetPage: React.FC = () => {
   useEffect(() => {
     if (!supersedesRef) {
       setPredecessor(null);
-      return;
+      return undefined;
     }
     let mounted = true;
     api
@@ -686,7 +750,6 @@ export const URSRequirementSetPage: React.FC = () => {
               <DialogTitle>Create New Revision</DialogTitle>
               <DialogContent>
                 <TextField
-                  autoFocus
                   label="Revision Reason"
                   placeholder="Why is this revision needed?"
                   fullWidth
@@ -738,15 +801,15 @@ export const URSRequirementSetPage: React.FC = () => {
                         return (
                           <Step key={step.id} completed={completed} active={isActive}>
                             <StepLabel
-                              icon={
-                                isApproved ? <CheckIcon style={{ color: '#4caf50' }} /> :
-                                isRejected ? <CloseIcon style={{ color: '#f44336' }} /> :
-                                isSkipped ? <CancelIcon style={{ color: '#ff9800' }} /> :
-                                undefined
-                              }
+                              icon={approvalStepIcon(isApproved, isRejected, isSkipped)}
                               StepIconProps={{
                                 style: {
-                                  color: isActive ? '#2196f3' : isApproved ? '#4caf50' : isRejected ? '#f44336' : isSkipped ? '#ff9800' : '#9e9e9e',
+                                  color: approvalStepColor(
+                                    isActive,
+                                    isApproved,
+                                    isRejected,
+                                    isSkipped,
+                                  ),
                                 },
                               }}
                             >
@@ -755,7 +818,12 @@ export const URSRequirementSetPage: React.FC = () => {
                                   {step.role || 'Reviewer'}
                                 </Typography>
                                 <Chip label={stepStatus} size="small" style={{
-                                  backgroundColor: isApproved ? '#4caf50' : isRejected ? '#f44336' : isActive ? '#2196f3' : isSkipped ? '#ff9800' : '#9e9e9e',
+                                  backgroundColor: approvalStepColor(
+                                    isActive,
+                                    isApproved,
+                                    isRejected,
+                                    isSkipped,
+                                  ),
                                   color: '#fff',
                                 }} />
                               </Box>
@@ -966,9 +1034,7 @@ export const URSRequirementSetPage: React.FC = () => {
 
       {/* Approval Action Confirmation Dialog */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {confirmAction === 'approve' ? 'Approve Step' : confirmAction === 'reject' ? 'Reject Step' : 'Cancel Workflow'}
-        </DialogTitle>
+        <DialogTitle>{confirmDialogTitle(confirmAction)}</DialogTitle>
         <DialogContent>
           {confirmAction === 'approve' && (
             <>
@@ -1041,7 +1107,7 @@ export const URSRequirementSetPage: React.FC = () => {
               }
             }}
           >
-            {actionLoading ? 'Processing...' : confirmAction === 'approve' ? 'Approve' : confirmAction === 'reject' ? 'Reject' : 'Cancel Workflow'}
+            {confirmDialogButtonLabel(actionLoading, confirmAction)}
           </Button>
         </DialogActions>
       </Dialog>

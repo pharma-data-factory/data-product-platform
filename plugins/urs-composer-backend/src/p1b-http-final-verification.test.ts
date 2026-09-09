@@ -92,8 +92,8 @@ class HttpTestClient {
         });
         res.on('end', () => {
           try {
-            const body = data ? JSON.parse(data) : null;
-            resolve({ status: res.statusCode, body, headers: res.headers });
+            const parsedBody = data ? JSON.parse(data) : null;
+            resolve({ status: res.statusCode, body: parsedBody, headers: res.headers });
           } catch (e) {
             resolve({ status: res.statusCode, body: data, headers: res.headers });
           }

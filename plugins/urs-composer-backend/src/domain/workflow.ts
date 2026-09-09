@@ -78,6 +78,19 @@ function signatureFor(
   return signatures.find(s => s.meaning === meaning);
 }
 
+function releasedStageState(
+  released: boolean,
+  abandoned: boolean,
+): WorkflowState {
+  if (released) {
+    return WorkflowState.DONE;
+  }
+  if (abandoned) {
+    return WorkflowState.STOPPED;
+  }
+  return WorkflowState.OPEN;
+}
+
 function fromSignature(
   stage: WorkflowStage,
   signature: Signature,
@@ -167,11 +180,7 @@ export function requirementVersionWorkflow(
 
   steps.push({
     stage: WorkflowStage.RELEASED,
-    state: released
-      ? WorkflowState.DONE
-      : abandoned
-        ? WorkflowState.STOPPED
-        : WorkflowState.OPEN,
+    state: releasedStageState(released, abandoned),
     actor: released ? version.approvedBy : undefined,
     timestamp: released ? (version.releasedAt ?? version.approvedAt) : undefined,
   });
@@ -276,11 +285,7 @@ export function baselineWorkflow(
 
   steps.push({
     stage: WorkflowStage.RELEASED,
-    state: released
-      ? WorkflowState.DONE
-      : abandoned
-        ? WorkflowState.STOPPED
-        : WorkflowState.OPEN,
+    state: releasedStageState(released, abandoned),
     actor: released ? baseline.approvedBy : undefined,
     timestamp: released ? baseline.approvedAt : undefined,
   });

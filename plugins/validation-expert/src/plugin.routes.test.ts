@@ -1,6 +1,7 @@
-import fs from 'fs';
-import path from 'path';
-import { validationExpertPlugin } from './plugin';
+import {
+  validationExpertPlugin,
+  validationExpertRegisteredPaths,
+} from './plugin';
 import { OVERVIEW_CARD_LINKS } from './components/OverviewPage';
 
 describe('validationExpertPlugin routes', () => {
@@ -22,13 +23,8 @@ describe('validationExpertPlugin routes', () => {
   });
 
   it('registers PageBlueprint paths for every overview card destination', () => {
-    const pluginSource = fs.readFileSync(
-      path.join(__dirname, 'plugin.tsx'),
-      'utf8',
-    );
-
     for (const card of OVERVIEW_CARD_LINKS) {
-      expect(pluginSource).toContain(`path: '${card.to}'`);
+      expect(validationExpertRegisteredPaths).toContain(card.to);
     }
   });
 

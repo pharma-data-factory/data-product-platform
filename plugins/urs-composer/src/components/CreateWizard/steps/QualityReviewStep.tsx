@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import { Box, Typography, Table, TableBody, TableCell, TableHead, TableRow, Card, CardContent } from '@material-ui/core';
 import WarningIcon from '@material-ui/icons/Warning';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
@@ -27,7 +27,7 @@ interface QualityReviewStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const QualityReviewStep: React.FC<QualityReviewStepProps> = () => {
+export const QualityReviewStep: FC<QualityReviewStepProps> = () => {
   const classes = useStyles();
 
   return (

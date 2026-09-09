@@ -2,7 +2,7 @@
  * URS Composer Home Page
  */
 
-import React from 'react';
+import type { FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header, Page, Content, ContentHeader } from '@backstage/core-components';
 import {
@@ -17,7 +17,7 @@ import {
 import AddIcon from '@material-ui/icons/Add';
 import SearchIcon from '@material-ui/icons/Search';
 
-export const URSComposerPage: React.FC = () => {
+export const URSComposerPage: FC = () => {
   const navigate = useNavigate();
 
   return (

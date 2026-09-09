@@ -5,7 +5,7 @@
  * Loads real capabilities from URS API.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type FC } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import { Link } from '@backstage/core-components';
 import {
@@ -82,7 +82,7 @@ interface BusinessCapabilityStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
+export const BusinessCapabilityStep: FC<BusinessCapabilityStepProps> = ({
   state,
   onStateChange,
 }) => {

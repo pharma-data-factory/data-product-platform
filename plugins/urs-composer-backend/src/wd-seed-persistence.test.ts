@@ -17,6 +17,7 @@ import { seed as runSeeds } from './db/seeds';
 import { URSService } from './service';
 import { URSStatus } from './types';
 import { WD_REQUIREMENT_SET } from './data/seedRequirementSets';
+import { describeWhenSqlite } from './__testUtils__/describeWhenAvailable';
 
 const mockLogger: any = {
   debug: jest.fn(),
@@ -36,39 +37,20 @@ function createDb(): Knex {
   });
 }
 
-describe('W&D seed persistence', () => {
-  let dbAvailable = false;
+describeWhenSqlite('W&D seed persistence', () => {
   let db: Knex;
   let repository: PostgresURSRepository;
 
   beforeAll(async () => {
-    try {
-      db = createDb();
-      await db.raw('select 1');
-      repository = await PostgresURSRepository.create({ getClient: () => db });
-      dbAvailable = true;
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        'Embedded database unavailable — W&D seed persistence proof NOT RUN:',
-        err instanceof Error ? err.message : err,
-      );
-      dbAvailable = false;
-    }
+    db = createDb();
+    repository = await PostgresURSRepository.create({ getClient: () => db });
   }, 60000);
 
   afterAll(async () => {
-    if (db) {
-      await db.destroy();
-    }
+    await db.destroy();
   });
 
   test('startup seeding creates the URS-WD requirement set', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
-
     const set = await repository.findRequirementSetByKey(
       WD_REQUIREMENT_SET.requirementSetId,
     );
@@ -86,11 +68,6 @@ describe('W&D seed persistence', () => {
   });
 
   test('all ten requirements persist with their classification', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
-
     const set = await repository.findRequirementSetByKey('URS-WD');
     const requirements = await repository.getRequirements(set!.id);
 
@@ -122,11 +99,6 @@ describe('W&D seed persistence', () => {
   });
 
   test('the seeded capability ref passes service validation', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
-
     const service = new URSService({ logger: mockLogger, repository });
 
     await expect(
@@ -135,11 +107,6 @@ describe('W&D seed persistence', () => {
   });
 
   test('re-seeding is idempotent and never overwrites edits', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
-
     const set = await repository.findRequirementSetByKey('URS-WD');
     await repository.updateRequirementSet({
       ...set!,

@@ -10,11 +10,17 @@ import { createHash } from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import knex, { Knex } from 'knex';
 import {
   FileValidationRunRepository,
   MemoryValidationRunRepository,
 } from './repository';
+/* eslint-disable @backstage/no-mixed-plugin-imports, @backstage/no-forbidden-package-imports -- cross-plugin PostgreSQL integration test uses URS test helpers */
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from '@internal/plugin-urs-composer-backend/src/__testUtils__/testDatabase';
+import { URSService } from '@internal/plugin-urs-composer-backend/src/service';
+import { PostgresURSRepository } from '@internal/plugin-urs-composer-backend/src/postgres-repository';
 import {
   ValidationExpertService,
   type UrsBaselineResolver,
@@ -170,13 +176,6 @@ describe('URS → Validation integration (entry gate + context)', () => {
 describe('URS → Validation integration against real PostgreSQL', () => {
   // Uses the same environment/pattern as the URS runtime-proof: postgres-urs-verify
   // on port 5435. Skips (does not fail) when PostgreSQL is unavailable.
-  const PG = {
-    host: process.env.TEST_DB_HOST || '127.0.0.1',
-    port: parseInt(process.env.TEST_DB_PORT || '5435', 10),
-    user: process.env.TEST_DB_USER || 'urs_test',
-    password: process.env.TEST_DB_PASSWORD || 'test_pass123',
-    database: process.env.TEST_DB_NAME || 'urs_composer_test',
-  };
   const CAPABILITY = 'business-capability:make/equipment-performance-management';
 
   // The URS service resolves approval roles from catalog group membership and
@@ -199,36 +198,25 @@ describe('URS → Validation integration against real PostgreSQL', () => {
     }),
   };
 
-  let db: Knex;
-  let available = false;
+  let testDb: TestDatabase;
+  let dbAvailable = false;
 
   beforeAll(async () => {
-    db = knex({ client: 'pg', connection: PG });
-    try {
-      await db.raw('select 1');
-      const migrations = require('@internal/plugin-urs-composer-backend/src/db/migrations');
-      await migrations.up(db);
-      const seeds = require('@internal/plugin-urs-composer-backend/src/db/seeds');
-      await seeds.seed(db);
-      available = true;
-    } catch (err) {
-      available = false;
-    }
+    testDb = await createTestDatabase('validation-context-integration', {
+      seed: true,
+    });
+    dbAvailable = testDb.available;
   }, 60000);
 
   afterAll(async () => {
-    if (db) {
-      await db.destroy();
-    }
-  });
+    await testDb?.dispose();
+  }, 60000);
 
   it('creates a context from a genuinely APPROVED baseline (real PostgreSQL)', async () => {
-    if (!available) {
-      expect(available).toBe(false);
+    if (!dbAvailable) {
       return;
     }
-    const { URSService } = require('@internal/plugin-urs-composer-backend/src/service');
-    const { PostgresURSRepository } = require('@internal/plugin-urs-composer-backend/src/postgres-repository');
+    const db = testDb.db;
     // The constructor takes a Knex directly; the getClient wrapper belongs to
     // the static create() factory, which is what the Backstage DatabaseService
     // shape needs. Passing the wrapper here made every query fail with

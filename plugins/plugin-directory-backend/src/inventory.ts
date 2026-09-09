@@ -170,9 +170,10 @@ function titleCaseId(id: string): string {
 function extractInternalPluginImports(source: string): Set<string> {
   const found = new Set<string>();
   const re = /@internal\/plugin-([a-z0-9-]+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(source))) {
+  let match = re.exec(source);
+  while (match) {
     found.add(match[1]);
+    match = re.exec(source);
   }
   return found;
 }

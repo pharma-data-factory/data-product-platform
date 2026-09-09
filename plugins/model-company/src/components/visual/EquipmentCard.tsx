@@ -8,6 +8,29 @@ import {
 import { NX, useVisualStyles } from './styles';
 import { humanizeId } from '../../factoryModel';
 
+function equipmentBorderColor(problem: boolean, warning: boolean): string {
+  if (problem) {
+    return NX.dangerFg;
+  }
+  if (warning) {
+    return NX.warnFg;
+  }
+  return NX.border;
+}
+
+function equipmentBoxShadow(
+  problem: boolean,
+  warning: boolean,
+): string | undefined {
+  if (problem) {
+    return `0 0 0 2px ${NX.dangerBg}`;
+  }
+  if (warning) {
+    return `0 0 0 2px ${NX.warnBg}`;
+  }
+  return undefined;
+}
+
 export function EquipmentCard({
   node,
   onSelect,
@@ -21,7 +44,7 @@ export function EquipmentCard({
   const status = String(node.status ?? 'IDLE');
   const problem = isFlowInterrupted(status);
   const warning = isOperationalWarning(status);
-  const border = problem ? NX.dangerFg : warning ? NX.warnFg : NX.border;
+  const border = equipmentBorderColor(problem, warning);
 
   return (
     <button
@@ -37,11 +60,7 @@ export function EquipmentCard({
         flex: '0 0 auto',
         borderColor: border,
         borderWidth: problem || warning ? 2 : 1,
-        boxShadow: problem
-          ? `0 0 0 2px ${NX.dangerBg}`
-          : warning
-            ? `0 0 0 2px ${NX.warnBg}`
-            : undefined,
+        boxShadow: equipmentBoxShadow(problem, warning),
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>

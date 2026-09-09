@@ -22,6 +22,18 @@ export interface OverviewPageProps {
   onSignIn?: () => void;
 }
 
+function oeeConnectivityBadgeStatus(
+  oee: string | undefined,
+): 'AVAILABLE' | 'SETUP' | 'IDLE' {
+  if (oee === 'CONNECTED') {
+    return 'AVAILABLE';
+  }
+  if (oee === 'INSUFFICIENT_DATA') {
+    return 'SETUP';
+  }
+  return 'IDLE';
+}
+
 function PublicActions({
   onBack,
   onSignIn,
@@ -235,13 +247,7 @@ export function OverviewPage({
                 label={`UNS ${overview.connectivity?.uns ?? 'NOT_CONNECTED'}`}
               />
               <StatusBadge
-                status={
-                  overview.connectivity?.oee === 'CONNECTED'
-                    ? 'AVAILABLE'
-                    : overview.connectivity?.oee === 'INSUFFICIENT_DATA'
-                      ? 'SETUP'
-                      : 'IDLE'
-                }
+                status={oeeConnectivityBadgeStatus(overview.connectivity?.oee)}
                 label={`OEE DATA PRODUCT ${
                   overview.connectivity?.oee ?? 'NOT_CONNECTED'
                 }`}

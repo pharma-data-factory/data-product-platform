@@ -16,9 +16,29 @@ const SERVICES: ServiceStatus[] = [
   { name: 'URS Composer', pluginId: 'urs-composer', healthPath: '/health' },
 ];
 
+function statusDotColor(ok: boolean | null): string {
+  if (ok === null) {
+    return '#94A3B8';
+  }
+  if (ok) {
+    return '#22C55E';
+  }
+  return '#EF4444';
+}
+
+function statusDotText(label: string, ok: boolean | null): string {
+  if (ok === null) {
+    return `${label}: checking…`;
+  }
+  if (ok) {
+    return `${label}: OK`;
+  }
+  return `${label}: Down`;
+}
+
 function StatusDot({ label, ok }: { label: string; ok: boolean | null }) {
-  const color = ok === null ? '#94A3B8' : ok ? '#22C55E' : '#EF4444';
-  const text = ok === null ? `${label}: checking…` : ok ? `${label}: OK` : `${label}: Down`;
+  const color = statusDotColor(ok);
+  const text = statusDotText(label, ok);
 
   return (
     <Tooltip title={text} placement="top">

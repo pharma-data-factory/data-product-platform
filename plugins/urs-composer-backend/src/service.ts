@@ -1725,8 +1725,7 @@ export class URSService {
     const foreign = found.filter(v => !ownRequirementIds.has(v.requirementId));
     if (foreign.length) {
       throw new InputError(
-        `Requirement version(s) do not belong to requirement set ${requirementSetId}: ` +
-          foreign.map(v => `${v.id} (${v.requirementId})`).join(', '),
+        `Requirement version(s) do not belong to requirement set ${requirementSetId}: ${foreign.map(v => `${v.id} (${v.requirementId})`).join(', ')}`,
       );
     }
 
@@ -1779,11 +1778,7 @@ export class URSService {
 
     if (unreleased.length) {
       throw new ConflictError(
-        `Baseline ${baseline.baselineVersion} cannot be released: ` +
-          `${unreleased.length} pinned version(s) are not approved — ` +
-          unreleased
-            .map(v => `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`)
-            .join(', '),
+        `Baseline ${baseline.baselineVersion} cannot be released: ${unreleased.length} pinned version(s) are not approved — ${unreleased.map(v => `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`).join(', ')}`,
       );
     }
   }
@@ -1815,9 +1810,7 @@ export class URSService {
 
       if (blocking.length) {
         throw new ConflictError(
-          `Requirement version ${versionId} is pinned by released baseline(s) ` +
-            `and cannot be made obsolete: ` +
-            blocking.map(b => `${b.baselineVersion} (${b.id})`).join(', '),
+          `Requirement version ${versionId} is pinned by released baseline(s) and cannot be made obsolete: ${blocking.map(b => `${b.baselineVersion} (${b.id})`).join(', ')}`,
         );
       }
 

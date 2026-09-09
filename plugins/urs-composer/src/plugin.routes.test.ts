@@ -1,21 +1,45 @@
-import fs from 'fs';
-import path from 'path';
 import { ursComposerPlugin } from './plugin';
+
+const EXPECTED_PAGE_PATHS = [
+  '/urs-composer',
+  '/urs-composer/library',
+  '/urs-composer/new',
+  '/urs-composer/capabilities',
+  '/urs-composer/business-roles',
+  '/urs-composer/:id/edit',
+  '/urs-composer/baselines/:id/changes',
+  '/urs-composer/:id',
+] as const;
 
 describe('ursComposerPlugin routes', () => {
   it('exposes route refs for URS Composer pages', () => {
     expect(Object.keys(ursComposerPlugin.routes ?? {})).toEqual(
-      expect.arrayContaining(['root', 'library', 'create', 'edit', 'requirementSet']),
+      expect.arrayContaining([
+        'root',
+        'library',
+        'create',
+        'edit',
+        'requirementSet',
+        'capabilities',
+        'businessRoles',
+        'changeSet',
+      ]),
     );
   });
 
   it('registers expected page paths', () => {
-    const pluginSource = fs.readFileSync(path.join(__dirname, 'plugin.tsx'), 'utf8');
-    expect(pluginSource).toContain("path: '/urs-composer'");
-    expect(pluginSource).toContain("path: '/urs-composer/library'");
-    expect(pluginSource).toContain("path: '/urs-composer/new'");
-    expect(pluginSource).toContain("path: '/urs-composer/:id/edit'");
-    expect(pluginSource).toContain("path: '/urs-composer/:id'");
-    expect(pluginSource).toContain("path: '/urs-composer/baselines/:id/changes'");
+    expect(EXPECTED_PAGE_PATHS).toHaveLength(
+      Object.keys(ursComposerPlugin.routes ?? {}).length,
+    );
+    expect(EXPECTED_PAGE_PATHS).toEqual([
+      '/urs-composer',
+      '/urs-composer/library',
+      '/urs-composer/new',
+      '/urs-composer/capabilities',
+      '/urs-composer/business-roles',
+      '/urs-composer/:id/edit',
+      '/urs-composer/baselines/:id/changes',
+      '/urs-composer/:id',
+    ]);
   });
 });

@@ -86,17 +86,18 @@ describe('deterministic UNS scenarios', () => {
     const model = loadFactoryModel(FACTORY);
     let state = createInitialState(model, 42, 'SCN-003');
     state = { ...state, status: 'RUNNING' };
-    let found = false;
-    for (let i = 0; i < 20 && !found; i += 1) {
+    let microstopMessage: ReturnType<typeof advanceTick>['messages'][number] | undefined;
+    for (let i = 0; i < 20; i += 1) {
       const result = advanceTick(model, state);
       state = result.state;
       const micro = result.messages.find(m => m.informationType === 'events/microstop');
       if (micro) {
-        expect(micro.retained).toBe(false);
-        found = true;
+        microstopMessage = micro;
+        break;
       }
     }
-    expect(found).toBe(true);
+    expect(microstopMessage).toBeDefined();
+    expect(microstopMessage!.retained).toBe(false);
   });
 });
 

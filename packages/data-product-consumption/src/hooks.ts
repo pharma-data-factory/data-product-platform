@@ -19,7 +19,7 @@ export function useDataProduct(productRef: string | undefined) {
     if (!productRef) {
       setData(null);
       setLoading(false);
-      return;
+      return undefined;
     }
     let active = true;
     setLoading(true);

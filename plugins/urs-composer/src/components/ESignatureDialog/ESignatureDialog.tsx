@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FC } from 'react';
 import {
   Box,
   Button,
@@ -57,7 +57,7 @@ export interface ESignatureDialogProps {
  * dialog closes; it is never written to component state that outlives the
  * dialog, nor to storage.
  */
-export const ESignatureDialog: React.FC<ESignatureDialogProps> = ({
+export const ESignatureDialog: FC<ESignatureDialogProps> = ({
   open,
   meaning,
   subject,
@@ -154,7 +154,6 @@ export const ESignatureDialog: React.FC<ESignatureDialogProps> = ({
         </Typography>
 
         <TextField
-          autoFocus
           type="password"
           label="Signing PIN"
           value={pin}

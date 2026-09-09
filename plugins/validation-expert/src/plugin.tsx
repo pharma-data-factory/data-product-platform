@@ -158,6 +158,23 @@ const findingsPage = PageBlueprint.make({
   },
 });
 
+/** PageBlueprint paths registered by this plugin (for route contract tests). */
+export const validationExpertRegisteredPaths = [
+  '/validation-expert',
+  '/validation-expert/requirements',
+  '/validation-expert/requirements/:id',
+  '/validation-expert/traceability',
+  '/validation-expert/risks',
+  '/validation-expert/iq',
+  '/validation-expert/oq',
+  '/validation-expert/uat',
+  '/validation-expert/runs',
+  '/validation-expert/runs/:runId',
+  '/validation-expert/runs/:runId/tests/:testId',
+  '/validation-expert/evidence',
+  '/validation-expert/findings',
+] as const;
+
 export const validationExpertPlugin = createFrontendPlugin({
   pluginId: 'validation-expert',
   extensions: [

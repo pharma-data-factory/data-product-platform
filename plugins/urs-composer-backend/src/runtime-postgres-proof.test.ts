@@ -9,6 +9,7 @@ import { Knex } from 'knex';
 import { URSService } from './service';
 import { PostgresURSRepository } from './postgres-repository';
 import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
+import { describeWhenPg } from './__testUtils__/describeWhenAvailable';
 import {
   SolutionType,
   GxPRelevance,
@@ -36,16 +37,14 @@ function createService(db: Knex): URSService {
   });
 }
 
-describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
+describeWhenPg('URS Composer 1.0 PostgreSQL runtime proof', () => {
   let testDb: TestDatabase;
-  let dbAvailable = false;
   let db: Knex;
   let persistedId = '';
 
   beforeAll(async () => {
     testDb = await createTestDatabase('runtime-postgres-proof', { seed: true });
     db = testDb.db;
-    dbAvailable = testDb.available;
   }, 60000);
 
   afterAll(async () => {
@@ -53,11 +52,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   }, 60000);
 
   test('PostgreSQL reachable + schema present', async () => {
-    if (!dbAvailable) {
-      // Honest skip — do not convert NOT RUN into FAIL for unavailable infra
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const hasSets = await db.schema.hasTable('requirement_sets');
     const hasReqs = await db.schema.hasTable('requirements');
     const hasAudit = await db.schema.hasTable('audit_events');
@@ -69,10 +63,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('Create → draft save with requirements/AC → restart reload identical', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
     const actor = 'user:default/author';
 
@@ -186,10 +176,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('Edit requirement → PUT → reload persists change + capability', async () => {
-    if (!dbAvailable || !persistedId) {
-      expect(dbAvailable && !!persistedId).toBe(false);
-      return;
-    }
+    expect(persistedId).toBeTruthy();
     const service = createService(db);
     const existing = await service.getRequirements(persistedId);
     const updatedReqs = existing.map(r =>
@@ -232,10 +219,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('DRAFT → IN_REVIEW → APPROVED survives reload; capability attached', async () => {
-    if (!dbAvailable || !persistedId) {
-      expect(dbAvailable && !!persistedId).toBe(false);
-      return;
-    }
+    expect(persistedId).toBeTruthy();
     const service = createService(db);
     // Set status to IN_REVIEW directly (legacy submitForReview removed)
     const rs = await service.getRequirementSet(persistedId);
@@ -268,10 +252,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('Reject returns set to DRAFT with capability retained', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
     const created = await service.createRequirementSet(
       {
@@ -308,10 +288,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   // contract; the audit_events.entity_version integer-vs-text defect that
   // blocked it is fixed by migration.)
   test('Baseline persists + audit entity_version survives; submit baseline legal', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
     const set = await service.createRequirementSet(
       {
@@ -420,10 +396,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   // submitBaseline selects standard-gxp-urs for a GxP-relevant set and
   // non-gxp-urs otherwise. (Previously only in the deleted obsolete suites.)
   test('submitBaseline selects standard-gxp-urs for GxP and non-gxp-urs otherwise', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
 
     const gxp = await service.createRequirementSet(

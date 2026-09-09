@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type FC } from 'react';
 import {
   Box,
   Typography,
@@ -83,7 +83,7 @@ function createTempId(): string {
   return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export const RequirementsStep: React.FC<RequirementsStepProps> = ({ state, onStateChange }) => {
+export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChange }) => {
   const classes = useStyles();
   const api = useApi(ursComposerApiRef);
   const [aiSuggestions, setAiSuggestions] = useState<GeneratedRequirement[]>([]);
