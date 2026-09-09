@@ -101,6 +101,22 @@ export {
 } from './policy';
 export type { PolicyDecisionName, PolicyPermission } from './policy';
 
+// URS vocabulary shared by the backend and the UI.
+export {
+  URSStatus,
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+  WorkflowStage,
+  WorkflowState,
+  URS_STATUS_LABELS,
+  OPEN_URS_STATUSES,
+  RELEASED_URS_STATUSES,
+  ursStatusAppearance,
+} from './urs';
+export type { StatusAppearance } from './urs';
+
 // Content hash binding electronic signatures to what was signed.
 export {
   computeContentHash,

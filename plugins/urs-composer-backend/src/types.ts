@@ -26,37 +26,26 @@ export enum SolutionType {
 }
 
 /**
- * Requirement/Requirement Set/Baseline Status
+ * Vocabulary shared with the UI.
  *
- * Shared across the three entities; which subset an entity may use, and which
- * moves between them are legal, is defined by the transition maps in
- * ./domain/transitions.ts.
- *
- * Requirement version lifecycle:
- *   DRAFT → IN_REVIEW → REVIEWED → IN_APPROVAL → APPROVED
- *   APPROVED → SUPERSEDED | OBSOLETE
- *   IN_REVIEW | IN_APPROVAL → REJECTED
- *
- * Baseline lifecycle:
- *   DRAFT → IN_REVIEW → IN_APPROVAL → APPROVED → SUPERSEDED
- *
- * APPROVED is the released state. The spec calls it `released`; renaming it is
- * pure nomenclature and would reach across plugin boundaries (see
- * composer-backend/src/urs-baseline-resolver.ts), so it is deliberately
- * deferred to its own change.
+ * Defined in @internal/platform-common and re-exported here so that existing
+ * imports from './types' keep working. The transition maps in
+ * ./domain/transitions.ts decide which moves between these statuses are legal.
  */
-export enum URSStatus {
-  DRAFT = 'DRAFT',
-  IN_REVIEW = 'IN_REVIEW',
-  REVIEWED = 'REVIEWED',
-  IN_APPROVAL = 'IN_APPROVAL',
-  APPROVED = 'APPROVED',
-  BASELINED = 'BASELINED',
-  SUPERSEDED = 'SUPERSEDED',
-  OBSOLETE = 'OBSOLETE',
-  REJECTED = 'REJECTED',
-  RETIRED = 'RETIRED',
-}
+export {
+  URSStatus,
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+} from '@internal/platform-common';
+import {
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+  URSStatus,
+} from '@internal/platform-common';
 
 /**
  * Approval Status
@@ -438,26 +427,6 @@ export interface RequirementVersion {
 }
 
 /**
- * What a signatory is attesting to.
- *
- * The meanings are ordered: a version is authored, then reviewed, then
- * approved by quality. Each is a distinct statement by a distinct person
- * (see the segregation-of-duties rules in domain/signature-service.ts).
- */
-export enum SignatureMeaning {
-  AUTHORED = 'AUTHORED',
-  REVIEWED = 'REVIEWED',
-  APPROVED_QA = 'APPROVED_QA',
-}
-
-/** What a signature can be applied to. */
-export enum SignatureTargetType {
-  REQUIREMENT_VERSION = 'REQUIREMENT_VERSION',
-  BASELINE = 'BASELINE',
-  CHANGE_REQUEST = 'CHANGE_REQUEST',
-}
-
-/**
  * An electronic signature (21 CFR Part 11 / EU Annex 11).
  *
  * Append-only: enforced by a database trigger, not just by convention.
@@ -477,20 +446,6 @@ export interface Signature {
    */
   contentHashAtSigning: string;
   comment?: string;
-}
-
-/**
- * Change request lifecycle.
- *
- * A change to a released requirement is decided before it is made, not
- * afterwards. The impact has to be assessed before anyone can approve it, so
- * approval never happens without a written assessment on record.
- */
-export enum ChangeRequestStatus {
-  DRAFT = 'DRAFT',
-  ASSESSED = 'ASSESSED',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
 }
 
 /**
@@ -552,20 +507,6 @@ export interface SignatureCredential {
   updatedAt?: Date;
   failedAttempts: number;
   lockedUntil?: Date;
-}
-
-/**
- * What a pinned version means relative to the predecessor baseline.
- *
- * Tells a reviewer where to look: an unchanged requirement was reviewed
- * before, a modified one has not been.
- */
-export enum ReviewScope {
-  ADDED = 'ADDED',
-  MODIFIED = 'MODIFIED',
-  UNCHANGED = 'UNCHANGED',
-  /** Backfilled from the old JSON array, where no comparison was recorded. */
-  UNKNOWN = 'UNKNOWN',
 }
 
 /** One requirement version pinned by a baseline. */
