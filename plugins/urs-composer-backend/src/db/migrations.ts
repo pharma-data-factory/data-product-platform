@@ -112,6 +112,15 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // Carries the reason for a controlled revision. Without this column the
+  // value set by updateRequirementSetDraft and reviseRequirementSet was
+  // silently dropped under Postgres while surviving in memory mode.
+  if (!(await knex.schema.hasColumn('requirement_sets', 'version_comment'))) {
+    await knex.schema.alterTable('requirement_sets', table => {
+      table.text('version_comment');
+    });
+  }
+
   if (!(await knex.schema.hasColumn('requirement_sets', 'supersedes_ref'))) {
     await knex.schema.alterTable('requirement_sets', table => {
       table.string('supersedes_ref', 255);
@@ -251,6 +260,16 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['approval_instance_id']);
       table.index(['status']);
       table.foreign('approval_instance_id').references('id').inTable('approval_instances');
+    });
+  }
+
+  // Steps created before this column existed were read back with an undefined
+  // `required`, which made approveApprovalStep treat the first approval as the
+  // final one. Existing rows default to required so historic multi-step
+  // instances keep their full chain.
+  if (!(await knex.schema.hasColumn('approval_steps', 'required'))) {
+    await knex.schema.alterTable('approval_steps', table => {
+      table.boolean('required').notNullable().defaultTo(true);
     });
   }
 

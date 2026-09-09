@@ -322,6 +322,7 @@ export class PostgresURSRepository implements IURSRepository {
       updated_by: set.updatedBy || null,
       updated_at: set.updatedAt || null,
       revision: set.revision || 1,
+      version_comment: set.versionComment || null,
       supersedes_ref: set.supersedesRef || null,
     });
     return set;
@@ -385,6 +386,7 @@ export class PostgresURSRepository implements IURSRepository {
       updated_by: set.updatedBy,
       updated_at: set.updatedAt || new Date(),
       revision: (set.revision || 1) + 1,
+      version_comment: set.versionComment || null,
       supersedes_ref: set.supersedesRef || null,
     });
   }
@@ -633,6 +635,7 @@ export class PostgresURSRepository implements IURSRepository {
         sequence: step.sequence,
         role: step.role,
         status: step.status,
+        required: step.required !== false,
         assigned_to: step.assignedTo || null,
         decision: step.decision || null,
         comment: step.comment || null,
@@ -663,17 +666,7 @@ export class PostgresURSRepository implements IURSRepository {
       startedAt: result.started_at,
       completedBy: result.completed_by,
       completedAt: result.completed_at,
-      steps: steps.map((s: any) => ({
-        id: s.id,
-        sequence: s.sequence,
-        role: s.role,
-        status: s.status as ApprovalStepStatus,
-        assignedTo: s.assigned_to,
-        decision: s.decision,
-        comment: s.comment,
-        actedBy: s.acted_by,
-        actedAt: s.acted_at,
-      })),
+      steps: steps.map((s: any) => this.rowToApprovalStep(s)),
       revision: result.revision,
     };
   }
@@ -700,17 +693,7 @@ export class PostgresURSRepository implements IURSRepository {
         startedAt: result.started_at,
         completedBy: result.completed_by,
         completedAt: result.completed_at,
-        steps: steps.map((s: any) => ({
-          id: s.id,
-          sequence: s.sequence,
-          role: s.role,
-          status: s.status as ApprovalStepStatus,
-          assignedTo: s.assigned_to,
-          decision: s.decision,
-          comment: s.comment,
-          actedBy: s.acted_by,
-          actedAt: s.acted_at,
-        })),
+        steps: steps.map((s: any) => this.rowToApprovalStep(s)),
         revision: result.revision,
       });
     }
@@ -735,9 +718,11 @@ export class PostgresURSRepository implements IURSRepository {
   async createApprovalStep(step: ApprovalStep): Promise<ApprovalStep> {
     await this.db('approval_steps').insert({
       id: step.id,
+      approval_instance_id: step.approvalInstanceId,
       sequence: step.sequence,
       role: step.role,
       status: step.status,
+      required: step.required !== false,
       assigned_to: step.assignedTo || null,
       decision: step.decision || null,
       comment: step.comment || null,
@@ -751,17 +736,7 @@ export class PostgresURSRepository implements IURSRepository {
     const result = await this.db('approval_steps').where({ id }).first();
     if (!result) return null;
 
-    return {
-      id: result.id,
-      sequence: result.sequence,
-      role: result.role,
-      status: result.status as ApprovalStepStatus,
-      assignedTo: result.assigned_to,
-      decision: result.decision,
-      comment: result.comment,
-      actedBy: result.acted_by,
-      actedAt: result.acted_at,
-    };
+    return this.rowToApprovalStep(result);
   }
 
   async listApprovalSteps(approvalInstanceId: string): Promise<ApprovalStep[]> {
@@ -770,17 +745,7 @@ export class PostgresURSRepository implements IURSRepository {
       .orderBy('sequence')
       .select();
 
-    return results.map((r: any) => ({
-      id: r.id,
-      sequence: r.sequence,
-      role: r.role,
-      status: r.status as ApprovalStepStatus,
-      assignedTo: r.assigned_to,
-      decision: r.decision,
-      comment: r.comment,
-      actedBy: r.acted_by,
-      actedAt: r.acted_at,
-    }));
+    return results.map((r: any) => this.rowToApprovalStep(r));
   }
 
   async updateApprovalStep(step: ApprovalStep): Promise<void> {
@@ -992,6 +957,7 @@ export class PostgresURSRepository implements IURSRepository {
       updatedBy: row.updated_by,
       updatedAt: row.updated_at,
       revision: row.revision,
+      versionComment: row.version_comment || undefined,
       supersedesRef: row.supersedes_ref || undefined,
     };
   }
@@ -1091,6 +1057,27 @@ export class PostgresURSRepository implements IURSRepository {
       supersededBy: row.superseded_by,
       approvalInstanceId: row.approval_instance_id,
       revision: row.revision,
+    };
+  }
+
+  private rowToApprovalStep(row: any): ApprovalStep {
+    return {
+      id: row.id,
+      approvalInstanceId: row.approval_instance_id,
+      sequence: row.sequence,
+      role: row.role,
+      status: row.status as ApprovalStepStatus,
+      // SQLite returns booleans as 0/1. A missing value predates the column
+      // and is treated as required, matching the migration default.
+      required:
+        row.required === undefined || row.required === null
+          ? true
+          : Boolean(row.required),
+      assignedTo: row.assigned_to,
+      decision: row.decision,
+      comment: row.comment,
+      actedBy: row.acted_by,
+      actedAt: row.acted_at,
     };
   }
 }

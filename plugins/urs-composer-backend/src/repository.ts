@@ -494,6 +494,12 @@ export class URSRepository implements IURSRepository {
 
   async createApprovalInstance(instance: ApprovalInstance): Promise<ApprovalInstance> {
     this.approvalInstances.set(instance.id, instance);
+    // Register the steps individually as well, mirroring the Postgres
+    // repository. Without this, getApprovalStep and listApprovalSteps stay
+    // empty in memory mode while they resolve under Postgres.
+    for (const step of instance.steps) {
+      this.approvalSteps.set(step.id, step);
+    }
     return instance;
   }
 
@@ -509,6 +515,9 @@ export class URSRepository implements IURSRepository {
 
   async updateApprovalInstance(instance: ApprovalInstance): Promise<void> {
     this.approvalInstances.set(instance.id, instance);
+    for (const step of instance.steps) {
+      this.approvalSteps.set(step.id, step);
+    }
   }
 
   // ============================================================================
@@ -526,7 +535,7 @@ export class URSRepository implements IURSRepository {
 
   async listApprovalSteps(approvalInstanceId: string): Promise<ApprovalStep[]> {
     return Array.from(this.approvalSteps.values())
-      .filter(s => this.approvalInstances.get(s.id as any)?.id === approvalInstanceId)
+      .filter(s => s.approvalInstanceId === approvalInstanceId)
       .sort((a, b) => a.sequence - b.sequence);
   }
 

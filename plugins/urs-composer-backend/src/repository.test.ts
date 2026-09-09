@@ -410,6 +410,7 @@ describe('URS Repository Contract', () => {
         steps: [
           {
             id: 'step-001',
+            approvalInstanceId: 'instance-001',
             sequence: 1,
             role: ApprovalRole.BUSINESS_REVIEWER,
             status: 'PENDING' as ApprovalStepStatus,

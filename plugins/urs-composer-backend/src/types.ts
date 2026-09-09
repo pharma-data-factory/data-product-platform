@@ -472,9 +472,15 @@ export interface ApprovalInstance {
  */
 export interface ApprovalStep {
   id: string; // UUID
+  approvalInstanceId: string; // Reference to ApprovalInstance
   sequence: number;
   role: ApprovalRole;
   status: ApprovalStepStatus;
+  /**
+   * Whether this step must be decided before the instance can complete.
+   * Persisted, because approveApprovalStep derives "is this the final step?"
+   * from it — an unpersisted value silently collapses multi-step workflows.
+   */
   required?: boolean;
 
   assignedTo?: string; // User entity ref

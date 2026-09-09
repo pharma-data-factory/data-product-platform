@@ -3,6 +3,7 @@
  * Business logic layer for requirement management
  */
 
+import { randomUUID } from 'crypto';
 import { LoggerService } from '@backstage/backend-plugin-api';
 import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
@@ -65,12 +66,20 @@ export class URSService {
   /**
    * Map Backstage groups to URS approval roles.
    * A user can hold multiple approval roles simultaneously.
+   *
+   * The `urs-*` groups are the canonical mapping per ADR-004 and
+   * docs/rbac/platform-roles.md. The `business-capability-leads` and
+   * `data-product-owners` entries are retained as aliases so that users who
+   * could approve before this mapping was corrected keep their access.
    */
   private static readonly GROUP_TO_APPROVAL_ROLE: Record<string, ApprovalRole> = {
     'platform-admins': ApprovalRole.ADMIN,
+    'urs-authors': ApprovalRole.AUTHOR,
+    'urs-business-reviewers': ApprovalRole.BUSINESS_REVIEWER,
+    'urs-product-managers': ApprovalRole.PRODUCT_MANAGER,
+    'urs-quality-reviewers': ApprovalRole.QUALITY_REVIEWER,
     'business-capability-leads': ApprovalRole.BUSINESS_REVIEWER,
     'data-product-owners': ApprovalRole.PRODUCT_MANAGER,
-    'quality-assurance': ApprovalRole.QUALITY_REVIEWER,
   };
 
   /**
@@ -856,7 +865,7 @@ export class URSService {
   // PRIVATE HELPERS
 
   private generateUUID(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return randomUUID();
   }
 
   /**
@@ -1283,6 +1292,7 @@ export class URSService {
     for (const wfStep of workflow.steps) {
       const step = {
         id: this.generateUUID(),
+        approvalInstanceId: instance.id,
         sequence: wfStep.sequence,
         role: wfStep.role,
         status: ApprovalStepStatus.PENDING,
@@ -1341,12 +1351,14 @@ export class URSService {
       throw new Error(`Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`);
     }
 
-    // Select workflow: GxP relevance determines standard or non-GxP workflow
-    let workflowId = 'non-gxp-urs';
+    // Select workflow: GxP relevance determines standard or non-GxP workflow.
+    // Only DIRECT and INDIRECT relevance require the three-step GxP workflow.
+    // A plain truthiness check would also match the string 'NONE'.
     const requirementSet = await this.repository.getRequirementSet(baseline.requirementSetId);
-    if (requirementSet && requirementSet.gxpRelevance) {
-      workflowId = 'standard-gxp-urs';
-    }
+    const isGxpRelevant =
+      requirementSet?.gxpRelevance === GxPRelevance.DIRECT ||
+      requirementSet?.gxpRelevance === GxPRelevance.INDIRECT;
+    const workflowId = isGxpRelevant ? 'standard-gxp-urs' : 'non-gxp-urs';
 
     // Create approval instance (orchestrates step creation)
     const instance = await this.createApprovalInstance(
@@ -1407,7 +1419,10 @@ export class URSService {
       throw new Error(`Cannot approve step in ${step.status} status`);
     }
 
-    // Role-based access: verify actor holds the step's required role
+    // Role-based access: verify actor holds the step's required role.
+    // ADMIN deliberately does not bypass this check. Segregation of duties
+    // requires each approval step to be decided by its designated role; an
+    // administrative override would make the approval chain unprovable.
     if (step.role) {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
       if (!actorRoles.includes(step.role)) {
@@ -1595,7 +1610,10 @@ export class URSService {
       throw new Error(`Cannot reject step in ${step.status} status`);
     }
 
-    // Role-based access: verify actor holds the step's required role
+    // Role-based access: verify actor holds the step's required role.
+    // ADMIN deliberately does not bypass this check. Segregation of duties
+    // requires each approval step to be decided by its designated role; an
+    // administrative override would make the approval chain unprovable.
     if (step.role) {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
       if (!actorRoles.includes(step.role)) {

@@ -910,8 +910,12 @@ export async function createRouter(
     '/requirement-sets/:id/generate-suggestions',
     async (req: express.Request, res: express.Response) => {
       try {
-        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
-        const actor = credentials.principal?.userEntityRef ?? 'unknown';
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursManagePermission,
+        );
 
         const suggestions = await service.generateRequirementSuggestions(
           req.params.id,
@@ -920,7 +924,16 @@ export async function createRouter(
 
         res.json({ suggestions });
       } catch (error) {
-        if (error instanceof Error && error.message.includes('not found')) {
+        // Authorization, validation and lookup failures use the shared mapping.
+        // Only genuine AI provider failures keep the dedicated 501/502 codes.
+        if (
+          error instanceof AuthenticationError ||
+          error instanceof NotAllowedError ||
+          error instanceof InputError ||
+          error instanceof NotFoundError
+        ) {
+          respondError(res, logger, error);
+        } else if (error instanceof Error && error.message.includes('not found')) {
           res.status(404).json({ error: error.message });
         } else if (error instanceof Error && error.message.includes('not configured')) {
           res.status(501).json({ error: error.message });
