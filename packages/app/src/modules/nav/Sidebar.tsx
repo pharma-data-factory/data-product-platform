@@ -22,6 +22,7 @@ import {
 } from '@internal/platform-common';
 import { SidebarLogo } from './SidebarLogo';
 import { UserProfileMenu } from './UserProfileMenu';
+import { PlatformFooter } from './PlatformFooter';
 import HomeIcon from '@material-ui/icons/Home';
 import BuildIcon from '@material-ui/icons/Build';
 import AddCircleIcon from '@material-ui/icons/AddCircle';
@@ -63,6 +64,7 @@ function PlatformSidebar() {
   const admin = canAdministerPlatform(role);
 
   return (
+    <>
     <Sidebar>
       <SidebarLogo />
       {hasAccess && (
@@ -201,5 +203,7 @@ function PlatformSidebar() {
       )}
       <UserProfileMenu />
     </Sidebar>
+    <PlatformFooter />
+  </>
   );
 }

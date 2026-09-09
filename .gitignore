@@ -39,6 +39,9 @@ node_modules/
 deploy/production.local.env
 deploy/.smoke-github-app-key.one-line.txt
 
+# AI config with secrets (never commit)
+app-config.ai.yaml
+
 # Build output
 dist
 dist-types
