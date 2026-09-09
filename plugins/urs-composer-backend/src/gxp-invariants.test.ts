@@ -24,24 +24,7 @@ import {
   URSStatus,
 } from './types';
 
-let testDb: Knex | null = null;
-
-function getTestDatabase(): Knex {
-  if (!testDb) {
-    const knex = require('knex');
-    testDb = knex({
-      client: 'pg',
-      connection: {
-        host: process.env.TEST_DB_HOST || '127.0.0.1',
-        port: parseInt(process.env.TEST_DB_PORT || '5435', 10),
-        user: process.env.TEST_DB_USER || 'urs_test',
-        password: process.env.TEST_DB_PASSWORD || 'test_pass123',
-        database: process.env.TEST_DB_NAME || 'urs_composer_test',
-      },
-    });
-  }
-  return testDb!;
-}
+import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
 
 /** Each test uses its own requirement id so the single-open-version index does not couple them. */
 let counter = 0;
@@ -74,25 +57,18 @@ function aVersion(
 }
 
 describe('GxP invariants enforced by the database', () => {
+  let testDb: TestDatabase;
   let db: Knex;
   let repo: IURSRepository;
 
   beforeAll(async () => {
-    db = getTestDatabase();
-    await require('./db/migrations').up(db);
-  });
+    testDb = await createTestDatabase('gxp-invariants');
+    db = testDb.db;
+  }, 60000);
 
   afterAll(async () => {
-    try {
-      await require('./db/migrations').down(db);
-    } catch {
-      // Tables may already be gone.
-    }
-    if (testDb) {
-      await testDb.destroy();
-      testDb = null;
-    }
-  });
+    await testDb.dispose();
+  }, 60000);
 
   beforeEach(() => {
     repo = new PostgresURSRepository(db);

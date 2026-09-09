@@ -21,6 +21,7 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { URSRepository } from './repository';
 import { PostgresURSRepository } from './postgres-repository';
 import { IURSRepository } from './repository-interface';
+import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
 import {
   RequirementSet,
   RequirementVersion,
@@ -41,56 +42,20 @@ const mockLogger: LoggerService = {
   child: jest.fn(() => mockLogger),
 };
 
-// Real PostgreSQL database connection for testing
-let testDb: Knex | null = null;
-
-async function getTestDatabase(): Promise<Knex> {
-  if (!testDb) {
-    const knex = require('knex');
-    testDb = knex({
-      client: 'pg',
-      connection: {
-        host: process.env.TEST_DB_HOST || '127.0.0.1',
-        port: parseInt(process.env.TEST_DB_PORT || '5435', 10),
-        user: process.env.TEST_DB_USER || 'urs_test',
-        password: process.env.TEST_DB_PASSWORD || 'test_pass123',
-        database: process.env.TEST_DB_NAME || 'urs_composer_test',
-      },
-    });
-  }
-  return testDb!;
-}
-
-async function cleanupTestDatabase() {
-  if (testDb) {
-    await testDb.destroy();
-    testDb = null;
-  }
-}
-
 describe('URS Composer P1A Persistence Verification', () => {
+  let testDb: TestDatabase;
   let db: Knex;
   let inMemoryRepo: IURSRepository;
   let postgresRepo: IURSRepository;
 
   beforeAll(async () => {
-    db = await getTestDatabase();
-    
-    // Run migrations on test database
-    const migrations = require('./db/migrations');
-    await migrations.up(db);
-  });
+    testDb = await createTestDatabase('p1a-verification');
+    db = testDb.db;
+  }, 60000);
 
   afterAll(async () => {
-    // Cleanup
-    const migrations = require('./db/migrations');
-    try {
-      await migrations.down(db);
-    } catch (e) {
-      // May fail if tables don't exist
-    }
-    await cleanupTestDatabase();
-  });
+    await testDb.dispose();
+  }, 60000);
 
   beforeEach(() => {
     inMemoryRepo = new URSRepository();
@@ -522,10 +487,32 @@ describe('URS Composer P1A Persistence Verification', () => {
    */
   describe('TEST 11: Foreign Key Behavior', () => {
     test('should enforce referential integrity', async () => {
-      // Attempt to create requirement version with non-existent set should fail
+      // A baseline belongs to a requirement set and the schema says so, so one
+      // pointing at a set that does not exist must be refused.
+      await expect(
+        postgresRepo.createBaseline({
+          id: 'fk-test-baseline',
+          requirementSetId: 'non-existent-set',
+          baselineVersion: '1.0',
+          requirementVersionIds: [],
+          status: URSStatus.DRAFT,
+          createdBy: 'test-user',
+          createdAt: new Date(),
+          revision: 1,
+        } as Baseline),
+      ).rejects.toThrow();
+    });
+
+    test('groups versions by requirement id without requiring a parent row', async () => {
+      // requirement_versions.requirement_id is deliberately not a foreign key:
+      // it is the stable business key that ties the versions of one
+      // requirement together, and nothing owns it. createRevision carries it
+      // over from the previous version, and no code writes a parent row for
+      // it. Asserting a constraint here would describe a model the product
+      // does not have.
       const version: RequirementVersion = {
         id: 'fk-test-req',
-        requirementId: 'non-existent-set',
+        requirementId: 'URS-FK-UNPARENTED',
         version: '1.0',
         versionNumber: 1,
         title: 'FK Test',
@@ -536,7 +523,8 @@ describe('URS Composer P1A Persistence Verification', () => {
         createdAt: new Date(),
         revision: 1,
       };
-      await expect(postgresRepo.createRequirementVersion(version)).rejects.toThrow();
+      const created = await postgresRepo.createRequirementVersion(version);
+      expect(created.requirementId).toBe('URS-FK-UNPARENTED');
     });
   });
 

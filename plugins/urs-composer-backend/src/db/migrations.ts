@@ -392,8 +392,15 @@ export async function up(knex: Knex): Promise<void> {
     // widen the type. Existing audit rows (if any) are NULL or integers and
     // widen losslessly to text. This migration is PostgreSQL-specific; other
     // dialects store values dynamically and have no information_schema.columns.
+    // Resolved from the connection rather than hard-coded to 'public', so the
+    // migration also applies when a search path puts the tables elsewhere,
+    // which is how the test suites get a schema each.
     const [col] = await knex('information_schema.columns')
-      .where({ table_schema: 'public', table_name: 'audit_events', column_name: 'entity_version' })
+      .where({
+        table_schema: knex.raw('current_schema()'),
+        table_name: 'audit_events',
+        column_name: 'entity_version',
+      })
       .select('data_type');
     if (col && col.data_type === 'integer') {
       // entity_version has no foreign key or default; purely widen the type.

@@ -5,11 +5,10 @@
  * Skips (does not fail) when PostgreSQL is unavailable.
  */
 
-import knex, { Knex } from 'knex';
+import { Knex } from 'knex';
 import { URSService } from './service';
 import { PostgresURSRepository } from './postgres-repository';
-import { up as runMigrations } from './db/migrations';
-import { seed as runSeeds } from './db/seeds';
+import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
 import {
   SolutionType,
   GxPRelevance,
@@ -17,14 +16,6 @@ import {
   URSStatus,
   ChangeRequestStatus,
 } from './types';
-
-const PG = {
-  host: process.env.TEST_DB_HOST || '127.0.0.1',
-  port: parseInt(process.env.TEST_DB_PORT || '5435', 10),
-  user: process.env.TEST_DB_USER || 'urs_test',
-  password: process.env.TEST_DB_PASSWORD || 'test_pass123',
-  database: process.env.TEST_DB_NAME || 'urs_composer_test',
-};
 
 const CAPABILITY =
   'business-capability:make/equipment-performance-management';
@@ -37,10 +28,6 @@ const mockLogger: any = {
   child: jest.fn((): any => mockLogger),
 };
 
-function createDb(): Knex {
-  return knex({ client: 'pg', connection: PG });
-}
-
 function createService(db: Knex): URSService {
   const repository = new PostgresURSRepository(db) as any;
   return new URSService({
@@ -50,34 +37,20 @@ function createService(db: Knex): URSService {
 }
 
 describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
+  let testDb: TestDatabase;
   let dbAvailable = false;
   let db: Knex;
   let persistedId = '';
 
   beforeAll(async () => {
-    db = createDb();
-    try {
-      await db.raw('select 1');
-      await runMigrations(db);
-      await runSeeds(db);
-      dbAvailable = true;
-      // eslint-disable-next-line no-console
-      console.log('PostgreSQL connected; migrations applied on', PG);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        'PostgreSQL unavailable — runtime persistence proof NOT RUN:',
-        err instanceof Error ? err.message : err,
-      );
-      dbAvailable = false;
-    }
+    testDb = await createTestDatabase('runtime-postgres-proof', { seed: true });
+    db = testDb.db;
+    dbAvailable = testDb.available;
   }, 60000);
 
   afterAll(async () => {
-    if (db) {
-      await db.destroy();
-    }
-  });
+    await testDb.dispose();
+  }, 60000);
 
   test('PostgreSQL reachable + schema present', async () => {
     if (!dbAvailable) {
@@ -188,7 +161,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     expect(saved.requirements).toHaveLength(3);
 
     // Simulate process restart with a brand-new DB connection
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getRequirementSet(persistedId);
@@ -243,7 +216,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       'user:default/author',
     );
 
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getRequirementSet(persistedId);
@@ -276,7 +249,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     const approved = await service.getRequirementSet(persistedId);
     expect(approved!.status).toBe(URSStatus.APPROVED);
 
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getRequirementSet(persistedId);
@@ -318,7 +291,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     const rejected = await service.getRequirementSet(created.id);
     expect(rejected!.status).toBe(URSStatus.DRAFT);
 
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const reloaded = await createService(db2).getRequirementSet(created.id);
       expect(reloaded!.status).toBe(URSStatus.DRAFT);
@@ -414,7 +387,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     expect(baseline.requirementVersionIds).toEqual([revision.id]);
 
     // Reload from a fresh connection and verify baselineVersion + audit event.
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getBaseline(baseline.id);

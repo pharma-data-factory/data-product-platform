@@ -12,6 +12,7 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { URSRepository } from './repository';
 import { PostgresURSRepository } from './postgres-repository';
 import { IURSRepository } from './repository-interface';
+import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
 import {
   RequirementSet,
   RequirementVersion,
@@ -37,28 +38,34 @@ const mockLogger: LoggerService = {
   child: jest.fn(() => mockLogger),
 };
 
-// Mock database service (for PostgresURSRepository testing)
-const mockDatabase = {
-  getClient: jest.fn(),
-};
-
 /**
  * Repository Contract Test Suite
  *
  * Shared test suite executed against both implementations
  */
 describe('URS Repository Contract', () => {
+  let testDb: TestDatabase;
   let inMemoryRepo: IURSRepository;
   let postgresRepo: IURSRepository;
 
+  beforeAll(async () => {
+    // The PostgreSQL side used to be constructed from a bare jest.fn(), so
+    // this.db was undefined and every query threw "this.db is not a function".
+    // The contract was only ever proven against the in-memory repository,
+    // which is the opposite of what a contract test is for: the differences
+    // between the two implementations are exactly what it needs to catch.
+    testDb = await createTestDatabase('repository-contract');
+  }, 60000);
+
+  afterAll(async () => {
+    await testDb.dispose();
+  }, 60000);
+
   beforeEach(() => {
     inMemoryRepo = new URSRepository();
-    try {
-      postgresRepo = new PostgresURSRepository(mockDatabase.getClient() as any);
-    } catch (error) {
-      // PostgreSQL not available - will mark as NOT_APPLICABLE
-      postgresRepo = null as any;
-    }
+    postgresRepo = testDb.available
+      ? new PostgresURSRepository(testDb.db)
+      : (null as any);
   });
 
   /**
@@ -312,7 +319,36 @@ describe('URS Repository Contract', () => {
    * TEST 4: Baseline Persistence
    */
   describe('Baseline', () => {
+    /**
+     * A baseline has a foreign key to its requirement set, so the parent has
+     * to exist. The in-memory repository has no such constraint and accepted
+     * a dangling reference, which is why this had to be made explicit once
+     * the contract actually ran against PostgreSQL.
+     */
+    async function givenRequirementSet(id: string) {
+      const set: RequirementSet = {
+        id,
+        requirementSetId: id.toUpperCase(),
+        versionNumber: 1,
+        businessCapabilityRefs: [],
+        businessNeed: 'Baseline parent',
+        solutionType: SolutionType.PROJECT,
+        solutionName: 'Baseline parent',
+        status: URSStatus.DRAFT,
+        createdBy: 'test-user',
+        createdAt: new Date(),
+        revision: 1,
+      };
+      if (!(await inMemoryRepo.getRequirementSet(id))) {
+        await inMemoryRepo.createRequirementSet(set);
+      }
+      if (postgresRepo && !(await postgresRepo.getRequirementSet(id))) {
+        await postgresRepo.createRequirementSet(set);
+      }
+    }
+
     test('both create and retrieve baseline', async () => {
+      await givenRequirementSet('urs-001');
       const baseline: Baseline = {
         id: 'baseline-001',
         requirementSetId: 'urs-001',
@@ -340,23 +376,41 @@ describe('URS Repository Contract', () => {
     });
 
     test('both get current approved baseline', async () => {
+      await givenRequirementSet('urs-app-001');
+      // Created as a draft and then released, rather than created already
+      // approved. The contents of an approved baseline are frozen by a
+      // database trigger, so writing its items after the fact is refused --
+      // correctly, and this is the order the real workflow uses.
       const baseline: Baseline = {
         id: 'baseline-app1',
         requirementSetId: 'urs-app-001',
         baselineVersion: '1.0',
-        status: URSStatus.APPROVED,
+        status: URSStatus.DRAFT,
         requirementVersionIds: ['uuid-a'],
         createdBy: 'test-user',
         createdAt: new Date(),
         revision: 1,
       };
+      // The status model refuses to jump: DRAFT to IN_REVIEW to IN_APPROVAL
+      // to APPROVED, one step at a time.
+      const chain = [
+        URSStatus.IN_REVIEW,
+        URSStatus.IN_APPROVAL,
+        URSStatus.APPROVED,
+      ].map(status => ({ ...baseline, status }));
 
       await inMemoryRepo.createBaseline(baseline);
+      for (const step of chain) {
+        await inMemoryRepo.updateBaseline(step);
+      }
       const current = await inMemoryRepo.getCurrentApprovedBaseline('urs-app-001');
       expect(current?.baselineVersion).toBe('1.0');
 
       if (postgresRepo) {
         await postgresRepo.createBaseline(baseline);
+        for (const step of chain) {
+          await postgresRepo.updateBaseline(step);
+        }
         const pgCurrent = await postgresRepo.getCurrentApprovedBaseline('urs-app-001');
         expect(pgCurrent?.baselineVersion).toBe('1.0');
       }
@@ -493,12 +547,19 @@ describe('URS Repository Contract', () => {
       expect(inMemTx.rollback).toBeDefined();
       expect(inMemTx.execute).toBeDefined();
 
+      await inMemTx.rollback();
+
       if (postgresRepo) {
         const pgTx = await postgresRepo.beginTransaction();
         expect(pgTx).toBeDefined();
         expect(pgTx.commit).toBeDefined();
         expect(pgTx.rollback).toBeDefined();
         expect(pgTx.execute).toBeDefined();
+
+        // Left open, this transaction holds its connection and its locks for
+        // as long as the pool lives, and dropping the schema afterwards waits
+        // on it until the hook times out.
+        await pgTx.rollback();
       }
     });
   });
