@@ -17,6 +17,7 @@ import {
 } from '@material-ui/core';
 import {
   validationExpertApiRef,
+  ContextCoverage,
   ValidationContext,
   ValidationContextRequirement,
   ValidationRun,
@@ -137,6 +138,8 @@ export function ContextDetailPage() {
   const [requirementsError, setRequirementsError] = useState<string | null>(null);
   const [runs, setRuns] = useState<ValidationRun[] | null>(null);
   const [runsError, setRunsError] = useState<string | null>(null);
+  const [coverage, setCoverage] = useState<ContextCoverage | null>(null);
+  const [coverageError, setCoverageError] = useState<string | null>(null);
   const [canStart, setCanStart] = useState(false);
   const [busyType, setBusyType] = useState<'IQ' | 'OQ' | 'UAT' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,11 +180,21 @@ export function ContextDetailPage() {
     }
     setRuns(null);
     setRunsError(null);
+    setCoverage(null);
+    setCoverageError(null);
     api
       .getContextRuns(contextId)
       .then(setRuns)
       .catch(err =>
         setRunsError(err instanceof Error ? err.message : 'Failed to load runs'),
+      );
+    api
+      .getContextCoverage(contextId)
+      .then(setCoverage)
+      .catch(err =>
+        setCoverageError(
+          err instanceof Error ? err.message : 'Failed to load coverage',
+        ),
       );
     identityApi.getBackstageIdentity().then(identity => {
       setCanStart(
@@ -381,6 +394,80 @@ export function ContextDetailPage() {
               ))}
             </TableBody>
           </Table>
+        ) : null}
+      </Box>
+
+      <Box mt={4}>
+        <Typography variant="h6" gutterBottom>
+          Requirement coverage (lite)
+        </Typography>
+        <Typography variant="body2" color="textSecondary" paragraph>
+          {coverage?.note ||
+            'Joins context requirement IDs to protocol tests via linked run executions and findings. Not a GxP validation claim.'}
+        </Typography>
+        {coverageError ? (
+          <Typography color="error">{coverageError}</Typography>
+        ) : null}
+        {!coverageError && !coverage ? <Progress /> : null}
+        {coverage ? (
+          <>
+            <Typography paragraph>
+              <strong>
+                {coverage.covered.length}/{coverage.expected.length}
+              </strong>{' '}
+              expected requirements touched
+              {coverage.extra.length
+                ? ` · ${coverage.extra.length} extra ID(s) from runs/findings`
+                : ''}
+            </Typography>
+            {coverage.byRequirement.length === 0 ? (
+              <Typography color="textSecondary">
+                No requirement IDs on this context snapshot yet.
+              </Typography>
+            ) : (
+              <Table size="small" aria-label="Requirement coverage">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Requirement</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Tests</TableCell>
+                    <TableCell>Runs</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {coverage.byRequirement.map(row => (
+                    <TableRow key={`${row.status}-${row.requirementId}`}>
+                      <TableCell style={{ fontFamily: 'monospace' }}>
+                        {row.requirementId}
+                      </TableCell>
+                      <TableCell>
+                        <StatusChip value={row.status} />
+                      </TableCell>
+                      <TableCell>
+                        {row.testIds.length ? row.testIds.join(', ') : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {row.runIds.length
+                          ? row.runIds.map((runId, index) => (
+                              <span key={runId}>
+                                {index > 0 ? ', ' : null}
+                                <RouterLink
+                                  to={`/validation-expert/runs/${encodeURIComponent(
+                                    runId,
+                                  )}`}
+                                >
+                                  {runId}
+                                </RouterLink>
+                              </span>
+                            ))
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </>
         ) : null}
       </Box>
 

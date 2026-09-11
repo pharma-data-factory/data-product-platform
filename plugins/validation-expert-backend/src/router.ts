@@ -358,6 +358,20 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   });
 
   /**
+   * GET /contexts/:id/coverage
+   * Traceability-lite: covered / uncovered context requirement IDs from linked
+   * run executions (protocol join) and findings. Not a GxP claim.
+   */
+  router.get('/contexts/:id/coverage', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      res.json(await service.getContextCoverage(req.params.id));
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
    * POST /contexts/from-urs
    * Create (or return existing) a validation context from an APPROVED URS
    * baseline. Body: { requirementSetId, baselineId }.

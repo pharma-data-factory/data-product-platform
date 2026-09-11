@@ -21,6 +21,10 @@ import {
   parseUatProtocol,
 } from './parsers';
 import type { ValidationRunnerRegistry } from './runners';
+import {
+  computeContextCoverage,
+  type ContextCoverage,
+} from './coverage';
 import type {
   ExecutorIdentity,
   ProtocolTest,
@@ -37,6 +41,7 @@ export type {
   ValidationContext,
   ValidationContextRequirement,
 } from '@internal/platform-common';
+export type { ContextCoverage, ContextCoverageRow, CoverageRowStatus } from './coverage';
 
 /**
  * Boundary that resolves an APPROVED URS baseline for integration. Implemented
@@ -187,6 +192,35 @@ export class ValidationExpertService {
     }
     const runs = await this.options.repository.listRuns();
     return runs.filter(run => run.contextId === context.id);
+  }
+
+  /**
+   * Traceability-lite: which context requirement IDs are touched by linked run
+   * executions (via protocol test → requirementIds) and/or findings.
+   */
+  async getContextCoverage(contextId: string): Promise<ContextCoverage> {
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+
+    const protocolRequirementIdsByTestId = new Map<string, string[]>();
+    for (const type of ['IQ', 'OQ', 'UAT'] as ProtocolType[]) {
+      for (const test of this.getProtocol(type)) {
+        protocolRequirementIdsByTestId.set(test.id, test.requirementIds ?? []);
+      }
+    }
+
+    const runs = await this.listRunsForContext(contextId);
+    const findings = await this.getFindings();
+
+    return computeContextCoverage({
+      contextId: context.id,
+      expectedRequirementIds: context.source.requirementIds ?? [],
+      runs,
+      protocolRequirementIdsByTestId,
+      findings,
+    });
   }
 
   // ============================================================================

@@ -129,6 +129,25 @@ export interface ValidationContextRequirementsResponse {
   note: string;
 }
 
+export interface ContextCoverageRow {
+  requirementId: string;
+  status: 'covered' | 'uncovered' | 'extra';
+  testIds: string[];
+  runIds: string[];
+  findingIds: string[];
+}
+
+/** Traceability-lite join of context requirements to run executions/findings. */
+export interface ContextCoverage {
+  contextId: string;
+  expected: string[];
+  covered: string[];
+  uncovered: string[];
+  extra: string[];
+  byRequirement: ContextCoverageRow[];
+  note: string;
+}
+
 export interface ValidationRun {
   id: string;
   candidate: string;
@@ -166,6 +185,7 @@ export interface ValidationExpertApi {
     options?: { contextId?: string },
   ): Promise<{ runId: string; status: string; run: ValidationRun }>;
   getContextRuns(contextId: string): Promise<ValidationRun[]>;
+  getContextCoverage(contextId: string): Promise<ContextCoverage>;
   executeAutomated(runId: string): Promise<ValidationRun>;
   startTest(runId: string, testId: string): Promise<unknown>;
   recordResult(
@@ -281,6 +301,12 @@ export class ValidationExpertClient implements ValidationExpertApi {
       `/contexts/${encodeURIComponent(contextId)}/runs`,
     );
     return data.items;
+  }
+
+  getContextCoverage(contextId: string): Promise<ContextCoverage> {
+    return this.json<ContextCoverage>(
+      `/contexts/${encodeURIComponent(contextId)}/coverage`,
+    );
   }
 
   executeAutomated(runId: string) {

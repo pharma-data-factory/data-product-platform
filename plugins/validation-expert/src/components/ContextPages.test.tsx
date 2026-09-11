@@ -94,6 +94,30 @@ describe('Validation contexts UI', () => {
           executions: [],
         },
       ]),
+      getContextCoverage: jest.fn().mockResolvedValue({
+        contextId: sampleContext.id,
+        expected: ['URS-OEE-001', 'URS-OEE-002'],
+        covered: ['URS-OEE-001'],
+        uncovered: ['URS-OEE-002'],
+        extra: [],
+        byRequirement: [
+          {
+            requirementId: 'URS-OEE-001',
+            status: 'covered',
+            testIds: ['IQ-T-001'],
+            runIds: ['IQ-RUN-0001'],
+            findingIds: [],
+          },
+          {
+            requirementId: 'URS-OEE-002',
+            status: 'uncovered',
+            testIds: [],
+            runIds: [],
+            findingIds: [],
+          },
+        ],
+        note: 'Lite join of context requirement IDs to protocol tests via run executions (and findings). Not a GxP validation claim.',
+      }),
     };
 
     render(
@@ -123,16 +147,20 @@ describe('Validation contexts UI', () => {
       expect(screen.getByText('Capture OEE')).toBeInTheDocument();
     });
     expect(screen.getByText('The solution shall capture OEE.')).toBeInTheDocument();
-    expect(screen.getByText('URS-OEE-002')).toBeInTheDocument();
+    expect(screen.getAllByText('URS-OEE-002').length).toBeGreaterThanOrEqual(1);
     await waitFor(() => {
-      expect(screen.getByText('IQ-RUN-0001')).toBeInTheDocument();
+      expect(screen.getAllByText('IQ-RUN-0001').length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getByRole('link', { name: 'IQ-RUN-0001' })).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: 'IQ-RUN-0001' })[0]).toHaveAttribute(
       'href',
       '/validation-expert/runs/IQ-RUN-0001',
     );
     expect(api.getContext).toHaveBeenCalledWith('VALIDATION-CTX-ABC');
     expect(api.getContextRequirements).toHaveBeenCalledWith('VALIDATION-CTX-ABC');
     expect(api.getContextRuns).toHaveBeenCalledWith('VALIDATION-CTX-ABC');
+    expect(api.getContextCoverage).toHaveBeenCalledWith('VALIDATION-CTX-ABC');
+    expect(screen.getByText('Requirement coverage (lite)')).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByText('IQ-T-001')).toBeInTheDocument();
   });
 });
