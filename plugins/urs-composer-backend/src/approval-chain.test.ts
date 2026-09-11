@@ -11,6 +11,7 @@
 
 import { URSService } from './service';
 import { URSRepository } from './repository';
+import { SignaturePinReAuth } from './domain/reauth';
 import {
   ApprovalRole,
   ApprovalInstanceStatus,
@@ -21,6 +22,8 @@ import {
   SolutionType,
   URSStatus,
 } from './types';
+
+const TEST_PIN = 'signing-pin-1';
 
 const mockLogger: any = {
   debug: jest.fn(),
@@ -103,6 +106,14 @@ async function setup(gxpRelevance: GxPRelevance, groups: string[]) {
     repository,
     catalog: catalogWithGroups(groups),
   });
+
+  for (const user of [
+    'user:default/author',
+    'user:default/reviewer',
+    'user:default/qa',
+  ]) {
+    await new SignaturePinReAuth(repository).enroll(user, TEST_PIN);
+  }
 
   return { repository, service };
 }
@@ -214,6 +225,7 @@ describe('Approval steps', () => {
       'user:default/reviewer',
       'looks good',
       {} as any,
+      TEST_PIN,
     );
 
     expect(updated.status).toBe(ApprovalInstanceStatus.IN_PROGRESS);
@@ -258,6 +270,7 @@ describe('Approval steps', () => {
         'user:default/reviewer',
         undefined,
         {} as any,
+        TEST_PIN,
       ),
     ).rejects.toThrow('storage unavailable');
 
@@ -295,6 +308,7 @@ describe('Approval steps', () => {
         'user:default/reviewer',
         undefined,
         {} as any,
+        TEST_PIN,
       ),
     ).rejects.toThrow(/requires role 'QUALITY_REVIEWER'/);
   });

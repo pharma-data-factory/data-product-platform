@@ -21,12 +21,16 @@ import {
 } from '@internal/plugin-urs-composer-backend/src/__testUtils__/testDatabase';
 import { URSService } from '@internal/plugin-urs-composer-backend/src/service';
 import { PostgresURSRepository } from '@internal/plugin-urs-composer-backend/src/postgres-repository';
+import { SignaturePinReAuth } from '@internal/plugin-urs-composer-backend/src/domain/reauth';
+import { SolutionType } from '@internal/plugin-urs-composer-backend/src/types';
 import {
   ValidationExpertService,
   type UrsBaselineResolver,
 } from './service';
 import type { ApprovedURSReference, CreateValidationContextRequest } from './types';
 import type { LoggerService } from '@backstage/backend-plugin-api';
+
+const TEST_PIN = 'signing-pin-1';
 
 const mockLogger: LoggerService = {
   debug: jest.fn(),
@@ -284,6 +288,13 @@ describe('URS → Validation integration against real PostgreSQL', () => {
       catalog: CATALOG,
     });
 
+    for (const user of [
+      'user:default/author',
+      'user:default/approver',
+    ]) {
+      await new SignaturePinReAuth(repository).enroll(user, TEST_PIN);
+    }
+
     // Create an approved requirement set; then create + fully approve a
     // baseline through its approval workflow so the baseline itself is
     // genuinely APPROVED (the final step approval cascades baseline → APPROVED).
@@ -291,7 +302,7 @@ describe('URS → Validation integration against real PostgreSQL', () => {
       {
         businessCapabilityRefs: [CAPABILITY],
         businessNeed: 'Approved baseline integration proof',
-        solutionType: 'PROJECT',
+        solutionType: SolutionType.PROJECT,
         solutionName: 'Validation Proof',
       },
       'user:default/author',
@@ -309,6 +320,8 @@ describe('URS → Validation integration against real PostgreSQL', () => {
         step.id,
         'user:default/approver',
         'Approved',
+        undefined,
+        TEST_PIN,
       );
     }
     const approvedBaseline = await service.getBaseline(baseline.id);

@@ -324,12 +324,16 @@ describe('A baseline timeline', () => {
       instance.steps[0].id,
       REVIEWER,
       'Business review done',
+      undefined,
+      PIN,
     );
     await service.approveApprovalStep(
       instance.id,
       instance.steps[1].id,
       QA,
       'Approved',
+      undefined,
+      PIN,
     );
 
     const view = await service.getBaselineWorkflow(baseline.id);
@@ -368,12 +372,16 @@ describe('The requirement set audit trail', () => {
       instance.steps[0].id,
       REVIEWER,
       'Reviewed',
+      undefined,
+      PIN,
     );
     await service.approveApprovalStep(
       instance.id,
       instance.steps[1].id,
       QA,
       'Approved',
+      undefined,
+      PIN,
     );
 
     const trail = await repository.getAuditTrail(setId);

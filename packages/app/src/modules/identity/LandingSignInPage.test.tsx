@@ -61,7 +61,11 @@ function renderLanding(
             identityApiRef,
             {
               getCredentials: async () => ({ token: undefined }),
-              getBackstageIdentity: async () => undefined,
+              getBackstageIdentity: async () => ({
+                type: 'user' as const,
+                userEntityRef: 'user:default/guest',
+                ownershipEntityRefs: ['user:default/guest'],
+              }),
               getProfileInfo: async () => ({}),
             },
           ],

@@ -26,6 +26,7 @@ import {
 import { computeContentHash } from '@internal/platform-common';
 import {
   ApprovalRole,
+  Baseline,
   ChangeRequest,
   ChangeRequestStatus,
   ImpactAssessment,
@@ -100,6 +101,18 @@ export function hashOfChangeRequest(
   });
 }
 
+/** Hash of a baseline's pinned identity for signature binding. */
+export function hashOfBaseline(baseline: Baseline): string {
+  return computeContentHash({
+    title: baseline.id,
+    description: baseline.requirementSetId,
+    rationale: baseline.baselineVersion,
+    acceptanceCriteria: baseline.requirementVersionIds.join(','),
+    gxpRelevance: baseline.status,
+    category: baseline.approvalInstanceId ?? null,
+  });
+}
+
 export interface SignatureServiceOptions {
   repository: IURSRepository;
   reAuth: ReAuthProvider;
@@ -134,11 +147,43 @@ export class SignatureService {
         return this.validateVersionSignature(request, repository);
       case SignatureTargetType.CHANGE_REQUEST:
         return this.validateChangeRequestSignature(request, repository);
+      case SignatureTargetType.BASELINE:
+        return this.validateBaselineSignature(request, repository);
       default:
         throw new InputError(
           `Signing ${request.targetType} is not supported yet.`,
         );
     }
+  }
+
+  /**
+   * Baseline approval-step signatures bind the PIN attestation to the baseline
+   * identity and pinned version set. The approval chain already enforced the
+   * step's ApprovalRole; here we verify second factor and content binding only.
+   */
+  private async validateBaselineSignature(
+    request: SignRequest,
+    repository: IURSRepository,
+  ): Promise<{ contentHash: string }> {
+    const baseline = await repository.getBaseline(request.targetId);
+    if (!baseline) {
+      throw new NotFoundError(`Baseline ${request.targetId} not found`);
+    }
+
+    const allowed: URSStatus[] = [
+      URSStatus.DRAFT,
+      URSStatus.IN_REVIEW,
+      URSStatus.IN_APPROVAL,
+    ];
+    if (!allowed.includes(baseline.status)) {
+      throw new ConflictError(
+        `Baseline ${request.targetId} cannot be signed in status ${baseline.status}.`,
+      );
+    }
+
+    await this.verifySecondFactor(request);
+
+    return { contentHash: hashOfBaseline(baseline) };
   }
 
   private async validateVersionSignature(
@@ -247,12 +292,16 @@ export class SignatureService {
 
     await repository.createSignature(signature);
 
+    const auditEntityType =
+      request.targetType === SignatureTargetType.CHANGE_REQUEST
+        ? 'CHANGE_REQUEST'
+        : request.targetType === SignatureTargetType.BASELINE
+          ? 'BASELINE'
+          : 'REQUIREMENT_VERSION';
+
     await repository.createAuditEvent({
       id: randomUUID(),
-      entityType:
-        request.targetType === SignatureTargetType.CHANGE_REQUEST
-          ? 'CHANGE_REQUEST'
-          : 'REQUIREMENT_VERSION',
+      entityType: auditEntityType,
       entityId: request.targetId,
       eventType: 'SIGNED',
       newValue: {

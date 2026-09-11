@@ -13,8 +13,6 @@ import {
   NEXORA_STATUS,
   NEXORA_SURFACE,
   NEXORA_TEXT,
-  nexoraColors,
-  nexoraTypography,
 } from '@internal/plugin-nexora-common';
 
 /** Re-export brand surface map from shared design tokens. */
@@ -95,7 +93,7 @@ function chipToneFor(value: string): ChipTone {
   }
 
   if (upper === 'BASELINED' || upper === 'PLANNED') {
-    return { backgroundColor: NX.compliance, color: NEXORA_STATUS.onAccent };
+    return { backgroundColor: NX.compliance, color: NEXORA_STATUS.passFg };
   }
 
   return {
@@ -114,13 +112,12 @@ const useStyles = makeStyles({
   navButton: {
     borderColor: NX.border,
     color: NX.text,
-    fontFamily: nexoraTypography.fontFamily.display,
     fontSize: 13,
     fontWeight: 600,
     letterSpacing: '0.02em',
     textTransform: 'none',
     '&:hover': {
-      backgroundColor: nexoraColors.light.cyanTint,
+      backgroundColor: 'rgba(0, 194, 217, 0.08)',
       borderColor: 'rgba(0, 194, 217, 0.45)',
     },
   },
@@ -135,7 +132,6 @@ const useStyles = makeStyles({
   },
   title: {
     color: NX.text,
-    fontFamily: nexoraTypography.fontFamily.display,
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.02em',
@@ -150,8 +146,7 @@ const useStyles = makeStyles({
   },
   primaryButton: {
     background: `linear-gradient(135deg, ${NX.navy}, ${NX.tealDark})`,
-    color: NEXORA_STATUS.onAccent,
-    fontFamily: nexoraTypography.fontFamily.display,
+    color: NEXORA_STATUS.passFg,
     fontWeight: 600,
     textTransform: 'none',
     '&:hover': {

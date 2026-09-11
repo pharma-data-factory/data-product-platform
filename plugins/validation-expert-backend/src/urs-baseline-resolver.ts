@@ -7,7 +7,6 @@
 
 import { InputError } from '@backstage/errors';
 import type { ValidationContextRequirement } from '@internal/platform-common';
-import type { CreateValidationContextRequest } from './types';
 import type { UrsBaselineResolver } from './service';
 
 export type UrsAuthCredentials = unknown;

@@ -50,14 +50,6 @@ const guest = userWith('user:default/guest', [
   'group:default/platform-admins',
 ]);
 const unknownGithubUser = userWith('user:default/new-github-user', []);
-const ursQa = userWith('user:default/urs-qa', [
-  'group:default/platform-viewers',
-  'group:default/urs-quality-reviewers',
-]);
-const ursAuthor = userWith('user:default/urs-author', [
-  'group:default/platform-viewers',
-  'group:default/urs-authors',
-]);
 
 describe('PlatformPermissionPolicy', () => {
   it('denies unauthenticated access', async () => {

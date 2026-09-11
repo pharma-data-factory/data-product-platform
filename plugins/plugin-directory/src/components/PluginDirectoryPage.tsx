@@ -30,7 +30,7 @@ import { certificationTierFor } from '../tier';
 import { StatusChip, TierChip } from './shared';
 
 function packagePresenceLabel(
-  loaded: boolean,
+  loaded: boolean | undefined,
   packageName: string | undefined,
 ): string {
   if (loaded) {

@@ -673,6 +673,11 @@ export interface CreateBaselineRequest {
 
 export interface ApproveApprovalStepRequest {
   comment?: string;
+  /**
+   * Signing PIN (second factor). Required for every approval-step attestation.
+   * Technical workflow control — not a Part 11 compliance claim.
+   */
+  pin: string;
 }
 
 export interface RejectApprovalStepRequest {

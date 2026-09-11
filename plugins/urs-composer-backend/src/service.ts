@@ -2324,6 +2324,7 @@ export class URSService {
     actor: string,
     comment?: string,
     credentials?: BackstageCredentials,
+    pin?: string,
   ): Promise<ApprovalInstance> {
     const instance = await this.repository.getApprovalInstance(approvalInstanceId);
     if (!instance) {
@@ -2339,6 +2340,12 @@ export class URSService {
       throw new Error(`Cannot approve step in ${step.status} status`);
     }
 
+    if (!pin?.trim()) {
+      throw new InputError(
+        'Signing PIN is required to approve an approval step. Set a PIN via PUT /signing-pin first.',
+      );
+    }
+
     // Role-based access: verify actor holds the step's required role.
     // ADMIN deliberately does not bypass this check. Segregation of duties
     // requires each approval step to be decided by its designated role; an
@@ -2352,11 +2359,53 @@ export class URSService {
       }
     }
 
+    // Second-factor check on every step (technical signing control).
+    const reAuth = new SignaturePinReAuth(this.repository);
+    const reAuthResult = await reAuth.verify(actor, pin);
+    if (!reAuthResult.ok) {
+      if (reAuthResult.lockedUntil) {
+        throw new NotAllowedError(
+          `Too many failed signing attempts. Locked until ${reAuthResult.lockedUntil.toISOString()}.`,
+        );
+      }
+      throw new NotAllowedError(
+        'Re-authentication failed. Approval step rejected.',
+      );
+    }
+
+    const remainingAfterThis = instance.steps.filter(
+      s => s.required && s.status !== 'APPROVED' && s.id !== stepId,
+    );
+    const isFinalRequiredStep = remainingAfterThis.length === 0;
+
     // Everything below mutates state. The final approval fans out across the
     // baseline, the requirement set, its predecessor and every pinned version,
     // so it runs as one transaction: a failure part-way through must not leave
     // an approved baseline behind a half-updated version chain.
+    //
+    // A baseline Signature record is written only on the final required step
+    // (unique meaning per signatory). Intermediate steps still require the PIN.
+    const signatures = this.signatureService(credentials);
+
     return this.repository.withTransaction(async repo => {
+      if (isFinalRequiredStep) {
+        const meaning =
+          step.role === ApprovalRole.QUALITY_REVIEWER
+            ? SignatureMeaning.APPROVED_QA
+            : SignatureMeaning.REVIEWED;
+        await signatures.sign(
+          {
+            targetType: SignatureTargetType.BASELINE,
+            targetId: instance.baselineId,
+            meaning,
+            signedBy: actor,
+            secret: pin,
+            comment,
+          },
+          repo,
+        );
+      }
+
       // Update step: mark as APPROVED
       step.status = ApprovalStepStatus.APPROVED;
       step.actedBy = actor;

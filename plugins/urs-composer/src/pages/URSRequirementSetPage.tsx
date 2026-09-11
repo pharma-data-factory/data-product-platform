@@ -49,7 +49,7 @@ import CancelIcon from '@material-ui/icons/Cancel';
 import HistoryIcon from '@material-ui/icons/History';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
-import { NEXORA_STATUS } from '@internal/plugin-nexora-common';
+import { NEXORA_CYAN, NEXORA_SECURITY, NEXORA_STATUS } from '@internal/plugin-nexora-common';
 import { ursApprovePermission, ursManagePermission, formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
@@ -81,13 +81,13 @@ function approvalStepIcon(
   isSkipped: boolean,
 ) {
   if (isApproved) {
-    return <CheckIcon style={{ color: NEXORA_STATUS.success }} />;
+    return <CheckIcon style={{ color: NEXORA_STATUS.passBg }} />;
   }
   if (isRejected) {
-    return <CloseIcon style={{ color: NEXORA_STATUS.error }} />;
+    return <CloseIcon style={{ color: NEXORA_STATUS.failBg }} />;
   }
   if (isSkipped) {
-    return <CancelIcon style={{ color: NEXORA_STATUS.warning }} />;
+    return <CancelIcon style={{ color: NEXORA_STATUS.warnFg }} />;
   }
   return undefined;
 }
@@ -99,18 +99,18 @@ function approvalStepColor(
   isSkipped: boolean,
 ) {
   if (isActive) {
-    return NEXORA_STATUS.active;
+    return NEXORA_CYAN;
   }
   if (isApproved) {
-    return NEXORA_STATUS.success;
+    return NEXORA_STATUS.passBg;
   }
   if (isRejected) {
-    return NEXORA_STATUS.error;
+    return NEXORA_STATUS.failBg;
   }
   if (isSkipped) {
-    return NEXORA_STATUS.warning;
+    return NEXORA_SECURITY;
   }
-  return NEXORA_STATUS.pending;
+  return NEXORA_STATUS.neutralFg;
 }
 
 function confirmDialogTitle(action: 'reject' | 'cancel' | null) {
@@ -982,7 +982,7 @@ export const URSRequirementSetPage: FC = () => {
                                     isRejected,
                                     isSkipped,
                                   ),
-                                  color: NEXORA_STATUS.onAccent,
+                                  color: NEXORA_STATUS.passFg,
                                 }} />
                               </Box>
                             </StepLabel>
@@ -1007,7 +1007,7 @@ export const URSRequirementSetPage: FC = () => {
                                       setESignOpen(true);
                                     }}
                                     disabled={actionLoading}
-                                    style={{ color: NEXORA_STATUS.success, borderColor: NEXORA_STATUS.success }}
+                                    style={{ color: NEXORA_STATUS.passBg, borderColor: NEXORA_STATUS.passBg }}
                                   >
                                     Approve
                                   </Button>
@@ -1021,7 +1021,7 @@ export const URSRequirementSetPage: FC = () => {
                                       setConfirmOpen(true);
                                     }}
                                     disabled={actionLoading}
-                                    style={{ color: NEXORA_STATUS.error, borderColor: NEXORA_STATUS.error }}
+                                    style={{ color: NEXORA_STATUS.failBg, borderColor: NEXORA_STATUS.failBg }}
                                   >
                                     Reject
                                   </Button>
@@ -1045,7 +1045,7 @@ export const URSRequirementSetPage: FC = () => {
                             setConfirmOpen(true);
                           }}
                           disabled={actionLoading}
-                          style={{ color: NEXORA_STATUS.warning, borderColor: NEXORA_STATUS.warning }}
+                          style={{ color: NEXORA_SECURITY, borderColor: NEXORA_SECURITY }}
                         >
                           Cancel Workflow
                         </Button>
@@ -1255,7 +1255,20 @@ export const URSRequirementSetPage: FC = () => {
           setInlineEditOpen(false);
           setInlineEditReq(null);
         }}
-        onSave={async updated => {
+        onSave={async (updated: {
+          requirementId: string;
+          id?: string;
+          title: string;
+          statement: string;
+          rationale?: string;
+          priority: Requirement['priority'];
+          gxpRelevance?: Requirement['gxpRelevance'];
+          acceptanceIntent?: string;
+          category?: string;
+          classification?: Requirement['classification'];
+          source?: string;
+          owner?: string;
+        }) => {
           if (!id) {
             return;
           }

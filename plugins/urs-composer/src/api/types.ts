@@ -464,6 +464,29 @@ export interface SubmitBaselineRequest {
 
 export interface ApproveStepRequest {
   comment?: string;
+  /** Optional signing PIN when the approval step requires re-authentication. */
+  pin?: string;
+}
+
+export interface QualityCheckRequest {
+  requirementId?: string;
+  title?: string;
+  statement?: string;
+  gxpRelevance?: GxPRelevance;
+}
+
+export interface QualityCheckIssue {
+  requirementId?: string;
+  issue: string;
+  severity: 'INFO' | 'WARNING' | 'ERROR';
+  recommendation?: string;
+}
+
+/** Alias matching backend QualityCheckResult naming. */
+export type QualityCheckResult = QualityCheckIssue;
+
+export interface QualityValidateResponse {
+  issues: QualityCheckIssue[];
 }
 
 export interface RejectStepRequest {

@@ -7,6 +7,7 @@
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import { URSService } from './service';
 import { URSRepository } from './repository';
+import { SignaturePinReAuth } from './domain/reauth';
 import { hashOf } from './domain/signature-service';
 import {
   ApprovalRole,
@@ -17,6 +18,8 @@ import {
   SolutionType,
   URSStatus,
 } from './types';
+
+const TEST_PIN = 'signing-pin-1';
 
 const mockLogger: any = {
   debug: jest.fn(),
@@ -69,6 +72,7 @@ async function setup() {
     repository,
     catalog: CATALOG,
   });
+  await new SignaturePinReAuth(repository).enroll(ACTOR, TEST_PIN);
   const set = await service.createRequirementSet(
     {
       businessCapabilityRefs: [CAPABILITY],
@@ -95,7 +99,14 @@ async function releaseBaseline(
 ): Promise<void> {
   const instance = await service.submitBaseline(baselineId, ACTOR);
   for (const step of instance.steps) {
-    await service.approveApprovalStep(instance.id, step.id, ACTOR, 'Approved');
+    await service.approveApprovalStep(
+      instance.id,
+      step.id,
+      ACTOR,
+      'Approved',
+      undefined,
+      TEST_PIN,
+    );
   }
 }
 
