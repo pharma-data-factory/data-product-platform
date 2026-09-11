@@ -8,6 +8,7 @@ import http from 'http';
 import { URSService } from './service';
 import { createRouter } from './router';
 import { URSRepository } from './repository';
+import { SignaturePinReAuth } from './domain/reauth';
 import { LoggerService } from '@backstage/backend-plugin-api';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import {
@@ -17,6 +18,8 @@ import {
   RequirementPriority,
   URSStatus,
 } from './types';
+
+const TEST_PIN = 'signing-pin-1';
 
 const mockLogger: LoggerService = {
   debug: jest.fn(),
@@ -202,6 +205,11 @@ describe('Unauthorized approve denied by backend', () => {
       } as any,
     });
 
+    await new SignaturePinReAuth(repository).enroll(
+      'user:default/approver',
+      TEST_PIN,
+    );
+
     const created = await service.createRequirementSet(
       {
         businessCapabilityRefs: [
@@ -254,7 +262,7 @@ describe('Unauthorized approve denied by backend', () => {
         server.port,
         'POST',
         `/api/urs-composer/approvals/${instance.id}/steps/${firstStep.id}/approve`,
-        { comment: 'Approved' },
+        { comment: 'Approved', pin: TEST_PIN },
       );
       expect(result.status).toBe(200);
 

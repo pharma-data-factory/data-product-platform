@@ -22,6 +22,7 @@ import { URSRepository } from './repository';
 import { PostgresURSRepository } from './postgres-repository';
 import { IURSRepository } from './repository-interface';
 import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
+import { describeWhenPg } from './__testUtils__/describeWhenAvailable';
 import {
   RequirementSet,
   RequirementVersion,
@@ -42,7 +43,7 @@ const mockLogger: LoggerService = {
   child: jest.fn(() => mockLogger),
 };
 
-describe('URS Composer P1A Persistence Verification', () => {
+describeWhenPg('URS Composer P1A Persistence Verification', () => {
   let testDb: TestDatabase;
   let db: Knex;
   let inMemoryRepo: IURSRepository;

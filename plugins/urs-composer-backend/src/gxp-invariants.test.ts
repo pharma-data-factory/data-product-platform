@@ -25,6 +25,7 @@ import {
 } from './types';
 
 import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
+import { describeWhenPg } from './__testUtils__/describeWhenAvailable';
 
 /** Each test uses its own requirement id so the single-open-version index does not couple them. */
 let counter = 0;
@@ -56,7 +57,7 @@ function aVersion(
   };
 }
 
-describe('GxP invariants enforced by the database', () => {
+describeWhenPg('GxP invariants enforced by the database', () => {
   let testDb: TestDatabase;
   let db: Knex;
   let repo: IURSRepository;
