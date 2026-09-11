@@ -3,7 +3,7 @@
  * (Shell - Structured form for business context)
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import {
   Box,
   Typography,
@@ -24,7 +24,7 @@ interface BusinessNeedStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onStateChange }) => {
+export const BusinessNeedStep: FC<BusinessNeedStepProps> = ({ state, onStateChange }) => {
   const api = useApi(ursComposerApiRef);
   const [roles, setRoles] = useState<BusinessRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +54,34 @@ export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onSta
       : [...selected, id];
     handleChange('stakeholders', next);
   };
+
+  let rolesSection;
+  if (loading) {
+    rolesSection = <CircularProgress size={20} />;
+  } else if (roles.length === 0) {
+    rolesSection = (
+      <Typography variant="body2" color="textSecondary">
+        No roles defined yet. Create them under Admin → Business Roles.
+      </Typography>
+    );
+  } else {
+    rolesSection = (
+      <Box>
+        {roles.map(role => (
+          <FormControlLabel
+            key={role.id}
+            control={
+              <Checkbox
+                checked={selected.includes(role.id)}
+                onChange={() => toggleRole(role.id)}
+              />
+            }
+            label={role.name}
+          />
+        ))}
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -126,28 +154,7 @@ export const BusinessNeedStep: React.FC<BusinessNeedStepProps> = ({ state, onSta
           <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
             <strong>Business Roles</strong> — the roles that execute this capability
           </Typography>
-          {loading ? (
-            <CircularProgress size={20} />
-          ) : roles.length === 0 ? (
-            <Typography variant="body2" color="textSecondary">
-              No roles defined yet. Create them under Admin → Business Roles.
-            </Typography>
-          ) : (
-            <Box>
-              {roles.map(role => (
-                <FormControlLabel
-                  key={role.id}
-                  control={
-                    <Checkbox
-                      checked={selected.includes(role.id)}
-                      onChange={() => toggleRole(role.id)}
-                    />
-                  }
-                  label={role.name}
-                />
-              ))}
-            </Box>
-          )}
+          {rolesSection}
         </Grid>
       </Grid>
     </Box>

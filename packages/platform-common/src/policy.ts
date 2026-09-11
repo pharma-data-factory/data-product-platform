@@ -1,4 +1,4 @@
-import { PlatformRole, isAtLeast } from './roles';
+import { PlatformRole, isAtLeast, ursDomainPermissionNames } from './roles';
 import {
   ADMIN_PERMISSION_NAMES,
   BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES,
@@ -36,15 +36,20 @@ export function permissionsForRole(role: PlatformRole): Set<string> {
   }
 }
 
+/**
+ * Decide a permission.
+ *
+ * Platform role grants and URS domain-group grants are independent. A user
+ * who is only in urs-quality-reviewers can still receive urs.approve /
+ * urs.sign even when they have no platform tier role. Base catalog access
+ * still requires a platform group (typically platform-viewers).
+ */
 export function decidePermission(
   permission: PolicyPermission,
   role?: PlatformRole,
   resourceRef?: string,
+  ownershipEntityRefs?: readonly string[],
 ): PolicyDecisionName {
-  if (!role) {
-    return 'deny';
-  }
-
   // Reserved Validation Expert controls — never auto-granted in v0.1.
   if (
     permission.name === 'validation.approve' ||
@@ -58,15 +63,29 @@ export function decidePermission(
     return allowScaffolderTemplateIfReleased(permission, role, resourceRef, 'allow');
   }
 
-  const allowed = permissionsForRole(role);
-  if (allowed.has(permission.name)) {
-    return allowScaffolderTemplateIfReleased(permission, role, resourceRef, 'allow');
+  if (role) {
+    const allowed = permissionsForRole(role);
+    if (allowed.has(permission.name)) {
+      return allowScaffolderTemplateIfReleased(
+        permission,
+        role,
+        resourceRef,
+        'allow',
+      );
+    }
+
+    if (
+      permission.attributes?.action === 'read' &&
+      isAtLeast(role, 'VIEWER') &&
+      !isPrivilegedRead(permission.name)
+    ) {
+      return 'allow';
+    }
   }
 
   if (
-    permission.attributes?.action === 'read' &&
-    isAtLeast(role, 'VIEWER') &&
-    !isPrivilegedRead(permission.name)
+    ownershipEntityRefs &&
+    ursDomainPermissionNames(ownershipEntityRefs).has(permission.name)
   ) {
     return 'allow';
   }

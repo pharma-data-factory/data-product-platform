@@ -14,8 +14,11 @@ export {
   githubLoginFromEntityRef,
   platformGroupNames,
   hasApprovedPlatformAccess,
+  URS_DOMAIN_GROUPS,
+  URS_DOMAIN_PERMISSIONS,
+  ursDomainPermissionNames,
 } from './roles';
-export type { PlatformGroup, PlatformRole } from './roles';
+export type { PlatformGroup, PlatformRole, UrsDomainGroup } from './roles';
 
 export {
   marketplaceViewPermission,
@@ -56,6 +59,8 @@ export {
   ursManagePermission,
   ursApprovePermission,
   ursAdminPermission,
+  ursSignPermission,
+  ursChangeRequestManagePermission,
   businessCapabilityManagePermission,
   platformUserManagePermission,
   productReadPermission,
@@ -99,11 +104,37 @@ export {
 } from './policy';
 export type { PolicyDecisionName, PolicyPermission } from './policy';
 
+// URS vocabulary shared by the backend and the UI.
+export {
+  URSStatus,
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+  WorkflowStage,
+  WorkflowState,
+  URS_STATUS_LABELS,
+  OPEN_URS_STATUSES,
+  RELEASED_URS_STATUSES,
+  ursStatusAppearance,
+} from './urs';
+export type { StatusAppearance } from './urs';
+
+// Content hash binding electronic signatures to what was signed.
+export {
+  computeContentHash,
+  canonicalizeContent,
+  HASHED_CONTENT_FIELDS,
+  CONTENT_HASH_ALGORITHM,
+} from './content-hash';
+export type { RequirementContent } from './content-hash';
+
 // URS Composer → Validation Expert integration contract
 export type {
   ApprovedURSReference,
   ValidationContext,
   CreateValidationContextRequest,
+  ValidationContextRequirement,
 } from './validation-integration';
 
 export { quickActionsForRole } from './dashboard';
@@ -328,6 +359,7 @@ export {
   AVAILABLE_DISTRIBUTION_CHANNELS,
   DISTRIBUTION_AVAILABILITY,
   DISTRIBUTION_CHANNELS,
+  DISTRIBUTION_DESCRIPTIONS,
   GOLDEN_PATH_LIFECYCLE_STATES,
   LIFECYCLE_TRANSITIONS,
   OFFICIAL_GOLDEN_PATHS,
@@ -344,6 +376,7 @@ export {
   currentRelease,
   currentReleasedVersion,
   distributionLabel,
+  distributionDescription,
   distributionStatusLines,
   evaluateTemplateReleaseUpgrade,
   filterReleaseCatalogRows,

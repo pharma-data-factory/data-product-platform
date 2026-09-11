@@ -71,10 +71,11 @@ export const composerPlugin = createBackendPlugin({
         const repository = await ComposerRepository.create(database);
         const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
         const llmClient = createLLMClient(config, logger);
+        const llmEnabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
         const service = new ComposerService({ logger, repository, ursBaselineResolver, llmClient });
 
         httpRouter.use(
-          await createRouter({ logger, httpAuth, permissions, service }),
+          await createRouter({ logger, httpAuth, permissions, service, llmEnabled }),
         );
         httpRouter.addAuthPolicy({
           path: '/health',

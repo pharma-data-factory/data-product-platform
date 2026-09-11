@@ -30,6 +30,36 @@ export function isAutoinjectorFactory(model: FactoryModel): boolean {
   );
 }
 
+function primaryFillEquipmentState(tick: number): EquipmentState {
+  if (tick === 8) {
+    return 'MICROSTOP';
+  }
+  if (tick === 15) {
+    return 'STOPPED';
+  }
+  return 'RUNNING';
+}
+
+function primaryFillReasonCode(tick: number): string | undefined {
+  if (tick === 8) {
+    return 'MICROSTOP';
+  }
+  if (tick === 15) {
+    return 'COMPLETED';
+  }
+  return undefined;
+}
+
+function qualityEventType(tick: number): string {
+  if (tick === 16) {
+    return 'BATCH_ON_HOLD';
+  }
+  if (tick === 18) {
+    return 'BATCH_RELEASED';
+  }
+  return 'FUNCTIONAL_TEST_FAILED';
+}
+
 export function autoinjectorOrders(): SyntheticOrder[] {
   return [
     {
@@ -254,11 +284,10 @@ export function advanceAutoinjectorCampaign(options: {
     const rejectTarget = rejectSpike ? 5000 : 580;
     const good = Math.floor(goodTarget * progress);
     const reject = Math.floor(rejectTarget * progress);
-    const stateFill: EquipmentState =
-      tick === 8 ? 'MICROSTOP' : tick === 15 ? 'STOPPED' : 'RUNNING';
+    const stateFill = primaryFillEquipmentState(tick);
     setEq(equipment, 'SYRINGE-FILLER-01', {
       state: stateFill,
-      reasonCode: tick === 8 ? 'MICROSTOP' : tick === 15 ? 'COMPLETED' : undefined,
+      reasonCode: primaryFillReasonCode(tick),
       speed: stateFill === 'RUNNING' ? 120 : 0,
       targetSpeed: 150,
       goodCount: good,
@@ -645,12 +674,7 @@ export function advanceAutoinjectorCampaign(options: {
 
     // quality semantic events
     if (tick === 16 || (tick === 18 && !holdForever) || tick === 41) {
-      const qType =
-        tick === 16
-          ? 'BATCH_ON_HOLD'
-          : tick === 18
-            ? 'BATCH_RELEASED'
-            : 'FUNCTIONAL_TEST_FAILED';
+      const qType = qualityEventType(tick);
       messages.push(
         msg(
           config,

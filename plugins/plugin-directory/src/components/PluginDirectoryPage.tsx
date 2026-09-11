@@ -29,6 +29,19 @@ import {
 import { certificationTierFor } from '../tier';
 import { StatusChip, TierChip } from './shared';
 
+function packagePresenceLabel(
+  loaded: boolean | undefined,
+  packageName: string | undefined,
+): string {
+  if (loaded) {
+    return 'Loaded';
+  }
+  if (packageName) {
+    return 'Present';
+  }
+  return '—';
+}
+
 export function PluginDirectoryPage() {
   const classes = useNexoraToolStyles();
   const api = useApi(pluginDirectoryApiRef);
@@ -269,18 +282,10 @@ export function PluginDirectoryPage() {
                   <StatusChip value={row.lifecycle} />
                 </td>
                 <td>
-                  {row.frontendLoaded
-                    ? 'Loaded'
-                    : row.frontendPackage
-                      ? 'Present'
-                      : '—'}
+                  {packagePresenceLabel(row.frontendLoaded, row.frontendPackage)}
                 </td>
                 <td>
-                  {row.backendLoaded
-                    ? 'Loaded'
-                    : row.backendPackage
-                      ? 'Present'
-                      : '—'}
+                  {packagePresenceLabel(row.backendLoaded, row.backendPackage)}
                 </td>
                 <td>
                   <StatusChip value={row.validationStatus} />

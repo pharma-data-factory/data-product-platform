@@ -22,11 +22,14 @@
   },
   "dependencies": {
     "@backstage/backend-plugin-api": "^1.9.3",
+    "@backstage/config": "^1.3.8",
     "@backstage/errors": "^1.3.1",
+    "@backstage/plugin-catalog-node": "^2.2.3",
     "@backstage/plugin-permission-common": "^0.9.9",
     "@internal/platform-common": "workspace:^",
     "express": "^4.22.0",
     "express-promise-router": "^4.1.1",
+    "knex": "^3.0.0",
     "pg": "^8.11.3"
   },
   "devDependencies": {
@@ -36,5 +39,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "jest": {
+    "globalSetup": "<rootDir>/../jest.globalSetup.js"
+  }
 }

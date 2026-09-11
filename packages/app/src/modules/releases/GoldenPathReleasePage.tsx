@@ -6,7 +6,7 @@ import {
   Page,
   StructuredMetadataTable,
 } from '@backstage/core-components';
-import { Grid, Typography } from '@material-ui/core';
+import { Grid, Typography, Box } from '@material-ui/core';
 import {
   currentRelease,
   distributionStatusLines,
@@ -80,18 +80,26 @@ export function GoldenPathReleasePage() {
             <Grid item xs={12} md={4}>
               <InfoCard title="Distribution">
                 {distributionStatusLines(release.distribution).map(row => (
-                  <Typography key={row.channel} variant="body2">
-                    {row.label} — {row.availability}
-                    {row.offered ||
-                    row.availability === 'AVAILABLE' ||
-                    row.availability === 'AVAILABLE FOR PILOT'
-                      ? ''
-                      : '. Not available'}
-                  </Typography>
+                  <Box key={row.channel} marginBottom={1}>
+                    <Typography variant="body2">
+                      {row.label} — {row.availability}
+                      {row.offered ||
+                      row.availability === 'AVAILABLE' ||
+                      row.availability === 'AVAILABLE FOR PILOT'
+                        ? ''
+                        : '. Not available'}
+                    </Typography>
+                    {row.description ? (
+                      <Typography variant="body2" color="textSecondary">
+                        {row.description}
+                      </Typography>
+                    ) : null}
+                  </Box>
                 ))}
                 <Typography variant="body2" style={{ marginTop: 12 }}>
-                  Distribution is not entitlement. Platform Edition and SaaS
-                  must not be treated as shipped.
+                  Distribution describes where this release is approved to be
+                  distributed — it is not an entitlement, license, or billing
+                  state. Platform Edition and SaaS are planned, not shipped.
                 </Typography>
               </InfoCard>
               <InfoCard title="Release history">

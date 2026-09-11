@@ -5,6 +5,26 @@ import { DataProductLink, resolveEquipmentProductName } from './DataProductLink'
 import type { ActiveAlert, BatchJourneyStep } from './visualGraph';
 import { NX } from './styles';
 
+function journeyStepBackground(complete: boolean, active: boolean): string {
+  if (complete) {
+    return NX.passFg;
+  }
+  if (active) {
+    return NX.teal;
+  }
+  return NX.border;
+}
+
+function journeyStepPrefix(complete: boolean, active: boolean): string {
+  if (complete) {
+    return '✓ ';
+  }
+  if (active) {
+    return '● ';
+  }
+  return '○ ';
+}
+
 function Panel({
   title,
   children,
@@ -119,11 +139,10 @@ export function OverviewOpsPanel({
                       width: 14,
                       height: 14,
                       borderRadius: '50%',
-                      background: step.complete
-                        ? NX.passFg
-                        : step.active
-                          ? NX.teal
-                          : NX.border,
+                      background: journeyStepBackground(
+                        step.complete,
+                        step.active,
+                      ),
                       border: step.active ? `2px solid ${NX.navy}` : undefined,
                     }}
                   />
@@ -148,7 +167,7 @@ export function OverviewOpsPanel({
                       color: NX.text,
                     }}
                   >
-                    {step.complete ? '✓ ' : step.active ? '● ' : '○ '}
+                    {journeyStepPrefix(step.complete, step.active)}
                     {step.batchId}
                   </div>
                   <div style={{ fontSize: 12, color: NX.muted }}>

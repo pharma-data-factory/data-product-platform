@@ -128,15 +128,17 @@ export function ProductContractPage() {
     <NexoraToolPage
       eyebrow="Industrial · Catalog"
       title={product.title}
-      principle={
-        product.productType
-          ? `${product.productType}${
-              product.version ? ` · ${product.version}` : ''
-            }`
-          : product.version
-          ? `Version ${product.version}`
-          : undefined
-      }
+      principle={(() => {
+        if (product.productType) {
+          return `${product.productType}${
+            product.version ? ` · ${product.version}` : ''
+          }`;
+        }
+        if (product.version) {
+          return `Version ${product.version}`;
+        }
+        return undefined;
+      })()}
       copy="Contract view for an industrial Data Product. Schema rendering stays in Catalog API Docs."
       secondary="Compatibility badges reflect the configured provider. They are not a GxP validation claim."
     >

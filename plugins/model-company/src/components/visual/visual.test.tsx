@@ -111,7 +111,7 @@ describe('genericity — same UI for alternate factories', () => {
       </MemoryRouter>,
     );
     expect(screen.getByText('Final Packaging')).toBeInTheDocument();
-    expect(screen.getByText(/31[’']840/)).toBeInTheDocument();
+    expect(screen.getByText(/31[,.’']840/)).toBeInTheDocument();
   });
 });
 

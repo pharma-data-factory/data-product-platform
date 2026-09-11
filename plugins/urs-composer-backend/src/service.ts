@@ -3,8 +3,14 @@
  * Business logic layer for requirement management
  */
 
+import { randomUUID } from 'crypto';
 import { LoggerService } from '@backstage/backend-plugin-api';
-import { NotAllowedError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+} from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
@@ -27,9 +33,33 @@ import {
   BusinessRolePersisted,
   ChangeSet,
   RequirementChange,
+  Signature,
+  SignatureMeaning,
+  SignatureTargetType,
+  ChangeRequest,
+  ChangeRequestStatus,
+  ImpactAssessment,
 } from './types';
+import { SignaturePinReAuth } from './domain/reauth';
+import { computeReviewScopes } from './domain/baseline';
+import {
+  baselineWorkflow,
+  requirementVersionWorkflow,
+  WorkflowView,
+} from './domain/workflow';
+import {
+  hashOf,
+  SignatureService,
+  type SignRequest,
+} from './domain/signature-service';
 import { IURSRepository } from './repository-interface';
-import { nextMinorVersion, getVersionNumber } from './services/versioningService';
+import {
+  firstVersion,
+  nextDraft,
+  parseLabel,
+  versionOrdinal,
+  type VersionNumber,
+} from './domain/versioning';
 import type { LLMClient, GeneratedRequirement } from './llm-client';
 
 export interface URSServiceOptions {
@@ -65,12 +95,20 @@ export class URSService {
   /**
    * Map Backstage groups to URS approval roles.
    * A user can hold multiple approval roles simultaneously.
+   *
+   * The `urs-*` groups are the canonical mapping per ADR-004 and
+   * docs/rbac/platform-roles.md. The `business-capability-leads` and
+   * `data-product-owners` entries are retained as aliases so that users who
+   * could approve before this mapping was corrected keep their access.
    */
   private static readonly GROUP_TO_APPROVAL_ROLE: Record<string, ApprovalRole> = {
     'platform-admins': ApprovalRole.ADMIN,
+    'urs-authors': ApprovalRole.AUTHOR,
+    'urs-business-reviewers': ApprovalRole.BUSINESS_REVIEWER,
+    'urs-product-managers': ApprovalRole.PRODUCT_MANAGER,
+    'urs-quality-reviewers': ApprovalRole.QUALITY_REVIEWER,
     'business-capability-leads': ApprovalRole.BUSINESS_REVIEWER,
     'data-product-owners': ApprovalRole.PRODUCT_MANAGER,
-    'quality-assurance': ApprovalRole.QUALITY_REVIEWER,
   };
 
   /**
@@ -551,6 +589,12 @@ export class URSService {
       persistedRequirements,
     );
 
+    // Wizard persist never called createRequirement; seed 0.1 for any row
+    // that still has no version history so baselines and revisions have a start.
+    for (const requirement of savedRequirements) {
+      await this.seedInitialRequirementVersion(requirement, actor);
+    }
+
     await this.repository.createAuditEvent({
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
@@ -567,6 +611,134 @@ export class URSService {
       requirementSet: refreshed || updated,
       requirements: savedRequirements,
     };
+  }
+
+  /**
+   * Open a controlled revision of an approved/baselined requirement set.
+   *
+   * The source record stays immutable; a new DRAFT set (versionNumber + 1) is
+   * created with cloned requirements and a `supersedesRef` back to the source.
+   * Logical requirement IDs are preserved so version history and traceability
+   * chain across set versions.
+   */
+  async reviseRequirementSet(
+    id: string,
+    actor: string,
+    reason?: string,
+  ): Promise<RequirementSet> {
+    const source = await this.repository.getRequirementSet(id);
+    if (!source) {
+      throw new NotFoundError('Requirement set not found');
+    }
+
+    if (
+      source.status === URSStatus.SUPERSEDED ||
+      source.status === URSStatus.RETIRED
+    ) {
+      throw new InputError(`Cannot revise a ${source.status} requirement set`);
+    }
+
+    const approvedBaseline = await this.repository.getCurrentApprovedBaseline(
+      id,
+    );
+    const isFrozen =
+      source.status === URSStatus.APPROVED ||
+      source.status === URSStatus.BASELINED ||
+      Boolean(approvedBaseline);
+    if (!isFrozen) {
+      throw new InputError(
+        'Only approved or baselined requirement sets can be revised — edit the draft instead',
+      );
+    }
+
+    const { items: allSets } = await this.repository.listRequirementSets(
+      1000,
+      0,
+    );
+    const openRevision = allSets.find(
+      candidate =>
+        candidate.supersedesRef === id &&
+        (candidate.status === URSStatus.DRAFT ||
+          candidate.status === URSStatus.IN_REVIEW),
+    );
+    if (openRevision) {
+      throw new InputError(
+        `An open revision already exists: ${openRevision.requirementSetId}`,
+      );
+    }
+
+    const now = new Date();
+    const nextVersionNumber = (source.versionNumber || 1) + 1;
+    const draft: RequirementSet = {
+      ...source,
+      id: this.generateUUID(),
+      requirementSetId: `${source.requirementSetId}-V${nextVersionNumber}`,
+      versionNumber: nextVersionNumber,
+      revision: 1,
+      status: URSStatus.DRAFT,
+      supersedesRef: source.id,
+      versionComment: reason,
+      createdBy: actor,
+      createdAt: now,
+      updatedBy: undefined,
+      updatedAt: undefined,
+    };
+    const saved = await this.repository.createRequirementSet(draft);
+
+    const sourceRequirements = await this.repository.getRequirements(id);
+    await this.repository.replaceRequirements(
+      saved.id,
+      sourceRequirements.map(req => ({
+        ...req,
+        id: this.generateUUID(),
+        requirementSetId: saved.id,
+        status: URSStatus.DRAFT,
+        createdBy: actor,
+        createdAt: now,
+      })),
+    );
+
+    // Freeze the source record: it stays effective, but is no longer editable
+    // while the revision is open.
+    if (source.status === URSStatus.DRAFT) {
+      await this.repository.updateRequirementSet({
+        ...source,
+        status: URSStatus.BASELINED,
+        updatedBy: actor,
+        updatedAt: now,
+      });
+    }
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_SET',
+      entityId: saved.id,
+      entityVersion: `v${saved.versionNumber}`,
+      eventType: 'REVISION_CREATED',
+      newValue: {
+        requirementSetId: saved.requirementSetId,
+        versionNumber: saved.versionNumber,
+        supersedesRef: source.id,
+        clonedRequirements: sourceRequirements.length,
+      },
+      actor,
+      timestamp: now,
+      reason,
+    });
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_SET',
+      entityId: source.id,
+      entityVersion: `v${source.versionNumber}`,
+      eventType: 'REVISION_OPENED',
+      newValue: { revisionSetId: saved.id },
+      actor,
+      timestamp: now,
+      reason,
+    });
+
+    return saved;
   }
 
   /**
@@ -626,7 +798,73 @@ export class URSService {
       timestamp: now,
     });
 
+    // A requirement without a version cannot be baselined, signed or revised.
+    // createRevision requires a predecessor; this is the only genesis path.
+    await this.seedInitialRequirementVersion(saved, actor);
+
     return saved;
+  }
+
+  /**
+   * Open version 0.1 for a brand-new requirement.
+   *
+   * Idempotent: if any version already exists for the logical requirement id,
+   * this is a no-op. Used by createRequirement and by the wizard draft replace
+   * path, which can introduce requirements that never went through create.
+   */
+  private async seedInitialRequirementVersion(
+    requirement: URSRequirement,
+    actor: string,
+  ): Promise<RequirementVersion | undefined> {
+    const existing = await this.repository.getRequirementVersions(
+      requirement.requirementId,
+    );
+    if (existing.length > 0) {
+      return undefined;
+    }
+
+    const first = firstVersion();
+    const now = new Date();
+    const version: RequirementVersion = {
+      id: this.generateUUID(),
+      requirementId: requirement.requirementId,
+      version: first.label,
+      versionLabel: first.label,
+      major: first.major,
+      minor: first.minor,
+      versionNumber: versionOrdinal(first),
+      title: requirement.title,
+      statement: requirement.statement,
+      rationale: requirement.rationale,
+      category: requirement.category,
+      priority: requirement.priority,
+      acceptanceIntent: requirement.acceptanceIntent,
+      classification: requirement.classification,
+      gxpRelevance: requirement.gxpRelevance,
+      source: requirement.source,
+      owner: requirement.owner,
+      status: URSStatus.DRAFT,
+      createdBy: actor,
+      createdAt: now,
+      revision: 1,
+    };
+    version.contentHash = hashOf(version);
+
+    await this.repository.createRequirementVersion(version);
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_VERSION',
+      entityId: version.id,
+      entityVersion: version.version,
+      eventType: 'CREATED',
+      newValue: version,
+      actor,
+      timestamp: now,
+      reason: 'Genesis version 0.1',
+    });
+
+    return version;
   }
 
   /**
@@ -728,7 +966,7 @@ export class URSService {
   // PRIVATE HELPERS
 
   private generateUUID(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return randomUUID();
   }
 
   /**
@@ -791,24 +1029,119 @@ export class URSService {
   // ============================================================================
 
   /**
+   * Statuses in which a requirement version is still being worked on. A
+   * requirement may have only one such version at a time (invariant 15).
+   */
+  private static readonly OPEN_VERSION_STATUSES: readonly URSStatus[] = [
+    URSStatus.DRAFT,
+    URSStatus.IN_REVIEW,
+    URSStatus.REVIEWED,
+    URSStatus.IN_APPROVAL,
+  ];
+
+  /**
+   * Invariant 8: changing a released requirement needs prior authorisation.
+   *
+   * Once a requirement has been released, someone is relying on it, so a new
+   * version may only be raised under an approved change request. A requirement
+   * that has never been released is still being drafted and needs none.
+   */
+  private async requireApprovedChangeRequest(
+    existingVersions: RequirementVersion[],
+    requirementId: string,
+    changeRequestId?: string,
+  ): Promise<void> {
+    const hasBeenReleased = existingVersions.some(
+      v =>
+        v.status === URSStatus.APPROVED ||
+        v.status === URSStatus.SUPERSEDED ||
+        v.status === URSStatus.OBSOLETE,
+    );
+    if (!hasBeenReleased) {
+      return;
+    }
+
+    if (!changeRequestId) {
+      throw new ConflictError(
+        `Requirement ${requirementId} has a released version, so a new version ` +
+          `requires an approved change request. Supply changeRequestId.`,
+      );
+    }
+
+    const changeRequest = await this.repository.getChangeRequest(
+      changeRequestId,
+    );
+    if (!changeRequest) {
+      throw new NotFoundError(`Change request ${changeRequestId} not found`);
+    }
+    if (changeRequest.status !== ChangeRequestStatus.APPROVED) {
+      throw new ConflictError(
+        `Change request ${changeRequestId} is ${changeRequest.status}; ` +
+          `only an ${ChangeRequestStatus.APPROVED} request authorises a new version.`,
+      );
+    }
+  }
+
+  /**
+   * Read a version's number, falling back to its label for rows written before
+   * major/minor were stored separately.
+   */
+  private versionNumberOf(version: RequirementVersion): VersionNumber {
+    if (version.major !== undefined && version.minor !== undefined) {
+      return { major: version.major, minor: version.minor };
+    }
+    return parseLabel(version.versionLabel ?? version.version);
+  }
+
+  /**
    * Create a revision of an existing requirement version
    */
   async createRevision(
     previousVersionId: string,
     revisionReason: string,
     actor: string,
+    changeRequestId?: string,
   ): Promise<RequirementVersion> {
     const previous = await this.repository.getRequirementVersion(previousVersionId);
     if (!previous) {
-      throw new Error('Previous version not found');
+      throw new NotFoundError(`Requirement version ${previousVersionId} not found`);
     }
 
-    const nextVersion = nextMinorVersion(previous.version);
+    // Checked here as well as by the database index, so that the caller gets a
+    // message naming the version that is in the way.
+    const siblings = await this.repository.getRequirementVersions(
+      previous.requirementId,
+    );
+    const open = siblings.find(v =>
+      URSService.OPEN_VERSION_STATUSES.includes(v.status),
+    );
+    if (open) {
+      throw new ConflictError(
+        `Requirement ${previous.requirementId} already has an open version ` +
+          `(${open.versionLabel ?? open.version}, ${open.status}). ` +
+          `Complete or reject it before starting a new revision.`,
+      );
+    }
+
+    await this.requireApprovedChangeRequest(
+      siblings,
+      previous.requirementId,
+      changeRequestId,
+    );
+
+    const next = nextDraft(
+      this.versionNumberOf(previous),
+      previous.status === URSStatus.APPROVED,
+    );
+
     const newVersion: RequirementVersion = {
       id: this.generateUUID(),
       requirementId: previous.requirementId,
-      version: nextVersion,
-      versionNumber: getVersionNumber(nextVersion),
+      version: next.label,
+      versionLabel: next.label,
+      major: next.major,
+      minor: next.minor,
+      versionNumber: versionOrdinal(next),
       title: previous.title,
       statement: previous.statement,
       rationale: previous.rationale,
@@ -824,8 +1157,12 @@ export class URSService {
       revisionReason,
       createdBy: actor,
       createdAt: new Date(),
+      changeRequestId,
       revision: 1,
     };
+    // Stamped at creation and frozen from IN_REVIEW onward by a database
+    // trigger, so every later signature can be checked against it.
+    newVersion.contentHash = hashOf(newVersion);
 
     await this.repository.createRequirementVersion(newVersion);
 
@@ -854,11 +1191,522 @@ export class URSService {
     return this.repository.getRequirementVersions(requirementId, 'desc');
   }
 
+  // ============================================================================
+  // WORKFLOW VIEW (invariant 17)
+  // ============================================================================
+
+  /**
+   * Where a requirement version stands, as a timeline.
+   *
+   * Derived on request from the version's status, its signatures and its audit
+   * trail, so it cannot drift from them.
+   */
+  async getRequirementVersionWorkflow(
+    versionId: string,
+  ): Promise<WorkflowView> {
+    const version = await this.repository.getRequirementVersion(versionId);
+    if (!version) {
+      throw new NotFoundError(`Requirement version ${versionId} not found`);
+    }
+
+    const [signatures, audit] = await Promise.all([
+      this.repository.listSignatures(
+        SignatureTargetType.REQUIREMENT_VERSION,
+        versionId,
+      ),
+      this.repository.getEntityAuditTrail(versionId, 'REQUIREMENT_VERSION'),
+    ]);
+
+    return requirementVersionWorkflow(version, signatures, audit);
+  }
+
+  /**
+   * Where a baseline stands, as a timeline.
+   *
+   * Reads the approval chain rather than signatures, because that is what
+   * decides a baseline.
+   */
+  async getBaselineWorkflow(baselineId: string): Promise<WorkflowView> {
+    const baseline = await this.repository.getBaseline(baselineId);
+    if (!baseline) {
+      throw new NotFoundError(`Baseline ${baselineId} not found`);
+    }
+
+    const [instances, audit] = await Promise.all([
+      this.repository.listApprovalInstances(baselineId),
+      this.repository.getEntityAuditTrail(baselineId, 'BASELINE'),
+    ]);
+
+    // The most recent instance is the one in force; earlier ones belong to
+    // attempts that were rejected and resubmitted.
+    const instance = instances.length
+      ? instances
+          .slice()
+          .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
+          .pop()!
+      : null;
+
+    return baselineWorkflow(baseline, instance, audit);
+  }
+
+  // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  /**
+   * Allocate the next change request identifier for the current year.
+   *
+   * The sequence restarts each year, which is what makes CR-2026-0001 readable
+   * as "the first change of 2026". Two requests raised at the same moment
+   * would compute the same number; the primary key rejects the loser and the
+   * caller retries, which is cheaper and more obvious than a lock.
+   */
+  private async nextChangeRequestId(): Promise<string> {
+    const year = new Date().getFullYear();
+    const highest = await this.repository.getHighestChangeRequestSequence(year);
+    return `CR-${year}-${String(highest + 1).padStart(4, '0')}`;
+  }
+
+  async createChangeRequest(
+    data: {
+      title: string;
+      description: string;
+      reason: string;
+      affectedRequirementIds?: string[];
+    },
+    actor: string,
+  ): Promise<ChangeRequest> {
+    for (const field of ['title', 'description', 'reason'] as const) {
+      if (!data[field]?.trim()) {
+        throw new InputError(`${field} is required`);
+      }
+    }
+
+    const attempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      const request: ChangeRequest = {
+        id: await this.nextChangeRequestId(),
+        title: data.title,
+        description: data.description,
+        reason: data.reason,
+        affectedRequirementIds: data.affectedRequirementIds ?? [],
+        status: ChangeRequestStatus.DRAFT,
+        requestedBy: actor,
+        requestedAt: new Date(),
+        revision: 1,
+      };
+
+      try {
+        const created = await this.repository.createChangeRequest(request);
+
+        await this.repository.createAuditEvent({
+          id: this.generateUUID(),
+          entityType: 'CHANGE_REQUEST',
+          entityId: created.id,
+          eventType: 'CREATED',
+          newValue: {
+            title: created.title,
+            affectedRequirementIds: created.affectedRequirementIds,
+          },
+          actor,
+          timestamp: created.requestedAt,
+          reason: created.reason,
+        });
+
+        return created;
+      } catch (err) {
+        // Another request took the number between the query and the insert.
+        if (attempt >= attempts) {
+          throw err;
+        }
+      }
+    }
+  }
+
+  async getChangeRequest(id: string): Promise<ChangeRequest> {
+    const request = await this.repository.getChangeRequest(id);
+    if (!request) {
+      throw new NotFoundError(`Change request ${id} not found`);
+    }
+    return request;
+  }
+
+  async listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }> {
+    return this.repository.listChangeRequests(limit, offset);
+  }
+
+  /**
+   * Record what the change would affect, moving the request to ASSESSED.
+   *
+   * The assessor may be the requester: assessing is describing consequences,
+   * not deciding. The decision is where the separation applies.
+   */
+  async assessChangeRequest(
+    changeRequestId: string,
+    data: {
+      summary: string;
+      gxpImpact: boolean;
+      validationImpact: string;
+      affectedVersionIds?: string[];
+    },
+    actor: string,
+  ): Promise<ImpactAssessment> {
+    if (!data.summary?.trim()) {
+      throw new InputError('summary is required');
+    }
+    if (!data.validationImpact?.trim()) {
+      throw new InputError('validationImpact is required');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const request = await repo.getChangeRequest(changeRequestId);
+      if (!request) {
+        throw new NotFoundError(`Change request ${changeRequestId} not found`);
+      }
+
+      const assessment: ImpactAssessment = {
+        id: this.generateUUID(),
+        changeRequestId,
+        summary: data.summary,
+        gxpImpact: data.gxpImpact,
+        validationImpact: data.validationImpact,
+        affectedVersionIds: data.affectedVersionIds ?? [],
+        assessedBy: actor,
+        assessedAt: new Date(),
+      };
+
+      await repo.createImpactAssessment(assessment);
+      // Rejected by the transition map if the request was already decided.
+      await repo.updateChangeRequest({
+        ...request,
+        status: ChangeRequestStatus.ASSESSED,
+      });
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'CHANGE_REQUEST',
+        entityId: changeRequestId,
+        eventType: 'ASSESSED',
+        newValue: {
+          gxpImpact: assessment.gxpImpact,
+          affectedVersionIds: assessment.affectedVersionIds,
+        },
+        actor,
+        timestamp: assessment.assessedAt,
+        reason: assessment.summary,
+      });
+
+      return assessment;
+    });
+  }
+
+  /**
+   * Approve a change request with a quality signature.
+   *
+   * Goes through the same signature service as a requirement approval, so the
+   * second factor, the role check and the separation of duties are the same
+   * rules rather than a parallel set.
+   */
+  async approveChangeRequest(
+    changeRequestId: string,
+    actor: string,
+    secret: string,
+    comment?: string,
+    credentials?: BackstageCredentials,
+  ): Promise<ChangeRequest> {
+    const signatures = this.signatureService(credentials);
+
+    return this.repository.withTransaction(async repo => {
+      await signatures.sign(
+        {
+          targetType: SignatureTargetType.CHANGE_REQUEST,
+          targetId: changeRequestId,
+          meaning: SignatureMeaning.APPROVED_QA,
+          signedBy: actor,
+          secret,
+          comment,
+        },
+        repo,
+      );
+
+      const request = await repo.getChangeRequest(changeRequestId);
+      const decidedAt = new Date();
+      const approved: ChangeRequest = {
+        ...request!,
+        status: ChangeRequestStatus.APPROVED,
+        decidedBy: actor,
+        decidedAt,
+        decisionReason: comment,
+      };
+      await repo.updateChangeRequest(approved);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'CHANGE_REQUEST',
+        entityId: changeRequestId,
+        eventType: 'APPROVED',
+        newValue: { decidedBy: actor, decidedAt },
+        actor,
+        timestamp: decidedAt,
+        reason: comment,
+      });
+
+      return { ...approved, revision: approved.revision + 1 };
+    });
+  }
+
+  /**
+   * Reject a change request.
+   *
+   * No signature: refusing to change something leaves the released state as it
+   * is, so there is nothing new to attest to. A reason is required.
+   */
+  async rejectChangeRequest(
+    changeRequestId: string,
+    reason: string,
+    actor: string,
+  ): Promise<ChangeRequest> {
+    if (!reason?.trim()) {
+      throw new InputError('A rejection reason is required');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const request = await repo.getChangeRequest(changeRequestId);
+      if (!request) {
+        throw new NotFoundError(`Change request ${changeRequestId} not found`);
+      }
+
+      const decidedAt = new Date();
+      const rejected: ChangeRequest = {
+        ...request,
+        status: ChangeRequestStatus.REJECTED,
+        decidedBy: actor,
+        decidedAt,
+        decisionReason: reason,
+      };
+      await repo.updateChangeRequest(rejected);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'CHANGE_REQUEST',
+        entityId: changeRequestId,
+        eventType: 'REJECTED',
+        newValue: { decidedBy: actor, decidedAt },
+        actor,
+        timestamp: decidedAt,
+        reason,
+      });
+
+      return { ...rejected, revision: rejected.revision + 1 };
+    });
+  }
+
+  /**
+   * What a change request led to.
+   *
+   * Answers the question an inspector asks: this requirement changed — who
+   * authorised it, on what assessment, and what came out of it.
+   */
+  async getChangeRequestTraceability(changeRequestId: string): Promise<{
+    changeRequest: ChangeRequest;
+    assessment: ImpactAssessment | null;
+    signatures: Signature[];
+    resultingVersions: RequirementVersion[];
+    auditTrail: AuditEvent[];
+  }> {
+    const changeRequest = await this.getChangeRequest(changeRequestId);
+
+    const [assessment, signatures, resultingVersions, auditTrail] =
+      await Promise.all([
+        this.repository.getImpactAssessment(changeRequestId),
+        this.repository.listSignatures(
+          SignatureTargetType.CHANGE_REQUEST,
+          changeRequestId,
+        ),
+        this.repository.getVersionsByChangeRequest(changeRequestId),
+        this.repository.getEntityAuditTrail(changeRequestId, 'CHANGE_REQUEST'),
+      ]);
+
+    return {
+      changeRequest,
+      assessment,
+      signatures,
+      resultingVersions,
+      auditTrail,
+    };
+  }
+
+  // ============================================================================
+  // ELECTRONIC SIGNATURES
+  // ============================================================================
+
+  /**
+   * Build the signature service for one request.
+   *
+   * Constructed per call because role resolution needs the caller's
+   * credentials for the catalog lookup, and threading those through the domain
+   * layer would put an HTTP concern where it does not belong.
+   *
+   * The re-authentication provider is bound to the base repository on purpose:
+   * a failed attempt has to be counted even when the surrounding transaction
+   * rolls the signature back.
+   */
+  private signatureService(
+    credentials?: BackstageCredentials,
+  ): SignatureService {
+    return new SignatureService({
+      repository: this.repository,
+      reAuth: new SignaturePinReAuth(this.repository),
+      resolveRoles: userRef => this.getUserApprovalRoles(userRef, credentials),
+    });
+  }
+
+  /** Set or replace the caller's own signing PIN. */
+  async setSigningPin(actor: string, pin: string): Promise<void> {
+    await new SignaturePinReAuth(this.repository).enroll(actor, pin);
+
+    await this.repository.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'SIGNATURE_CREDENTIAL',
+      entityId: actor,
+      eventType: 'PIN_SET',
+      actor,
+      timestamp: new Date(),
+    });
+  }
+
+  async listSignatures(versionId: string): Promise<Signature[]> {
+    return this.repository.listSignatures(
+      SignatureTargetType.REQUIREMENT_VERSION,
+      versionId,
+    );
+  }
+
+  /**
+   * Apply an electronic signature to a requirement version.
+   *
+   * An APPROVED_QA signature releases the version as part of the same
+   * transaction (invariant 6). There is deliberately no endpoint that sets a
+   * version to APPROVED directly: release is a consequence of a valid quality
+   * signature, never an independent act.
+   */
+  async signRequirementVersion(
+    versionId: string,
+    meaning: SignatureMeaning,
+    actor: string,
+    secret: string,
+    comment?: string,
+    credentials?: BackstageCredentials,
+  ): Promise<Signature> {
+    const signatures = this.signatureService(credentials);
+    const request: SignRequest = {
+      targetType: SignatureTargetType.REQUIREMENT_VERSION,
+      targetId: versionId,
+      meaning,
+      signedBy: actor,
+      secret,
+      comment,
+    };
+
+    return this.repository.withTransaction(async repo => {
+      const signature = await signatures.sign(request, repo);
+
+      if (meaning === SignatureMeaning.APPROVED_QA) {
+        await this.releaseSignedVersion(repo, versionId, actor);
+      }
+
+      return signature;
+    });
+  }
+
+  /**
+   * Release a version that has just received its quality signature.
+   *
+   * Runs inside the signing transaction, so the signature and the release are
+   * either both recorded or neither is.
+   */
+  private async releaseSignedVersion(
+    repo: IURSRepository,
+    versionId: string,
+    actor: string,
+  ): Promise<void> {
+    const version = await repo.getRequirementVersion(versionId);
+    if (!version) {
+      throw new NotFoundError(`Requirement version ${versionId} not found`);
+    }
+
+    const releasedAt = new Date();
+    await repo.updateRequirementVersion({
+      ...version,
+      status: URSStatus.APPROVED,
+      approvedBy: actor,
+      approvedAt: releasedAt,
+      releasedAt,
+    });
+
+    await repo.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'REQUIREMENT_VERSION',
+      entityId: versionId,
+      entityVersion: version.versionLabel ?? version.version,
+      eventType: 'RELEASED',
+      oldValue: { status: version.status },
+      newValue: { status: URSStatus.APPROVED, releasedAt },
+      actor,
+      timestamp: releasedAt,
+      reason: 'Quality signature applied',
+    });
+
+    // Only one version of a requirement is in force at a time.
+    const siblings = await repo.getRequirementVersions(version.requirementId);
+    for (const previous of siblings) {
+      if (previous.id === versionId || previous.status !== URSStatus.APPROVED) {
+        continue;
+      }
+
+      await repo.updateRequirementVersion({
+        ...previous,
+        status: URSStatus.SUPERSEDED,
+        supersededBy: versionId,
+      });
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'REQUIREMENT_VERSION',
+        entityId: previous.id,
+        entityVersion: previous.versionLabel ?? previous.version,
+        eventType: 'SUPERSEDED',
+        newValue: { supersededBy: versionId },
+        actor,
+        timestamp: releasedAt,
+      });
+    }
+  }
+
   /**
    * Get specific version
    */
   async getVersion(versionId: string): Promise<RequirementVersion | null> {
     return this.repository.getRequirementVersion(versionId);
+  }
+
+  /**
+   * One version of a requirement, addressed the way a reader thinks of it:
+   * the requirement and the version label, not an opaque id.
+   */
+  async getVersionOfRequirement(
+    requirementId: string,
+    versionLabel: string,
+  ): Promise<RequirementVersion | null> {
+    const versions = await this.repository.getRequirementVersions(requirementId);
+    return (
+      versions.find(
+        v => v.versionLabel === versionLabel || v.version === versionLabel,
+      ) ?? null
+    );
   }
 
   // ============================================================================
@@ -874,12 +1722,23 @@ export class URSService {
     baselineVersion: string,
     actor: string,
   ): Promise<Baseline> {
+    const pinned = await this.loadPinnedVersions(
+      requirementSetId,
+      requirementVersionIds,
+    );
+    const items = computeReviewScopes(
+      requirementVersionIds,
+      pinned,
+      await this.predecessorContents(requirementSetId),
+    );
+
     const baseline: Baseline = {
       id: this.generateUUID(),
       requirementSetId,
       baselineVersion,
       status: URSStatus.DRAFT,
       requirementVersionIds,
+      items,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -899,6 +1758,231 @@ export class URSService {
     });
 
     return baseline;
+  }
+
+  /**
+   * Load the versions a baseline is about to pin, refusing anything that does
+   * not exist or belongs to a different requirement set.
+   *
+   * Baselining a version from another set would produce a snapshot that claims
+   * to describe this set but does not.
+   */
+  private async loadPinnedVersions(
+    requirementSetId: string,
+    versionIds: string[],
+  ): Promise<Map<string, RequirementVersion>> {
+    const unique = [...new Set(versionIds)];
+    if (unique.length !== versionIds.length) {
+      throw new InputError(
+        'A baseline cannot pin the same requirement version twice.',
+      );
+    }
+    if (!unique.length) {
+      return new Map();
+    }
+
+    const found = await this.repository.getRequirementVersionsByIds(unique);
+    const byId = new Map(found.map(v => [v.id, v]));
+
+    const missing = unique.filter(id => !byId.has(id));
+    if (missing.length) {
+      throw new NotFoundError(
+        `Requirement version(s) not found: ${missing.join(', ')}`,
+      );
+    }
+
+    // A version belongs to the set through its requirement.
+    const requirements = await this.repository.getRequirements(requirementSetId);
+    const ownRequirementIds = new Set(requirements.map(r => r.requirementId));
+
+    const foreign = found.filter(v => !ownRequirementIds.has(v.requirementId));
+    if (foreign.length) {
+      throw new InputError(
+        `Requirement version(s) do not belong to requirement set ${requirementSetId}: ${foreign.map(v => `${v.id} (${v.requirementId})`).join(', ')}`,
+      );
+    }
+
+    return byId;
+  }
+
+  /**
+   * The versions pinned by the most recent baseline of a set, or null when
+   * this is the first one.
+   */
+  private async predecessorContents(
+    requirementSetId: string,
+  ): Promise<RequirementVersion[] | null> {
+    const baselines = await this.repository.listBaselines(
+      requirementSetId,
+      200,
+      0,
+    );
+    if (!baselines.items.length) {
+      return null;
+    }
+
+    const latest = baselines.items
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .pop()!;
+
+    return this.repository.getRequirementVersionsByIds(
+      latest.requirementVersionIds ?? [],
+    );
+  }
+
+  /**
+   * Invariant 9: a released baseline never contains unreleased content.
+   *
+   * Checked when the baseline is released rather than when it is assembled, so
+   * that a draft baseline can still be put together from work in progress.
+   */
+  private async assertPinnedVersionsReleased(
+    repo: IURSRepository,
+    baseline: Baseline,
+  ): Promise<void> {
+    const versionIds = baseline.requirementVersionIds ?? [];
+    if (!versionIds.length) {
+      return;
+    }
+
+    const versions = await repo.getRequirementVersionsByIds(versionIds);
+    const unreleased = versions.filter(v => v.status !== URSStatus.APPROVED);
+
+    if (unreleased.length) {
+      throw new ConflictError(
+        `Baseline ${baseline.baselineVersion} cannot be released: ${unreleased.length} pinned version(s) are not approved — ${unreleased.map(v => `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`).join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * Invariant 16: a version pinned by a released baseline cannot be retired.
+   *
+   * The baseline is the record of what was released; dropping a requirement
+   * out from under it would leave that record pointing at nothing.
+   */
+  async obsoleteRequirementVersion(
+    versionId: string,
+    reason: string,
+    actor: string,
+  ): Promise<RequirementVersion> {
+    if (!reason?.trim()) {
+      throw new InputError('A reason is required to make a version obsolete');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const version = await repo.getRequirementVersion(versionId);
+      if (!version) {
+        throw new NotFoundError(`Requirement version ${versionId} not found`);
+      }
+
+      const blocking = (
+        await repo.getBaselinesPinningVersion(versionId)
+      ).filter(b => b.status === URSStatus.APPROVED);
+
+      if (blocking.length) {
+        throw new ConflictError(
+          `Requirement version ${versionId} is pinned by released baseline(s) and cannot be made obsolete: ${blocking.map(b => `${b.baselineVersion} (${b.id})`).join(', ')}`,
+        );
+      }
+
+      // The transition map rejects anything that was not released.
+      const obsolete = {
+        ...version,
+        status: URSStatus.OBSOLETE,
+      };
+      await repo.updateRequirementVersion(obsolete);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'REQUIREMENT_VERSION',
+        entityId: versionId,
+        entityVersion: version.versionLabel ?? version.version,
+        eventType: 'OBSOLETED',
+        oldValue: { status: version.status },
+        newValue: { status: URSStatus.OBSOLETE },
+        actor,
+        timestamp: new Date(),
+        reason,
+      });
+
+      return obsolete;
+    });
+  }
+
+  /**
+   * Release a baseline.
+   *
+   * Invariant 9 is enforced here: nothing unreleased may be pinned by a
+   * baseline that is going out. Invariant 10 is the ordering — the predecessor
+   * is superseded as part of the successor's release, in the same transaction,
+   * so there is never a moment with two effective baselines or none.
+   */
+  private async releaseBaseline(
+    repo: IURSRepository,
+    baseline: Baseline,
+    actor: string,
+  ): Promise<void> {
+    await this.assertPinnedVersionsReleased(repo, baseline);
+
+    const previous = await repo.getCurrentApprovedBaseline(
+      baseline.requirementSetId,
+    );
+
+    // The lifecycle runs DRAFT -> IN_REVIEW -> IN_APPROVAL -> APPROVED. The
+    // caller has just recorded the final step, which is the point the baseline
+    // is under decision rather than under review, so that state is recorded
+    // before the approval instead of being skipped over.
+    let current = baseline;
+    if (current.status === URSStatus.IN_REVIEW) {
+      await repo.updateBaseline({
+        ...current,
+        status: URSStatus.IN_APPROVAL,
+      });
+      current = (await repo.getBaseline(current.id))!;
+    }
+
+    await repo.updateBaseline({
+      ...current,
+      status: URSStatus.APPROVED,
+      approvedBy: actor,
+      approvedAt: new Date(),
+      revision: current.revision || 1,
+    });
+
+    if (previous && previous.id !== baseline.id) {
+      await repo.updateBaseline({
+        ...previous,
+        status: URSStatus.SUPERSEDED,
+        supersededBy: baseline.id,
+      });
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'BASELINE',
+        entityId: previous.id,
+        entityVersion: previous.baselineVersion,
+        eventType: 'SUPERSEDED',
+        newValue: {
+          status: URSStatus.SUPERSEDED,
+          supersededBy: baseline.id,
+        },
+        actor: 'system',
+        timestamp: new Date(),
+      });
+    }
+
+    await repo.createAuditEvent({
+      id: this.generateUUID(),
+      entityType: 'BASELINE',
+      entityId: baseline.id,
+      entityVersion: baseline.baselineVersion,
+      eventType: 'APPROVED',
+      newValue: { status: URSStatus.APPROVED, approvedBy: actor },
+      actor,
+      timestamp: new Date(),
+    });
   }
 
   /**
@@ -1043,54 +2127,27 @@ export class URSService {
     actor: string,
     workflowId?: string,
   ): Promise<{ baseline: Baseline; workflow: ApprovalWorkflow | null }> {
-    const baseline = await this.repository.getBaseline(baselineId);
+    let baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
       throw new Error('Baseline not found');
     }
 
-    if (baseline.status !== URSStatus.DRAFT) {
-      throw new Error(`Cannot approve baseline in ${baseline.status} status`);
+    // A baseline is released by completing its approval chain, which is what
+    // records who approved what. Releasing it from here would skip that.
+    if (baseline.status !== URSStatus.IN_APPROVAL) {
+      throw new ConflictError(
+        `Baseline ${baselineId} is ${baseline.status}. A baseline is released by ` +
+          `completing its approval chain, not directly.`,
+      );
     }
 
-    // Supersede previous approved baseline
-    const prevApproved = await this.repository.getCurrentApprovedBaseline(
-      baseline.requirementSetId,
+    // Releasing the baseline and superseding its predecessor is one act; a
+    // failure in between must not leave the set with two effective baselines.
+    const toRelease = baseline;
+    await this.repository.withTransaction(repo =>
+      this.releaseBaseline(repo, toRelease, actor),
     );
-    if (prevApproved) {
-      prevApproved.status = URSStatus.SUPERSEDED;
-      prevApproved.supersededBy = baseline.id;
-      await this.repository.updateBaseline(prevApproved);
-
-      await this.repository.createAuditEvent({
-        id: this.generateUUID(),
-        entityType: 'BASELINE',
-        entityId: prevApproved.id,
-        entityVersion: prevApproved.baselineVersion,
-        eventType: 'SUPERSEDED',
-        newValue: { status: URSStatus.SUPERSEDED },
-        actor: 'system',
-        timestamp: new Date(),
-      });
-    }
-
-    // Update baseline
-    baseline.status = URSStatus.APPROVED;
-    baseline.approvedBy = actor;
-    baseline.approvedAt = new Date();
-    baseline.revision++;
-    await this.repository.updateBaseline(baseline);
-
-    // Audit
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'BASELINE',
-      entityId: baseline.id,
-      entityVersion: baseline.baselineVersion,
-      eventType: 'APPROVED',
-      newValue: baseline,
-      actor,
-      timestamp: new Date(),
-    });
+    baseline = (await this.repository.getBaseline(baselineId))!;
 
     // Get workflow if specified
     let workflow: ApprovalWorkflow | null = null;
@@ -1155,6 +2212,7 @@ export class URSService {
     for (const wfStep of workflow.steps) {
       const step = {
         id: this.generateUUID(),
+        approvalInstanceId: instance.id,
         sequence: wfStep.sequence,
         role: wfStep.role,
         status: ApprovalStepStatus.PENDING,
@@ -1213,12 +2271,14 @@ export class URSService {
       throw new Error(`Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`);
     }
 
-    // Select workflow: GxP relevance determines standard or non-GxP workflow
-    let workflowId = 'non-gxp-urs';
+    // Select workflow: GxP relevance determines standard or non-GxP workflow.
+    // Only DIRECT and INDIRECT relevance require the three-step GxP workflow.
+    // A plain truthiness check would also match the string 'NONE'.
     const requirementSet = await this.repository.getRequirementSet(baseline.requirementSetId);
-    if (requirementSet && requirementSet.gxpRelevance) {
-      workflowId = 'standard-gxp-urs';
-    }
+    const isGxpRelevant =
+      requirementSet?.gxpRelevance === GxPRelevance.DIRECT ||
+      requirementSet?.gxpRelevance === GxPRelevance.INDIRECT;
+    const workflowId = isGxpRelevant ? 'standard-gxp-urs' : 'non-gxp-urs';
 
     // Create approval instance (orchestrates step creation)
     const instance = await this.createApprovalInstance(
@@ -1264,6 +2324,7 @@ export class URSService {
     actor: string,
     comment?: string,
     credentials?: BackstageCredentials,
+    pin?: string,
   ): Promise<ApprovalInstance> {
     const instance = await this.repository.getApprovalInstance(approvalInstanceId);
     if (!instance) {
@@ -1279,7 +2340,16 @@ export class URSService {
       throw new Error(`Cannot approve step in ${step.status} status`);
     }
 
-    // Role-based access: verify actor holds the step's required role
+    if (!pin?.trim()) {
+      throw new InputError(
+        'Signing PIN is required to approve an approval step. Set a PIN via PUT /signing-pin first.',
+      );
+    }
+
+    // Role-based access: verify actor holds the step's required role.
+    // ADMIN deliberately does not bypass this check. Segregation of duties
+    // requires each approval step to be decided by its designated role; an
+    // administrative override would make the approval chain unprovable.
     if (step.role) {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
       if (!actorRoles.includes(step.role)) {
@@ -1289,102 +2359,194 @@ export class URSService {
       }
     }
 
-    // Update step: mark as APPROVED
-    step.status = ApprovalStepStatus.APPROVED;
-    step.actedBy = actor;
-    step.decision = 'APPROVED';
-    step.comment = comment;
-    step.actedAt = new Date();
+    // Second-factor check on every step (technical signing control).
+    const reAuth = new SignaturePinReAuth(this.repository);
+    const reAuthResult = await reAuth.verify(actor, pin);
+    if (!reAuthResult.ok) {
+      if (reAuthResult.lockedUntil) {
+        throw new NotAllowedError(
+          `Too many failed signing attempts. Locked until ${reAuthResult.lockedUntil.toISOString()}.`,
+        );
+      }
+      throw new NotAllowedError(
+        'Re-authentication failed. Approval step rejected.',
+      );
+    }
 
-    // Create audit event for step approval
-    await this.repository.createAuditEvent({
-      id: this.generateUUID(),
-      entityType: 'APPROVAL_STEP',
-      entityId: stepId,
-      eventType: 'APPROVED',
-      newValue: step,
-      actor,
-      timestamp: new Date(),
-    });
-
-    // Check if this is the final required step
-    const remainingSteps = instance.steps.filter(
+    const remainingAfterThis = instance.steps.filter(
       s => s.required && s.status !== 'APPROVED' && s.id !== stepId,
     );
+    const isFinalRequiredStep = remainingAfterThis.length === 0;
 
-    if (remainingSteps.length === 0) {
-      // Final approval: cascade to baseline and versions
-      const baseline = await this.repository.getBaseline(instance.baselineId);
-      if (!baseline) {
-        throw new Error('Baseline not found');
+    // Everything below mutates state. The final approval fans out across the
+    // baseline, the requirement set, its predecessor and every pinned version,
+    // so it runs as one transaction: a failure part-way through must not leave
+    // an approved baseline behind a half-updated version chain.
+    //
+    // A baseline Signature record is written only on the final required step
+    // (unique meaning per signatory). Intermediate steps still require the PIN.
+    const signatures = this.signatureService(credentials);
+
+    return this.repository.withTransaction(async repo => {
+      if (isFinalRequiredStep) {
+        const meaning =
+          step.role === ApprovalRole.QUALITY_REVIEWER
+            ? SignatureMeaning.APPROVED_QA
+            : SignatureMeaning.REVIEWED;
+        await signatures.sign(
+          {
+            targetType: SignatureTargetType.BASELINE,
+            targetId: instance.baselineId,
+            meaning,
+            signedBy: actor,
+            secret: pin,
+            comment,
+          },
+          repo,
+        );
       }
 
-      // Update baseline to APPROVED
-      await this.repository.updateBaseline({
-        ...baseline,
-        status: URSStatus.APPROVED,
-        approvedBy: actor,
-        approvedAt: new Date(),
-        revision: baseline.revision || 1,
+      // Update step: mark as APPROVED
+      step.status = ApprovalStepStatus.APPROVED;
+      step.actedBy = actor;
+      step.decision = 'APPROVED';
+      step.comment = comment;
+      step.actedAt = new Date();
+
+      // updateApprovalInstance writes the instance row only, so the step has
+      // to be written on its own. Without this the record of who approved
+      // which step, and when, never reaches the database, and the chain can
+      // never complete: the next call re-reads the step as still pending. The
+      // in-memory repository hands back the same object it stores, so the
+      // mutation above appeared to persist and hid this everywhere but
+      // against PostgreSQL.
+      await repo.updateApprovalStep(step);
+
+      // Create audit event for step approval
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'APPROVAL_STEP',
+        entityId: stepId,
+        eventType: 'APPROVED',
+        newValue: step,
+        actor,
+        timestamp: new Date(),
       });
 
-      // Approve all requirement versions in this baseline
-      for (const versionId of baseline.requirementVersionIds) {
-        const version = await this.repository.getRequirementVersion(versionId);
-        if (version && version.status !== 'APPROVED') {
-          await this.repository.updateRequirementVersion({
-            ...version,
-            status: URSStatus.APPROVED,
-            approvedBy: actor,
-            approvedAt: new Date(),
-          });
+      // Check if this is the final required step
+      const remainingSteps = instance.steps.filter(
+        s => s.required && s.status !== 'APPROVED' && s.id !== stepId,
+      );
 
-          // Supersede any previous versions
-          const previousVersions = await this.repository.getRequirementVersions(
-            version.requirementId,
-          );
-          for (const prev of previousVersions) {
-            if (prev.id !== versionId && prev.status === 'APPROVED') {
-              await this.repository.updateRequirementVersion({
-                ...prev,
+      if (remainingSteps.length === 0) {
+        // Final approval: cascade to baseline and versions
+        const baseline = await repo.getBaseline(instance.baselineId);
+        if (!baseline) {
+          throw new Error('Baseline not found');
+        }
+
+        // Completing the chain releases the baseline, not its contents: a
+        // requirement version is released on its own quality signature. If any
+        // pinned version is still unreleased, invariant 9 refuses here and
+        // names them, rather than approving them as a side effect.
+        await this.releaseBaseline(repo, baseline, actor);
+
+        // Propagate approval to the requirement set and close the version
+        // chain: once a revision is approved, its predecessor stops being
+        // effective.
+        const approvedSet = await repo.getRequirementSet(
+          baseline.requirementSetId,
+        );
+        if (approvedSet) {
+          if (approvedSet.status !== URSStatus.APPROVED) {
+            await repo.updateRequirementSet({
+              ...approvedSet,
+              status: URSStatus.APPROVED,
+              updatedBy: actor,
+              updatedAt: new Date(),
+            });
+
+            // The set's own approval was previously unrecorded, which left a
+            // hole in its audit trail and in the workflow view derived from it.
+            await repo.createAuditEvent({
+              id: this.generateUUID(),
+              entityType: 'REQUIREMENT_SET',
+              entityId: approvedSet.id,
+              entityVersion: `v${approvedSet.versionNumber}`,
+              eventType: 'APPROVED',
+              oldValue: { status: approvedSet.status },
+              newValue: {
+                status: URSStatus.APPROVED,
+                baselineId: baseline.id,
+              },
+              actor,
+              timestamp: new Date(),
+            });
+          }
+
+          if (approvedSet.supersedesRef) {
+            const predecessor = await repo.getRequirementSet(
+              approvedSet.supersedesRef,
+            );
+            if (predecessor && predecessor.status !== URSStatus.SUPERSEDED) {
+              await repo.updateRequirementSet({
+                ...predecessor,
                 status: URSStatus.SUPERSEDED,
-                supersededBy: versionId,
+                updatedBy: actor,
+                updatedAt: new Date(),
+              });
+
+              await repo.createAuditEvent({
+                id: this.generateUUID(),
+                entityType: 'REQUIREMENT_SET',
+                entityId: predecessor.id,
+                entityVersion: `v${predecessor.versionNumber}`,
+                eventType: 'SUPERSEDED',
+                newValue: {
+                  status: URSStatus.SUPERSEDED,
+                  supersededBy: approvedSet.id,
+                },
+                actor: 'system',
+                timestamp: new Date(),
               });
             }
           }
         }
+
+        // Mark approval instance as APPROVED
+        instance.status = ApprovalInstanceStatus.APPROVED;
+        instance.completedBy = actor;
+        instance.completedAt = new Date();
+
+        // Audit final approval
+        await repo.createAuditEvent({
+          id: this.generateUUID(),
+          entityType: 'APPROVAL_INSTANCE',
+          entityId: instance.id,
+          eventType: 'COMPLETED',
+          newValue: instance,
+          actor,
+          timestamp: new Date(),
+        });
+      } else {
+        // Activate next required step
+        const nextStep = instance.steps.find(
+          s => s.required && s.status === 'PENDING',
+        );
+        if (nextStep) {
+          nextStep.status = ApprovalStepStatus.ACTIVE;
+          await repo.updateApprovalStep(nextStep);
+        }
+
+        instance.status = ApprovalInstanceStatus.IN_PROGRESS;
+        instance.currentStepSequence = (instance.currentStepSequence || 0) + 1;
       }
 
-      // Mark approval instance as APPROVED
-      instance.status = ApprovalInstanceStatus.APPROVED;
-      instance.completedBy = actor;
-      instance.completedAt = new Date();
+      // Update approval instance
+      await repo.updateApprovalInstance(instance);
 
-      // Audit final approval
-      await this.repository.createAuditEvent({
-        id: this.generateUUID(),
-        entityType: 'APPROVAL_INSTANCE',
-        entityId: instance.id,
-        eventType: 'COMPLETED',
-        newValue: instance,
-        actor,
-        timestamp: new Date(),
-      });
-    } else {
-      // Activate next required step
-      const nextStep = instance.steps.find(s => s.required && s.status === 'PENDING');
-      if (nextStep) {
-        nextStep.status = ApprovalStepStatus.ACTIVE;
-      }
-
-      instance.status = ApprovalInstanceStatus.IN_PROGRESS;
-      instance.currentStepSequence = (instance.currentStepSequence || 0) + 1;
-    }
-
-    // Update approval instance
-    await this.repository.updateApprovalInstance(instance);
-
-    return instance;
+      return instance;
+    });
   }
 
   /**
@@ -1423,7 +2585,10 @@ export class URSService {
       throw new Error(`Cannot reject step in ${step.status} status`);
     }
 
-    // Role-based access: verify actor holds the step's required role
+    // Role-based access: verify actor holds the step's required role.
+    // ADMIN deliberately does not bypass this check. Segregation of duties
+    // requires each approval step to be decided by its designated role; an
+    // administrative override would make the approval chain unprovable.
     if (step.role) {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
       if (!actorRoles.includes(step.role)) {
@@ -1439,6 +2604,9 @@ export class URSService {
     step.decision = 'REJECTED';
     step.comment = reason;
     step.actedAt = new Date();
+
+    // See approveApprovalStep: the instance update does not carry its steps.
+    await this.repository.updateApprovalStep(step);
 
     // Mark approval instance as REJECTED
     instance.status = ApprovalInstanceStatus.REJECTED;
@@ -1496,6 +2664,7 @@ export class URSService {
         step.status = ApprovalStepStatus.SKIPPED;
         step.actedBy = actor;
         step.actedAt = new Date();
+        await this.repository.updateApprovalStep(step);
       }
     }
 

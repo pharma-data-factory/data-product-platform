@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import { Box, Typography, Card, CardContent, Table, TableBody, TableCell, TableHead, TableRow } from '@material-ui/core';
 import { URSWizardState } from '../wizardState';
 
@@ -7,7 +7,7 @@ interface TraceabilityStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const TraceabilityStep: React.FC<TraceabilityStepProps> = ({ state }) => {
+export const TraceabilityStep: FC<TraceabilityStepProps> = ({ state }) => {
   const capabilityCount = state.businessCapabilityRefs.length;
   const needDefined = !!state.businessNeed?.title;
   const requirementCount = state.requirements.length;

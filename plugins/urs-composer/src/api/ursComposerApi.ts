@@ -35,6 +35,16 @@ import {
   ApprovalWorkflowListResponse,
   ChangeSet,
   GeneratedRequirement,
+  WorkflowView,
+  Signature,
+  SignRequest,
+  ChangeRequest,
+  ImpactAssessment,
+  ChangeRequestTraceability,
+  CreateChangeRequestRequest,
+  CreateImpactAssessmentRequest,
+  QualityCheckRequest,
+  QualityValidateResponse,
 } from './types';
 
 export type { URSApiError };
@@ -91,6 +101,13 @@ export class URSComposerApi {
       throw error;
     }
 
+    // A route that answers 204 sends no body, and parsing one throws. The
+    // signing-pin route does exactly that, so this is on the path of every
+    // signature.
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     // Parse success response
     const data = await response.json();
     return data as T;
@@ -108,6 +125,13 @@ export class URSComposerApi {
    */
   private post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('POST', path, body);
+  }
+
+  /**
+   * Helper: PUT request
+   */
+  private put<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>('PUT', path, body);
   }
 
   // ============================================================================
@@ -254,6 +278,20 @@ export class URSComposerApi {
   }
 
   /**
+   * POST /requirement-sets/:id/revise
+   * Open a controlled revision of an approved/baselined requirement set.
+   * Returns the new DRAFT version; the source record stays immutable.
+   */
+  async reviseRequirementSet(
+    id: string,
+    reason?: string,
+  ): Promise<RequirementSet> {
+    return this.post<RequirementSet>(`/requirement-sets/${id}/revise`, {
+      reason,
+    });
+  }
+
+  /**
    * URS → Validation Expert integration.
    *
    * POST /api/validation-expert/contexts/from-urs
@@ -296,6 +334,33 @@ export class URSComposerApi {
       throw new Error(message);
     }
     return response.json();
+  }
+
+  /**
+   * Lookup an existing Validation Expert context for a URS set + baseline pair.
+   * Uses GET /api/validation-expert/contexts (read-only; does not create).
+   */
+  async findValidationContext(
+    requirementSetId: string,
+    baselineId: string,
+  ): Promise<{ id: string } | undefined> {
+    const base = await this.discoveryApi.getBaseUrl('validation-expert');
+    const response = await this.fetchApi.fetch(`${base}/contexts`);
+    if (!response.ok) {
+      return undefined;
+    }
+    const body = (await response.json()) as {
+      items?: Array<{
+        id: string;
+        source?: { requirementSetId?: string; baselineId?: string };
+      }>;
+    };
+    const match = (body.items ?? []).find(
+      item =>
+        item.source?.requirementSetId === requirementSetId &&
+        item.source?.baselineId === baselineId,
+    );
+    return match ? { id: match.id } : undefined;
   }
 
   /**
@@ -398,7 +463,10 @@ export class URSComposerApi {
    * List baselines for a requirement set
    */
   async listBaselines(setId: string): Promise<Baseline[]> {
-    return this.get<Baseline[]>(`/requirement-sets/${setId}/baselines`);
+    const result = await this.get<{ items: Baseline[]; total: number }>(
+      `/requirement-sets/${setId}/baselines`,
+    );
+    return result.items ?? [];
   }
 
   /**
@@ -423,6 +491,170 @@ export class URSComposerApi {
    */
   async getChangeSet(baselineId: string): Promise<ChangeSet> {
     return this.get<ChangeSet>(`/baselines/${encodeURIComponent(baselineId)}/change-set`);
+  }
+
+  // ============================================================================
+  // WORKFLOW VIEW
+  // ============================================================================
+
+  /**
+   * GET /requirement-versions/:id/workflow
+   * Where a version stands: created, review, QA approval, released.
+   */
+  async getRequirementVersionWorkflow(
+    versionId: string,
+  ): Promise<WorkflowView> {
+    return this.get<WorkflowView>(
+      `/requirement-versions/${encodeURIComponent(versionId)}/workflow`,
+    );
+  }
+
+  /**
+   * GET /baselines/:id/workflow
+   */
+  async getBaselineWorkflow(baselineId: string): Promise<WorkflowView> {
+    return this.get<WorkflowView>(
+      `/baselines/${encodeURIComponent(baselineId)}/workflow`,
+    );
+  }
+
+  // ============================================================================
+  // ELECTRONIC SIGNATURES
+  // ============================================================================
+
+  /**
+   * PUT /signing-pin
+   * Set the caller's own signing PIN. Never sent anywhere else.
+   */
+  async setSigningPin(pin: string): Promise<void> {
+    await this.put<{ ok: boolean }>('/signing-pin', { pin });
+  }
+
+  /**
+   * GET /requirement-versions/:id/signatures
+   */
+  async listSignatures(versionId: string): Promise<Signature[]> {
+    const result = await this.get<{ items: Signature[] }>(
+      `/requirement-versions/${encodeURIComponent(versionId)}/signatures`,
+    );
+    return result.items ?? [];
+  }
+
+  /**
+   * POST /requirement-versions/:id/signatures
+   * Sign a version. The PIN is the second factor and is not stored client-side.
+   */
+  async signRequirementVersion(
+    versionId: string,
+    req: SignRequest,
+  ): Promise<Signature> {
+    return this.post<Signature>(
+      `/requirement-versions/${encodeURIComponent(versionId)}/signatures`,
+      req,
+    );
+  }
+
+  /**
+   * POST /requirement-versions/:id/obsolete
+   * Refused with 409 while a released baseline still pins the version.
+   */
+  async obsoleteRequirementVersion(
+    versionId: string,
+    reason: string,
+  ): Promise<RequirementVersion> {
+    return this.post<RequirementVersion>(
+      `/requirement-versions/${encodeURIComponent(versionId)}/obsolete`,
+      { reason },
+    );
+  }
+
+  // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  /**
+   * POST /change-requests
+   * The identifier is assigned server-side.
+   */
+  async createChangeRequest(
+    req: CreateChangeRequestRequest,
+  ): Promise<ChangeRequest> {
+    return this.post<ChangeRequest>('/change-requests', req);
+  }
+
+  /**
+   * GET /change-requests
+   */
+  async listChangeRequests(
+    limit = 50,
+    offset = 0,
+  ): Promise<{ items: ChangeRequest[]; total: number }> {
+    return this.get<{ items: ChangeRequest[]; total: number }>(
+      `/change-requests?limit=${limit}&offset=${offset}`,
+    );
+  }
+
+  /**
+   * GET /change-requests/:id
+   */
+  async getChangeRequest(id: string): Promise<ChangeRequest> {
+    return this.get<ChangeRequest>(
+      `/change-requests/${encodeURIComponent(id)}`,
+    );
+  }
+
+  /**
+   * POST /change-requests/:id/impact-assessment
+   * Required before the request can be approved.
+   */
+  async assessChangeRequest(
+    id: string,
+    req: CreateImpactAssessmentRequest,
+  ): Promise<ImpactAssessment> {
+    return this.post<ImpactAssessment>(
+      `/change-requests/${encodeURIComponent(id)}/impact-assessment`,
+      req,
+    );
+  }
+
+  /**
+   * POST /change-requests/:id/approve
+   * Quality signature; requires the signing PIN.
+   */
+  async approveChangeRequest(
+    id: string,
+    pin: string,
+    comment?: string,
+  ): Promise<ChangeRequest> {
+    return this.post<ChangeRequest>(
+      `/change-requests/${encodeURIComponent(id)}/approve`,
+      { pin, comment },
+    );
+  }
+
+  /**
+   * POST /change-requests/:id/reject
+   */
+  async rejectChangeRequest(
+    id: string,
+    reason: string,
+  ): Promise<ChangeRequest> {
+    return this.post<ChangeRequest>(
+      `/change-requests/${encodeURIComponent(id)}/reject`,
+      { reason },
+    );
+  }
+
+  /**
+   * GET /change-requests/:id/traceability
+   * The request, its assessment, its signatures and what it produced.
+   */
+  async getChangeRequestTraceability(
+    id: string,
+  ): Promise<ChangeRequestTraceability> {
+    return this.get<ChangeRequestTraceability>(
+      `/change-requests/${encodeURIComponent(id)}/traceability`,
+    );
   }
 
   // ============================================================================
@@ -509,6 +741,33 @@ export class URSComposerApi {
       {},
     );
     return result.suggestions;
+  }
+
+  // ============================================================================
+  // QUALITY CHECKS
+  // ============================================================================
+
+  /**
+   * POST /validate
+   * Run quality checks on a single requirement draft payload.
+   */
+  async validateRequirement(
+    req: QualityCheckRequest,
+  ): Promise<QualityValidateResponse> {
+    return this.post<QualityValidateResponse>('/validate', req);
+  }
+
+  /**
+   * POST /requirement-sets/:id/validate
+   * Run quality checks on all requirements in a set.
+   */
+  async validateRequirementSet(
+    id: string,
+  ): Promise<QualityValidateResponse> {
+    return this.post<QualityValidateResponse>(
+      `/requirement-sets/${encodeURIComponent(id)}/validate`,
+      {},
+    );
   }
 
   // ============================================================================

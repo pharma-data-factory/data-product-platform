@@ -20,9 +20,24 @@ import {
   BusinessCapabilityPersisted,
   BusinessRolePersisted,
   URSStatus,
+  Signature,
+  SignatureCredential,
+  SignatureTargetType,
+  ChangeRequest,
+  ImpactAssessment,
 } from './types';
+import { ConflictError, NotFoundError } from '@backstage/errors';
+import {
+  assertChangeRequestTransition,
+  assertTransition,
+} from './domain/transitions';
+import { baselineItemsOf } from './domain/baseline';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
+import {
+  SEED_REQUIREMENT_SETS,
+  acceptanceIntentFromSeed,
+} from './data/seedRequirementSets';
 
 const DEFAULT_BUSINESS_ROLES = [
   'Weighing Operator',
@@ -74,6 +89,15 @@ export class URSRepository implements IURSRepository {
   private approvalInstances: Map<string, ApprovalInstance> = new Map();
   private approvalSteps: Map<string, ApprovalStep> = new Map();
 
+  // Phase 2 storage
+  private signatures: Signature[] = [];
+  private signatureCredentials: Map<string, SignatureCredential> = new Map();
+
+  // Phase 3 storage; assessments are keyed by change request, which is also
+  // the uniqueness rule in Postgres.
+  private changeRequests: Map<string, ChangeRequest> = new Map();
+  private impactAssessments: Map<string, ImpactAssessment> = new Map();
+
   constructor() {
     for (const cap of BUSINESS_CAPABILITIES) {
       this.businessCapabilities.set(cap.id, {
@@ -93,6 +117,63 @@ export class URSRepository implements IURSRepository {
         createdBy: 'system',
         version: 1,
       });
+    }
+  }
+
+  /**
+   * Seeds the example requirement sets (one per business capability) into the
+   * in-memory store. Idempotent. Called only from the in-memory production
+   * path so that unit tests start from an empty repository.
+   */
+  seedRequirementSets(): void {
+    const now = new Date();
+    for (const seedSet of SEED_REQUIREMENT_SETS) {
+      const setId = `seed:${seedSet.requirementSetId.toLowerCase()}`;
+      if (this.requirementSets.has(setId)) {
+        continue;
+      }
+
+      this.requirementSets.set(setId, {
+        id: setId,
+        requirementSetId: seedSet.requirementSetId,
+        versionNumber: 1,
+        revision: 1,
+        businessCapabilityRefs: seedSet.businessCapabilityRefs,
+        businessNeed: seedSet.businessNeed,
+        desiredOutcome: seedSet.desiredOutcome,
+        businessValue: seedSet.businessValue,
+        stakeholders: seedSet.stakeholders,
+        processContext: seedSet.processContext,
+        scope: seedSet.scope,
+        outOfScope: seedSet.outOfScope,
+        solutionType: seedSet.solutionType,
+        solutionName: seedSet.solutionName,
+        gxpRelevance: seedSet.gxpRelevance,
+        patientImpact: seedSet.patientImpact,
+        dataIntegrityImpact: seedSet.dataIntegrityImpact,
+        electronicRecords: seedSet.electronicRecords,
+        status: URSStatus.DRAFT,
+        createdAt: now,
+        createdBy: 'system',
+      });
+
+      const reqs: URSRequirement[] = seedSet.requirements.map(req => ({
+        id: `${setId}-${req.requirementId.toLowerCase()}`,
+        requirementSetId: setId,
+        requirementId: req.requirementId,
+        title: req.title,
+        statement: req.statement,
+        rationale: req.rationale,
+        category: req.category,
+        priority: req.priority,
+        acceptanceIntent: acceptanceIntentFromSeed(req.acceptanceCriteria),
+        classification: req.classification,
+        gxpRelevance: req.gxpRelevance,
+        status: URSStatus.DRAFT,
+        createdAt: now,
+        createdBy: 'system',
+      }));
+      this.requirements.set(setId, reqs);
     }
   }
 
@@ -351,7 +432,31 @@ export class URSRepository implements IURSRepository {
   }
 
   async updateRequirementVersion(version: RequirementVersion): Promise<void> {
-    this.requirementVersions.set(version.id, version);
+    const existing = this.requirementVersions.get(version.id);
+    if (!existing) {
+      throw new NotFoundError(`Requirement version ${version.id} not found`);
+    }
+
+    // Mirrors the Postgres repository so that both backends reject the same
+    // status changes; see its updateRequirementVersion for the reasoning.
+    if (existing.status !== version.status) {
+      assertTransition('version', existing.status, version.status, version.id);
+    }
+
+    const releasedAt =
+      version.status === URSStatus.APPROVED
+        ? version.releasedAt ?? version.approvedAt ?? new Date()
+        : existing.releasedAt;
+
+    this.requirementVersions.set(version.id, {
+      ...existing,
+      status: version.status,
+      supersededBy: version.supersededBy,
+      approvedBy: version.approvedBy,
+      approvedAt: version.approvedAt,
+      releasedAt,
+      revision: (existing.revision || 1) + 1,
+    });
   }
 
   async getRequirementVersionsByIds(ids: string[]): Promise<RequirementVersion[]> {
@@ -368,8 +473,22 @@ export class URSRepository implements IURSRepository {
   // ============================================================================
 
   async createBaseline(baseline: Baseline): Promise<Baseline> {
-    this.baselines.set(baseline.id, baseline);
-    return baseline;
+    // Items and the id list are two views of the same thing; normalising here
+    // keeps them from drifting apart, as they do in Postgres by construction.
+    const items = baselineItemsOf(baseline);
+    const stored: Baseline = {
+      ...baseline,
+      items,
+      requirementVersionIds: items.map(i => i.requirementVersionId),
+    };
+    this.baselines.set(baseline.id, stored);
+    return stored;
+  }
+
+  async getBaselinesPinningVersion(versionId: string): Promise<Baseline[]> {
+    return Array.from(this.baselines.values()).filter(b =>
+      baselineItemsOf(b).some(i => i.requirementVersionId === versionId),
+    );
   }
 
   async getBaseline(id: string): Promise<Baseline | null> {
@@ -401,7 +520,22 @@ export class URSRepository implements IURSRepository {
   }
 
   async updateBaseline(baseline: Baseline): Promise<void> {
-    this.baselines.set(baseline.id, baseline);
+    const existing = this.baselines.get(baseline.id);
+    if (!existing) {
+      throw new NotFoundError(`Baseline ${baseline.id} not found`);
+    }
+
+    if (existing.status !== baseline.status) {
+      assertTransition('baseline', existing.status, baseline.status, baseline.id);
+    }
+
+    this.baselines.set(baseline.id, {
+      ...baseline,
+      // Contents are set at creation. Postgres never updates them either.
+      items: existing.items,
+      requirementVersionIds: existing.requirementVersionIds,
+      revision: (existing.revision || 1) + 1,
+    });
   }
 
   // ============================================================================
@@ -433,6 +567,12 @@ export class URSRepository implements IURSRepository {
 
   async createApprovalInstance(instance: ApprovalInstance): Promise<ApprovalInstance> {
     this.approvalInstances.set(instance.id, instance);
+    // Register the steps individually as well, mirroring the Postgres
+    // repository. Without this, getApprovalStep and listApprovalSteps stay
+    // empty in memory mode while they resolve under Postgres.
+    for (const step of instance.steps) {
+      this.approvalSteps.set(step.id, step);
+    }
     return instance;
   }
 
@@ -448,6 +588,9 @@ export class URSRepository implements IURSRepository {
 
   async updateApprovalInstance(instance: ApprovalInstance): Promise<void> {
     this.approvalInstances.set(instance.id, instance);
+    for (const step of instance.steps) {
+      this.approvalSteps.set(step.id, step);
+    }
   }
 
   // ============================================================================
@@ -465,7 +608,7 @@ export class URSRepository implements IURSRepository {
 
   async listApprovalSteps(approvalInstanceId: string): Promise<ApprovalStep[]> {
     return Array.from(this.approvalSteps.values())
-      .filter(s => this.approvalInstances.get(s.id as any)?.id === approvalInstanceId)
+      .filter(s => s.approvalInstanceId === approvalInstanceId)
       .sort((a, b) => a.sequence - b.sequence);
   }
 
@@ -484,10 +627,222 @@ export class URSRepository implements IURSRepository {
   }
 
   // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  async createChangeRequest(request: ChangeRequest): Promise<ChangeRequest> {
+    if (this.changeRequests.has(request.id)) {
+      throw new ConflictError(`Change request ${request.id} already exists`);
+    }
+    this.changeRequests.set(request.id, request);
+    return request;
+  }
+
+  async getChangeRequest(id: string): Promise<ChangeRequest | null> {
+    return this.changeRequests.get(id) ?? null;
+  }
+
+  async listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }> {
+    const all = Array.from(this.changeRequests.values()).sort(
+      (a, b) => b.requestedAt.getTime() - a.requestedAt.getTime(),
+    );
+    return { items: all.slice(offset, offset + limit), total: all.length };
+  }
+
+  async updateChangeRequest(request: ChangeRequest): Promise<void> {
+    const existing = this.changeRequests.get(request.id);
+    if (!existing) {
+      throw new NotFoundError(`Change request ${request.id} not found`);
+    }
+
+    if (existing.status !== request.status) {
+      assertChangeRequestTransition(
+        existing.status,
+        request.status,
+        request.id,
+      );
+    }
+
+    this.changeRequests.set(request.id, {
+      ...request,
+      // Origin is fixed, mirroring the Postgres trigger.
+      requestedBy: existing.requestedBy,
+      requestedAt: existing.requestedAt,
+      revision: (existing.revision || 1) + 1,
+    });
+  }
+
+  async getHighestChangeRequestSequence(year: number): Promise<number> {
+    const prefix = `CR-${year}-`;
+    let highest = 0;
+    for (const id of this.changeRequests.keys()) {
+      if (!id.startsWith(prefix)) continue;
+      highest = Math.max(highest, parseInt(id.slice(prefix.length), 10) || 0);
+    }
+    return highest;
+  }
+
+  async createImpactAssessment(assessment: ImpactAssessment): Promise<void> {
+    if (this.impactAssessments.has(assessment.changeRequestId)) {
+      throw new ConflictError(
+        `Change request ${assessment.changeRequestId} has already been assessed`,
+      );
+    }
+    this.impactAssessments.set(assessment.changeRequestId, assessment);
+  }
+
+  async getImpactAssessment(
+    changeRequestId: string,
+  ): Promise<ImpactAssessment | null> {
+    return this.impactAssessments.get(changeRequestId) ?? null;
+  }
+
+  async getVersionsByChangeRequest(
+    changeRequestId: string,
+  ): Promise<RequirementVersion[]> {
+    return Array.from(this.requirementVersions.values())
+      .filter(v => v.changeRequestId === changeRequestId)
+      .sort((a, b) => a.versionNumber - b.versionNumber);
+  }
+
+  // ============================================================================
+  // ELECTRONIC SIGNATURES
+  // ============================================================================
+
+  async createSignature(signature: Signature): Promise<void> {
+    // Mirrors the unique constraint in Postgres.
+    const duplicate = this.signatures.some(
+      s =>
+        s.targetType === signature.targetType &&
+        s.targetId === signature.targetId &&
+        s.meaning === signature.meaning &&
+        s.signedBy === signature.signedBy,
+    );
+    if (duplicate) {
+      throw new ConflictError(
+        `${signature.signedBy} has already signed ${signature.targetId} as ${signature.meaning}.`,
+      );
+    }
+    this.signatures.push(signature);
+  }
+
+  async listSignatures(
+    targetType: SignatureTargetType,
+    targetId: string,
+  ): Promise<Signature[]> {
+    return this.signatures
+      .filter(s => s.targetType === targetType && s.targetId === targetId)
+      .sort((a, b) => a.signedAt.getTime() - b.signedAt.getTime());
+  }
+
+  async getSignatureCredential(
+    userRef: string,
+  ): Promise<SignatureCredential | null> {
+    return this.signatureCredentials.get(userRef) ?? null;
+  }
+
+  async upsertSignatureCredential(
+    credential: SignatureCredential,
+  ): Promise<void> {
+    this.signatureCredentials.set(credential.userRef, credential);
+  }
+
+  async recordSignatureAttempt(
+    userRef: string,
+    failedAttempts: number,
+    lockedUntil: Date | null,
+  ): Promise<void> {
+    const existing = this.signatureCredentials.get(userRef);
+    if (!existing) return;
+    this.signatureCredentials.set(userRef, {
+      ...existing,
+      failedAttempts,
+      lockedUntil: lockedUntil ?? undefined,
+    });
+  }
+
+  // ============================================================================
   // P1A: TRANSACTIONS (No-op for in-memory)
   // ============================================================================
 
   async beginTransaction(): Promise<Transaction> {
     return new InMemoryTransaction();
   }
+
+  async withTransaction<T>(
+    fn: (repo: IURSRepository) => Promise<T>,
+  ): Promise<T> {
+    // There is no engine to roll back, so take a deep snapshot of the stores
+    // and restore it on failure. This keeps memory mode behaviourally equal to
+    // Postgres, which the shared repository contract tests rely on.
+    const snapshot = this.snapshot();
+    try {
+      return await fn(this);
+    } catch (err) {
+      this.restore(snapshot);
+      throw err;
+    }
+  }
+
+  private snapshot(): InMemoryState {
+    return structuredClone({
+      requirementSets: this.requirementSets,
+      requirements: this.requirements,
+      approvals: this.approvals,
+      auditEvents: this.auditEvents,
+      businessCapabilities: this.businessCapabilities,
+      businessRoles: this.businessRoles,
+      requirementVersions: this.requirementVersions,
+      baselines: this.baselines,
+      approvalWorkflows: this.approvalWorkflows,
+      approvalInstances: this.approvalInstances,
+      approvalSteps: this.approvalSteps,
+      signatures: this.signatures,
+      changeRequests: this.changeRequests,
+      impactAssessments: this.impactAssessments,
+      // signatureCredentials is deliberately absent. A failed re-authentication
+      // attempt has to be counted even though the signature it was meant for is
+      // rolled back, otherwise the lockout could be defeated by provoking a
+      // rollback. In Postgres this falls out of the credential store writing on
+      // its own connection; here it has to be said explicitly.
+    });
+  }
+
+  private restore(state: InMemoryState): void {
+    this.requirementSets = state.requirementSets;
+    this.requirements = state.requirements;
+    this.approvals = state.approvals;
+    this.auditEvents = state.auditEvents;
+    this.businessCapabilities = state.businessCapabilities;
+    this.businessRoles = state.businessRoles;
+    this.requirementVersions = state.requirementVersions;
+    this.baselines = state.baselines;
+    this.approvalWorkflows = state.approvalWorkflows;
+    this.approvalInstances = state.approvalInstances;
+    this.approvalSteps = state.approvalSteps;
+    this.signatures = state.signatures;
+    this.changeRequests = state.changeRequests;
+    this.impactAssessments = state.impactAssessments;
+  }
+}
+
+/** Deep copy of every in-memory store, used to roll back a failed transaction. */
+interface InMemoryState {
+  requirementSets: Map<string, RequirementSet>;
+  requirements: Map<string, URSRequirement[]>;
+  approvals: Map<string, Approval[]>;
+  auditEvents: AuditEvent[];
+  businessCapabilities: Map<string, BusinessCapabilityPersisted>;
+  businessRoles: Map<string, BusinessRolePersisted>;
+  requirementVersions: Map<string, RequirementVersion>;
+  baselines: Map<string, Baseline>;
+  approvalWorkflows: Map<string, ApprovalWorkflow>;
+  approvalInstances: Map<string, ApprovalInstance>;
+  approvalSteps: Map<string, ApprovalStep>;
+  signatures: Signature[];
+  changeRequests: Map<string, ChangeRequest>;
+  impactAssessments: Map<string, ImpactAssessment>;
 }

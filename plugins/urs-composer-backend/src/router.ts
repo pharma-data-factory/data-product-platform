@@ -13,7 +13,13 @@
 
 import express from 'express';
 import Router from 'express-promise-router';
-import { AuthenticationError, InputError, NotAllowedError } from '@backstage/errors';
+import {
+  AuthenticationError,
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+} from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
@@ -25,6 +31,8 @@ import {
   ursCreatePermission,
   ursManagePermission,
   ursApprovePermission,
+  ursSignPermission,
+  ursChangeRequestManagePermission,
   businessCapabilityManagePermission,
 } from '@internal/platform-common';
 import { URSService } from './service';
@@ -37,6 +45,7 @@ import {
   CreateBaselineRequest,
   ApproveApprovalStepRequest,
   RejectApprovalStepRequest,
+  SignatureMeaning,
 } from './types';
 
 export interface RouterOptions {
@@ -59,7 +68,12 @@ async function authorize(
   if (!permissions) {
     throw new NotAllowedError('Permission service is not configured');
   }
-  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  // allowLimitedAccess: accepts limited user tokens from sibling plugins
+  // (e.g. validation-expert → urs-composer via getPluginRequestToken onBehalfOf).
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user'],
+    allowLimitedAccess: true,
+  });
   const [decision] = await permissions.authorize([{ permission }], { credentials });
   if (decision.result !== AuthorizeResult.ALLOW) {
     throw new NotAllowedError();
@@ -88,6 +102,16 @@ function respondError(res: express.Response, logger: LoggerService, error: unkno
   }
   if (error instanceof InputError) {
     res.status(400).json({ error: error.message });
+    return;
+  }
+  if (error instanceof NotFoundError) {
+    res.status(404).json({ error: error.message });
+    return;
+  }
+  // Raised by the status transition engine and by the single-open-version
+  // rule: the request was well formed but conflicts with the current state.
+  if (error instanceof ConflictError) {
+    res.status(409).json({ error: error.message });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -131,8 +155,8 @@ export async function createRouter(
   router.get('/capabilities', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
       const result = await service.listCapabilities(limit, offset);
       res.json(result);
     } catch (err) {
@@ -244,8 +268,8 @@ export async function createRouter(
   router.get('/business-roles', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
       const result = await service.listBusinessRolesPaginated(limit, offset);
       res.json(result);
     } catch (err) {
@@ -341,8 +365,8 @@ export async function createRouter(
   router.get('/requirement-sets', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, ursReadPermission);
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
       const result = await service.listRequirementSets(limit, offset);
       res.json(result);
     } catch (err) {
@@ -363,6 +387,20 @@ export async function createRouter(
         return;
       }
       res.json(requirementSet);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-sets/:id/audit
+   * Append-only audit trail for a requirement set.
+   */
+  router.get('/requirement-sets/:id/audit', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const auditTrail = await service.getAuditTrail(req.params.id);
+      res.json(auditTrail);
     } catch (err) {
       respondError(res, logger, err);
     }
@@ -390,6 +428,35 @@ export async function createRouter(
         actor,
       );
       res.json(result);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-sets/:id/revise
+   * Open a controlled revision of an approved/baselined requirement set.
+   * Creates a new DRAFT version; the source record stays immutable.
+   */
+  router.post('/requirement-sets/:id/revise', async (req: express.Request, res: express.Response) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursManagePermission,
+      );
+      const body = (req.body || {}) as { reason?: string };
+      const reason =
+        typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim()
+          : undefined;
+      const revision = await service.reviseRequirementSet(
+        req.params.id,
+        actor,
+        reason,
+      );
+      res.status(201).json(revision);
     } catch (err) {
       respondError(res, logger, err);
     }
@@ -520,6 +587,7 @@ export async function createRouter(
           req.params.id,
           data.revisionReason,
           actor,
+          data.changeRequestId,
         );
         res.status(201).json(revision);
       } catch (err) {
@@ -551,14 +619,18 @@ export async function createRouter(
 
   /**
    * GET /requirements/:id/versions/:version
-   * Get one exact controlled version (do not auto-resolve to latest)
+   * One exact controlled version of a requirement, by version label
+   * (e.g. "1.0"). Does not auto-resolve to the latest.
    */
   router.get(
     '/requirements/:id/versions/:version',
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const version = await service.getVersion(req.params.version);
+        const version = await service.getVersionOfRequirement(
+          req.params.id,
+          req.params.version,
+        );
         if (!version) {
           res.status(404).json({ error: 'Version not found' });
           return;
@@ -569,6 +641,49 @@ export async function createRouter(
       }
     },
   );
+
+  /**
+   * GET /requirement-versions/:id
+   * One version by its own id, when the caller already has it.
+   */
+  router.get('/requirement-versions/:id', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const version = await service.getVersion(req.params.id);
+      if (!version) {
+        res.status(404).json({ error: 'Version not found' });
+        return;
+      }
+      res.json(version);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-versions/:id/workflow
+   * Where the version stands: created, review, QA approval, released.
+   */
+  router.get('/requirement-versions/:id/workflow', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getRequirementVersionWorkflow(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /baselines/:id/workflow
+   */
+  router.get('/baselines/:id/workflow', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getBaselineWorkflow(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
 
   // ============================================================================
   // P1A/P1B BASELINES (Immutable Snapshots)
@@ -618,8 +733,8 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-        const offset = parseInt(req.query.offset as string) || 0;
+        const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+        const offset = parseInt(req.query.offset as string, 10) || 0;
         const result = await service.listBaselines(
           req.params.id,
           limit,
@@ -683,8 +798,8 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, ursReadPermission);
-        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-        const offset = parseInt(req.query.offset as string) || 0;
+        const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+        const offset = parseInt(req.query.offset as string, 10) || 0;
         const result = await service.listApprovalWorkflows(limit, offset);
         res.json(result);
       } catch (err) {
@@ -775,12 +890,20 @@ export async function createRouter(
         );
         const credentials = await httpAuth.credentials(req, { allow: ['user'] });
         const data = req.body as ApproveApprovalStepRequest;
+        if (!data.pin) {
+          res.status(400).json({
+            error:
+              'pin is required to approve an approval step (technical signing control)',
+          });
+          return;
+        }
         const updated = await service.approveApprovalStep(
           req.params.id,
           req.params.stepId,
           actor,
           data.comment,
           credentials,
+          data.pin,
         );
         res.json(updated);
       } catch (err) {
@@ -788,6 +911,257 @@ export async function createRouter(
       }
     },
   );
+
+  // ==========================================================================
+  // CHANGE CONTROL
+  // ==========================================================================
+
+  /**
+   * POST /change-requests
+   * Raise a change request. The identifier is assigned server-side.
+   */
+  router.post('/change-requests', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursChangeRequestManagePermission,
+      );
+      if (!requireBody(res, req.body, 'title', 'description', 'reason')) {
+        return;
+      }
+      const created = await service.createChangeRequest(req.body, actor);
+      res.status(201).json(created);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /change-requests
+   */
+  router.get('/change-requests', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const limit = parseInt(String(req.query.limit ?? '50'), 10);
+      const offset = parseInt(String(req.query.offset ?? '0'), 10);
+      res.json(await service.listChangeRequests(limit, offset));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /change-requests/:id
+   */
+  router.get('/change-requests/:id', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getChangeRequest(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /change-requests/:id/impact-assessment
+   * Record what the change would affect. Required before approval.
+   */
+  router.post('/change-requests/:id/impact-assessment', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursChangeRequestManagePermission,
+      );
+      if (!requireBody(res, req.body, 'summary', 'validationImpact')) {
+        return;
+      }
+      const assessment = await service.assessChangeRequest(
+        req.params.id,
+        {
+          summary: req.body.summary,
+          gxpImpact: Boolean(req.body.gxpImpact),
+          validationImpact: req.body.validationImpact,
+          affectedVersionIds: req.body.affectedVersionIds,
+        },
+        actor,
+      );
+      res.status(201).json(assessment);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /change-requests/:id/approve
+   * Approve with a quality signature; requires the signing PIN.
+   */
+  router.post('/change-requests/:id/approve', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const { pin, comment } = req.body as { pin?: string; comment?: string };
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required to approve' });
+        return;
+      }
+      res.json(
+        await service.approveChangeRequest(
+          req.params.id,
+          actor,
+          pin,
+          comment,
+          credentials,
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /change-requests/:id/reject
+   * No signature: leaving the released state untouched attests to nothing.
+   */
+  router.post('/change-requests/:id/reject', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursChangeRequestManagePermission,
+      );
+      if (!requireBody(res, req.body, 'reason')) {
+        return;
+      }
+      res.json(
+        await service.rejectChangeRequest(req.params.id, req.body.reason, actor),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /change-requests/:id/traceability
+   * The request, its assessment, its signatures and what it produced.
+   */
+  router.get('/change-requests/:id/traceability', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getChangeRequestTraceability(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * PUT /signing-pin
+   * Set or replace the caller's own signing PIN.
+   *
+   * There is no route to set someone else's PIN, and there will not be: an
+   * administrator who could do that could sign in another person's name.
+   */
+  router.put('/signing-pin', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const { pin } = req.body as { pin?: string };
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required' });
+        return;
+      }
+      await service.setSigningPin(actor, pin);
+      res.status(204).end();
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-versions/:id/obsolete
+   * Retire a released version. Refused with 409 while a released baseline
+   * still pins it (invariant 16).
+   */
+  router.post('/requirement-versions/:id/obsolete', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        ursManagePermission,
+      );
+      if (!requireBody(res, req.body, 'reason')) {
+        return;
+      }
+      res.json(
+        await service.obsoleteRequirementVersion(
+          req.params.id,
+          req.body.reason,
+          actor,
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-versions/:id/signatures
+   * The signatures applied to a requirement version.
+   */
+  router.get('/requirement-versions/:id/signatures', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json({ items: await service.listSignatures(req.params.id) });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-versions/:id/signatures
+   * Apply an electronic signature.
+   *
+   * An APPROVED_QA signature releases the version; that is the only way a
+   * version becomes released, so there is no separate status endpoint.
+   */
+  router.post('/requirement-versions/:id/signatures', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const { meaning, pin, comment } = req.body as {
+        meaning?: string;
+        pin?: string;
+        comment?: string;
+      };
+
+      if (!meaning || !(meaning in SignatureMeaning)) {
+        res.status(400).json({
+          error: `meaning must be one of ${Object.keys(SignatureMeaning).join(', ')}`,
+        });
+        return;
+      }
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required to sign' });
+        return;
+      }
+
+      const signature = await service.signRequirementVersion(
+        req.params.id,
+        meaning as SignatureMeaning,
+        actor,
+        pin,
+        comment,
+        credentials,
+      );
+      res.status(201).json(signature);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
 
   /**
    * POST /approvals/:id/steps/:stepId/reject
@@ -863,8 +1237,12 @@ export async function createRouter(
     '/requirement-sets/:id/generate-suggestions',
     async (req: express.Request, res: express.Response) => {
       try {
-        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
-        const actor = credentials.principal?.userEntityRef ?? 'unknown';
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          ursManagePermission,
+        );
 
         const suggestions = await service.generateRequirementSuggestions(
           req.params.id,
@@ -873,7 +1251,16 @@ export async function createRouter(
 
         res.json({ suggestions });
       } catch (error) {
-        if (error instanceof Error && error.message.includes('not found')) {
+        // Authorization, validation and lookup failures use the shared mapping.
+        // Only genuine AI provider failures keep the dedicated 501/502 codes.
+        if (
+          error instanceof AuthenticationError ||
+          error instanceof NotAllowedError ||
+          error instanceof InputError ||
+          error instanceof NotFoundError
+        ) {
+          respondError(res, logger, error);
+        } else if (error instanceof Error && error.message.includes('not found')) {
           res.status(404).json({ error: error.message });
         } else if (error instanceof Error && error.message.includes('not configured')) {
           res.status(501).json({ error: error.message });

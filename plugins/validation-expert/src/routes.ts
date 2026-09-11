@@ -13,3 +13,5 @@ export const runDetailRouteRef = createRouteRef();
 export const manualTestRouteRef = createRouteRef();
 export const evidenceRouteRef = createRouteRef();
 export const findingsRouteRef = createRouteRef();
+export const contextsRouteRef = createRouteRef();
+export const contextDetailRouteRef = createRouteRef();

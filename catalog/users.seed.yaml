@@ -71,3 +71,57 @@ spec:
   profile:
     displayName: Platform Admin
   memberOf: [platform-admins]
+---
+# URS domain seed users. Each also holds platform-viewers so base catalog /
+# TechDocs reads work; the urs-* group supplies workflow permissions.
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: urs-author
+  title: URS Author
+  annotations:
+    github.com/user-login: urs-author
+    dataprod.platform/identity: urs-domain-seed
+spec:
+  profile:
+    displayName: URS Author
+  memberOf: [platform-viewers, urs-authors]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: urs-business
+  title: URS Business Reviewer
+  annotations:
+    github.com/user-login: urs-business
+    dataprod.platform/identity: urs-domain-seed
+spec:
+  profile:
+    displayName: URS Business Reviewer
+  memberOf: [platform-viewers, urs-business-reviewers]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: urs-pm
+  title: URS Product Manager
+  annotations:
+    github.com/user-login: urs-pm
+    dataprod.platform/identity: urs-domain-seed
+spec:
+  profile:
+    displayName: URS Product Manager
+  memberOf: [platform-viewers, urs-product-managers]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: urs-qa
+  title: URS Quality Reviewer
+  annotations:
+    github.com/user-login: urs-qa
+    dataprod.platform/identity: urs-domain-seed
+spec:
+  profile:
+    displayName: URS Quality Reviewer
+  memberOf: [platform-viewers, urs-quality-reviewers]

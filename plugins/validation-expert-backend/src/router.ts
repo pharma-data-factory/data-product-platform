@@ -36,7 +36,11 @@ async function authorize(
   if (!permissions) {
     throw new NotAllowedError('Permission service is not configured');
   }
-  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  // allowLimitedAccess: cookies + on-behalf-of plugin tokens
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user'],
+    allowLimitedAccess: true,
+  });
   const [decision] = await permissions.authorize([{ permission }], { credentials });
   if (decision.result !== AuthorizeResult.ALLOW) {
     throw new NotAllowedError();
@@ -49,7 +53,10 @@ async function resolveExecutor(
   userInfo: UserInfoService | undefined,
   req: express.Request,
 ): Promise<ExecutorIdentity> {
-  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user'],
+    allowLimitedAccess: true,
+  });
   const userEntityRef = (credentials as { principal?: { userEntityRef?: string } })
     .principal?.userEntityRef;
   if (!userEntityRef) {
@@ -163,7 +170,12 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/runs', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      res.json({ items: service.listRuns() });
+      const contextId = String(req.query.contextId ?? '').trim();
+      if (contextId) {
+        res.json({ items: await service.listRunsForContext(contextId) });
+        return;
+      }
+      res.json({ items: await service.listRuns() });
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -172,7 +184,7 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/runs/:runId', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      const run = service.getRun(req.params.runId);
+      const run = await service.getRun(req.params.runId);
       if (!run) {
         throw new NotFoundError(`Run ${req.params.runId} not found`);
       }
@@ -188,13 +200,19 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       const executor = await resolveExecutor(httpAuth, userInfo, req);
       const type = String(req.body?.type ?? '').toUpperCase() as ProtocolType;
       const candidate = String(req.body?.candidate ?? '').trim();
+      const contextId = String(req.body?.contextId ?? '').trim() || undefined;
       if (!['IQ', 'OQ', 'UAT'].includes(type)) {
         throw new InputError('type must be IQ, OQ, or UAT');
       }
       if (!candidate) {
         throw new InputError('candidate is required');
       }
-      const run = service.createRun({ candidate, type, createdBy: executor });
+      const run = await service.createRun({
+        candidate,
+        type,
+        createdBy: executor,
+        contextId,
+      });
       res.status(201).json({ runId: run.id, status: run.status, run });
     } catch (error) {
       respondError(res, logger, error);
@@ -239,7 +257,7 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       if (!actualResult) {
         throw new InputError('actualResult is required');
       }
-      const execution = service.recordManualResult({
+      const execution = await service.recordManualResult({
         runId: req.params.runId,
         testId: req.params.testId,
         status: status as 'PASS' | 'FAIL' | 'BLOCKED',
@@ -259,7 +277,7 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/findings', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      res.json({ items: service.getFindings() });
+      res.json({ items: await service.getFindings() });
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -268,7 +286,7 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/evidence', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      res.json({ items: service.getEvidence() });
+      res.json({ items: await service.getEvidence() });
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -282,7 +300,7 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/contexts', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      res.json({ items: service.listContexts() });
+      res.json({ items: await service.listContexts() });
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -292,12 +310,62 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/contexts/:id', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      const context = service.getContext(req.params.id);
+      const context = await service.getContext(req.params.id);
       if (!context) {
         res.status(404).json({ error: 'Validation context not found' });
         return;
       }
       res.json(context);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * GET /contexts/:id/requirements
+   * Read-through of pinned URS baseline requirement content for this context.
+   * Does not mutate URS; Markdown workbench path remains unchanged.
+   */
+  router.get('/contexts/:id/requirements', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReadPermission,
+      );
+      const payload = await service.getContextRequirements(
+        req.params.id,
+        credentials,
+      );
+      res.json(payload);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * GET /contexts/:id/runs
+   * List validation runs anchored to this Validation Context.
+   */
+  router.get('/contexts/:id/runs', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      res.json({ items: await service.listRunsForContext(req.params.id) });
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * GET /contexts/:id/coverage
+   * Traceability-lite: covered / uncovered context requirement IDs from linked
+   * run executions (protocol join) and findings. Not a GxP claim.
+   */
+  router.get('/contexts/:id/coverage', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      res.json(await service.getContextCoverage(req.params.id));
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -331,6 +399,7 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       const { context, created } = await service.createContextFromApprovedUrs(
         { requirementSetId, baselineId },
         actor || 'unknown',
+        credentials,
       );
       res.status(created ? 201 : 200).json({ context, created });
     } catch (error) {

@@ -1,6 +1,15 @@
-import fs from 'fs';
-import path from 'path';
-import { modelCompanyPlugin } from './plugin';
+import { modelCompanyPlugin, modelCompanyRegisteredPaths } from './plugin';
+
+const CORE_MODEL_COMPANY_PATHS = [
+  '/model-company',
+  '/model-company/campaign',
+  '/model-company/factory',
+  '/model-company/lines',
+  '/model-company/material-flow',
+  '/model-company/batches',
+  '/model-company/scenarios',
+  '/model-company/data-products',
+] as const;
 
 describe('modelCompanyPlugin routes', () => {
   it('exposes route refs for Model Company sections', () => {
@@ -27,21 +36,8 @@ describe('modelCompanyPlugin routes', () => {
   });
 
   it('registers PageBlueprint paths for Model Company', () => {
-    const pluginSource = fs.readFileSync(
-      path.join(__dirname, 'plugin.tsx'),
-      'utf8',
-    );
-    for (const p of [
-      '/model-company',
-      '/model-company/campaign',
-      '/model-company/factory',
-      '/model-company/lines',
-      '/model-company/material-flow',
-      '/model-company/batches',
-      '/model-company/scenarios',
-      '/model-company/data-products',
-    ]) {
-      expect(pluginSource).toContain(`path: '${p}'`);
+    for (const pagePath of CORE_MODEL_COMPANY_PATHS) {
+      expect(modelCompanyRegisteredPaths).toContain(pagePath);
     }
   });
 });

@@ -26,6 +26,7 @@
     "@backstage/core-plugin-api": "^1.12.8",
     "@backstage/frontend-plugin-api": "^0.17.3",
     "@internal/platform-common": "workspace:^",
+    "@internal/plugin-nexora-common": "workspace:^",
     "@material-ui/core": "^4.12.2",
     "@material-ui/icons": "^4.9.1"
   },

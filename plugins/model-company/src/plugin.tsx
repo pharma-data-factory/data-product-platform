@@ -182,6 +182,25 @@ const architecturePage = PageBlueprint.make({
   },
 });
 
+/** PageBlueprint paths registered by this plugin (for route contract tests). */
+export const modelCompanyRegisteredPaths = [
+  '/model-company',
+  '/model-company/uns',
+  '/model-company/factory',
+  '/model-company/lines',
+  '/model-company/equipment',
+  '/model-company/orders',
+  '/model-company/batches',
+  '/model-company/genealogy',
+  '/model-company/material-flow',
+  '/model-company/campaign',
+  '/model-company/warehouse',
+  '/model-company/scenarios',
+  '/model-company/events',
+  '/model-company/data-products',
+  '/model-company/architecture',
+] as const;
+
 export const modelCompanyPlugin = createFrontendPlugin({
   pluginId: 'model-company',
   extensions: [

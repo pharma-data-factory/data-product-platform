@@ -314,4 +314,72 @@ describe('model company permissions', () => {
       ),
     ).toBe('allow');
   });
+
+  it('grants URS domain permissions from urs-* groups without a platform role', () => {
+    const qaOwnership = ['group:default/urs-quality-reviewers'];
+    expect(
+      decidePermission(
+        { name: 'urs.approve', attributes: { action: 'update' } },
+        undefined,
+        undefined,
+        qaOwnership,
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'urs.sign', attributes: { action: 'update' } },
+        undefined,
+        undefined,
+        qaOwnership,
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'urs.create', attributes: { action: 'create' } },
+        undefined,
+        undefined,
+        qaOwnership,
+      ),
+    ).toBe('deny');
+  });
+
+  it('lets a Viewer plus quality reviewer approve and sign URS', () => {
+    const ownership = [
+      'group:default/platform-viewers',
+      'group:default/urs-quality-reviewers',
+    ];
+    expect(
+      decidePermission(
+        { name: 'urs.read', attributes: { action: 'read' } },
+        'VIEWER',
+        undefined,
+        ownership,
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'urs.approve', attributes: { action: 'update' } },
+        'VIEWER',
+        undefined,
+        ownership,
+      ),
+    ).toBe('allow');
+    expect(
+      decidePermission(
+        { name: 'urs.sign', attributes: { action: 'update' } },
+        'VIEWER',
+        undefined,
+        ownership,
+      ),
+    ).toBe('allow');
+    // Platform Viewer alone still cannot approve.
+    expect(
+      decidePermission(
+        { name: 'urs.approve', attributes: { action: 'update' } },
+        'VIEWER',
+        undefined,
+        ['group:default/platform-viewers'],
+      ),
+    ).toBe('deny');
+  });
 });

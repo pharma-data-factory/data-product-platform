@@ -10,17 +10,27 @@ import { createHash } from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import knex, { Knex } from 'knex';
 import {
   FileValidationRunRepository,
   MemoryValidationRunRepository,
 } from './repository';
+/* eslint-disable @backstage/no-mixed-plugin-imports, @backstage/no-forbidden-package-imports -- cross-plugin PostgreSQL integration test uses URS test helpers */
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from '@internal/plugin-urs-composer-backend/src/__testUtils__/testDatabase';
+import { URSService } from '@internal/plugin-urs-composer-backend/src/service';
+import { PostgresURSRepository } from '@internal/plugin-urs-composer-backend/src/postgres-repository';
+import { SignaturePinReAuth } from '@internal/plugin-urs-composer-backend/src/domain/reauth';
+import { SolutionType } from '@internal/plugin-urs-composer-backend/src/types';
 import {
   ValidationExpertService,
   type UrsBaselineResolver,
 } from './service';
 import type { ApprovedURSReference, CreateValidationContextRequest } from './types';
 import type { LoggerService } from '@backstage/backend-plugin-api';
+
+const TEST_PIN = 'signing-pin-1';
 
 const mockLogger: LoggerService = {
   debug: jest.fn(),
@@ -66,6 +76,9 @@ function makeService(options?: {
         async resolveApprovedBaseline(req: CreateValidationContextRequest) {
           return { reference: makeReference({ baselineId: req.baselineId }) };
         },
+        async resolveBaselineRequirements() {
+          return [];
+        },
       },
   } as any);
   return { service, repository };
@@ -82,7 +95,57 @@ describe('URS → Validation integration (entry gate + context)', () => {
     expect(context.status).toBe('PENDING');
     expect(context.source.approvalStatus).toBe('APPROVED');
     expect(context.source.sourceSystem).toBe('urs-composer');
-    expect(repository.listContexts()).toHaveLength(1);
+    expect(await repository.listContexts()).toHaveLength(1);
+  });
+
+  it('loads context requirements via read-through resolver', async () => {
+    const { service } = makeService({
+      resolver: {
+        async resolveApprovedBaseline(req: CreateValidationContextRequest) {
+          return { reference: makeReference({ baselineId: req.baselineId }) };
+        },
+        async resolveBaselineRequirements(baselineId: string) {
+          expect(baselineId).toBe('baseline-approved-1');
+          return [
+            {
+              requirementId: 'URS-OEE-001',
+              title: 'Capture OEE',
+              statement: 'The solution shall capture OEE.',
+            },
+          ];
+        },
+      },
+    });
+    const { context } = await service.createContextFromApprovedUrs(
+      { requirementSetId: 'URS-DP-PROOF', baselineId: 'baseline-approved-1' },
+      'user:default/author',
+      { principal: { userEntityRef: 'user:default/author' } },
+    );
+    const payload = await service.getContextRequirements(context.id, {
+      principal: { userEntityRef: 'user:default/author' },
+    });
+    expect(payload.contextId).toBe(context.id);
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0].statement).toContain('capture OEE');
+    expect(payload.note).toMatch(/Not a GxP/i);
+  });
+
+  it('creates and lists runs anchored to a validation context', async () => {
+    const { service } = makeService();
+    const { context } = await service.createContextFromApprovedUrs(
+      { requirementSetId: 'URS-DP-PROOF', baselineId: 'baseline-approved-1' },
+      'user:default/author',
+    );
+    const run = await service.createRun({
+      candidate: 'platform-core-v1.0-rc2',
+      type: 'IQ',
+      createdBy: { userEntityRef: 'user:default/author' },
+      contextId: context.id,
+    });
+    expect(run.contextId).toBe(context.id);
+    expect(run.baselineId).toBe('baseline-approved-1');
+    const linked = await service.listRunsForContext(context.id);
+    expect(linked.map(item => item.id)).toEqual([run.id]);
   });
 
   it('B/C/D: denies DRAFT, IN_REVIEW(SUBMITTED) and REJECTED baselines', async () => {
@@ -92,6 +155,9 @@ describe('URS → Validation integration (entry gate + context)', () => {
         resolver: {
           async resolveApprovedBaseline() {
             return { reference: makeReference({ approvalStatus: status }) };
+          },
+          async resolveBaselineRequirements() {
+            return [];
           },
         },
       });
@@ -116,7 +182,7 @@ describe('URS → Validation integration (entry gate + context)', () => {
     );
     expect(second.created).toBe(false);
     expect(second.context.id).toBe(first.context.id);
-    expect(repository.listContexts()).toHaveLength(1);
+    expect(await repository.listContexts()).toHaveLength(1);
   });
 
   it('F: baseline reference stays anchored (1.0 never silently mutated to 1.1)', async () => {
@@ -170,46 +236,64 @@ describe('URS → Validation integration (entry gate + context)', () => {
 describe('URS → Validation integration against real PostgreSQL', () => {
   // Uses the same environment/pattern as the URS runtime-proof: postgres-urs-verify
   // on port 5435. Skips (does not fail) when PostgreSQL is unavailable.
-  const PG = {
-    host: process.env.TEST_DB_HOST || '127.0.0.1',
-    port: parseInt(process.env.TEST_DB_PORT || '5435', 10),
-    user: process.env.TEST_DB_USER || 'urs_test',
-    password: process.env.TEST_DB_PASSWORD || 'test_pass123',
-    database: process.env.TEST_DB_NAME || 'urs_composer_test',
-  };
   const CAPABILITY = 'business-capability:make/equipment-performance-management';
-  let db: Knex;
-  let available = false;
+
+  // The URS service resolves approval roles from catalog group membership and
+  // fails closed without a catalog. The approver drives every step of the
+  // baseline chain here, so it needs each reviewing group.
+  const CATALOG: any = {
+    getEntityByRef: async (ref: string) => ({
+      kind: 'User',
+      metadata: { name: ref },
+      spec: {
+        memberOf:
+          ref === 'user:default/approver'
+            ? [
+                'group:default/urs-business-reviewers',
+                'group:default/urs-product-managers',
+                'group:default/urs-quality-reviewers',
+              ]
+            : ['group:default/urs-authors'],
+      },
+    }),
+  };
+
+  let testDb: TestDatabase;
+  let dbAvailable = false;
 
   beforeAll(async () => {
-    db = knex({ client: 'pg', connection: PG });
-    try {
-      await db.raw('select 1');
-      const migrations = require('../../urs-composer-backend/src/db/migrations');
-      await migrations.up(db);
-      const seeds = require('../../urs-composer-backend/src/db/seeds');
-      await seeds.seed(db);
-      available = true;
-    } catch (err) {
-      available = false;
-    }
+    testDb = await createTestDatabase('validation-context-integration', {
+      seed: true,
+    });
+    dbAvailable = testDb.available;
   }, 60000);
 
   afterAll(async () => {
-    if (db) {
-      await db.destroy();
-    }
-  });
+    await testDb?.dispose();
+  }, 60000);
 
   it('creates a context from a genuinely APPROVED baseline (real PostgreSQL)', async () => {
-    if (!available) {
-      expect(available).toBe(false);
+    if (!dbAvailable) {
       return;
     }
-    const { URSService } = require('../../urs-composer-backend/src/service');
-    const { PostgresURSRepository } = require('../../urs-composer-backend/src/postgres-repository');
-    const repository = new PostgresURSRepository({ getClient: () => db });
-    const service = new URSService({ logger: mockLogger, repository });
+    const db = testDb.db;
+    // The constructor takes a Knex directly; the getClient wrapper belongs to
+    // the static create() factory, which is what the Backstage DatabaseService
+    // shape needs. Passing the wrapper here made every query fail with
+    // "this.db is not a function".
+    const repository = new PostgresURSRepository(db);
+    const service = new URSService({
+      logger: mockLogger,
+      repository,
+      catalog: CATALOG,
+    });
+
+    for (const user of [
+      'user:default/author',
+      'user:default/approver',
+    ]) {
+      await new SignaturePinReAuth(repository).enroll(user, TEST_PIN);
+    }
 
     // Create an approved requirement set; then create + fully approve a
     // baseline through its approval workflow so the baseline itself is
@@ -218,7 +302,7 @@ describe('URS → Validation integration against real PostgreSQL', () => {
       {
         businessCapabilityRefs: [CAPABILITY],
         businessNeed: 'Approved baseline integration proof',
-        solutionType: 'PROJECT',
+        solutionType: SolutionType.PROJECT,
         solutionName: 'Validation Proof',
       },
       'user:default/author',
@@ -236,6 +320,8 @@ describe('URS → Validation integration against real PostgreSQL', () => {
         step.id,
         'user:default/approver',
         'Approved',
+        undefined,
+        TEST_PIN,
       );
     }
     const approvedBaseline = await service.getBaseline(baseline.id);
@@ -270,6 +356,9 @@ describe('URS → Validation integration against real PostgreSQL', () => {
             createdAt: new Date().toISOString(),
           },
         };
+      },
+      async resolveBaselineRequirements() {
+        return [];
       },
     };
 
@@ -339,6 +428,7 @@ describe('URS → Validation authorization (backend enforced)', () => {
         {
           hostname: '127.0.0.1', port, path: '/api/validation-expert/contexts/from-urs',
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
         },
         (r: any) => {
           let data = '';
@@ -352,7 +442,7 @@ describe('URS → Validation authorization (backend enforced)', () => {
     });
     expect(res.status).toBe(403);
     await new Promise<void>(resolve => server.close(() => resolve()));
-  });
+  }, 15000);
 
   it('M: authorized user is ALLOWED to create a context (201)', async () => {
     const express = require('express');
@@ -468,7 +558,7 @@ describe('URS → Validation context persistence + reload proof', () => {
     // Simulate restart: destroy the repository/service by creating entirely
     // new instances pointed at the same persisted store file.
     const after = makeFileService();
-    const reloaded = after.repository.getContext(contextId);
+    const reloaded = await after.repository.getContext(contextId);
     expect(reloaded).toBeDefined();
     expect(reloaded!.id).toBe(contextId);
     expect(reloaded!.source.requirementSetId).toBe('URS-DP-PERSIST');
@@ -500,7 +590,7 @@ describe('URS → Validation context persistence + reload proof', () => {
     );
     expect(created).toBe(false);
     expect(context.source.baselineId).toBe('baseline-persist-1');
-    expect(restarted.repository.listContexts()).toHaveLength(1);
+    expect(await restarted.repository.listContexts()).toHaveLength(1);
   });
 });
 

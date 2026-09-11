@@ -13,6 +13,10 @@ import {
   Typography,
   MenuItem,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@material-ui/core';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import type { BusinessCapability } from '../api/types';
@@ -36,6 +40,8 @@ export function BusinessCapabilitiesPage() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editDomain, setEditDomain] = useState('make');
+  const [confirmRetireId, setConfirmRetireId] = useState<string | null>(null);
+  const [confirmRetireName, setConfirmRetireName] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -80,20 +86,23 @@ export function BusinessCapabilitiesPage() {
     }
   };
 
-  const retireCapability = async (capability: BusinessCapability) => {
-    if (
-      !window.confirm(
-        `Retire business capability "${capability.name}"? It will no longer be selectable.`,
-      )
-    ) {
+  const requestRetireCapability = (capability: BusinessCapability) => {
+    setConfirmRetireId(capability.id);
+    setConfirmRetireName(capability.name);
+  };
+
+  const confirmRetireCapability = async () => {
+    if (!confirmRetireId) {
       return;
     }
     setSaving(true);
     setNotice(null);
     try {
-      await api.retireBusinessCapability(capability.id);
+      await api.retireBusinessCapability(confirmRetireId);
       await load();
-      setNotice(`Retired ${capability.name}`);
+      setNotice(`Retired ${confirmRetireName}`);
+      setConfirmRetireId(null);
+      setConfirmRetireName('');
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -202,13 +211,14 @@ export function BusinessCapabilitiesPage() {
           <Typography variant="h6" style={{ marginBottom: 16 }}>
             Capabilities
           </Typography>
-          {loading ? (
-            <Progress />
-          ) : capabilities.length === 0 ? (
+          {loading && <Progress />}
+          {!loading && capabilities.length === 0 && (
             <Typography variant="body2" color="textSecondary">
               No capabilities found.
             </Typography>
-          ) : (
+          )}
+          {!loading &&
+            capabilities.length > 0 &&
             capabilities.map(capability => {
               const isEditing = editingId === capability.id;
               return (
@@ -324,7 +334,7 @@ export function BusinessCapabilitiesPage() {
                           color="secondary"
                           size="small"
                           disabled={saving}
-                          onClick={() => retireCapability(capability)}
+                          onClick={() => requestRetireCapability(capability)}
                         >
                           Retire
                         </Button>
@@ -333,8 +343,42 @@ export function BusinessCapabilitiesPage() {
                   )}
                 </section>
               );
-            })
-          )}
+            })}
+
+          <Dialog
+            open={confirmRetireId !== null}
+            onClose={() => {
+              setConfirmRetireId(null);
+              setConfirmRetireName('');
+            }}
+          >
+            <DialogTitle>Retire business capability?</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2">
+                Retire business capability &quot;{confirmRetireName}&quot;? It will no longer be
+                selectable.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                onClick={() => {
+                  setConfirmRetireId(null);
+                  setConfirmRetireName('');
+                }}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="secondary"
+                variant="contained"
+                onClick={confirmRetireCapability}
+                disabled={saving}
+              >
+                Retire
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           {error ? <ErrorPanel error={error} /> : null}
         </div>

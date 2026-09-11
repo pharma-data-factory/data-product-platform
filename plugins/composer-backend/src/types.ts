@@ -77,3 +77,42 @@ export interface CreateProductBaselineRequest {
   baselineVersion?: string;
   ursBaselineIds?: string[];
 }
+
+// ============================================================================
+// AI Product Spec Generation
+// ============================================================================
+
+export type AISpecDraftStatus = 'PENDING_REVIEW' | 'APPLIED' | 'REJECTED';
+
+export interface AISuggestedComponent {
+  name: string;
+  reason: string;
+  priority: 'required' | 'recommended' | 'optional';
+  traceabilityRefs: string[];
+}
+
+export interface AISuggestedContract {
+  name: string;
+  type: string;
+  description: string;
+  traceabilityRefs: string[];
+}
+
+export interface AISpecDraft {
+  id: string;
+  ursBaselineId: string;
+  status: AISpecDraftStatus;
+  productName: string;
+  description: string;
+  domain: string;
+  suggestedComponents: AISuggestedComponent[];
+  suggestedContracts: AISuggestedContract[];
+  generatedBy: string;
+  generatedAt: string;
+  appliedBy?: string;
+  appliedAt?: string;
+}
+
+export interface GenerateProductSpecRequest {
+  ursBaselineId: string;
+}

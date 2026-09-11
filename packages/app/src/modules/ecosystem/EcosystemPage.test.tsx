@@ -13,12 +13,17 @@ describe('ecosystem pages', () => {
     expect(
       screen.getByRole('heading', { name: /One platform\. Five ways in\./i }),
     ).toBeInTheDocument();
+    // Nav and the solutions card both link to Life Sciences.
     expect(
-      screen.getByRole('link', { name: /Life Sciences/ }),
-    ).toHaveAttribute('href', '/solutions/life-sciences');
+      screen
+        .getAllByRole('link', { name: /Life Sciences/ })
+        .some(link => link.getAttribute('href') === '/solutions/life-sciences'),
+    ).toBe(true);
     expect(
-      screen.getByRole('link', { name: /Technology Partners/ }),
-    ).toHaveAttribute('href', '/solutions/partners');
+      screen
+        .getAllByRole('link', { name: /Technology Partners/ })
+        .some(link => link.getAttribute('href') === '/solutions/partners'),
+    ).toBe(true);
   });
 
   it('renders a per-audience solution page with its mapped section', () => {

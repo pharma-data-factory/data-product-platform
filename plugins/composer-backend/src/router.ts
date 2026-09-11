@@ -44,6 +44,7 @@ export interface RouterOptions {
   httpAuth: HttpAuthService;
   permissions?: PermissionsService;
   service: ComposerService;
+  llmEnabled?: boolean;
 }
 
 async function authorize(
@@ -95,15 +96,15 @@ function respondError(
 function parsePagination(
   req: express.Request,
 ): { limit: number; offset: number } {
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-  const offset = parseInt(req.query.offset as string) || 0;
+  const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+  const offset = parseInt(req.query.offset as string, 10) || 0;
   return { limit, offset };
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, service } = options;
+  const { logger, httpAuth, permissions, service, llmEnabled } = options;
   const router = Router();
   router.use(express.json());
 
@@ -111,6 +112,7 @@ export async function createRouter(
     res.json({
       status: 'ok',
       service: 'composer',
+      llmEnabled: llmEnabled ?? false,
       timestamp: new Date().toISOString(),
     });
   });
@@ -554,6 +556,90 @@ export async function createRouter(
           res.status(501).json({ error: 'AI suggestions are not enabled' });
           return;
         }
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // AI PRODUCT SPEC GENERATION
+  // ============================================================================
+
+  router.post(
+    '/ai/generate-product-spec',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productCreatePermission,
+        );
+        const { ursBaselineId } = req.body as { ursBaselineId?: string };
+        if (!ursBaselineId) {
+          res.status(400).json({ error: 'Missing required field: ursBaselineId' });
+          return;
+        }
+        const draft = await service.generateProductSpec(ursBaselineId, actor);
+        res.status(201).json(draft);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not enabled')) {
+          res.status(501).json({ error: err.message });
+          return;
+        }
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/ai/spec-drafts/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const draft = service.getSpecDraft(req.params.id);
+        if (!draft) {
+          res.status(404).json({ error: 'AI spec draft not found' });
+          return;
+        }
+        res.json(draft);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.post(
+    '/ai/spec-drafts/:id/apply',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productCreatePermission,
+        );
+        const product = await service.applySpecDraft(req.params.id, actor);
+        res.json(product);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.post(
+    '/ai/spec-drafts/:id/reject',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        await service.rejectSpecDraft(req.params.id, actor);
+        res.status(204).end();
+      } catch (err) {
         respondError(res, logger, err);
       }
     },

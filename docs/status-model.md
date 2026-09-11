@@ -63,3 +63,11 @@ commercially. FUTURE does not mean the Golden Path is missing.
 
 MVP 1.0 validation status is **NOT VALIDATED** for all Golden Paths,
 Wave 1 components, and the Control Plane.
+
+## Product subsystems (URS, Validation, …)
+
+Control Plane modules that are not Golden Paths — including URS Composer
+electronic signatures — have an explicit four-dimension status and a
+written GxP / e-sign position in
+[Subsystem status and GxP position](subsystem-status.md).
+Do not infer GxP readiness from the presence of signature or approval UI.

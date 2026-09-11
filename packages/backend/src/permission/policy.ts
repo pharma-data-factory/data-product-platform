@@ -72,7 +72,13 @@ export class PlatformPermissionPolicy implements PermissionPolicy {
       ? commercialProductForTemplate(templateId)
       : undefined;
 
-    const rbacAllowed = decidePermission(request.permission, role, resourceRef) === 'allow';
+    const rbacAllowed =
+      decidePermission(
+        request.permission,
+        role,
+        resourceRef,
+        ownership,
+      ) === 'allow';
     let allowed = rbacAllowed;
     let reason: 'OK' | 'RBAC' | 'ENTITLEMENT' | 'RELEASE' = rbacAllowed
       ? 'OK'

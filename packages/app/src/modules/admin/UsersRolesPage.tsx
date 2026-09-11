@@ -271,13 +271,14 @@ export function UsersRolesPage() {
               <Typography variant="h6" style={{ marginBottom: 16 }}>
                 Users
               </Typography>
-              {loading ? (
-                <Progress />
-              ) : users.length === 0 ? (
+              {loading && <Progress />}
+              {!loading && users.length === 0 && (
                 <Typography variant="body2" color="textSecondary">
                   No users found.
                 </Typography>
-              ) : (
+              )}
+              {!loading &&
+                users.length > 0 &&
                 users.map(user => {
                   const memberOf = userMemberOf(user);
                   const userRole = resolvePlatformRole(memberOf);
@@ -341,8 +342,7 @@ export function UsersRolesPage() {
                       </div>
                     </section>
                   );
-                })
-              )}
+                })}
 
               <Typography variant="h6" style={{ margin: '24px 0 12px' }}>
                 Sign-ins

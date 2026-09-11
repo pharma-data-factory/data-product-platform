@@ -2,7 +2,7 @@
  * URS Requirement Set Detail Page
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type FC, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -11,6 +11,7 @@ import {
   Content,
   ContentHeader,
   Progress,
+  Link,
 } from '@backstage/core-components';
 import {
   Typography,
@@ -39,13 +40,16 @@ import {
   Snackbar,
   MenuItem,
 } from '@material-ui/core';
+import { Alert } from '@material-ui/lab';
 import EditIcon from '@material-ui/icons/Edit';
+import AddIcon from '@material-ui/icons/Add';
 import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
 import CancelIcon from '@material-ui/icons/Cancel';
 import HistoryIcon from '@material-ui/icons/History';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
+import { NEXORA_CYAN, NEXORA_SECURITY, NEXORA_STATUS } from '@internal/plugin-nexora-common';
 import { ursApprovePermission, ursManagePermission, formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
@@ -57,13 +61,80 @@ import {
   RequirementVersion,
   ApprovalInstance,
   ApprovalStepInstance,
+  SignatureMeaning,
 } from '../api/types';
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
+import { ESignatureDialog } from '../components/ESignatureDialog/ESignatureDialog';
+import { SigningPinDialog } from '../components/SigningPinDialog/SigningPinDialog';
+import { TraceMap } from '../components/TraceMap/TraceMap';
+import { RequirementInlineEditor } from '../components/RequirementInlineEditor/RequirementInlineEditor';
 
 interface TabPanelProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   index: number;
   value: number;
+}
+
+function approvalStepIcon(
+  isApproved: boolean,
+  isRejected: boolean,
+  isSkipped: boolean,
+) {
+  if (isApproved) {
+    return <CheckIcon style={{ color: NEXORA_STATUS.passBg }} />;
+  }
+  if (isRejected) {
+    return <CloseIcon style={{ color: NEXORA_STATUS.failBg }} />;
+  }
+  if (isSkipped) {
+    return <CancelIcon style={{ color: NEXORA_STATUS.warnFg }} />;
+  }
+  return undefined;
+}
+
+function approvalStepColor(
+  isActive: boolean,
+  isApproved: boolean,
+  isRejected: boolean,
+  isSkipped: boolean,
+) {
+  if (isActive) {
+    return NEXORA_CYAN;
+  }
+  if (isApproved) {
+    return NEXORA_STATUS.passBg;
+  }
+  if (isRejected) {
+    return NEXORA_STATUS.failBg;
+  }
+  if (isSkipped) {
+    return NEXORA_SECURITY;
+  }
+  return NEXORA_STATUS.neutralFg;
+}
+
+function confirmDialogTitle(action: 'reject' | 'cancel' | null) {
+  if (action === 'reject') {
+    return 'Reject Step';
+  }
+  return 'Cancel Workflow';
+}
+
+function confirmDialogButtonLabel(
+  actionLoading: boolean,
+  action: 'reject' | 'cancel' | null,
+) {
+  if (actionLoading) {
+    return 'Processing...';
+  }
+  if (action === 'reject') {
+    return 'Reject';
+  }
+  return 'Cancel Workflow';
+}
+
+function escapeCsvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 function TabPanel(props: TabPanelProps) {
@@ -75,7 +146,7 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-export const URSRequirementSetPage: React.FC = () => {
+export const URSRequirementSetPage: FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const api = useApi(ursComposerApiRef);
@@ -117,11 +188,25 @@ export const URSRequirementSetPage: React.FC = () => {
   const [creatingBaseline, setCreatingBaseline] = useState(false);
   const [baselineSuccess, setBaselineSuccess] = useState(false);
   const [stepRejectReasons, setStepRejectReasons] = useState<Record<string, string>>({});
-  // Confirmation dialog state
+  // Confirmation dialog state (reject / cancel only)
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'cancel' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'reject' | 'cancel' | null>(null);
   const [confirmStepId, setConfirmStepId] = useState<string | null>(null);
   const [confirmReason, setConfirmReason] = useState('');
+  // E-sign approve dialog
+  const [eSignOpen, setESignOpen] = useState(false);
+  const [eSignStepId, setESignStepId] = useState<string | null>(null);
+  // Signing PIN enrollment
+  const [signingPinOpen, setSigningPinOpen] = useState(false);
+  // Inline requirement editor (draft only)
+  const [inlineEditOpen, setInlineEditOpen] = useState(false);
+  const [inlineEditReq, setInlineEditReq] = useState<Requirement | null>(null);
+  // Capability name resolution
+  const [capabilityNames, setCapabilityNames] = useState<Record<string, string>>({});
+  // Controlled revision ("New Version") state
+  const [reviseDialogOpen, setReviseDialogOpen] = useState(false);
+  const [reviseReason, setReviseReason] = useState('');
+  const [predecessor, setPredecessor] = useState<RequirementSet | null>(null);
 
   const filteredRequirements = useMemo(() => {
     const q = reqSearch.toLowerCase();
@@ -136,12 +221,36 @@ export const URSRequirementSetPage: React.FC = () => {
   const categoryOptions = useMemo(() => [...new Set(requirements.map(r => r.category).filter(Boolean))] as string[], [requirements]);
   const priorityOptions = useMemo(() => [...new Set(requirements.map(r => r.priority).filter(Boolean))] as string[], [requirements]);
 
+  const setCapabilityNameMap = useMemo(() => {
+    const refs = set?.businessCapabilityRefs || [];
+    const map: Record<string, string> = {};
+    for (const ref of refs) {
+      map[ref] = capabilityNames[ref] || ref;
+    }
+    return map;
+  }, [set?.businessCapabilityRefs, capabilityNames]);
+
+  const traceRequirements = useMemo(
+    () =>
+      requirements.map(r => ({
+        id: r.requirementId || r.id,
+        title: r.title,
+        acCount: parseAcceptanceCriteria(r.acceptanceIntent).length,
+      })),
+    [requirements],
+  );
+
+  const eSignStep = useMemo(
+    () => approvalInstance?.steps.find(s => s.id === eSignStepId) ?? null,
+    [approvalInstance, eSignStepId],
+  );
+
   const approveAllowed = usePermission({ permission: ursApprovePermission });
   const manageAllowed = usePermission({ permission: ursManagePermission });
 
   useEffect(() => {
     if (!id) {
-      return;
+      return undefined;
     }
     let mounted = true;
     Promise.all([
@@ -172,6 +281,28 @@ export const URSRequirementSetPage: React.FC = () => {
     };
   }, [id, api]);
 
+  useEffect(() => {
+    let mounted = true;
+    api
+      .listCapabilities()
+      .then(result => {
+        if (!mounted) {
+          return;
+        }
+        const map: Record<string, string> = {};
+        for (const cap of result.items) {
+          map[cap.id] = cap.name;
+        }
+        setCapabilityNames(map);
+      })
+      .catch(() => {
+        // capability catalog may be empty — fall back to raw IDs
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [api]);
+
   const reload = async () => {
     if (!id) {
       return;
@@ -190,18 +321,32 @@ export const URSRequirementSetPage: React.FC = () => {
   // Validation Context). Backend remains authoritative.
   useEffect(() => {
     if (!id) {
-      return;
+      return undefined;
     }
     let mounted = true;
     api
       .listBaselines(id)
-      .then(baselines => {
+      .then(baselineItems => {
         if (mounted) {
-          setBaselines(baselines);
-          const approved = baselines.find(
+          setBaselines(baselineItems);
+          const approved = baselineItems.find(
             b => String(b.status).toUpperCase() === 'APPROVED',
           );
           setApprovedBaselineId(approved ? approved.id : null);
+          if (approved) {
+            api
+              .findValidationContext(id, approved.id)
+              .then(existing => {
+                if (mounted && existing?.id) {
+                  setValidationContextId(existing.id);
+                }
+              })
+              .catch(() => {
+                // optional restore
+              });
+          } else if (mounted) {
+            setValidationContextId(null);
+          }
         }
       })
       .catch(() => {
@@ -211,6 +356,29 @@ export const URSRequirementSetPage: React.FC = () => {
       mounted = false;
     };
   }, [id, api]);
+
+  // Resolve the predecessor version when this set is a revision.
+  const supersedesRef = set?.supersedesRef;
+  useEffect(() => {
+    if (!supersedesRef) {
+      setPredecessor(null);
+      return undefined;
+    }
+    let mounted = true;
+    api
+      .getRequirementSet(supersedesRef)
+      .then(previous => {
+        if (mounted) {
+          setPredecessor(previous);
+        }
+      })
+      .catch(() => {
+        // predecessor may be unavailable — not fatal
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [supersedesRef, api]);
 
   const handleStartValidation = async () => {
     if (!id || !approvedBaselineId) {
@@ -224,7 +392,7 @@ export const URSRequirementSetPage: React.FC = () => {
         approvedBaselineId,
       );
       setValidationContextId(context.id);
-      navigate('/validation-expert');
+      navigate(`/validation-expert/contexts/${encodeURIComponent(context.id)}`);
     } catch (err: any) {
       setActionError(err.message || 'Failed to start validation');
     } finally {
@@ -286,7 +454,10 @@ export const URSRequirementSetPage: React.FC = () => {
     }
   };
 
-  const handleApproveStep = async (stepId: string) => {
+  const handleApproveStep = async (
+    stepId: string,
+    opts: { comment?: string; pin: string },
+  ) => {
     if (!approvalInstance) {
       return;
     }
@@ -294,19 +465,21 @@ export const URSRequirementSetPage: React.FC = () => {
     setActionError(null);
     try {
       const updated = await api.approveStep(approvalInstance.id, stepId, {
-        comment: stepComments[stepId] || undefined,
+        comment: opts.comment || stepComments[stepId] || undefined,
+        pin: opts.pin,
       });
       setApprovalInstance(updated);
       setStepComments(prev => { const next = { ...prev }; delete next[stepId]; return next; });
     } catch (err: any) {
       setActionError(err.message || 'Failed to approve step');
+      throw err;
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRejectStep = async (stepId: string) => {
-    const reason = (stepRejectReasons[stepId] || '').trim();
+  const handleRejectStep = async (stepId: string, reasonOverride?: string) => {
+    const reason = (reasonOverride ?? stepRejectReasons[stepId] ?? '').trim();
     if (!approvalInstance || !reason) {
       setActionError('Rejection reason is required');
       return;
@@ -340,6 +513,45 @@ export const URSRequirementSetPage: React.FC = () => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleRevise = async () => {
+    if (!id || !reviseReason.trim()) {
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const revision = await api.reviseRequirementSet(id, reviseReason.trim());
+      setReviseDialogOpen(false);
+      setReviseReason('');
+      setLoading(true);
+      navigate(`/urs-composer/${revision.id}`);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create a new version');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleExportAuditCsv = () => {
+    const header = 'eventType,actor,timestamp,reason';
+    const rows = audit.map(event =>
+      [
+        escapeCsvCell(event.eventType || ''),
+        escapeCsvCell(event.actor || ''),
+        escapeCsvCell(event.timestamp || ''),
+        escapeCsvCell(event.reason || ''),
+      ].join(','),
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${set?.requirementSetId || 'requirement-set'}-audit.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   // Load approval instance when a baseline has one
@@ -380,34 +592,70 @@ export const URSRequirementSetPage: React.FC = () => {
   }
 
   const canEdit = set.status === URSStatus.DRAFT;
+  const canRevise =
+    manageAllowed &&
+    set.status !== URSStatus.SUPERSEDED &&
+    set.status !== URSStatus.RETIRED &&
+    (set.status === URSStatus.APPROVED ||
+      set.status === URSStatus.BASELINED ||
+      Boolean(approvedBaselineId));
 
   return (
     <Page themeId="tool">
       <Header
         title={set.solutionName || set.requirementSetId}
-        subtitle={set.requirementSetId}
+        subtitle={`${set.requirementSetId} · v${set.versionNumber}`}
       />
       <Content>
         <ContentHeader title="Requirement Set Detail">
-          {canEdit && (
-            <Button
-              startIcon={<EditIcon />}
-              onClick={() => navigate(`/urs-composer/${set.id}/edit`)}
-            >
-              Edit Draft
+          <Box display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={() => navigate('/urs-composer/change-requests')}>
+              Change Requests
             </Button>
-          )}
+            <Button onClick={() => navigate('/urs-composer/portfolio')}>
+              Portfolio
+            </Button>
+            <Button onClick={() => setSigningPinOpen(true)}>
+              Set signing PIN
+            </Button>
+            {canRevise && (
+              <Button
+                startIcon={<AddIcon />}
+                onClick={() => setReviseDialogOpen(true)}
+              >
+                New Version
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                startIcon={<EditIcon />}
+                onClick={() => navigate(`/urs-composer/${set.id}/edit`)}
+              >
+                Edit Draft
+              </Button>
+            )}
+          </Box>
         </ContentHeader>
 
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" style={{ gap: 8, marginBottom: 8 }}>
               <Chip label={set.status} color="primary" />
+              <Chip label={`v${set.versionNumber}`} variant="outlined" />
               <Typography color="textSecondary">
                 Created {set.createdBy} · {set.createdAt}
                 {set.updatedAt ? ` · Updated ${set.updatedAt}` : ''}
               </Typography>
             </Box>
+            {predecessor && (
+              <Typography variant="body2" color="textSecondary">
+                Revision of{' '}
+                <Link to={`/urs-composer/${predecessor.id}`}>
+                  {predecessor.requirementSetId} (v{predecessor.versionNumber})
+                </Link>
+                {set.versionComment ? ` — ${set.versionComment}` : ''}
+              </Typography>
+            )}
             {actionError && (
               <Typography color="error" paragraph>
                 {actionError}
@@ -420,6 +668,7 @@ export const URSRequirementSetPage: React.FC = () => {
           <Tabs value={tabValue} onChange={(_, value) => setTabValue(value)}>
             <Tab label="Overview" />
             <Tab label="Requirements" />
+            <Tab label="Traceability" />
             <Tab label="Workflow" />
             <Tab label="Activity" />
           </Tabs>
@@ -428,9 +677,25 @@ export const URSRequirementSetPage: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="subtitle2">Business Capability</Typography>
-                <Typography paragraph>
-                  {(set.businessCapabilityRefs || []).join(', ') || '—'}
-                </Typography>
+                {(set.businessCapabilityRefs || []).length === 0 ? (
+                  <Typography paragraph>—</Typography>
+                ) : (
+                  <Box
+                    display="flex"
+                    style={{ gap: 8, flexWrap: 'wrap', marginBottom: 16 }}
+                  >
+                    {(set.businessCapabilityRefs || []).map(ref => (
+                      <Chip
+                        key={ref}
+                        label={capabilityNames[ref] || ref}
+                        size="small"
+                        variant="outlined"
+                        clickable
+                        onClick={() => navigate('/urs-composer/capabilities')}
+                      />
+                    ))}
+                  </Box>
+                )}
                 <Typography variant="subtitle2">Business Need</Typography>
                 <Typography paragraph>{set.businessNeed}</Typography>
                 <Typography variant="subtitle2">Solution Context</Typography>
@@ -515,15 +780,29 @@ export const URSRequirementSetPage: React.FC = () => {
                             {req.category || 'Uncategorized'} · {req.priority || '—'}
                           </Typography>
                         </Box>
-                        {req.id && (
-                          <IconButton
-                            size="small"
-                            onClick={() => handleToggleVersionHistory(req.id)}
-                            title="Version History"
-                          >
-                            {isExpanded ? <ExpandLessIcon /> : <HistoryIcon />}
-                          </IconButton>
-                        )}
+                        <Box display="flex" alignItems="center" style={{ gap: 4 }}>
+                          {canEdit && (
+                            <Button
+                              size="small"
+                              startIcon={<EditIcon />}
+                              onClick={() => {
+                                setInlineEditReq(req);
+                                setInlineEditOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                          {req.id && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleToggleVersionHistory(req.id)}
+                              title="Version History"
+                            >
+                              {isExpanded ? <ExpandLessIcon /> : <HistoryIcon />}
+                            </IconButton>
+                          )}
+                        </Box>
                       </Box>
                       {acceptanceCriteria.length > 0 && (
                         <>
@@ -611,7 +890,6 @@ export const URSRequirementSetPage: React.FC = () => {
               <DialogTitle>Create New Revision</DialogTitle>
               <DialogContent>
                 <TextField
-                  autoFocus
                   label="Revision Reason"
                   placeholder="Why is this revision needed?"
                   fullWidth
@@ -637,15 +915,33 @@ export const URSRequirementSetPage: React.FC = () => {
           </TabPanel>
 
           <TabPanel value={tabValue} index={2}>
+            <TraceMap
+              capabilityNames={setCapabilityNameMap}
+              businessNeed={set.businessNeed}
+              requirements={traceRequirements}
+              solutionName={set.solutionName}
+            />
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={3}>
+            <Alert severity="info" style={{ marginBottom: 16 }}>
+              Approval steps require a signing PIN (technical workflow control).
+              This is not a GxP or 21 CFR Part 11 compliance claim.
+            </Alert>
             <Card>
               <CardContent>
+                {/* A) Approval */}
+                <Typography variant="h6" gutterBottom>
+                  Approval
+                </Typography>
                 <Typography variant="subtitle2">Current State</Typography>
                 <Typography paragraph>{set.status}</Typography>
 
-                {/* P1B Approval Instance Display */}
                 {approvalInstance ? (
                   <Box style={{ marginTop: 16 }}>
-                    <Typography variant="h6" gutterBottom>Approval Workflow</Typography>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Approval Workflow
+                    </Typography>
                     <Typography variant="body2" color="textSecondary" paragraph>
                       Status: {approvalInstance.status} · Started by {approvalInstance.startedBy || approvalInstance.createdBy}
                     </Typography>
@@ -663,15 +959,15 @@ export const URSRequirementSetPage: React.FC = () => {
                         return (
                           <Step key={step.id} completed={completed} active={isActive}>
                             <StepLabel
-                              icon={
-                                isApproved ? <CheckIcon style={{ color: '#4caf50' }} /> :
-                                isRejected ? <CloseIcon style={{ color: '#f44336' }} /> :
-                                isSkipped ? <CancelIcon style={{ color: '#ff9800' }} /> :
-                                undefined
-                              }
+                              icon={approvalStepIcon(isApproved, isRejected, isSkipped)}
                               StepIconProps={{
                                 style: {
-                                  color: isActive ? '#2196f3' : isApproved ? '#4caf50' : isRejected ? '#f44336' : isSkipped ? '#ff9800' : '#9e9e9e',
+                                  color: approvalStepColor(
+                                    isActive,
+                                    isApproved,
+                                    isRejected,
+                                    isSkipped,
+                                  ),
                                 },
                               }}
                             >
@@ -680,8 +976,13 @@ export const URSRequirementSetPage: React.FC = () => {
                                   {step.role || 'Reviewer'}
                                 </Typography>
                                 <Chip label={stepStatus} size="small" style={{
-                                  backgroundColor: isApproved ? '#4caf50' : isRejected ? '#f44336' : isActive ? '#2196f3' : isSkipped ? '#ff9800' : '#9e9e9e',
-                                  color: '#fff',
+                                  backgroundColor: approvalStepColor(
+                                    isActive,
+                                    isApproved,
+                                    isRejected,
+                                    isSkipped,
+                                  ),
+                                  color: NEXORA_STATUS.passFg,
                                 }} />
                               </Box>
                             </StepLabel>
@@ -702,13 +1003,11 @@ export const URSRequirementSetPage: React.FC = () => {
                                     size="small"
                                     variant="outlined"
                                     onClick={() => {
-                                      setConfirmAction('approve');
-                                      setConfirmStepId(step.id);
-                                      setConfirmReason(stepComments[step.id] || '');
-                                      setConfirmOpen(true);
+                                      setESignStepId(step.id);
+                                      setESignOpen(true);
                                     }}
                                     disabled={actionLoading}
-                                    style={{ color: '#4caf50', borderColor: '#4caf50' }}
+                                    style={{ color: NEXORA_STATUS.passBg, borderColor: NEXORA_STATUS.passBg }}
                                   >
                                     Approve
                                   </Button>
@@ -722,7 +1021,7 @@ export const URSRequirementSetPage: React.FC = () => {
                                       setConfirmOpen(true);
                                     }}
                                     disabled={actionLoading}
-                                    style={{ color: '#f44336', borderColor: '#f44336' }}
+                                    style={{ color: NEXORA_STATUS.failBg, borderColor: NEXORA_STATUS.failBg }}
                                   >
                                     Reject
                                   </Button>
@@ -746,7 +1045,7 @@ export const URSRequirementSetPage: React.FC = () => {
                             setConfirmOpen(true);
                           }}
                           disabled={actionLoading}
-                          style={{ color: '#ff9800', borderColor: '#ff9800' }}
+                          style={{ color: NEXORA_SECURITY, borderColor: NEXORA_SECURITY }}
                         >
                           Cancel Workflow
                         </Button>
@@ -759,10 +1058,14 @@ export const URSRequirementSetPage: React.FC = () => {
                   </Typography>
                 )}
 
-                {/* Create Baseline */}
+                {/* B) Baselines & change sets */}
+                <Divider style={{ margin: '24px 0 16px' }} />
+                <Typography variant="h6" gutterBottom>
+                  Baselines &amp; change sets
+                </Typography>
+
                 {!approvalInstance && manageAllowed.allowed && requirements.length > 0 && (
-                  <Box style={{ marginTop: 16 }}>
-                    <Divider style={{ marginBottom: 12 }} />
+                  <Box style={{ marginTop: 8 }}>
                     <Button
                       color="primary"
                       variant="contained"
@@ -782,10 +1085,8 @@ export const URSRequirementSetPage: React.FC = () => {
                   </Box>
                 )}
 
-                {/* Baseline Submission */}
                 {baselines.length > 0 && !approvalInstance && manageAllowed.allowed && (
                   <Box style={{ marginTop: 16 }}>
-                    <Divider style={{ marginBottom: 12 }} />
                     <Typography variant="subtitle2" gutterBottom>Baselines</Typography>
                     {baselines.map(b => (
                       <Box key={b.id} display="flex" alignItems="center" style={{ gap: 8, marginBottom: 8 }}>
@@ -808,39 +1109,8 @@ export const URSRequirementSetPage: React.FC = () => {
                   </Box>
                 )}
 
-                {/* URS → Validation Expert integration */}
-                {approvedBaselineId && !validationContextId && (
-                  <Box style={{ marginTop: 16 }}>
-                    <Button
-                      color="primary"
-                      variant="contained"
-                      startIcon={<CheckIcon />}
-                      disabled={validating || actionLoading}
-                      onClick={handleStartValidation}
-                    >
-                      {validating ? 'Starting…' : 'Start Validation'}
-                    </Button>
-                    <Typography variant="caption" color="textSecondary" style={{ marginLeft: 8 }}>
-                      From approved baseline ({approvedBaselineId})
-                    </Typography>
-                  </Box>
-                )}
-                {validationContextId && (
-                  <Box style={{ marginTop: 16 }}>
-                    <Button
-                      color="primary"
-                      variant="outlined"
-                      onClick={() => {
-                        navigate('/validation-expert');
-                      }}
-                    >
-                      View Validation
-                    </Button>
-                  </Box>
-                )}
                 {baselines.length > 1 && (
-                  <Box style={{ marginTop: 24 }}>
-                    <Divider style={{ marginBottom: 16 }} />
+                  <Box style={{ marginTop: 16 }}>
                     <Typography variant="subtitle2" gutterBottom>
                       Baseline Change Sets
                     </Typography>
@@ -864,11 +1134,72 @@ export const URSRequirementSetPage: React.FC = () => {
                     </List>
                   </Box>
                 )}
+
+                {baselines.length === 0 && !approvalInstance && (
+                  <Typography color="textSecondary" paragraph>
+                    No baselines yet.
+                  </Typography>
+                )}
+
+                {/* C) Validation handoff */}
+                <Divider style={{ margin: '24px 0 16px' }} />
+                <Typography variant="h6" gutterBottom>
+                  Validation handoff
+                </Typography>
+
+                {approvedBaselineId && !validationContextId && (
+                  <Box style={{ marginTop: 8 }}>
+                    <Button
+                      color="primary"
+                      variant="contained"
+                      startIcon={<CheckIcon />}
+                      disabled={validating || actionLoading}
+                      onClick={handleStartValidation}
+                    >
+                      {validating ? 'Starting…' : 'Start Validation'}
+                    </Button>
+                    <Typography variant="caption" color="textSecondary" style={{ marginLeft: 8 }}>
+                      From approved baseline ({approvedBaselineId})
+                    </Typography>
+                  </Box>
+                )}
+                {validationContextId && (
+                  <Box style={{ marginTop: 8 }}>
+                    <Button
+                      color="primary"
+                      variant="outlined"
+                      onClick={() => {
+                        navigate(
+                          `/validation-expert/contexts/${encodeURIComponent(
+                            validationContextId,
+                          )}`,
+                        );
+                      }}
+                    >
+                      View Validation
+                    </Button>
+                  </Box>
+                )}
+                {!approvedBaselineId && !validationContextId && (
+                  <Typography color="textSecondary">
+                    Validation handoff becomes available after a baseline is approved.
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </TabPanel>
 
-          <TabPanel value={tabValue} index={3}>
+          <TabPanel value={tabValue} index={4}>
+            <Box display="flex" justifyContent="flex-end" style={{ marginBottom: 12 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={audit.length === 0}
+                onClick={handleExportAuditCsv}
+              >
+                Export audit (CSV)
+              </Button>
+            </Box>
             {audit.length === 0 ? (
               <Typography color="textSecondary">
                 No technical audit events recorded for this requirement set yet.
@@ -889,29 +1220,102 @@ export const URSRequirementSetPage: React.FC = () => {
         </Box>
       </Content>
 
-      {/* Approval Action Confirmation Dialog */}
+      {/* E-signature for approve */}
+      <ESignatureDialog
+        open={eSignOpen}
+        meaning={
+          eSignStep?.role === 'QUALITY_REVIEWER'
+            ? SignatureMeaning.APPROVED_QA
+            : SignatureMeaning.REVIEWED
+        }
+        subject={`Baseline approval · ${eSignStep?.role || 'Reviewer'}`}
+        onConfirm={async ({ pin, comment }) => {
+          if (!eSignStepId) {
+            return;
+          }
+          await handleApproveStep(eSignStepId, { pin, comment });
+          setESignOpen(false);
+          setESignStepId(null);
+        }}
+        onClose={() => {
+          setESignOpen(false);
+          setESignStepId(null);
+        }}
+      />
+
+      <SigningPinDialog
+        open={signingPinOpen}
+        onClose={() => setSigningPinOpen(false)}
+      />
+
+      <RequirementInlineEditor
+        open={inlineEditOpen}
+        requirement={inlineEditReq}
+        onClose={() => {
+          setInlineEditOpen(false);
+          setInlineEditReq(null);
+        }}
+        onSave={async (updated: {
+          requirementId: string;
+          id?: string;
+          title: string;
+          statement: string;
+          rationale?: string;
+          priority: Requirement['priority'];
+          gxpRelevance?: Requirement['gxpRelevance'];
+          acceptanceIntent?: string;
+          category?: string;
+          classification?: Requirement['classification'];
+          source?: string;
+          owner?: string;
+        }) => {
+          if (!id) {
+            return;
+          }
+          const nextRequirements = requirements.map(r => {
+            const isTarget =
+              (updated.id && r.id === updated.id) ||
+              (updated.requirementId && r.requirementId === updated.requirementId);
+            if (isTarget) {
+              return {
+                id: updated.id ?? r.id,
+                requirementId: updated.requirementId ?? r.requirementId,
+                title: updated.title,
+                statement: updated.statement,
+                rationale: updated.rationale,
+                priority: updated.priority,
+                gxpRelevance: updated.gxpRelevance,
+                acceptanceIntent: updated.acceptanceIntent,
+                category: updated.category,
+                classification: updated.classification,
+                source: updated.source,
+                owner: updated.owner,
+              };
+            }
+            return {
+              id: r.id,
+              requirementId: r.requirementId,
+              title: r.title,
+              statement: r.statement,
+              rationale: r.rationale,
+              priority: r.priority,
+              gxpRelevance: r.gxpRelevance,
+              acceptanceIntent: r.acceptanceIntent,
+              category: r.category,
+              classification: r.classification,
+              source: r.source,
+              owner: r.owner,
+            };
+          });
+          await api.updateRequirementSet(id, { requirements: nextRequirements });
+          await reload();
+        }}
+      />
+
+      {/* Reject / Cancel Confirmation Dialog */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {confirmAction === 'approve' ? 'Approve Step' : confirmAction === 'reject' ? 'Reject Step' : 'Cancel Workflow'}
-        </DialogTitle>
+        <DialogTitle>{confirmDialogTitle(confirmAction)}</DialogTitle>
         <DialogContent>
-          {confirmAction === 'approve' && (
-            <>
-              <Typography variant="body2" color="textSecondary" paragraph>
-                Confirm approval for step <strong>{approvalInstance?.steps.find(s => s.id === confirmStepId)?.role}</strong>.
-              </Typography>
-              <TextField
-                label="Comment (optional)"
-                value={confirmReason}
-                onChange={e => setConfirmReason(e.target.value)}
-                fullWidth
-                multiline
-                rows={2}
-                variant="outlined"
-                size="small"
-              />
-            </>
-          )}
           {confirmAction === 'reject' && (
             <>
               <Typography variant="body2" color="textSecondary" paragraph>
@@ -947,16 +1351,13 @@ export const URSRequirementSetPage: React.FC = () => {
             Cancel
           </Button>
           <Button
-            color={confirmAction === 'reject' || confirmAction === 'cancel' ? 'secondary' : 'primary'}
+            color="secondary"
             variant="contained"
             disabled={actionLoading || (confirmAction === 'reject' && !confirmReason.trim())}
             onClick={async () => {
-              if (confirmAction === 'approve' && confirmStepId) {
-                setStepComments(prev => ({ ...prev, [confirmStepId]: confirmReason }));
-                await handleApproveStep(confirmStepId);
-              } else if (confirmAction === 'reject' && confirmStepId) {
+              if (confirmAction === 'reject' && confirmStepId) {
                 setStepRejectReasons(prev => ({ ...prev, [confirmStepId]: confirmReason }));
-                await handleRejectStep(confirmStepId);
+                await handleRejectStep(confirmStepId, confirmReason);
               } else if (confirmAction === 'cancel') {
                 await handleCancelWorkflow();
               }
@@ -966,7 +1367,7 @@ export const URSRequirementSetPage: React.FC = () => {
               }
             }}
           >
-            {actionLoading ? 'Processing...' : confirmAction === 'approve' ? 'Approve' : confirmAction === 'reject' ? 'Reject' : 'Cancel Workflow'}
+            {confirmDialogButtonLabel(actionLoading, confirmAction)}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1024,6 +1425,46 @@ export const URSRequirementSetPage: React.FC = () => {
             }}
           >
             {creatingBaseline ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* New Version (controlled revision) dialog */}
+      <Dialog
+        open={reviseDialogOpen}
+        onClose={() => setReviseDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create a New Version</DialogTitle>
+        <DialogContent>
+          <Typography paragraph>
+            {set.requirementSetId} (v{set.versionNumber}) is approved and stays immutable. A new
+            DRAFT version v{set.versionNumber + 1} is created with a copy of all requirements. The
+            current version remains the effective record until the new one is approved.
+          </Typography>
+          <TextField
+            label="Reason for change"
+            fullWidth
+            required
+            multiline
+            rows={3}
+            value={reviseReason}
+            onChange={e => setReviseReason(e.target.value)}
+            helperText="Recorded in the audit trail."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReviseDialogOpen(false)} disabled={actionLoading}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleRevise}
+            disabled={!reviseReason.trim() || actionLoading}
+          >
+            {actionLoading ? 'Creating...' : 'Create New Version'}
           </Button>
         </DialogActions>
       </Dialog>

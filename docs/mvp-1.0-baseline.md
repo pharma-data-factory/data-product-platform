@@ -27,6 +27,12 @@ distribution license. Status dimensions must not be collapsed. See
 | AWS Marketplace | Preparation / test integration only |
 | GxP | NOT VALIDATED |
 
+Subsystem modules present in the repo but **outside** this MVP 1.0 value
+proposition (URS Composer, Validation Expert, Model Company, Plugin
+Directory, AAS adapter, UNS) — including the written position that
+electronic signatures are **not** a GxP / Part 11 claim — are listed in
+[Subsystem status and GxP position](subsystem-status.md).
+
 ## Architecture baseline
 
 ```text

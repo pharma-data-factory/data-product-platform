@@ -7,7 +7,7 @@
  * - Error code mapping
  */
 
-import { URSComposerApi, URSApiError } from './ursComposerApi';
+import { URSComposerApi } from './ursComposerApi';
 
 const discoveryApi = {
   getBaseUrl: jest
@@ -104,19 +104,17 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.createRequirementSet({
+      await expect(
+        api.createRequirementSet({
           businessCapabilityRefs: [],
           businessNeed: '',
           solutionType: 'PROJECT' as any,
           solutionName: '',
-        });
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(400);
-        expect(error.message).toContain('Missing required field');
-      }
+        }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining('Missing required field'),
+      });
     });
 
     test('HTTP 401 throws URSApiError', async () => {
@@ -130,13 +128,9 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.listCapabilities();
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(401);
-      }
+      await expect(api.listCapabilities()).rejects.toMatchObject({
+        status: 401,
+      });
     });
 
     test('HTTP 403 throws URSApiError', async () => {
@@ -150,18 +144,16 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.createRequirementSet({
+      await expect(
+        api.createRequirementSet({
           businessCapabilityRefs: [],
           businessNeed: '',
           solutionType: 'PROJECT' as any,
           solutionName: '',
-        });
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(403);
-      }
+        }),
+      ).rejects.toMatchObject({
+        status: 403,
+      });
     });
 
     test('HTTP 404 throws URSApiError', async () => {
@@ -175,13 +167,9 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.getRequirementSet('nonexistent');
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(404);
-      }
+      await expect(api.getRequirementSet('nonexistent')).rejects.toMatchObject({
+        status: 404,
+      });
     });
 
     test('HTTP 500 throws URSApiError', async () => {
@@ -195,13 +183,9 @@ describe('URSComposerApi', () => {
 
       const api = createApi();
 
-      try {
-        await api.health();
-        fail('Should have thrown');
-      } catch (err) {
-        const error = err as URSApiError;
-        expect(error.status).toBe(500);
-      }
+      await expect(api.health()).rejects.toMatchObject({
+        status: 500,
+      });
     });
   });
 
@@ -270,6 +254,155 @@ describe('URSComposerApi', () => {
       expect(fetchApi.fetch).toHaveBeenCalledWith(
         'http://localhost:7007/api/urs-composer/capabilities/business-capability%3Amake%2Foee',
         expect.any(Object),
+      );
+    });
+  });
+
+  // ============================================================================
+  // SIGNATURE ENDPOINTS
+  // ============================================================================
+
+  describe('Signature endpoints', () => {
+    test('setSigningPin accepts an empty 204 response', async () => {
+      // The route answers 204 with no body. Parsing that as JSON throws, and
+      // a PIN is the precondition for every signature, so this has to work.
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        json: async () => {
+          throw new SyntaxError('Unexpected end of JSON input');
+        },
+      });
+
+      const api = createApi();
+
+      await expect(api.setSigningPin('123456')).resolves.toBeUndefined();
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/signing-pin'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ pin: '123456' }),
+        }),
+      );
+    });
+
+    test('listSignatures unwraps the items the route wraps them in', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              id: 'sig-1',
+              targetType: 'REQUIREMENT_VERSION',
+              targetId: 'ver-1',
+              meaning: 'REVIEWED',
+              signedBy: 'user:default/anna',
+              signedAt: '2026-01-01T00:00:00.000Z',
+              contentHashAtSigning: 'abc',
+            },
+          ],
+        }),
+      });
+
+      const api = createApi();
+      const result = await api.listSignatures('ver-1');
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(1);
+      expect(result[0].signedBy).toBe('user:default/anna');
+    });
+
+    test('listSignatures reports no signatures as an empty list', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+
+      const api = createApi();
+
+      await expect(api.listSignatures('ver-1')).resolves.toEqual([]);
+    });
+  });
+
+  describe('Quality validation', () => {
+    test('validateRequirement posts to /validate', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          issues: [
+            {
+              issue: 'Requirement should use normative language',
+              severity: 'WARNING',
+            },
+          ],
+        }),
+      });
+
+      const api = createApi();
+      const result = await api.validateRequirement({
+        title: 'T',
+        statement: 'Display the state',
+      });
+
+      expect(result.issues).toHaveLength(1);
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/validate'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            title: 'T',
+            statement: 'Display the state',
+          }),
+        }),
+      );
+    });
+
+    test('validateRequirementSet posts to set validate route', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ issues: [] }),
+      });
+
+      const api = createApi();
+      const result = await api.validateRequirementSet('set-1');
+
+      expect(result.issues).toEqual([]);
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/requirement-sets/set-1/validate'),
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    test('findValidationContext matches set + baseline via VE contexts', async () => {
+      discoveryApi.getBaseUrl.mockResolvedValueOnce(
+        'http://localhost:7007/api/validation-expert',
+      );
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              id: 'VALIDATION-CTX-1',
+              source: {
+                requirementSetId: 'set-1',
+                baselineId: 'bl-1',
+              },
+            },
+          ],
+        }),
+      });
+
+      const api = createApi();
+      const found = await api.findValidationContext('set-1', 'bl-1');
+
+      expect(found).toEqual({ id: 'VALIDATION-CTX-1' });
+      expect(discoveryApi.getBaseUrl).toHaveBeenCalledWith('validation-expert');
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        'http://localhost:7007/api/validation-expert/contexts',
       );
     });
   });

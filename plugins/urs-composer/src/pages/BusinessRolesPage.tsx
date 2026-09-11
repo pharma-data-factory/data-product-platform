@@ -7,7 +7,15 @@ import {
   ErrorPanel,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { Button, TextField, Typography } from '@material-ui/core';
+import {
+  Button,
+  TextField,
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from '@material-ui/core';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import type { BusinessRole } from '../api/types';
 
@@ -26,6 +34,8 @@ export function BusinessRolesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [confirmRetireId, setConfirmRetireId] = useState<string | null>(null);
+  const [confirmRetireName, setConfirmRetireName] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -68,20 +78,23 @@ export function BusinessRolesPage() {
     }
   };
 
-  const retireRole = async (role: BusinessRole) => {
-    if (
-      !window.confirm(
-        `Retire business role "${role.name}"? It will no longer be selectable.`,
-      )
-    ) {
+  const requestRetireRole = (role: BusinessRole) => {
+    setConfirmRetireId(role.id);
+    setConfirmRetireName(role.name);
+  };
+
+  const confirmRetireRole = async () => {
+    if (!confirmRetireId) {
       return;
     }
     setSaving(true);
     setNotice(null);
     try {
-      await api.retireBusinessRole(role.id);
+      await api.retireBusinessRole(confirmRetireId);
       await load();
-      setNotice(`Retired ${role.name}`);
+      setNotice(`Retired ${confirmRetireName}`);
+      setConfirmRetireId(null);
+      setConfirmRetireName('');
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -175,13 +188,14 @@ export function BusinessRolesPage() {
           <Typography variant="h6" style={{ marginBottom: 16 }}>
             Roles
           </Typography>
-          {loading ? (
-            <Progress />
-          ) : roles.length === 0 ? (
+          {loading && <Progress />}
+          {!loading && roles.length === 0 && (
             <Typography variant="body2" color="textSecondary">
               No roles found.
             </Typography>
-          ) : (
+          )}
+          {!loading &&
+            roles.length > 0 &&
             roles.map(role => {
               const isEditing = editingId === role.id;
               return (
@@ -264,7 +278,7 @@ export function BusinessRolesPage() {
                           color="secondary"
                           size="small"
                           disabled={saving}
-                          onClick={() => retireRole(role)}
+                          onClick={() => requestRetireRole(role)}
                         >
                           Retire
                         </Button>
@@ -273,8 +287,42 @@ export function BusinessRolesPage() {
                   )}
                 </section>
               );
-            })
-          )}
+            })}
+
+          <Dialog
+            open={confirmRetireId !== null}
+            onClose={() => {
+              setConfirmRetireId(null);
+              setConfirmRetireName('');
+            }}
+          >
+            <DialogTitle>Retire business role?</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2">
+                Retire business role &quot;{confirmRetireName}&quot;? It will no longer be
+                selectable.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                onClick={() => {
+                  setConfirmRetireId(null);
+                  setConfirmRetireName('');
+                }}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="secondary"
+                variant="contained"
+                onClick={confirmRetireRole}
+                disabled={saving}
+              >
+                Retire
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           {error ? <ErrorPanel error={error} /> : null}
         </div>

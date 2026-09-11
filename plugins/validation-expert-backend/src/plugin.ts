@@ -3,105 +3,36 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
+import type { Config } from '@backstage/config';
 import { resolveValidationRoot } from './parsers';
-import { FileValidationRunRepository } from './repository';
+import { PostgresValidationRunRepository } from './postgres-repository';
+import {
+  FileValidationRunRepository,
+  MemoryValidationRunRepository,
+  type ValidationRunRepository,
+} from './repository';
 import { createRouter } from './router';
 import { createDefaultRunnerRegistry } from './runners';
-import {
-  ValidationExpertService,
-  type UrsBaselineResolver,
-} from './service';
-import type { CreateValidationContextRequest } from './types';
+import { ValidationExpertService } from './service';
+import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 
-/**
- * Production URS baseline resolver: an explicit HTTP boundary to the URS
- * Composer backend (`GET /api/urs-composer/baselines/:id`). The Validation
- * Expert never reads URS PostgreSQL tables directly. Requires baseline status
- * APPROVED, otherwise the request is denied.
- */
-function createHttpUrsBaselineResolver(options: {
-  discovery: { getBaseUrl(pluginId: string): Promise<string> };
-  auth: { getPluginRequestToken(options: { onBehalfOf: unknown; targetPluginId: string }): Promise<{ token: string }> };
-  fetchImpl?: typeof fetch;
-}): UrsBaselineResolver {
-  const doFetch = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
-  return {
-    async resolveApprovedBaseline(request: CreateValidationContextRequest) {
-      const base = await options.discovery.getBaseUrl('urs-composer');
-      const url = `${base}/baselines/${encodeURIComponent(request.baselineId)}`;
-      let token: string | undefined;
-      try {
-        const t = await options.auth.getPluginRequestToken({
-          onBehalfOf: await Promise.resolve({} as never),
-          targetPluginId: 'urs-composer',
-        });
-        token = t.token;
-      } catch {
-        token = undefined;
-      }
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-      const res = await doFetch(url, { headers });
-      if (!res.ok) {
-        throw new Error(`Unable to resolve URS baseline ${request.baselineId} (HTTP ${res.status})`);
-      }
-      const baseline = (await res.json()) as {
-        id: string;
-        requirementSetId?: string;
-        baselineVersion?: string;
-        status?: string;
-        requirementVersionIds?: string[];
-        createdBy?: string;
-      };
-      const status = String(baseline.status ?? '').toUpperCase();
-      if (status !== 'APPROVED') {
-        throw new Error(
-          `URS baseline ${request.baselineId} is ${status || 'NOT_FOUND'}; a validation context may only be created from an APPROVED baseline`,
-        );
-      }
-      // Fetch the requirement set to capture title + business capability refs
-      // (stable IDs only). Failure to resolve context is non-fatal for the
-      // ApprovedURSReference core (baseline identity + approval status).
-      let solutionName: string | undefined;
-      let businessCapabilityIds: string[] = [];
-      if (baseline.requirementSetId) {
-        try {
-          const setRes = await doFetch(
-            `${base}/requirement-sets/${encodeURIComponent(baseline.requirementSetId)}`,
-            { headers },
-          );
-          if (setRes.ok) {
-            const set = (await setRes.json()) as {
-              solutionName?: string;
-              businessCapabilityRefs?: string[];
-            };
-            solutionName = set.solutionName;
-            businessCapabilityIds = set.businessCapabilityRefs ?? [];
-          }
-        } catch {
-          // best-effort enrichment
-        }
-      }
-      return {
-        reference: {
-          requirementSetId: request.requirementSetId,
-          baselineId: baseline.id,
-          baselineVersion: String(baseline.baselineVersion ?? ''),
-          requirementSetTitle: solutionName,
-          requirementSetName: baseline.requirementSetId ?? request.requirementSetId,
-          businessCapabilityIds,
-          approvalStatus: 'APPROVED',
-          approvedAt: undefined,
-          approvedBy: baseline.createdBy,
-          sourceSystem: 'urs-composer',
-          requirementIds: baseline.requirementVersionIds ?? [],
-          createdAt: new Date().toISOString(),
-        },
-      };
-    },
-  };
+type PersistenceMode = 'postgres' | 'file' | 'memory';
+
+export function getPersistenceMode(config: Config): PersistenceMode {
+  const mode = config
+    .getOptionalString('validationExpert.persistence.mode')
+    ?.toLowerCase();
+
+  if (!mode || mode === 'file') {
+    return 'file';
+  }
+  if (mode === 'postgres' || mode === 'memory') {
+    return mode;
+  }
+  throw new Error(
+    `Invalid validationExpert.persistence.mode: '${mode}'. ` +
+      `Allowed values: 'postgres', 'file', 'memory'`,
+  );
 }
 
 export const validationExpertPlugin = createBackendPlugin({
@@ -117,8 +48,19 @@ export const validationExpertPlugin = createBackendPlugin({
         permissions: coreServices.permissions,
         discovery: coreServices.discovery,
         auth: coreServices.auth,
+        database: coreServices.database,
       },
-      async init({ httpRouter, logger, config, httpAuth, userInfo, permissions, discovery, auth }) {
+      async init({
+        httpRouter,
+        logger,
+        config,
+        httpAuth,
+        userInfo,
+        permissions,
+        discovery,
+        auth,
+        database,
+      }) {
         const validationRoot = resolveValidationRoot(
           config.getOptionalString('validationExpert.validationRoot'),
         );
@@ -128,16 +70,55 @@ export const validationExpertPlugin = createBackendPlugin({
         const healthBaseUrl = config.getOptionalString(
           'validationExpert.healthBaseUrl',
         );
+        const persistenceMode = getPersistenceMode(config);
+        const authEnvironment = config.getOptionalString('auth.environment');
 
-        const repository = new FileValidationRunRepository(storePath);
+        let repository: ValidationRunRepository;
+
+        logger.info(`Validation Expert persistence mode: ${persistenceMode}`);
+
+        if (persistenceMode === 'postgres') {
+          try {
+            repository = await PostgresValidationRunRepository.create(database);
+            logger.info(
+              'Validation Expert initialized with PostgreSQL repository',
+            );
+          } catch (error) {
+            logger.error(
+              'Failed to initialize Validation Expert PostgreSQL repository',
+              error as Error,
+            );
+            throw new Error(
+              `Validation Expert PostgreSQL initialization failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        } else if (persistenceMode === 'memory') {
+          logger.warn(
+            'Validation Expert using in-memory repository. ' +
+              'Data will NOT persist across restarts. ' +
+              'For durable evidence, use validationExpert.persistence.mode=postgres.',
+          );
+          repository = new MemoryValidationRunRepository();
+        } else {
+          if (authEnvironment === 'production') {
+            logger.warn(
+              'validationExpert.persistence.mode is file while auth.environment is production. ' +
+                'File store is not suitable for regulated evidence. Prefer postgres for durable storage.',
+            );
+          }
+          repository = new FileValidationRunRepository(storePath);
+        }
+
         const service = new ValidationExpertService({
           validationRoot,
           repository,
           runners: createDefaultRunnerRegistry(),
           healthBaseUrl,
           ursBaselineResolver: createHttpUrsBaselineResolver({
-            discovery: discovery as never,
-            auth: auth as never,
+            discovery,
+            auth,
           }),
         });
 
@@ -156,7 +137,9 @@ export const validationExpertPlugin = createBackendPlugin({
         });
 
         logger.info(
-          `Validation Expert v0.1 mounted (root=${validationRoot}, store=${storePath})`,
+          `Validation Expert v0.1 mounted (root=${validationRoot}, persistence=${persistenceMode}${
+            persistenceMode === 'file' ? `, store=${storePath}` : ''
+          })`,
         );
       },
     });

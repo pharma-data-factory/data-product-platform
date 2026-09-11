@@ -6,6 +6,7 @@ import {
   platformGroupNames,
   resolvePlatformRole,
   ROLE_LABELS,
+  ursDomainPermissionNames,
 } from './roles';
 
 describe('platform identity mapping', () => {
@@ -58,5 +59,17 @@ describe('platform identity mapping', () => {
     expect(ROLE_LABELS.DEVELOPER).toBe('Developer');
     expect(ROLE_LABELS.DATA_PRODUCT_OWNER).toBe('Data Product Owner');
     expect(ROLE_LABELS.PLATFORM_ADMIN).toBe('Platform Admin');
+  });
+
+  it('maps urs-* catalog groups to domain permission names', () => {
+    expect(
+      [...ursDomainPermissionNames(['group:default/urs-authors'])].sort(),
+    ).toEqual(['urs.create', 'urs.manage', 'urs.read']);
+    expect(
+      [...ursDomainPermissionNames(['group:default/urs-quality-reviewers'])].sort(),
+    ).toEqual(['urs.approve', 'urs.read', 'urs.sign']);
+    expect(
+      ursDomainPermissionNames(['group:default/platform-viewers']).size,
+    ).toBe(0);
   });
 });

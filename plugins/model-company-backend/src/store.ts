@@ -30,7 +30,7 @@ export class FileSimulationStore {
       return;
     }
     this.ensureDirs();
-    const lines = messages.map(m => JSON.stringify(m)).join('\n') + '\n';
+    const lines = `${messages.map(m => JSON.stringify(m)).join('\n')}\n`;
     fs.appendFileSync(this.eventsPath, lines, 'utf8');
   }
 

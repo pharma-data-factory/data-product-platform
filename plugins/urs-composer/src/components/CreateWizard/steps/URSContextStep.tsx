@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import {
   Box,
   Typography,
@@ -21,7 +21,7 @@ interface URSContextStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const URSContextStep: React.FC<URSContextStepProps> = ({ state, onStateChange }) => {
+export const URSContextStep: FC<URSContextStepProps> = ({ state, onStateChange }) => {
   const handleContextChange = (field: string, value: any) => {
     onStateChange({
       context: {

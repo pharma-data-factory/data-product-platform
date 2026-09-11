@@ -9,7 +9,7 @@
  * - Search/filter
  */
 
-import { renderWithApp } from '../../../testUtils';
+import { renderWithApp } from '../../../__testUtils__';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { BusinessCapabilityStep } from './BusinessCapabilityStep';
 import { URSWizardState, initializeWizardState } from '../wizardState';

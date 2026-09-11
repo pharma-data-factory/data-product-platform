@@ -16,6 +16,11 @@ import {
   AuditEvent,
   BusinessCapabilityPersisted,
   BusinessRolePersisted,
+  Signature,
+  SignatureCredential,
+  SignatureTargetType,
+  ChangeRequest,
+  ImpactAssessment,
 } from './types';
 
 export interface IURSRepository {
@@ -189,6 +194,71 @@ export interface IURSRepository {
     entityType: string,
   ): Promise<AuditEvent[]>;
 
+  /**
+   * Baselines that pin a given requirement version.
+   *
+   * Used to refuse making a version obsolete while a released baseline still
+   * depends on it (invariant 16).
+   */
+  getBaselinesPinningVersion(versionId: string): Promise<Baseline[]>;
+
+  // ============================================================================
+  // CHANGE CONTROL
+  // ============================================================================
+
+  createChangeRequest(request: ChangeRequest): Promise<ChangeRequest>;
+  getChangeRequest(id: string): Promise<ChangeRequest | null>;
+  listChangeRequests(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ChangeRequest[]; total: number }>;
+  updateChangeRequest(request: ChangeRequest): Promise<void>;
+
+  /**
+   * Highest sequence number issued for a year, or 0 if none.
+   *
+   * Used to allocate the next CR-<year>-<sequence>. Kept in the repository
+   * because it needs a query the service should not be writing.
+   */
+  getHighestChangeRequestSequence(year: number): Promise<number>;
+
+  createImpactAssessment(assessment: ImpactAssessment): Promise<void>;
+  getImpactAssessment(changeRequestId: string): Promise<ImpactAssessment | null>;
+
+  /** Requirement versions raised under a given change request. */
+  getVersionsByChangeRequest(
+    changeRequestId: string,
+  ): Promise<RequirementVersion[]>;
+
+  // ============================================================================
+  // ELECTRONIC SIGNATURES (Append-only)
+  // ============================================================================
+
+  createSignature(signature: Signature): Promise<void>;
+
+  /** All signatures on a target, oldest first. */
+  listSignatures(
+    targetType: SignatureTargetType,
+    targetId: string,
+  ): Promise<Signature[]>;
+
+  // Signing credentials — the second factor. See domain/reauth.ts.
+  getSignatureCredential(userRef: string): Promise<SignatureCredential | null>;
+  upsertSignatureCredential(credential: SignatureCredential): Promise<void>;
+
+  /**
+   * Record the outcome of a verification attempt.
+   *
+   * Separate from upsert because it must not touch the hash, and because it
+   * runs outside the signing transaction: a failed attempt has to be counted
+   * even though the signature itself is rolled back.
+   */
+  recordSignatureAttempt(
+    userRef: string,
+    failedAttempts: number,
+    lockedUntil: Date | null,
+  ): Promise<void>;
+
   // ============================================================================
   // TRANSACTIONS (P1A)
   // ============================================================================
@@ -196,8 +266,21 @@ export interface IURSRepository {
   /**
    * Execute operations in a transaction
    * Rolls back all if any fail
+   *
+   * @deprecated Only the raw handle is transactional. Repository methods
+   * called inside `execute()` still run against the base connection, so they
+   * are neither committed nor rolled back with it. Use `withTransaction`.
    */
   beginTransaction(): Promise<Transaction>;
+
+  /**
+   * Run `fn` against a repository bound to a single transaction.
+   *
+   * Every repository call made on the passed instance participates in that
+   * transaction. The transaction commits when `fn` resolves and rolls back
+   * when it throws.
+   */
+  withTransaction<T>(fn: (repo: IURSRepository) => Promise<T>): Promise<T>;
 }
 
 /**

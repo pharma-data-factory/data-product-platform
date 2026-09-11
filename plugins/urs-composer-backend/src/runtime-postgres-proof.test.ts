@@ -5,25 +5,18 @@
  * Skips (does not fail) when PostgreSQL is unavailable.
  */
 
-import knex, { Knex } from 'knex';
+import { Knex } from 'knex';
 import { URSService } from './service';
 import { PostgresURSRepository } from './postgres-repository';
-import { up as runMigrations } from './db/migrations';
-import { seed as runSeeds } from './db/seeds';
+import { createTestDatabase, TestDatabase } from './__testUtils__/testDatabase';
+import { describeWhenPg } from './__testUtils__/describeWhenAvailable';
 import {
   SolutionType,
   GxPRelevance,
   RequirementPriority,
   URSStatus,
+  ChangeRequestStatus,
 } from './types';
-
-const PG = {
-  host: process.env.TEST_DB_HOST || '127.0.0.1',
-  port: parseInt(process.env.TEST_DB_PORT || '5435', 10),
-  user: process.env.TEST_DB_USER || 'urs_test',
-  password: process.env.TEST_DB_PASSWORD || 'test_pass123',
-  database: process.env.TEST_DB_NAME || 'urs_composer_test',
-};
 
 const CAPABILITY =
   'business-capability:make/equipment-performance-management';
@@ -36,10 +29,6 @@ const mockLogger: any = {
   child: jest.fn((): any => mockLogger),
 };
 
-function createDb(): Knex {
-  return knex({ client: 'pg', connection: PG });
-}
-
 function createService(db: Knex): URSService {
   const repository = new PostgresURSRepository(db) as any;
   return new URSService({
@@ -48,42 +37,21 @@ function createService(db: Knex): URSService {
   });
 }
 
-describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
-  let dbAvailable = false;
+describeWhenPg('URS Composer 1.0 PostgreSQL runtime proof', () => {
+  let testDb: TestDatabase;
   let db: Knex;
   let persistedId = '';
 
   beforeAll(async () => {
-    db = createDb();
-    try {
-      await db.raw('select 1');
-      await runMigrations(db);
-      await runSeeds(db);
-      dbAvailable = true;
-      // eslint-disable-next-line no-console
-      console.log('PostgreSQL connected; migrations applied on', PG);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        'PostgreSQL unavailable — runtime persistence proof NOT RUN:',
-        err instanceof Error ? err.message : err,
-      );
-      dbAvailable = false;
-    }
+    testDb = await createTestDatabase('runtime-postgres-proof', { seed: true });
+    db = testDb.db;
   }, 60000);
 
   afterAll(async () => {
-    if (db) {
-      await db.destroy();
-    }
-  });
+    await testDb.dispose();
+  }, 60000);
 
   test('PostgreSQL reachable + schema present', async () => {
-    if (!dbAvailable) {
-      // Honest skip — do not convert NOT RUN into FAIL for unavailable infra
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const hasSets = await db.schema.hasTable('requirement_sets');
     const hasReqs = await db.schema.hasTable('requirements');
     const hasAudit = await db.schema.hasTable('audit_events');
@@ -95,10 +63,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('Create → draft save with requirements/AC → restart reload identical', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
     const actor = 'user:default/author';
 
@@ -187,7 +151,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     expect(saved.requirements).toHaveLength(3);
 
     // Simulate process restart with a brand-new DB connection
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getRequirementSet(persistedId);
@@ -212,10 +176,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('Edit requirement → PUT → reload persists change + capability', async () => {
-    if (!dbAvailable || !persistedId) {
-      expect(dbAvailable && !!persistedId).toBe(false);
-      return;
-    }
+    expect(persistedId).toBeTruthy();
     const service = createService(db);
     const existing = await service.getRequirements(persistedId);
     const updatedReqs = existing.map(r =>
@@ -242,7 +203,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       'user:default/author',
     );
 
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getRequirementSet(persistedId);
@@ -258,10 +219,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   });
 
   test('DRAFT → IN_REVIEW → APPROVED survives reload; capability attached', async () => {
-    if (!dbAvailable || !persistedId) {
-      expect(dbAvailable && !!persistedId).toBe(false);
-      return;
-    }
+    expect(persistedId).toBeTruthy();
     const service = createService(db);
     // Set status to IN_REVIEW directly (legacy submitForReview removed)
     const rs = await service.getRequirementSet(persistedId);
@@ -275,27 +233,25 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     const approved = await service.getRequirementSet(persistedId);
     expect(approved!.status).toBe(URSStatus.APPROVED);
 
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getRequirementSet(persistedId);
       expect(reloaded!.status).toBe(URSStatus.APPROVED);
       expect(reloaded!.businessCapabilityRefs).toEqual([CAPABILITY]);
+      // The status changes above went straight through the repository, so
+      // only the service-level events are on record. SUBMITTED and APPROVED
+      // for a set are written by the baseline approval chain, which this test
+      // does not run; workflow-view.test.ts covers that.
       const audit = await service2.getAuditTrail(persistedId);
       const types = audit.map(a => a.eventType);
-      expect(types).toEqual(
-        expect.arrayContaining(['CREATED', 'UPDATED', 'SUBMITTED', 'APPROVED']),
-      );
+      expect(types).toEqual(expect.arrayContaining(['CREATED', 'UPDATED']));
     } finally {
       await db2.destroy();
     }
   });
 
   test('Reject returns set to DRAFT with capability retained', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
     const created = await service.createRequirementSet(
       {
@@ -315,7 +271,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     const rejected = await service.getRequirementSet(created.id);
     expect(rejected!.status).toBe(URSStatus.DRAFT);
 
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const reloaded = await createService(db2).getRequirementSet(created.id);
       expect(reloaded!.status).toBe(URSStatus.DRAFT);
@@ -332,10 +288,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   // contract; the audit_events.entity_version integer-vs-text defect that
   // blocked it is fixed by migration.)
   test('Baseline persists + audit entity_version survives; submit baseline legal', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
     const set = await service.createRequirementSet(
       {
@@ -348,8 +300,8 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       'user:default/author',
     );
 
-    // Create a requirement, then an initial RequirementVersion (via the repo),
-    // then a controlled revision — the version chain used by a baseline.
+    // createRequirement now seeds genesis 0.1. Promote that version to
+    // APPROVED so createRevision is legal (open drafts block a new revision).
     const createdReq = await service.createRequirement(
       set.id,
       {
@@ -360,26 +312,60 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
       'user:default/author',
     );
     const repo = new PostgresURSRepository(db) as any;
+    const genesis = (await service.getVersionHistory(createdReq.requirementId))[0];
+    expect(genesis.versionLabel ?? genesis.version).toBe('0.1');
+    // Bypass the signature path for this persistence proof: stamp the genesis
+    // row as released 1.0 so createRevision can open 1.1-draft. The legal
+    // status walk + QA signature are covered elsewhere.
+    await db('requirement_versions')
+      .where({ id: genesis.id })
+      .update({
+        status: URSStatus.APPROVED,
+        version: '1.0',
+        version_label: '1.0',
+        major: 1,
+        minor: 0,
+        approved_by: 'user:default/author',
+        approved_at: new Date(),
+        released_at: new Date(),
+        revision: (genesis.revision ?? 1) + 1,
+      });
     const initialVersion = {
-      id: `baseline-version-v1-${Date.now()}`,
-      requirementId: createdReq.requirementId,
+      ...genesis,
+      id: genesis.id,
       version: '1.0',
-      versionNumber: 1,
-      title: 'Baseline requirement',
-      statement: 'The solution shall persist baselines without data loss.',
-      priority: RequirementPriority.MUST,
+      versionLabel: '1.0',
+      major: 1,
+      minor: 0,
       status: URSStatus.APPROVED,
-      createdBy: 'user:default/author',
-      createdAt: new Date(),
+    };
+
+    // The initial version is released, so invariant 8 requires an approved
+    // change request before it can be revised. Seeded through the repository
+    // like the version above: this test is about baseline persistence, and the
+    // approval path itself is covered in change-request.test.ts.
+    const changeRequest = {
+      id: `CR-9998-${String(Date.now()).slice(-4)}`,
+      title: 'Revise the baseline requirement',
+      description: 'Adjust the requirement ahead of the baseline.',
+      reason: 'Baseline runtime proof',
+      affectedRequirementIds: [createdReq.requirementId],
+      status: ChangeRequestStatus.APPROVED,
+      requestedBy: 'user:default/author',
+      requestedAt: new Date(),
+      decidedBy: 'user:default/qa',
+      decidedAt: new Date(),
       revision: 1,
     };
-    await repo.createRequirementVersion(initialVersion);
+    await repo.createChangeRequest(changeRequest);
 
     const revision = await service.createRevision(
       initialVersion.id,
       'Revised for baseline proof',
       'user:default/author',
+      changeRequest.id,
     );
+    expect(revision.changeRequestId).toBe(changeRequest.id);
     expect(revision).toBeDefined();
     expect(revision.status).toBe(URSStatus.DRAFT);
 
@@ -390,7 +376,7 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
     expect(baseline.requirementVersionIds).toEqual([revision.id]);
 
     // Reload from a fresh connection and verify baselineVersion + audit event.
-    const db2 = createDb();
+    const db2 = testDb.reconnect();
     try {
       const service2 = createService(db2);
       const reloaded = await service2.getBaseline(baseline.id);
@@ -423,10 +409,6 @@ describe('URS Composer 1.0 PostgreSQL runtime proof', () => {
   // submitBaseline selects standard-gxp-urs for a GxP-relevant set and
   // non-gxp-urs otherwise. (Previously only in the deleted obsolete suites.)
   test('submitBaseline selects standard-gxp-urs for GxP and non-gxp-urs otherwise', async () => {
-    if (!dbAvailable) {
-      expect(dbAvailable).toBe(false);
-      return;
-    }
     const service = createService(db);
 
     const gxp = await service.createRequirementSet(

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { ArchitecturePage } from './ArchitecturePage';
 import {
   ARCHITECTURE_OVERVIEW_IMAGE_ALT,
@@ -12,6 +12,31 @@ import {
   RUNTIME_STEPS,
   SYSTEM_OF_RECORD_SYSTEMS,
 } from './constants';
+
+/** Diagram sections start collapsed; open one by its heading. */
+function openDiagram(title: RegExp) {
+  fireEvent.click(screen.getByRole('button', { name: title }));
+}
+
+/** Open every accordion that wraps a diagram on this page. */
+function openAllDiagrams() {
+  for (const title of [
+    /How the layers fit together/i,
+    /AAS explains what an asset is/i,
+    /UNS governs operational data flow/i,
+    /Reusable technical building blocks/i,
+    /Golden Paths compose certified capabilities/i,
+    /Independently governed Data Products/i,
+    /Governance around independently running products/i,
+    /RAG and Knowledge Graph remain planned/i,
+    /From core systems to Data Products/i,
+    /How an individual Data Product works/i,
+    /Build once\. Govern by default\./i,
+    /Contracts keep providers and consumers aligned/i,
+  ]) {
+    fireEvent.click(screen.getByRole('button', { name: title }));
+  }
+}
 
 describe('ArchitecturePage', () => {
   it('renders the architecture route content with the overview image', () => {
@@ -37,6 +62,7 @@ describe('ArchitecturePage', () => {
 
   it('renders the system architecture diagram', () => {
     render(<ArchitecturePage />);
+    openDiagram(/From core systems to Data Products/i);
     const diagram = screen.getByLabelText(
       /System architecture from core systems through governed integration to Data Products/i,
     );
@@ -57,6 +83,7 @@ describe('ArchitecturePage', () => {
 
   it('renders the Data Product runtime diagram', () => {
     render(<ArchitecturePage />);
+    openDiagram(/How an individual Data Product works/i);
     const diagram = screen.getByLabelText(
       /Data Product runtime from source system to consumers/i,
     );
@@ -71,6 +98,7 @@ describe('ArchitecturePage', () => {
 
   it('renders the developer flow', () => {
     render(<ArchitecturePage />);
+    openDiagram(/Build once\. Govern by default\./i);
     const diagram = screen.getByLabelText(
       /Developer flow from Golden Path to catalog and documentation/i,
     );
@@ -85,6 +113,7 @@ describe('ArchitecturePage', () => {
 
   it('renders the contract and consumer diagram', () => {
     render(<ArchitecturePage />);
+    openDiagram(/Contracts keep providers and consumers aligned/i);
     const diagram = screen.getByLabelText(
       /Data contract, catalog relationships, and compatibility examples/i,
     );
@@ -102,7 +131,8 @@ describe('ArchitecturePage', () => {
   it('keeps the system-of-record boundary explicit', () => {
     render(<ArchitecturePage />);
 
-    expect(screen.getAllByText('SYSTEM OF RECORD').length).toBeGreaterThan(0);
+    // Boundary cards use the plural form; diagrams still say "Systems of record".
+    expect(screen.getAllByText('SYSTEMS OF RECORD').length).toBeGreaterThan(0);
     expect(screen.getAllByText('DATA PRODUCT').length).toBeGreaterThan(0);
     expect(
       screen.getAllByText('NEXORA CONTROL PLANE').length,
@@ -111,17 +141,21 @@ describe('ArchitecturePage', () => {
     expect(
       screen.getAllByText(/does not store all enterprise data/i).length,
     ).toBeGreaterThan(0);
-    expect(screen.queryByText(/Backstage/i)).not.toBeInTheDocument();
+    // The boundary card and the hero both state the foundation explicitly.
+    expect(screen.getAllByText(/Built on Backstage/i).length).toBeGreaterThan(0);
   });
 
   it('includes diagram explanations and accessible labels', () => {
     render(<ArchitecturePage />);
+    openAllDiagrams();
 
     expect(screen.getAllByText('WHAT IT DOES').length).toBe(12);
     expect(screen.getAllByText('WHY IT EXISTS').length).toBe(12);
     expect(screen.getAllByText('HOW IT CONNECTS').length).toBe(12);
     expect(screen.getAllByText('WHAT REMAINS DECOUPLED').length).toBe(12);
-    expect(screen.getByLabelText('Architectural boundary')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Architectural boundary and responsibility model'),
+    ).toBeInTheDocument();
     expect(
       screen.getByLabelText('Internal Developer Platform fundamentals'),
     ).toBeInTheDocument();
@@ -137,6 +171,7 @@ describe('ArchitecturePage', () => {
 
   it('uses responsive native diagram styling rather than Mermaid', () => {
     const { container } = render(<ArchitecturePage standalone />);
+    openAllDiagrams();
     const image = screen.getByRole('img', {
       name: ARCHITECTURE_OVERVIEW_IMAGE_ALT,
     });
@@ -178,6 +213,12 @@ describe('ArchitecturePage', () => {
 
   it('explains AAS, UNS, Platform Components and future capabilities', () => {
     render(<ArchitecturePage />);
+    openDiagram(/AAS explains what an asset is/i);
+    openDiagram(/UNS governs operational data flow/i);
+    openDiagram(/Reusable technical building blocks/i);
+    openDiagram(/Golden Paths compose certified capabilities/i);
+    openDiagram(/Governance around independently running products/i);
+    openDiagram(/RAG and Knowledge Graph remain planned/i);
 
     expect(screen.getByRole('heading', { name: 'AAS explains what an asset is' })).toBeInTheDocument();
     expect(screen.getByLabelText('AAS versus Unified Namespace')).toBeInTheDocument();

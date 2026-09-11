@@ -16,13 +16,38 @@ export enum SolutionType {
   DATA_PRODUCT = 'DATA_PRODUCT',
 }
 
-export enum URSStatus {
-  DRAFT = 'DRAFT',
-  IN_REVIEW = 'IN_REVIEW',
-  APPROVED = 'APPROVED',
-  SUPERSEDED = 'SUPERSEDED',
-  RETIRED = 'RETIRED',
-}
+/**
+ * Status vocabulary, shared with the backend.
+ *
+ * This file used to declare its own URSStatus with six values while the
+ * backend had ten, so a requirement that was REVIEWED, IN_APPROVAL, REJECTED
+ * or OBSOLETE arrived here as a value the UI did not know. Re-exported rather
+ * than imported directly so existing imports from './types' keep working.
+ */
+export {
+  URSStatus,
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+  WorkflowStage,
+  WorkflowState,
+  URS_STATUS_LABELS,
+  OPEN_URS_STATUSES,
+  RELEASED_URS_STATUSES,
+  ursStatusAppearance,
+} from '@internal/platform-common';
+export type { StatusAppearance } from '@internal/platform-common';
+
+import {
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+  URSStatus,
+  WorkflowStage,
+  WorkflowState,
+} from '@internal/platform-common';
 
 export enum ApprovalStatus {
   PENDING = 'PENDING',
@@ -147,6 +172,8 @@ export interface RequirementSet {
   updatedBy?: string;
   updatedAt?: string;
   versionComment?: string;
+  /** Internal UUID of the predecessor set this version revises. */
+  supersedesRef?: string;
 }
 
 export interface Requirement {
@@ -286,6 +313,99 @@ export interface AuditEvent {
 }
 
 // ============================================================================
+// WORKFLOW VIEW, SIGNATURES, CHANGE CONTROL
+// ============================================================================
+
+/** One stage of the derived workflow timeline. */
+export interface WorkflowStep {
+  stage: WorkflowStage;
+  state: WorkflowState;
+  actor?: string;
+  timestamp?: string;
+  comment?: string;
+}
+
+export interface WorkflowView {
+  targetType: 'REQUIREMENT_VERSION' | 'BASELINE';
+  targetId: string;
+  status: URSStatus;
+  steps: WorkflowStep[];
+}
+
+export interface Signature {
+  id: string;
+  targetType: SignatureTargetType;
+  targetId: string;
+  meaning: SignatureMeaning;
+  signedBy: string;
+  signedAt: string;
+  contentHashAtSigning: string;
+  comment?: string;
+}
+
+/** The PIN is the second factor and is never held beyond the request. */
+export interface SignRequest {
+  meaning: SignatureMeaning;
+  pin: string;
+  comment?: string;
+}
+
+export interface ChangeRequest {
+  id: string;
+  title: string;
+  description: string;
+  reason: string;
+  affectedRequirementIds: string[];
+  status: ChangeRequestStatus;
+  requestedBy: string;
+  requestedAt: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionReason?: string;
+  revision: number;
+}
+
+export interface ImpactAssessment {
+  id: string;
+  changeRequestId: string;
+  summary: string;
+  gxpImpact: boolean;
+  validationImpact: string;
+  affectedVersionIds: string[];
+  assessedBy: string;
+  assessedAt: string;
+}
+
+export interface ChangeRequestTraceability {
+  changeRequest: ChangeRequest;
+  assessment: ImpactAssessment | null;
+  signatures: Signature[];
+  resultingVersions: RequirementVersion[];
+  auditTrail: AuditEvent[];
+}
+
+export interface CreateChangeRequestRequest {
+  title: string;
+  description: string;
+  reason: string;
+  affectedRequirementIds?: string[];
+}
+
+export interface CreateImpactAssessmentRequest {
+  summary: string;
+  gxpImpact: boolean;
+  validationImpact: string;
+  affectedVersionIds?: string[];
+}
+
+/** One requirement version pinned by a baseline. */
+export interface BaselineItem {
+  requirementVersionId: string;
+  reviewScope: ReviewScope;
+  position: number;
+}
+
+// ============================================================================
 // REQUEST/RESPONSE TYPES
 // ============================================================================
 
@@ -344,6 +464,29 @@ export interface SubmitBaselineRequest {
 
 export interface ApproveStepRequest {
   comment?: string;
+  /** Optional signing PIN when the approval step requires re-authentication. */
+  pin?: string;
+}
+
+export interface QualityCheckRequest {
+  requirementId?: string;
+  title?: string;
+  statement?: string;
+  gxpRelevance?: GxPRelevance;
+}
+
+export interface QualityCheckIssue {
+  requirementId?: string;
+  issue: string;
+  severity: 'INFO' | 'WARNING' | 'ERROR';
+  recommendation?: string;
+}
+
+/** Alias matching backend QualityCheckResult naming. */
+export type QualityCheckResult = QualityCheckIssue;
+
+export interface QualityValidateResponse {
+  issues: QualityCheckIssue[];
 }
 
 export interface RejectStepRequest {

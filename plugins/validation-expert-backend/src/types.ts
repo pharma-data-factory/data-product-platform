@@ -131,6 +131,8 @@ export interface ValidationRun {
   candidate: string;
   candidateCommit?: string;
   baselineId: string;
+  /** Optional Validation Context anchor (URS approved baseline handoff). */
+  contextId?: string;
   type: ProtocolType;
   status: RunStatus;
   createdAt: string;

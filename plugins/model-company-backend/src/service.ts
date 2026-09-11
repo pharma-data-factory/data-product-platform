@@ -21,6 +21,50 @@ import type {
 } from './types';
 import { buildUnsTree, unsConfigFromModel } from './uns/topics';
 
+function mapUnsStatus(
+  uns: import('./types').UnsLinkStatus | string,
+): 'HEALTHY' | 'IDLE' | 'NOT_CONNECTED' {
+  if (uns === 'ACTIVE') {
+    return 'HEALTHY';
+  }
+  if (uns === 'IDLE') {
+    return 'IDLE';
+  }
+  return 'NOT_CONNECTED';
+}
+
+function mapBrokerStatus(
+  mqtt: import('./types').MqttLinkStatus | string,
+  brokerConfigured: boolean | undefined,
+): 'CONNECTED' | 'DISCONNECTED' | 'CONFIGURED' | 'NOT_CONFIGURED' {
+  if (mqtt === 'CONNECTED') {
+    return 'CONNECTED';
+  }
+  if (mqtt === 'DISCONNECTED') {
+    return 'DISCONNECTED';
+  }
+  if (brokerConfigured) {
+    return 'CONFIGURED';
+  }
+  return 'NOT_CONFIGURED';
+}
+
+function resolveDataProductProbeUrl(
+  bindingId: string,
+  probes: NonNullable<ModelCompanyServiceOptions['integrationProbes']>,
+): string | undefined {
+  if (bindingId.includes('oee')) {
+    return probes.oee;
+  }
+  if (bindingId.includes('equipment')) {
+    return probes.equipment;
+  }
+  if (bindingId.includes('temperature')) {
+    return probes.temperature;
+  }
+  return undefined;
+}
+
 export interface ModelCompanyServiceOptions {
   factoryPath: string;
   store: FileSimulationStore;
@@ -111,20 +155,11 @@ export class ModelCompanyService {
       classification: this.model.company.classification,
       simulation: this.state.status,
       unsRoot: this.model.uns.root,
-      unsStatus:
-        connectivity.uns === 'ACTIVE'
-          ? 'HEALTHY'
-          : connectivity.uns === 'IDLE'
-            ? 'IDLE'
-            : 'NOT_CONNECTED',
-      brokerStatus:
-        connectivity.mqtt === 'CONNECTED'
-          ? 'CONNECTED'
-          : connectivity.mqtt === 'DISCONNECTED'
-            ? 'DISCONNECTED'
-            : this.options.brokerConfigured
-              ? 'CONFIGURED'
-              : 'NOT_CONFIGURED',
+      unsStatus: mapUnsStatus(connectivity.uns),
+      brokerStatus: mapBrokerStatus(
+        connectivity.mqtt,
+        this.options.brokerConfigured,
+      ),
       currentScenario: this.state.scenarioName,
       simulationSpeed: this.state.speed,
       currentOrders: this.state.orders.filter(
@@ -179,12 +214,14 @@ export class ModelCompanyService {
       mqtt = 'DISCONNECTED';
     }
 
-    const uns: import('./types').UnsLinkStatus =
-      runtime === 'CONNECTED' && mqtt === 'CONNECTED'
-        ? this.state.status === 'RUNNING' || Boolean(bridge.lastSuccessAt)
-          ? 'ACTIVE'
-          : 'IDLE'
-        : 'NOT_CONNECTED';
+    let uns: import('./types').UnsLinkStatus = 'NOT_CONNECTED';
+    if (runtime === 'CONNECTED' && mqtt === 'CONNECTED') {
+      if (this.state.status === 'RUNNING' || Boolean(bridge.lastSuccessAt)) {
+        uns = 'ACTIVE';
+      } else {
+        uns = 'IDLE';
+      }
+    }
 
     return {
       simulation,
@@ -358,14 +395,7 @@ export class ModelCompanyService {
 
     for (const binding of this.model.dataProducts) {
       const compat = binding.unsCompatibility;
-      const probeUrl =
-        binding.id.includes('oee')
-          ? probes.oee
-          : binding.id.includes('equipment')
-            ? probes.equipment
-            : binding.id.includes('temperature')
-              ? probes.temperature
-              : undefined;
+      const probeUrl = resolveDataProductProbeUrl(binding.id, probes);
 
       if (
         compat === 'REQUIRES_EXTENSION' ||

@@ -16,7 +16,16 @@ describe('product model', () => {
   it('guards product version status', () => {
     expect(isProductVersionStatus('DRAFT')).toBe(true);
     expect(isProductVersionStatus('SHIPPED')).toBe(false);
-    expect(PRODUCT_VERSION_STATUSES).toHaveLength(4);
+    // Named rather than counted: the count said 4 and went stale the moment
+    // RELEASE_CANDIDATE was added, and a bare length says nothing about what
+    // changed.
+    expect(PRODUCT_VERSION_STATUSES).toEqual([
+      'DRAFT',
+      'APPROVED',
+      'RELEASE_CANDIDATE',
+      'RELEASED',
+      'SUPERSEDED',
+    ]);
   });
 
   it('validates required product fields', () => {

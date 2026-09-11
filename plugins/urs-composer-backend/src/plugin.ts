@@ -32,7 +32,7 @@ import {
 
 type PersistenceMode = 'postgres' | 'memory';
 
-function getPersistenceMode(config: Config): PersistenceMode {
+export function getPersistenceMode(config: Config): PersistenceMode {
   const mode = config
     .getOptionalString('ursComposer.persistence.mode')
     ?.toLowerCase() as PersistenceMode | undefined;
@@ -43,6 +43,20 @@ function getPersistenceMode(config: Config): PersistenceMode {
   }
 
   if (mode === 'memory') {
+    // The safe default above is not enough on its own. app-config.yaml sets
+    // memory for local development and is layered first, so an overlay that
+    // simply omits the key inherits it. That is how production came to run
+    // the audit trail in process memory, with none of the immutability
+    // triggers, which exist only in the Postgres schema. Refused here rather
+    // than left to each overlay to remember.
+    if (config.getOptionalString('auth.environment') === 'production') {
+      throw new Error(
+        "ursComposer.persistence.mode is 'memory' while auth.environment is " +
+          "'production'. In-memory storage has no audit trail, no immutability " +
+          'triggers and no transactions, and loses every record on restart. ' +
+          "Set ursComposer.persistence.mode: postgres in the production config.",
+      );
+    }
     return 'memory';
   }
 
@@ -126,7 +140,9 @@ export const ursComposerPlugin = createBackendPlugin({
             'Data will NOT persist across restarts. ' +
             'For production, use ursComposer.persistence.mode=postgres (default).',
           );
-          repository = new URSRepository();
+          const inMemoryRepository = new URSRepository();
+          inMemoryRepository.seedRequirementSets();
+          repository = inMemoryRepository;
         } else {
           // Defensive: should never reach here
           throw new Error(`Unexpected persistence mode: ${persistenceMode}`);

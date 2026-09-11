@@ -1,29 +1,42 @@
 import { ComponentProps, ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Chip, makeStyles } from '@material-ui/core';
+import {
+  NEXORA_BORDER,
+  NEXORA_CARD,
+  NEXORA_COMPLIANCE,
+  NEXORA_CYAN,
+  NEXORA_CYAN_DARK,
+  NEXORA_MUTED,
+  NEXORA_NAVY,
+  NEXORA_SECURITY,
+  NEXORA_STATUS,
+  NEXORA_SURFACE,
+  NEXORA_TEXT,
+} from '@internal/plugin-nexora-common';
 
-/** Nexora brand tokens (aligned with packages/app theme/tokens). */
+/** Re-export brand surface map from shared design tokens. */
 export const NX = {
-  base: '#F4F6F8',
-  card: '#FFFFFF',
-  border: '#E8EEF2',
-  text: '#0F172A',
-  muted: '#475569',
-  navy: '#0A1929',
-  teal: '#00C2D9',
-  tealDark: '#0098AB',
-  compliance: '#0891B2',
-  security: '#FF8A00',
-  passBg: '#0D9488',
-  passFg: '#FFFFFF',
-  failBg: '#B91C1C',
-  failFg: '#FFFFFF',
-  warnBg: 'rgba(255, 138, 0, 0.14)',
-  warnFg: '#9A3412',
-  infoBg: 'rgba(10, 25, 41, 0.08)',
-  infoFg: '#0A1929',
-  neutralBg: '#E2E8F0',
-  neutralFg: '#334155',
+  base: NEXORA_SURFACE,
+  card: NEXORA_CARD,
+  border: NEXORA_BORDER,
+  text: NEXORA_TEXT,
+  muted: NEXORA_MUTED,
+  navy: NEXORA_NAVY,
+  teal: NEXORA_CYAN,
+  tealDark: NEXORA_CYAN_DARK,
+  compliance: NEXORA_COMPLIANCE,
+  security: NEXORA_SECURITY,
+  passBg: NEXORA_STATUS.passBg,
+  passFg: NEXORA_STATUS.passFg,
+  failBg: NEXORA_STATUS.failBg,
+  failFg: NEXORA_STATUS.failFg,
+  warnBg: NEXORA_STATUS.warnBg,
+  warnFg: NEXORA_STATUS.warnFg,
+  infoBg: NEXORA_STATUS.infoBg,
+  infoFg: NEXORA_STATUS.infoFg,
+  neutralBg: NEXORA_STATUS.neutralBg,
+  neutralFg: NEXORA_STATUS.neutralFg,
 } as const;
 
 type ChipTone = {
@@ -40,6 +53,8 @@ function chipToneFor(value: string): ChipTone {
     upper === 'PASSED' ||
     upper === 'COMPLETED' ||
     upper === 'READY' ||
+    upper === 'APPROVED' ||
+    upper === 'CLOSED' ||
     upper.startsWith('PASS ')
   ) {
     return { backgroundColor: NX.passBg, color: NX.passFg };
@@ -71,13 +86,14 @@ function chipToneFor(value: string): ChipTone {
     upper === 'RUNNING' ||
     upper === 'IN PROGRESS' ||
     upper === 'STARTED' ||
-    upper === 'ACTIVE'
+    upper === 'ACTIVE' ||
+    upper === 'PENDING'
   ) {
     return { backgroundColor: NX.infoBg, color: NX.infoFg };
   }
 
   if (upper === 'BASELINED' || upper === 'PLANNED') {
-    return { backgroundColor: NX.compliance, color: '#FFFFFF' };
+    return { backgroundColor: NX.compliance, color: NEXORA_STATUS.passFg };
   }
 
   return {
@@ -96,7 +112,6 @@ const useStyles = makeStyles({
   navButton: {
     borderColor: NX.border,
     color: NX.text,
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 13,
     fontWeight: 600,
     letterSpacing: '0.02em',
@@ -117,7 +132,6 @@ const useStyles = makeStyles({
   },
   title: {
     color: NX.text,
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.02em',
@@ -132,8 +146,7 @@ const useStyles = makeStyles({
   },
   primaryButton: {
     background: `linear-gradient(135deg, ${NX.navy}, ${NX.tealDark})`,
-    color: '#FFFFFF',
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    color: NEXORA_STATUS.passFg,
     fontWeight: 600,
     textTransform: 'none',
     '&:hover': {
@@ -149,6 +162,7 @@ const useStyles = makeStyles({
 
 const LINKS = [
   { to: '/validation-expert', label: 'Overview' },
+  { to: '/validation-expert/contexts', label: 'Contexts' },
   { to: '/validation-expert/requirements', label: 'Requirements' },
   { to: '/validation-expert/traceability', label: 'Traceability' },
   { to: '/validation-expert/risks', label: 'Risks' },

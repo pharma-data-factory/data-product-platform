@@ -327,6 +327,7 @@ describe('Phase 1: Versioning Foundation', () => {
     beforeAll(async () => {
       mockResolver = {
         resolveApprovedBaseline: jest.fn(),
+        resolveBaselineContext: jest.fn(),
       };
       const repository = await ComposerRepository.create({ getClient: () => db });
       serviceWithResolver = new ComposerService({

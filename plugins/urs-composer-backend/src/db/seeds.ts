@@ -14,7 +14,7 @@
 
 import { Knex } from 'knex';
 import { BUSINESS_CAPABILITIES } from '../data/businessCapabilities';
-import { SEED_REQUIREMENT_SETS } from '../data/seedRequirementSets';
+import { SEED_REQUIREMENT_SETS, acceptanceIntentFromSeed } from '../data/seedRequirementSets';
 import { URSStatus } from '../types';
 
 /**
@@ -213,7 +213,12 @@ export async function seedRequirementSets(knex: Knex): Promise<void> {
       version_number: 1,
       business_capability_refs: JSON.stringify(seedSet.businessCapabilityRefs),
       business_need: seedSet.businessNeed,
+      desired_outcome: seedSet.desiredOutcome ?? null,
+      business_value: seedSet.businessValue ?? null,
       stakeholders: JSON.stringify(seedSet.stakeholders),
+      process_context: seedSet.processContext ?? null,
+      scope: seedSet.scope ?? null,
+      out_of_scope: seedSet.outOfScope ?? null,
       solution_type: seedSet.solutionType,
       solution_name: seedSet.solutionName,
       gxp_relevance: seedSet.gxpRelevance,
@@ -232,7 +237,10 @@ export async function seedRequirementSets(knex: Knex): Promise<void> {
       requirement_id: req.requirementId,
       title: req.title,
       statement: req.statement,
+      rationale: req.rationale ?? null,
+      category: req.category ?? null,
       priority: req.priority,
+      acceptance_intent: acceptanceIntentFromSeed(req.acceptanceCriteria) ?? null,
       gxp_relevance: req.gxpRelevance,
       component_type: req.classification.componentType,
       requirement_nature: req.classification.requirementNature,

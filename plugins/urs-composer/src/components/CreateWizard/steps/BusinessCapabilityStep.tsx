@@ -5,8 +5,9 @@
  * Loads real capabilities from URS API.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type FC } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
+import { Link } from '@backstage/core-components';
 import {
   Box,
   Typography,
@@ -23,7 +24,7 @@ import {
 import { Alert } from '@material-ui/lab';
 import { makeStyles } from '@material-ui/core/styles';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
-import { BusinessCapability, URSApiError } from '../../../api/types';
+import { BusinessCapability, RequirementSet, URSApiError } from '../../../api/types';
 import { ursComposerApiRef } from '../../../api/ursComposerApi';
 import { URSWizardState } from '../wizardState';
 
@@ -81,13 +82,14 @@ interface BusinessCapabilityStepProps {
   onStateChange: (updates: Partial<URSWizardState>) => void;
 }
 
-export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
+export const BusinessCapabilityStep: FC<BusinessCapabilityStepProps> = ({
   state,
   onStateChange,
 }) => {
   const classes = useStyles();
   const api = useApi(ursComposerApiRef);
   const [capabilities, setCapabilities] = useState<BusinessCapability[]>([]);
+  const [existingSets, setExistingSets] = useState<RequirementSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -109,6 +111,34 @@ export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
     };
     loadCapabilities();
   }, [api]);
+
+  useEffect(() => {
+    let mounted = true;
+    api
+      .listRequirementSets()
+      .then(result => {
+        if (mounted) {
+          setExistingSets(result.items ?? []);
+        }
+      })
+      .catch(() => {
+        // existing-set hint is informational only
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [api]);
+
+  const setsForSelection = useMemo(() => {
+    if (state.businessCapabilityRefs.length === 0) {
+      return [];
+    }
+    return existingSets.filter(set =>
+      (set.businessCapabilityRefs || []).some(ref =>
+        state.businessCapabilityRefs.includes(ref),
+      ),
+    );
+  }, [existingSets, state.businessCapabilityRefs]);
 
   const handleToggleCapability = (capabilityId: string) => {
     const newRefs = state.businessCapabilityRefs.includes(capabilityId)
@@ -187,6 +217,29 @@ export const BusinessCapabilityStep: React.FC<BusinessCapabilityStepProps> = ({
             ))}
           </Box>
         </Box>
+      )}
+
+      {/* Existing URS hint */}
+      {setsForSelection.length > 0 && (
+        <Alert severity="warning">
+          <Typography variant="body2" component="div">
+            <strong>Existing URS for the selected capability(s):</strong>
+          </Typography>
+          <ul style={{ marginTop: 4, marginBottom: 4 }}>
+            {setsForSelection.map(set => (
+              <li key={set.id}>
+                <Link to={`/urs-composer/${set.id}`}>
+                  {set.requirementSetId} — {set.solutionName}
+                </Link>{' '}
+                <Chip label={set.status} size="small" variant="outlined" />
+              </li>
+            ))}
+          </ul>
+          <Typography variant="caption" component="div">
+            Review these sets before creating a new one. Continue only if this URS covers a
+            different solution or scope for the same capability.
+          </Typography>
+        </Alert>
       )}
 
       {/* Capability Cards Grid */}

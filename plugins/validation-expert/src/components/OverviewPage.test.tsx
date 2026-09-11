@@ -32,6 +32,10 @@ function LocationDisplay() {
 function renderOverview() {
   const api = {
     getOverview: jest.fn().mockResolvedValue(overview),
+    // The page also loads validation contexts. The stub did not have this,
+    // so every test threw "api.getContexts is not a function" during the
+    // effect and the page never finished rendering.
+    getContexts: jest.fn().mockResolvedValue([]),
   };
 
   return render(

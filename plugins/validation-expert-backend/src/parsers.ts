@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { resolvePackagePath } from '@backstage/backend-plugin-api';
 import { parse as parseYaml } from 'yaml';
 import type {
   ExecutionType,
@@ -103,7 +104,7 @@ export function resolveValidationRoot(configured?: string): string {
     path.resolve(process.cwd(), relative),
     path.resolve(process.cwd(), '..', relative),
     path.resolve(process.cwd(), '../..', relative),
-    path.resolve(__dirname, '../../../../validation'),
+    resolvePackagePath('@internal/plugin-validation-expert-backend', '../../validation'),
   ];
   for (const candidate of candidates) {
     if (exists(path.join(candidate, 'baseline', 'BASELINE.yaml'))) {
@@ -143,7 +144,7 @@ export function parseRequirements(root: string): ValidationRequirement[] {
       (fields['Requirement state'] ?? '').toUpperCase() === 'REJECTED' ||
       id === 'URS-AUTH-005';
     const row = byUrs.get(id);
-    const requirementText = fields.Requirement ?? fields['Requirement'] ?? '';
+    const requirementText = fields.Requirement ?? '';
     requirements.push({
       id,
       title: requirementText.slice(0, 96) || id,
@@ -255,6 +256,37 @@ export function parseRisks(root: string): ValidationRisk[] {
   return risks;
 }
 
+function protocolHeaderPattern(protocol: ProtocolType): RegExp {
+  if (protocol === 'IQ') {
+    return /\n(?=### IQ-\d+)/;
+  }
+  if (protocol === 'OQ') {
+    return /\n(?=### OQ-[A-Z0-9-]+)/;
+  }
+  return /\n(?=### UAT-\d+)/;
+}
+
+function protocolIdPattern(protocol: ProtocolType): RegExp {
+  if (protocol === 'IQ') {
+    return /^### (IQ-\d+)\s*[—-]\s*(.+)$/m;
+  }
+  if (protocol === 'OQ') {
+    return /^### (OQ-[A-Z0-9-]+)\s*[—-]\s*(.+)$/m;
+  }
+  return /^### (UAT-\d+)\s*[—-]\s*(.+)$/m;
+}
+
+function normalizeFindingStatus(raw?: string): ValidationFinding['status'] {
+  const status = (raw ?? 'OPEN').toUpperCase();
+  if (status.includes('CLOSED')) {
+    return 'CLOSED';
+  }
+  if (status.includes('REMEDIATED')) {
+    return 'REMEDIATED_PENDING_RETEST';
+  }
+  return 'OPEN';
+}
+
 function parseProtocolFile(
   root: string,
   relativePath: string,
@@ -265,18 +297,8 @@ function parseProtocolFile(
     return [];
   }
   const text = readText(filePath);
-  const headerPattern =
-    protocol === 'IQ'
-      ? /\n(?=### IQ-\d+)/
-      : protocol === 'OQ'
-        ? /\n(?=### OQ-[A-Z0-9-]+)/
-        : /\n(?=### UAT-\d+)/;
-  const idPattern =
-    protocol === 'IQ'
-      ? /^### (IQ-\d+)\s*[—-]\s*(.+)$/m
-      : protocol === 'OQ'
-        ? /^### (OQ-[A-Z0-9-]+)\s*[—-]\s*(.+)$/m
-        : /^### (UAT-\d+)\s*[—-]\s*(.+)$/m;
+  const headerPattern = protocolHeaderPattern(protocol);
+  const idPattern = protocolIdPattern(protocol);
 
   const sections = text.split(headerPattern);
   const tests: ProtocolTest[] = [];
@@ -358,11 +380,7 @@ export function parseFindings(root: string): ValidationFinding[] {
       testId: fields['Originating test'] ?? fields.Source ?? fields['Test ID'] ?? 'UNKNOWN',
       severity: fields.Severity ?? 'Major',
       description: fields.Description ?? fields.Summary ?? text.slice(0, 280),
-      status: ((fields.Status ?? 'OPEN').toUpperCase().includes('CLOSED')
-        ? 'CLOSED'
-        : fields.Status?.toUpperCase().includes('REMEDIATED')
-          ? 'REMEDIATED_PENDING_RETEST'
-          : 'OPEN') as ValidationFinding['status'],
+      status: normalizeFindingStatus(fields.Status),
       requirementIds: splitCsv(fields['Requirement IDs'] ?? fields.URS),
       expectedResult: fields['Expected Result'],
       actualResult: fields['Actual Result'],

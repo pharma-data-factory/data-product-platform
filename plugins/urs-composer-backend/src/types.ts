@@ -26,17 +26,26 @@ export enum SolutionType {
 }
 
 /**
- * Requirement/Requirement Set Status
- * URS Lifecycle: DRAFT → IN_REVIEW → APPROVED → [SUPERSEDED|RETIRED]
+ * Vocabulary shared with the UI.
+ *
+ * Defined in @internal/platform-common and re-exported here so that existing
+ * imports from './types' keep working. The transition maps in
+ * ./domain/transitions.ts decide which moves between these statuses are legal.
  */
-export enum URSStatus {
-  DRAFT = 'DRAFT',
-  IN_REVIEW = 'IN_REVIEW',
-  APPROVED = 'APPROVED',
-  BASELINED = 'BASELINED',
-  SUPERSEDED = 'SUPERSEDED',
-  RETIRED = 'RETIRED',
-}
+export {
+  URSStatus,
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+} from '@internal/platform-common';
+import {
+  ChangeRequestStatus,
+  ReviewScope,
+  SignatureMeaning,
+  SignatureTargetType,
+  URSStatus,
+} from '@internal/platform-common';
 
 /**
  * Approval Status
@@ -150,6 +159,8 @@ export interface RequirementSet {
   updatedBy?: string;
   updatedAt?: Date;
   versionComment?: string;
+  /** Internal UUID of the predecessor set this version revises. */
+  supersedesRef?: string;
 }
 
 /**
@@ -212,7 +223,9 @@ export interface AuditEvent {
     | 'APPROVAL_INSTANCE'
     | 'APPROVAL_STEP'
     | 'BUSINESS_CAPABILITY'
-    | 'BUSINESS_ROLE';
+    | 'BUSINESS_ROLE'
+    | 'SIGNATURE_CREDENTIAL'
+    | 'CHANGE_REQUEST';
   entityId: string;
   eventType: string;
   // Semantic/string version identifier of the audited entity when relevant
@@ -364,6 +377,13 @@ export interface RequirementVersion {
   version: string; // e.g., "1.0", "1.1", "2.0"
   versionNumber: number; // numeric for comparison
 
+  // Structured version number. Computed server-side by ./domain/versioning and
+  // never accepted from a client. `version` carries the same label and is kept
+  // for readers that predate these fields.
+  major?: number;
+  minor?: number;
+  versionLabel?: string;
+
   // Content
   title: string;
   statement: string;
@@ -389,7 +409,111 @@ export interface RequirementVersion {
   createdAt: Date;
   approvedBy?: string;
   approvedAt?: Date;
+  /** Set when the version reaches APPROVED; the effective date of the record. */
+  releasedAt?: Date;
+  /**
+   * SHA-256 over the signed content, from computeContentHash in
+   * @internal/platform-common. Bound to every signature on this version.
+   */
+  contentHash?: string;
+  /**
+   * The approved change request this version was raised under.
+   *
+   * Required once the requirement has a released version (invariant 8); the
+   * first version of a requirement needs none.
+   */
+  changeRequestId?: string;
   revision: number; // Optimistic concurrency control
+}
+
+/**
+ * An electronic signature (21 CFR Part 11 / EU Annex 11).
+ *
+ * Append-only: enforced by a database trigger, not just by convention.
+ */
+export interface Signature {
+  id: string;
+  targetType: SignatureTargetType;
+  targetId: string;
+  meaning: SignatureMeaning;
+  /** Entity ref of the signatory, e.g. "user:default/jane". */
+  signedBy: string;
+  signedAt: Date;
+  /**
+   * The content hash as it stood when this signature was applied. Recomputing
+   * the hash later and finding a difference proves the record was altered
+   * after signing.
+   */
+  contentHashAtSigning: string;
+  comment?: string;
+}
+
+/**
+ * A request to change one or more released requirements.
+ *
+ * Identified by CR-<year>-<sequence>, assigned server-side. Clients never
+ * choose the identifier.
+ */
+export interface ChangeRequest {
+  id: string;
+  title: string;
+  description: string;
+  /** Why the change is needed — the business justification. */
+  reason: string;
+  /** Logical requirement ids the change is expected to touch. */
+  affectedRequirementIds: string[];
+  status: ChangeRequestStatus;
+  requestedBy: string;
+  requestedAt: Date;
+  /** Set when the request is approved or rejected. */
+  decidedBy?: string;
+  decidedAt?: Date;
+  decisionReason?: string;
+  revision: number;
+}
+
+/**
+ * The assessment of what a change request would affect.
+ *
+ * Required before approval: an approval without a recorded assessment is a
+ * decision taken without evidence.
+ */
+export interface ImpactAssessment {
+  id: string;
+  changeRequestId: string;
+  /** Free text: what breaks, what has to be retested, what stays. */
+  summary: string;
+  /** Whether the change touches GxP-relevant behaviour. */
+  gxpImpact: boolean;
+  /** What this means for existing validation evidence. */
+  validationImpact: string;
+  /** Requirement versions the assessor identified as affected. */
+  affectedVersionIds: string[];
+  assessedBy: string;
+  assessedAt: Date;
+}
+
+/**
+ * A user's signing credential.
+ *
+ * The secret itself is never stored; only a salted scrypt hash.
+ */
+export interface SignatureCredential {
+  userRef: string;
+  pinHash: string;
+  salt: string;
+  algo: string;
+  createdAt: Date;
+  updatedAt?: Date;
+  failedAttempts: number;
+  lockedUntil?: Date;
+}
+
+/** One requirement version pinned by a baseline. */
+export interface BaselineItem {
+  requirementVersionId: string;
+  reviewScope: ReviewScope;
+  position: number;
 }
 
 /**
@@ -402,8 +526,17 @@ export interface Baseline {
   baselineVersion: string; // e.g., "1.0", "1.1"
   status: URSStatus; // DRAFT, APPROVED, SUPERSEDED, RETIRED
 
-  // References to exact requirement versions
-  requirementVersionIds: string[]; // List of RequirementVersion IDs
+  /**
+   * The pinned versions, in order.
+   *
+   * Backed by the baseline_items table. The requirement_version_ids column on
+   * `baselines` is kept in sync for readers that predate that table but is
+   * deprecated and must not be used as the source of truth.
+   */
+  requirementVersionIds: string[];
+
+  /** Pinned versions with their review scope. Empty for legacy rows. */
+  items?: BaselineItem[];
 
   // Metadata
   createdBy: string;
@@ -470,9 +603,15 @@ export interface ApprovalInstance {
  */
 export interface ApprovalStep {
   id: string; // UUID
+  approvalInstanceId: string; // Reference to ApprovalInstance
   sequence: number;
   role: ApprovalRole;
   status: ApprovalStepStatus;
+  /**
+   * Whether this step must be decided before the instance can complete.
+   * Persisted, because approveApprovalStep derives "is this the final step?"
+   * from it — an unpersisted value silently collapses multi-step workflows.
+   */
   required?: boolean;
 
   assignedTo?: string; // User entity ref
@@ -520,6 +659,11 @@ export interface BusinessRolePersisted {
 
 export interface CreateRevisionRequest {
   revisionReason: string;
+  /**
+   * Required when the requirement already has a released version
+   * (invariant 8); ignored for a requirement that has never been released.
+   */
+  changeRequestId?: string;
 }
 
 export interface CreateBaselineRequest {
@@ -529,6 +673,11 @@ export interface CreateBaselineRequest {
 
 export interface ApproveApprovalStepRequest {
   comment?: string;
+  /**
+   * Signing PIN (second factor). Required for every approval-step attestation.
+   * Technical workflow control — not a Part 11 compliance claim.
+   */
+  pin: string;
 }
 
 export interface RejectApprovalStepRequest {

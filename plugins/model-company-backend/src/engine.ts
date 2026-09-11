@@ -30,6 +30,16 @@ import {
   type UnsConfig,
 } from './uns/topics';
 
+function equipmentStateEventName(state: EquipmentState): string {
+  if (state === 'MICROSTOP') {
+    return 'microstop';
+  }
+  if (state === 'BREAKDOWN') {
+    return 'breakdown';
+  }
+  return 'equipment-state-changed';
+}
+
 /** Mulberry32 — deterministic PRNG from seed + tick. */
 export function createRng(seed: number, tick: number): () => number {
   let t = (seed + tick * 1013904223) >>> 0;
@@ -437,13 +447,15 @@ export function advanceTick(model: FactoryModel, state: SimulationState): TickRe
       const goodDelta =
         state.scenarioId === 'SCN-002' ? 40 + Math.floor(rng() * 10) : 20 + Math.floor(rng() * 20);
       next.goodCount += goodDelta * Math.max(1, Math.floor(state.speed / 5) || 1);
-      const rejectBoost =
+      let rejectBoost = Math.floor(rng() * 2);
+      if (
         state.scenarioId === 'SCN-006' &&
         (id === 'CHECKWEIGHER-01' || id === 'INSPECTION-01')
-          ? 8 + Math.floor(rng() * 12)
-          : state.scenarioId === 'SCN-002'
-            ? 0
-            : Math.floor(rng() * 2);
+      ) {
+        rejectBoost = 8 + Math.floor(rng() * 12);
+      } else if (state.scenarioId === 'SCN-002') {
+        rejectBoost = 0;
+      }
       next.rejectCount += rejectBoost;
     } else {
       next.speed = 0;
@@ -514,12 +526,7 @@ export function advanceTick(model: FactoryModel, state: SimulationState): TickRe
         ),
       );
 
-      const eventName =
-        next.state === 'MICROSTOP'
-          ? 'microstop'
-          : next.state === 'BREAKDOWN'
-            ? 'breakdown'
-            : 'equipment-state-changed';
+      const eventName = equipmentStateEventName(next.state);
       messages.push(
         makeMessage(
           config,
@@ -753,6 +760,16 @@ export function applyScenario(
 ): SimulationState {
   const scenario = scenarioById(scenarioId);
   const nextSeed = seed ?? state.seed;
+  const autoinjectorScenario = isAutoinjectorScenario(scenarioId);
+  let campaign = state.campaign
+    ? {
+        ...initialCampaign(scenarioId),
+        productFamily: state.campaign.productFamily,
+      }
+    : undefined;
+  if (!campaign && autoinjectorScenario) {
+    campaign = initialCampaign(scenarioId);
+  }
   return {
     ...state,
     scenarioId,
@@ -761,14 +778,7 @@ export function applyScenario(
     tick: 0,
     runId: `RUN-${nextSeed}-${scenarioId}`,
     updatedAt: new Date().toISOString(),
-    campaign: state.campaign
-      ? {
-          ...initialCampaign(scenarioId),
-          productFamily: state.campaign.productFamily,
-        }
-      : isAutoinjectorScenario(scenarioId)
-        ? initialCampaign(scenarioId)
-        : undefined,
+    campaign,
     orders: state.campaign || isAutoinjectorScenario(scenarioId)
       ? autoinjectorOrders()
       : state.orders,

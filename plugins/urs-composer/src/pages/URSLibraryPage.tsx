@@ -2,7 +2,7 @@
  * URS Library Page
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -29,7 +29,7 @@ import AddIcon from '@material-ui/icons/Add';
 import EditIcon from '@material-ui/icons/Edit';
 import GetAppIcon from '@material-ui/icons/GetApp';
 import { ursComposerApiRef } from '../api/ursComposerApi';
-import { RequirementSet, URSStatus, SolutionType } from '../api/types';
+import { Requirement, RequirementSet, URSStatus, SolutionType } from '../api/types';
 
 const STATUS_ORDER: Record<string, number> = {
   DRAFT: 0,
@@ -40,7 +40,33 @@ const STATUS_ORDER: Record<string, number> = {
   RETIRED: 5,
 };
 
-export const URSLibraryPage: React.FC = () => {
+function baselineVersionValue(version: string): number {
+  const [major = '0', minor = '0'] = version.split('.');
+  return parseInt(major, 10) * 100 + (parseInt(minor, 10) || 0);
+}
+
+function parseAcceptanceCriteriaJson(acceptanceIntent?: string) {
+  if (!acceptanceIntent) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(acceptanceIntent);
+    if (Array.isArray(parsed)) {
+      return parsed.map(item => ({
+        title: String(item.title || ''),
+        description: item.description ? String(item.description) : undefined,
+        verificationMethod: item.verificationMethod
+          ? String(item.verificationMethod)
+          : undefined,
+      }));
+    }
+  } catch {
+    return [{ title: acceptanceIntent }];
+  }
+  return undefined;
+}
+
+export const URSLibraryPage: FC = () => {
   const navigate = useNavigate();
   const api = useApi(ursComposerApiRef);
   const [loading, setLoading] = useState(true);
@@ -50,14 +76,38 @@ export const URSLibraryPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [selectedRows, setSelectedRows] = useState<RequirementSet[]>([]);
+  const [baselineVersions, setBaselineVersions] = useState<Record<string, string>>(
+    {},
+  );
 
   useEffect(() => {
     let mounted = true;
     api
       .listRequirementSets()
-      .then(result => {
+      .then(async result => {
+        if (!mounted) {
+          return;
+        }
+        setItems(result.items);
+        const versions: Record<string, string> = {};
+        await Promise.all(
+          result.items.map(async set => {
+            try {
+              const baselines = await api.listBaselines(set.id);
+              const latest = baselines
+                .filter(b => b.status === URSStatus.APPROVED)
+                .map(b => b.baselineVersion)
+                .sort((a, b) => baselineVersionValue(b) - baselineVersionValue(a))[0];
+              if (latest) {
+                versions[set.id] = latest;
+              }
+            } catch {
+              // no released baseline — leave the version unset
+            }
+          }),
+        );
         if (mounted) {
-          setItems(result.items);
+          setBaselineVersions(versions);
         }
       })
       .catch(err => {
@@ -105,11 +155,50 @@ export const URSLibraryPage: React.FC = () => {
     return result;
   }, [items, query, statusFilter, typeFilter]);
 
-  const handleExportSelected = () => {
+  const handleExportSelected = async () => {
     if (selectedRows.length === 0) {
       return;
     }
-    const data = JSON.stringify(selectedRows, null, 2);
+    const enriched = await Promise.all(
+      selectedRows.map(async set => {
+        let requirements: Requirement[] = [];
+        try {
+          requirements = await api.listRequirements(set.id);
+        } catch {
+          requirements = [];
+        }
+        return {
+          businessCapabilityRefs: set.businessCapabilityRefs,
+          businessNeed: set.businessNeed,
+          desiredOutcome: set.desiredOutcome,
+          businessValue: set.businessValue,
+          stakeholders: set.stakeholders,
+          processContext: set.processContext,
+          solutionType: set.solutionType,
+          solutionName: set.solutionName,
+          solutionCatalogRef: set.solutionCatalogRef,
+          scope: set.scope,
+          outOfScope: set.outOfScope,
+          gxpRelevance: set.gxpRelevance,
+          patientImpact: set.patientImpact,
+          dataIntegrityImpact: set.dataIntegrityImpact,
+          electronicRecords: set.electronicRecords,
+          requirements: requirements.map(r => ({
+            title: r.title,
+            statement: r.statement,
+            rationale: r.rationale,
+            category: r.category,
+            priority: r.priority,
+            gxpRelevance: r.gxpRelevance,
+            source: r.source,
+            owner: r.owner,
+            classification: r.classification,
+            acceptanceCriteria: parseAcceptanceCriteriaJson(r.acceptanceIntent),
+          })),
+        };
+      }),
+    );
+    const data = JSON.stringify(enriched.length === 1 ? enriched[0] : enriched, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -157,7 +246,7 @@ export const URSLibraryPage: React.FC = () => {
     },
     {
       title: 'Version',
-      render: row => row.versionNumber,
+      render: row => baselineVersions[row.id] ?? '—',
     },
     {
       title: 'Owner',

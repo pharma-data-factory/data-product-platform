@@ -49,6 +49,22 @@ export function RunDetailPage() {
         {run.createdBy.identityProvider ? ` (${run.createdBy.identityProvider})` : ''} at{' '}
         {run.createdAt}
       </Typography>
+      {run.contextId ? (
+        <Typography paragraph>
+          <strong>Validation context:</strong>{' '}
+          <RouterLink
+            to={`/validation-expert/contexts/${encodeURIComponent(run.contextId)}`}
+          >
+            {run.contextId}
+          </RouterLink>
+          {run.baselineId ? (
+            <>
+              {' '}
+              · baseline <span style={{ fontFamily: 'monospace' }}>{run.baselineId}</span>
+            </>
+          ) : null}
+        </Typography>
+      ) : null}
       <Table
         options={{ paging: false, search: false }}
         columns={[
