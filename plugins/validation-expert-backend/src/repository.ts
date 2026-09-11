@@ -11,30 +11,35 @@ import type {
   ValidationTestExecution,
 } from './types';
 
+/**
+ * Persistence contract for Validation Expert runtime evidence.
+ * All methods are async so PostgreSQL (Knex) and file/memory stores share one interface.
+ */
 export interface ValidationRunRepository {
-  listRuns(): ValidationRun[];
-  getRun(runId: string): ValidationRun | undefined;
+  listRuns(): Promise<ValidationRun[]>;
+  getRun(runId: string): Promise<ValidationRun | undefined>;
   createRun(input: {
     type: ProtocolType;
     candidate: string;
     candidateCommit?: string;
     baselineId: string;
+    contextId?: string;
     createdBy: ExecutorIdentity;
-  }): ValidationRun;
-  saveRun(run: ValidationRun): void;
-  listFindings(): ValidationFinding[];
-  addFinding(finding: ValidationFinding): void;
-  updateFindingStatus(id: string, status: FindingStatus): void;
-  listEvidence(): ValidationEvidenceItem[];
-  addEvidence(item: ValidationEvidenceItem): void;
+  }): Promise<ValidationRun>;
+  saveRun(run: ValidationRun): Promise<void>;
+  listFindings(): Promise<ValidationFinding[]>;
+  addFinding(finding: ValidationFinding): Promise<void>;
+  updateFindingStatus(id: string, status: FindingStatus): Promise<void>;
+  listEvidence(): Promise<ValidationEvidenceItem[]>;
+  addEvidence(item: ValidationEvidenceItem): Promise<void>;
   // URS → Validation integration contexts
-  listContexts(): ValidationContext[];
-  getContext(contextId: string): ValidationContext | undefined;
+  listContexts(): Promise<ValidationContext[]>;
+  getContext(contextId: string): Promise<ValidationContext | undefined>;
   findContextBySource(
     requirementSetId: string,
     baselineId: string,
-  ): ValidationContext | undefined;
-  addContext(context: ValidationContext): void;
+  ): Promise<ValidationContext | undefined>;
+  addContext(context: ValidationContext): Promise<void>;
 }
 
 interface StoreShape {
@@ -52,22 +57,23 @@ function emptyStore(): StoreShape {
 export class MemoryValidationRunRepository implements ValidationRunRepository {
   private store: StoreShape = emptyStore();
 
-  listRuns(): ValidationRun[] {
+  async listRuns(): Promise<ValidationRun[]> {
     return this.store.runs.map(cloneRun);
   }
 
-  getRun(runId: string): ValidationRun | undefined {
+  async getRun(runId: string): Promise<ValidationRun | undefined> {
     const found = this.store.runs.find(run => run.id === runId);
     return found ? cloneRun(found) : undefined;
   }
 
-  createRun(input: {
+  async createRun(input: {
     type: ProtocolType;
     candidate: string;
     candidateCommit?: string;
     baselineId: string;
+    contextId?: string;
     createdBy: ExecutorIdentity;
-  }): ValidationRun {
+  }): Promise<ValidationRun> {
     const key = input.type;
     const next = (this.store.counters[key] ?? 0) + 1;
     this.store.counters[key] = next;
@@ -76,6 +82,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
       candidate: input.candidate,
       candidateCommit: input.candidateCommit,
       baselineId: input.baselineId,
+      contextId: input.contextId,
       type: input.type,
       status: 'PENDING',
       createdAt: new Date().toISOString(),
@@ -86,7 +93,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     return cloneRun(run);
   }
 
-  saveRun(run: ValidationRun): void {
+  async saveRun(run: ValidationRun): Promise<void> {
     const index = this.store.runs.findIndex(item => item.id === run.id);
     if (index < 0) {
       throw new Error(`Unknown run ${run.id}`);
@@ -98,15 +105,15 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     this.store.runs[index] = cloneRun(run);
   }
 
-  listFindings(): ValidationFinding[] {
+  async listFindings(): Promise<ValidationFinding[]> {
     return this.store.findings.map(item => ({ ...item }));
   }
 
-  addFinding(finding: ValidationFinding): void {
+  async addFinding(finding: ValidationFinding): Promise<void> {
     this.store.findings.push({ ...finding });
   }
 
-  updateFindingStatus(id: string, status: FindingStatus): void {
+  async updateFindingStatus(id: string, status: FindingStatus): Promise<void> {
     const found = this.store.findings.find(item => item.id === id);
     if (!found) {
       throw new Error(`Unknown finding ${id}`);
@@ -114,35 +121,43 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     found.status = status;
   }
 
-  listEvidence(): ValidationEvidenceItem[] {
+  async listEvidence(): Promise<ValidationEvidenceItem[]> {
     return this.store.evidence.map(item => ({ ...item }));
   }
 
-  addEvidence(item: ValidationEvidenceItem): void {
+  async addEvidence(item: ValidationEvidenceItem): Promise<void> {
     this.store.evidence.push({ ...item });
   }
 
-  listContexts(): ValidationContext[] {
+  async listContexts(): Promise<ValidationContext[]> {
     return this.store.contexts.map(ctx => ({
       ...ctx,
-      source: { ...ctx.source, businessCapabilityIds: [...ctx.source.businessCapabilityIds], requirementIds: [...ctx.source.requirementIds] },
+      source: {
+        ...ctx.source,
+        businessCapabilityIds: [...ctx.source.businessCapabilityIds],
+        requirementIds: [...ctx.source.requirementIds],
+      },
     }));
   }
 
-  getContext(contextId: string): ValidationContext | undefined {
+  async getContext(contextId: string): Promise<ValidationContext | undefined> {
     const found = this.store.contexts.find(ctx => ctx.id === contextId);
     return found
       ? {
           ...found,
-          source: { ...found.source, businessCapabilityIds: [...found.source.businessCapabilityIds], requirementIds: [...found.source.requirementIds] },
+          source: {
+            ...found.source,
+            businessCapabilityIds: [...found.source.businessCapabilityIds],
+            requirementIds: [...found.source.requirementIds],
+          },
         }
       : undefined;
   }
 
-  findContextBySource(
+  async findContextBySource(
     requirementSetId: string,
     baselineId: string,
-  ): ValidationContext | undefined {
+  ): Promise<ValidationContext | undefined> {
     return this.store.contexts.find(
       ctx =>
         ctx.source.requirementSetId === requirementSetId &&
@@ -150,7 +165,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     );
   }
 
-  addContext(context: ValidationContext): void {
+  async addContext(context: ValidationContext): Promise<void> {
     if (this.store.contexts.some(ctx => ctx.id === context.id)) {
       throw new Error(`Context ${context.id} already exists`);
     }
@@ -193,71 +208,72 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     fs.writeFileSync(this.filePath, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
   }
 
-  listRuns(): ValidationRun[] {
+  async listRuns(): Promise<ValidationRun[]> {
     return this.memory.listRuns();
   }
 
-  getRun(runId: string): ValidationRun | undefined {
+  async getRun(runId: string): Promise<ValidationRun | undefined> {
     return this.memory.getRun(runId);
   }
 
-  createRun(input: {
+  async createRun(input: {
     type: ProtocolType;
     candidate: string;
     candidateCommit?: string;
     baselineId: string;
+    contextId?: string;
     createdBy: ExecutorIdentity;
-  }): ValidationRun {
-    const run = this.memory.createRun(input);
+  }): Promise<ValidationRun> {
+    const run = await this.memory.createRun(input);
     this.persist();
     return run;
   }
 
-  saveRun(run: ValidationRun): void {
-    this.memory.saveRun(run);
+  async saveRun(run: ValidationRun): Promise<void> {
+    await this.memory.saveRun(run);
     this.persist();
   }
 
-  listFindings(): ValidationFinding[] {
+  async listFindings(): Promise<ValidationFinding[]> {
     return this.memory.listFindings();
   }
 
-  addFinding(finding: ValidationFinding): void {
-    this.memory.addFinding(finding);
+  async addFinding(finding: ValidationFinding): Promise<void> {
+    await this.memory.addFinding(finding);
     this.persist();
   }
 
-  updateFindingStatus(id: string, status: FindingStatus): void {
-    this.memory.updateFindingStatus(id, status);
+  async updateFindingStatus(id: string, status: FindingStatus): Promise<void> {
+    await this.memory.updateFindingStatus(id, status);
     this.persist();
   }
 
-  listEvidence(): ValidationEvidenceItem[] {
+  async listEvidence(): Promise<ValidationEvidenceItem[]> {
     return this.memory.listEvidence();
   }
 
-  addEvidence(item: ValidationEvidenceItem): void {
-    this.memory.addEvidence(item);
+  async addEvidence(item: ValidationEvidenceItem): Promise<void> {
+    await this.memory.addEvidence(item);
     this.persist();
   }
 
-  listContexts(): ValidationContext[] {
+  async listContexts(): Promise<ValidationContext[]> {
     return this.memory.listContexts();
   }
 
-  getContext(contextId: string): ValidationContext | undefined {
+  async getContext(contextId: string): Promise<ValidationContext | undefined> {
     return this.memory.getContext(contextId);
   }
 
-  findContextBySource(
+  async findContextBySource(
     requirementSetId: string,
     baselineId: string,
-  ): ValidationContext | undefined {
+  ): Promise<ValidationContext | undefined> {
     return this.memory.findContextBySource(requirementSetId, baselineId);
   }
 
-  addContext(context: ValidationContext): void {
-    this.memory.addContext(context);
+  async addContext(context: ValidationContext): Promise<void> {
+    await this.memory.addContext(context);
     this.persist();
   }
 }

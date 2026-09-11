@@ -68,7 +68,12 @@ async function authorize(
   if (!permissions) {
     throw new NotAllowedError('Permission service is not configured');
   }
-  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  // allowLimitedAccess: accepts limited user tokens from sibling plugins
+  // (e.g. validation-expert → urs-composer via getPluginRequestToken onBehalfOf).
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user'],
+    allowLimitedAccess: true,
+  });
   const [decision] = await permissions.authorize([{ permission }], { credentials });
   if (decision.result !== AuthorizeResult.ALLOW) {
     throw new NotAllowedError();
@@ -885,12 +890,20 @@ export async function createRouter(
         );
         const credentials = await httpAuth.credentials(req, { allow: ['user'] });
         const data = req.body as ApproveApprovalStepRequest;
+        if (!data.pin) {
+          res.status(400).json({
+            error:
+              'pin is required to approve an approval step (technical signing control)',
+          });
+          return;
+        }
         const updated = await service.approveApprovalStep(
           req.params.id,
           req.params.stepId,
           actor,
           data.comment,
           credentials,
+          data.pin,
         );
         res.json(updated);
       } catch (err) {

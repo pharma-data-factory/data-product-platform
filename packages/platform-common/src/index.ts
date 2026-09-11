@@ -134,6 +134,7 @@ export type {
   ApprovedURSReference,
   ValidationContext,
   CreateValidationContextRequest,
+  ValidationContextRequirement,
 } from './validation-integration';
 
 export { quickActionsForRole } from './dashboard';

@@ -43,6 +43,8 @@ import {
   ChangeRequestTraceability,
   CreateChangeRequestRequest,
   CreateImpactAssessmentRequest,
+  QualityCheckRequest,
+  QualityValidateResponse,
 } from './types';
 
 export type { URSApiError };
@@ -332,6 +334,33 @@ export class URSComposerApi {
       throw new Error(message);
     }
     return response.json();
+  }
+
+  /**
+   * Lookup an existing Validation Expert context for a URS set + baseline pair.
+   * Uses GET /api/validation-expert/contexts (read-only; does not create).
+   */
+  async findValidationContext(
+    requirementSetId: string,
+    baselineId: string,
+  ): Promise<{ id: string } | undefined> {
+    const base = await this.discoveryApi.getBaseUrl('validation-expert');
+    const response = await this.fetchApi.fetch(`${base}/contexts`);
+    if (!response.ok) {
+      return undefined;
+    }
+    const body = (await response.json()) as {
+      items?: Array<{
+        id: string;
+        source?: { requirementSetId?: string; baselineId?: string };
+      }>;
+    };
+    const match = (body.items ?? []).find(
+      item =>
+        item.source?.requirementSetId === requirementSetId &&
+        item.source?.baselineId === baselineId,
+    );
+    return match ? { id: match.id } : undefined;
   }
 
   /**
@@ -712,6 +741,33 @@ export class URSComposerApi {
       {},
     );
     return result.suggestions;
+  }
+
+  // ============================================================================
+  // QUALITY CHECKS
+  // ============================================================================
+
+  /**
+   * POST /validate
+   * Run quality checks on a single requirement draft payload.
+   */
+  async validateRequirement(
+    req: QualityCheckRequest,
+  ): Promise<QualityValidateResponse> {
+    return this.post<QualityValidateResponse>('/validate', req);
+  }
+
+  /**
+   * POST /requirement-sets/:id/validate
+   * Run quality checks on all requirements in a set.
+   */
+  async validateRequirementSet(
+    id: string,
+  ): Promise<QualityValidateResponse> {
+    return this.post<QualityValidateResponse>(
+      `/requirement-sets/${encodeURIComponent(id)}/validate`,
+      {},
+    );
   }
 
   // ============================================================================

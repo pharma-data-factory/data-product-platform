@@ -117,6 +117,7 @@ function MetricCard({
 }
 
 export const OVERVIEW_CARD_LINKS = [
+  { title: 'Contexts', to: '/validation-expert/contexts' },
   { title: 'Requirements', to: '/validation-expert/requirements' },
   { title: 'Traceability', to: '/validation-expert/traceability' },
   { title: 'IQ', to: '/validation-expert/iq' },
@@ -191,6 +192,14 @@ export function OverviewPage() {
         </Grid>
         <Grid item xs={12} sm={6} md={4} lg={3}>
           <MetricCard
+            title="Contexts"
+            value={String(contexts.length)}
+            detail="Anchored to approved URS baselines"
+            to="/validation-expert/contexts"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={4} lg={3}>
+          <MetricCard
             title="Requirements"
             value={`${data.requirementsBaselined.active} / ${data.requirementsBaselined.total}`}
             detail="Baselined active requirements"
@@ -206,14 +215,17 @@ export function OverviewPage() {
           />
         </Grid>
         {contexts.length > 0 && (
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
             <MetricCard
-              title="Source URS"
-              value={contexts[0].source.requirementSetTitle || contexts[0].source.requirementSetId}
-              detail={`Baseline ${contexts[0].source.baselineVersion} · Approval ${contexts[0].source.approvalStatus} · ${
-                (contexts[0].source.businessCapabilityIds || []).join(', ') || '—'
-              }`}
-              to={`/urs/${contexts[0].source.requirementSetId}`}
+              title="Latest source URS"
+              value={
+                contexts[0].source.requirementSetTitle ||
+                contexts[0].source.requirementSetId
+              }
+              detail={`Baseline ${contexts[0].source.baselineVersion} · ${contexts[0].source.approvalStatus}`}
+              to={`/urs-composer/${encodeURIComponent(
+                contexts[0].source.requirementSetId,
+              )}`}
             />
           </Grid>
         )}

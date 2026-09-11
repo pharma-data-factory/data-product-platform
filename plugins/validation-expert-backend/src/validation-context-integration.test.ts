@@ -72,6 +72,9 @@ function makeService(options?: {
         async resolveApprovedBaseline(req: CreateValidationContextRequest) {
           return { reference: makeReference({ baselineId: req.baselineId }) };
         },
+        async resolveBaselineRequirements() {
+          return [];
+        },
       },
   } as any);
   return { service, repository };
@@ -88,7 +91,57 @@ describe('URS → Validation integration (entry gate + context)', () => {
     expect(context.status).toBe('PENDING');
     expect(context.source.approvalStatus).toBe('APPROVED');
     expect(context.source.sourceSystem).toBe('urs-composer');
-    expect(repository.listContexts()).toHaveLength(1);
+    expect(await repository.listContexts()).toHaveLength(1);
+  });
+
+  it('loads context requirements via read-through resolver', async () => {
+    const { service } = makeService({
+      resolver: {
+        async resolveApprovedBaseline(req: CreateValidationContextRequest) {
+          return { reference: makeReference({ baselineId: req.baselineId }) };
+        },
+        async resolveBaselineRequirements(baselineId: string) {
+          expect(baselineId).toBe('baseline-approved-1');
+          return [
+            {
+              requirementId: 'URS-OEE-001',
+              title: 'Capture OEE',
+              statement: 'The solution shall capture OEE.',
+            },
+          ];
+        },
+      },
+    });
+    const { context } = await service.createContextFromApprovedUrs(
+      { requirementSetId: 'URS-DP-PROOF', baselineId: 'baseline-approved-1' },
+      'user:default/author',
+      { principal: { userEntityRef: 'user:default/author' } },
+    );
+    const payload = await service.getContextRequirements(context.id, {
+      principal: { userEntityRef: 'user:default/author' },
+    });
+    expect(payload.contextId).toBe(context.id);
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0].statement).toContain('capture OEE');
+    expect(payload.note).toMatch(/Not a GxP/i);
+  });
+
+  it('creates and lists runs anchored to a validation context', async () => {
+    const { service } = makeService();
+    const { context } = await service.createContextFromApprovedUrs(
+      { requirementSetId: 'URS-DP-PROOF', baselineId: 'baseline-approved-1' },
+      'user:default/author',
+    );
+    const run = await service.createRun({
+      candidate: 'platform-core-v1.0-rc2',
+      type: 'IQ',
+      createdBy: { userEntityRef: 'user:default/author' },
+      contextId: context.id,
+    });
+    expect(run.contextId).toBe(context.id);
+    expect(run.baselineId).toBe('baseline-approved-1');
+    const linked = await service.listRunsForContext(context.id);
+    expect(linked.map(item => item.id)).toEqual([run.id]);
   });
 
   it('B/C/D: denies DRAFT, IN_REVIEW(SUBMITTED) and REJECTED baselines', async () => {
@@ -98,6 +151,9 @@ describe('URS → Validation integration (entry gate + context)', () => {
         resolver: {
           async resolveApprovedBaseline() {
             return { reference: makeReference({ approvalStatus: status }) };
+          },
+          async resolveBaselineRequirements() {
+            return [];
           },
         },
       });
@@ -122,7 +178,7 @@ describe('URS → Validation integration (entry gate + context)', () => {
     );
     expect(second.created).toBe(false);
     expect(second.context.id).toBe(first.context.id);
-    expect(repository.listContexts()).toHaveLength(1);
+    expect(await repository.listContexts()).toHaveLength(1);
   });
 
   it('F: baseline reference stays anchored (1.0 never silently mutated to 1.1)', async () => {
@@ -288,6 +344,9 @@ describe('URS → Validation integration against real PostgreSQL', () => {
           },
         };
       },
+      async resolveBaselineRequirements() {
+        return [];
+      },
     };
 
     const store = new MemoryValidationRunRepository();
@@ -356,6 +415,7 @@ describe('URS → Validation authorization (backend enforced)', () => {
         {
           hostname: '127.0.0.1', port, path: '/api/validation-expert/contexts/from-urs',
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
         },
         (r: any) => {
           let data = '';
@@ -369,7 +429,7 @@ describe('URS → Validation authorization (backend enforced)', () => {
     });
     expect(res.status).toBe(403);
     await new Promise<void>(resolve => server.close(() => resolve()));
-  });
+  }, 15000);
 
   it('M: authorized user is ALLOWED to create a context (201)', async () => {
     const express = require('express');
@@ -485,7 +545,7 @@ describe('URS → Validation context persistence + reload proof', () => {
     // Simulate restart: destroy the repository/service by creating entirely
     // new instances pointed at the same persisted store file.
     const after = makeFileService();
-    const reloaded = after.repository.getContext(contextId);
+    const reloaded = await after.repository.getContext(contextId);
     expect(reloaded).toBeDefined();
     expect(reloaded!.id).toBe(contextId);
     expect(reloaded!.source.requirementSetId).toBe('URS-DP-PERSIST');
@@ -517,7 +577,7 @@ describe('URS → Validation context persistence + reload proof', () => {
     );
     expect(created).toBe(false);
     expect(context.source.baselineId).toBe('baseline-persist-1');
-    expect(restarted.repository.listContexts()).toHaveLength(1);
+    expect(await restarted.repository.listContexts()).toHaveLength(1);
   });
 });
 

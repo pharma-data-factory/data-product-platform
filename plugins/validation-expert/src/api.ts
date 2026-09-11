@@ -95,6 +95,7 @@ export interface ValidationContext {
   source: {
     requirementSetId: string;
     requirementSetTitle?: string;
+    requirementSetName?: string;
     baselineId: string;
     baselineVersion: string;
     businessCapabilityIds: string[];
@@ -103,7 +104,29 @@ export interface ValidationContext {
     approvedBy?: string;
     sourceSystem: string;
     requirementIds: string[];
+    createdAt?: string;
   };
+}
+
+export interface ValidationContextRequirement {
+  requirementId: string;
+  requirementVersionId?: string;
+  title: string;
+  statement: string;
+  status?: string;
+  priority?: string;
+  rationale?: string;
+  changeType?: string;
+}
+
+export interface ValidationContextRequirementsResponse {
+  contextId: string;
+  baselineId: string;
+  baselineVersion: string;
+  requirementSetId: string;
+  items: ValidationContextRequirement[];
+  source: string;
+  note: string;
 }
 
 export interface ValidationRun {
@@ -115,6 +138,8 @@ export interface ValidationRun {
   createdBy: { userEntityRef: string; displayName?: string; identityProvider?: string };
   startedAt?: string;
   completedAt?: string;
+  baselineId?: string;
+  contextId?: string;
   executions: Array<{
     id: string;
     testId: string;
@@ -133,9 +158,14 @@ export interface ValidationExpertApi {
   getTraceability(): Promise<TraceabilityRow[]>;
   getRisks(): Promise<ValidationRisk[]>;
   getProtocol(type: 'IQ' | 'OQ' | 'UAT'): Promise<ProtocolResponse>;
-  listRuns(): Promise<ValidationRun[]>;
+  listRuns(contextId?: string): Promise<ValidationRun[]>;
   getRun(runId: string): Promise<ValidationRun>;
-  createRun(candidate: string, type: 'IQ' | 'OQ' | 'UAT'): Promise<{ runId: string; status: string; run: ValidationRun }>;
+  createRun(
+    candidate: string,
+    type: 'IQ' | 'OQ' | 'UAT',
+    options?: { contextId?: string },
+  ): Promise<{ runId: string; status: string; run: ValidationRun }>;
+  getContextRuns(contextId: string): Promise<ValidationRun[]>;
   executeAutomated(runId: string): Promise<ValidationRun>;
   startTest(runId: string, testId: string): Promise<unknown>;
   recordResult(
@@ -152,6 +182,10 @@ export interface ValidationExpertApi {
   getEvidence(): Promise<unknown[]>;
   /** URS → Validation integration: list validation contexts anchored to approved URS baselines. */
   getContexts(): Promise<ValidationContext[]>;
+  getContext(id: string): Promise<ValidationContext>;
+  getContextRequirements(
+    contextId: string,
+  ): Promise<ValidationContextRequirementsResponse>;
 }
 
 export const validationExpertApiRef = createApiRef<ValidationExpertApi>({
@@ -215,8 +249,11 @@ export class ValidationExpertClient implements ValidationExpertApi {
     return this.json<ProtocolResponse>(`/protocols/${type}`);
   }
 
-  async listRuns() {
-    const data = await this.json<{ items: ValidationRun[] }>('/runs');
+  async listRuns(contextId?: string) {
+    const query = contextId
+      ? `?contextId=${encodeURIComponent(contextId)}`
+      : '';
+    const data = await this.json<{ items: ValidationRun[] }>(`/runs${query}`);
     return data.items;
   }
 
@@ -224,11 +261,26 @@ export class ValidationExpertClient implements ValidationExpertApi {
     return this.json<ValidationRun>(`/runs/${encodeURIComponent(runId)}`);
   }
 
-  createRun(candidate: string, type: 'IQ' | 'OQ' | 'UAT') {
+  createRun(
+    candidate: string,
+    type: 'IQ' | 'OQ' | 'UAT',
+    options?: { contextId?: string },
+  ) {
     return this.json<{ runId: string; status: string; run: ValidationRun }>('/runs', {
       method: 'POST',
-      body: JSON.stringify({ candidate, type }),
+      body: JSON.stringify({
+        candidate,
+        type,
+        ...(options?.contextId ? { contextId: options.contextId } : {}),
+      }),
     });
+  }
+
+  async getContextRuns(contextId: string) {
+    const data = await this.json<{ items: ValidationRun[] }>(
+      `/contexts/${encodeURIComponent(contextId)}/runs`,
+    );
+    return data.items;
   }
 
   executeAutomated(runId: string) {
@@ -274,5 +326,17 @@ export class ValidationExpertClient implements ValidationExpertApi {
   async getContexts(): Promise<ValidationContext[]> {
     const data = await this.json<{ items: ValidationContext[] }>('/contexts');
     return data.items;
+  }
+
+  getContext(id: string): Promise<ValidationContext> {
+    return this.json<ValidationContext>(`/contexts/${encodeURIComponent(id)}`);
+  }
+
+  getContextRequirements(
+    contextId: string,
+  ): Promise<ValidationContextRequirementsResponse> {
+    return this.json<ValidationContextRequirementsResponse>(
+      `/contexts/${encodeURIComponent(contextId)}/requirements`,
+    );
   }
 }

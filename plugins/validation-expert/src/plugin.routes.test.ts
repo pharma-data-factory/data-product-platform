@@ -10,6 +10,8 @@ describe('validationExpertPlugin routes', () => {
     expect(routeKeys).toEqual(
       expect.arrayContaining([
         'root',
+        'contexts',
+        'contextDetail',
         'requirements',
         'traceability',
         'risks',
@@ -30,6 +32,7 @@ describe('validationExpertPlugin routes', () => {
 
   it('maps every overview card link to the expected route', () => {
     expect(OVERVIEW_CARD_LINKS.map(card => card.to)).toEqual([
+      '/validation-expert/contexts',
       '/validation-expert/requirements',
       '/validation-expert/traceability',
       '/validation-expert/iq',

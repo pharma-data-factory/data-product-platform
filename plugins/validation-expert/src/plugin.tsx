@@ -8,6 +8,8 @@ import {
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
 import { ValidationExpertClient, validationExpertApiRef } from './api';
 import {
+  contextsRouteRef,
+  contextDetailRouteRef,
   evidenceRouteRef,
   findingsRouteRef,
   iqRouteRef,
@@ -158,9 +160,31 @@ const findingsPage = PageBlueprint.make({
   },
 });
 
+const contextsPage = PageBlueprint.make({
+  name: 'contexts',
+  params: {
+    path: '/validation-expert/contexts',
+    routeRef: contextsRouteRef,
+    loader: () =>
+      import('./components/ContextPages').then(m => <m.ContextsPage />),
+  },
+});
+
+const contextDetailPage = PageBlueprint.make({
+  name: 'context-detail',
+  params: {
+    path: '/validation-expert/contexts/:contextId',
+    routeRef: contextDetailRouteRef,
+    loader: () =>
+      import('./components/ContextPages').then(m => <m.ContextDetailPage />),
+  },
+});
+
 /** PageBlueprint paths registered by this plugin (for route contract tests). */
 export const validationExpertRegisteredPaths = [
   '/validation-expert',
+  '/validation-expert/contexts',
+  '/validation-expert/contexts/:contextId',
   '/validation-expert/requirements',
   '/validation-expert/requirements/:id',
   '/validation-expert/traceability',
@@ -180,6 +204,8 @@ export const validationExpertPlugin = createFrontendPlugin({
   extensions: [
     validationExpertApi,
     overviewPage,
+    contextsPage,
+    contextDetailPage,
     requirementsPage,
     requirementDetailPage,
     traceabilityPage,
@@ -195,6 +221,8 @@ export const validationExpertPlugin = createFrontendPlugin({
   ],
   routes: {
     root: rootRouteRef,
+    contexts: contextsRouteRef,
+    contextDetail: contextDetailRouteRef,
     requirements: requirementsRouteRef,
     requirementDetail: requirementDetailRouteRef,
     traceability: traceabilityRouteRef,

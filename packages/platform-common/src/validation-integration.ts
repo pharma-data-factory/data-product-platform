@@ -57,3 +57,19 @@ export type CreateValidationContextRequest = {
   requirementSetId: string;
   baselineId: string;
 };
+
+/**
+ * Read-through display DTO for a requirement pinned by an approved URS
+ * baseline. Resolved on demand via the URS Composer public API; not stored
+ * as a second document copy inside Validation Expert.
+ */
+export interface ValidationContextRequirement {
+  requirementId: string;
+  requirementVersionId?: string;
+  title: string;
+  statement: string;
+  status?: string;
+  priority?: string;
+  rationale?: string;
+  changeType?: string;
+}

@@ -144,7 +144,7 @@ describe('validation run service', () => {
       displayName: 'markus',
     };
 
-    const run = service.createRun({
+    const run = await service.createRun({
       candidate: 'platform-core-v1.0-rc2',
       type: 'OQ',
       createdBy: executor,
@@ -158,14 +158,14 @@ describe('validation run service', () => {
       completed.executions.some(item => item.testId === 'OQ-CI-004' && item.status === 'PASS'),
     ).toBe(true);
 
-    const manualRun = service.createRun({
+    const manualRun = await service.createRun({
       candidate: 'platform-core-v1.0-rc2',
       type: 'OQ',
       createdBy: executor,
     });
     expect(manualRun.id).toBe('OQ-RUN-0002');
 
-    const failed = service.recordManualResult({
+    const failed = await service.recordManualResult({
       runId: manualRun.id,
       testId: 'OQ-AUTH-001',
       status: 'FAIL',
@@ -176,11 +176,11 @@ describe('validation run service', () => {
     });
     expect(failed.status).toBe('FAIL');
     expect(failed.findingId).toBeTruthy();
-    expect(service.getFindings().some(item => item.id === failed.findingId)).toBe(
-      true,
-    );
+    expect(
+      (await service.getFindings()).some(item => item.id === failed.findingId),
+    ).toBe(true);
 
-    expect(() =>
+    await expect(
       service.recordManualResult({
         runId: manualRun.id,
         testId: 'OQ-AUTH-001',
@@ -188,21 +188,21 @@ describe('validation run service', () => {
         actualResult: 'x',
         executor,
       }),
-    ).toThrow(/immutable|Comment is required/i);
+    ).rejects.toThrow(/immutable|Comment is required/i);
   });
 
-  it('refuses anonymous executor identity', () => {
+  it('refuses anonymous executor identity', async () => {
     const service = new ValidationExpertService({
       validationRoot: root,
       repository: new MemoryValidationRunRepository(),
       runners: createDefaultRunnerRegistry(),
     });
-    const run = service.createRun({
+    const run = await service.createRun({
       candidate: 'platform-core-v1.0-rc2',
       type: 'OQ',
       createdBy: { userEntityRef: 'user:default/markus' },
     });
-    expect(() =>
+    await expect(
       service.recordManualResult({
         runId: run.id,
         testId: 'OQ-AUTH-001',
@@ -210,6 +210,6 @@ describe('validation run service', () => {
         actualResult: 'ok',
         executor: { userEntityRef: '' },
       }),
-    ).toThrow(/Authenticated executor/);
+    ).rejects.toThrow(/Authenticated executor/);
   });
 });

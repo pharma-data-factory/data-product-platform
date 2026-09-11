@@ -5,6 +5,7 @@ export {
   MemoryValidationRunRepository,
   FileValidationRunRepository,
 } from './repository';
+export { PostgresValidationRunRepository } from './postgres-repository';
 export {
   createDefaultRunnerRegistry,
   mapUnknownCiRepresentation,

@@ -325,4 +325,85 @@ describe('URSComposerApi', () => {
       await expect(api.listSignatures('ver-1')).resolves.toEqual([]);
     });
   });
+
+  describe('Quality validation', () => {
+    test('validateRequirement posts to /validate', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          issues: [
+            {
+              issue: 'Requirement should use normative language',
+              severity: 'WARNING',
+            },
+          ],
+        }),
+      });
+
+      const api = createApi();
+      const result = await api.validateRequirement({
+        title: 'T',
+        statement: 'Display the state',
+      });
+
+      expect(result.issues).toHaveLength(1);
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/validate'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            title: 'T',
+            statement: 'Display the state',
+          }),
+        }),
+      );
+    });
+
+    test('validateRequirementSet posts to set validate route', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ issues: [] }),
+      });
+
+      const api = createApi();
+      const result = await api.validateRequirementSet('set-1');
+
+      expect(result.issues).toEqual([]);
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/requirement-sets/set-1/validate'),
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    test('findValidationContext matches set + baseline via VE contexts', async () => {
+      discoveryApi.getBaseUrl.mockResolvedValueOnce(
+        'http://localhost:7007/api/validation-expert',
+      );
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              id: 'VALIDATION-CTX-1',
+              source: {
+                requirementSetId: 'set-1',
+                baselineId: 'bl-1',
+              },
+            },
+          ],
+        }),
+      });
+
+      const api = createApi();
+      const found = await api.findValidationContext('set-1', 'bl-1');
+
+      expect(found).toEqual({ id: 'VALIDATION-CTX-1' });
+      expect(discoveryApi.getBaseUrl).toHaveBeenCalledWith('validation-expert');
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        'http://localhost:7007/api/validation-expert/contexts',
+      );
+    });
+  });
 });

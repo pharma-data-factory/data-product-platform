@@ -2,8 +2,10 @@ import type {
   ApprovedURSReference,
   CreateValidationContextRequest,
   ValidationContext,
+  ValidationContextRequirement,
 } from '@internal/platform-common';
 import { createHash, randomUUID } from 'crypto';
+import { NotFoundError } from '@backstage/errors';
 import type { ValidationRunRepository } from './repository';
 import {
   buildOverview,
@@ -30,7 +32,11 @@ import type {
   ValidationTestExecution,
 } from './types';
 
-export type { ApprovedURSReference, ValidationContext } from '@internal/platform-common';
+export type {
+  ApprovedURSReference,
+  ValidationContext,
+  ValidationContextRequirement,
+} from '@internal/platform-common';
 
 /**
  * Boundary that resolves an APPROVED URS baseline for integration. Implemented
@@ -40,10 +46,28 @@ export type { ApprovedURSReference, ValidationContext } from '@internal/platform
  * URSService/repository against PostgreSQL.
  */
 export interface UrsBaselineResolver {
-  resolveApprovedBaseline(request: CreateValidationContextRequest): Promise<{
+  /**
+   * Resolve an APPROVED URS baseline via the URS Composer public API.
+   * `credentials` must be the calling user's Backstage credentials so the
+   * HTTP boundary can issue an on-behalf-of plugin token.
+   */
+  resolveApprovedBaseline(
+    request: CreateValidationContextRequest,
+    credentials: unknown,
+  ): Promise<{
     reference: ApprovedURSReference;
   }>;
+
+  /**
+   * Read-through of pinned baseline requirement content (title/statement).
+   * Does not mutate URS; returns display DTOs only.
+   */
+  resolveBaselineRequirements(
+    baselineId: string,
+    credentials: unknown,
+  ): Promise<ValidationContextRequirement[]>;
 }
+
 
 export class ValidationExpertService {
   constructor(
@@ -86,13 +110,13 @@ export class ValidationExpertService {
     return parseUatProtocol(this.options.validationRoot);
   }
 
-  getFindings(): ValidationFinding[] {
+  async getFindings(): Promise<ValidationFinding[]> {
     const artifact = parseFindings(this.options.validationRoot);
-    const runtime = this.options.repository.listFindings();
+    const runtime = await this.options.repository.listFindings();
     return [...artifact, ...runtime];
   }
 
-  getEvidence(): ValidationEvidenceItem[] {
+  async getEvidence(): Promise<ValidationEvidenceItem[]> {
     const artifact = listArtifactEvidence(this.options.validationRoot).map(item => ({
       id: item.id,
       testId: item.testId,
@@ -101,7 +125,7 @@ export class ValidationExpertService {
       createdAt: 'artifact',
       source: 'artifact' as const,
     }));
-    return [...artifact, ...this.options.repository.listEvidence()];
+    return [...artifact, ...(await this.options.repository.listEvidence())];
   }
 
   listRuns() {
@@ -112,33 +136,110 @@ export class ValidationExpertService {
     return this.options.repository.getRun(runId);
   }
 
-  createRun(input: {
+  async createRun(input: {
     candidate: string;
     type: ProtocolType;
     createdBy: ExecutorIdentity;
-  }): ValidationRun {
-    const baseline = loadBaselineYaml(this.options.validationRoot);
-    const manifest = loadRc2Manifest(this.options.validationRoot);
-    const git = manifest.git as { tag?: string; commit?: string } | undefined;
+    contextId?: string;
+  }): Promise<ValidationRun> {
+    let candidateCommit: string | undefined;
+    try {
+      const manifest = loadRc2Manifest(this.options.validationRoot);
+      const git = manifest.git as { tag?: string; commit?: string } | undefined;
+      if (typeof git?.commit === 'string') {
+        candidateCommit = git.commit;
+      }
+    } catch {
+      // Manifest is optional metadata for context-anchored runs.
+    }
+
+    let baselineId: string;
+    let contextId: string | undefined;
+
+    if (input.contextId) {
+      const context = await this.options.repository.getContext(input.contextId);
+      if (!context) {
+        throw new NotFoundError(
+          `Validation context ${input.contextId} not found`,
+        );
+      }
+      contextId = context.id;
+      baselineId = context.source.baselineId;
+    } else {
+      const baseline = loadBaselineYaml(this.options.validationRoot);
+      baselineId = String(baseline.baseline_id ?? 'PDF-PC-VAL-BL-1.0');
+    }
+
     return this.options.repository.createRun({
       type: input.type,
       candidate: input.candidate,
-      candidateCommit: typeof git?.commit === 'string' ? git.commit : undefined,
-      baselineId: String(baseline.baseline_id ?? 'PDF-PC-VAL-BL-1.0'),
+      candidateCommit,
+      baselineId,
+      contextId,
       createdBy: input.createdBy,
     });
+  }
+
+  async listRunsForContext(contextId: string): Promise<ValidationRun[]> {
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+    const runs = await this.options.repository.listRuns();
+    return runs.filter(run => run.contextId === context.id);
   }
 
   // ============================================================================
   // URS → Validation integration contexts
   // ============================================================================
 
-  listContexts(): ValidationContext[] {
+  listContexts(): Promise<ValidationContext[]> {
     return this.options.repository.listContexts();
   }
 
-  getContext(contextId: string): ValidationContext | undefined {
+  getContext(contextId: string): Promise<ValidationContext | undefined> {
     return this.options.repository.getContext(contextId);
+  }
+
+  /**
+   * Read-through of URS baseline requirement content for a validation context.
+   * Uses the stored baseline identity; does not mutate URS and does not replace
+   * the Markdown workbench path.
+   */
+  async getContextRequirements(
+    contextId: string,
+    credentials: unknown,
+  ): Promise<{
+    contextId: string;
+    baselineId: string;
+    baselineVersion: string;
+    requirementSetId: string;
+    items: ValidationContextRequirement[];
+    source: string;
+    note: string;
+  }> {
+    if (!this.options.ursBaselineResolver) {
+      throw new Error(
+        'ursBaselineResolver is not configured; integration endpoint unavailable',
+      );
+    }
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+    const items = await this.options.ursBaselineResolver.resolveBaselineRequirements(
+      context.source.baselineId,
+      credentials,
+    );
+    return {
+      contextId: context.id,
+      baselineId: context.source.baselineId,
+      baselineVersion: context.source.baselineVersion,
+      requirementSetId: context.source.requirementSetId,
+      items,
+      source: context.source.sourceSystem || 'urs-composer',
+      note: 'Read-through of pinned baseline requirement versions. Not a GxP validation claim.',
+    };
   }
 
   /**
@@ -151,13 +252,14 @@ export class ValidationExpertService {
   async createContextFromApprovedUrs(
     request: CreateValidationContextRequest,
     actor: string,
+    credentials?: unknown,
   ): Promise<{ context: ValidationContext; created: boolean }> {
     if (!this.options.ursBaselineResolver) {
       throw new Error(
         'ursBaselineResolver is not configured; integration endpoint unavailable',
       );
     }
-    const existing = this.options.repository.findContextBySource(
+    const existing = await this.options.repository.findContextBySource(
       request.requirementSetId,
       request.baselineId,
     );
@@ -167,6 +269,7 @@ export class ValidationExpertService {
 
     const { reference } = await this.options.ursBaselineResolver.resolveApprovedBaseline(
       request,
+      credentials,
     );
     // Entry gate enforced in the service (not only the resolver / UI): the
     // resolved reference MUST be an APPROVED URS baseline.
@@ -182,15 +285,15 @@ export class ValidationExpertService {
       createdAt: new Date().toISOString(),
       createdBy: actor,
     };
-    this.options.repository.addContext(context);
+    await this.options.repository.addContext(context);
     return { context, created: true };
   }
 
   async executeAutomated(runId: string, executor: ExecutorIdentity): Promise<ValidationRun> {
-    const run = this.requireMutableRun(runId);
+    const run = await this.requireMutableRun(runId);
     run.status = 'RUNNING';
     run.startedAt = run.startedAt ?? new Date().toISOString();
-    this.options.repository.saveRun(run);
+    await this.options.repository.saveRun(run);
 
     const protocol = this.getProtocol(run.type);
     const automated = protocol.filter(test =>
@@ -216,7 +319,7 @@ export class ValidationExpertService {
     testId: string,
     executor: ExecutorIdentity,
   ): Promise<ValidationTestExecution> {
-    const run = this.requireMutableRun(runId);
+    const run = await this.requireMutableRun(runId);
     const protocolTest = this.getProtocol(run.type).find(item => item.id === testId);
     if (!protocolTest) {
       throw new Error(`Unknown test ${testId} for ${run.type}`);
@@ -248,11 +351,11 @@ export class ValidationExpertService {
     run.executions.push(execution);
     run.status = 'RUNNING';
     run.startedAt = run.startedAt ?? execution.startedAt;
-    this.options.repository.saveRun(run);
+    await this.options.repository.saveRun(run);
     return execution;
   }
 
-  recordManualResult(input: {
+  async recordManualResult(input: {
     runId: string;
     testId: string;
     status: 'PASS' | 'FAIL' | 'BLOCKED';
@@ -260,7 +363,7 @@ export class ValidationExpertService {
     comment?: string;
     evidenceReference?: string;
     executor: ExecutorIdentity;
-  }): ValidationTestExecution {
+  }): Promise<ValidationTestExecution> {
     if (!input.executor?.userEntityRef) {
       throw new Error('Authenticated executor is required');
     }
@@ -268,7 +371,7 @@ export class ValidationExpertService {
       throw new Error('Comment is required when recording FAIL');
     }
 
-    const run = this.requireMutableRun(input.runId);
+    const run = await this.requireMutableRun(input.runId);
     const protocolTest = this.getProtocol(run.type).find(item => item.id === input.testId);
     if (!protocolTest) {
       throw new Error(`Unknown test ${input.testId}`);
@@ -302,7 +405,7 @@ export class ValidationExpertService {
     execution.completedAt = new Date().toISOString();
 
     if (input.evidenceReference) {
-      const evidence = this.addEvidence({
+      const evidence = await this.addEvidence({
         runId: run.id,
         testExecutionId: execution.id,
         testId: input.testId,
@@ -315,7 +418,7 @@ export class ValidationExpertService {
     }
 
     if (input.status === 'FAIL') {
-      const finding = this.createFindingFromFailure({
+      const finding = await this.createFindingFromFailure({
         run,
         testId: input.testId,
         expectedResult: protocolTest.expectedResult,
@@ -325,8 +428,8 @@ export class ValidationExpertService {
       execution.findingId = finding.id;
     }
 
-    this.options.repository.saveRun(run);
-    this.completeIfSettled(run.id);
+    await this.options.repository.saveRun(run);
+    await this.completeIfSettled(run.id);
     return execution;
   }
 
@@ -336,7 +439,7 @@ export class ValidationExpertService {
     executor: ExecutorIdentity,
     expectedResult?: string,
   ): Promise<ValidationTestExecution> {
-    const run = this.requireMutableRun(runId);
+    const run = await this.requireMutableRun(runId);
     const runner = this.options.runners.find(definition);
     if (!runner) {
       throw new Error(`No automated runner for ${definition.id}`);
@@ -356,7 +459,7 @@ export class ValidationExpertService {
     run.executions.push(execution);
     run.status = 'RUNNING';
     run.startedAt = run.startedAt ?? execution.startedAt;
-    this.options.repository.saveRun(run);
+    await this.options.repository.saveRun(run);
 
     const result = await runner.execute(definition, {
       run,
@@ -370,7 +473,7 @@ export class ValidationExpertService {
     execution.completedAt = new Date().toISOString();
 
     for (const reference of result.evidenceReferences ?? []) {
-      const evidence = this.addEvidence({
+      const evidence = await this.addEvidence({
         runId: run.id,
         testExecutionId: execution.id,
         testId: definition.id,
@@ -383,7 +486,7 @@ export class ValidationExpertService {
     }
 
     if (result.status === 'FAIL' && result.finding) {
-      const finding = this.createFindingFromFailure({
+      const finding = await this.createFindingFromFailure({
         run,
         testId: definition.id,
         expectedResult: execution.expectedResult,
@@ -395,11 +498,11 @@ export class ValidationExpertService {
       execution.findingId = finding.id;
     }
 
-    this.options.repository.saveRun(run);
+    await this.options.repository.saveRun(run);
     return execution;
   }
 
-  private createFindingFromFailure(input: {
+  private async createFindingFromFailure(input: {
     run: ValidationRun;
     testId: string;
     expectedResult?: string;
@@ -407,9 +510,9 @@ export class ValidationExpertService {
     requirementIds: string[];
     severity?: string;
     description?: string;
-  }): ValidationFinding {
-    const count = this.options.repository.listFindings().filter(item => item.source === 'runtime')
-      .length;
+  }): Promise<ValidationFinding> {
+    const findings = await this.options.repository.listFindings();
+    const count = findings.filter(item => item.source === 'runtime').length;
     const finding: ValidationFinding = {
       id: `${input.run.type}-FIND-${String(count + 1).padStart(3, '0')}`,
       runId: input.run.id,
@@ -424,11 +527,11 @@ export class ValidationExpertService {
       actualResult: input.actualResult,
       source: 'runtime',
     };
-    this.options.repository.addFinding(finding);
+    await this.options.repository.addFinding(finding);
     return finding;
   }
 
-  private addEvidence(input: {
+  private async addEvidence(input: {
     runId: string;
     testExecutionId: string;
     testId: string;
@@ -436,7 +539,7 @@ export class ValidationExpertService {
     reference: string;
     createdBy: string;
     candidate: string;
-  }): ValidationEvidenceItem {
+  }): Promise<ValidationEvidenceItem> {
     const checksum = createHash('sha256').update(input.reference).digest('hex').slice(0, 16);
     const item: ValidationEvidenceItem = {
       id: randomUUID(),
@@ -451,12 +554,12 @@ export class ValidationExpertService {
       candidate: input.candidate,
       source: 'runtime',
     };
-    this.options.repository.addEvidence(item);
+    await this.options.repository.addEvidence(item);
     return item;
   }
 
-  private requireMutableRun(runId: string): ValidationRun {
-    const run = this.options.repository.getRun(runId);
+  private async requireMutableRun(runId: string): Promise<ValidationRun> {
+    const run = await this.options.repository.getRun(runId);
     if (!run) {
       throw new Error(`Unknown run ${runId}`);
     }
@@ -466,8 +569,8 @@ export class ValidationExpertService {
     return run;
   }
 
-  private completeIfSettled(runId: string): ValidationRun {
-    const run = this.options.repository.getRun(runId);
+  private async completeIfSettled(runId: string): Promise<ValidationRun> {
+    const run = await this.options.repository.getRun(runId);
     if (!run) {
       throw new Error(`Unknown run ${runId}`);
     }
@@ -478,9 +581,9 @@ export class ValidationExpertService {
     if (!hasRunning && run.executions.length > 0) {
       run.status = 'COMPLETED';
       run.completedAt = new Date().toISOString();
-      this.options.repository.saveRun(run);
+      await this.options.repository.saveRun(run);
     }
-    return this.options.repository.getRun(runId)!;
+    return (await this.options.repository.getRun(runId))!;
   }
 }
 
