@@ -283,6 +283,7 @@ export class ComposerService {
     versionId: string,
     request: TransitionProductVersionRequest,
     actor: string,
+    credentials?: unknown,
   ): Promise<ProductVersion> {
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
@@ -295,7 +296,7 @@ export class ComposerService {
       );
     }
     if (request.targetStatus === 'RELEASED') {
-      const gate = await this.checkReleaseGate(versionId);
+      const gate = await this.checkReleaseGate(versionId, credentials);
       if (!gate.passed) {
         throw new Error(
           `Release gate failed: ${gate.blockers.map(b => b.code).join(', ')}`,
@@ -321,7 +322,10 @@ export class ComposerService {
     return updated;
   }
 
-  async checkReleaseGate(versionId: string): Promise<{
+  async checkReleaseGate(
+    versionId: string,
+    credentials?: unknown,
+  ): Promise<{
     passed: boolean;
     blockers: ReleaseGateBlocker[];
   }> {
@@ -376,7 +380,10 @@ export class ComposerService {
     ) {
       for (const ursId of approvedBaseline.ursBaselineIds) {
         try {
-          await this.ursBaselineResolver.resolveApprovedBaseline(ursId);
+          await this.ursBaselineResolver.resolveApprovedBaseline(
+            ursId,
+            credentials,
+          );
         } catch (err) {
           blockers.push({
             code: 'NO_APPROVED_URS_BASELINE',
@@ -669,6 +676,7 @@ export class ComposerService {
   async generateProductSpec(
     ursBaselineId: string,
     actor: string,
+    credentials: unknown,
   ): Promise<AISpecDraft> {
     if (!this.llmClient) {
       throw new Error('AI product spec generation is not enabled');
@@ -677,7 +685,10 @@ export class ComposerService {
       throw new Error('URS baseline resolver is not configured');
     }
 
-    const ctx = await this.ursBaselineResolver.resolveBaselineContext(ursBaselineId);
+    const ctx = await this.ursBaselineResolver.resolveBaselineContext(
+      ursBaselineId,
+      credentials,
+    );
 
     const catalogComponents = await this.loadCatalogComponents();
 

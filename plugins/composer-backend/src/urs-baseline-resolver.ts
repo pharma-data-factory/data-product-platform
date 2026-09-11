@@ -2,9 +2,12 @@
  * URS Baseline Resolver — cross-plugin HTTP boundary to the URS Composer.
  *
  * The Product Composer never reads URS tables directly. It resolves approved
- * URS baselines through the URS Composer's public API, following the same
- * pattern as validation-expert-backend.
+ * URS baselines through the URS Composer's public API with a plugin request
+ * token issued on-behalf-of the incoming user credentials (same pattern as
+ * validation-expert-backend).
  */
+
+export type UrsAuthCredentials = unknown;
 
 export interface UrsBaselineReference {
   id: string;
@@ -37,15 +40,21 @@ export interface UrsBaselineContext {
 }
 
 export interface UrsBaselineResolver {
-  resolveApprovedBaseline(baselineId: string): Promise<UrsBaselineReference>;
-  resolveBaselineContext(baselineId: string): Promise<UrsBaselineContext>;
+  resolveApprovedBaseline(
+    baselineId: string,
+    credentials: UrsAuthCredentials,
+  ): Promise<UrsBaselineReference>;
+  resolveBaselineContext(
+    baselineId: string,
+    credentials: UrsAuthCredentials,
+  ): Promise<UrsBaselineContext>;
 }
 
 export function createHttpUrsBaselineResolver(options: {
   discovery: { getBaseUrl(pluginId: string): Promise<string> };
   auth: {
     getPluginRequestToken(options: {
-      onBehalfOf: unknown;
+      onBehalfOf: UrsAuthCredentials;
       targetPluginId: string;
     }): Promise<{ token: string }>;
   };
@@ -54,25 +63,29 @@ export function createHttpUrsBaselineResolver(options: {
   const doFetch =
     options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
 
-  async function getAuthHeaders(): Promise<Record<string, string>> {
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    try {
-      const t = await options.auth.getPluginRequestToken({
-        onBehalfOf: await Promise.resolve({} as never),
-        targetPluginId: 'urs-composer',
-      });
-      headers.Authorization = `Bearer ${t.token}`;
-    } catch {
-      // best-effort
+  async function authHeaders(
+    credentials: UrsAuthCredentials,
+  ): Promise<Record<string, string>> {
+    if (!credentials) {
+      throw new Error(
+        'Caller credentials are required to resolve a URS baseline on behalf of the user',
+      );
     }
-    return headers;
+    const { token } = await options.auth.getPluginRequestToken({
+      onBehalfOf: credentials,
+      targetPluginId: 'urs-composer',
+    });
+    return {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
   }
 
   return {
-    async resolveApprovedBaseline(baselineId: string) {
+    async resolveApprovedBaseline(baselineId, credentials) {
       const base = await options.discovery.getBaseUrl('urs-composer');
       const url = `${base}/baselines/${encodeURIComponent(baselineId)}`;
-      const headers = await getAuthHeaders();
+      const headers = await authHeaders(credentials);
 
       const res = await doFetch(url, { headers });
       if (!res.ok) {
@@ -101,9 +114,9 @@ export function createHttpUrsBaselineResolver(options: {
       };
     },
 
-    async resolveBaselineContext(baselineId: string) {
+    async resolveBaselineContext(baselineId, credentials) {
       const base = await options.discovery.getBaseUrl('urs-composer');
-      const headers = await getAuthHeaders();
+      const headers = await authHeaders(credentials);
 
       const basRes = await doFetch(
         `${base}/baselines/${encodeURIComponent(baselineId)}`,

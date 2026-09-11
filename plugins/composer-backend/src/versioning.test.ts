@@ -372,7 +372,10 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
-      const result = await serviceWithResolver.checkReleaseGate(version.id);
+      const result = await serviceWithResolver.checkReleaseGate(
+        version.id,
+        {} as never,
+      );
       expect(result.passed).toBe(false);
       expect(result.blockers.some(b => b.code === 'NO_APPROVED_URS_BASELINE')).toBe(true);
     });
@@ -396,7 +399,10 @@ describe('Phase 1: Versioning Foundation', () => {
       });
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
-      const result = await serviceWithResolver.checkReleaseGate(version.id);
+      const result = await serviceWithResolver.checkReleaseGate(
+        version.id,
+        {} as never,
+      );
       expect(result.passed).toBe(true);
     });
 
@@ -411,7 +417,10 @@ describe('Phase 1: Versioning Foundation', () => {
       await serviceWithResolver.approveProductBaseline(baseline.id, actor);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
-      const result = await serviceWithResolver.checkReleaseGate(version.id);
+      const result = await serviceWithResolver.checkReleaseGate(
+        version.id,
+        {} as never,
+      );
       expect(result.passed).toBe(true);
       expect(mockResolver.resolveApprovedBaseline).not.toHaveBeenCalled();
     });
