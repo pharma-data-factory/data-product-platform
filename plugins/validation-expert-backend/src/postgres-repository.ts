@@ -18,7 +18,7 @@ import type {
 } from './types';
 
 function parseJson<T>(value: unknown, fallback: T): T {
-  if (value == null) {
+  if (value === null || value === undefined) {
     return fallback;
   }
   if (typeof value === 'string') {

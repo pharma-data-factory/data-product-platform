@@ -292,12 +292,13 @@ export class SignatureService {
 
     await repository.createSignature(signature);
 
-    const auditEntityType =
-      request.targetType === SignatureTargetType.CHANGE_REQUEST
-        ? 'CHANGE_REQUEST'
-        : request.targetType === SignatureTargetType.BASELINE
-          ? 'BASELINE'
-          : 'REQUIREMENT_VERSION';
+    let auditEntityType: 'CHANGE_REQUEST' | 'BASELINE' | 'REQUIREMENT_VERSION' =
+      'REQUIREMENT_VERSION';
+    if (request.targetType === SignatureTargetType.CHANGE_REQUEST) {
+      auditEntityType = 'CHANGE_REQUEST';
+    } else if (request.targetType === SignatureTargetType.BASELINE) {
+      auditEntityType = 'BASELINE';
+    }
 
     await repository.createAuditEvent({
       id: randomUUID(),

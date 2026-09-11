@@ -6350,6 +6350,7 @@ __metadata:
     "@backstage/frontend-test-utils": "npm:^0.6.2"
     "@backstage/plugin-permission-react": "npm:^0.7.2"
     "@internal/platform-common": "workspace:^"
+    "@internal/plugin-nexora-common": "workspace:^"
     "@jest/environment-jsdom-abstract": "npm:~30.2.0"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
