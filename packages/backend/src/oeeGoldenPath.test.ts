@@ -171,6 +171,11 @@ describe('OEE Data Product Golden Path', () => {
       'mqttTopic',
       'contextUrlRef',
       'repoUrl',
+      'productManifestContentHash',
+      'ursBaselineId',
+      'productBaselineId',
+      'productVersionId',
+      'productId',
     ]);
     expect(entity.spec.parameters[0].properties.defaultWindow.enum).toEqual([
       'HOUR',

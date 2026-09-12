@@ -402,6 +402,10 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: machine-state-consumer-data-product
     dataprod.platform/templateVersion: 1.0.0
+  links:
+    - url: /catalog-graph?rootEntityRefs=component:default/sample-machine-state-consumer
+      title: Catalog Graph
+      icon: catalog
 spec:
   type: data-product
   lifecycle: experimental

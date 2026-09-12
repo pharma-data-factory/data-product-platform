@@ -106,6 +106,11 @@ describe('MQTT Temperature Data Product Golden Path', () => {
       'owner',
       'mqttTopic',
       'repoUrl',
+      'productManifestContentHash',
+      'ursBaselineId',
+      'productBaselineId',
+      'productVersionId',
+      'productId',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe(
       'Data Product Name',

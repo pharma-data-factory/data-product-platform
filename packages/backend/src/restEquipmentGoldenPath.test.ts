@@ -107,6 +107,11 @@ describe('REST Equipment Data Product Golden Path', () => {
       'owner',
       'domain',
       'repoUrl',
+      'productManifestContentHash',
+      'ursBaselineId',
+      'productBaselineId',
+      'productVersionId',
+      'productId',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe(
       'Data Product Name',
