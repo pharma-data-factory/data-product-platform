@@ -705,11 +705,11 @@ export class ComposerService {
           : 'CI_EVIDENCE_ALREADY_PRESENT',
         actor,
         {
-          newValue: {
+          newValue: JSON.stringify({
             evidenceId: result.item.id,
             idempotencyKey: ctx.idempotencyKey,
             disclaimer: 'technical-control-not-gxp',
-          },
+          }),
         },
       );
 
@@ -737,11 +737,11 @@ export class ComposerService {
         'CI_EVIDENCE_VERIFIED',
         actor,
         {
-          newValue: {
+          newValue: JSON.stringify({
             evidenceId: found.id,
             idempotencyKey: ctx.idempotencyKey,
             disclaimer: 'technical-control-not-gxp',
-          },
+          }),
         },
       );
     } catch (err) {
@@ -754,7 +754,7 @@ export class ComposerService {
         versionId,
         'CI_EVIDENCE_REGISTER_FAILED',
         actor,
-        { newValue: { error: message } },
+        { newValue: JSON.stringify({ error: message }) },
       );
       throw new Error(
         `Technical CI evidence registration required before RELEASED: ${message}`,

@@ -22,7 +22,6 @@ import {
   C,
   PHARMA_NAVY,
   PHARMA_NAVY_DARK,
-  PHARMA_TEAL,
   PHARMA_TEAL_LIGHT,
   PHARMA_TEAL_ON_LIGHT,
 } from '../identity/landingTokens';
