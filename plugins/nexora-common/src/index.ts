@@ -68,6 +68,7 @@ export {
   nexoraPrimitives,
   nexoraRootStyle,
   nexoraStatus,
+  nexoraThemeColor,
   nexoraTypography,
 } from './design';
 export type { NexoraColorMode, NexoraSemanticColors } from './design';

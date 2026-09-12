@@ -116,7 +116,7 @@ export function PlatformFooter() {
         const key = svc.llmField ? svc.name : svc.name;
         return <StatusDot key={key} label={svc.name} ok={statuses[key] ?? null} />;
       })}
-      <span style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+      <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>
         Nexora v0.1
       </span>
     </div>

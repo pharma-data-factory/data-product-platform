@@ -4,10 +4,10 @@ import { useApi } from '@backstage/core-plugin-api';
 import { Grid, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import {
-  NEXORA_MUTED,
   NexoraSection,
   NexoraToolPage,
   StatusBadge,
+  nexoraThemeColor,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 import {
@@ -23,7 +23,7 @@ import {
 
 const useLabelStyles = makeStyles({
   note: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 13,
     lineHeight: 1.5,
     marginTop: 12,

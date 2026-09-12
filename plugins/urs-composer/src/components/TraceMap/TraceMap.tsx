@@ -6,7 +6,7 @@
 import type { FC } from 'react';
 import { Box, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import { NEXORA_BORDER, NEXORA_MUTED, NEXORA_NAVY } from '@internal/plugin-nexora-common';
+import { nexoraThemeColor } from '@internal/plugin-nexora-common';
 
 export interface TraceMapRequirement {
   id: string;
@@ -24,7 +24,7 @@ export interface TraceMapProps {
 
 const useStyles = makeStyles(theme => ({
   root: {
-    border: `1px solid ${NEXORA_BORDER}`,
+    border: `1px solid ${nexoraThemeColor.border}`,
     borderRadius: 4,
     padding: theme.spacing(2),
     overflowX: 'auto',
@@ -43,7 +43,7 @@ const useStyles = makeStyles(theme => ({
     justifyContent: 'flex-start',
   },
   node: {
-    border: `1px solid ${NEXORA_BORDER}`,
+    border: `1px solid ${nexoraThemeColor.border}`,
     borderRadius: 4,
     padding: theme.spacing(1, 1.5),
     backgroundColor: theme.palette.background.paper,
@@ -54,22 +54,22 @@ const useStyles = makeStyles(theme => ({
     fontSize: 11,
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     marginBottom: 4,
   },
   connector: {
     display: 'flex',
     justifyContent: 'center',
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 18,
     lineHeight: 1,
     padding: theme.spacing(0.5, 0),
   },
   need: {
-    borderLeft: `3px solid ${NEXORA_NAVY}`,
+    borderLeft: `3px solid ${nexoraThemeColor.accentReadable}`,
   },
   solution: {
-    borderLeft: `3px solid ${NEXORA_NAVY}`,
+    borderLeft: `3px solid ${nexoraThemeColor.accentReadable}`,
   },
 }));
 

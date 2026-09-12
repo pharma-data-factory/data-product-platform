@@ -16,6 +16,7 @@ export {
   nexoraColors,
   nexoraPrimitives,
   nexoraStatus,
+  nexoraThemeColor,
   nexoraTypography,
 } from './tokens';
 export type { NexoraColorMode, NexoraSemanticColors } from './tokens';

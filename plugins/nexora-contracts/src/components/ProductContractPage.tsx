@@ -19,18 +19,26 @@ import {
   CapabilityMatrix,
   DataProductHeader,
   EntityRelationshipCard,
-  NEXORA_MUTED,
   NexoraSection,
   NexoraToolPage,
   ProviderGate,
   StatusBadge,
   nexoraContractApiRef,
+  nexoraThemeColor,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
-  crumbs: { color: NEXORA_MUTED, fontSize: 14, marginBottom: 16 },
-  contractMeta: { color: NEXORA_MUTED, fontSize: 14, marginBottom: 8 },
+  crumbs: {
+    color: nexoraThemeColor.textMuted,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  contractMeta: {
+    color: nexoraThemeColor.textMuted,
+    fontSize: 14,
+    marginBottom: 8,
+  },
   compatibilityRow: {
     alignItems: 'center',
     display: 'flex',
@@ -39,7 +47,7 @@ const useStyles = makeStyles({
     marginBottom: 8,
   },
   source: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     display: 'block',
     fontSize: 12,
     marginBottom: 12,

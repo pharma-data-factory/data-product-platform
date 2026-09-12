@@ -1,5 +1,5 @@
 import { Chip } from '@material-ui/core';
-import { NEXORA_MUTED, NEXORA_NAVY } from '@internal/plugin-nexora-common';
+import { nexoraThemeColor } from '@internal/plugin-nexora-common';
 import type { CertificationTier } from '../tier';
 
 const PASS_BG = '#0D9488';
@@ -33,7 +33,7 @@ function toneFor(value: string): { backgroundColor: string; color: string } {
     return { backgroundColor: WARN_BG, color: WARN_FG };
   }
   if (upper === 'VALIDATION' || upper === 'NOT_APPLICABLE') {
-    return { backgroundColor: INFO_BG, color: NEXORA_NAVY };
+    return { backgroundColor: INFO_BG, color: nexoraThemeColor.text };
   }
   return { backgroundColor: NEUTRAL_BG, color: NEUTRAL_FG };
 }
@@ -64,7 +64,7 @@ function tierTone(tier: CertificationTier): {
     case 'Certified':
       return { backgroundColor: CERTIFIED_BG, color: '#FFFFFF' };
     case 'Not applicable':
-      return { backgroundColor: INFO_BG, color: NEXORA_NAVY };
+      return { backgroundColor: INFO_BG, color: nexoraThemeColor.text };
     case 'Community':
     default:
       return { backgroundColor: NEUTRAL_BG, color: NEUTRAL_FG };
@@ -95,9 +95,15 @@ export function DetailRow({
   value: React.ReactNode;
 }) {
   return (
-    <div style={{ color: NEXORA_MUTED, fontSize: 14, marginBottom: 8 }}>
+    <div
+      style={{
+        color: nexoraThemeColor.textMuted,
+        fontSize: 14,
+        marginBottom: 8,
+      }}
+    >
       <span style={{ display: 'inline-block', minWidth: 160 }}>{label}</span>
-      <span style={{ color: '#0F172A' }}>{value || '—'}</span>
+      <span style={{ color: nexoraThemeColor.text }}>{value || '—'}</span>
     </div>
   );
 }

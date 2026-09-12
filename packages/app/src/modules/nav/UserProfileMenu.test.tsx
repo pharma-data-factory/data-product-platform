@@ -2,7 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
 import {
+  appThemeApiRef,
   identityApiRef,
+  type AppTheme,
+  type AppThemeApi,
   type BackstageUserIdentity,
   type ProfileInfo,
 } from '@backstage/core-plugin-api';
@@ -21,24 +24,47 @@ jest.mock('@backstage/core-components', () => {
   };
 });
 
+const INSTALLED_THEMES: AppTheme[] = [
+  { id: 'nexora-light', title: 'Light', variant: 'light', Provider: () => null },
+  { id: 'nexora-dark', title: 'Dark', variant: 'dark', Provider: () => null },
+];
+
+function createThemeApi() {
+  const setActiveThemeId = jest.fn();
+  const api = {
+    getInstalledThemes: () => INSTALLED_THEMES,
+    getActiveThemeId: () => 'nexora-light',
+    setActiveThemeId,
+    activeThemeId$: () => ({
+      subscribe: () => ({ unsubscribe: () => undefined }),
+    }),
+  } as unknown as AppThemeApi;
+  return { api, setActiveThemeId };
+}
+
 async function renderMenu(
   identity: {
     getBackstageIdentity: () => Promise<BackstageUserIdentity>;
     getProfileInfo: () => Promise<ProfileInfo>;
     signOut: () => Promise<void>;
   },
+  themeApi = createThemeApi(),
 ) {
   await act(async () => {
     render(
       <MemoryRouter>
         <TestApiProvider
-          apis={[[identityApiRef, identity]]}
+          apis={[
+            [identityApiRef, identity],
+            [appThemeApiRef, themeApi.api],
+          ]}
         >
           <UserProfileMenu />
         </TestApiProvider>
       </MemoryRouter>,
     );
   });
+  return themeApi;
 }
 
 describe('UserProfileMenu', () => {
@@ -89,5 +115,31 @@ describe('UserProfileMenu', () => {
     expect(screen.getAllByText('Platform Admin').length).toBeGreaterThan(0);
     expect(screen.getByText('platform-admins')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Sign Out').length).toBeGreaterThan(0);
+  });
+
+  it('switches between light and dark from the user menu', async () => {
+    const themeApi = await renderMenu(identity);
+
+    fireEvent.click(screen.getByLabelText('Open user menu'));
+
+    expect(screen.getByText('Appearance')).toBeInTheDocument();
+    expect(screen.getByLabelText('Open appearance settings')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dark' }));
+
+    expect(themeApi.setActiveThemeId).toHaveBeenCalledWith('nexora-dark');
+  });
+
+  it('hides the theme switch when no theme is installed', async () => {
+    const themeApi = createThemeApi();
+    themeApi.api = {
+      ...themeApi.api,
+      getInstalledThemes: () => [],
+    } as AppThemeApi;
+
+    await renderMenu(identity, themeApi);
+    fireEvent.click(screen.getByLabelText('Open user menu'));
+
+    expect(screen.queryByText('Appearance')).not.toBeInTheDocument();
   });
 });

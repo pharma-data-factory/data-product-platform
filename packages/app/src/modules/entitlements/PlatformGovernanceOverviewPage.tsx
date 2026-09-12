@@ -7,6 +7,7 @@ import {
 import { Grid } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../theme/tokens';
+import { nexoraThemeColor } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   container: {
@@ -18,14 +19,14 @@ const useStyles = makeStyles({
     marginBottom: 48,
   },
   intro: {
-    color: C.muted,
+    color: nexoraThemeColor.textMuted,
     fontSize: 16,
     lineHeight: 1.7,
     margin: 0,
     maxWidth: 800,
   },
   sectionTitle: {
-    color: PHARMA_NAVY,
+    color: nexoraThemeColor.text,
     fontSize: 24,
     fontWeight: 600,
     margin: '0 0 24px',
@@ -156,7 +157,7 @@ const useStyles = makeStyles({
     padding: 24,
   },
   statusTitle: {
-    color: PHARMA_NAVY,
+    color: nexoraThemeColor.text,
     fontSize: 18,
     fontWeight: 600,
     margin: '0 0 16px',
@@ -182,7 +183,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   statusNote: {
-    color: C.muted,
+    color: nexoraThemeColor.textMuted,
     fontSize: 12,
     lineHeight: 1.6,
     margin: '16px 0 0',

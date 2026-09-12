@@ -6,7 +6,10 @@
 import type { FC } from 'react';
 import { Box, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import { NEXORA_BORDER, NEXORA_STATUS } from '@internal/plugin-nexora-common';
+import {
+  NEXORA_STATUS,
+  nexoraThemeColor,
+} from '@internal/plugin-nexora-common';
 import type { ChangeSet, RequirementChange } from '../../api/types';
 
 export interface ImpactGraphProps {
@@ -38,7 +41,7 @@ const useStyles = makeStyles(theme => ({
     },
   },
   column: {
-    border: `1px solid ${NEXORA_BORDER}`,
+    border: `1px solid ${nexoraThemeColor.border}`,
     borderRadius: 4,
     minHeight: 120,
     display: 'flex',
@@ -60,7 +63,7 @@ const useStyles = makeStyles(theme => ({
     flex: 1,
   },
   item: {
-    border: `1px solid ${NEXORA_BORDER}`,
+    border: `1px solid ${nexoraThemeColor.border}`,
     borderRadius: 4,
     padding: theme.spacing(0.75, 1),
     backgroundColor: theme.palette.background.paper,

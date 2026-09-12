@@ -22,7 +22,6 @@ import {
   ContextCard,
   EntityRelationshipCard,
   MetricCard,
-  NEXORA_MUTED,
   NexoraSection,
   NexoraToolPage,
   ProviderGate,
@@ -31,17 +30,18 @@ import {
   nexoraConnectivityApiRef,
   nexoraEquipmentStateApiRef,
   nexoraMetricsApiRef,
+  nexoraThemeColor,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   crumbs: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 14,
     marginBottom: 16,
   },
   footnote: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 13,
     lineHeight: 1.6,
   },

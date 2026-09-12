@@ -11,25 +11,19 @@ import {
   NexoraAsset,
   ProviderResult,
 } from '@internal/platform-common';
-import {
-  NEXORA_BORDER,
-  NEXORA_CARD,
-  NEXORA_CYAN,
-  NEXORA_MUTED,
-  NEXORA_NAVY,
-} from '../tokens';
+import { NEXORA_CYAN, nexoraThemeColor } from '../design';
 import { StatusBadge, StatusWord } from './StatusBadge';
 
 const useStyles = makeStyles({
   card: {
-    background: NEXORA_CARD,
-    border: `1px solid ${NEXORA_BORDER}`,
+    background: nexoraThemeColor.surfaceRaised,
+    border: `1px solid ${nexoraThemeColor.border}`,
     borderRadius: 12,
     height: '100%',
     padding: 16,
   },
   title: {
-    color: NEXORA_NAVY,
+    color: nexoraThemeColor.text,
     fontSize: 13,
     fontWeight: 600,
     letterSpacing: '0.06em',
@@ -37,14 +31,14 @@ const useStyles = makeStyles({
     textTransform: 'uppercase',
   },
   value: {
-    color: NEXORA_NAVY,
+    color: nexoraThemeColor.text,
     fontSize: 26,
     fontWeight: 600,
     letterSpacing: '-0.02em',
     lineHeight: 1.2,
   },
   muted: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 13,
     lineHeight: 1.5,
   },
@@ -59,7 +53,7 @@ const useStyles = makeStyles({
     marginBottom: 12,
   },
   meta: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     display: 'grid',
     gap: 8,
     gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -305,7 +299,10 @@ export function AssetHeader({
   return (
     <header className={classes.header} aria-label={`${asset.title} overview`}>
       {showTitle ? (
-        <Typography variant="h4" style={{ color: NEXORA_NAVY, fontWeight: 600 }}>
+        <Typography
+          variant="h4"
+          style={{ color: nexoraThemeColor.text, fontWeight: 600 }}
+        >
           {asset.title}
         </Typography>
       ) : null}
@@ -359,7 +356,10 @@ export function DataProductHeader({
   return (
     <header className={classes.header} aria-label={`${title} overview`}>
       {showTitle ? (
-        <Typography variant="h4" style={{ color: NEXORA_NAVY, fontWeight: 600 }}>
+        <Typography
+          variant="h4"
+          style={{ color: nexoraThemeColor.text, fontWeight: 600 }}
+        >
           {title}
         </Typography>
       ) : null}

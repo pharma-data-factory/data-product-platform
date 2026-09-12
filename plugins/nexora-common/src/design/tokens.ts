@@ -218,3 +218,27 @@ export const NEXORA_SURFACE = nexoraPrimitives.surface;
 export const NEXORA_SECTION = nexoraPrimitives.section;
 export const NEXORA_COMPLIANCE = nexoraPrimitives.compliance;
 export const NEXORA_SECURITY = nexoraPrimitives.security;
+
+/**
+ * Mode-aware aliases for surfaces rendered on a themed background.
+ *
+ * The flat `NEXORA_*` constants above are light-mode values; used as text or
+ * border colors they turn near-black once the dark theme switches the surface
+ * underneath them. These resolve through the `--nexora-color-*` properties
+ * emitted by `NexoraGlobalStyles`, with the light value as fallback so
+ * surfaces rendered before a theme provider keep their current appearance.
+ */
+export const nexoraThemeColor = {
+  text: `var(--nexora-color-text, ${nexoraColors.light.text})`,
+  textMuted: `var(--nexora-color-text-muted, ${nexoraColors.light.textMuted})`,
+  border: `var(--nexora-color-border, ${nexoraColors.light.border})`,
+  surfaceRaised: `var(--nexora-color-surface-raised, ${nexoraColors.light.surfaceRaised})`,
+  section: `var(--nexora-color-section, ${nexoraColors.light.section})`,
+  accentReadable: `var(--nexora-color-accent-readable, ${nexoraColors.light.accentReadable})`,
+  accent: `var(--nexora-color-accent, ${nexoraColors.light.accent})`,
+  accentOnDark: `var(--nexora-color-accent-on-dark, ${nexoraColors.light.accentOnDark})`,
+  navBg: `var(--nexora-color-nav-bg, ${nexoraColors.light.navBg})`,
+  navHover: `var(--nexora-color-nav-hover, ${nexoraColors.light.navHover})`,
+  navColor: `var(--nexora-color-nav-color, ${nexoraColors.light.navColor})`,
+  navSelected: `var(--nexora-color-nav-selected, ${nexoraColors.light.navSelected})`,
+} as const;

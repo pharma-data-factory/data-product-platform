@@ -14,6 +14,7 @@ import { SidebarSearchModal } from '@backstage/plugin-search';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
 import SearchIcon from '@material-ui/icons/Search';
 import SettingsIcon from '@material-ui/icons/Settings';
+import Brightness6Icon from '@material-ui/icons/Brightness6';
 import {
   PlatformRole,
   canAdministerPlatform,
@@ -206,6 +207,11 @@ function PlatformSidebar() {
                 icon={VerifiedUserIcon}
                 to="/access"
                 title="My Access"
+              />
+              <SidebarSubmenuItem
+                icon={Brightness6Icon}
+                to="/settings"
+                title="Appearance"
               />
             </SidebarSubmenu>
           </SidebarItem>
