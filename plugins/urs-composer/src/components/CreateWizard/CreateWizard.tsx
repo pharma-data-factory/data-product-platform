@@ -1,5 +1,5 @@
 /**
- * URS Create Wizard (8-Step)
+ * URS Create Wizard (5-Step)
  */
 
 import {
@@ -14,7 +14,7 @@ import { useApi } from '@backstage/core-plugin-api';
 import {
   Stepper,
   Step,
-  StepLabel,
+  StepButton,
   Button,
   Box,
   Card,
@@ -44,9 +44,7 @@ import { BusinessCapabilityStep } from './steps/BusinessCapabilityStep';
 import { BusinessNeedStep } from './steps/BusinessNeedStep';
 import { URSContextStep } from './steps/URSContextStep';
 import { RequirementsStep } from './steps/RequirementsStep';
-import { AcceptanceCriteriaStep } from './steps/AcceptanceCriteriaStep';
 import { QualityReviewStep } from './steps/QualityReviewStep';
-import { TraceabilityStep } from './steps/TraceabilityStep';
 import { ReviewSubmitStep } from './steps/ReviewSubmitStep';
 import { ursComposerApiRef } from '../../api/ursComposerApi';
 import type { BusinessCapability } from '../../api/types';
@@ -85,16 +83,18 @@ const useStyles = makeStyles(theme => ({
     flexWrap: 'wrap',
     alignItems: 'center',
   },
+  mergedStep: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing(4),
+  },
 }));
 
 const STEPS = [
-  'Business Capability',
-  'Business Need',
+  'Capability & Need',
   'URS Context',
-  'Requirements',
-  'Acceptance Criteria',
-  'Quality & GxP Review',
-  'Traceability',
+  'Requirements & AC',
+  'Quality Review',
   'Review & Save',
 ];
 
@@ -188,6 +188,13 @@ export const CreateWizard: FC<CreateWizardProps> = ({
     setStepErrors([]);
   }, []);
 
+  const handleStepClick = useCallback((stepIndex: number) => {
+    if (stepIndex < state.currentStep) {
+      setState(prev => ({ ...prev, currentStep: stepIndex }));
+      setStepErrors([]);
+    }
+  }, [state.currentStep]);
+
   const handleStateChange = useCallback((updates: Partial<URSWizardState>) => {
     setState(prev => markDirty({ ...prev, ...updates }));
     setSaveError(null);
@@ -265,20 +272,19 @@ export const CreateWizard: FC<CreateWizardProps> = ({
     const props = { state, onStateChange: handleStateChange };
     switch (state.currentStep) {
       case 0:
-        return <BusinessCapabilityStep {...props} />;
+        return (
+          <Box className={classes.mergedStep}>
+            <BusinessCapabilityStep {...props} />
+            <BusinessNeedStep {...props} />
+          </Box>
+        );
       case 1:
-        return <BusinessNeedStep {...props} />;
-      case 2:
         return <URSContextStep {...props} />;
-      case 3:
+      case 2:
         return <RequirementsStep {...props} />;
-      case 4:
-        return <AcceptanceCriteriaStep {...props} />;
-      case 5:
+      case 3:
         return <QualityReviewStep {...props} />;
-      case 6:
-        return <TraceabilityStep {...props} />;
-      case 7:
+      case 4:
         return <ReviewSubmitStep {...props} />;
       default:
         return <Typography>Unknown step</Typography>;
@@ -292,7 +298,7 @@ export const CreateWizard: FC<CreateWizardProps> = ({
     <Page themeId="tool">
       <Header
         title={editMode ? 'Edit URS Draft' : 'Create URS'}
-        subtitle="8-Step Guided Wizard"
+        subtitle="5-Step Guided Wizard"
       />
       <Content>
         {(capabilityNames.size > 0 && state.currentStep > 0) || state.ursStatus ? (
@@ -347,10 +353,15 @@ export const CreateWizard: FC<CreateWizardProps> = ({
           )}
 
           <Box className={classes.stepperContainer}>
-            <Stepper activeStep={state.currentStep} className={classes.stepper}>
+            <Stepper nonLinear activeStep={state.currentStep} className={classes.stepper}>
               {STEPS.map((label, idx) => (
-                <Step key={idx}>
-                  <StepLabel>{label}</StepLabel>
+                <Step key={label} completed={idx < state.currentStep}>
+                  <StepButton
+                    onClick={() => handleStepClick(idx)}
+                    disabled={idx > state.currentStep}
+                  >
+                    {label}
+                  </StepButton>
                 </Step>
               ))}
             </Stepper>
@@ -406,24 +417,23 @@ export const CreateWizard: FC<CreateWizardProps> = ({
             </Box>
 
             <Box display="flex" style={{ gap: 8 }}>
+              <Button
+                startIcon={<SaveIcon />}
+                onClick={handleSaveDraft}
+                disabled={!state.dirty || isSaving}
+              >
+                Save Draft
+              </Button>
+
               {!isLastStep && (
-                <>
-                  <Button
-                    startIcon={<SaveIcon />}
-                    onClick={handleSaveDraft}
-                    disabled={!state.dirty || isSaving}
-                  >
-                    Save Draft
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleNext}
-                    disabled={!canContinue || isSaving}
-                  >
-                    Continue
-                  </Button>
-                </>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleNext}
+                  disabled={!canContinue || isSaving}
+                >
+                  Continue
+                </Button>
               )}
 
               {isLastStep && (
@@ -432,19 +442,12 @@ export const CreateWizard: FC<CreateWizardProps> = ({
                     Cancel
                   </Button>
                   <Button
-                    startIcon={<SaveIcon />}
-                    onClick={handleSaveDraft}
-                    disabled={!state.dirty || isSaving}
-                  >
-                    Save Draft
-                  </Button>
-                  <Button
                     variant="contained"
                     color="primary"
                     onClick={handleSubmit}
                     disabled={isSaving || !canContinue}
                   >
-                    Save Draft
+                    Save & Finish
                   </Button>
                 </>
               )}

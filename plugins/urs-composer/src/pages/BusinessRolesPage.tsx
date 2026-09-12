@@ -16,6 +16,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@material-ui/core';
+import { NEXORA_BORDER } from '@internal/plugin-nexora-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import type { BusinessRole } from '../api/types';
 
@@ -144,7 +145,7 @@ export function BusinessRolesPage() {
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 0' }}>
           <section
             style={{
-              border: '1px solid #E2E8F0',
+              border: `1px solid ${NEXORA_BORDER}`,
               borderRadius: 12,
               padding: 20,
               marginBottom: 32,
@@ -202,7 +203,7 @@ export function BusinessRolesPage() {
                 <section
                   key={role.id}
                   style={{
-                    border: '1px solid #E2E8F0',
+                    border: `1px solid ${NEXORA_BORDER}`,
                     borderRadius: 12,
                     padding: 16,
                     marginBottom: 12,

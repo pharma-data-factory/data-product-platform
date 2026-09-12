@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf-mqtt-producer"
+version = "0.1.0"
+description = "Reusable MQTT Producer platform component for Product Publish Bus egress"
+requires-python = ">=3.11"
+dependencies = [
+  "paho-mqtt>=2.1.0",
+  "pydantic-settings>=2.6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.0", "ruff>=0.7.0"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -3,6 +3,7 @@ import DarkIcon from '@material-ui/icons/Brightness4';
 import { UnifiedThemeProvider } from '@backstage/theme';
 import { ThemeBlueprint } from '@backstage/plugin-app-react';
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
+import { NexoraGlobalStyles } from '@internal/plugin-nexora-common';
 import {
   pharmaDataFactoryDarkTheme,
   pharmaDataFactoryTheme,
@@ -12,6 +13,9 @@ import {
  * Two branded themes enable Backstage's built-in top-right theme switch
  * (User Settings / appearance). Default app light/dark stay disabled in
  * app-config.yaml so only Nexora themes appear.
+ *
+ * NexoraGlobalStyles syncs CSS custom properties (--nexora-*) with the
+ * active variant so Landing / Home / plugin chrome follow the switch.
  */
 const nexoraLightTheme = ThemeBlueprint.make({
   name: 'nexora-light',
@@ -23,6 +27,7 @@ const nexoraLightTheme = ThemeBlueprint.make({
       icon: <LightIcon />,
       Provider: ({ children }) => (
         <UnifiedThemeProvider theme={pharmaDataFactoryTheme}>
+          <NexoraGlobalStyles />
           {children}
         </UnifiedThemeProvider>
       ),
@@ -40,6 +45,7 @@ const nexoraDarkTheme = ThemeBlueprint.make({
       icon: <DarkIcon />,
       Provider: ({ children }) => (
         <UnifiedThemeProvider theme={pharmaDataFactoryDarkTheme}>
+          <NexoraGlobalStyles />
           {children}
         </UnifiedThemeProvider>
       ),

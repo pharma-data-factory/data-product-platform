@@ -5,6 +5,8 @@ import {
   DataContract,
   TraceabilityLink,
   ProductBaseline,
+  PersistedProductManifest,
+  ProductChangeSignal,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -47,6 +49,23 @@ export interface IComposerRepository {
   getProductBaseline(id: string): Promise<ProductBaseline | null>;
   listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
   updateProductBaseline(baseline: ProductBaseline): Promise<void>;
+
+  createProductManifest(
+    manifest: PersistedProductManifest,
+  ): Promise<PersistedProductManifest>;
+  getProductManifestByBaselineId(
+    productBaselineId: string,
+  ): Promise<PersistedProductManifest | null>;
+  getProductManifestByVersionId(
+    productVersionId: string,
+  ): Promise<PersistedProductManifest | null>;
+
+  upsertProductChangeSignal(
+    signal: ProductChangeSignal,
+  ): Promise<ProductChangeSignal>;
+  listProductChangeSignals(
+    productVersionId: string,
+  ): Promise<ProductChangeSignal[]>;
 
   createAuditEvent(event: ComposerAuditEvent): Promise<void>;
   getEntityAuditTrail(entityType: string, entityId: string): Promise<ComposerAuditEvent[]>;

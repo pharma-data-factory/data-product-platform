@@ -395,6 +395,48 @@ export async function createRouter(
     },
   );
 
+  router.get(
+    '/versions/:versionId/qa-readiness',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        res.json(
+          await service.checkQaReadiness(req.params.versionId, credentials),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/change-signals',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { actor, credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        res.json(
+          await service.listProductChangeSignals(
+            req.params.versionId,
+            actor,
+            credentials,
+          ),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   // ============================================================================
   // PRODUCT BASELINES
   // ============================================================================
@@ -403,7 +445,7 @@ export async function createRouter(
     '/versions/:versionId/baselines',
     async (req: express.Request, res: express.Response) => {
       try {
-        const { actor } = await authorize(
+        const { actor, credentials } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -413,6 +455,7 @@ export async function createRouter(
           req.params.versionId,
           req.body as CreateProductBaselineRequest,
           actor,
+          credentials,
         );
         res.status(201).json(baseline);
       } catch (err) {
@@ -427,6 +470,86 @@ export async function createRouter(
       try {
         await authorize(permissions, httpAuth, req, productReadPermission);
         res.json(await service.listProductBaselines(req.params.versionId));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/manifest',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const manifest = await service.getProductManifestForVersion(
+          req.params.versionId,
+        );
+        if (!manifest) {
+          res.status(404).json({ error: 'Product manifest not found' });
+          return;
+        }
+        res.json(manifest);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/scaffold-binding',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { actor, credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const binding = await service.getScaffoldBinding(
+          req.params.versionId,
+          actor,
+          credentials,
+        );
+        res.json(binding);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/urs-baselines/approved',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        const items = await service.listApprovedUrsBaselines(credentials);
+        res.json({ items });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/urs-baselines/:id/status',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        const status = await service.inspectUrsBaselinePin(
+          req.params.id,
+          credentials,
+        );
+        res.json(status);
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -450,11 +573,30 @@ export async function createRouter(
     },
   );
 
+  router.get(
+    '/baselines/:id/manifest',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const manifest = await service.getProductManifestForBaseline(
+          req.params.id,
+        );
+        if (!manifest) {
+          res.status(404).json({ error: 'Product manifest not found' });
+          return;
+        }
+        res.json(manifest);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/baselines/:id/approve',
     async (req: express.Request, res: express.Response) => {
       try {
-        const { actor } = await authorize(
+        const { actor, credentials } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -463,6 +605,7 @@ export async function createRouter(
         const baseline = await service.approveProductBaseline(
           req.params.id,
           actor,
+          credentials,
         );
         res.json(baseline);
       } catch (err) {

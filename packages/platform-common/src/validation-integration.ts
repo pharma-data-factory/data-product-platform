@@ -59,6 +59,90 @@ export type CreateValidationContextRequest = {
 };
 
 /**
+ * Technical CI Quality Gate evidence metadata registered from Product Composer
+ * on controlled RELEASED. Encoded in ValidationEvidenceItem.reference as JSON.
+ * Not GxP / Part 11 validation evidence and does not imply VALIDATED.
+ */
+export interface TechnicalCiEvidenceReference {
+  kind: 'ci-quality-gate';
+  productId: string;
+  productVersionId: string;
+  productBaselineId: string;
+  ursBaselineId: string;
+  manifestContentHash: string;
+  entityRef?: string;
+  ciStatus: 'PASSED';
+  workflowName?: string;
+  commitSha?: string;
+  branch?: string;
+  htmlUrl?: string;
+  conclusion?: string;
+  registeredAt: string;
+  disclaimer: 'technical-control-not-gxp';
+}
+
+export type RegisterTechnicalCiEvidenceRequest = {
+  evidenceType: 'ci-quality-gate';
+  /** Canonical JSON string of TechnicalCiEvidenceReference (or compatible). */
+  reference: string;
+  createdBy: string;
+  candidate?: string;
+  /**
+   * Stable key for idempotent re-registration
+   * (e.g. productVersionId + contentHash + commitSha).
+   */
+  idempotencyKey: string;
+};
+
+export type RegisterTechnicalCiEvidenceResponse = {
+  item: {
+    id: string;
+    evidenceType: string;
+    reference: string;
+    checksum?: string;
+    createdAt: string;
+    createdBy?: string;
+    source: 'runtime';
+  };
+  created: boolean;
+};
+
+/**
+ * Soft QA readiness for Product Composer (advisory).
+ * Technical control only — not GxP / Part 11 / VALIDATED.
+ */
+export type EvidenceCompletenessStatus =
+  | 'MISSING'
+  | 'PRESENT'
+  | 'UNAVAILABLE'
+  | 'NOT_APPLICABLE';
+
+/** Live URS baseline currency for the product pin (advisory). */
+export type UrsPinCurrencyStatus =
+  | 'APPROVED'
+  | 'SUPERSEDED'
+  | 'NOT_APPROVED'
+  | 'UNAVAILABLE'
+  | 'MISSING'
+  | 'NOT_APPLICABLE';
+
+export interface ProductQaReadiness {
+  productVersionId: string;
+  versionStatus: string;
+  releaseGatePassed: boolean;
+  evidenceCompleteness: EvidenceCompletenessStatus;
+  evidenceId?: string;
+  idempotencyKey?: string;
+  /** Live status of the pinned URS baseline (pull-time). */
+  ursPinStatus: UrsPinCurrencyStatus;
+  ursBaselineId?: string;
+  ursSupersededBy?: string;
+  ursPinMessage?: string;
+  message: string;
+  disclaimer: 'technical-control-not-gxp';
+}
+
+/**
  * Read-through display DTO for a requirement pinned by an approved URS
  * baseline. Resolved on demand via the URS Composer public API; not stored
  * as a second document copy inside Validation Expert.

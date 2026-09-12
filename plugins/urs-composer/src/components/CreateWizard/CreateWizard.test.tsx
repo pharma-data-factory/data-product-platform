@@ -28,8 +28,12 @@ const mockApi = {
     ],
     total: 1,
   }),
+  listBusinessRoles: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+  listRequirementSets: jest.fn().mockResolvedValue({ items: [], total: 0 }),
   createRequirementSet: jest.fn(),
   updateRequirementSet: jest.fn(),
+  validateRequirement: jest.fn().mockResolvedValue({ issues: [] }),
+  validateRequirementSet: jest.fn().mockResolvedValue({ issues: [] }),
 };
 
 const renderWizard = (onCancel?: () => void) =>
@@ -49,18 +53,15 @@ describe('CreateWizard', () => {
   // ============================================================================
 
   describe('Rendering', () => {
-    test('renders 8-step stepper', () => {
+    test('renders 5-step stepper', () => {
       renderWizard();
 
       expect(screen.getByText('Create URS')).toBeInTheDocument();
-      expect(screen.getByText('Business Capability')).toBeInTheDocument();
-      expect(screen.getByText('Business Need')).toBeInTheDocument();
+      expect(screen.getByText('Capability & Need')).toBeInTheDocument();
       expect(screen.getByText('URS Context')).toBeInTheDocument();
-      expect(screen.getByText('Requirements')).toBeInTheDocument();
-      expect(screen.getByText('Acceptance Criteria')).toBeInTheDocument();
-      expect(screen.getByText('Quality & GxP Review')).toBeInTheDocument();
-      expect(screen.getByText('Traceability')).toBeInTheDocument();
-      expect(screen.getByText('Review & Submit')).toBeInTheDocument();
+      expect(screen.getByText('Requirements & AC')).toBeInTheDocument();
+      expect(screen.getByText('Quality Review')).toBeInTheDocument();
+      expect(screen.getByText('Review & Save')).toBeInTheDocument();
     });
 
     test('renders Step 1 content on mount', async () => {

@@ -18,6 +18,7 @@ import { LEGAL_NAV } from '../legal/constants';
 import { BrandMark } from '../nav/BrandMark';
 import { GoldenPathShowcase } from './GoldenPathShowcase';
 import { HeroSection } from './home/HeroSection';
+import { cssVariablesToDeclaration } from '@internal/plugin-nexora-common';
 import { HomeStyles } from './home/HomeStyles';
 import {
   AcademySection,
@@ -35,7 +36,7 @@ import {
   LandingI18nProvider,
   useLandingI18n,
 } from './landingI18n';
-import { C, BRAND_NAME, BRAND_WORDMARK, LANDING, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
+import { C, BRAND_NAME, BRAND_WORDMARK, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
 import { CookieConsentBanner } from '../legal/CookieConsentBanner';
 import { legalNavCopy } from '../legal/legalCopy';
 import { openCookieSettings } from '../legal/cookieConsent';
@@ -52,20 +53,28 @@ const NAV_ITEMS = [
 const animate =
   typeof process === 'undefined' || process.env.NODE_ENV !== 'test';
 
+/**
+ * Public marketing chrome. Always pins the light brand palette on `.pdf-root`
+ * so Control Plane dark mode cannot wash out section text/cards.
+ */
 export const LandingStyles = () => (
   <style>{`
     html { scroll-behavior: smooth; }
     .pdf-root {
-      background: ${C.base};
-      color: ${C.text};
-      font-family: Inter, Segoe UI, system-ui, sans-serif;
+      ${cssVariablesToDeclaration('light')}
+      background: var(--nexora-color-surface);
+      color: var(--nexora-color-text);
+      font-family: var(--nexora-font-sans);
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
       min-height: 100vh;
     }
-    .pdf-display { font-family: 'Space Grotesk', Inter, system-ui, sans-serif; letter-spacing: -0.02em; }
-    .pdf-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-    .pdf-muted { color: ${C.muted}; }
+    .pdf-display {
+      font-family: var(--nexora-font-display);
+      letter-spacing: -0.02em;
+    }
+    .pdf-mono { font-family: var(--nexora-font-mono); }
+    .pdf-muted { color: var(--nexora-color-text-muted); }
     .pdf-grid-bg {
       background-image:
         linear-gradient(rgba(0,194,217,0.10) 1px, transparent 1px),
@@ -75,20 +84,25 @@ export const LandingStyles = () => (
       -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
     }
     .pdf-card {
-      background: ${C.card};
-      border: 1px solid ${C.border};
+      background: var(--nexora-color-surface-raised);
+      border: 1px solid var(--nexora-color-border);
       border-radius: 16px;
-      box-shadow: 0 1px 2px rgba(11, 31, 58, 0.06);
+      box-shadow: var(--nexora-shadow);
+      color: var(--nexora-color-text);
       transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .35s, box-shadow .35s, background .35s;
     }
-    .pdf-card:hover { transform: translateY(-3px); background: #F8FAFC; border-color: rgba(11,31,58,0.16); }
+    .pdf-card:hover {
+      transform: translateY(-3px);
+      background: var(--nexora-color-card-hover);
+      border-color: var(--nexora-color-border-strong);
+    }
     .pdf-glass {
-      background: rgba(255,255,255,0.92);
+      background: var(--nexora-color-glass);
       backdrop-filter: blur(14px);
-      border-bottom: 1px solid ${C.border};
+      border-bottom: 1px solid var(--nexora-color-border);
     }
     .pdf-btn-primary {
-      background: linear-gradient(135deg, ${PHARMA_NAVY}, ${PHARMA_TEAL}) !important;
+      background: linear-gradient(135deg, var(--nexora-color-hero-to), var(--nexora-color-accent)) !important;
       color: #fff !important;
       text-transform: none !important;
       box-shadow: none !important;
@@ -97,21 +111,24 @@ export const LandingStyles = () => (
     }
     .pdf-btn-primary:hover { box-shadow: 0 8px 24px rgba(11,31,58,0.18) !important; filter: brightness(1.04); }
     .pdf-btn-ghost {
-      border: 1px solid ${C.border} !important;
-      color: ${C.text} !important;
+      border: 1px solid var(--nexora-color-border) !important;
+      color: var(--nexora-color-text) !important;
       text-transform: none !important;
       border-radius: 12px !important;
     }
-    .pdf-btn-ghost:hover { border-color: ${PHARMA_TEAL} !important; background: rgba(0,194,217,0.08) !important; }
+    .pdf-btn-ghost:hover {
+      border-color: var(--nexora-color-accent) !important;
+      background: var(--nexora-color-cyan-tint) !important;
+    }
     .pdf-btn-hero-primary {
-      background: ${LANDING.teal} !important;
+      background: var(--nexora-color-accent) !important;
       color: #fff !important;
       text-transform: none !important;
       box-shadow: none !important;
       font-weight: 600 !important;
       border-radius: 12px !important;
     }
-    .pdf-btn-hero-primary:hover { background: ${PHARMA_TEAL_DARK} !important; }
+    .pdf-btn-hero-primary:hover { background: var(--nexora-color-accent-hover) !important; }
     .pdf-btn-hero-ghost {
       border: 1px solid rgba(255,255,255,0.35) !important;
       color: #fff !important;
@@ -141,7 +158,11 @@ export const LandingStyles = () => (
       .pdf-hero-glow { animation: none !important; }
       .pdf-reveal { transition: none; opacity: 1; transform: none; }
     }
-    .pdf-focus:focus-visible { outline: 2px solid ${PHARMA_TEAL}; outline-offset: 3px; border-radius: 8px; }
+    .pdf-focus:focus-visible {
+      outline: 2px solid var(--nexora-color-focus);
+      outline-offset: 3px;
+      border-radius: 8px;
+    }
     .pdf-home-steps {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -164,7 +185,7 @@ export const LandingStyles = () => (
       justify-content: center;
       font-size: 28px;
       font-weight: 700;
-      color: ${PHARMA_TEAL};
+      color: var(--nexora-color-accent-readable);
     }
     @media (max-width: 1100px) {
       .pdf-home-equation { grid-template-columns: 1fr; }

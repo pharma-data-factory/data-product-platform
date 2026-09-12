@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
@@ -13,9 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class MqttIngest:
-    def __init__(self, settings: Settings, store: TemperatureStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        store: TemperatureStore,
+        publisher: Any | None = None,
+    ) -> None:
         self._settings = settings
         self._store = store
+        self._publisher = publisher
         self._client: mqtt.Client | None = None
 
     def start(self) -> None:
@@ -55,7 +62,9 @@ class MqttIngest:
 
     def ingest_payload(self, payload: str) -> TemperatureEvent:
         event = TemperatureEvent.model_validate_json(payload)
-        stored, _created = self._store.insert(event)
+        stored, created = self._store.insert(event)
+        if created and self._publisher is not None:
+            self._publisher.publish_temperature(stored)
         return stored
 
     def _handle_connect(self, client, _userdata, _connect_flags, reason_code, _properties) -> None:

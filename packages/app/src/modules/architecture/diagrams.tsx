@@ -1,5 +1,11 @@
 import { type ReactNode } from 'react';
-import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import {
+  C,
+  PHARMA_NAVY,
+  PHARMA_TEAL,
+  PHARMA_TEAL_LIGHT,
+  PHARMA_TEAL_ON_LIGHT,
+} from '../identity/landingTokens';
 import {
   CATALOG_RELATIONSHIPS,
   DEVELOPER_FLOW_STEPS,
@@ -70,11 +76,11 @@ export function ArchitectureDiagramStyles() {
         border: 1px solid ${C.border};
       }
       .pdf-diag-layer-title {
-        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-family: var(--nexora-font-mono, 'JetBrains Mono', ui-monospace, monospace);
         font-size: 11px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: ${PHARMA_TEAL};
+        color: ${PHARMA_TEAL_ON_LIGHT};
         margin: 0 0 12px;
         font-weight: 600;
       }

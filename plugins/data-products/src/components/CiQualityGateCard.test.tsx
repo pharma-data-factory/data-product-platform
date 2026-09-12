@@ -1,7 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
-import { CiQualityGateView } from './CiQualityGateCard';
+import {
+  CiQualityGateView,
+  describeManifestPins,
+} from './CiQualityGateCard';
 import { QualityAndContractCard } from './QualityAndContractCard';
 import { DataProduct } from '../model';
 import { CiStatusChip } from './CiStatusChip';
@@ -44,6 +47,11 @@ describe('CI Quality Gate UI', () => {
             htmlUrl:
               'https://github.com/pharma-data-factory/cold-room-temperature/actions/runs/42',
           }}
+          pins={{
+            productManifestContentHash: 'abcdef0123456789',
+            ursBaselineId: 'urs-bl-1',
+            productBaselineId: 'pbl-1',
+          }}
         />
       </MemoryRouter>,
     );
@@ -53,6 +61,7 @@ describe('CI Quality Gate UI', () => {
     expect(screen.getByText('CI')).toBeInTheDocument();
     expect(screen.getByText('main')).toBeInTheDocument();
     expect(screen.getByText('a82f921')).toBeInTheDocument();
+    expect(screen.getByText('Pinned')).toBeInTheDocument();
     expect(screen.getByText('View in GitHub')).toHaveAttribute(
       'href',
       'https://github.com/pharma-data-factory/cold-room-temperature/actions/runs/42',
@@ -64,6 +73,21 @@ describe('CI Quality Gate UI', () => {
     expect(
       screen.getByText(/not GxP or regulatory validation/i),
     ).toBeInTheDocument();
+  });
+
+  it('describes catalog manifest pin presence', () => {
+    expect(describeManifestPins(undefined)).toBe('Not pinned');
+    expect(describeManifestPins({})).toBe('Not pinned');
+    expect(
+      describeManifestPins({ productManifestContentHash: 'abc' }),
+    ).toBe('Incomplete');
+    expect(
+      describeManifestPins({
+        productManifestContentHash: 'abc',
+        ursBaselineId: 'urs-1',
+        productBaselineId: 'pbl-1',
+      }),
+    ).toBe('Pinned');
   });
 
   it('renders failed quality stages', () => {

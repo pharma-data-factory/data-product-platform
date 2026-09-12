@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     mqtt_password: str = ""
     mqtt_topic: str = "${{ values.mqttTopic }}"
     mqtt_client_id: str = "${{ values.name }}"
+    mqtt_publish_enabled: bool = False
+    mqtt_publish_topic: str = (
+        "products/${{ values.domain }}/${{ values.name }}/temperature-event/v1"
+    )
     data_contract_version: str = "1.1.0"
     template_name: str = "${{ values.templateName }}"
     template_version: str = "${{ values.templateVersion }}"

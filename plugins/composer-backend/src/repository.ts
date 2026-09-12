@@ -14,6 +14,9 @@ import {
   DataContract,
   TraceabilityLink,
   ProductBaseline,
+  PersistedProductManifest,
+  ProductManifest,
+  ProductChangeSignal,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -256,9 +259,10 @@ export class ComposerRepository implements IComposerRepository {
       baseline_version: baseline.baselineVersion,
       status: baseline.status,
       snapshot: JSON.stringify(baseline.snapshot),
-      urs_baseline_ids: baseline.ursBaselineIds
-        ? JSON.stringify(baseline.ursBaselineIds)
-        : null,
+      urs_baseline_id: baseline.ursBaselineId,
+      urs_baseline_ids: JSON.stringify(
+        baseline.ursBaselineIds ?? [baseline.ursBaselineId],
+      ),
       created_by: baseline.createdBy,
       created_at: baseline.createdAt,
       revision: baseline.revision || 1,
@@ -282,11 +286,114 @@ export class ComposerRepository implements IComposerRepository {
   async updateProductBaseline(baseline: ProductBaseline): Promise<void> {
     await this.db('product_baselines').where({ id: baseline.id }).update({
       status: baseline.status,
+      urs_baseline_id: baseline.ursBaselineId,
       approved_by: baseline.approvedBy || null,
       approved_at: baseline.approvedAt || null,
       superseded_by: baseline.supersededBy || null,
       revision: (baseline.revision || 1) + 1,
     });
+  }
+
+  async createProductManifest(
+    manifest: PersistedProductManifest,
+  ): Promise<PersistedProductManifest> {
+    await this.db('product_manifests').insert({
+      id: manifest.id,
+      product_id: manifest.productId,
+      product_version_id: manifest.productVersionId,
+      product_baseline_id: manifest.productBaselineId,
+      urs_baseline_id: manifest.ursBaselineId,
+      manifest_version: manifest.manifestVersion,
+      content_hash: manifest.contentHash,
+      document: JSON.stringify(manifest.document),
+      created_by: manifest.createdBy,
+      created_at: manifest.createdAt,
+      revision: manifest.revision || 1,
+    });
+    return manifest;
+  }
+
+  async getProductManifestByBaselineId(
+    productBaselineId: string,
+  ): Promise<PersistedProductManifest | null> {
+    const row = await this.db('product_manifests')
+      .where({ product_baseline_id: productBaselineId })
+      .orderBy('revision', 'desc')
+      .first();
+    return row ? this.rowToProductManifest(row) : null;
+  }
+
+  async getProductManifestByVersionId(
+    productVersionId: string,
+  ): Promise<PersistedProductManifest | null> {
+    const row = await this.db('product_manifests')
+      .where({ product_version_id: productVersionId })
+      .orderBy('created_at', 'desc')
+      .first();
+    return row ? this.rowToProductManifest(row) : null;
+  }
+
+  async upsertProductChangeSignal(
+    signal: ProductChangeSignal,
+  ): Promise<ProductChangeSignal> {
+    const existing = await this.db('product_change_signals')
+      .where({
+        change_request_id: signal.changeRequestId,
+        product_version_id: signal.productVersionId,
+      })
+      .first();
+    if (existing) {
+      await this.db('product_change_signals')
+        .where({ id: existing.id })
+        .update({
+          product_id: signal.productId ?? null,
+          urs_baseline_id: signal.ursBaselineId ?? null,
+          source: signal.source,
+          match_axis: signal.matchAxis,
+          last_hydrated_at: signal.lastHydratedAt,
+        });
+      const updated = await this.db('product_change_signals')
+        .where({ id: existing.id })
+        .first();
+      return this.rowToProductChangeSignal(updated);
+    }
+    await this.db('product_change_signals').insert({
+      id: signal.id,
+      product_id: signal.productId ?? null,
+      product_version_id: signal.productVersionId,
+      urs_baseline_id: signal.ursBaselineId ?? null,
+      change_request_id: signal.changeRequestId,
+      source: signal.source,
+      match_axis: signal.matchAxis,
+      created_by: signal.createdBy,
+      created_at: signal.createdAt,
+      last_hydrated_at: signal.lastHydratedAt,
+    });
+    return signal;
+  }
+
+  async listProductChangeSignals(
+    productVersionId: string,
+  ): Promise<ProductChangeSignal[]> {
+    const rows = await this.db('product_change_signals')
+      .where({ product_version_id: productVersionId })
+      .orderBy('last_hydrated_at', 'desc');
+    return rows.map((row: any) => this.rowToProductChangeSignal(row));
+  }
+
+  private rowToProductChangeSignal(row: any): ProductChangeSignal {
+    return {
+      id: row.id,
+      productId: row.product_id || undefined,
+      productVersionId: row.product_version_id,
+      ursBaselineId: row.urs_baseline_id || undefined,
+      changeRequestId: row.change_request_id,
+      source: row.source,
+      matchAxis: row.match_axis,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      lastHydratedAt: row.last_hydrated_at,
+    };
   }
 
   private rowToProduct(row: any): Product {
@@ -404,20 +511,41 @@ export class ComposerRepository implements IComposerRepository {
   }
 
   private rowToProductBaseline(row: any): ProductBaseline {
+    const legacyIds: string[] | undefined = row.urs_baseline_ids
+      ? JSON.parse(row.urs_baseline_ids)
+      : undefined;
+    const ursBaselineId =
+      row.urs_baseline_id ||
+      (Array.isArray(legacyIds) && legacyIds[0] ? String(legacyIds[0]) : '');
     return {
       id: row.id,
       productVersionId: row.product_version_id,
       baselineVersion: row.baseline_version,
       status: row.status,
       snapshot: JSON.parse(row.snapshot),
-      ursBaselineIds: row.urs_baseline_ids
-        ? JSON.parse(row.urs_baseline_ids)
-        : undefined,
+      ursBaselineId,
+      ursBaselineIds: legacyIds ?? (ursBaselineId ? [ursBaselineId] : undefined),
       createdBy: row.created_by,
       createdAt: row.created_at,
       approvedBy: row.approved_by || undefined,
       approvedAt: row.approved_at || undefined,
       supersededBy: row.superseded_by || undefined,
+      revision: row.revision,
+    };
+  }
+
+  private rowToProductManifest(row: any): PersistedProductManifest {
+    return {
+      id: row.id,
+      productId: row.product_id,
+      productVersionId: row.product_version_id,
+      productBaselineId: row.product_baseline_id,
+      ursBaselineId: row.urs_baseline_id,
+      manifestVersion: row.manifest_version,
+      contentHash: row.content_hash,
+      document: JSON.parse(row.document) as ProductManifest,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
       revision: row.revision,
     };
   }

@@ -1,7 +1,7 @@
 /**
  * URS Create Wizard State Model
- * 
- * Manages the state of the 8-step wizard throughout creation.
+ *
+ * Manages the state of the 5-step wizard throughout creation.
  * Separates temporary editing state (React) from persisted state (backend).
  */
 
@@ -52,11 +52,9 @@ export interface URSWizardState {
   ursStatus?: URSStatus; // Status of the persisted set (edit mode)
   versionNumber?: number; // Version of the persisted set (edit mode)
 
-  // === STEP 1: BUSINESS CAPABILITY ===
+  // === STEP 0: CAPABILITY & NEED ===
   businessCapabilityRefs: string[]; // Array of capability IDs
   selectedCapabilities?: Record<string, boolean>; // UI selection state
-
-  // === STEP 2: BUSINESS NEED ===
   businessNeed: {
     title?: string;
     desiredOutcome?: string;
@@ -64,7 +62,7 @@ export interface URSWizardState {
     stakeholders?: string[]; // Role IDs (role:<slug>) of the executing roles
   };
 
-  // === STEP 3: URS CONTEXT ===
+  // === STEP 1: URS CONTEXT ===
   context: {
     title?: string;
     scope?: string;
@@ -76,13 +74,10 @@ export interface URSWizardState {
     electronicRecords?: boolean;
   };
 
-  // === STEP 4: REQUIREMENTS ===
+  // === STEP 2: REQUIREMENTS & ACCEPTANCE CRITERIA ===
   requirements: RequirementDraft[];
 
-  // === STEP 5: ACCEPTANCE CRITERIA ===
-  // (Linked to requirements via requirement.acceptanceCriteria)
-
-  // === STEP 6: QUALITY & GxP REVIEW ===
+  // === STEP 3: QUALITY REVIEW ===
   qualityChecks?: {
     clarity: 'PASS' | 'WARNING' | 'BLOCKING';
     testability: 'PASS' | 'WARNING' | 'BLOCKING';
@@ -91,10 +86,7 @@ export interface URSWizardState {
     gxpClassification: 'PASS' | 'WARNING' | 'BLOCKING';
   };
 
-  // === STEP 7: TRACEABILITY ===
-  // (Auto-calculated from linked entities)
-
-  // === STEP 8: REVIEW & SUBMIT ===
+  // === STEP 4: REVIEW & SAVE ===
   solutionType?: SolutionType;
   solutionName?: string;
   solutionCatalogRef?: string;
@@ -106,7 +98,7 @@ export interface URSWizardState {
   };
 
   // === NAVIGATION ===
-  currentStep: number; // 0-7 (0 = step 1, etc.)
+  currentStep: number; // 0-4
 }
 
 /**
@@ -127,18 +119,22 @@ export function initializeWizardState(): URSWizardState {
 /**
  * Validate step for completion (required fields)
  * Returns: { isValid, errors }
+ *
+ * Steps (5):
+ * 0 Capability & Need
+ * 1 URS Context
+ * 2 Requirements & Acceptance Criteria
+ * 3 Quality review
+ * 4 Review & Save
  */
 export function validateStep(state: URSWizardState, step: number): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   switch (step) {
-    case 0: // Business Capability
+    case 0: // Capability & Need
       if (state.businessCapabilityRefs.length === 0) {
         errors.push('Select at least one business capability');
       }
-      break;
-
-    case 1: // Business Need
       if (!state.businessNeed.title?.trim()) {
         errors.push('Enter business need title');
       }
@@ -147,7 +143,7 @@ export function validateStep(state: URSWizardState, step: number): { isValid: bo
       }
       break;
 
-    case 2: // URS Context
+    case 1: // URS Context
       if (!state.context.title?.trim()) {
         errors.push('Enter URS title');
       }
@@ -159,7 +155,7 @@ export function validateStep(state: URSWizardState, step: number): { isValid: bo
       }
       break;
 
-    case 3: // Requirements
+    case 2: { // Requirements & Acceptance Criteria
       if (state.requirements.length === 0) {
         errors.push('Add at least one requirement');
       }
@@ -171,9 +167,6 @@ export function validateStep(state: URSWizardState, step: number): { isValid: bo
           errors.push(`Requirement ${idx + 1}: statement is required`);
         }
       });
-      break;
-
-    case 4: { // Acceptance Criteria
       const reqsWithoutAC = state.requirements.filter(
         r => !r.acceptanceCriteria || r.acceptanceCriteria.length === 0,
       );
@@ -183,15 +176,10 @@ export function validateStep(state: URSWizardState, step: number): { isValid: bo
       break;
     }
 
-    case 5: // Quality Review
-      // Warning level, not blocking
+    case 3: // Quality Review — informational, not blocking
       break;
 
-    case 6: // Traceability
-      // Informational, not blocking
-      break;
-
-    case 7: // Review & Submit
+    case 4: // Review & Save
       if (!state.solutionName?.trim()) {
         errors.push('Enter solution name');
       }
@@ -457,4 +445,3 @@ export function fromImportJson(json: unknown): ImportValidationResult {
 
   return { valid: true, errors: [], state };
 }
-

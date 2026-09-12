@@ -16,6 +16,10 @@ import {
   capabilitiesRouteRef,
   businessRolesRouteRef,
   changeSetRouteRef,
+  changeRequestsRouteRef,
+  createChangeRequestRouteRef,
+  changeRequestDetailRouteRef,
+  portfolioRouteRef,
 } from './routes';
 
 const ursComposerApi = ApiBlueprint.make({
@@ -87,6 +91,56 @@ const businessRolesPage = PageBlueprint.make({
   },
 });
 
+const changeRequestsPage = PageBlueprint.make({
+  name: 'change-requests',
+  params: {
+    path: '/urs-composer/change-requests',
+    routeRef: changeRequestsRouteRef,
+    title: 'Change Requests',
+    loader: () =>
+      import('./pages/ChangeRequestListPage').then(
+        m => <m.ChangeRequestListPage />,
+      ),
+  },
+});
+
+const createChangeRequestPage = PageBlueprint.make({
+  name: 'create-change-request',
+  params: {
+    path: '/urs-composer/change-requests/new',
+    routeRef: createChangeRequestRouteRef,
+    loader: () =>
+      import('./pages/CreateChangeRequestPage').then(
+        m => <m.CreateChangeRequestPage />,
+      ),
+  },
+});
+
+const changeRequestDetailPage = PageBlueprint.make({
+  name: 'change-request-detail',
+  params: {
+    path: '/urs-composer/change-requests/:id',
+    routeRef: changeRequestDetailRouteRef,
+    loader: () =>
+      import('./pages/ChangeRequestDetailPage').then(
+        m => <m.ChangeRequestDetailPage />,
+      ),
+  },
+});
+
+const portfolioPage = PageBlueprint.make({
+  name: 'portfolio',
+  params: {
+    path: '/urs-composer/portfolio',
+    routeRef: portfolioRouteRef,
+    title: 'Portfolio Coverage',
+    loader: () =>
+      import('./pages/PortfolioCoveragePage').then(
+        m => <m.PortfolioCoveragePage />,
+      ),
+  },
+});
+
 const editPage = PageBlueprint.make({
   name: 'edit',
   params: {
@@ -126,6 +180,10 @@ export const ursComposerPlugin = createFrontendPlugin({
     createPage,
     capabilitiesPage,
     businessRolesPage,
+    changeRequestsPage,
+    createChangeRequestPage,
+    changeRequestDetailPage,
+    portfolioPage,
     editPage,
     changeSetPage,
     detailPage,
@@ -136,6 +194,10 @@ export const ursComposerPlugin = createFrontendPlugin({
     create: createRouteRef_,
     capabilities: capabilitiesRouteRef,
     businessRoles: businessRolesRouteRef,
+    changeRequests: changeRequestsRouteRef,
+    createChangeRequest: createChangeRequestRouteRef,
+    changeRequestDetail: changeRequestDetailRouteRef,
+    portfolio: portfolioRouteRef,
     edit: editRouteRef,
     changeSet: changeSetRouteRef,
     requirementSet: requirementSetRouteRef,

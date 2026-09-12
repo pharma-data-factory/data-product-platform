@@ -24,6 +24,7 @@ import {
   PHARMA_NAVY_DARK,
   PHARMA_TEAL,
   PHARMA_TEAL_LIGHT,
+  PHARMA_TEAL_ON_LIGHT,
 } from '../identity/landingTokens';
 import {
   ACADEMY_PATH,
@@ -148,7 +149,7 @@ function SolutionsIndex() {
                   marginTop: 20,
                   fontSize: 14,
                   fontWeight: 600,
-                  color: PHARMA_TEAL,
+                  color: PHARMA_TEAL_ON_LIGHT,
                 }}
               >
                 {audience.cta} →

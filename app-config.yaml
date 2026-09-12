@@ -300,6 +300,8 @@ commercial:
 validationExpert:
   validationRoot: validation
   runtimeStorePath: validation/runtime/runs-store.json
+  # persistence.mode: file (default) | memory | postgres
+  # postgres uses Backstage database for durable evidence (still NOT VALIDATED).
   healthBaseUrl: http://127.0.0.1:7007
 
 # Plugin Directory v0.1 — inventory of installed control-plane plugins.

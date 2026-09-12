@@ -1,8 +1,9 @@
 import express from 'express';
 import { AddressInfo } from 'net';
+import { createServer } from 'http';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import Router from 'express-promise-router';
-import { mountConsumeRoutes } from './router';
+import { buildUpstreamQueryUrl, mountConsumeRoutes } from './router';
 
 async function get(app: express.Express, urlPath: string) {
   const server = app.listen(0, '127.0.0.1');
@@ -23,12 +24,22 @@ describe('consume router', () => {
     getEntityByRef: jest.fn(),
   };
   const httpAuth = {
-    credentials: jest.fn(async () => ({ $$type: '@backstage/BackstageCredentials' })),
+    credentials: jest.fn(async () => ({
+      $$type: '@backstage/BackstageCredentials',
+    })),
   };
   const permissions = {
-    authorize: jest.fn(async () => [{ result: AuthorizeResult.ALLOW }] as { result: AuthorizeResult }[]),
+    authorize: jest.fn(
+      async () =>
+        [{ result: AuthorizeResult.ALLOW }] as { result: AuthorizeResult }[],
+    ),
   };
-  const logger = { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() };
+  const logger = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -42,20 +53,25 @@ describe('consume router', () => {
           'dataprod.platform/interfaces': 'REST',
           'dataprod.platform/validation-status': 'NOT_VALIDATED',
           'dataprod.platform/presentation-extensions': 'oee-dashboard',
+          'dataprod.platform/consume-rest-path': '/api/v1/oee',
         },
       },
-      spec: { type: 'data-product', owner: 'group:default/platform-team', lifecycle: 'experimental' },
+      spec: {
+        type: 'data-product',
+        owner: 'group:default/platform-team',
+        lifecycle: 'experimental',
+      },
     });
   });
 
-  function app() {
+  function app(baseUrls: Record<string, string> = {}) {
     const router = Router();
     mountConsumeRoutes(router, {
       logger: logger as any,
       catalog: catalog as any,
       httpAuth: httpAuth as any,
       permissions: permissions as any,
-      baseUrls: {},
+      baseUrls,
     });
     const application = express();
     application.use(router);
@@ -80,6 +96,57 @@ describe('consume router', () => {
     expect(result.status).toBe(200);
     expect(result.body.source).toBe('fixture');
     expect(result.body.rows[0].oee).toBeCloseTo(0.838);
+  });
+
+  it('adapts live upstream OEE JSON into Envelope columns', async () => {
+    const upstream = createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          equipmentId: 'FILLER-01',
+          availability: 0.9,
+          performance: 0.9,
+          quality: 0.9,
+          oee: 0.729,
+          calculatedAt: '2026-09-10T06:00:00Z',
+          context: { site: 'S1', area: 'A1', line: 'L1' },
+        }),
+      );
+    });
+    await new Promise<void>(resolve =>
+      upstream.listen(0, '127.0.0.1', () => resolve()),
+    );
+    const { port } = upstream.address() as AddressInfo;
+    try {
+      const result = await get(
+        app({ 'sample-oee-data-product': `http://127.0.0.1:${port}` }),
+        `/consume/query?entityRef=${encodeURIComponent('component:default/sample-oee-data-product')}`,
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.source).toBe('upstream');
+      expect(result.body.detail).toMatch(/OEE/);
+      expect(result.body.rows[0].oee).toBeCloseTo(0.729);
+      expect(
+        result.body.columns.find((c: { id: string }) => c.id === 'oee')
+          .semanticType,
+      ).toBe('percentage');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        upstream.close(error => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('builds upstream URLs with context query params', () => {
+    const url = buildUpstreamQueryUrl('http://product:8080', '/api/v1/oee', {
+      equipment: 'FILLER-01',
+      site: 'S1',
+      line: 'L1',
+    });
+    expect(url).toContain('/api/v1/oee');
+    expect(url).toContain('equipmentId=FILLER-01');
+    expect(url).toContain('site=S1');
+    expect(url).toContain('line=L1');
   });
 
   it('returns 404 for missing product', async () => {

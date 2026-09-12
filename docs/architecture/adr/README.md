@@ -41,11 +41,12 @@ Each ADR follows a standard format:
 | ADR-003 | Operational Persistence Strategy | ACCEPTED | Data | ✅ | 2026-08-25 |
 | ADR-004 | Git for Versioned Engineering Artifacts | ACCEPTED | Data | ✅ | 2026-08-25 |
 | ADR-005 | Business Capability as Requirements Anchor | ACCEPTED | Requirements | ✅ | 2026-08-25 |
-| ADR-006 | Immutable URS Baselines | PROPOSED | Requirements | ⏳ P1A | 2026-08-25 |
-| ADR-007 | Configurable Approval Workflows | PROPOSED | Governance | ⏳ P1A | 2026-08-25 |
+| ADR-006 | Immutable URS Baselines | ACCEPTED | Requirements | ✅ 2026-09-10 | 2026-09-10 |
+| ADR-007 | Configurable Approval Workflows | ACCEPTED | Governance | ✅ 2026-09-10 | 2026-09-10 |
 | ADR-008 | Backstage Permission Framework | ACCEPTED | Security | ✅ | 2026-08-25 |
 | ADR-009 | URS/Solution/Validation Domain Separation | ACCEPTED | Architecture | ✅ | 2026-08-25 |
 | ADR-010 | Reuse Before Build | ACCEPTED | Platform | ✅ | 2026-08-25 |
+| ADR-011 | Product Publish Bus (MQTT egress) | ACCEPTED | Integration | ✅ 2026-09-10 | 2026-09-10 |
 
 ---
 
@@ -57,15 +58,16 @@ Each ADR follows a standard format:
 - [ADR-010: Reuse Before Build](#adr-010)
 - [ADR-002: Plugin-Based Modular Architecture](#adr-002)
 
-### Architecture (2 ADRs)
+### Architecture (3 ADRs)
 
 - [ADR-002: Plugin-Based Modular Architecture](#adr-002)
 - [ADR-009: URS/Solution/Validation Domain Separation](#adr-009)
+- [ADR-011: Product Publish Bus (MQTT egress)](#adr-011)
 
 ### Requirements (3 ADRs)
 
 - [ADR-005: Business Capability as Requirements Anchor](#adr-005)
-- [ADR-006: Immutable URS Baselines](#adr-006) (PROPOSED)
+- [ADR-006: Immutable URS Baselines](#adr-006) (ACCEPTED)
 - [ADR-009: URS/Solution/Validation Domain Separation](#adr-009)
 
 ### Data (2 ADRs)
@@ -75,7 +77,7 @@ Each ADR follows a standard format:
 
 ### Governance (1 ADR)
 
-- [ADR-007: Configurable Approval Workflows](#adr-007) (PROPOSED)
+- [ADR-007: Configurable Approval Workflows](#adr-007) (ACCEPTED)
 
 ### Security (1 ADR)
 
@@ -213,8 +215,9 @@ Evidence & Validation
 
 ### ADR-006: Immutable URS Baselines
 
-**Status**: PROPOSED (P1A)  
-**Date**: 2026-08-25
+**Status**: ACCEPTED  
+**Date**: 2026-08-25  
+**Accepted**: 2026-09-10
 
 **Decision**: Approved URS baselines are immutable; revisions create new versions.
 
@@ -238,7 +241,9 @@ URS v1.1 APPROVED (immutable)
 Previous: v1.0 → SUPERSEDED
 ```
 
-**Implementation**: P1A introduces baseline versioning
+**Implementation**: Immutable baselines are implemented in URS Composer (Postgres
+persistence and domain controls). Acceptance records that the decision is in
+active use; subsystem validation remains **NOT VALIDATED**.
 
 **Related**: ADR-005, ADR-007
 
@@ -246,8 +251,9 @@ Previous: v1.0 → SUPERSEDED
 
 ### ADR-007: Configurable Approval Workflows
 
-**Status**: PROPOSED (P1A)  
-**Date**: 2026-08-25
+**Status**: ACCEPTED  
+**Date**: 2026-08-25  
+**Accepted**: 2026-09-10
 
 **Decision**: URS approval workflows are template-based and configurable.
 
@@ -267,7 +273,9 @@ GxP.INDIRECT  → standard-gxp-urs
 GxP.NONE      → non-gxp-urs
 ```
 
-**Implementation**: P1A introduces configurable workflows
+**Implementation**: Configurable approval workflows are implemented in URS
+Composer. Acceptance records that the decision is in active use; subsystem
+validation remains **NOT VALIDATED**.
 
 **Related**: ADR-006, ADR-008
 
@@ -365,6 +373,33 @@ GxP.NONE      → non-gxp-urs
 
 ---
 
+### ADR-011: Product Publish Bus (MQTT egress)
+
+**Status**: ACCEPTED  
+**Date**: 2026-09-10
+
+**Decision**: Data Products may optionally publish contract outputs to a **Product Publish Bus** on MQTT topics under `products/{domain}/{name}/{contract}/v{major}`. This bus is **not** Unified Namespace. UNS remains the OT ingress namespace. Publish is opt-in (`publish-enabled`, default false). Kafka may later implement the same egress surface; Snowflake/Databricks are **sinks behind the bus** via `warehouse-sink` (Phase C), not the bus itself.
+
+**Rationale**:
+- Keeps shop-floor topic governance (ISA-95 / UNS) separate from product analytics fan-out
+- Design-time Catalog annotations + descriptor expose ports without browser MQTT
+- Reuses Wave 1 MQTT credentials pattern; empty host / flag-off = no-op
+- Warehouse profiles land the same `StreamEvent` envelope (file staging / DDL stubs) without per-product ELT
+
+**Alternatives considered**:
+- Overload UNS topics with product facts — rejected (breaks Customer Zero / ISA-95)
+- Require Kafka for a “bus” — rejected (deferred; MQTT sufficient for Phase B)
+- Direct Snowflake write from each Golden Path — rejected (Phase C `warehouse-sink`)
+
+**Consequences**:
+- Positive: Dashboards and warehouse loaders share one egress envelope (`StreamEvent`)
+- Trade-off: `mqtt-producer` and `warehouse-sink` are DEVELOPMENT until CERTIFIED; GPs must keep publish / warehouse flags default **off**; no live Snowflake/Databricks driver in this release
+
+**Related Components**: `mqtt-producer`, `warehouse-sink`, Golden Path `ProductPublishBus`, `data-product-consumption` descriptor  
+**Related ADRs**: ADR-009, ADR-010
+
+---
+
 ## Cross-Cutting Decisions
 
 ### By Implementation Phase
@@ -379,11 +414,12 @@ GxP.NONE      → non-gxp-urs
 - ADR-009 ✅
 - ADR-010 ✅
 
-**P1A (In Progress)**:
-- ADR-006 🔶 (PROPOSED)
-- ADR-007 🔶 (PROPOSED)
+**P1A (Accepted 2026-09-10)**:
+- ADR-006 ✅ (ACCEPTED)
+- ADR-007 ✅ (ACCEPTED)
 
-**P1B+ (Planned)**:
+**P1B+ (Wave 2 track)**:
+- ADR-011 ✅ (Product Publish Bus)
 - Extension of ADR-006, ADR-007, ADR-009
 
 ---

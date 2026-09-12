@@ -87,8 +87,8 @@ mosquitto_pub -h localhost -t "pharma/filling-line/oven-01/temperature" -m '{
 
 ### 5. Query Temperature
 ```bash
-curl http://localhost:8080/api/v1/temperature
-curl http://localhost:8080/api/v1/temperature?sensorId=temp-oven-01&limit=100
+curl http://localhost:8080/api/v1/temperatures
+curl http://localhost:8080/api/v1/temperatures?sensorId=temp-oven-01&limit=100
 ```
 
 ## Data Contract
@@ -137,12 +137,12 @@ GET /health
 
 ### Get Latest Readings
 ```
-GET /api/v1/temperature?limit=100&sensorId=temp-oven-01
+GET /api/v1/temperatures?limit=100&sensorId=temp-oven-01
 ```
 
 ### Get Reading by Event ID
 ```
-GET /api/v1/temperature/{eventId}
+GET /api/v1/temperatures/{eventId}
 ```
 
 ### Quality Status

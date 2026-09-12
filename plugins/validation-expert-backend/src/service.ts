@@ -133,6 +133,58 @@ export class ValidationExpertService {
     return [...artifact, ...(await this.options.repository.listEvidence())];
   }
 
+  /**
+   * Register technical CI Quality Gate evidence without a formal IQ/OQ run.
+   * Idempotent on checksum derived from idempotencyKey.
+   * Technical metadata only — not GxP / Part 11 validation.
+   */
+  async registerTechnicalEvidence(input: {
+    evidenceType: string;
+    reference: string;
+    createdBy: string;
+    candidate?: string;
+    idempotencyKey: string;
+  }): Promise<{ item: ValidationEvidenceItem; created: boolean }> {
+    const evidenceType = input.evidenceType.trim();
+    const reference = input.reference.trim();
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (!evidenceType || !reference || !idempotencyKey) {
+      throw new Error(
+        'evidenceType, reference, and idempotencyKey are required',
+      );
+    }
+    if (evidenceType !== 'ci-quality-gate') {
+      throw new Error(
+        `Unsupported technical evidenceType '${evidenceType}' (allowed: ci-quality-gate)`,
+      );
+    }
+
+    const checksum = createHash('sha256')
+      .update(`technical:${idempotencyKey}`)
+      .digest('hex')
+      .slice(0, 32);
+
+    const existing = (await this.options.repository.listEvidence()).find(
+      item => item.checksum === checksum && item.evidenceType === evidenceType,
+    );
+    if (existing) {
+      return { item: existing, created: false };
+    }
+
+    const item: ValidationEvidenceItem = {
+      id: randomUUID(),
+      evidenceType,
+      reference,
+      checksum,
+      createdAt: new Date().toISOString(),
+      createdBy: input.createdBy,
+      candidate: input.candidate,
+      source: 'runtime',
+    };
+    await this.options.repository.addEvidence(item);
+    return { item, created: true };
+  }
+
   listRuns() {
     return this.options.repository.listRuns();
   }

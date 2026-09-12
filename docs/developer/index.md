@@ -17,6 +17,7 @@ Start here:
 - [Build Your First Data Product](first-data-product.md)
 - [Platform Components](../platform-components/index.md)
 - [Local development](local-development.md)
+- [Design tokens (colors & typography)](design-tokens.md)
 - [Documentation ownership](ownership.md)
 - [Internal vs customer documentation](classification.md)
 

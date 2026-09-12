@@ -30,6 +30,11 @@ export function PlatformComplianceCard({ product }: { product: DataProduct }) {
             product.contractLogicalName ||
             product.providesContract ||
             'Not registered',
+          'Manifest Content Hash': product.productManifestContentHash
+            ? `${product.productManifestContentHash.slice(0, 16)}…`
+            : 'Not pinned',
+          'URS Baseline ID': product.ursBaselineId || 'Not pinned',
+          'Product Baseline ID': product.productBaselineId || 'Not pinned',
         }}
       />
       <div style={{ marginTop: 16 }}>

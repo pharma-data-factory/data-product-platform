@@ -204,6 +204,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('status', 50).notNullable().defaultTo('DRAFT');
       table.text('snapshot').notNullable();
       table.text('urs_baseline_ids');
+      table.string('urs_baseline_id', 255);
       table.string('created_by', 255).notNullable();
       table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
       table.string('approved_by', 255);
@@ -213,12 +214,101 @@ export async function up(knex: Knex): Promise<void> {
 
       table.index(['product_version_id']);
       table.index(['status']);
+      table.index(['urs_baseline_id']);
       table.foreign('product_version_id').references('id').inTable('product_versions');
+    });
+  } else if (
+    !(await knex.schema.hasColumn('product_baselines', 'urs_baseline_id'))
+  ) {
+    await knex.schema.alterTable('product_baselines', table => {
+      table.string('urs_baseline_id', 255);
+      table.index(['urs_baseline_id']);
+    });
+  }
+
+  // Backfill urs_baseline_id from legacy urs_baseline_ids JSON array (first element)
+  if (
+    (await knex.schema.hasTable('product_baselines')) &&
+    (await knex.schema.hasColumn('product_baselines', 'urs_baseline_id'))
+  ) {
+    const rows = await knex('product_baselines')
+      .whereNull('urs_baseline_id')
+      .whereNotNull('urs_baseline_ids')
+      .select('id', 'urs_baseline_ids');
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.urs_baseline_ids);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) {
+          await knex('product_baselines')
+            .where({ id: row.id })
+            .update({ urs_baseline_id: String(parsed[0]) });
+        }
+      } catch {
+        // ignore malformed legacy JSON
+      }
+    }
+  }
+
+  // Phase: Product Manifest v0.1
+  if (!(await knex.schema.hasTable('product_manifests'))) {
+    await knex.schema.createTable('product_manifests', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255).notNullable();
+      table.string('product_version_id', 255).notNullable();
+      table.string('product_baseline_id', 255).notNullable();
+      table.string('urs_baseline_id', 255).notNullable();
+      table.string('manifest_version', 20).notNullable().defaultTo('0.1');
+      table.string('content_hash', 128).notNullable();
+      table.text('document').notNullable();
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.integer('revision').defaultTo(1);
+
+      table.index(['product_version_id']);
+      table.index(['product_baseline_id']);
+      table.index(['urs_baseline_id']);
+      table.unique(['product_baseline_id', 'manifest_version']);
+      table
+        .foreign('product_version_id')
+        .references('id')
+        .inTable('product_versions');
+      table
+        .foreign('product_baseline_id')
+        .references('id')
+        .inTable('product_baselines');
+    });
+  }
+
+  // Advisory reverse index: Product ↔ URS Change Request soft links (not GxP)
+  if (!(await knex.schema.hasTable('product_change_signals'))) {
+    await knex.schema.createTable('product_change_signals', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255);
+      table.string('product_version_id', 255).notNullable();
+      table.string('urs_baseline_id', 255);
+      table.string('change_request_id', 255).notNullable();
+      table.string('source', 50).notNullable().defaultTo('SOFT_HYDRATE');
+      table.string('match_axis', 50).notNullable();
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.timestamp('last_hydrated_at').notNullable().defaultTo(knex.fn.now());
+
+      table.index(['product_version_id']);
+      table.index(['product_id']);
+      table.index(['urs_baseline_id']);
+      table.index(['change_request_id']);
+      table.unique(['change_request_id', 'product_version_id']);
+      table
+        .foreign('product_version_id')
+        .references('id')
+        .inTable('product_versions');
     });
   }
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('product_change_signals');
+  await knex.schema.dropTableIfExists('product_manifests');
   await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');
   await knex.schema.dropTableIfExists('traceability_links');

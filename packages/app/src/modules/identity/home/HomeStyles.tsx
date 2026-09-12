@@ -3,7 +3,8 @@ import { C, PHARMA_NAVY } from '../landingTokens';
 
 export const HomeStyles = () => (
   <style>{`
-    :root {
+    /* Hero chrome stays navy+cyan; scoped under .pdf-root / .nx-hero (not global :root). */
+    .pdf-root, .nx-hero {
       --nx-bg: ${NX.bg};
       --nx-bg-deep: ${NX.bgDeep};
       --nx-surface: ${NX.surface};

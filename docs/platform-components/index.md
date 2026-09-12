@@ -36,7 +36,7 @@ Catalog type: `spec.type: platform-component`. Registry UI:
 
 | Category | Examples | Status in this phase |
 | --- | --- | --- |
-| Integration | REST Source, REST API, MQTT Consumer, Kafka Consumer/Producer, Unified Namespace | Wave 1 REST Source, REST API, and MQTT Consumer are **CERTIFIED** (technical only). UNS has a DEVELOPMENT runtime. Kafka is Catalog-only. |
+| Integration | REST Source, REST API, MQTT Consumer, MQTT Producer, Warehouse Sink, Kafka Consumer/Producer, Unified Namespace | Wave 1 REST Source, REST API, and MQTT Consumer are **CERTIFIED** (technical only). MQTT Producer and Warehouse Sink are **DEVELOPMENT** (Publish Bus egress / staging). UNS has a DEVELOPMENT runtime. Kafka is Catalog-only. |
 | Data | PostgreSQL, Time-Series Storage, Object Storage | Time-Series Storage 1.0.0 is **CERTIFIED** (SQLite MVP). PostgreSQL and object storage remain Catalog-only. |
 | Operations | Observability, Health, Audit | Wave 1 Health and Observability are **CERTIFIED**. Audit remains Catalog-only. |
 | Intelligence | Document Loader, Chunker, Embeddings, Vector Store, Retriever, RAG, LLM Gateway, Knowledge Graph | PLANNED placeholders only. |

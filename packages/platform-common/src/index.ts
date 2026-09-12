@@ -135,7 +135,26 @@ export type {
   ValidationContext,
   CreateValidationContextRequest,
   ValidationContextRequirement,
+  TechnicalCiEvidenceReference,
+  RegisterTechnicalCiEvidenceRequest,
+  RegisterTechnicalCiEvidenceResponse,
+  EvidenceCompletenessStatus,
+  UrsPinCurrencyStatus,
+  ProductQaReadiness,
 } from './validation-integration';
+
+export {
+  productVersionSoftRefLine,
+  productSoftRefLine,
+  raisedFromBaselineLine,
+  resolveProductSoftRefMatchAxis,
+  matchesProductSoftRefs,
+  filterChangeRequestsByProductSoftRefs,
+} from './product-change-soft-refs';
+export type {
+  SoftRefMatchTarget,
+  SoftRefMatchAxis,
+} from './product-change-soft-refs';
 
 export { quickActionsForRole } from './dashboard';
 export type { QuickAction } from './dashboard';
@@ -568,6 +587,8 @@ export {
   DATA_CONTRACT_SCHEMA_TYPES,
   TRACEABILITY_RELATIONSHIP_TYPES,
   PRODUCT_BASELINE_STATUSES,
+  PRODUCT_MANIFEST_VERSION,
+  PRODUCT_MANIFEST_ANNOTATIONS,
   isProductType,
   isProductVersionStatus,
   isDataContractStatus,
@@ -582,6 +603,12 @@ export type {
   DataContract,
   TraceabilityLink,
   ProductBaseline,
+  ProductManifest,
+  ProductManifestComponent,
+  ProductManifestDataContract,
+  ProductManifestPolicy,
+  ProductManifestQualityGate,
+  PersistedProductManifest,
   ProductType,
   ProductLifecycle,
   ProductStatus,

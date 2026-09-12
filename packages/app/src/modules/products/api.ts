@@ -6,8 +6,10 @@ import {
 } from '@backstage/core-plugin-api';
 import type {
   Product,
+  ProductBaseline,
   ProductComponent,
   ProductVersion,
+  PersistedProductManifest,
   TraceabilityLink,
 } from '@internal/platform-common';
 
@@ -29,6 +31,90 @@ export interface ReleaseGateResult {
   blockers: ReleaseGateBlocker[];
 }
 
+export interface ProductQaReadinessResult {
+  productVersionId: string;
+  versionStatus: string;
+  releaseGatePassed: boolean;
+  evidenceCompleteness:
+    | 'MISSING'
+    | 'PRESENT'
+    | 'UNAVAILABLE'
+    | 'NOT_APPLICABLE';
+  evidenceId?: string;
+  idempotencyKey?: string;
+  ursPinStatus:
+    | 'APPROVED'
+    | 'SUPERSEDED'
+    | 'NOT_APPROVED'
+    | 'UNAVAILABLE'
+    | 'MISSING'
+    | 'NOT_APPLICABLE';
+  ursBaselineId?: string;
+  ursSupersededBy?: string;
+  ursPinMessage?: string;
+  message: string;
+  disclaimer: 'technical-control-not-gxp';
+}
+
+export interface ApprovedUrsBaselineOption {
+  id: string;
+  status: string;
+  baselineVersion: string;
+  requirementSetId?: string;
+  solutionName?: string;
+}
+
+export interface UrsBaselinePinStatus {
+  id: string;
+  status: string;
+  baselineVersion: string;
+  requirementSetId?: string;
+  supersededBy?: string;
+}
+
+export interface ProductScaffoldBinding {
+  productId: string;
+  productName: string;
+  productSlug: string;
+  description?: string;
+  domain?: string;
+  owner?: string;
+  productVersionId: string;
+  productVersion: string;
+  productBaselineId: string;
+  ursBaselineId: string;
+  manifestContentHash: string;
+  manifestVersion: string;
+  scaffolderPinValues: {
+    productManifestContentHash: string;
+    ursBaselineId: string;
+    productBaselineId: string;
+    productVersionId: string;
+    productId: string;
+  };
+  supportedTemplateRefs: string[];
+}
+
+export interface ProductChangeSignalItem {
+  id: string;
+  changeRequestId: string;
+  matchAxis?: string;
+  title?: string;
+  status?: string;
+  productId?: string;
+  productVersionId?: string;
+  ursBaselineId?: string;
+  source?: string;
+}
+
+export interface ProductChangeSignalsResult {
+  items: ProductChangeSignalItem[];
+  scanned: number;
+  ursTotal: number;
+  hydratedCount: number;
+  disclaimer: 'advisory-soft-index-not-gxp';
+}
+
 export interface ComposerClient {
   createProduct(input: Record<string, unknown>): Promise<Product>;
   listProducts(): Promise<{ items: Product[]; total: number }>;
@@ -45,19 +131,24 @@ export interface ComposerClient {
   ): Promise<TraceabilityLink>;
   getProductTraceability(productId: string): Promise<ProductTraceability>;
   checkReleaseGate(versionId: string): Promise<ReleaseGateResult>;
+  checkQaReadiness(versionId: string): Promise<ProductQaReadinessResult>;
+  listProductChangeSignals(
+    versionId: string,
+  ): Promise<ProductChangeSignalsResult>;
   transitionVersionStatus(
     versionId: string,
     targetStatus: string,
   ): Promise<ProductVersion>;
-  listProductBaselines(
-    versionId: string,
-  ): Promise<Array<Record<string, unknown>>>;
+  listProductBaselines(versionId: string): Promise<ProductBaseline[]>;
   createProductBaseline(
     versionId: string,
-  ): Promise<Record<string, unknown>>;
-  approveProductBaseline(
-    baselineId: string,
-  ): Promise<Record<string, unknown>>;
+    input: { ursBaselineId: string; baselineVersion?: string },
+  ): Promise<ProductBaseline>;
+  approveProductBaseline(baselineId: string): Promise<ProductBaseline>;
+  listApprovedUrsBaselines(): Promise<ApprovedUrsBaselineOption[]>;
+  getUrsBaselinePinStatus(ursBaselineId: string): Promise<UrsBaselinePinStatus>;
+  getProductManifest(versionId: string): Promise<PersistedProductManifest>;
+  getScaffoldBinding(versionId: string): Promise<ProductScaffoldBinding>;
 }
 
 export function useComposerClient(): ComposerClient {
@@ -106,13 +197,30 @@ export function useComposerClient(): ComposerClient {
       request('GET', `/products/${productId}/traceability`),
     checkReleaseGate: versionId =>
       request('GET', `/versions/${versionId}/release-gate`),
+    checkQaReadiness: versionId =>
+      request('GET', `/versions/${versionId}/qa-readiness`),
+    listProductChangeSignals: versionId =>
+      request('GET', `/versions/${versionId}/change-signals`),
     transitionVersionStatus: (versionId, targetStatus) =>
       request('POST', `/versions/${versionId}/transition`, { targetStatus }),
     listProductBaselines: versionId =>
       request('GET', `/versions/${versionId}/baselines`),
-    createProductBaseline: versionId =>
-      request('POST', `/versions/${versionId}/baselines`, {}),
+    createProductBaseline: (versionId, input) =>
+      request('POST', `/versions/${versionId}/baselines`, input),
     approveProductBaseline: baselineId =>
       request('POST', `/baselines/${baselineId}/approve`, {}),
+    listApprovedUrsBaselines: async () => {
+      const result = await request('GET', '/urs-baselines/approved');
+      return (result?.items ?? []) as ApprovedUrsBaselineOption[];
+    },
+    getUrsBaselinePinStatus: ursBaselineId =>
+      request(
+        'GET',
+        `/urs-baselines/${encodeURIComponent(ursBaselineId)}/status`,
+      ),
+    getProductManifest: versionId =>
+      request('GET', `/versions/${versionId}/manifest`),
+    getScaffoldBinding: versionId =>
+      request('GET', `/versions/${versionId}/scaffold-binding`),
   };
 }

@@ -71,6 +71,31 @@ spec:
               - github.com
             allowedOwners:
               - pharma-data-factory
+        productManifestContentHash:
+          title: Product Manifest Content Hash
+          type: string
+          description: Optional. SHA-256 of ProductManifest v0.1 when scaffolding from Product Composer. Leave empty for Marketplace-only create.
+          default: ""
+        ursBaselineId:
+          title: URS Baseline ID
+          type: string
+          description: Optional. APPROVED URS baseline id pinned by Product Composer.
+          default: ""
+        productBaselineId:
+          title: Product Baseline ID
+          type: string
+          description: Optional. Approved Product Composer baseline id.
+          default: ""
+        productVersionId:
+          title: Product Version ID
+          type: string
+          description: Optional. Product Composer version id.
+          default: ""
+        productId:
+          title: Product ID
+          type: string
+          description: Optional. Product Composer product id.
+          default: ""
   steps:
     - id: fetch-base
       name: Fetch MQTT temperature data product skeleton
@@ -95,6 +120,11 @@ spec:
             repo: ${{ parameters.name }}
           templateName: mqtt-temperature-data-product
           templateVersion: 1.0.0
+          productManifestContentHash: ${{ parameters.productManifestContentHash }}
+          ursBaselineId: ${{ parameters.ursBaselineId }}
+          productBaselineId: ${{ parameters.productBaselineId }}
+          productVersionId: ${{ parameters.productVersionId }}
+          productId: ${{ parameters.productId }}
     - id: publish
       name: Publish to GitHub
       action: publish:github

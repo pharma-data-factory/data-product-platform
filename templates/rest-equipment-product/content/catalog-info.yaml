@@ -30,6 +30,26 @@ metadata:
     dataprod.platform/consume-rest-path: /api/v1/equipment
     dataprod.platform/presentation-capabilities: table,json,schema,metric-cards
     dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/publish-enabled: "false"
+    dataprod.platform/publish-ports: mqtt,warehouse
+    dataprod.platform/publish-mqtt-topic: products/${{ values.domain }}/${{ values.name }}/equipment-event/v1
+    dataprod.platform/publish-warehouse-profile: file
+    dataprod.platform/publish-warehouse-dataset: ${{ values.domain }}.${{ values.name }}_equipment_event_v1
+{% if values.productManifestContentHash %}
+    dataprod.platform/product-manifest-content-hash: ${{ values.productManifestContentHash }}
+{% endif %}
+{% if values.ursBaselineId %}
+    dataprod.platform/urs-baseline-id: ${{ values.ursBaselineId }}
+{% endif %}
+{% if values.productBaselineId %}
+    dataprod.platform/product-baseline-id: ${{ values.productBaselineId }}
+{% endif %}
+{% if values.productVersionId %}
+    dataprod.platform/product-version-id: ${{ values.productVersionId }}
+{% endif %}
+{% if values.productId %}
+    dataprod.platform/product-id: ${{ values.productId }}
+{% endif %}
   links:
     - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
       title: Repository

@@ -12,20 +12,23 @@ import {
   NEXORA_SECURITY,
   NEXORA_SURFACE,
   NEXORA_TEXT,
+  nexoraColors,
 } from '@internal/plugin-nexora-common';
 
 export const BRAND_NAME = 'Nexora';
 export const BRAND_WORDMARK = 'NEXORA';
 export const PLATFORM_POSITIONING = 'THE OPEN MANUFACTURING PLATFORM FOR LIFE SCIENCES';
 
+const light = nexoraColors.light;
+
 export const C = {
-  base: NEXORA_SURFACE,
-  section: NEXORA_SECTION,
-  paper: NEXORA_CARD,
-  card: NEXORA_CARD,
-  border: NEXORA_BORDER,
-  text: NEXORA_TEXT,
-  muted: NEXORA_MUTED,
+  base: light.surface,
+  section: light.section,
+  paper: light.surfaceRaised,
+  card: light.surfaceRaised,
+  border: light.border,
+  text: light.text,
+  muted: light.textMuted,
   cloud: NEXORA_NAVY,
   factory: NEXORA_CYAN,
   dx: NEXORA_CYAN,
@@ -42,3 +45,5 @@ export const PHARMA_TEAL_DARK = NEXORA_CYAN_DARK;
 export const PHARMA_SURFACE = NEXORA_SURFACE;
 export const PHARMA_PAPER = NEXORA_CARD;
 export const PHARMA_TEXT = NEXORA_TEXT;
+/** Readable cyan for small text on light surfaces. */
+export const PHARMA_TEAL_ON_LIGHT = light.accentReadable;

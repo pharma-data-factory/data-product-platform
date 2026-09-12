@@ -1,0 +1,28 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: mqtt-producer
+  title: MQTT Producer
+  description: >
+    Opt-in MQTT egress client for the Product Publish Bus (products/… topics).
+    Not Unified Namespace. Not a Data Product. DEVELOPMENT — default off.
+  tags:
+    - platform-component
+    - integration
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 0.1.0
+    dataprod.platform/category: integration
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/platform-components/index
+      title: Documentation
+      icon: docs
+    - url: http://localhost:7007/platform-components/mqtt-producer
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform

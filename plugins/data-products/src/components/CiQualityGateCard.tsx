@@ -14,9 +14,21 @@ import {
   DataProductCiStatus,
   unknownCiStatus,
 } from '../ciStatus';
+import { DataProduct } from '../model';
 import { CiStatusChip } from './CiStatusChip';
 
-export function CiQualityGateCard({ entityRef }: { entityRef: string }) {
+export type ManifestPinSummary = Pick<
+  DataProduct,
+  'productManifestContentHash' | 'ursBaselineId' | 'productBaselineId'
+>;
+
+export function CiQualityGateCard({
+  entityRef,
+  pins,
+}: {
+  entityRef: string;
+  pins?: ManifestPinSummary;
+}) {
   const ciApi = useApi(dataProductCiApiRef);
   const [status, setStatus] = useState<DataProductCiStatus>();
   const [loading, setLoading] = useState(true);
@@ -47,16 +59,32 @@ export function CiQualityGateCard({ entityRef }: { entityRef: string }) {
   }, [ciApi, entityRef]);
 
   return (
-    <CiQualityGateView loading={loading} status={status ?? unknownCiStatus()} />
+    <CiQualityGateView
+      loading={loading}
+      status={status ?? unknownCiStatus()}
+      pins={pins}
+    />
   );
+}
+
+export function describeManifestPins(pins?: ManifestPinSummary): string {
+  if (!pins?.productManifestContentHash) {
+    return 'Not pinned';
+  }
+  if (pins.ursBaselineId && pins.productBaselineId) {
+    return 'Pinned';
+  }
+  return 'Incomplete';
 }
 
 export function CiQualityGateView({
   loading,
   status,
+  pins,
 }: {
   loading?: boolean;
   status: DataProductCiStatus;
+  pins?: ManifestPinSummary;
 }) {
   return (
     <InfoCard title="CI Quality Gate">
@@ -74,6 +102,7 @@ export function CiQualityGateView({
                 Started: formatTimestamp(status.startedAt),
                 Completed: formatTimestamp(status.completedAt),
                 Conclusion: status.conclusion || 'Not available',
+                'Manifest Pins': describeManifestPins(pins),
               }}
             />
           </div>

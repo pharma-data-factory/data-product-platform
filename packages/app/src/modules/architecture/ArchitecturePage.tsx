@@ -20,7 +20,7 @@ import {
 } from './storyDiagrams';
 import { LandingFooter, LandingNav, LandingStyles } from '../identity/PublicLanding';
 import { LandingI18nProvider } from '../identity/landingI18n';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT, PHARMA_TEAL_ON_LIGHT } from '../identity/landingTokens';
 import {
   AUTHENTICATED_ARCHITECTURE_LINKS,
   LAYER_COMPARISON,
@@ -31,7 +31,7 @@ const archTh = {
   textAlign: 'left' as const,
   padding: '12px 14px',
   borderBottom: `1px solid ${C.border}`,
-  color: PHARMA_TEAL,
+  color: PHARMA_TEAL_ON_LIGHT,
   fontSize: 12,
   letterSpacing: '0.08em',
   textTransform: 'uppercase' as const,

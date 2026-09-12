@@ -10,15 +10,18 @@ import { randomUUID } from 'crypto';
 import {
   DataClassification,
   InterfaceType,
+  PersistedProductManifest,
   Product,
   ProductBaseline,
   ProductBaselineDelta,
   ProductComponent,
+  ProductQaReadiness,
   ProductVersion,
   SnapshotItemChange,
   TraceabilityLink,
   validateProduct,
   validateTraceabilityLink,
+  resolveProductSoftRefMatchAxis,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import {
@@ -29,20 +32,58 @@ import {
   CreateProductVersionRequest,
   CreateTraceabilityLinkRequest,
   DataContract,
+  ProductScaffoldBinding,
   TransitionProductVersionRequest,
   AISpecDraft,
+  ProductChangeSignalsResult,
+  ProductChangeSignalMatchAxis,
 } from './types';
-import type { UrsBaselineResolver } from './urs-baseline-resolver';
+import type {
+  UrsBaselineReference,
+  UrsBaselineResolver,
+} from './urs-baseline-resolver';
+import { ursReleaseGateBlockerFromError } from './urs-baseline-resolver';
+import type { CatalogManifestPinResolver } from './catalog-pin-resolver';
+import { evaluateCatalogManifestPins } from './catalog-pin-resolver';
+import type { CiStatusResolver } from './ci-status-resolver';
+import { evaluateCiStatusForReleaseGate } from './ci-status-resolver';
+import type { TechnicalEvidenceRegistrar } from './evidence-registrar';
+import {
+  buildCiEvidenceIdempotencyKey,
+  buildTechnicalCiEvidenceReference,
+} from './evidence-registrar';
+import type { TechnicalEvidenceLookup } from './evidence-lookup';
+import { findTechnicalCiEvidenceByIdempotencyKey } from './evidence-lookup';
 import type {
   AvailableComponentSummary,
   ComposerLLMClient,
 } from './llm-client';
 import { buildSystemPrompt } from './prompt-template';
 import type { ProductSpecContext } from './prompt-template';
+import {
+  buildProductManifest,
+  resolveUrsBaselineId,
+  verifyPersistedManifestIntegrity,
+} from './manifest';
 
 export interface ReleaseGateBlocker {
   code: string;
   message: string;
+}
+
+const OFFICIAL_GOLDEN_PATH_TEMPLATE_REFS = [
+  'template:default/mqtt-temperature-data-product',
+  'template:default/rest-equipment-data-product',
+  'template:default/oee-data-product',
+] as const;
+
+function slugifyProductName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
 }
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -57,6 +98,10 @@ export interface ComposerServiceOptions {
   logger: LoggerService;
   repository: IComposerRepository;
   ursBaselineResolver?: UrsBaselineResolver;
+  catalogManifestPinResolver?: CatalogManifestPinResolver;
+  ciStatusResolver?: CiStatusResolver;
+  technicalEvidenceRegistrar?: TechnicalEvidenceRegistrar;
+  technicalEvidenceLookup?: TechnicalEvidenceLookup;
   llmClient?: ComposerLLMClient;
 }
 
@@ -64,6 +109,10 @@ export class ComposerService {
   private readonly logger: LoggerService;
   private readonly repository: IComposerRepository;
   private readonly ursBaselineResolver?: UrsBaselineResolver;
+  private readonly catalogManifestPinResolver?: CatalogManifestPinResolver;
+  private readonly ciStatusResolver?: CiStatusResolver;
+  private readonly technicalEvidenceRegistrar?: TechnicalEvidenceRegistrar;
+  private readonly technicalEvidenceLookup?: TechnicalEvidenceLookup;
   private readonly llmClient?: ComposerLLMClient;
   private readonly specDrafts = new Map<string, AISpecDraft>();
 
@@ -71,6 +120,10 @@ export class ComposerService {
     this.logger = options.logger;
     this.repository = options.repository;
     this.ursBaselineResolver = options.ursBaselineResolver;
+    this.catalogManifestPinResolver = options.catalogManifestPinResolver;
+    this.ciStatusResolver = options.ciStatusResolver;
+    this.technicalEvidenceRegistrar = options.technicalEvidenceRegistrar;
+    this.technicalEvidenceLookup = options.technicalEvidenceLookup;
     this.llmClient = options.llmClient;
   }
 
@@ -302,6 +355,12 @@ export class ComposerService {
           `Release gate failed: ${gate.blockers.map(b => b.code).join(', ')}`,
         );
       }
+      // Fail-closed: register technical CI evidence BEFORE flipping status
+      await this.registerTechnicalCiEvidenceForRelease(
+        versionId,
+        actor,
+        credentials,
+      );
     }
     const oldStatus = version.status;
     const updated: ProductVersion = {
@@ -319,7 +378,465 @@ export class ComposerService {
       oldValue: oldStatus,
       newValue: request.targetStatus,
     });
+
     return updated;
+  }
+
+  /**
+   * Soft QA readiness (advisory): Release Gate + technical CI evidence + URS pin currency.
+   * Does not authorize RELEASED and is not GxP validation.
+   */
+  async checkQaReadiness(
+    versionId: string,
+    credentials?: unknown,
+  ): Promise<ProductQaReadiness> {
+    const version = await this.repository.getProductVersion(versionId);
+    if (!version) {
+      throw new Error(`Product version ${versionId} not found`);
+    }
+    const gate = await this.checkReleaseGate(versionId, credentials);
+    const releaseGatePassed =
+      version.status === 'RELEASED'
+        ? true
+        : gate.passed;
+    const ursPin = await this.resolveUrsPinCurrency(versionId, credentials);
+    const ctx = await this.resolveCiEvidenceContext(versionId, credentials);
+
+    const base: Omit<
+      ProductQaReadiness,
+      'evidenceCompleteness' | 'evidenceId' | 'idempotencyKey' | 'message'
+    > & { message?: string } = {
+      productVersionId: versionId,
+      versionStatus: version.status,
+      releaseGatePassed,
+      ursPinStatus: ursPin.status,
+      ursBaselineId: ursPin.ursBaselineId,
+      ursSupersededBy: ursPin.supersededBy,
+      ursPinMessage: ursPin.message,
+      disclaimer: 'technical-control-not-gxp',
+    };
+
+    const withUrsNote = (message: string): string => {
+      if (!ursPin.message || ursPin.status === 'APPROVED') {
+        return message;
+      }
+      return `${message} URS pin: ${ursPin.message}`;
+    };
+
+    if (!this.technicalEvidenceLookup) {
+      return {
+        ...base,
+        evidenceCompleteness: 'NOT_APPLICABLE',
+        message: withUrsNote(
+          'Technical evidence lookup is not configured. Soft advisory only — not GxP validation.',
+        ),
+      };
+    }
+
+    if (!ctx) {
+      return {
+        ...base,
+        evidenceCompleteness: 'NOT_APPLICABLE',
+        message: withUrsNote(
+          'No Catalog entity / CI PASSED context yet — technical CI evidence not applicable until post-scaffold CI passes.',
+        ),
+      };
+    }
+
+    try {
+      const items = await this.technicalEvidenceLookup.listTechnicalCiEvidence(
+        credentials,
+      );
+      const found = findTechnicalCiEvidenceByIdempotencyKey(
+        items,
+        ctx.idempotencyKey,
+      );
+      if (found) {
+        return {
+          ...base,
+          evidenceCompleteness: 'PRESENT',
+          evidenceId: found.id,
+          idempotencyKey: ctx.idempotencyKey,
+          message: withUrsNote(
+            'Technical CI Quality Gate evidence is present in Validation Expert. Soft advisory only — not GxP validation.',
+          ),
+        };
+      }
+      return {
+        ...base,
+        evidenceCompleteness: 'MISSING',
+        idempotencyKey: ctx.idempotencyKey,
+        message: withUrsNote(
+          'Technical CI evidence is not registered yet. It is written fail-closed immediately before RELEASED.',
+        ),
+      };
+    } catch (err) {
+      return {
+        ...base,
+        evidenceCompleteness: 'UNAVAILABLE',
+        idempotencyKey: ctx.idempotencyKey,
+        message: withUrsNote(
+          `Unable to query Validation Expert evidence: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        ),
+      };
+    }
+  }
+
+  /**
+   * Hydrate-on-read advisory reverse index: soft-match URS CRs → upsert
+   * product_change_signals. Not GxP / not a structured FK into URS.
+   */
+  async listProductChangeSignals(
+    versionId: string,
+    actor: string,
+    credentials?: unknown,
+  ): Promise<ProductChangeSignalsResult> {
+    const version = await this.repository.getProductVersion(versionId);
+    if (!version) {
+      throw new Error(`Product version ${versionId} not found`);
+    }
+
+    const baselines = await this.repository.listProductBaselines(versionId);
+    const baselineIds = [
+      ...new Set(
+        baselines
+          .map(b => b.ursBaselineId?.trim())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const primaryUrsBaselineId = baselineIds[0];
+
+    if (!this.ursBaselineResolver?.listChangeRequests) {
+      const existing =
+        await this.repository.listProductChangeSignals(versionId);
+      return {
+        items: existing,
+        scanned: 0,
+        ursTotal: 0,
+        hydratedCount: 0,
+        disclaimer: 'advisory-soft-index-not-gxp',
+      };
+    }
+
+    const listed = await this.ursBaselineResolver.listChangeRequests(
+      credentials,
+      100,
+      0,
+    );
+    const now = new Date();
+    const views: ProductChangeSignalsResult['items'] = [];
+
+    for (const cr of listed.items) {
+      let matchAxis: ProductChangeSignalMatchAxis | null =
+        resolveProductSoftRefMatchAxis(cr, {
+          productId: version.productId,
+          productVersionId: versionId,
+          ursBaselineId: primaryUrsBaselineId,
+        });
+      let matchedUrsBaselineId = primaryUrsBaselineId;
+
+      if (!matchAxis) {
+        for (const baselineId of baselineIds.slice(1)) {
+          const axis = resolveProductSoftRefMatchAxis(cr, {
+            ursBaselineId: baselineId,
+          });
+          if (axis) {
+            matchAxis = axis;
+            matchedUrsBaselineId = baselineId;
+            break;
+          }
+        }
+      }
+
+      if (!matchAxis) {
+        continue;
+      }
+
+      const signal = await this.repository.upsertProductChangeSignal({
+        id: randomUUID(),
+        productId: version.productId,
+        productVersionId: versionId,
+        ursBaselineId: matchedUrsBaselineId,
+        changeRequestId: cr.id,
+        source: 'SOFT_HYDRATE',
+        matchAxis,
+        createdBy: actor,
+        createdAt: now,
+        lastHydratedAt: now,
+      });
+
+      views.push({
+        ...signal,
+        title: cr.title,
+        status: cr.status,
+      });
+    }
+
+    // Prefer freshly hydrated views; fall back to stored rows if scan found none
+    // but prior signals exist (URS list truncated / unavailable phrases).
+    if (views.length === 0) {
+      const stored = await this.repository.listProductChangeSignals(versionId);
+      return {
+        items: stored,
+        scanned: listed.items.length,
+        ursTotal: listed.total,
+        hydratedCount: 0,
+        disclaimer: 'advisory-soft-index-not-gxp',
+      };
+    }
+
+    return {
+      items: views,
+      scanned: listed.items.length,
+      ursTotal: listed.total,
+      hydratedCount: views.length,
+      disclaimer: 'advisory-soft-index-not-gxp',
+    };
+  }
+
+  private async resolveUrsPinCurrency(
+    versionId: string,
+    credentials?: unknown,
+  ): Promise<{
+    status: ProductQaReadiness['ursPinStatus'];
+    ursBaselineId?: string;
+    supersededBy?: string;
+    message?: string;
+  }> {
+    const baselines = await this.repository.listProductBaselines(versionId);
+    const approvedBaseline = baselines.find(b => b.status === 'APPROVED');
+    const ursBaselineId = approvedBaseline?.ursBaselineId?.trim();
+    if (!ursBaselineId) {
+      return {
+        status: 'MISSING',
+        message: 'No ursBaselineId on approved product baseline.',
+      };
+    }
+    if (!this.ursBaselineResolver) {
+      return {
+        status: 'NOT_APPLICABLE',
+        ursBaselineId,
+        message: 'URS baseline resolver is not configured.',
+      };
+    }
+    try {
+      const live = await this.ursBaselineResolver.inspectBaseline(
+        ursBaselineId,
+        credentials,
+      );
+      const status = String(live.status ?? '').toUpperCase();
+      if (status === 'APPROVED') {
+        return {
+          status: 'APPROVED',
+          ursBaselineId,
+          message: 'Pinned URS baseline is APPROVED.',
+        };
+      }
+      if (status === 'SUPERSEDED') {
+        return {
+          status: 'SUPERSEDED',
+          ursBaselineId,
+          supersededBy: live.supersededBy,
+          message: live.supersededBy
+            ? `Pinned URS baseline is SUPERSEDED by ${live.supersededBy}; re-baseline recommended.`
+            : 'Pinned URS baseline is SUPERSEDED; re-baseline recommended.',
+        };
+      }
+      return {
+        status: 'NOT_APPROVED',
+        ursBaselineId,
+        supersededBy: live.supersededBy,
+        message: `Pinned URS baseline status is ${status || 'UNKNOWN'}; expected APPROVED.`,
+      };
+    } catch (err) {
+      return {
+        status: 'UNAVAILABLE',
+        ursBaselineId,
+        message: `Unable to inspect URS baseline: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      };
+    }
+  }
+
+  /**
+   * Fail-closed registration + read-back verify of CI Quality Gate metadata
+   * into Validation Expert immediately before RELEASED.
+   * Skips when registrar/catalog/CI context absent.
+   * Technical control only — not GxP validation.
+   */
+  private async registerTechnicalCiEvidenceForRelease(
+    versionId: string,
+    actor: string,
+    credentials?: unknown,
+  ): Promise<void> {
+    if (
+      !this.technicalEvidenceRegistrar ||
+      !this.catalogManifestPinResolver ||
+      !this.ciStatusResolver
+    ) {
+      return;
+    }
+    const ctx = await this.resolveCiEvidenceContext(versionId, credentials);
+    if (!ctx) {
+      return;
+    }
+
+    try {
+      const result =
+        await this.technicalEvidenceRegistrar.registerTechnicalCiEvidence(
+          {
+            evidenceType: 'ci-quality-gate',
+            reference: JSON.stringify(ctx.referenceDoc),
+            createdBy: actor,
+            candidate: ctx.candidate,
+            idempotencyKey: ctx.idempotencyKey,
+          },
+          credentials,
+        );
+
+      await this.audit(
+        'PRODUCT_VERSION',
+        versionId,
+        result.created
+          ? 'CI_EVIDENCE_REGISTERED'
+          : 'CI_EVIDENCE_ALREADY_PRESENT',
+        actor,
+        {
+          newValue: {
+            evidenceId: result.item.id,
+            idempotencyKey: ctx.idempotencyKey,
+            disclaimer: 'technical-control-not-gxp',
+          },
+        },
+      );
+
+      // Read-back: RELEASED requires the same PRESENT state QA readiness reports
+      if (!this.technicalEvidenceLookup) {
+        throw new Error(
+          'Technical evidence lookup is not configured; cannot verify PRESENT before RELEASED',
+        );
+      }
+      const items = await this.technicalEvidenceLookup.listTechnicalCiEvidence(
+        credentials,
+      );
+      const found = findTechnicalCiEvidenceByIdempotencyKey(
+        items,
+        ctx.idempotencyKey,
+      );
+      if (!found) {
+        throw new Error(
+          `Technical CI evidence not PRESENT after register (idempotencyKey=${ctx.idempotencyKey})`,
+        );
+      }
+      await this.audit(
+        'PRODUCT_VERSION',
+        versionId,
+        'CI_EVIDENCE_VERIFIED',
+        actor,
+        {
+          newValue: {
+            evidenceId: found.id,
+            idempotencyKey: ctx.idempotencyKey,
+            disclaimer: 'technical-control-not-gxp',
+          },
+        },
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Technical CI evidence registration/verify failed for ${versionId}: ${message}`,
+      );
+      await this.audit(
+        'PRODUCT_VERSION',
+        versionId,
+        'CI_EVIDENCE_REGISTER_FAILED',
+        actor,
+        { newValue: { error: message } },
+      );
+      throw new Error(
+        `Technical CI evidence registration required before RELEASED: ${message}`,
+      );
+    }
+  }
+
+  private async resolveCiEvidenceContext(
+    versionId: string,
+    credentials?: unknown,
+  ): Promise<{
+    idempotencyKey: string;
+    candidate: string;
+    referenceDoc: ReturnType<typeof buildTechnicalCiEvidenceReference>;
+  } | null> {
+    if (!this.catalogManifestPinResolver || !this.ciStatusResolver) {
+      return null;
+    }
+    const version = await this.repository.getProductVersion(versionId);
+    if (!version) {
+      return null;
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product) {
+      return null;
+    }
+    const baselines = await this.repository.listProductBaselines(versionId);
+    const approvedBaseline = baselines.find(b => b.status === 'APPROVED');
+    const ursBaselineId = approvedBaseline?.ursBaselineId?.trim();
+    if (!approvedBaseline || !ursBaselineId) {
+      return null;
+    }
+    const manifest = await this.repository.getProductManifestByBaselineId(
+      approvedBaseline.id,
+    );
+    if (!manifest) {
+      return null;
+    }
+    const slug = slugifyProductName(product.name);
+    if (!slug) {
+      return null;
+    }
+    const pins = await this.catalogManifestPinResolver.resolveByName(
+      slug,
+      credentials,
+    );
+    if (!pins?.entityRef) {
+      return null;
+    }
+    const ci = await this.ciStatusResolver.resolveByEntityRef(
+      pins.entityRef,
+      credentials,
+    );
+    if (ci.status !== 'PASSED') {
+      return null;
+    }
+
+    const registeredAt = new Date().toISOString();
+    const referenceDoc = buildTechnicalCiEvidenceReference({
+      productId: version.productId,
+      productVersionId: version.id,
+      productBaselineId: approvedBaseline.id,
+      ursBaselineId,
+      manifestContentHash: manifest.contentHash,
+      entityRef: pins.entityRef,
+      workflowName: ci.workflowName,
+      commitSha: ci.commitSha,
+      branch: ci.branch,
+      htmlUrl: ci.htmlUrl,
+      conclusion: ci.conclusion,
+      registeredAt,
+    });
+    const idempotencyKey = buildCiEvidenceIdempotencyKey({
+      productVersionId: version.id,
+      manifestContentHash: manifest.contentHash,
+      commitSha: ci.commitSha,
+    });
+    return {
+      idempotencyKey,
+      candidate: product.name,
+      referenceDoc,
+    };
   }
 
   async checkReleaseGate(
@@ -372,23 +889,111 @@ export class ComposerService {
       });
     }
 
-    // Cross-plugin: verify referenced URS baselines are APPROVED
-    if (
-      this.ursBaselineResolver &&
-      approvedBaseline?.ursBaselineIds &&
-      approvedBaseline.ursBaselineIds.length > 0
-    ) {
-      for (const ursId of approvedBaseline.ursBaselineIds) {
+    // Cross-plugin: controlled release always requires a valid APPROVED URS baseline
+    const ursBaselineId = approvedBaseline?.ursBaselineId?.trim();
+    if (approvedBaseline && !ursBaselineId) {
+      blockers.push({
+        code: 'NO_APPROVED_URS_BASELINE',
+        message:
+          'Approved product baseline has no ursBaselineId; a controlled release requires exactly one APPROVED URS baseline',
+      });
+    } else if (approvedBaseline && ursBaselineId) {
+      if (!this.ursBaselineResolver) {
+        blockers.push({
+          code: 'NO_APPROVED_URS_BASELINE',
+          message:
+            'URS baseline resolver is not configured; cannot verify APPROVED URS baseline',
+        });
+      } else {
         try {
           await this.ursBaselineResolver.resolveApprovedBaseline(
-            ursId,
+            ursBaselineId,
             credentials,
           );
         } catch (err) {
+          blockers.push(ursReleaseGateBlockerFromError(ursBaselineId, err));
+        }
+      }
+    }
+
+    // ProductManifest v0.1 integrity — bound to the approved product baseline
+    if (approvedBaseline && ursBaselineId) {
+      const manifest = await this.repository.getProductManifestByBaselineId(
+        approvedBaseline.id,
+      );
+      if (!manifest) {
+        blockers.push({
+          code: 'NO_MANIFEST',
+          message: `No ProductManifest found for approved product baseline ${approvedBaseline.id}`,
+        });
+      } else {
+        const integrityIssues = verifyPersistedManifestIntegrity({
+          document: manifest.document,
+          expectedContentHash: manifest.contentHash,
+          expectedUrsBaselineId: ursBaselineId,
+          expectedProductBaselineId: approvedBaseline.id,
+        });
+        for (const issue of integrityIssues) {
           blockers.push({
-            code: 'NO_APPROVED_URS_BASELINE',
-            message: `URS baseline ${ursId} is not approved: ${err instanceof Error ? err.message : String(err)}`,
+            code: issue.code,
+            message: issue.message,
           });
+        }
+
+        // Catalog pin consistency — only when a Catalog entity exists (post-scaffold)
+        if (
+          this.catalogManifestPinResolver &&
+          integrityIssues.length === 0
+        ) {
+          const product = await this.repository.getProduct(version.productId);
+          const slug = product ? slugifyProductName(product.name) : '';
+          if (slug) {
+            try {
+              const pins = await this.catalogManifestPinResolver.resolveByName(
+                slug,
+                credentials,
+              );
+              if (pins) {
+                blockers.push(
+                  ...evaluateCatalogManifestPins({
+                    pins,
+                    expected: {
+                      contentHash: manifest.contentHash,
+                      ursBaselineId,
+                      productBaselineId: approvedBaseline.id,
+                      productVersionId: version.id,
+                      productId: version.productId,
+                    },
+                  }),
+                );
+
+                // Post-scaffold: require CI Quality Gate PASSED (fail-closed on UNKNOWN)
+                if (this.ciStatusResolver) {
+                  try {
+                    const ci = await this.ciStatusResolver.resolveByEntityRef(
+                      pins.entityRef,
+                      credentials,
+                    );
+                    blockers.push(...evaluateCiStatusForReleaseGate(ci));
+                  } catch (err) {
+                    blockers.push({
+                      code: 'CI_STATUS_UNAVAILABLE',
+                      message: `Unable to verify CI Quality Gate status: ${
+                        err instanceof Error ? err.message : String(err)
+                      }`,
+                    });
+                  }
+                }
+              }
+            } catch (err) {
+              blockers.push({
+                code: 'CATALOG_MANIFEST_PIN_UNAVAILABLE',
+                message: `Unable to verify Catalog manifest pins: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              });
+            }
+          }
         }
       }
     }
@@ -400,11 +1005,62 @@ export class ComposerService {
     productVersionId: string,
     request: CreateProductBaselineRequest,
     actor: string,
+    credentials?: unknown,
   ): Promise<ProductBaseline> {
     const version = await this.repository.getProductVersion(productVersionId);
     if (!version) {
       throw new Error(`Product version ${productVersionId} not found`);
     }
+
+    const ursBaselineId = resolveUrsBaselineId(request);
+    if (!ursBaselineId) {
+      await this.audit(
+        'PRODUCT_BASELINE',
+        productVersionId,
+        'URS_BASELINE_LINK_REJECTED',
+        actor,
+        {
+          newValue: 'missing ursBaselineId',
+        },
+      );
+      throw new Error(
+        'ursBaselineId is required: controlled product baselines must reference exactly one APPROVED URS baseline',
+      );
+    }
+
+    if (!this.ursBaselineResolver) {
+      await this.audit(
+        'PRODUCT_BASELINE',
+        productVersionId,
+        'URS_BASELINE_LINK_REJECTED',
+        actor,
+        { newValue: `resolver missing for ${ursBaselineId}` },
+      );
+      throw new Error(
+        'URS baseline resolver is not configured; cannot create a controlled product baseline',
+      );
+    }
+
+    let ursRef: UrsBaselineReference;
+    try {
+      ursRef = await this.ursBaselineResolver.resolveApprovedBaseline(
+        ursBaselineId,
+        credentials,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.audit(
+        'PRODUCT_BASELINE',
+        productVersionId,
+        'URS_BASELINE_LINK_REJECTED',
+        actor,
+        { newValue: `${ursBaselineId}: ${message}` },
+      );
+      throw new Error(
+        `URS baseline ${ursBaselineId} is not valid for product baseline creation: ${message}`,
+      );
+    }
+
     const existing = await this.repository.listProductBaselines(productVersionId);
     for (const prev of existing) {
       if (prev.status === 'APPROVED') {
@@ -445,6 +1101,11 @@ export class ComposerService {
         targetId: l.targetId,
         relationshipType: l.relationshipType,
       })),
+      ursBaseline: {
+        id: ursRef.id,
+        status: ursRef.status,
+        baselineVersion: ursRef.baselineVersion,
+      },
     };
     const baselineVersion =
       request.baselineVersion ?? `${existing.length + 1}.0`;
@@ -454,19 +1115,71 @@ export class ComposerService {
       baselineVersion,
       status: 'DRAFT',
       snapshot,
-      ursBaselineIds: request.ursBaselineIds,
+      ursBaselineId: ursRef.id,
+      ursBaselineIds: [ursRef.id],
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
     };
     await this.repository.createProductBaseline(baseline);
-    await this.audit('PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', actor);
+
+    const product = await this.repository.getProduct(version.productId);
+    const document = buildProductManifest({
+      productId: version.productId,
+      productVersion: version.version,
+      productVersionId: version.id,
+      productBaselineId: baseline.id,
+      ursBaselineId: ursRef.id,
+      components,
+      contracts,
+      policies: [],
+      qualityGates: [
+        {
+          id: 'release-gate',
+          type: 'PRODUCT_RELEASE_GATE',
+          description:
+            'Technical release gate requiring approved product baseline and APPROVED URS baseline',
+        },
+      ],
+    });
+    const persisted: PersistedProductManifest = {
+      id: randomUUID(),
+      productId: version.productId,
+      productVersionId: version.id,
+      productBaselineId: baseline.id,
+      ursBaselineId: ursRef.id,
+      manifestVersion: document.metadata.manifestVersion,
+      contentHash: document.metadata.contentHash,
+      document,
+      createdBy: actor,
+      createdAt: new Date(),
+      revision: 1,
+    };
+    await this.repository.createProductManifest(persisted);
+
+    await this.audit('PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', actor, {
+      newValue: JSON.stringify({
+        ursBaselineId: ursRef.id,
+        manifestContentHash: document.metadata.contentHash,
+        productName: product?.name,
+      }),
+    });
+    await this.audit(
+      'PRODUCT_MANIFEST',
+      persisted.id,
+      'MANIFEST_CREATED',
+      actor,
+      {
+        newValue: document.metadata.contentHash,
+      },
+    );
     return baseline;
   }
 
   async approveProductBaseline(
     baselineId: string,
     actor: string,
+    credentials?: unknown,
   ): Promise<ProductBaseline> {
     const baseline = await this.repository.getProductBaseline(baselineId);
     if (!baseline) {
@@ -475,6 +1188,35 @@ export class ComposerService {
     if (baseline.status !== 'DRAFT') {
       throw new Error(`Cannot approve baseline in status ${baseline.status}`);
     }
+    if (!baseline.ursBaselineId?.trim()) {
+      throw new Error(
+        'Cannot approve product baseline without ursBaselineId',
+      );
+    }
+    if (!this.ursBaselineResolver) {
+      throw new Error(
+        'URS baseline resolver is not configured; cannot approve product baseline',
+      );
+    }
+    try {
+      await this.ursBaselineResolver.resolveApprovedBaseline(
+        baseline.ursBaselineId,
+        credentials,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.audit(
+        'PRODUCT_BASELINE',
+        baselineId,
+        'URS_BASELINE_LINK_REJECTED',
+        actor,
+        { newValue: message },
+      );
+      throw new Error(
+        `Cannot approve product baseline: URS baseline ${baseline.ursBaselineId} is not APPROVED (${message})`,
+      );
+    }
+
     const approved: ProductBaseline = {
       ...baseline,
       status: 'APPROVED',
@@ -482,7 +1224,20 @@ export class ComposerService {
       approvedAt: new Date(),
     };
     await this.repository.updateProductBaseline(approved);
-    await this.audit('PRODUCT_BASELINE', baselineId, 'BASELINE_APPROVED', actor);
+
+    const version = await this.repository.getProductVersion(
+      baseline.productVersionId,
+    );
+    if (version) {
+      await this.repository.updateProductVersion({
+        ...version,
+        baselineId: baseline.id,
+      });
+    }
+
+    await this.audit('PRODUCT_BASELINE', baselineId, 'BASELINE_APPROVED', actor, {
+      newValue: baseline.ursBaselineId,
+    });
     return approved;
   }
 
@@ -494,6 +1249,152 @@ export class ComposerService {
     productVersionId: string,
   ): Promise<ProductBaseline[]> {
     return this.repository.listProductBaselines(productVersionId);
+  }
+
+  async getProductManifestForVersion(
+    productVersionId: string,
+  ): Promise<PersistedProductManifest | null> {
+    return this.repository.getProductManifestByVersionId(productVersionId);
+  }
+
+  async getProductManifestForBaseline(
+    productBaselineId: string,
+  ): Promise<PersistedProductManifest | null> {
+    return this.repository.getProductManifestByBaselineId(productBaselineId);
+  }
+
+  async listApprovedUrsBaselines(
+    credentials?: unknown,
+  ): Promise<UrsBaselineReference[]> {
+    if (!this.ursBaselineResolver) {
+      throw new Error('URS baseline resolver is not configured');
+    }
+    return this.ursBaselineResolver.listApprovedBaselines(credentials);
+  }
+
+  /** Pull-time advisory: current URS status for a pinned baseline id (any status). */
+  async inspectUrsBaselinePin(
+    ursBaselineId: string,
+    credentials?: unknown,
+  ): Promise<UrsBaselineReference> {
+    if (!this.ursBaselineResolver) {
+      throw new Error('URS baseline resolver is not configured');
+    }
+    const trimmed = ursBaselineId.trim();
+    if (!trimmed) {
+      throw new Error('ursBaselineId is required');
+    }
+    return this.ursBaselineResolver.inspectBaseline(trimmed, credentials);
+  }
+
+  /**
+   * Builds Scaffolder pin values from the approved product baseline's
+   * ProductManifest. Fail-closed if baseline/manifest/URS integrity fails.
+   */
+  async getScaffoldBinding(
+    productVersionId: string,
+    actor: string,
+    credentials?: unknown,
+  ): Promise<ProductScaffoldBinding> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new Error(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product) {
+      throw new Error(`Product ${version.productId} not found`);
+    }
+
+    const baselines = await this.repository.listProductBaselines(
+      productVersionId,
+    );
+    const approvedBaseline = baselines.find(b => b.status === 'APPROVED');
+    if (!approvedBaseline) {
+      throw new Error(
+        'An APPROVED product baseline is required before scaffolding from ProductManifest',
+      );
+    }
+    const ursBaselineId = approvedBaseline.ursBaselineId?.trim();
+    if (!ursBaselineId) {
+      throw new Error(
+        'Approved product baseline has no ursBaselineId; cannot scaffold',
+      );
+    }
+    if (!this.ursBaselineResolver) {
+      throw new Error(
+        'URS baseline resolver is not configured; cannot scaffold',
+      );
+    }
+    await this.ursBaselineResolver.resolveApprovedBaseline(
+      ursBaselineId,
+      credentials,
+    );
+
+    const manifest = await this.repository.getProductManifestByBaselineId(
+      approvedBaseline.id,
+    );
+    if (!manifest) {
+      throw new Error(
+        `No ProductManifest found for approved product baseline ${approvedBaseline.id}`,
+      );
+    }
+    const integrityIssues = verifyPersistedManifestIntegrity({
+      document: manifest.document,
+      expectedContentHash: manifest.contentHash,
+      expectedUrsBaselineId: ursBaselineId,
+      expectedProductBaselineId: approvedBaseline.id,
+    });
+    if (integrityIssues.length > 0) {
+      throw new Error(
+        `ProductManifest integrity failed: ${integrityIssues
+          .map(i => i.code)
+          .join(', ')}`,
+      );
+    }
+
+    const productSlug = slugifyProductName(product.name);
+    if (!productSlug) {
+      throw new Error('Product name cannot be converted to a repository slug');
+    }
+
+    const binding: ProductScaffoldBinding = {
+      productId: product.id,
+      productName: product.name,
+      productSlug,
+      description: product.description,
+      domain: product.domain,
+      owner: product.owner,
+      productVersionId: version.id,
+      productVersion: version.version,
+      productBaselineId: approvedBaseline.id,
+      ursBaselineId,
+      manifestContentHash: manifest.contentHash,
+      manifestVersion: manifest.manifestVersion,
+      scaffolderPinValues: {
+        productManifestContentHash: manifest.contentHash,
+        ursBaselineId,
+        productBaselineId: approvedBaseline.id,
+        productVersionId: version.id,
+        productId: product.id,
+      },
+      supportedTemplateRefs: [...OFFICIAL_GOLDEN_PATH_TEMPLATE_REFS],
+    };
+
+    await this.audit(
+      'PRODUCT_VERSION',
+      productVersionId,
+      'SCAFFOLD_BINDING_ISSUED',
+      actor,
+      {
+        newValue: JSON.stringify({
+          productBaselineId: approvedBaseline.id,
+          ursBaselineId,
+          manifestContentHash: manifest.contentHash,
+        }),
+      },
+    );
+
+    return binding;
   }
 
   async computeProductBaselineDelta(

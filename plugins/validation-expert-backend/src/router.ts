@@ -286,7 +286,57 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   router.get('/evidence', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
-      res.json({ items: await service.getEvidence() });
+      const evidenceType = String(req.query.evidenceType ?? '').trim();
+      const items = await service.getEvidence();
+      res.json({
+        items: evidenceType
+          ? items.filter(item => item.evidenceType === evidenceType)
+          : items,
+      });
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * POST /evidence/technical
+   * Register technical CI Quality Gate metadata (no IQ/OQ run required).
+   * Not GxP / Part 11 validation evidence.
+   */
+  router.post('/evidence/technical', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor =
+        (credentials as { principal?: { userEntityRef?: string } }).principal
+          ?.userEntityRef ??
+        String(req.body?.createdBy ?? '').trim() ??
+        'unknown';
+      const evidenceType = String(req.body?.evidenceType ?? '').trim();
+      const reference = String(req.body?.reference ?? '').trim();
+      const idempotencyKey = String(req.body?.idempotencyKey ?? '').trim();
+      const candidate =
+        typeof req.body?.candidate === 'string'
+          ? req.body.candidate.trim()
+          : undefined;
+      if (!evidenceType || !reference || !idempotencyKey) {
+        res.status(400).json({
+          error: 'evidenceType, reference, and idempotencyKey are required',
+        });
+        return;
+      }
+      const result = await service.registerTechnicalEvidence({
+        evidenceType,
+        reference,
+        createdBy: String(req.body?.createdBy ?? actor).trim() || actor,
+        candidate: candidate || undefined,
+        idempotencyKey,
+      });
+      res.status(result.created ? 201 : 200).json(result);
     } catch (error) {
       respondError(res, logger, error);
     }

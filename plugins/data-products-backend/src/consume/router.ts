@@ -17,7 +17,30 @@ import {
   descriptorFromEntity,
   isDataProductComponent,
 } from '@internal/data-product-consumption/node';
+import { resolveEnvelopeAdapter } from './adapters';
 import { fixtureQuery, fixtureStreamEvent, resolveBaseUrl } from './fixtures';
+
+/** Build upstream URL with optional ISA-95 / equipment query filters. */
+export function buildUpstreamQueryUrl(
+  baseUrl: string,
+  path: string,
+  context: {
+    site?: string;
+    area?: string;
+    line?: string;
+    equipment?: string;
+  },
+): string {
+  const url = new URL(path, `${baseUrl.replace(/\/$/, '')}/`);
+  if (context.equipment) {
+    url.searchParams.set('equipmentId', context.equipment);
+    url.searchParams.set('equipment', context.equipment);
+  }
+  if (context.site) url.searchParams.set('site', context.site);
+  if (context.area) url.searchParams.set('area', context.area);
+  if (context.line) url.searchParams.set('line', context.line);
+  return url.toString();
+}
 
 export interface ConsumeRouterOptions {
   logger: LoggerService;
@@ -93,8 +116,10 @@ export function mountConsumeRoutes(
         const path =
           entity.metadata.annotations?.['dataprod.platform/consume-rest-path'] ??
           '/api/v1';
+        const adapter = resolveEnvelopeAdapter(entity);
         try {
-          const upstream = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+          const upstreamUrl = buildUpstreamQueryUrl(baseUrl, path, context);
+          const upstream = await fetch(upstreamUrl, {
             signal: AbortSignal.timeout(5000),
           });
           if (!upstream.ok) {
@@ -107,19 +132,7 @@ export function mountConsumeRoutes(
             return;
           }
           const body = (await upstream.json()) as unknown;
-          let rows: Record<string, unknown>[];
-          if (Array.isArray(body)) {
-            rows = body as Record<string, unknown>[];
-          } else if (Array.isArray((body as { items?: unknown[] }).items)) {
-            rows = (body as { items: unknown[] }).items as Record<
-              string,
-              unknown
-            >[];
-          } else {
-            rows = [body as Record<string, unknown>];
-          }
-          const columns = Object.keys(rows[0] ?? {}).map(id => ({ id }));
-          res.json({ source: 'upstream', columns, rows, total: rows.length });
+          res.json(adapter.toQueryResult(body, context));
           return;
         } catch (cause) {
           logger.warn(`Upstream query failed for ${entityRef}: ${String(cause)}`);

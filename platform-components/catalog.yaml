@@ -50,6 +50,8 @@ spec:
     - ./integration/rest-source/catalog-info.yaml
     - ./integration/rest-api/catalog-info.yaml
     - ./integration/mqtt-consumer/catalog-info.yaml
+    - ./integration/mqtt-producer/catalog-info.yaml
+    - ./integration/warehouse-sink/catalog-info.yaml
     - ./integration/kafka-consumer/catalog-info.yaml
     - ./integration/kafka-producer/catalog-info.yaml
     - ./data/postgres/catalog-info.yaml

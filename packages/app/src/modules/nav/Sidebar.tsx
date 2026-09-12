@@ -132,6 +132,16 @@ function PlatformSidebar() {
               />
               <SidebarSubmenuItem
                 icon={AssignmentTurnedInIcon}
+                to="/urs-composer/change-requests"
+                title="Change Requests"
+              />
+              <SidebarSubmenuItem
+                icon={CategoryIcon}
+                to="/urs-composer/portfolio"
+                title="Portfolio Coverage"
+              />
+              <SidebarSubmenuItem
+                icon={AssignmentTurnedInIcon}
                 to="/validation-expert"
                 title="Validation Expert"
               />
