@@ -5,7 +5,7 @@ import {
   filterGoldenPaths,
   type GoldenPathCategory,
 } from '@internal/platform-common';
-import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
+import { C, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
 import { GoldenPathVisual, GoldenPathVisualStyles } from './GoldenPathVisual';
 import { useLandingI18n } from './landingI18n';
 
@@ -41,15 +41,15 @@ function lossStatusStyle(status: LossFeatureStatus) {
   }
   if (status === 'foundation') {
     return {
-      background: 'rgba(11,31,58,0.06)',
-      color: PHARMA_NAVY,
-      border: '1px solid rgba(11,31,58,0.18)',
+      background: C.section,
+      color: C.text,
+      border: `1px solid ${C.borderStrong}`,
     };
   }
   return {
-    background: 'rgba(71,85,105,0.10)',
-    color: '#475569',
-    border: '1px solid rgba(71,85,105,0.22)',
+    background: C.section,
+    color: C.muted,
+    border: `1px solid ${C.border}`,
   };
 }
 
@@ -205,7 +205,7 @@ function ShowcaseBody({
                 fontWeight: 600,
                 lineHeight: 1.2,
                 margin: 0,
-                color: PHARMA_NAVY,
+                color: C.text,
               }}
             >
               {t.proof.title}
@@ -309,9 +309,9 @@ function ShowcaseBody({
                   border: `1px solid ${PHARMA_TEAL}55`,
                 }
               : {
-                  background: 'rgba(11,31,58,0.06)',
-                  color: PHARMA_NAVY,
-                  border: '1px solid rgba(11,31,58,0.18)',
+                  background: C.section,
+                  color: C.text,
+                  border: `1px solid ${C.borderStrong}`,
                 };
             const categoryLabel =
               t.goldenPaths.categoryLabels[path.category] ?? path.category;
@@ -378,9 +378,9 @@ function ShowcaseBody({
                             textTransform: 'uppercase',
                             padding: '4px 10px',
                             borderRadius: 999,
-                            background: 'rgba(11,31,58,0.06)',
-                            color: PHARMA_NAVY,
-                            border: '1px solid rgba(11,31,58,0.18)',
+                            background: C.section,
+                            color: C.text,
+                            border: `1px solid ${C.borderStrong}`,
                           }}
                         >
                           {path.version}
@@ -416,7 +416,7 @@ function ShowcaseBody({
                     width: '100%',
                     textTransform: 'none',
                     borderColor: PHARMA_TEAL,
-                    color: PHARMA_NAVY,
+                    color: C.text,
                     fontWeight: 600,
                   }}
                 >
@@ -466,9 +466,9 @@ function ShowcaseBody({
                     textTransform: 'uppercase',
                     padding: '4px 10px',
                     borderRadius: 999,
-                    background: 'rgba(11,31,58,0.06)',
-                    color: PHARMA_NAVY,
-                    border: '1px solid rgba(11,31,58,0.18)',
+                    background: C.section,
+                    color: C.text,
+                    border: `1px solid ${C.borderStrong}`,
                   }}
                 >
                   {openPath.version}
@@ -637,7 +637,7 @@ function ShowcaseBody({
                 style={{
                   display: 'inline-flex',
                   marginTop: 20,
-                  color: PHARMA_NAVY,
+                  color: C.text,
                   fontWeight: 600,
                 }}
               >

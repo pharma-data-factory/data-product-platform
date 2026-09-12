@@ -10,15 +10,23 @@ export {
   resolvePlatformRole,
   isAtLeast,
   isGuestIdentity,
+  normalizeGithubLogin,
   githubUserEntityRef,
   githubLoginFromEntityRef,
   platformGroupNames,
   hasApprovedPlatformAccess,
+  groupEntityRefFromMemberOf,
+  ownershipRefsFromUserEntity,
   URS_DOMAIN_GROUPS,
   URS_DOMAIN_PERMISSIONS,
   ursDomainPermissionNames,
 } from './roles';
-export type { PlatformGroup, PlatformRole, UrsDomainGroup } from './roles';
+export type {
+  PlatformGroup,
+  PlatformRole,
+  UrsDomainGroup,
+  CatalogUserLike,
+} from './roles';
 
 export {
   marketplaceViewPermission,

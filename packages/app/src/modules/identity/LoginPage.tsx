@@ -58,7 +58,7 @@ export function LoginPage({
               fontWeight: 600,
               fontSize: 18,
               letterSpacing: '-0.02em',
-              color: PHARMA_NAVY,
+              color: C.text,
             }}
           >
             {BRAND_WORDMARK}
@@ -82,7 +82,7 @@ export function LoginPage({
               fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
               fontSize: 22,
               fontWeight: 600,
-              color: PHARMA_NAVY,
+              color: C.text,
             }}
           >
             Sign in to continue
@@ -136,7 +136,7 @@ export function LoginPage({
                 style={{
                   width: '100%',
                   borderColor: C.border,
-                  color: PHARMA_NAVY,
+                  color: C.text,
                   textTransform: 'none',
                   fontWeight: 600,
                   fontSize: 15,

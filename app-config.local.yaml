@@ -5,16 +5,51 @@
 # start the backend with an extra config file:
 #   yarn start --config app-config.yaml --config app-config.github.yaml
 
+# IMPORTANT: GitHub OAuth App callback is registered as localhost (not 127.0.0.1).
+# Open the app as http://localhost:7007 — never http://127.0.0.1:7007 — or the
+# OAuth popup cannot return the session (different browser origins).
 app:
   title: Nexora
+  baseUrl: http://localhost:7007
 
-# Local dev auth key. Hardcoded because `.env` loading via --env-file is
-# unreliable with the multi-line GITHUB_PRIVATE_KEY (resolves BACKEND_SECRET
-# to empty, which fails backend startup with "Missing required config value").
 backend:
+  baseUrl: http://localhost:7007
   auth:
     keys:
       - secret: dev-local-auth-key
+  cors:
+    origin:
+      - http://localhost:3000
+      - http://127.0.0.1:3000
+      - http://localhost:7007
+      - http://127.0.0.1:7007
+      - 'http://*:3000'
+      - 'http://*:7007'
+
+auth:
+  experimentalExtraAllowedOrigins:
+    - http://localhost:7007
+    - http://127.0.0.1:7007
+  providers:
+    guest:
+      # @visibility frontend
+      userEntityRef: user:default/guest
+      ownershipEntityRefs:
+        - user:default/guest
+        - group:default/guests
+        - group:default/data-product-developers
+        - group:default/platform-admins
+        - group:default/urs-authors
+        - group:default/urs-business-reviewers
+        - group:default/urs-product-managers
+        - group:default/urs-quality-reviewers
+    github:
+      development:
+        # @visibility frontend
+        clientId: ${AUTH_GITHUB_CLIENT_ID}
+        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+        # Must match the GitHub OAuth App Authorization callback URL exactly.
+        callbackUrl: http://localhost:7007/api/auth/github/handler/frame
 
 composer:
   ai:

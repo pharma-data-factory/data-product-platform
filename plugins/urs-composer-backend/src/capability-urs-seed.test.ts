@@ -189,6 +189,18 @@ describe('in-memory seed round-trip', () => {
     },
   );
 
+  it('opens genesis 0.1 for every seeded requirement so baselines can pin them', async () => {
+    for (const seed of SEED_REQUIREMENT_SETS) {
+      const stored = await repository.findRequirementSetByKey(seed.requirementSetId);
+      const requirements = await repository.getRequirements(stored!.id);
+      for (const req of requirements) {
+        const versions = await repository.getRequirementVersions(req.requirementId);
+        expect(versions).toHaveLength(1);
+        expect(versions[0].versionLabel ?? versions[0].version).toBe('0.1');
+      }
+    }
+  });
+
   it('serializes acceptance criteria to the acceptanceIntent JSON the UI parses', () => {
     const criteria = [{ title: 'AC-1', verificationMethod: 'Test' }];
     expect(JSON.parse(acceptanceIntentFromSeed(criteria)!)).toEqual(criteria);

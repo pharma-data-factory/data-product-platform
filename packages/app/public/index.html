@@ -2,6 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!--
+      GitHub OAuth callback is registered for localhost. Opening via 127.0.0.1
+      makes the login popup complete on localhost while the opener stays on
+      127.0.0.1 — postMessage fails and the UI shows "sign-in was cancelled".
+    -->
+    <script>
+      if (location.hostname === '127.0.0.1') {
+        location.replace(
+          location.href.replace('://127.0.0.1', '://localhost'),
+        );
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#05101C" />
     <meta

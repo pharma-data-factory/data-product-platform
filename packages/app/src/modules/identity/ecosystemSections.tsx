@@ -107,7 +107,7 @@ function SectionHeading({
           fontWeight: 600,
           lineHeight: 1.2,
           margin: 0,
-          color: PHARMA_NAVY,
+          color: C.text,
         }}
       >
         {title}
@@ -139,15 +139,15 @@ function statusTone(status: MarketplaceCard['status']) {
       };
     case 'available':
       return {
-        bg: 'rgba(11,31,58,0.06)',
-        color: PHARMA_NAVY,
-        border: 'rgba(11,31,58,0.18)',
+        bg: C.section,
+        color: C.text,
+        border: C.borderStrong,
       };
     case 'preview':
       return {
-        bg: 'rgba(71,85,105,0.10)',
-        color: '#475569',
-        border: 'rgba(71,85,105,0.22)',
+        bg: C.section,
+        color: C.muted,
+        border: C.border,
       };
     case 'example':
     default:
@@ -190,7 +190,7 @@ export function ProblemSection() {
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)', gap: 48, alignItems: 'start' }}>
           <Reveal>
             <p style={{ fontSize: 18, lineHeight: 1.75, color: C.muted, margin: 0 }}>{c.problem.body}</p>
-            <p style={{ marginTop: 24, fontSize: 16, fontWeight: 600, color: PHARMA_NAVY }}>
+            <p style={{ marginTop: 24, fontSize: 16, fontWeight: 600, color: C.text }}>
               {c.problem.note}
             </p>
           </Reveal>
@@ -255,14 +255,14 @@ export function PlatformSection() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <span className="pdf-display" style={{ fontWeight: 700, fontSize: 20, color: PHARMA_NAVY }}>NEXORA</span>
+                <span className="pdf-display" style={{ fontWeight: 700, fontSize: 20, color: C.text }}>NEXORA</span>
                 <span className="pdf-mono" style={{ color: PHARMA_TEAL_ON_LIGHT, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
                   {c.platform.capabilitiesLabel}
                 </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
                 {c.platform.capabilities.map(cap => (
-                  <div key={cap.title} style={{ padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }}>
+                  <div key={cap.title} style={{ padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.card }}>
                     <p className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL_ON_LIGHT, fontSize: 12, letterSpacing: '0.1em', fontWeight: 700 }}>{cap.title}</p>
                     <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.5, color: C.muted }}>{cap.text}</p>
                   </div>
@@ -280,11 +280,11 @@ export function PlatformSection() {
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
                 {c.platform.above.map((item, i) => (
-                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }}>
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.card }}>
                     <span style={{ color: PHARMA_TEAL_ON_LIGHT, display: 'inline-flex' }}>
                       <NxIcon name={aboveIcons[i] ?? 'puzzle'} size={22} />
                     </span>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>{item}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{item}</span>
                   </div>
                 ))}
               </div>
@@ -311,10 +311,10 @@ export function JourneySection() {
                 <span style={{ width: 44, height: 44, borderRadius: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: PHARMA_TEAL_ON_LIGHT, background: 'rgba(0,194,217,0.1)', border: '1px solid rgba(0,194,217,0.22)' }}>
                   <NxIcon name={AUDIENCE_ICONS[i] ?? 'puzzle'} size={24} />
                 </span>
-                <h3 className="pdf-display" style={{ fontSize: 20, fontWeight: 600, margin: '16px 0 0', color: PHARMA_NAVY }}>
+                <h3 className="pdf-display" style={{ fontSize: 20, fontWeight: 600, margin: '16px 0 0', color: C.text }}>
                   {audience.title}
                 </h3>
-                <p style={{ margin: '10px 0 0', fontSize: 15, fontWeight: 700, color: PHARMA_NAVY, lineHeight: 1.4 }}>
+                <p style={{ margin: '10px 0 0', fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.4 }}>
                   {audience.tagline}
                 </p>
                 <p className="pdf-muted" style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.6, flex: 1 }}>
@@ -340,7 +340,7 @@ function MarketplaceCardView({ card }: { card: MarketplaceCard }) {
   return (
     <article className="pdf-card" style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'start' }}>
-        <h4 className="pdf-display" style={{ fontSize: 16, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}>
+        <h4 className="pdf-display" style={{ fontSize: 16, fontWeight: 600, margin: 0, color: C.text }}>
           {card.name}
         </h4>
         <StatusBadge card={card} />
@@ -424,8 +424,8 @@ export function BuildSection() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
               {c.build.artifacts.map(item => (
-                <div key={item} style={{ padding: '16px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff', textAlign: 'center' }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>{item}</span>
+                <div key={item} style={{ padding: '16px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, textAlign: 'center' }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{item}</span>
                 </div>
               ))}
             </div>
@@ -438,11 +438,11 @@ export function BuildSection() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
               {c.build.developer.map((item, i) => (
-                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }}>
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.card }}>
                   <span style={{ color: PHARMA_TEAL_ON_LIGHT, display: 'inline-flex' }}>
                     <NxIcon name={devIcons[i] ?? 'puzzle'} size={20} />
                   </span>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>{item}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{item}</span>
                 </div>
               ))}
             </div>
@@ -474,7 +474,7 @@ export function TrustSection() {
           {c.trust.levels.map((level, i) => (
             <Reveal key={level.name} delay={i * 60}>
               <article className="pdf-card" style={{ padding: 24, height: '100%', borderTop: `3px solid ${TRUST_TONES[i] ?? PHARMA_TEAL}` }}>
-                <h3 className="pdf-display" style={{ fontSize: 18, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}>
+                <h3 className="pdf-display" style={{ fontSize: 18, fontWeight: 600, margin: 0, color: C.text }}>
                   {level.name}
                 </h3>
                 <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 700, color: TRUST_TONES[i] ?? PHARMA_TEAL }}>
@@ -542,7 +542,7 @@ export function AcademySection() {
             <Reveal key={path.title} delay={i * 50}>
               <article className="pdf-card" style={{ padding: 22, height: '100%' }}>
                 <div className="pdf-mono" style={{ color: PHARMA_TEAL_ON_LIGHT, fontSize: 12, marginBottom: 8 }}>0{i + 1}</div>
-                <h3 className="pdf-display" style={{ fontSize: 17, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}>
+                <h3 className="pdf-display" style={{ fontSize: 17, fontWeight: 600, margin: 0, color: C.text }}>
                   {path.title}
                 </h3>
                 <p className="pdf-muted" style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.6 }}>
@@ -559,7 +559,7 @@ export function AcademySection() {
           {c.academy.roles.map((role, i) => (
             <Reveal key={role.title} delay={i * 40}>
               <div style={{ padding: '16px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.paper }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>{role.title}</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.text }}>{role.title}</p>
                 <p className="pdf-muted" style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.55 }}>{role.body}</p>
               </div>
             </Reveal>

@@ -39,6 +39,7 @@ import {
   SEED_REQUIREMENT_SETS,
   acceptanceIntentFromSeed,
 } from './data/seedRequirementSets';
+import { buildGenesisRequirementVersion } from './domain/genesis-seed';
 
 const DEFAULT_BUSINESS_ROLES = [
   'Weighing Operator',
@@ -175,6 +176,14 @@ export class URSRepository implements IURSRepository {
         createdBy: 'system',
       }));
       this.requirements.set(setId, reqs);
+
+      for (const req of reqs) {
+        const genesis = buildGenesisRequirementVersion(req, 'system', {
+          id: `${req.id}-v0.1`,
+          createdAt: now,
+        });
+        this.requirementVersions.set(genesis.id, genesis);
+      }
     }
   }
 

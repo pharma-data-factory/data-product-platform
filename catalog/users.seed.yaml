@@ -10,7 +10,20 @@ metadata:
   annotations:
     dataprod.platform/identity: development-fallback
 spec:
-  memberOf: [guests, data-product-developers]
+  # Solo local Freigabe: guest holds author + all review roles so one identity
+  # can drive Baseline → Submit → Approve without switching users.
+  # platform-admins: local Portal access when GitHub OAuth popup is blocked
+  # (127.0.0.1 vs localhost). Not for production.
+  memberOf:
+    [
+      guests,
+      data-product-developers,
+      platform-admins,
+      urs-authors,
+      urs-business-reviewers,
+      urs-product-managers,
+      urs-quality-reviewers,
+    ]
 ---
 apiVersion: backstage.io/v1alpha1
 kind: User

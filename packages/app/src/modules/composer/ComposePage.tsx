@@ -127,7 +127,7 @@ const useStyles = makeStyles(theme => ({
     padding: 0,
   },
   legend: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 13,
     fontWeight: 600,
@@ -142,7 +142,7 @@ const useStyles = makeStyles(theme => ({
     padding: 12,
   },
   disabledCard: {
-    background: '#F8FAFC',
+    background: C.cardHover,
     opacity: 0.72,
   },
   developmentCard: {
@@ -177,7 +177,7 @@ const useStyles = makeStyles(theme => ({
     background: 'transparent',
     border: `1px solid ${C.border}`,
     borderRadius: 10,
-    color: PHARMA_NAVY,
+    color: C.text,
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 600,
@@ -195,7 +195,7 @@ const useStyles = makeStyles(theme => ({
     whiteSpace: 'pre-wrap',
   },
   banner: {
-    background: '#F8FAFC',
+    background: C.cardHover,
     border: `1px solid ${C.border}`,
     borderRadius: 10,
     color: C.text,
@@ -217,7 +217,7 @@ const useStyles = makeStyles(theme => ({
     color: PHARMA_TEAL,
   },
   aiSection: {
-    border: '2px dashed #CBD5E1',
+    border: `2px dashed ${C.border}`,
     borderRadius: 12,
     marginBottom: 20,
     padding: 16,

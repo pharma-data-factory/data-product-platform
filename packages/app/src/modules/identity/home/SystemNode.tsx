@@ -1,5 +1,5 @@
 import { NX, NxIcon, type NxIconName, NodeLabel, nodeButtonStyle } from './icons';
-import { PHARMA_NAVY } from '../landingTokens';
+import { C } from '../landingTokens';
 
 export function SystemNode({
   id,
@@ -97,10 +97,10 @@ export function BenefitCard({
       <div className="nx-benefit-icon" aria-hidden="true">
         <NxIcon name={icon} size={26} />
       </div>
-      <h3 className="pdf-display" style={{ margin: '16px 0 0', fontSize: 18, fontWeight: 600, color: PHARMA_NAVY }}>
+      <h3 className="pdf-display" style={{ margin: '16px 0 0', fontSize: 18, fontWeight: 600, color: C.text }}>
         {title}
       </h3>
-      <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.6, color: '#475569' }}>{body}</p>
+      <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.6, color: C.muted }}>{body}</p>
     </article>
   );
 }

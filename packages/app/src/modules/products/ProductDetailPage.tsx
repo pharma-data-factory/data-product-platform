@@ -37,6 +37,7 @@ import type {
   ProductVersion,
 } from '@internal/platform-common';
 import { NEXORA_STATUS } from '@internal/plugin-nexora-common';
+import { C } from '../theme/tokens';
 import {
   buildUrsChangeRequestDeepLink,
   filterChangeRequestsByProductSoftRefs,
@@ -1054,7 +1055,7 @@ export function ProductDetailPage() {
                     style={{
                       marginTop: 12,
                       padding: 12,
-                      background: '#F8FAFC',
+                      background: C.cardHover,
                       borderRadius: 8,
                       overflow: 'auto',
                       fontSize: 12,

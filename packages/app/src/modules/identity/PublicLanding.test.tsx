@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { LANDING_LOCALE_STORAGE_KEY } from './landingI18n';
 import { PublicLanding } from './PublicLanding';
+import { renderLanding } from './landingTestUtils';
 
 function hasLink(name: string | RegExp, href: string): boolean {
   return screen
@@ -14,7 +15,7 @@ describe('public landing', () => {
   });
 
   it('positions Nexora as the open manufacturing platform for life sciences', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getAllByText('NEXORA').length).toBeGreaterThan(0);
     expect(
@@ -33,7 +34,7 @@ describe('public landing', () => {
   });
 
   it('wires the hero CTAs to on-page sections without dead links', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(hasLink('Explore the Platform', '#platform')).toBe(true);
     expect(hasLink('Explore Marketplace', '#marketplace')).toBe(true);
@@ -42,7 +43,7 @@ describe('public landing', () => {
   });
 
   it('keeps public navigation across platform and ecosystem sections', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(hasLink('Platform', '/platform/architecture')).toBe(true);
     expect(hasLink('Solutions', '/solutions')).toBe(true);
@@ -52,8 +53,16 @@ describe('public landing', () => {
     expect(hasLink('Enterprise', '/enterprise')).toBe(true);
   });
 
+  it('shows an appearance toggle in the landing chrome', () => {
+    const { themeApi } = renderLanding(<PublicLanding onSignIn={() => undefined} />);
+
+    const toggle = screen.getByRole('button', { name: /Appearance: Dark/i });
+    fireEvent.click(toggle);
+    expect(themeApi.setActiveThemeId).toHaveBeenCalledWith('nexora-dark');
+  });
+
   it('renders the problem, platform and journey sections', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getByLabelText('The problem')).toBeInTheDocument();
     for (const system of ['MES', 'ERP', 'LIMS', 'SCADA', 'Historian', 'IoT']) {
@@ -78,7 +87,7 @@ describe('public landing', () => {
   });
 
   it('presents the marketplace with real items and clearly labelled examples', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     const marketplace = screen.getByLabelText('Marketplace');
     expect(
@@ -102,7 +111,7 @@ describe('public landing', () => {
   });
 
   it('renders the build surface, trust model, academy and flywheel', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getByLabelText('Build on Nexora')).toBeInTheDocument();
     for (const artifact of ['Plugins', 'Connectors', 'Applications', 'Data Products', 'Workflows', 'Templates']) {
@@ -130,7 +139,7 @@ describe('public landing', () => {
   });
 
   it('renders enterprise services and a four-path final CTA', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getByLabelText('Enterprise')).toBeInTheDocument();
     expect(screen.getByText('Private marketplace')).toBeInTheDocument();
@@ -148,7 +157,7 @@ describe('public landing', () => {
   });
 
   it('keeps certified Golden Paths and the three editions as proof', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     const goldenPaths = screen.getByLabelText('Golden Path showcase');
     expect(within(goldenPaths).getByRole('heading', { name: 'OEE Data Product' })).toBeInTheDocument();
@@ -160,7 +169,7 @@ describe('public landing', () => {
   });
 
   it('offers language selection and does not claim open source or GxP validation', () => {
-    render(<PublicLanding onSignIn={() => undefined} />);
+    renderLanding(<PublicLanding onSignIn={() => undefined} />);
 
     expect(screen.getAllByRole('link', { name: 'Book a Demo' })[0]).toHaveAttribute('href', '#contact');
     expect(screen.queryByText('Start for Free')).not.toBeInTheDocument();

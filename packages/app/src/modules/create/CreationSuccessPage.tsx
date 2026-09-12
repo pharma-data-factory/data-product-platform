@@ -59,7 +59,7 @@ export function CreationSuccessPage({
             fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
             fontSize: 28,
             fontWeight: 600,
-            color: PHARMA_NAVY,
+            color: C.text,
           }}
         >
           {productName || 'Data Product'}

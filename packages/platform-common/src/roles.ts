@@ -83,8 +83,12 @@ export function isGuestIdentity(userEntityRef?: string): boolean {
   return (userEntityRef ?? '').toLowerCase() === GUEST_USER_ENTITY_REF;
 }
 
+export function normalizeGithubLogin(login: string): string {
+  return login.trim().toLocaleLowerCase('en-US');
+}
+
 export function githubUserEntityRef(login: string): string {
-  const name = login.trim().toLowerCase();
+  const name = normalizeGithubLogin(login);
   if (!name) {
     throw new Error('GitHub username is required to map a catalog User');
   }
@@ -114,6 +118,55 @@ export function hasApprovedPlatformAccess(
   return platformGroupNames(ownershipEntityRefs).some(name =>
     PLATFORM_GROUPS.includes(name as PlatformGroup),
   );
+}
+
+/**
+ * Minimal catalog User shape used when issuing GitHub sign-in claims.
+ * Avoids a catalog-model dependency in this package.
+ */
+export interface CatalogUserLike {
+  metadata: { name: string; namespace?: string };
+  relations?: readonly { type: string; targetRef: string }[];
+  spec?: { memberOf?: unknown };
+}
+
+export function groupEntityRefFromMemberOf(memberOf: string): string {
+  const value = memberOf.trim().toLocaleLowerCase('en-US');
+  if (!value) {
+    throw new Error('Group name is required');
+  }
+  if (value.startsWith('group:')) {
+    return value;
+  }
+  if (value.includes('/')) {
+    return `group:${value}`;
+  }
+  return `group:default/${value}`;
+}
+
+/**
+ * Ownership refs for a catalog User: the user ref, processed memberOf
+ * relations, and spec.memberOf as a fallback when relations are empty.
+ */
+export function ownershipRefsFromUserEntity(entity: CatalogUserLike): string[] {
+  const refs = new Set<string>([githubUserEntityRef(entity.metadata.name)]);
+  for (const relation of entity.relations ?? []) {
+    if (
+      relation.type.toLocaleLowerCase('en-US') === 'memberof' &&
+      relation.targetRef.toLocaleLowerCase('en-US').startsWith('group:')
+    ) {
+      refs.add(relation.targetRef.toLocaleLowerCase('en-US'));
+    }
+  }
+  const memberOf = entity.spec?.memberOf;
+  if (Array.isArray(memberOf)) {
+    for (const group of memberOf) {
+      if (typeof group === 'string' && group.trim()) {
+        refs.add(groupEntityRefFromMemberOf(group));
+      }
+    }
+  }
+  return [...refs];
 }
 
 /**

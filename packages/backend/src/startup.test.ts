@@ -17,9 +17,8 @@ describe('Backstage foundation', () => {
     );
     expect(backendIndex).toContain("backend.add(import('@backstage/plugin-techdocs-backend'))");
     expect(backendIndex).toContain("backend.add(import('@backstage/plugin-search-backend'))");
-    expect(backendIndex).toContain(
-      "backend.add(import('@backstage/plugin-auth-backend-module-github-provider'))",
-    );
+    expect(backendIndex).toContain('githubAuthModule');
+    expect(backendIndex).toContain("from './auth/githubModule'");
     expect(backendIndex).toContain(
       "backend.add(import('@internal/plugin-data-products-backend'))",
     );

@@ -122,7 +122,7 @@ function SolutionsIndex() {
             >
               <h2
                 className="pdf-display"
-                style={{ fontSize: 22, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}
+                style={{ fontSize: 22, fontWeight: 600, margin: 0, color: C.text }}
               >
                 {audience.title}
               </h2>
@@ -131,7 +131,7 @@ function SolutionsIndex() {
                   margin: '12px 0 0',
                   fontSize: 15,
                   fontWeight: 700,
-                  color: PHARMA_NAVY,
+                  color: C.text,
                   lineHeight: 1.4,
                 }}
               >

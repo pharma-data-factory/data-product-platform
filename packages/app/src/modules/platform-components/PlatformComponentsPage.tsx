@@ -129,24 +129,24 @@ const useStyles = makeStyles({
     boxShadow: '0 0 0 1px rgba(13, 148, 136, 0.12)',
   },
   tested: {
-    borderColor: '#CBD5E1',
+    borderColor: C.border,
     borderLeft: `4px solid ${C.observability}`,
   },
   development: {
-    borderColor: '#CBD5E1',
+    borderColor: C.border,
     borderLeft: `4px solid ${C.security}`,
   },
   planned: {
-    background: '#F8FAFC',
+    background: C.cardHover,
     borderStyle: 'dashed',
     color: `${C.muted} !important`,
     opacity: 0.72,
   },
   catalogOnly: {
-    borderColor: '#CBD5E1',
+    borderColor: C.border,
   },
   name: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 18,
     fontWeight: 600,

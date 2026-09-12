@@ -7,18 +7,28 @@ import {
   useState,
 } from 'react';
 import { Button } from '@material-ui/core';
+import { useTheme } from '@material-ui/core/styles';
+import Brightness4Icon from '@material-ui/icons/Brightness4';
+import Brightness7Icon from '@material-ui/icons/Brightness7';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import CloseIcon from '@material-ui/icons/Close';
 import CheckIcon from '@material-ui/icons/Check';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import LanguageIcon from '@material-ui/icons/Language';
 import MenuIcon from '@material-ui/icons/Menu';
+import {
+  appThemeApiRef,
+  useApi,
+} from '@backstage/core-plugin-api';
 import { PRODUCT_EDITIONS } from '@internal/platform-common';
+import {
+  cssVariablesToDeclaration,
+  type NexoraColorMode,
+} from '@internal/plugin-nexora-common';
 import { LEGAL_NAV } from '../legal/constants';
 import { BrandMark } from '../nav/BrandMark';
 import { GoldenPathShowcase } from './GoldenPathShowcase';
 import { HeroSection } from './home/HeroSection';
-import { cssVariablesToDeclaration } from '@internal/plugin-nexora-common';
 import { HomeStyles } from './home/HomeStyles';
 import {
   AcademySection,
@@ -41,6 +51,10 @@ import { CookieConsentBanner } from '../legal/CookieConsentBanner';
 import { legalNavCopy } from '../legal/legalCopy';
 import { openCookieSettings } from '../legal/cookieConsent';
 
+function resolveLandingMode(paletteType: string | undefined): NexoraColorMode {
+  return paletteType === 'dark' ? 'dark' : 'light';
+}
+
 const NAV_ITEMS = [
   { id: 'platform', href: '/platform/architecture' },
   { id: 'solutions', href: '/solutions' },
@@ -54,14 +68,22 @@ const animate =
   typeof process === 'undefined' || process.env.NODE_ENV !== 'test';
 
 /**
- * Public marketing chrome. Always pins the light brand palette on `.pdf-root`
- * so Control Plane dark mode cannot wash out section text/cards.
+ * Public marketing chrome. Follows the active Backstage/Nexora theme so the
+ * light/dark switch applies on Landing, Architecture, Legal, and Ecosystem.
  */
-export const LandingStyles = () => (
-  <style>{`
+export function LandingStyles() {
+  const theme = useTheme();
+  const mode = resolveLandingMode(
+    (theme.palette as { type?: string; mode?: string }).type ??
+      (theme.palette as { mode?: string }).mode,
+  );
+  const declaration = cssVariablesToDeclaration(mode);
+
+  return (
+  <style data-nexora-landing={mode}>{`
     html { scroll-behavior: smooth; }
     .pdf-root {
-      ${cssVariablesToDeclaration('light')}
+      ${declaration}
       background: var(--nexora-color-surface);
       color: var(--nexora-color-text);
       font-family: var(--nexora-font-sans);
@@ -196,7 +218,8 @@ export const LandingStyles = () => (
       .pdf-home-steps { grid-template-columns: 1fr; }
     }
   `}</style>
-);
+  );
+}
 
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -255,8 +278,8 @@ function StatusPill({
   const colors = {
     available: { bg: `${PHARMA_TEAL}14`, color: PHARMA_TEAL_DARK, border: `${PHARMA_TEAL}55` },
     certified: { bg: `${PHARMA_TEAL}14`, color: PHARMA_TEAL_DARK, border: `${PHARMA_TEAL}55` },
-    planned: { bg: 'rgba(11,31,58,0.08)', color: PHARMA_NAVY, border: 'rgba(11,31,58,0.18)' },
-    future: { bg: 'rgba(71,85,105,0.10)', color: '#475569', border: 'rgba(71,85,105,0.22)' },
+    planned: { bg: C.section, color: C.text, border: C.borderStrong },
+    future: { bg: C.section, color: C.muted, border: C.border },
   }[tone];
 
   return (
@@ -451,6 +474,115 @@ function LanguageMenu({ onDark }: { onDark: boolean }) {
   );
 }
 
+function themeLabel(
+  variant: 'light' | 'dark' | string | undefined,
+  t: { appearanceLight: string; appearanceDark: string },
+) {
+  return variant === 'dark' ? t.appearanceDark : t.appearanceLight;
+}
+
+const NEXORA_THEME_IDS = {
+  light: 'nexora-light',
+  dark: 'nexora-dark',
+} as const;
+
+/**
+ * Always-visible light/dark control for public chrome.
+ * Uses known Nexora theme ids so it still works if getInstalledThemes()
+ * is empty on the sign-in route.
+ */
+function AppearanceToggle({ onDark }: { onDark: boolean }) {
+  const { t } = useLandingI18n();
+  const theme = useTheme();
+  const appThemeApi = useApi(appThemeApiRef);
+  const isDark =
+    (theme.palette as { type?: string; mode?: string }).type === 'dark' ||
+    (theme.palette as { mode?: string }).mode === 'dark';
+
+  const nextId = isDark ? NEXORA_THEME_IDS.light : NEXORA_THEME_IDS.dark;
+  const Icon = isDark ? Brightness7Icon : Brightness4Icon;
+  const label = isDark ? t.appearanceLight : t.appearanceDark;
+
+  return (
+    <button
+      type="button"
+      className="pdf-focus"
+      aria-label={`${t.appearance}: ${label}`}
+      aria-pressed={isDark}
+      onClick={() => appThemeApi.setActiveThemeId(nextId)}
+      style={chromeButtonStyle(onDark)}
+    >
+      <Icon style={{ fontSize: 18 }} />
+      {label}
+    </button>
+  );
+}
+
+function AppearanceMobileOptions({ onSelect }: { onSelect: () => void }) {
+  const { t } = useLandingI18n();
+  const theme = useTheme();
+  const appThemeApi = useApi(appThemeApiRef);
+  const isDark =
+    (theme.palette as { type?: string; mode?: string }).type === 'dark' ||
+    (theme.palette as { mode?: string }).mode === 'dark';
+
+  const options = [
+    { id: NEXORA_THEME_IDS.light, variant: 'light' as const },
+    { id: NEXORA_THEME_IDS.dark, variant: 'dark' as const },
+  ];
+
+  return (
+    <>
+      <p
+        className="pdf-mono"
+        style={{
+          margin: '12px 8px 4px',
+          fontSize: 11,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: PHARMA_TEAL,
+        }}
+      >
+        {t.appearance}
+      </p>
+      {options.map(option => {
+        const selected =
+          (option.variant === 'dark' && isDark) ||
+          (option.variant === 'light' && !isDark);
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => {
+              appThemeApi.setActiveThemeId(option.id);
+              onSelect();
+            }}
+            className="pdf-muted pdf-focus"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 8px',
+              border: 0,
+              borderRadius: 8,
+              background: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              textAlign: 'left',
+            }}
+          >
+            {themeLabel(option.variant, t)}
+            {selected && (
+              <CheckIcon style={{ fontSize: 18, color: PHARMA_TEAL }} />
+            )}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 function BookDemoLink({
   location,
   onDark,
@@ -551,21 +683,31 @@ export function LandingNav({
           <BookDemoLink location={location} onDark={onDark} />
           <SignInButton onSignIn={onSignIn} size="small" variant="primary" />
         </nav>
-        <button
-          type="button"
-          className="pdf-focus pdf-mobile-toggle"
-          onClick={() => setOpen(!open)}
-          aria-label={open ? t.closeMenu : t.openMenu}
+        <div
           style={{
-            background: 'none',
-            border: 0,
-            color: onDark ? '#F8FAFC' : C.text,
-            padding: 8,
-            display: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexShrink: 0,
           }}
         >
-          {open ? <CloseIcon /> : <MenuIcon />}
-        </button>
+          <AppearanceToggle onDark={onDark} />
+          <button
+            type="button"
+            className="pdf-focus pdf-mobile-toggle"
+            onClick={() => setOpen(!open)}
+            aria-label={open ? t.closeMenu : t.openMenu}
+            style={{
+              background: 'none',
+              border: 0,
+              color: onDark ? '#F8FAFC' : C.text,
+              padding: 8,
+              display: 'none',
+            }}
+          >
+            {open ? <CloseIcon /> : <MenuIcon />}
+          </button>
+        </div>
       </div>
       {open && (
         <div style={{ padding: '8px 24px 20px', display: 'flex', flexDirection: 'column', gap: 4, borderTop: `1px solid ${C.border}` }}>
@@ -619,6 +761,7 @@ export function LandingNav({
               {item.id === locale && <CheckIcon style={{ fontSize: 18, color: PHARMA_TEAL }} />}
             </button>
           ))}
+          <AppearanceMobileOptions onSelect={() => setOpen(false)} />
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <BookDemoLink location={location} onDark={false} onNavigate={() => setOpen(false)} />
             <SignInButton onSignIn={onSignIn} variant="primary" />
@@ -675,7 +818,7 @@ function EditionCard({
         </p>
         <p
           className="pdf-display"
-          style={{ margin: '24px 0 0', fontSize: 28, fontWeight: 700, color: PHARMA_NAVY }}
+          style={{ margin: '24px 0 0', fontSize: 28, fontWeight: 700, color: C.text }}
         >
           {copy?.priceLabel ?? edition.priceLabel}
         </p>

@@ -1,5 +1,5 @@
 import { NX } from './icons';
-import { C, PHARMA_NAVY } from '../landingTokens';
+import { C } from '../landingTokens';
 
 export const HomeStyles = () => (
   <style>{`
@@ -319,13 +319,13 @@ export const HomeStyles = () => (
       font-size: clamp(28px, 4vw, 40px);
       font-weight: 600;
       line-height: 1.2;
-      color: ${PHARMA_NAVY};
+      color: ${C.text};
     }
     .nx-why-body {
       margin: 16px 0 0;
       font-size: 17px;
       line-height: 1.7;
-      color: #475569;
+      color: ${C.muted};
     }
     .nx-why-cards {
       display: grid;
@@ -333,8 +333,8 @@ export const HomeStyles = () => (
       gap: 16px;
     }
     .nx-benefit {
-      background: #fff;
-      border: 1px solid #e2e8f0;
+      background: ${C.card};
+      border: 1px solid ${C.border};
       border-radius: 16px;
       padding: 24px;
       box-shadow: 0 8px 24px rgba(11,31,58,0.04);

@@ -6,7 +6,7 @@ import {
 } from '@backstage/core-components';
 import { Grid } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../theme/tokens';
+import { C, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../theme/tokens';
 import { nexoraThemeColor } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
@@ -38,13 +38,13 @@ const useStyles = makeStyles({
     padding: 20,
   },
   featuredLayerCard: {
-    background: 'rgba(0, 194, 217, 0.05)',
+    background: C.tint,
     border: `2px solid ${PHARMA_TEAL}`,
     borderRadius: 12,
     padding: 20,
   },
   cardTitle: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontSize: 16,
     fontWeight: 600,
     margin: '0 0 8px',
@@ -95,7 +95,7 @@ const useStyles = makeStyles({
     padding: 20,
   },
   conceptTitle: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontSize: 15,
     fontWeight: 600,
     margin: 0,
@@ -113,7 +113,7 @@ const useStyles = makeStyles({
     padding: 24,
   },
   modelTitle: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontSize: 15,
     fontWeight: 600,
     margin: '0 0 16px',
@@ -132,7 +132,7 @@ const useStyles = makeStyles({
     padding: 24,
   },
   dashboardTitle: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontSize: 15,
     fontWeight: 600,
     margin: '0 0 12px',
@@ -150,7 +150,7 @@ const useStyles = makeStyles({
     textDecoration: 'none !important',
   },
   statusSection: {
-    background: 'rgba(0, 194, 217, 0.08)',
+    background: C.tint,
     border: `1px solid ${PHARMA_TEAL}`,
     borderRadius: 12,
     marginBottom: 48,
@@ -195,7 +195,7 @@ const useStyles = makeStyles({
     padding: 32,
   },
   learnMoreTitle: {
-    color: PHARMA_NAVY,
+    color: C.text,
     fontSize: 18,
     fontWeight: 600,
     margin: '0 0 16px',

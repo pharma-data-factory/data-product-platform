@@ -17,7 +17,7 @@ const linkStyle = {
   borderRadius: 999,
   border: `1px solid ${C.border}`,
   textDecoration: 'none',
-  color: PHARMA_NAVY,
+  color: C.text,
   fontSize: 13,
   fontWeight: 600,
 } as const;
@@ -143,7 +143,7 @@ function DiagramSection() {
             fontSize: 'clamp(24px, 3.2vw, 36px)',
             fontWeight: 600,
             margin: '0 0 24px',
-            color: PHARMA_NAVY,
+            color: C.text,
           }}
         >
           Catalog, Marketplace and Create feed a Golden Path
@@ -186,14 +186,14 @@ function BackstageFoundationSection() {
             fontSize: 'clamp(24px, 3.2vw, 36px)',
             fontWeight: 600,
             margin: '0 0 24px',
-            color: PHARMA_NAVY,
+            color: C.text,
           }}
         >
           Built on Backstage, extended for Data Products
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
           <div className="pdf-card" style={{ padding: 20 }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: C.text }}>
               From Backstage
             </h3>
             <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: C.text }}>
@@ -206,7 +206,7 @@ function BackstageFoundationSection() {
             </ul>
           </div>
           <div className="pdf-card" style={{ padding: 20 }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: PHARMA_NAVY }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: C.text }}>
               Nexora adds
             </h3>
             <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: C.text }}>
@@ -233,7 +233,7 @@ function HowSection() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2
           className="pdf-display"
-          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 24px', color: PHARMA_NAVY }}
+          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 24px', color: C.text }}
         >
           Developer path
         </h2>
@@ -243,7 +243,7 @@ function HowSection() {
               <p className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.12em' }}>
                 STEP {index + 1}
               </p>
-              <h3 className="pdf-display" style={{ margin: '8px 0 0', fontSize: 20, color: PHARMA_NAVY }}>
+              <h3 className="pdf-display" style={{ margin: '8px 0 0', fontSize: 20, color: C.text }}>
                 {step.title}
               </h3>
               <p style={{ margin: '10px 0 0', lineHeight: 1.6, color: C.text }}>{step.body}</p>
@@ -280,7 +280,7 @@ function ManifestSection() {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <h2
             className="pdf-display"
-            style={{ fontSize: 28, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}
+            style={{ fontSize: 28, fontWeight: 600, margin: 0, color: C.text }}
           >
             Composition manifest
           </h2>
@@ -327,7 +327,7 @@ function DocsSection() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2
           className="pdf-display"
-          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 12px', color: PHARMA_NAVY }}
+          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 12px', color: C.text }}
         >
           Continue in Developer Hub
         </h2>

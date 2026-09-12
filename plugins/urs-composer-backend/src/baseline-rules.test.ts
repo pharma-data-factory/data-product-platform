@@ -338,7 +338,7 @@ describe('Review scope', () => {
 });
 
 describe('Invariant 9: a released baseline holds no unreleased content', () => {
-  test('a baseline pinning a draft cannot be released', async () => {
+  test('a baseline pinning drafts releases those versions on Freigabe', async () => {
     const { repository, service, setId } = await setup();
     const a = await addVersion(service, repository, setId, {
       id: 'ver-a',
@@ -352,14 +352,13 @@ describe('Invariant 9: a released baseline holds no unreleased content', () => {
       ACTOR,
     );
 
-    await expect(releaseBaseline(service, baseline.id)).rejects.toThrow(
-      /pinned version\(s\) are not approved/,
-    );
+    await releaseBaseline(service, baseline.id);
 
-    // Still under review rather than released; the refusal rolled the
-    // release back but left the submission standing.
     expect((await repository.getBaseline(baseline.id))!.status).toBe(
-      URSStatus.IN_REVIEW,
+      URSStatus.APPROVED,
+    );
+    expect((await repository.getRequirementVersion(a.id))!.status).toBe(
+      URSStatus.APPROVED,
     );
   });
 

@@ -10,7 +10,7 @@ import {
   LandingI18nProvider,
   useLandingI18n,
 } from '../identity/landingI18n';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from '../identity/landingTokens';
+import { C, PHARMA_TEAL } from '../identity/landingTokens';
 import { legalNavCopy, legalPages, type LegalPageCopy } from './legalCopy';
 import { openCookieSettings } from './cookieConsent';
 
@@ -46,7 +46,7 @@ function LegalBody({
         variant="h3"
         paragraph
         style={{
-          color: PHARMA_NAVY,
+          color: C.text,
           fontWeight: 700,
           marginTop: 8,
           fontFamily: "'Space Grotesk', Inter, system-ui, sans-serif",
@@ -80,7 +80,7 @@ function LegalBody({
         <section key={section.heading} style={{ marginTop: 28 }}>
           <Typography
             variant="h6"
-            style={{ color: PHARMA_NAVY, fontWeight: 700, marginBottom: 10 }}
+            style={{ color: C.text, fontWeight: 700, marginBottom: 10 }}
           >
             {section.heading}
           </Typography>

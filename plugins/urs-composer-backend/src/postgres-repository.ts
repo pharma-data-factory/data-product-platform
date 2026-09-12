@@ -43,7 +43,6 @@ import {
 } from './domain/transitions';
 import { IURSRepository, Transaction } from './repository-interface';
 import { up } from './db/migrations';
-import { seed } from './db/seeds';
 
 /**
  * PostgreSQL Transaction wrapper
@@ -86,11 +85,13 @@ export class PostgresURSRepository implements IURSRepository {
    * Backstage's DatabaseService.getClient() is async. Construct via this
    * factory so the repository holds a real Knex instance (and the schema
    * exists) instead of an unresolved Promise.
+   *
+   * Runs schema migrations (and genesis repair) only. Content seed is explicit:
+   * `yarn urs:seed` or test helpers — never on every backend start.
    */
   static async create(database: { getClient(): Promise<Knex> | Knex }): Promise<PostgresURSRepository> {
     const db = await database.getClient();
     await up(db);
-    await seed(db);
     return new PostgresURSRepository(db);
   }
 
