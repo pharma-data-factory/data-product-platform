@@ -56,11 +56,11 @@ export function buildCreateChangeRequestDefaults(params: {
   }
 
   return {
-    title: baselineId
-      ? `Change request for baseline ${baselineId}`
-      : productVersionId
-        ? `Change request for product version ${productVersionId}`
-        : '',
+    title:
+      (baselineId && `Change request for baseline ${baselineId}`) ||
+      (productVersionId &&
+        `Change request for product version ${productVersionId}`) ||
+      '',
     description: lines.join('\n'),
     reason:
       reasonFromQuery ||

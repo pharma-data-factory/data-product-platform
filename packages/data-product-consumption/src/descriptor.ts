@@ -139,43 +139,43 @@ function buildPublishMeta(entity: Entity): DataProductPublishMeta {
       major: 1,
     });
 
-  const ports =
-    portsCsv.length > 0
-      ? portsCsv.map(type => {
-          const normalized = type.toLowerCase();
-          if (normalized === 'warehouse') {
-            return {
-              id: 'warehouse',
-              type: 'warehouse' as const,
-              dataset,
-              profile: warehouseProfile as 'file' | 'snowflake' | 'databricks',
-              enabled,
-            };
-          }
-          if (normalized === 'rest') {
-            return {
-              id: 'rest',
-              type: 'rest' as const,
-              enabled,
-            };
-          }
-          return {
+  const csvPorts = portsCsv.map(type => {
+    const normalized = type.toLowerCase();
+    if (normalized === 'warehouse') {
+      return {
+        id: 'warehouse',
+        type: 'warehouse' as const,
+        dataset,
+        profile: warehouseProfile as 'file' | 'snowflake' | 'databricks',
+        enabled,
+      };
+    }
+    if (normalized === 'rest') {
+      return {
+        id: 'rest',
+        type: 'rest' as const,
+        enabled,
+      };
+    }
+    return {
+      id: 'mqtt',
+      type: 'mqtt' as const,
+      topic,
+      enabled,
+    };
+  });
+  const fallbackPorts =
+    enabled || ann(entity, 'publish-mqtt-topic')
+      ? [
+          {
             id: 'mqtt',
             type: 'mqtt' as const,
             topic,
             enabled,
-          };
-        })
-      : enabled || ann(entity, 'publish-mqtt-topic')
-        ? [
-            {
-              id: 'mqtt',
-              type: 'mqtt' as const,
-              topic,
-              enabled,
-            },
-          ]
-        : [];
+          },
+        ]
+      : [];
+  const ports = portsCsv.length > 0 ? csvPorts : fallbackPorts;
 
   return {
     enabled,

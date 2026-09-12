@@ -662,11 +662,12 @@ export function ProductDetailPage() {
                           <Box style={{ marginBottom: 12 }}>
                             <Typography variant="body2">
                               Evidence: {qaReadiness.evidenceCompleteness}
-                              {selectedVersion.status === 'RELEASE_CANDIDATE'
-                                ? qaReadiness.releaseGatePassed
+                              {selectedVersion.status !== 'RELEASE_CANDIDATE' &&
+                                ' · already RELEASED'}
+                              {selectedVersion.status === 'RELEASE_CANDIDATE' &&
+                                (qaReadiness.releaseGatePassed
                                   ? ' · Release Gate passed'
-                                  : ' · Release Gate not passed'
-                                : ' · already RELEASED'}
+                                  : ' · Release Gate not passed')}
                             </Typography>
                             <Typography variant="body2" style={{ marginTop: 4 }}>
                               URS pin: {qaReadiness.ursPinStatus}
@@ -840,20 +841,21 @@ export function ProductDetailPage() {
                   onChange={e => setSelectedUrsBaselineId(e.target.value)}
                   style={{ minWidth: 360 }}
                   helperText={
-                    selectedUrs
-                      ? `${selectedUrs.solutionName || 'URS'} · v${
-                          selectedUrs.baselineVersion
-                        } · ${selectedUrs.status}`
-                      : approvedUrsOptions.length === 0
-                        ? 'No APPROVED URS baselines available'
-                        : 'Select from URS Composer'
+                    (selectedUrs &&
+                      `${selectedUrs.solutionName || 'URS'} · v${
+                        selectedUrs.baselineVersion
+                      } · ${selectedUrs.status}`) ||
+                    (approvedUrsOptions.length === 0
+                      ? 'No APPROVED URS baselines available'
+                      : 'Select from URS Composer')
                   }
                 >
                   <MenuItem value="">Select…</MenuItem>
                   {approvedUrsOptions.map(opt => (
                     <MenuItem key={opt.id} value={opt.id}>
-                      {(opt.solutionName || opt.requirementSetId || 'URS') +
-                        ` · ${opt.baselineVersion} · ${opt.id.slice(0, 8)}…`}
+                      {`${opt.solutionName || opt.requirementSetId || 'URS'} · ${
+                        opt.baselineVersion
+                      } · ${opt.id.slice(0, 8)}…`}
                     </MenuItem>
                   ))}
                 </TextField>
