@@ -142,6 +142,7 @@ export const ursComposerPlugin = createBackendPlugin({
           );
           const inMemoryRepository = new URSRepository();
           inMemoryRepository.seedRequirementSets();
+          inMemoryRepository.seedApprovalWorkflows();
           repository = inMemoryRepository;
         } else {
           // Defensive: should never reach here

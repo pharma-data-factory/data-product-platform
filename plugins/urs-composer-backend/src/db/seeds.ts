@@ -13,6 +13,7 @@
  */
 
 import { Knex } from 'knex';
+import { APPROVAL_WORKFLOWS } from '../data/approvalWorkflows';
 import { BUSINESS_CAPABILITIES } from '../data/businessCapabilities';
 import { SEED_REQUIREMENT_SETS, acceptanceIntentFromSeed } from '../data/seedRequirementSets';
 import { URSStatus } from '../types';
@@ -97,6 +98,9 @@ export async function seedBusinessRoles(knex: Knex): Promise<void> {
  * Seed approval workflows
  * Standard templates for P1A approval process
  *
+ * Derives from the canonical APPROVAL_WORKFLOWS list so the Postgres mirror
+ * and the in-memory repository cannot drift apart.
+ *
  * Idempotency: Check if records exist before inserting.
  */
 export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
@@ -126,59 +130,15 @@ export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
     }
   }
 
-  const workflows = [
-    {
-      id: 'standard-gxp-urs',
-      name: 'Standard GxP URS Approval',
-      description: 'Three-step approval for GxP-relevant requirements',
-      steps: JSON.stringify([
-        {
-          sequence: 1,
-          role: 'BUSINESS_REVIEWER',
-          required: true,
-          description: 'Business context review',
-        },
-        {
-          sequence: 2,
-          role: 'PRODUCT_MANAGER',
-          required: true,
-          description: 'Product management review',
-        },
-        {
-          sequence: 3,
-          role: 'QUALITY_REVIEWER',
-          required: true,
-          description: 'Quality assurance review',
-        },
-      ]),
-    },
-    {
-      id: 'non-gxp-urs',
-      name: 'Non-GxP URS Approval',
-      description: 'Two-step approval for non-GxP requirements',
-      steps: JSON.stringify([
-        {
-          sequence: 1,
-          role: 'BUSINESS_REVIEWER',
-          required: true,
-          description: 'Business context review',
-        },
-        {
-          sequence: 2,
-          role: 'PRODUCT_MANAGER',
-          required: true,
-          description: 'Product management review',
-        },
-      ]),
-    },
-  ];
-
-  for (const workflow of workflows) {
+  for (const workflow of APPROVAL_WORKFLOWS) {
     // Check if already exists (idempotent)
     const existing = await knex('approval_workflows').where({ id: workflow.id }).first();
     if (!existing) {
       await knex('approval_workflows').insert({
-        ...workflow,
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        steps: JSON.stringify(workflow.steps),
         created_at: new Date(),
         created_by: 'system',
       });

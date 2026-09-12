@@ -34,6 +34,7 @@ import {
 import { baselineItemsOf } from './domain/baseline';
 import { IURSRepository, Transaction } from './repository-interface';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
+import { APPROVAL_WORKFLOWS } from './data/approvalWorkflows';
 import {
   SEED_REQUIREMENT_SETS,
   acceptanceIntentFromSeed,
@@ -174,6 +175,27 @@ export class URSRepository implements IURSRepository {
         createdBy: 'system',
       }));
       this.requirements.set(setId, reqs);
+    }
+  }
+
+  /**
+   * Seeds the canonical approval workflow definitions into the in-memory
+   * store. Idempotent. Without them `submitBaseline` cannot resolve a
+   * workflow, so no approval chain could ever start in memory mode.
+   */
+  seedApprovalWorkflows(): void {
+    const now = new Date();
+    for (const workflow of APPROVAL_WORKFLOWS) {
+      if (this.approvalWorkflows.has(workflow.id)) {
+        continue;
+      }
+      this.approvalWorkflows.set(workflow.id, {
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        steps: workflow.steps,
+        createdAt: now,
+      });
     }
   }
 
