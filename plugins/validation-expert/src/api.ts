@@ -3,6 +3,12 @@ import {
   DiscoveryApi,
   FetchApi,
 } from '@backstage/core-plugin-api';
+import type {
+  AssignProductRequest,
+  ValidationContextAuditEvent,
+  ValidationContextProductRef,
+  ValidationContextStatus,
+} from '@internal/platform-common';
 
 export interface ValidationOverview {
   product: string;
@@ -88,7 +94,7 @@ export interface ProtocolResponse {
 /** URS → Validation integration: a context anchored to an approved URS baseline. */
 export interface ValidationContext {
   id: string;
-  status: string;
+  status: ValidationContextStatus;
   summary?: string;
   createdAt: string;
   createdBy?: string;
@@ -106,6 +112,8 @@ export interface ValidationContext {
     requirementIds: string[];
     createdAt?: string;
   };
+  /** Product Composer solution assignment (product + version + baseline). */
+  productRef?: ValidationContextProductRef;
 }
 
 export interface ValidationContextRequirement {
@@ -159,6 +167,10 @@ export interface ValidationRun {
   completedAt?: string;
   baselineId?: string;
   contextId?: string;
+  /** Immutable traceability snapshot of the assigned product solution. */
+  productId?: string;
+  productVersionId?: string;
+  productBaselineId?: string;
   executions: Array<{
     id: string;
     testId: string;
@@ -180,9 +192,8 @@ export interface ValidationExpertApi {
   listRuns(contextId?: string): Promise<ValidationRun[]>;
   getRun(runId: string): Promise<ValidationRun>;
   createRun(
-    candidate: string,
     type: 'IQ' | 'OQ' | 'UAT',
-    options?: { contextId?: string },
+    options: { contextId: string },
   ): Promise<{ runId: string; status: string; run: ValidationRun }>;
   getContextRuns(contextId: string): Promise<ValidationRun[]>;
   getContextCoverage(contextId: string): Promise<ContextCoverage>;
@@ -206,6 +217,18 @@ export interface ValidationExpertApi {
   getContextRequirements(
     contextId: string,
   ): Promise<ValidationContextRequirementsResponse>;
+  /** Product/version gating: assign a Product Composer solution to a context. */
+  assignProduct(
+    contextId: string,
+    request: AssignProductRequest,
+  ): Promise<{ context: ValidationContext; created: boolean }>;
+  removeProduct(
+    contextId: string,
+  ): Promise<{ context: ValidationContext }>;
+  submitReview(contextId: string): Promise<{ context: ValidationContext }>;
+  approveContext(contextId: string): Promise<{ context: ValidationContext }>;
+  rejectContext(contextId: string): Promise<{ context: ValidationContext }>;
+  getContextAudit(contextId: string): Promise<ValidationContextAuditEvent[]>;
 }
 
 export const validationExpertApiRef = createApiRef<ValidationExpertApi>({
@@ -282,17 +305,12 @@ export class ValidationExpertClient implements ValidationExpertApi {
   }
 
   createRun(
-    candidate: string,
     type: 'IQ' | 'OQ' | 'UAT',
-    options?: { contextId?: string },
+    options: { contextId: string },
   ) {
     return this.json<{ runId: string; status: string; run: ValidationRun }>('/runs', {
       method: 'POST',
-      body: JSON.stringify({
-        candidate,
-        type,
-        ...(options?.contextId ? { contextId: options.contextId } : {}),
-      }),
+      body: JSON.stringify({ type, contextId: options.contextId }),
     });
   }
 
@@ -364,5 +382,52 @@ export class ValidationExpertClient implements ValidationExpertApi {
     return this.json<ValidationContextRequirementsResponse>(
       `/contexts/${encodeURIComponent(contextId)}/requirements`,
     );
+  }
+
+  assignProduct(
+    contextId: string,
+    request: AssignProductRequest,
+  ): Promise<{ context: ValidationContext; created: boolean }> {
+    return this.json(
+      `/contexts/${encodeURIComponent(contextId)}/assign-product`,
+      { method: 'POST', body: JSON.stringify(request) },
+    );
+  }
+
+  removeProduct(contextId: string): Promise<{ context: ValidationContext }> {
+    return this.json(
+      `/contexts/${encodeURIComponent(contextId)}/remove-product`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  submitReview(contextId: string): Promise<{ context: ValidationContext }> {
+    return this.json(
+      `/contexts/${encodeURIComponent(contextId)}/submit-review`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  approveContext(contextId: string): Promise<{ context: ValidationContext }> {
+    return this.json(
+      `/contexts/${encodeURIComponent(contextId)}/approve`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  rejectContext(contextId: string): Promise<{ context: ValidationContext }> {
+    return this.json(
+      `/contexts/${encodeURIComponent(contextId)}/reject`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  async getContextAudit(
+    contextId: string,
+  ): Promise<ValidationContextAuditEvent[]> {
+    const data = await this.json<{ items: ValidationContextAuditEvent[] }>(
+      `/contexts/${encodeURIComponent(contextId)}/audit`,
+    );
+    return data.items;
   }
 }

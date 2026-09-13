@@ -239,11 +239,12 @@ export function ManualTestPage() {
           FAIL
         </Button>
         <Button
-          variant="outlined"
+          variant="contained"
+          disableElevation
           disabled={!canExecute || !actualResult.trim()}
           onClick={() => record('BLOCKED')}
           style={{
-            borderColor: NX.security,
+            backgroundColor: NX.warnBg,
             color: NX.warnFg,
             fontWeight: 600,
             textTransform: 'none',

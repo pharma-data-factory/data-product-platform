@@ -27,7 +27,11 @@ import {
   ValidationExpertService,
   type UrsBaselineResolver,
 } from './service';
-import type { ApprovedURSReference, CreateValidationContextRequest } from './types';
+import type {
+  ApprovedURSReference,
+  AssignProductRequest,
+  CreateValidationContextRequest,
+} from './types';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 
 const TEST_PIN = 'signing-pin-1';
@@ -80,6 +84,19 @@ function makeService(options?: {
           return [];
         },
       },
+    productResolver: {
+      async resolveProductRef(request: AssignProductRequest) {
+        return {
+          productId: request.productId,
+          productVersionId: request.productVersionId,
+          productBaselineId: request.productBaselineId,
+          productName: 'Platform Core',
+          productVersion: '1.0',
+          productBaselineVersion: '1.0',
+          assignedAt: new Date().toISOString(),
+        };
+      },
+    },
   } as any);
   return { service, repository };
 }
@@ -92,7 +109,7 @@ describe('URS → Validation integration (entry gate + context)', () => {
       'user:default/author',
     );
     expect(created).toBe(true);
-    expect(context.status).toBe('PENDING');
+    expect(context.status).toBe('WAITING_FOR_SOLUTION');
     expect(context.source.approvalStatus).toBe('APPROVED');
     expect(context.source.sourceSystem).toBe('urs-composer');
     expect(await repository.listContexts()).toHaveLength(1);
@@ -136,14 +153,24 @@ describe('URS → Validation integration (entry gate + context)', () => {
       { requirementSetId: 'URS-DP-PROOF', baselineId: 'baseline-approved-1' },
       'user:default/author',
     );
+    const { context: assigned } = await service.assignProduct(
+      context.id,
+      {
+        productId: 'product-1',
+        productVersionId: 'version-1',
+        productBaselineId: 'baseline-1',
+      },
+      'user:default/author',
+    );
+    expect(assigned.status).toBe('READY_FOR_VALIDATION');
     const run = await service.createRun({
-      candidate: 'platform-core-v1.0-rc2',
       type: 'IQ',
       createdBy: { userEntityRef: 'user:default/author' },
       contextId: context.id,
     });
     expect(run.contextId).toBe(context.id);
     expect(run.baselineId).toBe('baseline-approved-1');
+    expect(run.productVersionId).toBe('version-1');
     const linked = await service.listRunsForContext(context.id);
     expect(linked.map(item => item.id)).toEqual([run.id]);
   });
@@ -378,7 +405,7 @@ describe('URS → Validation integration against real PostgreSQL', () => {
     expect(context.source.approvalStatus).toBe('APPROVED');
     expect(context.source.businessCapabilityIds).toEqual([CAPABILITY]);
     expect(context.source.baselineVersion).toBe('1.0');
-    expect(store.listContexts()).toHaveLength(1);
+    expect(await store.listContexts()).toHaveLength(1);
   });
 });
 

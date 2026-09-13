@@ -8,7 +8,7 @@ import { validationExpertApiRef, ValidationContext } from '../api';
 
 const sampleContext: ValidationContext = {
   id: 'VALIDATION-CTX-ABC',
-  status: 'PENDING',
+  status: 'WAITING_FOR_SOLUTION',
   createdAt: '2026-09-11T08:00:00.000Z',
   createdBy: 'user:default/alice',
   source: {
@@ -60,6 +60,7 @@ describe('Validation contexts UI', () => {
   it('shows Approved URS reference and linked runs on detail page', async () => {
     const api = {
       getContext: jest.fn().mockResolvedValue(sampleContext),
+      getContextAudit: jest.fn().mockResolvedValue([]),
       getContextRequirements: jest.fn().mockResolvedValue({
         contextId: sampleContext.id,
         baselineId: sampleContext.source.baselineId,

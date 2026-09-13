@@ -19,6 +19,9 @@ export async function up(knex: Knex): Promise<void> {
       table.string('completed_at', 64);
       table.jsonb('executions').notNullable().defaultTo('[]');
       table.string('context_id', 255);
+      table.string('product_id', 255);
+      table.string('product_version_id', 255);
+      table.string('product_baseline_id', 255);
       table.index(['type']);
       table.index(['status']);
       table.index(['baseline_id']);
@@ -36,6 +39,17 @@ export async function up(knex: Knex): Promise<void> {
         table.string('context_id', 255);
         table.index(['context_id']);
       });
+    }
+    for (const column of [
+      'product_id',
+      'product_version_id',
+      'product_baseline_id',
+    ]) {
+      if (!(await knex.schema.hasColumn('validation_runs', column))) {
+        await knex.schema.alterTable('validation_runs', table => {
+          table.string(column, 255);
+        });
+      }
     }
   }
 
@@ -68,9 +82,29 @@ export async function up(knex: Knex): Promise<void> {
       table.string('created_at', 64).notNullable();
       table.string('created_by', 255);
       table.string('candidate', 512);
+      table.string('product_id', 255);
+      table.string('product_version_id', 255);
+      table.string('product_baseline_id', 255);
+      table.string('urs_baseline_id', 255);
       table.string('source', 32).notNullable();
       table.index(['run_id']);
+      table.index(['product_version_id']);
     });
+  }
+
+  if (await knex.schema.hasTable('validation_evidence')) {
+    for (const column of [
+      'product_id',
+      'product_version_id',
+      'product_baseline_id',
+      'urs_baseline_id',
+    ]) {
+      if (!(await knex.schema.hasColumn('validation_evidence', column))) {
+        await knex.schema.alterTable('validation_evidence', table => {
+          table.string(column, 255);
+        });
+      }
+    }
   }
 
   if (!(await knex.schema.hasTable('validation_contexts'))) {
@@ -80,10 +114,52 @@ export async function up(knex: Knex): Promise<void> {
       table.string('requirement_set_id', 255).notNullable();
       table.string('baseline_id', 255).notNullable();
       table.string('status', 64).notNullable();
+      table.string('product_id', 255);
+      table.string('product_version_id', 255);
+      table.string('product_baseline_id', 255);
+      table.jsonb('product_ref');
       table.string('created_at', 64).notNullable();
       table.string('created_by', 255).notNullable();
-      table.unique(['requirement_set_id', 'baseline_id']);
       table.index(['baseline_id']);
+    });
+  }
+
+  if (await knex.schema.hasTable('validation_contexts')) {
+    for (const column of [
+      'product_id',
+      'product_version_id',
+      'product_baseline_id',
+    ]) {
+      if (!(await knex.schema.hasColumn('validation_contexts', column))) {
+        await knex.schema.alterTable('validation_contexts', table => {
+          table.string(column, 255);
+        });
+      }
+    }
+    if (!(await knex.schema.hasColumn('validation_contexts', 'product_ref'))) {
+      await knex.schema.alterTable('validation_contexts', table => {
+        table.jsonb('product_ref');
+      });
+    }
+    // Uniqueness applies only to live contexts: a SUPERSEDED context releases
+    // the (requirementSetId, baselineId) pair for a requalification context.
+    await knex.raw(
+      `ALTER TABLE validation_contexts DROP CONSTRAINT IF EXISTS validation_contexts_requirement_set_id_baseline_id_unique`,
+    );
+    await knex.raw(
+      `CREATE UNIQUE INDEX IF NOT EXISTS validation_contexts_live_source_uq ON validation_contexts (requirement_set_id, baseline_id) WHERE status <> 'SUPERSEDED'`,
+    );
+  }
+
+  if (!(await knex.schema.hasTable('validation_context_audit'))) {
+    await knex.schema.createTable('validation_context_audit', table => {
+      table.string('id', 255).primary();
+      table.string('context_id', 255).notNullable();
+      table.string('event_type', 64).notNullable();
+      table.string('actor', 255).notNullable();
+      table.jsonb('details');
+      table.string('created_at', 64).notNullable();
+      table.index(['context_id']);
     });
   }
 

@@ -1,6 +1,11 @@
 import express from 'express';
 import Router from 'express-promise-router';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+} from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
@@ -199,13 +204,18 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       await authorize(permissions, httpAuth, req, validationRunStartPermission);
       const executor = await resolveExecutor(httpAuth, userInfo, req);
       const type = String(req.body?.type ?? '').toUpperCase() as ProtocolType;
-      const candidate = String(req.body?.candidate ?? '').trim();
       const contextId = String(req.body?.contextId ?? '').trim() || undefined;
+      const candidate =
+        typeof req.body?.candidate === 'string'
+          ? req.body.candidate.trim()
+          : undefined;
       if (!['IQ', 'OQ', 'UAT'].includes(type)) {
         throw new InputError('type must be IQ, OQ, or UAT');
       }
-      if (!candidate) {
-        throw new InputError('candidate is required');
+      if (!contextId) {
+        throw new ConflictError(
+          'contextId is required: runs are created from a validation context with an assigned product/version',
+        );
       }
       const run = await service.createRun({
         candidate,
@@ -457,6 +467,132 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     }
   });
 
+  /**
+   * POST /contexts/:id/assign-product
+   * Assign a Product Composer solution (product + version + baseline) to a
+   * validation context. Validated server-side against the Product Composer
+   * contract; WAITING_FOR_SOLUTION → READY_FOR_VALIDATION. Switching the
+   * version/baseline after ACTIVE supersedes the context and creates a new
+   * requalification context.
+   */
+  router.post('/contexts/:id/assign-product', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      const productId = String(req.body?.productId ?? '').trim();
+      const productVersionId = String(req.body?.productVersionId ?? '').trim();
+      const productBaselineId = String(req.body?.productBaselineId ?? '').trim();
+      if (!productId || !productVersionId || !productBaselineId) {
+        res.status(400).json({
+          error:
+            'productId, productVersionId, and productBaselineId are required',
+        });
+        return;
+      }
+      const result = await service.assignProduct(
+        req.params.id,
+        { productId, productVersionId, productBaselineId },
+        actor || 'unknown',
+        credentials,
+      );
+      res.status(result.created ? 201 : 200).json(result);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /** POST /contexts/:id/remove-product — drop the product assignment (back to WAITING_FOR_SOLUTION). */
+  router.post('/contexts/:id/remove-product', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      res.json(
+        await service.removeProduct(req.params.id, actor || 'unknown'),
+      );
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * POST /contexts/:id/submit-review — ACTIVE → UNDER_REVIEW.
+   * Server-side traceability gate: full requirement coverage, at least one
+   * COMPLETED run, no FAIL/BLOCKED executions, no open findings.
+   */
+  router.post('/contexts/:id/submit-review', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      res.json(
+        await service.submitReview(req.params.id, actor || 'unknown'),
+      );
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /** POST /contexts/:id/approve — UNDER_REVIEW → APPROVED (human release). */
+  router.post('/contexts/:id/approve', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      res.json(await service.approveContext(req.params.id, actor || 'unknown'));
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /** POST /contexts/:id/reject — UNDER_REVIEW → REJECTED (back to rework). */
+  router.post('/contexts/:id/reject', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReviewPermission,
+      );
+      const actor = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      res.json(await service.rejectContext(req.params.id, actor || 'unknown'));
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /** GET /contexts/:id/audit — server-side audit events for the context. */
+  router.get('/contexts/:id/audit', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      res.json({ items: await service.listContextAudit(req.params.id) });
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
   return router;
 }
 
@@ -471,6 +607,10 @@ function respondError(
   }
   if (error instanceof NotFoundError) {
     res.status(404).json({ error: error.message });
+    return;
+  }
+  if (error instanceof ConflictError) {
+    res.status(409).json({ error: error.message });
     return;
   }
   if (error instanceof InputError) {

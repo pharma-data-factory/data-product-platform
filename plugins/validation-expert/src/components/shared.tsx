@@ -2,41 +2,38 @@ import { ComponentProps, ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Chip, makeStyles } from '@material-ui/core';
 import {
-  NEXORA_BORDER,
-  NEXORA_CARD,
   NEXORA_COMPLIANCE,
-  NEXORA_CYAN,
-  NEXORA_CYAN_DARK,
-  NEXORA_MUTED,
   NEXORA_NAVY,
   NEXORA_SECURITY,
   NEXORA_STATUS,
-  NEXORA_SURFACE,
-  NEXORA_TEXT,
+  nexoraThemeColor,
 } from '@internal/plugin-nexora-common';
 
-/** Re-export brand surface map from shared design tokens. */
+/** Mode-aware brand surface map — flips with the app light/dark switch. */
 export const NX = {
-  base: NEXORA_SURFACE,
-  card: NEXORA_CARD,
-  border: NEXORA_BORDER,
-  text: NEXORA_TEXT,
-  muted: NEXORA_MUTED,
+  base: nexoraThemeColor.surface,
+  card: nexoraThemeColor.surfaceRaised,
+  border: nexoraThemeColor.border,
+  borderStrong: nexoraThemeColor.borderStrong,
+  cardHover: nexoraThemeColor.cardHover,
+  text: nexoraThemeColor.text,
+  muted: nexoraThemeColor.textMuted,
   navy: NEXORA_NAVY,
-  teal: NEXORA_CYAN,
-  tealDark: NEXORA_CYAN_DARK,
+  teal: nexoraThemeColor.accent,
+  tealDark: nexoraThemeColor.accentReadable,
+  tint: nexoraThemeColor.cyanTint,
   compliance: NEXORA_COMPLIANCE,
   security: NEXORA_SECURITY,
   passBg: NEXORA_STATUS.passBg,
   passFg: NEXORA_STATUS.passFg,
   failBg: NEXORA_STATUS.failBg,
   failFg: NEXORA_STATUS.failFg,
-  warnBg: NEXORA_STATUS.warnBg,
-  warnFg: NEXORA_STATUS.warnFg,
-  infoBg: NEXORA_STATUS.infoBg,
-  infoFg: NEXORA_STATUS.infoFg,
-  neutralBg: NEXORA_STATUS.neutralBg,
-  neutralFg: NEXORA_STATUS.neutralFg,
+  warnBg: NEXORA_STATUS.warning,
+  warnFg: NEXORA_STATUS.onAccent,
+  infoBg: NEXORA_STATUS.pending,
+  infoFg: NEXORA_STATUS.onAccent,
+  neutralBg: nexoraThemeColor.border,
+  neutralFg: nexoraThemeColor.textMuted,
 } as const;
 
 type ChipTone = {
@@ -117,7 +114,7 @@ const useStyles = makeStyles({
     letterSpacing: '0.02em',
     textTransform: 'none',
     '&:hover': {
-      backgroundColor: 'rgba(0, 194, 217, 0.08)',
+      backgroundColor: NX.tint,
       borderColor: 'rgba(0, 194, 217, 0.45)',
     },
   },

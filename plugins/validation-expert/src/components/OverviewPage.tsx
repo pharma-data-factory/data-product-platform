@@ -27,8 +27,8 @@ const useStyles = makeStyles({
     outline: 'none',
     textDecoration: 'none',
     '&:hover $tile': {
-      background: '#F8FAFC',
-      borderColor: 'rgba(10, 25, 41, 0.16)',
+      background: NX.cardHover,
+      borderColor: NX.borderStrong,
       boxShadow: `0 0 0 1px rgba(0, 194, 217, 0.28), 0 8px 20px rgba(10, 25, 41, 0.06)`,
       transform: 'translateY(-1px)',
     },

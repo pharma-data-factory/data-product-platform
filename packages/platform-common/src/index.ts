@@ -138,10 +138,17 @@ export {
 export type { RequirementContent } from './content-hash';
 
 // URS Composer → Validation Expert integration contract
+export {
+  VALIDATION_CONTEXT_STATUSES,
+} from './validation-integration';
 export type {
   ApprovedURSReference,
   ValidationContext,
+  ValidationContextStatus,
+  ValidationContextProductRef,
+  ValidationContextAuditEvent,
   CreateValidationContextRequest,
+  AssignProductRequest,
   ValidationContextRequirement,
   TechnicalCiEvidenceReference,
   RegisterTechnicalCiEvidenceRequest,

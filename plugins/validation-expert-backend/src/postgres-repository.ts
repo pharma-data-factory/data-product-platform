@@ -11,6 +11,7 @@ import type {
   FindingStatus,
   ProtocolType,
   ValidationContext,
+  ValidationContextAuditEvent,
   ValidationEvidenceItem,
   ValidationFinding,
   ValidationRun,
@@ -40,6 +41,13 @@ function mapRun(row: Record<string, unknown>): ValidationRun {
       : undefined,
     baselineId: String(row.baseline_id),
     contextId: row.context_id ? String(row.context_id) : undefined,
+    productId: row.product_id ? String(row.product_id) : undefined,
+    productVersionId: row.product_version_id
+      ? String(row.product_version_id)
+      : undefined,
+    productBaselineId: row.product_baseline_id
+      ? String(row.product_baseline_id)
+      : undefined,
     type: String(row.type) as ProtocolType,
     status: String(row.status) as ValidationRun['status'],
     createdAt: String(row.created_at),
@@ -83,6 +91,16 @@ function mapEvidence(row: Record<string, unknown>): ValidationEvidenceItem {
     createdAt: String(row.created_at),
     createdBy: row.created_by ? String(row.created_by) : undefined,
     candidate: row.candidate ? String(row.candidate) : undefined,
+    productId: row.product_id ? String(row.product_id) : undefined,
+    productVersionId: row.product_version_id
+      ? String(row.product_version_id)
+      : undefined,
+    productBaselineId: row.product_baseline_id
+      ? String(row.product_baseline_id)
+      : undefined,
+    ursBaselineId: row.urs_baseline_id
+      ? String(row.urs_baseline_id)
+      : undefined,
     source: String(row.source) as ValidationEvidenceItem['source'],
   };
 }
@@ -98,6 +116,23 @@ function mapContext(row: Record<string, unknown>): ValidationContext {
     requirementIds: [],
     createdAt: String(row.created_at),
   });
+  const productId = row.product_id ? String(row.product_id) : undefined;
+  const productVersionId = row.product_version_id
+    ? String(row.product_version_id)
+    : undefined;
+  const productBaselineId = row.product_baseline_id
+    ? String(row.product_baseline_id)
+    : undefined;
+  const productRef =
+    parseJson<ValidationContext['productRef']>(row.product_ref, undefined) ??
+    (productId && productVersionId && productBaselineId
+      ? {
+          productId,
+          productVersionId,
+          productBaselineId,
+          assignedAt: String(row.created_at),
+        }
+      : undefined);
   return {
     id: String(row.id),
     source: {
@@ -106,6 +141,7 @@ function mapContext(row: Record<string, unknown>): ValidationContext {
       requirementIds: [...(source.requirementIds ?? [])],
     },
     status: String(row.status) as ValidationContext['status'],
+    productRef,
     createdAt: String(row.created_at),
     createdBy: String(row.created_by),
   };
@@ -138,6 +174,9 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productId?: string;
+    productVersionId?: string;
+    productBaselineId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     return this.db.transaction(async trx => {
@@ -163,6 +202,9 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         candidateCommit: input.candidateCommit,
         baselineId: input.baselineId,
         contextId: input.contextId,
+        productId: input.productId,
+        productVersionId: input.productVersionId,
+        productBaselineId: input.productBaselineId,
         type: input.type,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
@@ -176,6 +218,9 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         candidate_commit: run.candidateCommit ?? null,
         baseline_id: run.baselineId,
         context_id: run.contextId ?? null,
+        product_id: run.productId ?? null,
+        product_version_id: run.productVersionId ?? null,
+        product_baseline_id: run.productBaselineId ?? null,
         type: run.type,
         status: run.status,
         created_at: run.createdAt,
@@ -205,6 +250,9 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         candidate_commit: run.candidateCommit ?? null,
         baseline_id: run.baselineId,
         context_id: run.contextId ?? null,
+        product_id: run.productId ?? null,
+        product_version_id: run.productVersionId ?? null,
+        product_baseline_id: run.productBaselineId ?? null,
         type: run.type,
         status: run.status,
         created_at: run.createdAt,
@@ -264,6 +312,10 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       created_at: item.createdAt,
       created_by: item.createdBy ?? null,
       candidate: item.candidate ?? null,
+      product_id: item.productId ?? null,
+      product_version_id: item.productVersionId ?? null,
+      product_baseline_id: item.productBaselineId ?? null,
+      urs_baseline_id: item.ursBaselineId ?? null,
       source: item.source,
     });
   }
@@ -287,6 +339,21 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         requirement_set_id: requirementSetId,
         baseline_id: baselineId,
       })
+      .whereNot({ status: 'SUPERSEDED' })
+      .first();
+    return row ? mapContext(row) : undefined;
+  }
+
+  async findContextByProductRef(
+    productVersionId: string,
+    productBaselineId: string,
+  ): Promise<ValidationContext | undefined> {
+    const row = await this.db('validation_contexts')
+      .where({
+        product_version_id: productVersionId,
+        product_baseline_id: productBaselineId,
+      })
+      .whereNot({ status: 'SUPERSEDED' })
       .first();
     return row ? mapContext(row) : undefined;
   }
@@ -302,8 +369,61 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       requirement_set_id: context.source.requirementSetId,
       baseline_id: context.source.baselineId,
       status: context.status,
+      product_id: context.productRef?.productId ?? null,
+      product_version_id: context.productRef?.productVersionId ?? null,
+      product_baseline_id: context.productRef?.productBaselineId ?? null,
+      product_ref: context.productRef
+        ? JSON.stringify(context.productRef)
+        : null,
       created_at: context.createdAt,
       created_by: context.createdBy,
+    });
+  }
+
+  async updateContext(context: ValidationContext): Promise<void> {
+    const updated = await this.db('validation_contexts')
+      .where({ id: context.id })
+      .update({
+        status: context.status,
+        product_id: context.productRef?.productId ?? null,
+        product_version_id: context.productRef?.productVersionId ?? null,
+        product_baseline_id: context.productRef?.productBaselineId ?? null,
+        product_ref: context.productRef
+          ? JSON.stringify(context.productRef)
+          : null,
+      });
+    if (updated === 0) {
+      throw new Error(`Unknown context ${context.id}`);
+    }
+  }
+
+  async listContextAuditEvents(
+    contextId: string,
+  ): Promise<ValidationContextAuditEvent[]> {
+    const rows = await this.db('validation_context_audit')
+      .where({ context_id: contextId })
+      .orderBy('created_at', 'asc');
+    return rows.map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      contextId: String(row.context_id),
+      eventType: String(row.event_type),
+      actor: String(row.actor),
+      details: parseJson<Record<string, unknown> | undefined>(
+        row.details,
+        undefined,
+      ),
+      createdAt: String(row.created_at),
+    }));
+  }
+
+  async addContextAuditEvent(event: ValidationContextAuditEvent): Promise<void> {
+    await this.db('validation_context_audit').insert({
+      id: event.id,
+      context_id: event.contextId,
+      event_type: event.eventType,
+      actor: event.actor,
+      details: event.details ? JSON.stringify(event.details) : null,
+      created_at: event.createdAt,
     });
   }
 }

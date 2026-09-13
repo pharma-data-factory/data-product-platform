@@ -5,6 +5,7 @@ import type {
   FindingStatus,
   ProtocolType,
   ValidationContext,
+  ValidationContextAuditEvent,
   ValidationEvidenceItem,
   ValidationFinding,
   ValidationRun,
@@ -24,6 +25,9 @@ export interface ValidationRunRepository {
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productId?: string;
+    productVersionId?: string;
+    productBaselineId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun>;
   saveRun(run: ValidationRun): Promise<void>;
@@ -39,7 +43,15 @@ export interface ValidationRunRepository {
     requirementSetId: string,
     baselineId: string,
   ): Promise<ValidationContext | undefined>;
+  findContextByProductRef(
+    productVersionId: string,
+    productBaselineId: string,
+  ): Promise<ValidationContext | undefined>;
   addContext(context: ValidationContext): Promise<void>;
+  updateContext(context: ValidationContext): Promise<void>;
+  // Context audit events
+  listContextAuditEvents(contextId: string): Promise<ValidationContextAuditEvent[]>;
+  addContextAuditEvent(event: ValidationContextAuditEvent): Promise<void>;
 }
 
 interface StoreShape {
@@ -47,11 +59,19 @@ interface StoreShape {
   findings: ValidationFinding[];
   evidence: ValidationEvidenceItem[];
   contexts: ValidationContext[];
+  contextAudit: ValidationContextAuditEvent[];
   counters: Record<string, number>;
 }
 
 function emptyStore(): StoreShape {
-  return { runs: [], findings: [], evidence: [], contexts: [], counters: {} };
+  return {
+    runs: [],
+    findings: [],
+    evidence: [],
+    contexts: [],
+    contextAudit: [],
+    counters: {},
+  };
 }
 
 export class MemoryValidationRunRepository implements ValidationRunRepository {
@@ -72,6 +92,9 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productId?: string;
+    productVersionId?: string;
+    productBaselineId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     const key = input.type;
@@ -83,6 +106,9 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
       candidateCommit: input.candidateCommit,
       baselineId: input.baselineId,
       contextId: input.contextId,
+      productId: input.productId,
+      productVersionId: input.productVersionId,
+      productBaselineId: input.productBaselineId,
       type: input.type,
       status: 'PENDING',
       createdAt: new Date().toISOString(),
@@ -130,52 +156,67 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
   }
 
   async listContexts(): Promise<ValidationContext[]> {
-    return this.store.contexts.map(ctx => ({
-      ...ctx,
-      source: {
-        ...ctx.source,
-        businessCapabilityIds: [...ctx.source.businessCapabilityIds],
-        requirementIds: [...ctx.source.requirementIds],
-      },
-    }));
+    return this.store.contexts.map(cloneContext);
   }
 
   async getContext(contextId: string): Promise<ValidationContext | undefined> {
     const found = this.store.contexts.find(ctx => ctx.id === contextId);
-    return found
-      ? {
-          ...found,
-          source: {
-            ...found.source,
-            businessCapabilityIds: [...found.source.businessCapabilityIds],
-            requirementIds: [...found.source.requirementIds],
-          },
-        }
-      : undefined;
+    return found ? cloneContext(found) : undefined;
   }
 
   async findContextBySource(
     requirementSetId: string,
     baselineId: string,
   ): Promise<ValidationContext | undefined> {
-    return this.store.contexts.find(
+    const found = this.store.contexts.find(
       ctx =>
         ctx.source.requirementSetId === requirementSetId &&
-        ctx.source.baselineId === baselineId,
+        ctx.source.baselineId === baselineId &&
+        ctx.status !== 'SUPERSEDED',
     );
+    return found ? cloneContext(found) : undefined;
+  }
+
+  async findContextByProductRef(
+    productVersionId: string,
+    productBaselineId: string,
+  ): Promise<ValidationContext | undefined> {
+    const found = this.store.contexts.find(
+      ctx =>
+        ctx.productRef?.productVersionId === productVersionId &&
+        ctx.productRef?.productBaselineId === productBaselineId &&
+        ctx.status !== 'SUPERSEDED',
+    );
+    return found ? cloneContext(found) : undefined;
   }
 
   async addContext(context: ValidationContext): Promise<void> {
     if (this.store.contexts.some(ctx => ctx.id === context.id)) {
       throw new Error(`Context ${context.id} already exists`);
     }
-    this.store.contexts.push({
-      ...context,
-      source: {
-        ...context.source,
-        businessCapabilityIds: [...context.source.businessCapabilityIds],
-        requirementIds: [...context.source.requirementIds],
-      },
+    this.store.contexts.push(cloneContext(context));
+  }
+
+  async updateContext(context: ValidationContext): Promise<void> {
+    const index = this.store.contexts.findIndex(ctx => ctx.id === context.id);
+    if (index < 0) {
+      throw new Error(`Unknown context ${context.id}`);
+    }
+    this.store.contexts[index] = cloneContext(context);
+  }
+
+  async listContextAuditEvents(
+    contextId: string,
+  ): Promise<ValidationContextAuditEvent[]> {
+    return this.store.contextAudit
+      .filter(event => event.contextId === contextId)
+      .map(event => ({ ...event, details: { ...event.details } }));
+  }
+
+  async addContextAuditEvent(event: ValidationContextAuditEvent): Promise<void> {
+    this.store.contextAudit.push({
+      ...event,
+      details: event.details ? { ...event.details } : undefined,
     });
   }
 }
@@ -199,6 +240,7 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     store.findings = raw.findings ?? [];
     store.evidence = raw.evidence ?? [];
     store.contexts = raw.contexts ?? [];
+    store.contextAudit = raw.contextAudit ?? [];
     store.counters = raw.counters ?? {};
   }
 
@@ -222,6 +264,9 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productId?: string;
+    productVersionId?: string;
+    productBaselineId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     const run = await this.memory.createRun(input);
@@ -272,8 +317,31 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     return this.memory.findContextBySource(requirementSetId, baselineId);
   }
 
+  async findContextByProductRef(
+    productVersionId: string,
+    productBaselineId: string,
+  ): Promise<ValidationContext | undefined> {
+    return this.memory.findContextByProductRef(productVersionId, productBaselineId);
+  }
+
   async addContext(context: ValidationContext): Promise<void> {
     await this.memory.addContext(context);
+    this.persist();
+  }
+
+  async updateContext(context: ValidationContext): Promise<void> {
+    await this.memory.updateContext(context);
+    this.persist();
+  }
+
+  async listContextAuditEvents(
+    contextId: string,
+  ): Promise<ValidationContextAuditEvent[]> {
+    return this.memory.listContextAuditEvents(contextId);
+  }
+
+  async addContextAuditEvent(event: ValidationContextAuditEvent): Promise<void> {
+    await this.memory.addContextAuditEvent(event);
     this.persist();
   }
 }
@@ -283,6 +351,18 @@ function cloneRun(run: ValidationRun): ValidationRun {
     ...run,
     createdBy: { ...run.createdBy },
     executions: run.executions.map(cloneExecution),
+  };
+}
+
+function cloneContext(context: ValidationContext): ValidationContext {
+  return {
+    ...context,
+    source: {
+      ...context.source,
+      businessCapabilityIds: [...context.source.businessCapabilityIds],
+      requirementIds: [...context.source.requirementIds],
+    },
+    productRef: context.productRef ? { ...context.productRef } : undefined,
   };
 }
 
