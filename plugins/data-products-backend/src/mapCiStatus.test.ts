@@ -67,6 +67,7 @@ describe('mapFailedStages', () => {
           name: 'quality-gate',
           conclusion: 'failure',
           steps: [
+            { name: 'Manifest pin check', conclusion: 'success' },
             { name: 'Lint', conclusion: 'success' },
             { name: 'Unit tests', conclusion: 'failure' },
             { name: 'Contract tests', conclusion: 'skipped' },
@@ -77,6 +78,18 @@ describe('mapFailedStages', () => {
         },
       ]),
     ).toEqual(['Unit Tests']);
+  });
+
+  it('maps failed Manifest pin check to Manifest Pins stage', () => {
+    expect(
+      mapFailedStages([
+        {
+          name: 'quality-gate',
+          conclusion: 'failure',
+          steps: [{ name: 'Manifest pin check', conclusion: 'failure' }],
+        },
+      ]),
+    ).toEqual(['Manifest Pins']);
   });
 
   it('keeps quality-gate job names from mapping to Data Quality', () => {

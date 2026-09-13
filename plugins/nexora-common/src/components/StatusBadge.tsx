@@ -8,7 +8,7 @@ import {
   parseConnectivityStatus,
   parseHealthState,
 } from '@internal/platform-common';
-import { NEXORA_MUTED, NEXORA_NAVY, NEXORA_TEXT } from '../tokens';
+import { NEXORA_STATUS, nexoraThemeColor } from '../design';
 
 const useStyles = makeStyles({
   badge: {
@@ -31,32 +31,20 @@ const useStyles = makeStyles({
   },
 });
 
-/** Status chip tones aligned with Validation Expert / Plugin Directory. */
-export const NEXORA_STATUS = {
-  passBg: '#0D9488',
-  passFg: '#FFFFFF',
-  failBg: '#B91C1C',
-  failFg: '#FFFFFF',
-  warnBg: 'rgba(255, 138, 0, 0.14)',
-  warnFg: '#9A3412',
-  infoBg: 'rgba(10, 25, 41, 0.08)',
-  infoFg: NEXORA_NAVY,
-  neutralBg: '#E2E8F0',
-  neutralFg: '#334155',
-} as const;
+export { NEXORA_STATUS };
 
 const HEALTH_COLOR: Record<HealthState, string> = {
   HEALTHY: NEXORA_STATUS.passBg,
-  WARNING: '#B45309',
+  WARNING: NEXORA_STATUS.warnSolid,
   ERROR: NEXORA_STATUS.failBg,
-  UNKNOWN: NEXORA_MUTED,
+  UNKNOWN: nexoraThemeColor.textMuted,
 };
 
 const CONNECT_COLOR: Record<ConnectivityStatus, string> = {
   CONNECTED: NEXORA_STATUS.passBg,
-  DEGRADED: '#B45309',
+  DEGRADED: NEXORA_STATUS.warnSolid,
   DISCONNECTED: NEXORA_STATUS.failBg,
-  UNKNOWN: NEXORA_MUTED,
+  UNKNOWN: nexoraThemeColor.textMuted,
 };
 
 const COMPATIBILITY_TONE: Record<
@@ -158,7 +146,7 @@ export function StatusBadge({
   return (
     <span
       className={classes.badge}
-      style={{ color: NEXORA_TEXT }}
+      style={{ color: nexoraThemeColor.text }}
       aria-label={`${kind} status ${label}`}
     >
       <span
@@ -173,7 +161,7 @@ export function StatusBadge({
 
 export function StatusWord({ children }: { children: string }) {
   return (
-    <strong style={{ color: NEXORA_NAVY, letterSpacing: '0.04em' }}>
+    <strong style={{ color: nexoraThemeColor.text, letterSpacing: '0.04em' }}>
       {children}
     </strong>
   );

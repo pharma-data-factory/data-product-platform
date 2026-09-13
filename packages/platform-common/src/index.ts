@@ -10,15 +10,23 @@ export {
   resolvePlatformRole,
   isAtLeast,
   isGuestIdentity,
+  normalizeGithubLogin,
   githubUserEntityRef,
   githubLoginFromEntityRef,
   platformGroupNames,
   hasApprovedPlatformAccess,
+  groupEntityRefFromMemberOf,
+  ownershipRefsFromUserEntity,
   URS_DOMAIN_GROUPS,
   URS_DOMAIN_PERMISSIONS,
   ursDomainPermissionNames,
 } from './roles';
-export type { PlatformGroup, PlatformRole, UrsDomainGroup } from './roles';
+export type {
+  PlatformGroup,
+  PlatformRole,
+  UrsDomainGroup,
+  CatalogUserLike,
+} from './roles';
 
 export {
   marketplaceViewPermission,
@@ -130,12 +138,38 @@ export {
 export type { RequirementContent } from './content-hash';
 
 // URS Composer → Validation Expert integration contract
+export {
+  VALIDATION_CONTEXT_STATUSES,
+} from './validation-integration';
 export type {
   ApprovedURSReference,
   ValidationContext,
+  ValidationContextStatus,
+  ValidationContextProductRef,
+  ValidationContextAuditEvent,
   CreateValidationContextRequest,
+  AssignProductRequest,
   ValidationContextRequirement,
+  TechnicalCiEvidenceReference,
+  RegisterTechnicalCiEvidenceRequest,
+  RegisterTechnicalCiEvidenceResponse,
+  EvidenceCompletenessStatus,
+  UrsPinCurrencyStatus,
+  ProductQaReadiness,
 } from './validation-integration';
+
+export {
+  productVersionSoftRefLine,
+  productSoftRefLine,
+  raisedFromBaselineLine,
+  resolveProductSoftRefMatchAxis,
+  matchesProductSoftRefs,
+  filterChangeRequestsByProductSoftRefs,
+} from './product-change-soft-refs';
+export type {
+  SoftRefMatchTarget,
+  SoftRefMatchAxis,
+} from './product-change-soft-refs';
 
 export { quickActionsForRole } from './dashboard';
 export type { QuickAction } from './dashboard';
@@ -568,6 +602,8 @@ export {
   DATA_CONTRACT_SCHEMA_TYPES,
   TRACEABILITY_RELATIONSHIP_TYPES,
   PRODUCT_BASELINE_STATUSES,
+  PRODUCT_MANIFEST_VERSION,
+  PRODUCT_MANIFEST_ANNOTATIONS,
   isProductType,
   isProductVersionStatus,
   isDataContractStatus,
@@ -582,6 +618,12 @@ export type {
   DataContract,
   TraceabilityLink,
   ProductBaseline,
+  ProductManifest,
+  ProductManifestComponent,
+  ProductManifestDataContract,
+  ProductManifestPolicy,
+  ProductManifestQualityGate,
+  PersistedProductManifest,
   ProductType,
   ProductLifecycle,
   ProductStatus,
@@ -594,6 +636,27 @@ export type {
   DataContractSchemaType,
   TraceabilityRelationshipType,
 } from './product';
+
+export {
+  URS_BASELINE_BINDABLE_STATUSES,
+  DIGITAL_THREAD_REPO_PATHS,
+  isUrsBaselineBindableStatus,
+  validateUrsProductBinding,
+  computeUrsBaselineContentHash,
+  computeProductManifestFileHash,
+} from './digital-thread';
+export type {
+  UrsBaselineBindableStatus,
+  UrsProductBinding,
+  ProductManifestFileDocument,
+  RequirementDeltaType,
+  TraceabilityImpactStatus,
+  RequirementDeltaItem,
+  ChangeImpactAssessment,
+  ValidationDigitalThreadRef,
+  ValidationRetestItem,
+  DigitalThreadEvidenceRef,
+} from './digital-thread';
 
 export {
   NEXORA_ANNOTATION_PREFIX,

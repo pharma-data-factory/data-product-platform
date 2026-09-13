@@ -1,12 +1,12 @@
 /**
- * TraceMap — read-only capability → need → requirements → AC → solution tree.
- * Pure SVG / layout; no graph libraries.
+ * TraceMap — read-only capability → need → requirements → solution map.
+ * Thin adapter over the shared NexoraGraphMap (interactive, with arrows,
+ * pan/zoom, minimap and fullscreen).
  */
 
-import type { FC } from 'react';
-import { Box, Typography } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import { NEXORA_BORDER, NEXORA_MUTED, NEXORA_NAVY } from '@internal/plugin-nexora-common';
+import { useMemo, type FC } from 'react';
+import { NexoraGraphMap } from '@internal/plugin-nexora-common';
+import type { NexoraGraphEdge, NexoraGraphNode } from '@internal/plugin-nexora-common';
 
 export interface TraceMapRequirement {
   id: string;
@@ -22,136 +22,91 @@ export interface TraceMapProps {
   solutionName: string;
 }
 
-const useStyles = makeStyles(theme => ({
-  root: {
-    border: `1px solid ${NEXORA_BORDER}`,
-    borderRadius: 4,
-    padding: theme.spacing(2),
-    overflowX: 'auto',
-  },
-  layer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: theme.spacing(1),
-  },
-  row: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: theme.spacing(1),
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-  },
-  node: {
-    border: `1px solid ${NEXORA_BORDER}`,
-    borderRadius: 4,
-    padding: theme.spacing(1, 1.5),
-    backgroundColor: theme.palette.background.paper,
-    minWidth: 120,
-    maxWidth: 280,
-  },
-  label: {
-    fontSize: 11,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    color: NEXORA_MUTED,
-    marginBottom: 4,
-  },
-  connector: {
-    display: 'flex',
-    justifyContent: 'center',
-    color: NEXORA_MUTED,
-    fontSize: 18,
-    lineHeight: 1,
-    padding: theme.spacing(0.5, 0),
-  },
-  need: {
-    borderLeft: `3px solid ${NEXORA_NAVY}`,
-  },
-  solution: {
-    borderLeft: `3px solid ${NEXORA_NAVY}`,
-  },
-}));
-
 export const TraceMap: FC<TraceMapProps> = ({
   capabilityNames,
   businessNeed,
   requirements,
   solutionName,
 }) => {
-  const classes = useStyles();
   const capabilityEntries = Object.entries(capabilityNames);
+  const graph = useMemo(() => {
+    const nodes: NexoraGraphNode[] = [];
+    const edges: NexoraGraphEdge[] = [];
+
+    if (capabilityEntries.length === 0) {
+      nodes.push({
+        id: 'capability-none',
+        kind: 'capability',
+        label: 'No capabilities linked',
+      });
+    } else {
+      for (const [id, name] of capabilityEntries) {
+        const nodeId = `capability:${id}`;
+        nodes.push({
+          id: nodeId,
+          kind: 'capability',
+          label: name || id,
+          ...(name && name !== id ? { subtitle: id } : {}),
+        });
+        edges.push({
+          id: `edge:${nodeId}:need`,
+          source: nodeId,
+          target: 'business-need',
+        });
+      }
+    }
+
+    nodes.push({
+      id: 'business-need',
+      kind: 'business-need',
+      label: businessNeed || '—',
+    });
+
+    if (requirements.length === 0) {
+      nodes.push({
+        id: 'requirement-none',
+        kind: 'requirement',
+        label: 'No requirements',
+      });
+    } else {
+      for (const req of requirements) {
+        const nodeId = `requirement:${req.id}`;
+        nodes.push({
+          id: nodeId,
+          kind: 'requirement',
+          label: req.title || req.id,
+          subtitle: req.id,
+          meta: [`AC: ${req.acCount}`],
+        });
+        edges.push({
+          id: `edge:need:${nodeId}`,
+          source: 'business-need',
+          target: nodeId,
+        });
+        edges.push({
+          id: `edge:${nodeId}:solution`,
+          source: nodeId,
+          target: 'solution',
+        });
+      }
+    }
+
+    nodes.push({
+      id: 'solution',
+      kind: 'solution',
+      label: solutionName || '—',
+    });
+
+    return { nodes, edges };
+  }, [capabilityEntries, businessNeed, requirements, solutionName]);
 
   return (
-    <Box className={classes.root} data-testid="trace-map">
-      <div className={classes.layer}>
-        <Typography className={classes.label}>Capabilities</Typography>
-        <div className={classes.row}>
-          {capabilityEntries.length === 0 ? (
-            <div className={classes.node}>
-              <Typography variant="body2" color="textSecondary">
-                No capabilities linked
-              </Typography>
-            </div>
-          ) : (
-            capabilityEntries.map(([id, name]) => (
-              <div key={id} className={classes.node}>
-                <Typography variant="body2">{name || id}</Typography>
-                {name && name !== id && (
-                  <Typography variant="caption" color="textSecondary">
-                    {id}
-                  </Typography>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className={classes.connector} aria-hidden>
-          ↓
-        </div>
-
-        <Typography className={classes.label}>Business need</Typography>
-        <div className={`${classes.node} ${classes.need}`}>
-          <Typography variant="body2">{businessNeed || '—'}</Typography>
-        </div>
-
-        <div className={classes.connector} aria-hidden>
-          ↓
-        </div>
-
-        <Typography className={classes.label}>Requirements</Typography>
-        <div className={classes.row}>
-          {requirements.length === 0 ? (
-            <div className={classes.node}>
-              <Typography variant="body2" color="textSecondary">
-                No requirements
-              </Typography>
-            </div>
-          ) : (
-            requirements.map(req => (
-              <div key={req.id} className={classes.node}>
-                <Typography variant="subtitle2">{req.title || req.id}</Typography>
-                <Typography variant="caption" color="textSecondary">
-                  {req.id}
-                </Typography>
-                <Typography variant="body2" style={{ marginTop: 4 }}>
-                  AC: {req.acCount}
-                </Typography>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className={classes.connector} aria-hidden>
-          ↓
-        </div>
-
-        <Typography className={classes.label}>Solution</Typography>
-        <div className={`${classes.node} ${classes.solution}`}>
-          <Typography variant="body2">{solutionName || '—'}</Typography>
-        </div>
-      </div>
-    </Box>
+    <NexoraGraphMap
+      nodes={graph.nodes}
+      edges={graph.edges}
+      layoutDirection="TB"
+      height={620}
+      data-testid="trace-map"
+    />
   );
 };

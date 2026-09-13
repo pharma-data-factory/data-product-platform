@@ -52,9 +52,19 @@ describe('GitHub user sign-in configuration', () => {
     const envExample = read('.env.example');
     const backend = read('packages/backend/src/index.ts');
 
-    expect(backend).toContain(
+    expect(backend).toContain('githubAuthModule');
+    expect(backend).toContain('./auth/githubModule');
+    expect(backend).not.toContain(
       "backend.add(import('@backstage/plugin-auth-backend-module-github-provider'))",
     );
+    const githubModule = read('packages/backend/src/auth/githubModule.ts');
+    expect(githubModule).toContain('githubAuthenticator');
+    expect(githubModule).toContain('usernameMatchingUserEntityName');
+    const githubResolver = read(
+      'packages/backend/src/auth/githubCatalogResolver.ts',
+    );
+    expect(githubResolver).toContain('normalizeGithubLogin');
+    expect(githubResolver).toContain('ownershipRefsFromUserEntity');
     expect(appConfig).toContain('clientId: ${AUTH_GITHUB_CLIENT_ID}');
     expect(appConfig).toContain('clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}');
     expect(appConfig).toContain(

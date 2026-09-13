@@ -36,6 +36,7 @@ import {
   businessCapabilityManagePermission,
 } from '@internal/platform-common';
 import { URSService } from './service';
+import { hashOfBaseline } from './domain/signature-service';
 import {
   CreateRequirementSetRequest,
   CreateRequirementRequest,
@@ -765,7 +766,10 @@ export async function createRouter(
         res.status(404).json({ error: 'Baseline not found' });
         return;
       }
-      res.json(baseline);
+      res.json({
+        ...baseline,
+        contentHash: hashOfBaseline(baseline),
+      });
     } catch (err) {
       respondError(res, logger, err);
     }
@@ -780,6 +784,21 @@ export async function createRouter(
       const actor = await authorize(permissions, httpAuth, req, ursReadPermission);
       const changeSet = await service.computeChangeSet(req.params.id, actor);
       res.json(changeSet);
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /baselines/:id/approvals
+   * Approval instances of a baseline, oldest first. Lets the UI recover the
+   * in-flight workflow after a reload without depending on the baseline row
+   * carrying an approvalInstanceId.
+   */
+  router.get('/baselines/:id/approvals', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(await service.getBaselineApprovals(req.params.id));
     } catch (err) {
       respondError(res, logger, err);
     }

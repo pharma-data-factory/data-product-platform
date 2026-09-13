@@ -52,18 +52,25 @@ async function authorize(
   httpAuth: HttpAuthService,
   req: express.Request,
   permission: BasicPermission,
-): Promise<string> {
+): Promise<{ actor: string; credentials: unknown }> {
   if (!permissions) {
     throw new NotAllowedError('Permission service is not configured');
   }
-  const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+  // allowLimitedAccess: cookies + on-behalf-of plugin tokens
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user'],
+    allowLimitedAccess: true,
+  });
   const [decision] = await permissions.authorize([{ permission }], {
     credentials,
   });
   if (decision.result !== AuthorizeResult.ALLOW) {
     throw new NotAllowedError();
   }
-  return credentials.principal?.userEntityRef || 'unknown';
+  return {
+    actor: credentials.principal?.userEntityRef || 'unknown',
+    credentials,
+  };
 }
 
 function respondError(
@@ -123,7 +130,7 @@ export async function createRouter(
 
   router.post('/products', async (req: express.Request, res: express.Response) => {
     try {
-      const actor = await authorize(
+      const { actor } = await authorize(
         permissions,
         httpAuth,
         req,
@@ -168,7 +175,7 @@ export async function createRouter(
 
   router.put('/products/:id', async (req: express.Request, res: express.Response) => {
     try {
-      const actor = await authorize(
+      const { actor } = await authorize(
         permissions,
         httpAuth,
         req,
@@ -205,16 +212,18 @@ export async function createRouter(
     '/products/:id/versions',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,
           productManagePermission,
         );
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
         const version = await service.createProductVersion(
           req.params.id,
           req.body as CreateProductVersionRequest,
           actor,
+          credentials,
         );
         res.status(201).json(version);
       } catch (err) {
@@ -243,7 +252,7 @@ export async function createRouter(
     '/versions/:versionId/components',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -281,7 +290,7 @@ export async function createRouter(
     '/components/:id/contracts',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -307,7 +316,7 @@ export async function createRouter(
     '/traceability-links',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -328,7 +337,7 @@ export async function createRouter(
     '/traceability-links/:id',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -350,7 +359,7 @@ export async function createRouter(
     '/versions/:versionId/transition',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor, credentials } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -360,6 +369,7 @@ export async function createRouter(
           req.params.versionId,
           req.body as TransitionProductVersionRequest,
           actor,
+          credentials,
         );
         res.json(version);
       } catch (err) {
@@ -372,8 +382,57 @@ export async function createRouter(
     '/versions/:versionId/release-gate',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, productReadPermission);
-        res.json(await service.checkReleaseGate(req.params.versionId));
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        res.json(
+          await service.checkReleaseGate(req.params.versionId, credentials),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/qa-readiness',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        res.json(
+          await service.checkQaReadiness(req.params.versionId, credentials),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/change-signals',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { actor, credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        res.json(
+          await service.listProductChangeSignals(
+            req.params.versionId,
+            actor,
+            credentials,
+          ),
+        );
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -388,7 +447,7 @@ export async function createRouter(
     '/versions/:versionId/baselines',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor, credentials } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -398,6 +457,7 @@ export async function createRouter(
           req.params.versionId,
           req.body as CreateProductBaselineRequest,
           actor,
+          credentials,
         );
         res.status(201).json(baseline);
       } catch (err) {
@@ -412,6 +472,86 @@ export async function createRouter(
       try {
         await authorize(permissions, httpAuth, req, productReadPermission);
         res.json(await service.listProductBaselines(req.params.versionId));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/manifest',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const manifest = await service.getProductManifestForVersion(
+          req.params.versionId,
+        );
+        if (!manifest) {
+          res.status(404).json({ error: 'Product manifest not found' });
+          return;
+        }
+        res.json(manifest);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/scaffold-binding',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { actor, credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const binding = await service.getScaffoldBinding(
+          req.params.versionId,
+          actor,
+          credentials,
+        );
+        res.json(binding);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/urs-baselines/approved',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        const items = await service.listApprovedUrsBaselines(credentials);
+        res.json({ items });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/urs-baselines/:id/status',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { credentials } = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productReadPermission,
+        );
+        const status = await service.inspectUrsBaselinePin(
+          req.params.id,
+          credentials,
+        );
+        res.json(status);
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -435,11 +575,30 @@ export async function createRouter(
     },
   );
 
+  router.get(
+    '/baselines/:id/manifest',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const manifest = await service.getProductManifestForBaseline(
+          req.params.id,
+        );
+        if (!manifest) {
+          res.status(404).json({ error: 'Product manifest not found' });
+          return;
+        }
+        res.json(manifest);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/baselines/:id/approve',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor, credentials } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -448,6 +607,7 @@ export async function createRouter(
         const baseline = await service.approveProductBaseline(
           req.params.id,
           actor,
+          credentials,
         );
         res.json(baseline);
       } catch (err) {
@@ -460,7 +620,7 @@ export async function createRouter(
     '/baselines/:id/delta',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(permissions, httpAuth, req, productReadPermission);
+        const { actor } = await authorize(permissions, httpAuth, req, productReadPermission);
         const delta = await service.computeProductBaselineDelta(req.params.id, actor);
         res.json(delta);
       } catch (err) {
@@ -569,7 +729,7 @@ export async function createRouter(
     '/ai/generate-product-spec',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor, credentials } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -580,7 +740,11 @@ export async function createRouter(
           res.status(400).json({ error: 'Missing required field: ursBaselineId' });
           return;
         }
-        const draft = await service.generateProductSpec(ursBaselineId, actor);
+        const draft = await service.generateProductSpec(
+          ursBaselineId,
+          actor,
+          credentials,
+        );
         res.status(201).json(draft);
       } catch (err) {
         if (err instanceof Error && err.message.includes('not enabled')) {
@@ -613,7 +777,7 @@ export async function createRouter(
     '/ai/spec-drafts/:id/apply',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,
@@ -631,7 +795,7 @@ export async function createRouter(
     '/ai/spec-drafts/:id/reject',
     async (req: express.Request, res: express.Response) => {
       try {
-        const actor = await authorize(
+        const { actor } = await authorize(
           permissions,
           httpAuth,
           req,

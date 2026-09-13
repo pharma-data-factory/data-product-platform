@@ -10,6 +10,7 @@
  */
 
 import { Knex } from 'knex';
+import { seedMissingGenesisVersions } from './seeds';
 
 /**
  * Migration: Create URS Composer schema
@@ -565,6 +566,15 @@ export async function up(knex: Knex): Promise<void> {
       table.integer('failed_attempts').notNullable().defaultTo(0);
       table.timestamp('locked_until');
     });
+  }
+
+  // Data repair (not content seed): older installs may have requirements
+  // without genesis 0.1 versions. Safe and idempotent on every boot.
+  if (
+    (await knex.schema.hasTable('requirements')) &&
+    (await knex.schema.hasTable('requirement_versions'))
+  ) {
+    await seedMissingGenesisVersions(knex);
   }
 
   await applyGxpConstraints(knex);

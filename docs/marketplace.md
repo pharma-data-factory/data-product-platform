@@ -16,7 +16,9 @@ Data Product Golden Path and is not listed as MQTT Temperature or REST
 Equipment.
 
 Available factory entries link to official software templates. REST API
-Connector and Snowflake Connector are preview placeholders only.
+Connector remains a preview placeholder. Snowflake Connector is a
+DEVELOPMENT Marketplace card pointing at the `warehouse-sink` platform
+component (staging / DDL stubs only — no live Snowflake connectivity).
 
 Official Golden Path cards take version and certification from Golden Path
 release metadata. Contract and quality come from Catalog entities when a

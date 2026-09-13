@@ -1,37 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { Progress, Table, TableColumn } from '@backstage/core-components';
-import { identityApiRef, useApi } from '@backstage/core-plugin-api';
-import {
-  canStartValidationRun,
-  resolvePlatformRole,
-} from '@internal/platform-common';
+import { useApi } from '@backstage/core-plugin-api';
 import { Typography } from '@material-ui/core';
 import {
   ProtocolResponse,
   ProtocolTest,
   validationExpertApiRef,
 } from '../api';
-import { PageShell, PrimaryActionButton, StatusChip } from './shared';
+import { PageShell, StatusChip } from './shared';
 
 function ProtocolPage({ type }: { type: 'IQ' | 'OQ' | 'UAT' }) {
   const api = useApi(validationExpertApiRef);
-  const identityApi = useApi(identityApiRef);
-  const navigate = useNavigate();
   const [data, setData] = useState<ProtocolResponse | null>(null);
-  const [canStart, setCanStart] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api
       .getProtocol(type)
       .then(setData)
       .catch(err => setError(err instanceof Error ? err.message : 'Failed'));
-    identityApi.getBackstageIdentity().then(identity => {
-      setCanStart(canStartValidationRun(resolvePlatformRole(identity.ownershipEntityRefs)));
-    });
-  }, [api, identityApi, type]);
+  }, [api, type]);
 
   const columns: TableColumn<ProtocolTest>[] = [
     { title: 'Test ID', field: 'id' },
@@ -48,25 +37,9 @@ function ProtocolPage({ type }: { type: 'IQ' | 'OQ' | 'UAT' }) {
     { title: 'Domain', field: 'domain' },
   ];
 
-  async function startRun() {
-    setBusy(true);
-    setError(null);
-    try {
-      const created = await api.createRun('platform-core-v1.0-rc2', type);
-      if (type === 'OQ' || type === 'IQ') {
-        await api.executeAutomated(created.runId);
-      }
-      navigate(`/validation-expert/runs/${created.runId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start run');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (!data && !error) {
     return (
-      <PageShell title={`${type} — Platform Core 1.0-RC2`}>
+      <PageShell title={`${type} protocol`}>
         <Progress />
       </PageShell>
     );
@@ -74,8 +47,8 @@ function ProtocolPage({ type }: { type: 'IQ' | 'OQ' | 'UAT' }) {
 
   return (
     <PageShell
-      title={`${type} — Platform Core 1.0-RC2`}
-      subtitle="Protocol view derived from validation/ artifacts. Starting a run does not approve the validation package."
+      title={`${type} protocol`}
+      subtitle="Protocol view derived from validation/ artifacts. Runs are started from a validation context (Contexts) — each run is anchored to an approved URS baseline plus an assigned product solution."
     >
       {error ? <Typography color="error">{error}</Typography> : null}
       {data ? (
@@ -89,19 +62,11 @@ function ProtocolPage({ type }: { type: 'IQ' | 'OQ' | 'UAT' }) {
               <StatusChip key={domain} value={String(domain)} />
             ))}
           </div>
-          {canStart ? (
-            <PrimaryActionButton
-              disabled={busy}
-              onClick={startRun}
-              style={{ marginBottom: 16 }}
-            >
-              {busy ? 'Starting…' : `Start ${type}`}
-            </PrimaryActionButton>
-          ) : (
-            <Typography variant="body2" color="textSecondary" style={{ marginBottom: 16 }}>
-              Start Run requires Developer role or higher.
-            </Typography>
-          )}
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 16 }}>
+            <RouterLink to="/validation-expert/contexts">
+              Start runs from a validation context
+            </RouterLink>
+          </Typography>
           <Table
             options={{ paging: true, pageSize: 20, search: true }}
             columns={columns}

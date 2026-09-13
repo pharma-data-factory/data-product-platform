@@ -5,6 +5,7 @@
 import knex, { Knex } from 'knex';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
+import type { UrsBaselineResolver } from './urs-baseline-resolver';
 
 const mockLogger: any = {
   debug: jest.fn(),
@@ -26,12 +27,43 @@ describe('Product Baseline Delta', () => {
   let db: Knex;
   let service: ComposerService;
   const actor = 'user:default/test-user';
+  const credentials = {};
+  const ursBaselineId = 'urs-baseline-delta';
+  const mockResolver: UrsBaselineResolver = {
+    resolveApprovedBaseline: jest.fn(async (id: string) => ({
+      id,
+      status: 'APPROVED',
+      baselineVersion: '1.0',
+      requirementSetId: 'set-1',
+      contentHash: 'a'.repeat(64),
+    })),
+    resolveBaselineContext: jest.fn(async (id: string) => ({
+      baselineId: id,
+      baselineVersion: '1.0',
+      requirementSetId: 'set-1',
+      businessCapabilities: [],
+      requirements: [],
+    })),
+    inspectBaseline: jest.fn(async (id: string) => ({
+      id,
+      status: 'APPROVED',
+      baselineVersion: '1.0',
+      requirementSetId: 'set-1',
+      contentHash: 'a'.repeat(64),
+    })),
+    listApprovedBaselines: jest.fn(async () => []),
+    listChangeRequests: jest.fn(async () => ({ items: [], total: 0 })),
+  };
 
   beforeAll(async () => {
     db = createDb();
     await db.raw('select 1');
     const repository = await ComposerRepository.create({ getClient: () => db });
-    service = new ComposerService({ logger: mockLogger, repository });
+    service = new ComposerService({
+      logger: mockLogger,
+      repository,
+      ursBaselineResolver: mockResolver,
+    });
   });
 
   afterAll(async () => {
@@ -45,8 +77,15 @@ describe('Product Baseline Delta', () => {
     );
     const version = await service.createProductVersion(
       product.id,
-      { version: '1.0' },
+      {
+        version: '1.0',
+        requirementSetId: 'set-1',
+        ursBaselineId,
+        ursVersion: '1.0',
+        ursContentHash: 'a'.repeat(64),
+      },
       actor,
+      credentials,
     );
     for (const name of componentNames) {
       await service.addProductComponent(
@@ -63,8 +102,9 @@ describe('Product Baseline Delta', () => {
 
     const baseline = await service.createProductBaseline(
       versionId,
-      {},
+      { ursBaselineId },
       actor,
+      credentials,
     );
 
     const delta = await service.computeProductBaselineDelta(baseline.id, actor);
@@ -78,8 +118,18 @@ describe('Product Baseline Delta', () => {
   it('detects UNCHANGED when snapshots are identical', async () => {
     const versionId = await createVersionWithComponents(['Same Comp']);
 
-    const b1 = await service.createProductBaseline(versionId, {}, actor);
-    const b2 = await service.createProductBaseline(versionId, {}, actor);
+    const b1 = await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
+    const b2 = await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
 
     const delta = await service.computeProductBaselineDelta(b2.id, actor);
     expect(delta.previousBaselineId).toBe(b1.id);
@@ -92,51 +142,72 @@ describe('Product Baseline Delta', () => {
   it('detects ADDED component in newer baseline', async () => {
     const versionId = await createVersionWithComponents(['Initial']);
 
-    await service.createProductBaseline(versionId, {}, actor);
+    await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
 
-    // Add another component after first baseline
     await service.addProductComponent(
       versionId,
       { componentType: 'TRANSFORM', name: 'New Transform' },
       actor,
     );
 
-    const b2 = await service.createProductBaseline(versionId, {}, actor);
+    const b2 = await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
 
     const delta = await service.computeProductBaselineDelta(b2.id, actor);
     const addedComponents = delta.changes.filter(
       c => c.changeType === 'ADDED' && c.itemType === 'component',
     );
     expect(addedComponents.length).toBe(1);
-    expect((addedComponents[0].current as Record<string, unknown>)?.name).toBe('New Transform');
+    expect((addedComponents[0].current as Record<string, unknown>)?.name).toBe(
+      'New Transform',
+    );
   });
 
   it('detects REMOVED component in newer baseline', async () => {
     const versionId = await createVersionWithComponents(['Keep', 'Remove Me']);
 
-    const b1 = await service.createProductBaseline(versionId, {}, actor);
+    const b1 = await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
 
-    // Remove a component by replacing all components with just one
-    // Since we can't easily remove components, we test via snapshot manipulation
-    // Actually, the baseline captures current state. Let's verify the summary counts instead.
     const delta = await service.computeProductBaselineDelta(b1.id, actor);
-    // First baseline has no predecessor, so everything is ADDED
     expect(delta.summary.added).toBeGreaterThan(0);
   });
 
   it('summary counts are correct', async () => {
     const versionId = await createVersionWithComponents(['A', 'B']);
 
-    const b1 = await service.createProductBaseline(versionId, {}, actor);
+    const b1 = await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
 
-    // Add a component
     await service.addProductComponent(
       versionId,
       { componentType: 'SINK', name: 'C' },
       actor,
     );
 
-    const b2 = await service.createProductBaseline(versionId, {}, actor);
+    const b2 = await service.createProductBaseline(
+      versionId,
+      { ursBaselineId },
+      actor,
+      credentials,
+    );
 
     const delta = await service.computeProductBaselineDelta(b2.id, actor);
     const total =

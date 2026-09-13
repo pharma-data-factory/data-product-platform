@@ -17,6 +17,7 @@ export {
   PHARMA_TEAL,
   PHARMA_TEAL_DARK,
   PHARMA_TEAL_LIGHT,
+  PHARMA_TEAL_ON_LIGHT,
   PHARMA_TEXT,
 } from '../theme/tokens';
 

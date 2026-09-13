@@ -1,5 +1,6 @@
 import { createBackend } from '@backstage/backend-defaults';
 import { catalogModuleCertificationOverlay } from '@internal/plugin-data-products-backend';
+import { githubAuthModule } from './auth/githubModule';
 import { permissionModulePlatformPolicy } from './permission/module';
 import { aasPlugin } from '@internal/plugin-aas-backend';
 
@@ -15,7 +16,7 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
-backend.add(import('@backstage/plugin-auth-backend-module-github-provider'));
+backend.add(githubAuthModule);
 
 backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(

@@ -1,6 +1,6 @@
 import { LEARN_ASSEMBLY_EXAMPLES, LEARN_TOPICS } from '@internal/platform-common';
 import { ArchitectureDiagramStyles } from '../architecture/diagrams';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from './landingTokens';
+import { C, PHARMA_TEAL } from './landingTokens';
 import { useLandingI18n } from './landingI18n';
 
 function AssemblyDiagram() {
@@ -22,9 +22,9 @@ function AssemblyDiagram() {
             <span
               className="pdf-diag-node"
               style={{
-                background: index === t.learn.assemblySteps.length - 1 ? '#FFFFFF' : 'rgba(0,194,217,0.08)',
+                background: index === t.learn.assemblySteps.length - 1 ? C.card : C.tint,
                 border: `1px solid ${index === t.learn.assemblySteps.length - 1 ? 'rgba(0,194,217,0.45)' : 'rgba(0,194,217,0.35)'}`,
-                color: PHARMA_NAVY,
+                color: C.text,
               }}
             >
               {step}
@@ -41,9 +41,9 @@ function AssemblyDiagram() {
             key={label}
             className="pdf-diag-node"
             style={{
-              background: '#FFFFFF',
+              background: C.card,
               border: '1px solid rgba(0,194,217,0.45)',
-              color: PHARMA_NAVY,
+              color: C.text,
             }}
           >
             {label}
@@ -95,7 +95,7 @@ export function LearnSection() {
               fontWeight: 600,
               lineHeight: 1.2,
               margin: 0,
-              color: PHARMA_NAVY,
+              color: C.text,
             }}
           >
             {t.learn.title}
@@ -121,7 +121,7 @@ export function LearnSection() {
             >
               <h3
                 className="pdf-display"
-                style={{ fontSize: 18, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}
+                style={{ fontSize: 18, fontWeight: 600, margin: 0, color: C.text }}
               >
                 {t.learn.topics[topic.id]?.title ?? topic.title}
               </h3>

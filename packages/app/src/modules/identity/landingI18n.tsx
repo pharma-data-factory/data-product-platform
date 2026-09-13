@@ -28,6 +28,9 @@ type LearnTopicCopy = { title: string; summary: string };
 
 export interface LandingCopy {
   language: string;
+  appearance: string;
+  appearanceLight: string;
+  appearanceDark: string;
   bookDemo: string;
   signIn: string;
   openMenu: string;
@@ -354,6 +357,9 @@ const EN_ARCHITECTURE_BENEFITS = [
 
 const en: LandingCopy = {
   language: 'Language',
+  appearance: 'Appearance',
+  appearanceLight: 'Light',
+  appearanceDark: 'Dark',
   bookDemo: 'Book a Demo',
   signIn: 'Sign In',
   openMenu: 'Open menu',
@@ -946,6 +952,9 @@ const en: LandingCopy = {
 
 const de: LandingCopy = {
   language: 'Sprache',
+  appearance: 'Darstellung',
+  appearanceLight: 'Hell',
+  appearanceDark: 'Dunkel',
   bookDemo: 'Demo vereinbaren',
   signIn: 'Anmelden',
   openMenu: 'Menü öffnen',

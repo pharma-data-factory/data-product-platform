@@ -1,11 +1,12 @@
 import { render, screen, within } from '@testing-library/react';
+import { LandingApiProvider } from '../identity/landingTestUtils';
 import { DeveloperArchitecturePage } from './DeveloperArchitecturePage';
 import { DEVELOPER_ARCHITECTURE_PATH } from './constants';
 import { DEVELOPER_BUILD_STEPS, MQTT_TEMPERATURE_COMPOSITION } from './developerArchitectureData';
 
 describe('DeveloperArchitecturePage', () => {
   it('explains how a developer uses the architecture', () => {
-    render(<DeveloperArchitecturePage standalone />);
+    render(<LandingApiProvider><DeveloperArchitecturePage standalone /></LandingApiProvider>);
 
     expect(screen.getByLabelText('Developer architecture overview')).toBeInTheDocument();
     expect(
@@ -22,7 +23,7 @@ describe('DeveloperArchitecturePage', () => {
   });
 
   it('renders the developer architecture diagram', () => {
-    render(<DeveloperArchitecturePage />);
+    render(<LandingApiProvider><DeveloperArchitecturePage /></LandingApiProvider>);
     const diagram = screen.getByRole('group', {
       name: /Developer architecture: Nexora Control Plane/i,
     });
@@ -40,7 +41,7 @@ describe('DeveloperArchitecturePage', () => {
   });
 
   it('walks through the developer path and links existing TechDocs', () => {
-    render(<DeveloperArchitecturePage />);
+    render(<LandingApiProvider><DeveloperArchitecturePage /></LandingApiProvider>);
     const path = screen.getByLabelText('How developers use the architecture');
 
     expect(DEVELOPER_BUILD_STEPS).toHaveLength(8);
@@ -63,7 +64,7 @@ describe('DeveloperArchitecturePage', () => {
   });
 
   it('shows the MQTT Temperature composition manifest without claiming RAG', () => {
-    render(<DeveloperArchitecturePage />);
+    render(<LandingApiProvider><DeveloperArchitecturePage /></LandingApiProvider>);
     const manifest = screen.getByLabelText('MQTT Temperature composition manifest');
 
     expect(manifest).toHaveTextContent(MQTT_TEMPERATURE_COMPOSITION.name);
@@ -75,7 +76,7 @@ describe('DeveloperArchitecturePage', () => {
   });
 
   it('reuses Developer Hub and TechDocs instead of a second docs system', () => {
-    render(<DeveloperArchitecturePage standalone onSignIn={() => undefined} />);
+    render(<LandingApiProvider><DeveloperArchitecturePage standalone onSignIn={() => undefined} /></LandingApiProvider>);
     const docs = screen.getByLabelText('Existing developer documentation');
 
     expect(within(docs).getByRole('link', { name: 'Developer Hub' })).toHaveAttribute(

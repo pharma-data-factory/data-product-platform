@@ -1,5 +1,21 @@
 import type { FC } from 'react';
-import { Box, Typography, Card, CardContent, Grid, Table, TableBody, TableCell, TableRow } from '@material-ui/core';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from '@material-ui/core';
+import { Alert } from '@material-ui/lab';
 import { SolutionType } from '../../../api/types';
 import { URSWizardState } from '../wizardState';
 
@@ -9,13 +25,11 @@ interface ReviewSubmitStepProps {
 }
 
 export const ReviewSubmitStep: FC<ReviewSubmitStepProps> = ({ state, onStateChange }) => {
-  const handleChange = (field: string, value: string) => {
-    onStateChange({
-      solutionName: field === 'solutionName' ? value : state.solutionName,
-      solutionType: field === 'solutionType' ? (value as SolutionType) : state.solutionType,
-      solutionCatalogRef: field === 'catalogRef' ? value : state.solutionCatalogRef,
-    });
-  };
+  const acCount = state.requirements.reduce(
+    (sum, r) => sum + (r.acceptanceCriteria?.length || 0),
+    0,
+  );
+  const needDefined = !!state.businessNeed?.title;
 
   return (
     <Box>
@@ -23,8 +37,47 @@ export const ReviewSubmitStep: FC<ReviewSubmitStepProps> = ({ state, onStateChan
         Review and save requirement set
       </Typography>
       <Typography color="textSecondary" paragraph>
-        Final review before saving as draft. Create a baseline on the detail page to start the approval workflow.
+        Final review before saving as draft. Create a baseline on the detail page to start the
+        approval workflow.
       </Typography>
+
+      <Alert severity="info" style={{ marginBottom: 16 }}>
+        Approvals happen on the detail page after baseline. Electronic signature is a technical
+        workflow control, not a GxP/Part 11 claim.
+      </Alert>
+
+      {/* Traceability summary (folded from former Traceability step) */}
+      <Card style={{ marginBottom: 16 }}>
+        <CardContent>
+          <Typography variant="subtitle2" gutterBottom>
+            Traceability summary
+          </Typography>
+          <Table size="small">
+            <TableBody>
+              <TableRow>
+                <TableCell>Business capabilities</TableCell>
+                <TableCell align="right">{state.businessCapabilityRefs.length}</TableCell>
+                <TableCell>{state.businessCapabilityRefs.length > 0 ? '✓' : '○'}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Business need</TableCell>
+                <TableCell align="right">{needDefined ? 'Defined' : '—'}</TableCell>
+                <TableCell>{needDefined ? '✓' : '○'}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Requirements</TableCell>
+                <TableCell align="right">{state.requirements.length}</TableCell>
+                <TableCell>{state.requirements.length > 0 ? '✓' : '○'}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Acceptance criteria</TableCell>
+                <TableCell align="right">{acCount}</TableCell>
+                <TableCell>{acCount > 0 ? '✓' : '○'}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
       <Grid container spacing={2} style={{ marginBottom: 24 }}>
@@ -50,9 +103,7 @@ export const ReviewSubmitStep: FC<ReviewSubmitStepProps> = ({ state, onStateChan
           <Card>
             <CardContent>
               <Typography color="textSecondary">Acceptance Criteria</Typography>
-              <Typography variant="h6">
-                {state.requirements.reduce((sum, r) => sum + (r.acceptanceCriteria?.length || 0), 0)}
-              </Typography>
+              <Typography variant="h6">{acCount}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -71,50 +122,52 @@ export const ReviewSubmitStep: FC<ReviewSubmitStepProps> = ({ state, onStateChan
       <Card style={{ marginBottom: 16 }}>
         <CardContent>
           <Typography variant="subtitle2" gutterBottom>
-            Solution Context:
+            Solution Context
           </Typography>
 
           <Grid container spacing={2} style={{ marginTop: 8 }}>
             <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="textSecondary">
-                Solution Type
-              </Typography>
-              <select
-                value={state.solutionType || ''}
-                onChange={e => handleChange('solutionType', e.target.value)}
-                style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
-              >
-                <option value="">Select...</option>
-                <option value={SolutionType.PROJECT}>Project</option>
-                <option value={SolutionType.PLUGIN}>Plugin</option>
-                <option value={SolutionType.COMPONENT}>Component</option>
-                <option value={SolutionType.DATA_PRODUCT}>Data Product</option>
-              </select>
+              <FormControl fullWidth variant="outlined">
+                <InputLabel id="solution-type-label">Solution Type</InputLabel>
+                <Select
+                  labelId="solution-type-label"
+                  label="Solution Type"
+                  value={state.solutionType || ''}
+                  onChange={e =>
+                    onStateChange({ solutionType: e.target.value as SolutionType })
+                  }
+                >
+                  <MenuItem value="">
+                    <em>Select…</em>
+                  </MenuItem>
+                  <MenuItem value={SolutionType.PROJECT}>Project</MenuItem>
+                  <MenuItem value={SolutionType.PLUGIN}>Plugin</MenuItem>
+                  <MenuItem value={SolutionType.COMPONENT}>Component</MenuItem>
+                  <MenuItem value={SolutionType.DATA_PRODUCT}>Data Product</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="textSecondary">
-                Solution Name
-              </Typography>
-              <input
-                type="text"
+              <TextField
+                label="Solution Name"
                 placeholder="e.g., Equipment OEE Dashboard"
+                fullWidth
+                variant="outlined"
                 value={state.solutionName || ''}
-                onChange={e => handleChange('solutionName', e.target.value)}
-                style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                onChange={e => onStateChange({ solutionName: e.target.value })}
+                required
               />
             </Grid>
 
             <Grid item xs={12}>
-              <Typography variant="body2" color="textSecondary">
-                Catalog Reference (Optional)
-              </Typography>
-              <input
-                type="text"
+              <TextField
+                label="Catalog Reference (Optional)"
                 placeholder="e.g., component:default/oee"
+                fullWidth
+                variant="outlined"
                 value={state.solutionCatalogRef || ''}
-                onChange={e => handleChange('catalogRef', e.target.value)}
-                style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                onChange={e => onStateChange({ solutionCatalogRef: e.target.value })}
               />
             </Grid>
           </Grid>
@@ -125,7 +178,7 @@ export const ReviewSubmitStep: FC<ReviewSubmitStepProps> = ({ state, onStateChan
       <Card>
         <CardContent>
           <Typography variant="subtitle2" gutterBottom>
-            Ready to Save:
+            Ready to Save
           </Typography>
 
           <Table size="small">

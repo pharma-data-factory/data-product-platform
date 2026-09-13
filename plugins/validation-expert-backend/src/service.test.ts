@@ -13,10 +13,79 @@ import {
   mapUnknownCiRepresentation,
 } from './runners';
 import { ValidationExpertService } from './service';
+import type { AssignProductRequest } from './types';
 
 const root = resolveValidationRoot(
   path.resolve(__dirname, '../../../validation'),
 );
+
+const PRODUCT_REF = {
+  ursBaselineId: 'baseline-1',
+  productId: 'product-1',
+  productVersionId: 'version-1',
+  productBaselineId: 'baseline-1',
+  manifestHash: 'a'.repeat(64),
+};
+
+/** Service with an APPROVED URS resolver and a mock product resolver. */
+function makeService(healthBaseUrl?: string) {
+  const repository = new MemoryValidationRunRepository();
+  const service = new ValidationExpertService({
+    validationRoot: root,
+    repository,
+    runners: createDefaultRunnerRegistry(),
+    healthBaseUrl,
+    ursBaselineResolver: {
+      async resolveApprovedBaseline(request: { baselineId: string }) {
+        return {
+          reference: {
+            requirementSetId: 'URS-DP-PROOF',
+            baselineId: request.baselineId,
+            baselineVersion: '1.0',
+            requirementSetTitle: 'Proof Requirement Set',
+            businessCapabilityIds: [],
+            approvalStatus: 'APPROVED',
+            approvedBy: 'user:default/approver',
+            sourceSystem: 'urs-composer',
+            requirementIds: ['URS-DP-PROOF-001'],
+            createdAt: new Date().toISOString(),
+          },
+        };
+      },
+      async resolveBaselineRequirements() {
+        return [];
+      },
+    },
+    productResolver: {
+      async resolveProductRef(request: AssignProductRequest) {
+        return {
+          productId: request.productId,
+          productVersionId: request.productVersionId,
+          productBaselineId: request.productBaselineId,
+          productName: 'Platform Core',
+          productVersion: '1.0',
+          productBaselineVersion: '1.0',
+          assignedAt: new Date().toISOString(),
+        };
+      },
+    },
+  } as any);
+  return { service, repository };
+}
+
+/** Context anchored to an APPROVED baseline with a validated product assignment. */
+async function makeReadyContext(service: ValidationExpertService) {
+  const { context } = await service.createContextFromApprovedUrs(
+    { requirementSetId: 'URS-DP-PROOF', baselineId: 'baseline-1' },
+    'user:default/author',
+  );
+  const { context: assigned } = await service.assignProduct(
+    context.id,
+    PRODUCT_REF,
+    'user:default/author',
+  );
+  return assigned;
+}
 
 describe('validation expert parsers', () => {
   it('resolves the validation package and parses requirements', () => {
@@ -130,13 +199,8 @@ describe('validation runners', () => {
 
 describe('validation run service', () => {
   it('creates runs, captures executor, runs MVP automated tests, and records findings on fail path', async () => {
-    const repository = new MemoryValidationRunRepository();
-    const service = new ValidationExpertService({
-      validationRoot: root,
-      repository,
-      runners: createDefaultRunnerRegistry(),
-      healthBaseUrl: 'http://127.0.0.1:9',
-    });
+    const { service } = makeService('http://127.0.0.1:9');
+    const context = await makeReadyContext(service);
 
     const executor = {
       userEntityRef: 'user:default/markus',
@@ -145,12 +209,16 @@ describe('validation run service', () => {
     };
 
     const run = await service.createRun({
-      candidate: 'platform-core-v1.0-rc2',
       type: 'OQ',
       createdBy: executor,
+      contextId: context.id,
     });
     expect(run.id).toBe('OQ-RUN-0001');
     expect(run.createdBy.userEntityRef).toBe('user:default/markus');
+    expect(run.contextId).toBe(context.id);
+    expect(run.baselineId).toBe('baseline-1');
+    expect(run.productVersionId).toBe('version-1');
+    expect(run.manifestHash).toBe(PRODUCT_REF.manifestHash);
 
     const completed = await service.executeAutomated(run.id, executor);
     expect(completed.executions.length).toBeGreaterThan(0);
@@ -159,9 +227,9 @@ describe('validation run service', () => {
     ).toBe(true);
 
     const manualRun = await service.createRun({
-      candidate: 'platform-core-v1.0-rc2',
       type: 'OQ',
       createdBy: executor,
+      contextId: context.id,
     });
     expect(manualRun.id).toBe('OQ-RUN-0002');
 
@@ -179,6 +247,15 @@ describe('validation run service', () => {
     expect(
       (await service.getFindings()).some(item => item.id === failed.findingId),
     ).toBe(true);
+    const evidence = (await service.getEvidence()).find(
+      item => item.runId === manualRun.id && item.testId === 'OQ-AUTH-001',
+    );
+    expect(evidence).toMatchObject({
+      ursBaselineId: 'baseline-1',
+      productVersionId: 'version-1',
+      productBaselineId: 'baseline-1',
+      manifestHash: PRODUCT_REF.manifestHash,
+    });
 
     await expect(
       service.recordManualResult({
@@ -192,15 +269,12 @@ describe('validation run service', () => {
   });
 
   it('refuses anonymous executor identity', async () => {
-    const service = new ValidationExpertService({
-      validationRoot: root,
-      repository: new MemoryValidationRunRepository(),
-      runners: createDefaultRunnerRegistry(),
-    });
+    const { service } = makeService();
+    const context = await makeReadyContext(service);
     const run = await service.createRun({
-      candidate: 'platform-core-v1.0-rc2',
       type: 'OQ',
       createdBy: { userEntityRef: 'user:default/markus' },
+      contextId: context.id,
     });
     await expect(
       service.recordManualResult({
@@ -211,5 +285,15 @@ describe('validation run service', () => {
         executor: { userEntityRef: '' },
       }),
     ).rejects.toThrow(/Authenticated executor/);
+  });
+
+  it('rejects creating a run without a validation context', async () => {
+    const { service } = makeService();
+    await expect(
+      service.createRun({
+        type: 'OQ',
+        createdBy: { userEntityRef: 'user:default/markus' },
+      }),
+    ).rejects.toThrow(/requires a run context|validation context with an assigned/i);
   });
 });

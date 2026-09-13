@@ -8,10 +8,16 @@ import {
 } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import {
+  Link,
   sidebarConfig,
   useSidebarOpenState,
 } from '@backstage/core-components';
-import { identityApiRef, useApi } from '@backstage/core-plugin-api';
+import {
+  appThemeApiRef,
+  identityApiRef,
+  useApi,
+  type AppTheme,
+} from '@backstage/core-plugin-api';
 import ExitToAppIcon from '@material-ui/icons/ExitToApp';
 import {
   ROLE_LABELS,
@@ -21,15 +27,15 @@ import {
   platformGroupNames,
   resolvePlatformRole,
 } from '@internal/platform-common';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
+import { nexoraThemeColor } from '@internal/plugin-nexora-common';
 import { signOutToLanding } from '../identity/session';
 
 const useStyles = makeStyles({
   trigger: {
     alignItems: 'center',
     background: 'transparent',
+    color: nexoraThemeColor.navColor,
     border: 0,
-    color: '#C5D0DC',
     cursor: 'pointer',
     display: 'flex',
     gap: 12,
@@ -38,7 +44,7 @@ const useStyles = makeStyles({
     textAlign: 'left',
     width: '100%',
     '&:hover': {
-      background: '#163154',
+      background: nexoraThemeColor.navHover,
     },
   },
   triggerClosed: {
@@ -47,37 +53,48 @@ const useStyles = makeStyles({
     paddingRight: 0,
   },
   name: {
-    color: '#FFFFFF',
+    color: nexoraThemeColor.navSelected,
     fontSize: 13,
     fontWeight: 600,
     lineHeight: 1.3,
   },
   role: {
-    color: PHARMA_TEAL,
+    color: nexoraThemeColor.accentOnDark,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 10,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
   },
   paper: {
-    background: C.paper,
-    border: `1px solid ${C.border}`,
+    background: nexoraThemeColor.surfaceRaised,
+    border: `1px solid ${nexoraThemeColor.border}`,
     borderRadius: 12,
     minWidth: 280,
     padding: 16,
   },
   label: {
-    color: C.muted,
+    color: nexoraThemeColor.textMuted,
     fontSize: 11,
     letterSpacing: '0.08em',
     marginTop: 10,
     textTransform: 'uppercase',
   },
   value: {
-    color: PHARMA_NAVY,
+    color: nexoraThemeColor.text,
     fontSize: 13,
     marginTop: 2,
     wordBreak: 'break-all',
+  },
+  themeRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  settingsLink: {
+    display: 'inline-block',
+    fontSize: 12,
+    marginTop: 10,
   },
   signOut: {
     marginTop: 16,
@@ -85,16 +102,16 @@ const useStyles = makeStyles({
     fontWeight: 600,
   },
   sidebarSignOut: {
-    background: PHARMA_NAVY,
+    background: nexoraThemeColor.navBg,
     borderRadius: 8,
     boxShadow: 'none',
-    color: '#FFFFFF',
+    color: nexoraThemeColor.navSelected,
     fontWeight: 600,
     margin: '0 16px 16px',
     textTransform: 'none',
     width: 'calc(100% - 32px)',
     '&:hover': {
-      background: '#163154',
+      background: nexoraThemeColor.navHover,
       boxShadow: 'none',
     },
   },
@@ -113,6 +130,59 @@ interface ProfileState {
   roleLabel: string;
   groups: string[];
   picture?: string;
+}
+
+/** Light/dark switch driven by the registered Backstage themes. */
+function AppearanceToggle({ onClose }: { onClose: () => void }) {
+  const classes = useStyles();
+  const appThemeApi = useApi(appThemeApiRef);
+  const [themes, setThemes] = useState<AppTheme[]>([]);
+  const [activeThemeId, setActiveThemeId] = useState<string | undefined>(
+    appThemeApi.getActiveThemeId(),
+  );
+
+  useEffect(() => {
+    setThemes(appThemeApi.getInstalledThemes());
+    const subscription = appThemeApi.activeThemeId$().subscribe(themeId => {
+      if (themeId) {
+        setActiveThemeId(themeId);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [appThemeApi]);
+
+  if (themes.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <Typography className={classes.label}>Appearance</Typography>
+      <div className={classes.themeRow} role="group" aria-label="Theme">
+        {themes.map(theme => (
+          <Button
+            key={theme.id}
+            size="small"
+            variant={theme.id === activeThemeId ? 'contained' : 'outlined'}
+            color="primary"
+            startIcon={theme.icon}
+            aria-pressed={theme.id === activeThemeId}
+            onClick={() => appThemeApi.setActiveThemeId(theme.id)}
+          >
+            {theme.title}
+          </Button>
+        ))}
+      </div>
+      <Link
+        to="/settings"
+        className={classes.settingsLink}
+        onClick={onClose}
+        aria-label="Open appearance settings"
+      >
+        Appearance settings
+      </Link>
+    </>
+  );
 }
 
 export function UserProfileMenu() {
@@ -167,8 +237,12 @@ export function UserProfileMenu() {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleSignOut = async () => {
+  const closeMenu = () => {
     setAnchorEl(null);
+  };
+
+  const handleSignOut = async () => {
+    closeMenu();
     await signOutToLanding(identityApi);
   };
 
@@ -193,7 +267,11 @@ export function UserProfileMenu() {
         <Avatar
           src={profile?.picture}
           alt={profile?.displayName ?? 'User'}
-          style={{ width: 32, height: 32, background: PHARMA_TEAL }}
+          style={{
+            width: 32,
+            height: 32,
+            background: nexoraThemeColor.accent,
+          }}
         >
           {(profile?.displayName ?? 'U').slice(0, 1).toUpperCase()}
         </Avatar>
@@ -212,7 +290,7 @@ export function UserProfileMenu() {
       <Popover
         open={Boolean(anchorEl)}
         anchorEl={anchorEl}
-        onClose={() => setAnchorEl(null)}
+        onClose={closeMenu}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         PaperProps={{ className: classes.paper }}
@@ -235,9 +313,10 @@ export function UserProfileMenu() {
             <Typography className={classes.value}>
               {profile.groups.length > 0 ? profile.groups.join(', ') : 'None'}
             </Typography>
-            <Divider style={{ marginTop: 16 }} />
           </>
         )}
+        <AppearanceToggle onClose={closeMenu} />
+        <Divider style={{ marginTop: 16 }} />
         <Button
           className={classes.signOut}
           color="primary"

@@ -7,6 +7,8 @@
  * - Approval steps did not carry `required` through persistence, so the first
  *   approval was treated as the final one and released the whole baseline.
  * - A truthiness check on gxpRelevance routed non-GxP sets into the GxP flow.
+ * - Memory mode seeded no workflow definitions at all, so submitting a
+ *   baseline failed with "Workflow not found" before the chain could start.
  */
 
 import { URSService } from './service';
@@ -188,6 +190,67 @@ describe('Workflow selection by GxP relevance', () => {
 
     expect(instance.workflowId).toBe('standard-gxp-urs');
     expect(instance.steps).toHaveLength(3);
+  });
+});
+
+describe('Workflow definitions in memory mode', () => {
+  test('seeding exposes both canonical workflows with their required steps', async () => {
+    const repository = new URSRepository();
+    await expect(repository.listApprovalWorkflows(50, 0)).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
+
+    repository.seedApprovalWorkflows();
+
+    const { items, total } = await repository.listApprovalWorkflows(50, 0);
+    expect(total).toBe(2);
+    expect(items.map(w => w.id).sort()).toEqual([
+      'non-gxp-urs',
+      'standard-gxp-urs',
+    ]);
+
+    const gxp = await repository.getApprovalWorkflow('standard-gxp-urs');
+    expect(gxp?.steps).toEqual(GXP_WORKFLOW.steps);
+
+    const nonGxp = await repository.getApprovalWorkflow('non-gxp-urs');
+    expect(nonGxp?.steps).toEqual(NON_GXP_WORKFLOW.steps);
+  });
+
+  test('seeding is idempotent', async () => {
+    const repository = new URSRepository();
+    repository.seedApprovalWorkflows();
+    repository.seedApprovalWorkflows();
+
+    await expect(repository.listApprovalWorkflows(50, 0)).resolves.toMatchObject({
+      total: 2,
+    });
+  });
+
+  test('submits a baseline without registering workflows by hand', async () => {
+    const repository = new URSRepository();
+    repository.seedApprovalWorkflows();
+    await repository.createRequirementSet(requirementSet(GxPRelevance.INDIRECT));
+    await repository.createBaseline(baseline());
+
+    const service = new URSService({
+      logger: mockLogger as any,
+      repository,
+      catalog: catalogWithGroups([]),
+    });
+
+    const instance = await service.submitBaseline(
+      'baseline-001',
+      'user:default/author',
+    );
+
+    expect(instance.workflowId).toBe('standard-gxp-urs');
+    expect(instance.steps.map(s => s.role)).toEqual([
+      ApprovalRole.BUSINESS_REVIEWER,
+      ApprovalRole.PRODUCT_MANAGER,
+      ApprovalRole.QUALITY_REVIEWER,
+    ]);
+    expect(instance.steps.every(s => s.required)).toBe(true);
   });
 });
 

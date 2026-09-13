@@ -77,7 +77,7 @@ function box(
   variant: 'solid' | 'teal' | 'dashed',
   key: string,
 ) {
-  let fill = PHARMA_NAVY;
+  let fill: string = PHARMA_NAVY;
   if (variant === 'teal') {
     fill = PHARMA_TEAL;
   } else if (variant === 'dashed') {

@@ -15,11 +15,10 @@ import {
 import {
   NEXORA_BORDER,
   NEXORA_MUTED,
-  NEXORA_NAVY,
-  NEXORA_TEXT,
   NexoraSection,
   NexoraToolPage,
   filterChipSx,
+  nexoraThemeColor,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -39,7 +38,7 @@ const useStyles = makeStyles(theme => ({
     marginTop: 16,
   },
   areaTitle: {
-    color: NEXORA_NAVY,
+    color: nexoraThemeColor.text,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 15,
     fontWeight: 600,
@@ -49,7 +48,7 @@ const useStyles = makeStyles(theme => ({
     marginTop: 10,
   },
   lineTitle: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 11,
     fontWeight: 600,
@@ -74,7 +73,7 @@ const useStyles = makeStyles(theme => ({
     marginTop: 4,
   },
   empty: {
-    color: NEXORA_TEXT,
+    color: nexoraThemeColor.text,
     fontSize: 14,
   },
 }));

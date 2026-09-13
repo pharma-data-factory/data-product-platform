@@ -20,7 +20,7 @@ import {
 } from './storyDiagrams';
 import { LandingFooter, LandingNav, LandingStyles } from '../identity/PublicLanding';
 import { LandingI18nProvider } from '../identity/landingI18n';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT, PHARMA_TEAL_ON_LIGHT } from '../identity/landingTokens';
 import {
   AUTHENTICATED_ARCHITECTURE_LINKS,
   LAYER_COMPARISON,
@@ -31,7 +31,7 @@ const archTh = {
   textAlign: 'left' as const,
   padding: '12px 14px',
   borderBottom: `1px solid ${C.border}`,
-  color: PHARMA_TEAL,
+  color: PHARMA_TEAL_ON_LIGHT,
   fontSize: 12,
   letterSpacing: '0.08em',
   textTransform: 'uppercase' as const,
@@ -300,7 +300,7 @@ function ViewSelectorSection() {
           <p style={{ margin: '0 0 20px', fontSize: 15, lineHeight: 1.6, color: C.text }}>
             This architecture explanation focuses on business value and how the platform solves your problems.
           </p>
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>Also explore:</p>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.text }}>Also explore:</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 14 }}>
             <a
               href="/platform/architecture/developer"
@@ -310,10 +310,10 @@ function ViewSelectorSection() {
                 borderRadius: 8,
                 border: `1px solid ${C.border}`,
                 textDecoration: 'none',
-                color: PHARMA_NAVY,
+                color: C.text,
                 fontSize: 14,
                 fontWeight: 600,
-                background: '#FFFFFF',
+                background: C.card,
               }}
             >
               → Developer technical view
@@ -326,10 +326,10 @@ function ViewSelectorSection() {
                 borderRadius: 8,
                 border: `1px solid ${C.border}`,
                 textDecoration: 'none',
-                color: PHARMA_NAVY,
+                color: C.text,
                 fontSize: 14,
                 fontWeight: 600,
-                background: '#FFFFFF',
+                background: C.card,
               }}
             >
               → Admin governance map (sign in)
@@ -369,7 +369,7 @@ function BoundarySection() {
             fontSize: 28,
             fontWeight: 600,
             margin: '0 0 24px',
-            color: PHARMA_NAVY,
+            color: C.text,
           }}
         >
           Clarity: Who owns what
@@ -424,7 +424,7 @@ function CardGrid({
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2
           className="pdf-display"
-          style={{ fontSize: 28, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}
+          style={{ fontSize: 28, fontWeight: 600, margin: 0, color: C.text }}
         >
           {title}
         </h2>
@@ -521,7 +521,7 @@ function ResponsibilityModelSection() {
               fontSize: 28,
               fontWeight: 600,
               margin: '0 0 12px',
-              color: PHARMA_NAVY,
+              color: C.text,
             }}
           >
             Platform innovation + Domain focus partnership
@@ -621,7 +621,7 @@ function ComparisonSection() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2
           className="pdf-display"
-          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 24px', color: PHARMA_NAVY }}
+          style={{ fontSize: 28, fontWeight: 600, margin: '0 0 24px', color: C.text }}
         >
           AAS vs UNS vs Data Product
         </h2>
@@ -637,7 +637,7 @@ function ComparisonSection() {
             <tbody>
               {LAYER_COMPARISON.map(row => (
                 <tr key={row.id}>
-                  <th scope="row" style={{ ...archTd, fontWeight: 700, color: PHARMA_NAVY }}>
+                  <th scope="row" style={{ ...archTd, fontWeight: 700, color: C.text }}>
                     {row.title}
                   </th>
                   <td style={archTd}>{row.question}</td>
@@ -726,7 +726,7 @@ function DiagramSection({
                   fontSize: 'clamp(20px, 2.8vw, 28px)',
                   fontWeight: 600,
                   margin: 0,
-                  color: PHARMA_NAVY,
+                  color: C.text,
                 }}
               >
                 {title}
@@ -842,7 +842,7 @@ function ValidationByDesignSection() {
             fontSize: 'clamp(24px, 3.2vw, 36px)',
             fontWeight: 600,
             margin: '0 0 24px',
-            color: PHARMA_NAVY,
+            color: C.text,
           }}
         >
           Built for Controlled Change.
@@ -888,7 +888,7 @@ function ValidationByDesignSection() {
             padding: 24,
           }}
         >
-          <p style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>
+          <p style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: C.text }}>
             Your benefits:
           </p>
           <ul style={{ margin: '0 0 16px', paddingLeft: 20, fontSize: 14, lineHeight: 1.8, color: C.text }}>
@@ -917,7 +917,7 @@ function AuthenticatedLinksSection() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2
           className="pdf-display"
-          style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px', color: PHARMA_NAVY }}
+          style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px', color: C.text }}
         >
           Continue in Developer Hub
         </h2>
@@ -935,7 +935,7 @@ function AuthenticatedLinksSection() {
                 borderRadius: 999,
                 border: `1px solid ${C.border}`,
                 textDecoration: 'none',
-                color: PHARMA_NAVY,
+                color: C.text,
                 fontSize: 13,
                 fontWeight: 600,
               }}

@@ -15,10 +15,10 @@ import {
 import {
   NEXORA_BORDER,
   NEXORA_MUTED,
-  NEXORA_TEXT,
   NexoraSection,
   NexoraToolPage,
   filterChipSx,
+  nexoraThemeColor,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -40,7 +40,7 @@ const useStyles = makeStyles(theme => ({
     padding: '12px 14px',
   },
   meta: { color: NEXORA_MUTED, fontSize: 13, marginTop: 4 },
-  empty: { color: NEXORA_TEXT, fontSize: 14 },
+  empty: { color: nexoraThemeColor.text, fontSize: 14 },
 }));
 
 export function ContractExplorerPage() {

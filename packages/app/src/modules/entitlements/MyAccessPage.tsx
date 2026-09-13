@@ -80,7 +80,7 @@ export function MyAccessPage() {
                       ? 'PENDING_ACCESS'
                       : commercialCardStatus(product, product.entitled);
                   return (
-                    <Typography key={product.productId} variant="body2" style={{ marginBottom: 8 }}>
+                    <Typography key={product.productId} variant="body2" component="div" style={{ marginBottom: 8 }}>
                       {product.displayName}{' '}
                       <Chip size="small" label={status} />
                     </Typography>
@@ -91,7 +91,7 @@ export function MyAccessPage() {
                 {platform.map(product => {
                   const status = commercialCardStatus(product, product.entitled);
                   return (
-                    <Typography key={product.productId} variant="body2" style={{ marginBottom: 8 }}>
+                    <Typography key={product.productId} variant="body2" component="div" style={{ marginBottom: 8 }}>
                       {product.displayName}{' '}
                       <Chip size="small" label={status} />
                     </Typography>

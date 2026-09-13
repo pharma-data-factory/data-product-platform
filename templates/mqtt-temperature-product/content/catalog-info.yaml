@@ -29,10 +29,30 @@ metadata:
     dataprod.platform/qualityStatus: TESTED
     dataprod.platform/quality-endpoint: /api/v1/quality
     dataprod.platform/quality-checks: deviceId_not_empty,eventId_not_empty,timestamp_iso8601,temperature_within_limits,unit_allowed,contract_schema
-    dataprod.platform/consume-rest-path: /api/v1/temperature
+    dataprod.platform/consume-rest-path: /api/v1/temperatures
     dataprod.platform/consume-stream: sse
     dataprod.platform/presentation-capabilities: table,metric-cards,timeseries,realtime,json,schema
     dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/publish-enabled: "false"
+    dataprod.platform/publish-ports: mqtt,warehouse
+    dataprod.platform/publish-mqtt-topic: products/${{ values.domain }}/${{ values.name }}/temperature-event/v1
+    dataprod.platform/publish-warehouse-profile: file
+    dataprod.platform/publish-warehouse-dataset: ${{ values.domain }}.${{ values.name }}_temperature_event_v1
+{% if values.productManifestContentHash %}
+    dataprod.platform/product-manifest-content-hash: ${{ values.productManifestContentHash }}
+{% endif %}
+{% if values.ursBaselineId %}
+    dataprod.platform/urs-baseline-id: ${{ values.ursBaselineId }}
+{% endif %}
+{% if values.productBaselineId %}
+    dataprod.platform/product-baseline-id: ${{ values.productBaselineId }}
+{% endif %}
+{% if values.productVersionId %}
+    dataprod.platform/product-version-id: ${{ values.productVersionId }}
+{% endif %}
+{% if values.productId %}
+    dataprod.platform/product-id: ${{ values.productId }}
+{% endif %}
   links:
     - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
       title: Repository

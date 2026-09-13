@@ -70,10 +70,15 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: mqtt-temperature-data-product
     dataprod.platform/templateVersion: 1.0.0
-    dataprod.platform/consume-rest-path: /api/v1/temperature
+    dataprod.platform/consume-rest-path: /api/v1/temperatures
     dataprod.platform/consume-stream: sse
     dataprod.platform/presentation-capabilities: table,metric-cards,timeseries,realtime,json,schema
     dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/publish-enabled: "false"
+    dataprod.platform/publish-ports: mqtt,warehouse
+    dataprod.platform/publish-mqtt-topic: products/manufacturing/sample-mqtt-temperature-product/temperature-event/v1
+    dataprod.platform/publish-warehouse-profile: file
+    dataprod.platform/publish-warehouse-dataset: manufacturing.sample_mqtt_temperature_product_temperature_event_v1
   links:
     - url: https://github.com/example/sample-mqtt-temperature-product
       title: Repository
@@ -193,6 +198,11 @@ metadata:
     dataprod.platform/consume-rest-path: /api/v1/equipment
     dataprod.platform/presentation-capabilities: table,json,schema,metric-cards
     dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/publish-enabled: "false"
+    dataprod.platform/publish-ports: mqtt,warehouse
+    dataprod.platform/publish-mqtt-topic: products/manufacturing/sample-rest-equipment-product/equipment-event/v1
+    dataprod.platform/publish-warehouse-profile: file
+    dataprod.platform/publish-warehouse-dataset: manufacturing.sample_rest_equipment_product_equipment_event_v1
   links:
     - url: https://github.com/example/sample-rest-equipment-product
       title: Repository
@@ -458,6 +468,11 @@ metadata:
     dataprod.platform/presentation-capabilities: table,metric-cards,json,schema,realtime
     dataprod.platform/presentation-extensions: oee-dashboard
     dataprod.platform/validation-status: NOT_VALIDATED
+    dataprod.platform/publish-enabled: "false"
+    dataprod.platform/publish-ports: mqtt,warehouse
+    dataprod.platform/publish-mqtt-topic: products/manufacturing/sample-oee-data-product/oee-result/v1
+    dataprod.platform/publish-warehouse-profile: snowflake
+    dataprod.platform/publish-warehouse-dataset: manufacturing.sample_oee_data_product_oee_result_v1
 spec:
   type: data-product
   lifecycle: experimental

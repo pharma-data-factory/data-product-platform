@@ -58,6 +58,12 @@ const REQUIRED_FILES = [
   'docs/troubleshooting.md',
   '.github/workflows/ci.yml',
   '.github/workflows/data-product-quality.yml',
+  'AGENTS.md',
+  'product-manifest.yaml',
+  'docs/urs/URS-baseline.json',
+  'docs/urs/URS-baseline.md',
+  'docs/urs/traceability-matrix.yaml',
+  'scripts/check_digital_thread.py',
 ];
 
 const VALUES = {
@@ -107,6 +113,19 @@ describe('REST Equipment Data Product Golden Path', () => {
       'owner',
       'domain',
       'repoUrl',
+      'productManifestContentHash',
+      'ursBaselineId',
+      'productBaselineId',
+      'productVersionId',
+      'productId',
+      'requirementSetId',
+      'ursVersion',
+      'ursContentHash',
+      'productManifestYaml',
+      'ursBaselineJson',
+      'ursBaselineMd',
+      'traceabilityMatrixYaml',
+      'agentsMd',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe(
       'Data Product Name',

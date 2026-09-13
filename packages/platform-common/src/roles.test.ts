@@ -1,8 +1,11 @@
 import {
   githubLoginFromEntityRef,
   githubUserEntityRef,
+  groupEntityRefFromMemberOf,
   hasApprovedPlatformAccess,
   isGuestIdentity,
+  normalizeGithubLogin,
+  ownershipRefsFromUserEntity,
   platformGroupNames,
   resolvePlatformRole,
   ROLE_LABELS,
@@ -11,11 +14,36 @@ import {
 
 describe('platform identity mapping', () => {
   it('maps GitHub usernames onto catalog User entity refs', () => {
+    expect(normalizeGithubLogin('Schmeckm')).toBe('schmeckm');
     expect(githubUserEntityRef('schmeckm')).toBe('user:default/schmeckm');
+    expect(githubUserEntityRef('Schmeckm')).toBe('user:default/schmeckm');
     expect(githubUserEntityRef('Ada-Lovelace')).toBe(
       'user:default/ada-lovelace',
     );
     expect(githubLoginFromEntityRef('user:default/schmeckm')).toBe('schmeckm');
+  });
+
+  it('builds ownership claims from catalog User relations and spec.memberOf', () => {
+    expect(groupEntityRefFromMemberOf('platform-admins')).toBe(
+      'group:default/platform-admins',
+    );
+    expect(groupEntityRefFromMemberOf('group:default/platform-admins')).toBe(
+      'group:default/platform-admins',
+    );
+    expect(
+      ownershipRefsFromUserEntity({
+        metadata: { name: 'Schmeckm' },
+        spec: { memberOf: ['platform-admins'] },
+      }),
+    ).toEqual(['user:default/schmeckm', 'group:default/platform-admins']);
+    expect(
+      hasApprovedPlatformAccess(
+        ownershipRefsFromUserEntity({
+          metadata: { name: 'schmeckm' },
+          spec: { memberOf: ['platform-admins'] },
+        }),
+      ),
+    ).toBe(true);
   });
 
   it('does not treat Guest as a production identity', () => {

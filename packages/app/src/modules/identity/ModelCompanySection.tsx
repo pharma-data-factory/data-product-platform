@@ -9,7 +9,7 @@ export function ModelCompanySection() {
     <section
       id="model-company"
       aria-label="Explore the Model Company"
-      style={{ padding: '96px 24px', background: 'rgba(10, 25, 41, 0.03)' }}
+      style={{ padding: '96px 24px', background: C.section }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <p
@@ -27,7 +27,7 @@ export function ModelCompanySection() {
         <h2
           className="pdf-display"
           style={{
-            color: PHARMA_NAVY,
+            color: C.text,
             fontSize: 'clamp(28px, 4vw, 40px)',
             fontWeight: 600,
             margin: '0 0 12px',
@@ -47,7 +47,7 @@ export function ModelCompanySection() {
             marginTop: 28,
             padding: 28,
             borderColor: 'rgba(0,194,217,0.35)',
-            background: '#fff',
+            background: C.card,
           }}
         >
           <div

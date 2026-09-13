@@ -20,7 +20,9 @@ export class ConsumptionError extends Error {
 }
 
 export type InterfaceType = 'rest' | 'stream' | 'mqtt' | 'openapi';
+export type InterfaceDirection = 'consume' | 'publish';
 export type StreamProtocol = 'websocket' | 'sse';
+export type PublishPortType = 'mqtt' | 'rest' | 'warehouse';
 
 export type PresentationCapability =
   | 'table'
@@ -40,6 +42,8 @@ export type ValidationStatusView =
 export interface DataProductInterface {
   id: string;
   type: InterfaceType;
+  /** Default consume; publish = Product Publish Bus egress (server-side only). */
+  direction?: InterfaceDirection;
   /** Catalog API ref or logical id */
   apiRef?: string;
   /** Relative path on product service, e.g. /api/v1/oee */
@@ -49,6 +53,29 @@ export interface DataProductInterface {
   topic?: string;
   /** OpenAPI path annotation if present */
   openApiPath?: string;
+}
+
+export interface DataProductPublishPort {
+  id: string;
+  type: PublishPortType;
+  /** Resolved or template topic / sink id */
+  topic?: string;
+  /** Warehouse dataset id, e.g. manufacturing.product_contract_v1 */
+  dataset?: string;
+  /** Warehouse profile when type is warehouse */
+  profile?: 'file' | 'snowflake' | 'databricks';
+  enabled: boolean;
+}
+
+export interface DataProductPublishMeta {
+  /** Opt-in Product Publish Bus membership */
+  enabled: boolean;
+  ports: DataProductPublishPort[];
+  /**
+   * Topic namespace convention (ADR-011):
+   * products/{domain}/{name}/{contract}/v{major}
+   */
+  topicConvention: 'products';
 }
 
 export interface DataProductContracts {
@@ -109,6 +136,8 @@ export interface DataProductDescriptor {
   documentation?: string;
   catalogClass?: string;
   templateName?: string;
+  /** Product Publish Bus (MQTT egress) — design-time / server-side only */
+  publish: DataProductPublishMeta;
 }
 
 export interface QueryResult {

@@ -111,7 +111,12 @@ export const ESignatureDialog: FC<ESignatureDialogProps> = ({
       setPin('');
       setComment('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Signing failed.');
+      // The API client throws URSApiError as a plain object, so an
+      // instanceof Error check would hide the real message (e.g. the
+      // role gate or PIN errors) behind a generic "Signing failed.".
+      const message =
+        e instanceof Error ? e.message : (e as { message?: unknown })?.message;
+      setError(typeof message === 'string' ? message : 'Signing failed.');
     } finally {
       setSubmitting(false);
     }

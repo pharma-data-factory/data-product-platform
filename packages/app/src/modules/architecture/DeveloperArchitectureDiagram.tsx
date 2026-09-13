@@ -1,26 +1,26 @@
 import { type ReactNode } from 'react';
-import { C, PHARMA_NAVY } from '../identity/landingTokens';
+import { C } from '../identity/landingTokens';
 
 const node = {
   factory: {
-    background: PHARMA_NAVY,
-    border: `1px solid ${PHARMA_NAVY}`,
-    color: '#F8FAFC',
+    background: C.primary,
+    border: `1px solid ${C.primary}`,
+    color: C.onPrimary,
   },
   product: {
-    background: '#FFFFFF',
+    background: C.card,
     border: '1px solid rgba(0,194,217,0.45)',
-    color: PHARMA_NAVY,
+    color: C.text,
   },
   interface: {
-    background: 'rgba(0,194,217,0.08)',
+    background: C.tint,
     border: '1px solid rgba(0,194,217,0.35)',
-    color: PHARMA_NAVY,
+    color: C.text,
   },
   consumer: {
-    background: '#EEF2F6',
+    background: C.section,
     border: `1px solid ${C.border}`,
-    color: PHARMA_NAVY,
+    color: C.text,
   },
 } as const;
 

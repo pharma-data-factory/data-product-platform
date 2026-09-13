@@ -11,12 +11,22 @@ spec:
   interfaces:
     - id: query
       type: rest
-      path: /api/v1/temperature
+      path: /api/v1/temperatures
     - id: realtime
       type: stream
       protocol: sse
     - id: source
       type: mqtt
+    - id: egress
+      type: mqtt
+      direction: publish
+      topic: products/${{ values.domain }}/${{ values.name }}/temperature-event/v1
+  publish:
+    enabled: false
+    ports:
+      - id: mqtt
+        type: mqtt
+        topic: products/${{ values.domain }}/${{ values.name }}/temperature-event/v1
   contracts:
     outputs:
       - temperature-event-v1

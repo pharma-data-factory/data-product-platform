@@ -29,6 +29,14 @@ Until Validation Expert is independently validated:
 - Runtime store under `validation/runtime/` is a development/orchestration aid, not a Part 11 or GxP claim.
 - Product status must continue to display **NOT_VALIDATED** regardless of successful Validation Expert developer tests.
 
+## Persistence
+
+`validationExpert.persistence.mode` may be `file` (default), `memory`, or
+`postgres`. Postgres mode uses the Backstage database client for durable run /
+finding / evidence / context storage. **Durable storage does not change
+validation status**: Validation Expert remains **NOT VALIDATED** and makes **no
+Part 11** claim.
+
 ## Explicit non-claims
 
 - No electronic signatures

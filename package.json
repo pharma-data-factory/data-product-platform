@@ -26,7 +26,9 @@
     "lint:all": "backstage-cli repo lint",
     "prettier:check": "prettier --check .",
     "new": "backstage-cli new",
-    "guard:platform": "node scripts/verify-platform-guardrails.mjs"
+    "guard:platform": "node scripts/verify-platform-guardrails.mjs",
+    "urs:seed": "node scripts/seed-urs.mjs",
+    "urs:verify-persistence": "node scripts/verify-urs-persistence.mjs"
   },
   "backstage": {
     "cli": {

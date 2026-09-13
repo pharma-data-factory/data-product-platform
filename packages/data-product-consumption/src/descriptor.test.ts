@@ -50,15 +50,85 @@ describe('descriptorFromEntity', () => {
     ).toBe(false);
   });
 
-  it('defaults unknown validation to NOT_VALIDATED', () => {
+  it('exposes Product Publish Bus MQTT egress from annotations', () => {
     const d = descriptorFromEntity(
       entity({
         metadata: {
-          name: 'x',
-          annotations: { 'dataprod.platform/validation-status': 'SOMETHING_ELSE' },
+          name: 'sample-mqtt-temperature-product',
+          annotations: {
+            'dataprod.platform/domain': 'manufacturing',
+            'dataprod.platform/interfaces': 'REST',
+            'dataprod.platform/publish-enabled': 'true',
+            'dataprod.platform/publish-ports': 'mqtt',
+            'dataprod.platform/publish-mqtt-topic':
+              'products/manufacturing/sample-mqtt-temperature-product/temperature-event/v1',
+            'dataprod.platform/data-contracts': 'temperature-event-v1',
+          },
         },
       }),
     );
-    expect(d.validation.status).toBe('NOT_VALIDATED');
+    expect(d.publish.enabled).toBe(true);
+    expect(d.publish.topicConvention).toBe('products');
+    expect(d.publish.ports).toEqual([
+      {
+        id: 'mqtt',
+        type: 'mqtt',
+        topic:
+          'products/manufacturing/sample-mqtt-temperature-product/temperature-event/v1',
+        enabled: true,
+      },
+    ]);
+    const egress = d.interfaces.find(i => i.id === 'egress');
+    expect(egress?.direction).toBe('publish');
+    expect(egress?.topic).toContain('products/');
+  });
+
+  it('defaults publish to disabled without inventing warehouse ports', () => {
+    const d = descriptorFromEntity(
+      entity({
+        metadata: {
+          name: 'plain-product',
+          annotations: { 'dataprod.platform/domain': 'manufacturing' },
+        },
+      }),
+    );
+    expect(d.publish.enabled).toBe(false);
+    expect(d.publish.ports).toEqual([]);
+  });
+
+  it('exposes warehouse publish port with profile and dataset', () => {
+    const d = descriptorFromEntity(
+      entity({
+        metadata: {
+          name: 'sample-oee-data-product',
+          annotations: {
+            'dataprod.platform/domain': 'manufacturing',
+            'dataprod.platform/publish-enabled': 'true',
+            'dataprod.platform/publish-ports': 'mqtt,warehouse',
+            'dataprod.platform/publish-mqtt-topic':
+              'products/manufacturing/sample-oee-data-product/oee-result/v1',
+            'dataprod.platform/publish-warehouse-profile': 'snowflake',
+            'dataprod.platform/publish-warehouse-dataset':
+              'manufacturing.sample_oee_data_product_oee_result_v1',
+            'dataprod.platform/data-contracts': 'oee-result-v1',
+          },
+        },
+      }),
+    );
+    expect(d.publish.ports).toEqual([
+      {
+        id: 'mqtt',
+        type: 'mqtt',
+        topic: 'products/manufacturing/sample-oee-data-product/oee-result/v1',
+        enabled: true,
+      },
+      {
+        id: 'warehouse',
+        type: 'warehouse',
+        dataset: 'manufacturing.sample_oee_data_product_oee_result_v1',
+        profile: 'snowflake',
+        enabled: true,
+      },
+    ]);
   });
 });

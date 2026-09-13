@@ -1,10 +1,11 @@
 /**
  * W&D seed persistence proof.
  *
- * Exercises the real startup path — `PostgresURSRepository.create()` runs
- * `up()` then `seed()` — against an embedded database, so the seeded URS-WD
- * requirement set is proven to survive migrations, be readable through the
- * repository contract, and stay idempotent across restarts.
+ * Postgres plugin startup runs migrations only (`PostgresURSRepository.create`
+ * → `up()`). Content seed is explicit (`seed()` / `yarn urs:seed`). This suite
+ * proves URS-WD survives migrations, is readable through the repository, stays
+ * idempotent across re-seeds, and that migration repair backfills genesis 0.1
+ * without inventing demo sets.
  *
  * Uses the better-sqlite3 driver already declared by packages/backend (no new
  * dependency). Skips honestly when the driver cannot be loaded.
@@ -44,13 +45,27 @@ describeWhenSqlite('W&D seed persistence', () => {
   beforeAll(async () => {
     db = createDb();
     repository = await PostgresURSRepository.create({ getClient: () => db });
+    await runSeeds(db);
   }, 60000);
 
   afterAll(async () => {
     await db.destroy();
   });
 
-  test('startup seeding creates the URS-WD requirement set', async () => {
+  test('create() without seed does not insert URS-WD', async () => {
+    const empty = createDb();
+    try {
+      const bare = await PostgresURSRepository.create({ getClient: () => empty });
+      const set = await bare.findRequirementSetByKey(
+        WD_REQUIREMENT_SET.requirementSetId,
+      );
+      expect(set).toBeNull();
+    } finally {
+      await empty.destroy();
+    }
+  });
+
+  test('explicit seed creates the URS-WD requirement set', async () => {
     const set = await repository.findRequirementSetByKey(
       WD_REQUIREMENT_SET.requirementSetId,
     );
@@ -96,6 +111,42 @@ describeWhenSqlite('W&D seed persistence', () => {
         expected.classification.interfaceType,
       );
     }
+  });
+
+  test('each seeded requirement opens genesis version 0.1', async () => {
+    const set = await repository.findRequirementSetByKey('URS-WD');
+    const requirements = await repository.getRequirements(set!.id);
+
+    for (const req of requirements) {
+      const versions = await repository.getRequirementVersions(req.requirementId);
+      expect(versions).toHaveLength(1);
+      expect(versions[0].versionLabel ?? versions[0].version).toBe('0.1');
+      expect(versions[0].status).toBe(URSStatus.DRAFT);
+      expect(versions[0].title).toBe(req.title);
+    }
+  });
+
+  test('migration repair backfills missing genesis without duplicating or re-seeding sets', async () => {
+    const set = await repository.findRequirementSetByKey('URS-WD');
+    const requirements = await repository.getRequirements(set!.id);
+    const target = requirements[0]!;
+    await db('requirement_versions')
+      .where({ requirement_id: target.requirementId })
+      .del();
+
+    const [setsBefore] = await db('requirement_sets').count({ n: '*' });
+    await runMigrations(db);
+
+    const versions = await repository.getRequirementVersions(target.requirementId);
+    expect(versions).toHaveLength(1);
+    expect(versions[0].versionLabel ?? versions[0].version).toBe('0.1');
+
+    await runMigrations(db);
+    const again = await repository.getRequirementVersions(target.requirementId);
+    expect(again).toHaveLength(1);
+
+    const [setsAfter] = await db('requirement_sets').count({ n: '*' });
+    expect(Number(setsAfter.n)).toBe(Number(setsBefore.n));
   });
 
   test('the seeded capability ref passes service validation', async () => {

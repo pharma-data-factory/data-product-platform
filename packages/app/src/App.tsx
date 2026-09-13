@@ -26,6 +26,7 @@ import { myProductsModule } from './modules/my-products';
 import { validateModule } from './modules/validate';
 import { adminModule } from './modules/admin';
 import { searchModule } from './modules/search';
+import { dataMapModule } from './modules/datamap';
 import { identityModule } from './modules/identity';
 import { createModule } from './modules/create';
 import { entitlementsModule } from './modules/entitlements';
@@ -48,6 +49,7 @@ export default createApp({
     assetsModule,
     releasesModule,
     searchModule,
+    dataMapModule,
     homeModule,
     buildModule,
     myProductsModule,

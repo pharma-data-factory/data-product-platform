@@ -245,12 +245,12 @@ export const marketplaceItems: MarketplaceItem[] = [
     category: 'Connectors',
     version: '0.1.0',
     description:
-      'Warehouse product: certified plant contracts (temperature, equipment, OEE) would land in Snowflake as versioned tables. No live Snowflake connectivity and no Create template in this release.',
+      'Warehouse landing behind the Product Publish Bus: StreamEvent envelopes stage locally (file) or as Snowflake DDL+JSONL stubs via platform component warehouse-sink. No live Snowflake session and no Create template in this release.',
     provider: 'Nexora',
-    compatibility: 'Future release',
+    compatibility: 'Python 3.12+, warehouse-sink (DEVELOPMENT), Publish Bus annotations',
     status: 'preview',
     certificationStatus: 'DEVELOPMENT',
-    documentation: '/docs/marketplace',
+    documentation: '/docs/default/component/data-product-platform/platform-components/index',
   },
 ];
 

@@ -30,7 +30,7 @@ import {
   GeneratedRequirement,
 } from '../../../api/types';
 import { ursComposerApiRef } from '../../../api/ursComposerApi';
-import { URSWizardState, RequirementDraft } from '../wizardState';
+import { URSWizardState, RequirementDraft, AcceptanceCriteriaDraft } from '../wizardState';
 
 const useStyles = makeStyles(theme => ({
   addButton: {
@@ -45,6 +45,15 @@ const useStyles = makeStyles(theme => ({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing(2),
+  },
+  acContainer: {
+    marginTop: theme.spacing(2),
+    paddingLeft: theme.spacing(2),
+    borderLeft: `3px solid ${theme.palette.primary.main}`,
+  },
+  acCard: {
+    marginBottom: theme.spacing(1),
+    backgroundColor: theme.palette.action.hover,
   },
   guidance: {
     marginTop: theme.spacing(3),
@@ -123,6 +132,41 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
     });
   };
 
+  const handleAddCriteria = (reqIndex: number) => {
+    const updated = [...state.requirements];
+    if (!updated[reqIndex].acceptanceCriteria) {
+      updated[reqIndex].acceptanceCriteria = [];
+    }
+    updated[reqIndex].acceptanceCriteria!.push({
+      tempId: createTempId(),
+      title: '',
+    });
+    onStateChange({ requirements: updated });
+  };
+
+  const handleUpdateCriteria = (
+    reqIndex: number,
+    acIndex: number,
+    field: keyof AcceptanceCriteriaDraft,
+    value: string,
+  ) => {
+    const updated = [...state.requirements];
+    (updated[reqIndex].acceptanceCriteria![acIndex] as any)[field] = value;
+    onStateChange({ requirements: updated });
+  };
+
+  const handleDeleteCriteria = (reqIndex: number, acIndex: number) => {
+    const updated = [...state.requirements];
+    updated[reqIndex].acceptanceCriteria = updated[reqIndex].acceptanceCriteria!.filter(
+      (_, i) => i !== acIndex,
+    );
+    onStateChange({ requirements: updated });
+  };
+
+  const incompleteAcCount = state.requirements.filter(
+    r => !r.acceptanceCriteria || r.acceptanceCriteria.length === 0,
+  ).length;
+
   const handleGenerateSuggestions = async () => {
     if (!state.requirementSetId) {
       setAiError('Save the draft first before generating AI suggestions.');
@@ -179,13 +223,18 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
-        Define user requirements
+        Define requirements & acceptance criteria
       </Typography>
       <Typography color="textSecondary" paragraph>
-        Each requirement describes what the system shall do. Requirements must be solution-agnostic
-        and verifiable. Each requirement will link to acceptance criteria that define how to verify
-        it is satisfied.
+        Each requirement describes what the system shall do. Add verifiable acceptance criteria
+        under each requirement (Given/When/Then). Requirements must be solution-agnostic.
       </Typography>
+
+      {incompleteAcCount > 0 && state.requirements.length > 0 && (
+        <Alert severity="warning" style={{ marginBottom: 16 }}>
+          <strong>{incompleteAcCount}</strong> requirement(s) do not have acceptance criteria yet.
+        </Alert>
+      )}
 
       {state.requirements.length === 0 ? (
         <Typography color="textSecondary" style={{ marginTop: 16 }}>
@@ -370,6 +419,54 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
                   />
                 </Grid>
               </Grid>
+
+              <Box className={classes.acContainer}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Acceptance Criteria
+                </Typography>
+                {!req.acceptanceCriteria || req.acceptanceCriteria.length === 0 ? (
+                  <Typography variant="caption" color="textSecondary" display="block">
+                    None defined yet. Add at least one criterion to continue.
+                  </Typography>
+                ) : (
+                  req.acceptanceCriteria.map((ac, acIdx) => (
+                    <Card key={ac.tempId} className={classes.acCard} variant="outlined">
+                      <CardContent style={{ padding: 12 }}>
+                        <Box display="flex" alignItems="flex-start" style={{ gap: 8 }}>
+                          <TextField
+                            label={`AC-${acIdx + 1}`}
+                            placeholder="Given [condition], When [event], Then [outcome]"
+                            size="small"
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={ac.title}
+                            onChange={e =>
+                              handleUpdateCriteria(idx, acIdx, 'title', e.target.value)
+                            }
+                            variant="outlined"
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteCriteria(idx, acIdx)}
+                            title="Delete criterion"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+                <Button
+                  startIcon={<AddIcon />}
+                  size="small"
+                  onClick={() => handleAddCriteria(idx)}
+                  style={{ marginTop: 8 }}
+                >
+                  Add Criterion
+                </Button>
+              </Box>
             </CardContent>
           </Card>
         ))

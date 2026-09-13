@@ -1,10 +1,20 @@
+import type { ReactElement } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { LandingApiProvider } from '../identity/landingTestUtils';
 import { LegalPage } from './LegalPage';
 import { isPublicLegalPath } from './constants';
 import { LANDING_LOCALE_STORAGE_KEY } from '../identity/landingI18n';
 import { CookieConsentBanner } from './CookieConsentBanner';
 import { CONSENT_STORAGE_KEY, openCookieSettings } from './cookieConsent';
+
+function renderLegal(ui: ReactElement) {
+  return render(
+    <MemoryRouter>
+      <LandingApiProvider>{ui}</LandingApiProvider>
+    </MemoryRouter>,
+  );
+}
 
 describe('legal routes', () => {
   beforeEach(() => {
@@ -13,11 +23,7 @@ describe('legal routes', () => {
   });
 
   it('publishes the Legal Notice content in English', () => {
-    render(
-      <MemoryRouter>
-        <LegalPage pathname="/legal" standalone />
-      </MemoryRouter>,
-    );
+    renderLegal(<LegalPage pathname="/legal" standalone />);
     expect(screen.getAllByText('Legal Notice').length).toBeGreaterThan(0);
     expect(
       screen.getByText(/Art\. 3 para\. 1 lit\. s UWG/i),
@@ -28,21 +34,13 @@ describe('legal routes', () => {
 
   it('publishes the Legal Notice content in German', () => {
     window.localStorage.setItem(LANDING_LOCALE_STORAGE_KEY, 'de');
-    render(
-      <MemoryRouter>
-        <LegalPage pathname="/legal" standalone />
-      </MemoryRouter>,
-    );
+    renderLegal(<LegalPage pathname="/legal" standalone />);
     expect(screen.getByText(/Art\. 3 Abs\. 1 lit\. s UWG/i)).toBeInTheDocument();
     expect(screen.getByText(/Zeichnungsberechtigte/i)).toBeInTheDocument();
   });
 
   it('publishes the Privacy Policy content', () => {
-    render(
-      <MemoryRouter>
-        <LegalPage pathname="/privacy" standalone />
-      </MemoryRouter>,
-    );
+    renderLegal(<LegalPage pathname="/privacy" standalone />);
     expect(screen.getAllByText('Privacy Policy').length).toBeGreaterThan(0);
     expect(screen.getByText(/Swiss DPA, GDPR/i)).toBeInTheDocument();
     expect(screen.getByText(/markus\.schmeckenbecher@gmail\.com/i)).toBeInTheDocument();
@@ -50,11 +48,7 @@ describe('legal routes', () => {
   });
 
   it('keeps other legal pages as counsel-review placeholders', () => {
-    render(
-      <MemoryRouter>
-        <LegalPage pathname="/terms" standalone />
-      </MemoryRouter>,
-    );
+    renderLegal(<LegalPage pathname="/terms" standalone />);
     expect(screen.getAllByText(/REVIEW PLACEHOLDER/).length).toBeGreaterThan(0);
   });
 

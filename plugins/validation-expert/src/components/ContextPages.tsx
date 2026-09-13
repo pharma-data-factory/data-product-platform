@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import {
+  canReviewValidation,
   canStartValidationRun,
   resolvePlatformRole,
+  type AssignProductRequest,
+  type ValidationContextAuditEvent,
+  type ValidationContextStatus,
 } from '@internal/platform-common';
 import {
   Box,
@@ -13,6 +17,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@material-ui/core';
 import {
@@ -23,6 +28,11 @@ import {
   ValidationRun,
 } from '../api';
 import { NX, PageShell, PrimaryActionButton, StatusChip } from './shared';
+
+const EXECUTABLE_STATUSES: ValidationContextStatus[] = [
+  'READY_FOR_VALIDATION',
+  'ACTIVE',
+];
 
 function formatWhen(value?: string) {
   if (!value) {
@@ -141,7 +151,18 @@ export function ContextDetailPage() {
   const [coverage, setCoverage] = useState<ContextCoverage | null>(null);
   const [coverageError, setCoverageError] = useState<string | null>(null);
   const [canStart, setCanStart] = useState(false);
+  const [canReview, setCanReview] = useState(false);
   const [busyType, setBusyType] = useState<'IQ' | 'OQ' | 'UAT' | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [audit, setAudit] = useState<ValidationContextAuditEvent[] | null>(null);
+  const [assign, setAssign] = useState<AssignProductRequest>({
+    ursBaselineId: '',
+    productId: '',
+    productVersionId: '',
+    productBaselineId: '',
+    manifestHash: '',
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -151,8 +172,24 @@ export function ContextDetailPage() {
     }
     api
       .getContext(contextId)
-      .then(setContext)
+      .then(item => {
+        setContext(item);
+        setAssign(previous => ({
+          ...previous,
+          ursBaselineId: item.source.baselineId,
+        }));
+      })
       .catch(err => setError(err instanceof Error ? err.message : 'Failed'));
+  }, [api, contextId]);
+
+  useEffect(() => {
+    if (!contextId) {
+      return;
+    }
+    api
+      .getContextAudit(contextId)
+      .then(setAudit)
+      .catch(() => setAudit([]));
   }, [api, contextId]);
 
   useEffect(() => {
@@ -197,11 +234,19 @@ export function ContextDetailPage() {
         ),
       );
     identityApi.getBackstageIdentity().then(identity => {
-      setCanStart(
-        canStartValidationRun(resolvePlatformRole(identity.ownershipEntityRefs)),
-      );
+      const role = resolvePlatformRole(identity.ownershipEntityRefs);
+      setCanStart(canStartValidationRun(role));
+      setCanReview(canReviewValidation(role));
     });
   }, [api, contextId, identityApi]);
+
+  function refreshContext() {
+    return api.getContext(contextId).then(setContext);
+  }
+
+  function refreshAudit() {
+    return api.getContextAudit(contextId).then(setAudit).catch(() => setAudit([]));
+  }
 
   async function startRun(type: 'IQ' | 'OQ' | 'UAT') {
     if (!contextId) {
@@ -210,9 +255,7 @@ export function ContextDetailPage() {
     setBusyType(type);
     setRunsError(null);
     try {
-      const created = await api.createRun('platform-core-v1.0-rc2', type, {
-        contextId,
-      });
+      const created = await api.createRun(type, { contextId });
       if (type === 'IQ' || type === 'OQ') {
         await api.executeAutomated(created.runId);
       }
@@ -222,6 +265,38 @@ export function ContextDetailPage() {
     } finally {
       setBusyType(null);
     }
+  }
+
+  async function runAction(key: string, action: () => Promise<unknown>) {
+    setActionBusy(key);
+    setActionError(null);
+    try {
+      await action();
+      await refreshContext();
+      await refreshAudit();
+      if (key === 'assign') {
+        // Refresh runs/coverage state too — context may have changed identity.
+        setRuns(null);
+        setCoverage(null);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : `Failed (${key})`);
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  function doAssign() {
+    return runAction('assign', async () => {
+      const result = await api.assignProduct(contextId, assign);
+      if (result.created) {
+        // Version switch after ACTIVE: old context superseded, work continues
+        // on the new requalification context.
+        navigate(
+          `/validation-expert/contexts/${encodeURIComponent(result.context.id)}`,
+        );
+      }
+    });
   }
 
   if (error) {
@@ -243,8 +318,44 @@ export function ContextDetailPage() {
     );
   }
 
-  const { source } = context;
+  const { source, productRef } = context;
   const requirementIds = source.requirementIds ?? [];
+  const hasOpenRetest = (context.retestItems || []).some(
+    item => item.status === 'RETEST_REQUIRED',
+  );
+  const executable =
+    EXECUTABLE_STATUSES.includes(context.status) && !hasOpenRetest;
+
+  let runStartArea: ReactNode;
+  if (!canStart) {
+    runStartArea = (
+      <Typography variant="body2" color="textSecondary" paragraph>
+        Your role cannot start validation runs.
+      </Typography>
+    );
+  } else if (!executable) {
+    runStartArea = (
+      <Typography variant="body2" color="textSecondary" paragraph>
+        {hasOpenRetest
+          ? 'Run start is blocked until all RETEST_REQUIRED items are cleared.'
+          : 'Run start is blocked until a product solution is assigned and the context is READY_FOR_VALIDATION or ACTIVE.'}
+      </Typography>
+    );
+  } else {
+    runStartArea = (
+      <Box mb={2} display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {(['IQ', 'OQ', 'UAT'] as const).map(type => (
+          <PrimaryActionButton
+            key={type}
+            disabled={Boolean(busyType)}
+            onClick={() => startRun(type)}
+          >
+            {busyType === type ? `Starting ${type}…` : `Start ${type} run`}
+          </PrimaryActionButton>
+        ))}
+      </Box>
+    );
+  }
 
   return (
     <PageShell
@@ -337,6 +448,264 @@ export function ContextDetailPage() {
           {(source.businessCapabilityIds || []).join(', ') || '—'}
         </Typography>
       </Box>
+
+      <Box
+        mt={2}
+        mb={2}
+        p={2}
+        style={{
+          border: `1px solid ${NX.border}`,
+          borderRadius: 8,
+          background: NX.card,
+        }}
+      >
+        <Typography variant="h6" gutterBottom>
+          Product solution
+        </Typography>
+        {productRef ? (
+          <>
+            <Typography paragraph>
+              <strong>{productRef.productName || 'Product'}</strong>
+              <br />
+              Version {productRef.productVersion || productRef.productVersionId}
+              <br />
+              Baseline{' '}
+              {productRef.productBaselineVersion || productRef.productBaselineId}
+            </Typography>
+            <Typography variant="body2" color="textSecondary" paragraph>
+              <span style={{ fontFamily: 'monospace' }}>
+                {productRef.productId}
+              </span>
+              {' · '}
+              <span style={{ fontFamily: 'monospace' }}>
+                {productRef.productVersionId}
+              </span>
+              {' · '}
+              <span style={{ fontFamily: 'monospace' }}>
+                {productRef.productBaselineId}
+              </span>
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Assigned{' '}
+              {[productRef.assignedBy, formatWhen(productRef.assignedAt)]
+                .filter(Boolean)
+                .join(' · ')}
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              URS baseline: {productRef.ursBaselineId || source.baselineId}
+              <br />
+              Manifest hash: {productRef.manifestHash || '—'}
+              <br />
+              Repository: {productRef.gitRepositoryUrl || '—'}
+              <br />
+              Commit:{' '}
+              {productRef.releaseCandidateCommitSha ||
+                productRef.commitSha ||
+                '—'}
+            </Typography>
+            {canReview &&
+            (context.status === 'READY_FOR_VALIDATION' ||
+              context.status === 'ACTIVE') ? (
+              <Box mt={2}>
+                <PrimaryActionButton
+                  disabled={Boolean(actionBusy)}
+                  onClick={() =>
+                    runAction('remove-product', () =>
+                      api.removeProduct(contextId),
+                    )
+                  }
+                >
+                  {actionBusy === 'remove-product'
+                    ? 'Removing…'
+                    : 'Remove product assignment'}
+                </PrimaryActionButton>
+              </Box>
+            ) : null}
+          </>
+        ) : (
+          <Typography paragraph color="textSecondary">
+            No product solution assigned. Runs, evidence and approval are
+            blocked until a Product Composer product + version + baseline is
+            assigned.
+          </Typography>
+        )}
+        {!productRef && context.status === 'WAITING_FOR_SOLUTION' && canReview ? (
+          <Box mt={1}>
+            <Typography variant="subtitle2" gutterBottom>
+              Assign product solution
+            </Typography>
+            <Box display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                label="Product ID"
+                variant="outlined"
+                value={assign.productId}
+                onChange={event =>
+                  setAssign(prev => ({ ...prev, productId: event.target.value }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Product Version ID"
+                variant="outlined"
+                value={assign.productVersionId}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    productVersionId: event.target.value,
+                  }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Product Baseline ID"
+                variant="outlined"
+                value={assign.productBaselineId}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    productBaselineId: event.target.value,
+                  }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Manifest SHA-256"
+                variant="outlined"
+                value={assign.manifestHash}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    manifestHash: event.target.value,
+                  }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Git Repository URL"
+                variant="outlined"
+                value={assign.gitRepositoryUrl || ''}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    gitRepositoryUrl: event.target.value,
+                  }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Commit SHA"
+                variant="outlined"
+                value={assign.commitSha || ''}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    commitSha: event.target.value,
+                  }))
+                }
+              />
+              <PrimaryActionButton
+                disabled={Boolean(actionBusy)}
+                onClick={doAssign}
+              >
+                {actionBusy === 'assign' ? 'Assigning…' : 'Assign'}
+              </PrimaryActionButton>
+            </Box>
+          </Box>
+        ) : null}
+      </Box>
+
+      {context.changeAssessmentId || context.retestItems?.length ? (
+        <Box
+          mt={2}
+          mb={2}
+          p={2}
+          style={{
+            border: `1px solid ${NX.border}`,
+            borderRadius: 8,
+            background: NX.card,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Change impact assessment
+          </Typography>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Assessment {context.changeAssessmentId || '—'} · technical control,
+            not a GxP validation claim.
+          </Typography>
+          <Table size="small" aria-label="Change impact and retest status">
+            <TableHead>
+              <TableRow>
+                <TableCell>Requirement</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Tests</TableCell>
+                <TableCell>Evidence</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(context.retestItems || []).map(item => (
+                <TableRow key={`${item.requirementId}-${item.status}`}>
+                  <TableCell style={{ fontFamily: 'monospace' }}>
+                    {item.requirementId}
+                  </TableCell>
+                  <TableCell>
+                    <StatusChip value={item.status} />
+                  </TableCell>
+                  <TableCell>
+                    {item.relatedTestIds.length
+                      ? item.relatedTestIds.join(', ')
+                      : '—'}
+                  </TableCell>
+                  <TableCell>
+                    {item.evidenceIds.length ? item.evidenceIds.join(', ') : '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      ) : null}
+
+      {actionError ? (
+        <Typography color="error" paragraph>
+          {actionError}
+        </Typography>
+      ) : null}
+
+      {context.status === 'ACTIVE' && canReview ? (
+        <Box mb={2} display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <PrimaryActionButton
+            disabled={Boolean(actionBusy)}
+            onClick={() =>
+              runAction('submit-review', () => api.submitReview(contextId))
+            }
+          >
+            {actionBusy === 'submit-review'
+              ? 'Submitting…'
+              : 'Submit for review'}
+          </PrimaryActionButton>
+        </Box>
+      ) : null}
+      {context.status === 'UNDER_REVIEW' && canReview ? (
+        <Box mb={2} display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <PrimaryActionButton
+            disabled={Boolean(actionBusy)}
+            onClick={() =>
+              runAction('approve', () => api.approveContext(contextId))
+            }
+          >
+            {actionBusy === 'approve' ? 'Approving…' : 'Approve validation'}
+          </PrimaryActionButton>
+          <PrimaryActionButton
+            disabled={Boolean(actionBusy)}
+            onClick={() =>
+              runAction('reject', () => api.rejectContext(contextId))
+            }
+          >
+            {actionBusy === 'reject' ? 'Rejecting…' : 'Reject'}
+          </PrimaryActionButton>
+        </Box>
+      ) : null}
 
       <Box mt={3}>
         <Typography variant="h6" gutterBottom>
@@ -480,23 +849,7 @@ export function ContextDetailPage() {
           as baselineId. Protocol steps still come from the platform Markdown
           workbench (not a GxP claim).
         </Typography>
-        {canStart ? (
-          <Box mb={2} display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
-            {(['IQ', 'OQ', 'UAT'] as const).map(type => (
-              <PrimaryActionButton
-                key={type}
-                disabled={Boolean(busyType)}
-                onClick={() => startRun(type)}
-              >
-                {busyType === type ? `Starting ${type}…` : `Start ${type} run`}
-              </PrimaryActionButton>
-            ))}
-          </Box>
-        ) : (
-          <Typography variant="body2" color="textSecondary" paragraph>
-            Your role cannot start validation runs.
-          </Typography>
-        )}
+        {runStartArea}
         {runsError ? <Typography color="error">{runsError}</Typography> : null}
         {!runsError && !runs ? <Progress /> : null}
         {runs && runs.length === 0 ? (
@@ -533,6 +886,46 @@ export function ContextDetailPage() {
                     {run.baselineId || '—'}
                   </TableCell>
                   <TableCell>{formatWhen(run.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : null}
+      </Box>
+
+      <Box mt={4}>
+        <Typography variant="h6" gutterBottom>
+          Audit trail
+        </Typography>
+        {!audit ? <Progress /> : null}
+        {audit && audit.length === 0 ? (
+          <Typography color="textSecondary">
+            No audit events recorded for this context yet.
+          </Typography>
+        ) : null}
+        {audit && audit.length > 0 ? (
+          <Table size="small" aria-label="Context audit trail">
+            <TableHead>
+              <TableRow>
+                <TableCell>Event</TableCell>
+                <TableCell>Actor</TableCell>
+                <TableCell>When</TableCell>
+                <TableCell>Details</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {audit.map(event => (
+                <TableRow key={event.id}>
+                  <TableCell>{event.eventType}</TableCell>
+                  <TableCell>{event.actor}</TableCell>
+                  <TableCell>{formatWhen(event.createdAt)}</TableCell>
+                  <TableCell>
+                    {event.details
+                      ? Object.entries(event.details)
+                          .map(([key, value]) => `${key}: ${String(value)}`)
+                          .join(' · ')
+                      : '—'}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

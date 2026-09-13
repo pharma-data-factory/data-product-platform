@@ -682,6 +682,14 @@ export class URSComposerApi {
   }
 
   /**
+   * GET /baselines/:id/approvals
+   * Approval instances of a baseline, oldest first
+   */
+  async getBaselineApprovals(baselineId: string): Promise<ApprovalInstance[]> {
+    return this.get<ApprovalInstance[]>(`/baselines/${baselineId}/approvals`);
+  }
+
+  /**
    * POST /approvals/:id/steps/:stepId/approve
    * Approve an approval step
    */

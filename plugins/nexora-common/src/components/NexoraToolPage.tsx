@@ -8,28 +8,32 @@ import {
   NEXORA_NAVY,
   NEXORA_NAVY_DARK,
   NEXORA_TEXT,
-} from '../tokens';
+  nexoraColors,
+  nexoraTypography,
+} from '../design';
+
+const light = nexoraColors.light;
 
 /**
  * Shared Nexora tool / Admin page chrome.
  * Visual language matches Platform Components (navy hero + white panel).
- * Intentionally avoids Backstage Page/Content so plugins can render without
- * a full app ThemeProvider in unit tests.
+ * Colors prefer CSS variables from NexoraGlobalStyles so the theme switch
+ * updates panels; hex fallbacks keep unit tests without a theme provider.
  */
 const useStyles = makeStyles({
   root: {
     padding: 24,
   },
   hero: {
-    background: `linear-gradient(180deg, ${NEXORA_NAVY_DARK} 0%, ${NEXORA_NAVY} 100%)`,
+    background: `linear-gradient(180deg, var(--nexora-color-hero-from, ${NEXORA_NAVY_DARK}) 0%, var(--nexora-color-hero-to, ${NEXORA_NAVY}) 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: `var(--nexora-color-text-on-dark, ${light.textOnDark})`,
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
   eyebrow: {
-    color: NEXORA_CYAN_LIGHT,
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    color: `var(--nexora-color-accent-on-dark, ${NEXORA_CYAN_LIGHT})`,
+    fontFamily: `var(--nexora-font-mono, ${nexoraTypography.fontFamily.mono})`,
     fontSize: 12,
     fontWeight: 600,
     letterSpacing: '0.16em',
@@ -37,7 +41,7 @@ const useStyles = makeStyles({
     textTransform: 'uppercase',
   },
   title: {
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    fontFamily: `var(--nexora-font-display, ${nexoraTypography.fontFamily.display})`,
     fontSize: 'clamp(26px, 4vw, 36px)',
     fontWeight: 600,
     letterSpacing: '-0.02em',
@@ -45,13 +49,13 @@ const useStyles = makeStyles({
     margin: 0,
   },
   principle: {
-    color: NEXORA_CYAN_LIGHT,
+    color: `var(--nexora-color-accent-on-dark, ${NEXORA_CYAN_LIGHT})`,
     fontSize: 18,
     fontWeight: 600,
     marginTop: 10,
   },
   copy: {
-    color: '#CBD5E1',
+    color: `var(--nexora-color-text-on-dark-muted, ${light.textOnDarkMuted})`,
     fontSize: 15,
     lineHeight: 1.65,
     marginBottom: 0,
@@ -59,7 +63,7 @@ const useStyles = makeStyles({
     maxWidth: 720,
   },
   secondary: {
-    color: '#94A3B8',
+    color: `var(--nexora-color-text-muted, #94A3B8)`,
     fontSize: 14,
     lineHeight: 1.6,
     marginBottom: 0,
@@ -67,22 +71,22 @@ const useStyles = makeStyles({
     maxWidth: 760,
   },
   panel: {
-    background: NEXORA_CARD,
-    border: `1px solid ${NEXORA_BORDER}`,
+    background: `var(--nexora-color-surface-raised, ${NEXORA_CARD})`,
+    border: `1px solid var(--nexora-color-border, ${NEXORA_BORDER})`,
     borderRadius: 16,
-    color: NEXORA_TEXT,
+    color: `var(--nexora-color-text, ${NEXORA_TEXT})`,
     padding: 20,
   },
   section: {
-    background: NEXORA_CARD,
-    border: `1px solid ${NEXORA_BORDER}`,
+    background: `var(--nexora-color-surface-raised, ${NEXORA_CARD})`,
+    border: `1px solid var(--nexora-color-border, ${NEXORA_BORDER})`,
     borderRadius: 16,
     marginBottom: 16,
     padding: 20,
   },
   sectionTitle: {
-    color: NEXORA_MUTED,
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    color: `var(--nexora-color-accent-readable, ${light.accentReadable})`,
+    fontFamily: `var(--nexora-font-display, ${nexoraTypography.fontFamily.display})`,
     fontSize: 12,
     fontWeight: 600,
     letterSpacing: '0.08em',
@@ -97,10 +101,10 @@ const useStyles = makeStyles({
     minWidth: 720,
     width: '100%',
     '& th': {
-      background: '#F8FAFC',
-      borderBottom: `1px solid ${NEXORA_BORDER}`,
-      color: NEXORA_MUTED,
-      fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+      background: `var(--nexora-color-table-head, ${light.tableHeadBg})`,
+      borderBottom: `1px solid var(--nexora-color-border, ${NEXORA_BORDER})`,
+      color: `var(--nexora-color-text-muted, ${NEXORA_MUTED})`,
+      fontFamily: `var(--nexora-font-display, ${nexoraTypography.fontFamily.display})`,
       fontSize: 11,
       fontWeight: 600,
       letterSpacing: '0.06em',
@@ -109,8 +113,8 @@ const useStyles = makeStyles({
       textTransform: 'uppercase',
     },
     '& td': {
-      borderBottom: `1px solid ${NEXORA_BORDER}`,
-      color: NEXORA_TEXT,
+      borderBottom: `1px solid var(--nexora-color-border, ${NEXORA_BORDER})`,
+      color: `var(--nexora-color-text, ${NEXORA_TEXT})`,
       fontSize: 14,
       lineHeight: 1.5,
       padding: '12px 14px',
@@ -118,23 +122,23 @@ const useStyles = makeStyles({
     },
   },
   link: {
-    color: NEXORA_NAVY,
+    color: `var(--nexora-color-link, ${NEXORA_NAVY})`,
     fontWeight: 600,
     textDecoration: 'none',
     '&:hover': {
-      color: '#00C2D9',
+      color: `var(--nexora-color-accent, #00C2D9)`,
     },
   },
   summaryCard: {
-    background: NEXORA_CARD,
-    border: `1px solid ${NEXORA_BORDER}`,
+    background: `var(--nexora-color-surface-raised, ${NEXORA_CARD})`,
+    border: `1px solid var(--nexora-color-border, ${NEXORA_BORDER})`,
     borderRadius: 16,
     height: '100%',
     padding: '16px 18px',
   },
   summaryLabel: {
-    color: NEXORA_MUTED,
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    color: `var(--nexora-color-text-muted, ${NEXORA_MUTED})`,
+    fontFamily: `var(--nexora-font-display, ${nexoraTypography.fontFamily.display})`,
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.08em',
@@ -142,8 +146,8 @@ const useStyles = makeStyles({
     textTransform: 'uppercase',
   },
   summaryValue: {
-    color: NEXORA_TEXT,
-    fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
+    color: `var(--nexora-color-text, ${NEXORA_TEXT})`,
+    fontFamily: `var(--nexora-font-display, ${nexoraTypography.fontFamily.display})`,
     fontSize: 24,
     fontWeight: 600,
     margin: 0,

@@ -55,6 +55,8 @@ backend:
 # URS Composer runs in-memory for local development (matches the SQLite dev DB).
 # Production must set mode: postgres.
 ursComposer:
+  # Postgres mode: schema migrates on start; content seed is explicit (`yarn urs:seed`).
+  # Memory mode still seeds volatile demo data in-process for local/dev.
   persistence:
     mode: memory
   ai:
@@ -137,8 +139,9 @@ auth:
           - workflow
         signIn:
           resolvers:
-            # Development-only convenience. Production must not set this.
-            # Unknown GitHub users still receive no platform role.
+            # Lowercases the GitHub login before catalog lookup so Schmeckm
+            # matches user:default/schmeckm. Development-only fallback below
+            # still issues a token without groups; the UI denies access.
             - resolver: usernameMatchingUserEntityName
               dangerouslyAllowSignInWithoutUserInCatalog: true
 
@@ -300,6 +303,8 @@ commercial:
 validationExpert:
   validationRoot: validation
   runtimeStorePath: validation/runtime/runs-store.json
+  # persistence.mode: file (default) | memory | postgres
+  # postgres uses Backstage database for durable evidence (still NOT VALIDATED).
   healthBaseUrl: http://127.0.0.1:7007
 
 # Plugin Directory v0.1 — inventory of installed control-plane plugins.

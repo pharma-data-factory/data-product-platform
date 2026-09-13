@@ -5,21 +5,25 @@ from fastapi import FastAPI, HTTPException, Response
 from app.config import settings
 from app.models import TemperatureEvent
 from app.mqtt_ingest import MqttIngest
+from app.product_publish import ProductPublishBus
 from app.quality import QualityReport, evaluate_events
 from app.store import TemperatureStore
 from dataprod.metadata import platform_metadata
 
 store = TemperatureStore(settings.sqlite_path)
-ingest = MqttIngest(settings, store)
+publisher = ProductPublishBus(settings)
+ingest = MqttIngest(settings, store, publisher)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     store.initialize()
     ingest.start()
+    publisher.start()
     try:
         yield
     finally:
+        publisher.stop()
         ingest.stop()
         store.close()
 
@@ -53,6 +57,8 @@ def create_temperature(event: TemperatureEvent, response: Response) -> Temperatu
     except Exception as error:
         raise HTTPException(status_code=500, detail="Failed to store temperature event") from error
     response.status_code = 201 if created else 200
+    if created:
+        publisher.publish_temperature(stored)
     return stored
 
 

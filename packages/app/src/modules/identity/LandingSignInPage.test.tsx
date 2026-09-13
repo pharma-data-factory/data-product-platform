@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
 import {
+  appThemeApiRef,
   configApiRef,
   discoveryApiRef,
   fetchApiRef,
@@ -18,6 +19,7 @@ import {
   type PublicModelCompanyDemo,
 } from '@internal/plugin-model-company';
 import { LandingSignInPage } from './LandingSignInPage';
+import { createLandingThemeApi } from './landingTestUtils';
 
 const publicDemo = {
   overview: {
@@ -57,6 +59,7 @@ function renderLanding(
           // Sign-in audit posts through fetchApi; failure is swallowed, but the
           // ref must still be present or the page throws on mount.
           [fetchApiRef, { fetch: async () => ({ ok: true }) } as never],
+          [appThemeApiRef, createLandingThemeApi().api],
           [
             identityApiRef,
             {

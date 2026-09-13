@@ -5,7 +5,10 @@ import {
   DataContract,
   TraceabilityLink,
   ProductBaseline,
+  PersistedProductManifest,
+  ProductChangeSignal,
 } from './types';
+import type { ChangeImpactAssessment } from '@internal/platform-common';
 
 export interface ComposerAuditEvent {
   id: string;
@@ -47,6 +50,33 @@ export interface IComposerRepository {
   getProductBaseline(id: string): Promise<ProductBaseline | null>;
   listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
   updateProductBaseline(baseline: ProductBaseline): Promise<void>;
+
+  createProductManifest(
+    manifest: PersistedProductManifest,
+  ): Promise<PersistedProductManifest>;
+  getProductManifestByBaselineId(
+    productBaselineId: string,
+  ): Promise<PersistedProductManifest | null>;
+  getProductManifestByVersionId(
+    productVersionId: string,
+  ): Promise<PersistedProductManifest | null>;
+
+  upsertProductChangeSignal(
+    signal: ProductChangeSignal,
+  ): Promise<ProductChangeSignal>;
+  listProductChangeSignals(
+    productVersionId: string,
+  ): Promise<ProductChangeSignal[]>;
+
+  createChangeAssessment(
+    assessment: ChangeImpactAssessment,
+  ): Promise<ChangeImpactAssessment>;
+  listChangeAssessments(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment[]>;
+  getOpenChangeAssessment(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment | null>;
 
   createAuditEvent(event: ComposerAuditEvent): Promise<void>;
   getEntityAuditTrail(entityType: string, entityId: string): Promise<ComposerAuditEvent[]>;

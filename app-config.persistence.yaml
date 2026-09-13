@@ -1,0 +1,36 @@
+# Local persistence override: whole backend database on PostgreSQL.
+#
+# Loaded by `yarn start` when BACKSTAGE_ENV=persistence is set in `.env`.
+# config-loader (ConfigSources) reads app-config.<BACKSTAGE_ENV>.yaml between
+# app-config.yaml and app-config.local.yaml; nothing else in this repo reads
+# BACKSTAGE_ENV.
+#
+# Start the database once (port 5435 is free next to the other local stacks):
+#   docker run -d --name nexora-urs-pg --restart unless-stopped \
+#     -e POSTGRES_USER=urs_test -e POSTGRES_PASSWORD=test_pass123 \
+#     -e POSTGRES_DB=nexora_urs -p 127.0.0.1:5435:5432 \
+#     -v nexora_urs_pgdata:/var/lib/postgresql/data postgres:16-alpine
+#
+# Mirrors app-config.docker.yaml / app-config.p1a-test.yaml: with a global
+# pg client, Backstage creates one `backstage_plugin_<id>` database per plugin
+# (ensurePgDatabaseExists connects to the `postgres` maintenance DB). The URS
+# Composer tables live in `backstage_plugin_urs-composer`.
+#
+# A per-plugin override (backend.database.plugin.urs-composer.client: pg) is
+# NOT viable while the global client is better-sqlite3: DatabaseManager's
+# mergeDatabaseConfig is a plain lodash.merge, so the base `client` string
+# survives into the Knex config and selects the wrong dialect.
+
+backend:
+  database:
+    client: pg
+    connection:
+      host: 127.0.0.1
+      port: 5435
+      user: urs_test
+      password: test_pass123
+      database: postgres
+
+ursComposer:
+  persistence:
+    mode: postgres

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { ARCHITECTURE_PATH } from '../architecture/constants';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from './landingTokens';
+import { C, PHARMA_TEAL } from './landingTokens';
 import { useLandingI18n } from './landingI18n';
 import { StoryStatusBadge } from './ArchitecturePrinciple';
 import {
@@ -56,7 +56,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
             fontSize: 'clamp(28px, 3.6vw, 40px)',
             fontWeight: 600,
             margin: 0,
-            color: PHARMA_NAVY,
+            color: C.text,
             maxWidth: 760,
           }}
         >
@@ -71,7 +71,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
 
         <h3
           className="pdf-display"
-          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: PHARMA_NAVY }}
+          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: C.text }}
         >
           What each layer does
         </h3>
@@ -104,7 +104,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
 
         <h3
           className="pdf-display"
-          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: PHARMA_NAVY }}
+          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: C.text }}
         >
           AAS vs UNS vs Data Product
         </h3>
@@ -128,7 +128,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
             <tbody>
               {LAYER_COMPARISON.map(row => (
                 <tr key={row.id}>
-                  <th scope="row" style={{ ...tdStyle, color: PHARMA_NAVY, fontWeight: 700 }}>
+                  <th scope="row" style={{ ...tdStyle, color: C.text, fontWeight: 700 }}>
                     {row.title}
                   </th>
                   <td style={tdStyle}>{row.question}</td>
@@ -141,7 +141,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
 
         <h3
           className="pdf-display"
-          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: PHARMA_NAVY }}
+          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: C.text }}
         >
           From Filler 01 to OEE
         </h3>
@@ -168,7 +168,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
 
         <h3
           className="pdf-display"
-          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: PHARMA_NAVY }}
+          style={{ fontSize: 24, fontWeight: 600, margin: '56px 0 20px', color: C.text }}
         >
           Build once. Certify. Release. Distribute.
         </h3>
@@ -257,7 +257,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
                 cursor: 'pointer',
                 fontWeight: 600,
                 fontSize: 15,
-                color: PHARMA_NAVY,
+                color: C.text,
               }}
             >
               {t.signIn}
@@ -285,7 +285,7 @@ export function FitsTogetherSection({ onSignIn }: Readonly<{ onSignIn?: () => vo
                 borderRadius: 999,
                 border: `1px solid ${C.border}`,
                 textDecoration: 'none',
-                color: PHARMA_NAVY,
+                color: C.text,
                 fontSize: 13,
                 fontWeight: 600,
               }}

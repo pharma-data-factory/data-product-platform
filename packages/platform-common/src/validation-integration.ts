@@ -39,15 +39,69 @@ export interface ApprovedURSReference {
 }
 
 /**
+ * Validation context lifecycle. A context starts as WAITING_FOR_SOLUTION and
+ * only becomes executable (READY_FOR_VALIDATION / ACTIVE) once a concrete
+ * Product + ProductVersion + ProductBaseline is assigned and validated against
+ * the Product Composer contract.
+ */
+export const VALIDATION_CONTEXT_STATUSES = [
+  'DRAFT',
+  'WAITING_FOR_SOLUTION',
+  'READY_FOR_VALIDATION',
+  'ACTIVE',
+  'UNDER_REVIEW',
+  'APPROVED',
+  'REJECTED',
+  'SUPERSEDED',
+] as const;
+
+export type ValidationContextStatus = (typeof VALIDATION_CONTEXT_STATUSES)[number];
+
+/**
+ * Immutable reference to the assigned Product Composer solution. The Product
+ * Composer remains the owner of Product / ProductVersion / ProductBaseline;
+ * Validation Expert stores stable IDs plus a display snapshot only and
+ * re-validates against the Product Composer public API on assignment.
+ */
+export interface ValidationContextProductRef {
+  productId: string;
+  productVersionId: string;
+  productBaselineId: string;
+  productName?: string;
+  productVersion?: string;
+  productBaselineVersion?: string;
+  /** Digital-thread pins — Validation stores IDs only, never mutates URS/Product. */
+  manifestHash?: string;
+  gitRepositoryUrl?: string;
+  commitSha?: string;
+  releaseCandidateCommitSha?: string;
+  ursBaselineId?: string;
+  changeAssessmentId?: string;
+  assignedAt: string;
+  assignedBy?: string;
+}
+
+/**
  * A validation context is the Validation Expert side of one approved URS
- * baseline → validation lifecycle. One context per (requirementSetId,
- * baselineId) unless the domain explicitly supports multiple cycles (it does
- * not today → dedupe by that pair).
+ * baseline → validation lifecycle. One ACTIVE context per (requirementSetId,
+ * baselineId); SUPERSEDED contexts release the pair for a requalification
+ * context.
  */
 export interface ValidationContext {
   id: string;
   source: ApprovedURSReference;
-  status: string; // 'PENDING' | 'IN_PROGRESS' | 'CLOSED'
+  status: ValidationContextStatus;
+  /** Product assignment. Required for READY_FOR_VALIDATION and beyond. */
+  productRef?: ValidationContextProductRef;
+  /** Open change-impact / retest markers for a newly assigned URS baseline. */
+  retestItems?: Array<{
+    requirementId: string;
+    status: 'RETEST_REQUIRED' | 'CARRIED_FORWARD' | 'CLEARED' | 'IMPACTED';
+    relatedTestIds: string[];
+    evidenceIds: string[];
+    updatedAt: string;
+  }>;
+  changeAssessmentId?: string;
   summary?: string;
   createdAt: string;
   createdBy?: string;
@@ -57,6 +111,121 @@ export type CreateValidationContextRequest = {
   requirementSetId: string;
   baselineId: string;
 };
+
+export type AssignProductRequest = {
+  ursBaselineId: string;
+  productId: string;
+  productVersionId: string;
+  productBaselineId: string;
+  manifestHash: string;
+  gitRepositoryUrl?: string;
+  commitSha?: string;
+  releaseCandidateCommitSha?: string;
+  /** Optional impact payload from Product Composer when URS succession occurs. */
+  changeAssessment?: {
+    id: string;
+    retestRequiredRequirementIds: string[];
+    carriedForwardRequirementIds: string[];
+  };
+};
+
+/**
+ * Audit event for critical validation context actions (product assignment,
+ * removal, activation, supersession, review, approval). Stored server-side;
+ * not a GxP claim by itself.
+ */
+export interface ValidationContextAuditEvent {
+  id: string;
+  contextId: string;
+  eventType: string;
+  actor: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+/**
+ * Technical CI Quality Gate evidence metadata registered from Product Composer
+ * on controlled RELEASED. Encoded in ValidationEvidenceItem.reference as JSON.
+ * Not GxP / Part 11 validation evidence and does not imply VALIDATED.
+ */
+export interface TechnicalCiEvidenceReference {
+  kind: 'ci-quality-gate';
+  productId: string;
+  productVersionId: string;
+  productBaselineId: string;
+  ursBaselineId: string;
+  manifestContentHash: string;
+  entityRef?: string;
+  ciStatus: 'PASSED';
+  workflowName?: string;
+  commitSha?: string;
+  branch?: string;
+  htmlUrl?: string;
+  conclusion?: string;
+  registeredAt: string;
+  disclaimer: 'technical-control-not-gxp';
+}
+
+export type RegisterTechnicalCiEvidenceRequest = {
+  evidenceType: 'ci-quality-gate';
+  /** Canonical JSON string of TechnicalCiEvidenceReference (or compatible). */
+  reference: string;
+  createdBy: string;
+  candidate?: string;
+  /**
+   * Stable key for idempotent re-registration
+   * (e.g. productVersionId + contentHash + commitSha).
+   */
+  idempotencyKey: string;
+};
+
+export type RegisterTechnicalCiEvidenceResponse = {
+  item: {
+    id: string;
+    evidenceType: string;
+    reference: string;
+    checksum?: string;
+    createdAt: string;
+    createdBy?: string;
+    source: 'runtime';
+  };
+  created: boolean;
+};
+
+/**
+ * Soft QA readiness for Product Composer (advisory).
+ * Technical control only — not GxP / Part 11 / VALIDATED.
+ */
+export type EvidenceCompletenessStatus =
+  | 'MISSING'
+  | 'PRESENT'
+  | 'UNAVAILABLE'
+  | 'NOT_APPLICABLE';
+
+/** Live URS baseline currency for the product pin (advisory). */
+export type UrsPinCurrencyStatus =
+  | 'APPROVED'
+  | 'SUPERSEDED'
+  | 'NOT_APPROVED'
+  | 'UNAVAILABLE'
+  | 'MISSING'
+  | 'NOT_APPLICABLE';
+
+export interface ProductQaReadiness {
+  productVersionId: string;
+  versionStatus: string;
+  releaseGatePassed: boolean;
+  evidenceCompleteness: EvidenceCompletenessStatus;
+  evidenceId?: string;
+  idempotencyKey?: string;
+  /** Live status of the pinned URS baseline (pull-time). */
+  ursPinStatus: UrsPinCurrencyStatus;
+  ursBaselineId?: string;
+  ursSupersededBy?: string;
+  ursPinMessage?: string;
+  message: string;
+  disclaimer: 'technical-control-not-gxp';
+}
 
 /**
  * Read-through display DTO for a requirement pinned by an approved URS

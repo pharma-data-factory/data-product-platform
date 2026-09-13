@@ -97,6 +97,14 @@ export interface ProductVersion {
   releaseCommitSha?: string;
   artifactDigest?: string;
   baselineId?: string;
+  /**
+   * Immutable URS pin selected when the controlled ProductVersion is created.
+   * Required for controlled versions; copied onto ProductBaseline on baseline create.
+   */
+  requirementSetId: string;
+  ursBaselineId: string;
+  ursVersion: string;
+  ursContentHash: string;
   createdBy: string;
   createdAt: Date;
   approvedBy?: string;
@@ -179,12 +187,102 @@ export interface ProductBaseline {
   baselineVersion: string;
   status: ProductBaselineStatus;
   snapshot: Record<string, unknown>;
+  /** Exactly one APPROVED/BASELINED URS baseline — required for controlled product baselines. */
+  ursBaselineId: string;
+  requirementSetId: string;
+  ursVersion: string;
+  ursContentHash: string;
+  /**
+   * @deprecated Prefer ursBaselineId. Kept for read-compat with legacy rows.
+   */
   ursBaselineIds?: string[];
   createdBy: string;
   createdAt: Date;
   approvedBy?: string;
   approvedAt?: Date;
   supersededBy?: string;
+  revision: number;
+}
+
+/** Product Manifest schema version for this control-plane slice. */
+export const PRODUCT_MANIFEST_VERSION = '0.1' as const;
+
+/** Catalog annotations written into generated Data Product repos from ProductManifest pins. */
+export const PRODUCT_MANIFEST_ANNOTATIONS = {
+  contentHash: 'dataprod.platform/product-manifest-content-hash',
+  ursBaselineId: 'dataprod.platform/urs-baseline-id',
+  productBaselineId: 'dataprod.platform/product-baseline-id',
+  productVersionId: 'dataprod.platform/product-version-id',
+  productId: 'dataprod.platform/product-id',
+} as const;
+
+export interface ProductManifestComponent {
+  id: string;
+  name: string;
+  componentType: string;
+  ref?: string;
+  interfaceType?: string;
+}
+
+export interface ProductManifestDataContract {
+  id: string;
+  productComponentId?: string;
+  schemaType: string;
+  version: string;
+  schemaRef?: string;
+}
+
+export interface ProductManifestPolicy {
+  id: string;
+  type: string;
+  description?: string;
+}
+
+export interface ProductManifestQualityGate {
+  id: string;
+  type: string;
+  description?: string;
+}
+
+/**
+ * Versioned, server-hashed Product Manifest v0.1.
+ * contentHash is always computed server-side from the canonical document body
+ * (everything except metadata.contentHash itself).
+ */
+export interface ProductManifest {
+  apiVersion: 'pharma-data-factory.io/v1alpha1';
+  kind: 'ProductManifest';
+  metadata: {
+    productId: string;
+    productVersion: string;
+    productVersionId: string;
+    productBaselineId: string;
+    manifestVersion: typeof PRODUCT_MANIFEST_VERSION;
+    contentHash: string;
+  };
+  spec: {
+    ursBaselineId: string;
+    requirementSetId: string;
+    ursVersion: string;
+    ursContentHash: string;
+    components: ProductManifestComponent[];
+    dataContracts: ProductManifestDataContract[];
+    policies: ProductManifestPolicy[];
+    qualityGates: ProductManifestQualityGate[];
+  };
+}
+
+export interface PersistedProductManifest {
+  id: string;
+  productId: string;
+  productVersionId: string;
+  productBaselineId: string;
+  ursBaselineId: string;
+  manifestVersion: string;
+  contentHash: string;
+  document: ProductManifest;
+  createdBy: string;
+  createdAt: Date;
   revision: number;
 }
 

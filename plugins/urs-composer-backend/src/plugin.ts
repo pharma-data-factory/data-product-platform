@@ -134,7 +134,8 @@ export const ursComposerPlugin = createBackendPlugin({
             );
           }
         } else if (persistenceMode === 'memory') {
-          // Development/Testing: In-memory allowed
+          // Development/Testing: In-memory allowed. Volatile seed on start is OK
+          // here; Postgres path never auto-seeds (use `yarn urs:seed` instead).
           logger.warn(
             'URS Composer using in-memory repository. ' +
             'Data will NOT persist across restarts. ' +
@@ -142,6 +143,7 @@ export const ursComposerPlugin = createBackendPlugin({
           );
           const inMemoryRepository = new URSRepository();
           inMemoryRepository.seedRequirementSets();
+          inMemoryRepository.seedApprovalWorkflows();
           repository = inMemoryRepository;
         } else {
           // Defensive: should never reach here

@@ -7,15 +7,26 @@
  * - Approval Workflows (standard templates)
  * - Requirement Sets (data/seedRequirementSets.ts, e.g. the W&D URS)
  *
+ * Not run on PostgreSQL plugin startup. Invoke explicitly via `yarn urs:seed`
+ * (Neuinstallation / Test) or from test helpers. Memory mode still seeds in
+ * plugin.ts for volatile local/dev use.
+ *
  * All operations are idempotent:
  * Running seeds multiple times produces the same result.
  * Existing records are never overwritten.
  */
 
 import { Knex } from 'knex';
+import { APPROVAL_WORKFLOWS } from '../data/approvalWorkflows';
 import { BUSINESS_CAPABILITIES } from '../data/businessCapabilities';
 import { SEED_REQUIREMENT_SETS, acceptanceIntentFromSeed } from '../data/seedRequirementSets';
-import { URSStatus } from '../types';
+import { buildGenesisRequirementVersion } from '../domain/genesis-seed';
+import {
+  GxPRelevance,
+  RequirementPriority,
+  URSStatus,
+  type RequirementClassification,
+} from '../types';
 
 /**
  * Seed business capabilities.
@@ -97,6 +108,9 @@ export async function seedBusinessRoles(knex: Knex): Promise<void> {
  * Seed approval workflows
  * Standard templates for P1A approval process
  *
+ * Derives from the canonical APPROVAL_WORKFLOWS list so the Postgres mirror
+ * and the in-memory repository cannot drift apart.
+ *
  * Idempotency: Check if records exist before inserting.
  */
 export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
@@ -126,59 +140,15 @@ export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
     }
   }
 
-  const workflows = [
-    {
-      id: 'standard-gxp-urs',
-      name: 'Standard GxP URS Approval',
-      description: 'Three-step approval for GxP-relevant requirements',
-      steps: JSON.stringify([
-        {
-          sequence: 1,
-          role: 'BUSINESS_REVIEWER',
-          required: true,
-          description: 'Business context review',
-        },
-        {
-          sequence: 2,
-          role: 'PRODUCT_MANAGER',
-          required: true,
-          description: 'Product management review',
-        },
-        {
-          sequence: 3,
-          role: 'QUALITY_REVIEWER',
-          required: true,
-          description: 'Quality assurance review',
-        },
-      ]),
-    },
-    {
-      id: 'non-gxp-urs',
-      name: 'Non-GxP URS Approval',
-      description: 'Two-step approval for non-GxP requirements',
-      steps: JSON.stringify([
-        {
-          sequence: 1,
-          role: 'BUSINESS_REVIEWER',
-          required: true,
-          description: 'Business context review',
-        },
-        {
-          sequence: 2,
-          role: 'PRODUCT_MANAGER',
-          required: true,
-          description: 'Product management review',
-        },
-      ]),
-    },
-  ];
-
-  for (const workflow of workflows) {
+  for (const workflow of APPROVAL_WORKFLOWS) {
     // Check if already exists (idempotent)
     const existing = await knex('approval_workflows').where({ id: workflow.id }).first();
     if (!existing) {
       await knex('approval_workflows').insert({
-        ...workflow,
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        steps: JSON.stringify(workflow.steps),
         created_at: new Date(),
         created_by: 'system',
       });
@@ -187,13 +157,15 @@ export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
 }
 
 /**
- * Seed requirement sets and their requirements as DRAFT.
+ * Seed requirement sets and their requirements as DRAFT, each with genesis 0.1.
  *
  * Seeded sets use a stable requirement set key (e.g. URS-WD) so requirement IDs
  * are identical in every environment. A set that already exists is left
  * untouched, so operator edits and approvals survive a restart.
  *
  * Idempotency: skip when the requirement set key already exists.
+ * Missing genesis versions on existing rows are repaired by
+ * `seedMissingGenesisVersions`.
  */
 export async function seedRequirementSets(knex: Knex): Promise<void> {
   for (const seedSet of SEED_REQUIREMENT_SETS) {
@@ -260,16 +232,160 @@ export async function seedRequirementSets(knex: Knex): Promise<void> {
     }));
 
     await knex('requirements').insert(rows);
+
+    const versionRows = seedSet.requirements.map(req => {
+      const genesis = buildGenesisRequirementVersion(
+        {
+          requirementId: req.requirementId,
+          title: req.title,
+          statement: req.statement,
+          rationale: req.rationale,
+          category: req.category,
+          priority: req.priority,
+          acceptanceIntent: acceptanceIntentFromSeed(req.acceptanceCriteria),
+          classification: req.classification,
+          gxpRelevance: req.gxpRelevance,
+        },
+        'system',
+        {
+          id: `${setId}-${req.requirementId.toLowerCase()}-v0.1`,
+          createdAt: now,
+        },
+      );
+      return {
+        id: genesis.id,
+        requirement_id: genesis.requirementId,
+        version: genesis.version,
+        version_number: genesis.versionNumber,
+        major: genesis.major ?? null,
+        minor: genesis.minor ?? null,
+        version_label: genesis.versionLabel ?? genesis.version,
+        title: genesis.title,
+        statement: genesis.statement,
+        rationale: genesis.rationale ?? null,
+        category: genesis.category ?? null,
+        priority: genesis.priority ?? null,
+        acceptance_intent: genesis.acceptanceIntent ?? null,
+        gxp_relevance: genesis.gxpRelevance ?? null,
+        component_type: req.classification.componentType,
+        requirement_nature: req.classification.requirementNature,
+        criticality: req.classification.criticality,
+        classification_meta: JSON.stringify({
+          secondaryTypes: req.classification.secondaryTypes,
+          interfaceType: req.classification.interfaceType,
+          dataClassification: req.classification.dataClassification,
+          validationLevel: req.classification.validationLevel,
+          sourceSystem: req.classification.sourceSystem,
+          targetSystem: req.classification.targetSystem,
+          automationReadiness: req.classification.automationReadiness,
+        }),
+        status: genesis.status,
+        created_by: genesis.createdBy,
+        created_at: genesis.createdAt,
+        content_hash: genesis.contentHash ?? null,
+        revision: genesis.revision ?? 1,
+      };
+    });
+
+    await knex('requirement_versions').insert(versionRows);
   }
 }
 
 /**
- * Run all seeds
- * Safe to call multiple times (all operations idempotent)
+ * Open genesis 0.1 for any requirement that has no versions yet.
+ *
+ * Repairs older installs where requirement sets were seeded without versions
+ * (Create Baseline then fails with "No requirement version found").
+ */
+export async function seedMissingGenesisVersions(knex: Knex): Promise<void> {
+  const requirements = await knex('requirements').select('*');
+  for (const row of requirements) {
+    const existing = await knex('requirement_versions')
+      .where({ requirement_id: row.requirement_id })
+      .first();
+    if (existing) {
+      continue;
+    }
+
+    let meta: Record<string, unknown> = {};
+    if (row.classification_meta) {
+      try {
+        meta =
+          typeof row.classification_meta === 'string'
+            ? JSON.parse(row.classification_meta)
+            : row.classification_meta;
+      } catch {
+        meta = {};
+      }
+    }
+
+    const classification: RequirementClassification | undefined =
+      row.component_type || row.requirement_nature || row.criticality
+        ? ({
+            componentType: row.component_type,
+            requirementNature: row.requirement_nature,
+            criticality: row.criticality,
+            ...meta,
+          } as RequirementClassification)
+        : undefined;
+
+    const genesis = buildGenesisRequirementVersion(
+      {
+        requirementId: row.requirement_id,
+        title: row.title,
+        statement: row.statement,
+        rationale: row.rationale ?? undefined,
+        category: row.category ?? undefined,
+        priority: (row.priority as RequirementPriority) ?? RequirementPriority.MUST,
+        acceptanceIntent: row.acceptance_intent ?? undefined,
+        classification,
+        gxpRelevance: (row.gxp_relevance as GxPRelevance) ?? undefined,
+        source: row.source ?? undefined,
+        owner: row.owner ?? undefined,
+      },
+      'system',
+      {
+        id: `${row.id}-v0.1`,
+        createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      },
+    );
+
+    await knex('requirement_versions').insert({
+      id: genesis.id,
+      requirement_id: genesis.requirementId,
+      version: genesis.version,
+      version_number: genesis.versionNumber,
+      major: genesis.major ?? null,
+      minor: genesis.minor ?? null,
+      version_label: genesis.versionLabel ?? genesis.version,
+      title: genesis.title,
+      statement: genesis.statement,
+      rationale: genesis.rationale ?? null,
+      category: genesis.category ?? null,
+      priority: genesis.priority ?? null,
+      acceptance_intent: genesis.acceptanceIntent ?? null,
+      gxp_relevance: genesis.gxpRelevance ?? null,
+      component_type: row.component_type ?? null,
+      requirement_nature: row.requirement_nature ?? null,
+      criticality: row.criticality ?? null,
+      classification_meta: row.classification_meta ?? null,
+      status: genesis.status,
+      created_by: genesis.createdBy,
+      created_at: genesis.createdAt,
+      content_hash: genesis.contentHash ?? null,
+      revision: genesis.revision ?? 1,
+    });
+  }
+}
+
+/**
+ * Run all content seeds (CLI / tests only — not Postgres startup).
+ * Safe to call multiple times (all operations idempotent).
  */
 export async function seed(knex: Knex): Promise<void> {
   await seedBusinessCapabilities(knex);
   await seedApprovalWorkflows(knex);
   await seedBusinessRoles(knex);
   await seedRequirementSets(knex);
+  await seedMissingGenesisVersions(knex);
 }

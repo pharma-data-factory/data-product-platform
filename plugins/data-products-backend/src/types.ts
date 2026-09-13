@@ -9,6 +9,7 @@ export const PLATFORM_CI_STATUSES = [
 export type PlatformCiStatus = (typeof PLATFORM_CI_STATUSES)[number];
 
 export const QUALITY_STAGES = [
+  'Manifest Pins',
   'Lint',
   'Unit Tests',
   'Contract Tests',

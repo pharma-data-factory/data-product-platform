@@ -10,10 +10,14 @@ export type {
   DataProductInterface,
   DataProductLineageEdge,
   DataProductPresentation,
+  DataProductPublishMeta,
+  DataProductPublishPort,
   DataProductQualityMeta,
   DataProductValidationMeta,
+  InterfaceDirection,
   InterfaceType,
   PresentationCapability,
+  PublishPortType,
   QueryResult,
   StreamEvent,
   StreamProtocol,
@@ -21,3 +25,7 @@ export type {
 } from './types';
 export { ConsumptionError } from './types';
 export { descriptorFromEntity, isDataProductComponent } from './descriptor';
+export { buildProductPublishTopic } from './publishTopic';
+export type { ProductPublishTopicParts } from './publishTopic';
+export { buildWarehouseDataset } from './warehouseDataset';
+export type { WarehouseDatasetParts } from './warehouseDataset';

@@ -111,7 +111,7 @@ export function LandingSignInPage(props: SignInPageProps) {
       if (!identityResponse) {
         throw new Error(
           githubConfigured
-            ? 'Popup closed by user'
+            ? 'Popup closed by user. Open http://localhost:7007 (not 127.0.0.1) and allow popups, then try again.'
             : 'GitHub sign-in is not configured',
         );
       }

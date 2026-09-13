@@ -52,7 +52,7 @@ const useStyles = makeStyles({
     background: 'transparent',
     border: `1px solid ${C.border}`,
     borderRadius: 10,
-    color: `${PHARMA_NAVY} !important`,
+    color: `${C.text} !important`,
     fontSize: 13,
     fontWeight: 600,
     padding: '8px 14px',
@@ -64,7 +64,7 @@ const useStyles = makeStyles({
     marginTop: 8,
   },
   banner: {
-    background: '#F8FAFC',
+    background: C.cardHover,
     border: `1px solid ${C.border}`,
     borderLeft: `4px solid ${C.security}`,
     borderRadius: 10,
@@ -74,7 +74,7 @@ const useStyles = makeStyles({
     padding: '10px 14px',
   },
   bannerMuted: {
-    background: '#F8FAFC',
+    background: C.cardHover,
     border: `1px dashed ${C.border}`,
     borderRadius: 10,
     color: C.muted,

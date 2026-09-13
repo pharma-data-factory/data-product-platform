@@ -1,6 +1,6 @@
 import { ARCHITECTURE_CONCEPTS, ARCHITECTURE_PATH } from './constants';
 import { ArchitectureOverviewImage } from './ArchitectureOverviewImage';
-import { C, PHARMA_NAVY, PHARMA_TEAL } from '../identity/landingTokens';
+import { C, PHARMA_TEAL } from '../identity/landingTokens';
 import { useLandingI18n } from '../identity/landingI18n';
 
 export function ArchitectureOverviewSection() {
@@ -45,7 +45,7 @@ export function ArchitectureOverviewSection() {
             fontWeight: 600,
             lineHeight: 1.15,
             margin: 0,
-            color: PHARMA_NAVY,
+            color: C.text,
           }}
         >
           {t.overview.title}

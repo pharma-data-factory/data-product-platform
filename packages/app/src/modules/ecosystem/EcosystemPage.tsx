@@ -22,8 +22,8 @@ import {
   C,
   PHARMA_NAVY,
   PHARMA_NAVY_DARK,
-  PHARMA_TEAL,
   PHARMA_TEAL_LIGHT,
+  PHARMA_TEAL_ON_LIGHT,
 } from '../identity/landingTokens';
 import {
   ACADEMY_PATH,
@@ -122,7 +122,7 @@ function SolutionsIndex() {
             >
               <h2
                 className="pdf-display"
-                style={{ fontSize: 22, fontWeight: 600, margin: 0, color: PHARMA_NAVY }}
+                style={{ fontSize: 22, fontWeight: 600, margin: 0, color: C.text }}
               >
                 {audience.title}
               </h2>
@@ -131,7 +131,7 @@ function SolutionsIndex() {
                   margin: '12px 0 0',
                   fontSize: 15,
                   fontWeight: 700,
-                  color: PHARMA_NAVY,
+                  color: C.text,
                   lineHeight: 1.4,
                 }}
               >
@@ -148,7 +148,7 @@ function SolutionsIndex() {
                   marginTop: 20,
                   fontSize: 14,
                   fontWeight: 600,
-                  color: PHARMA_TEAL,
+                  color: PHARMA_TEAL_ON_LIGHT,
                 }}
               >
                 {audience.cta} →

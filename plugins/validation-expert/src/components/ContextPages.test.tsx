@@ -8,7 +8,7 @@ import { validationExpertApiRef, ValidationContext } from '../api';
 
 const sampleContext: ValidationContext = {
   id: 'VALIDATION-CTX-ABC',
-  status: 'PENDING',
+  status: 'WAITING_FOR_SOLUTION',
   createdAt: '2026-09-11T08:00:00.000Z',
   createdBy: 'user:default/alice',
   source: {
@@ -58,8 +58,33 @@ describe('Validation contexts UI', () => {
   });
 
   it('shows Approved URS reference and linked runs on detail page', async () => {
+    const detailedContext: ValidationContext = {
+      ...sampleContext,
+      status: 'READY_FOR_VALIDATION',
+      productRef: {
+        ursBaselineId: 'bl-1',
+        productId: 'product-1',
+        productVersionId: 'version-2',
+        productBaselineId: 'product-baseline-2',
+        manifestHash: 'a'.repeat(64),
+        gitRepositoryUrl: 'https://github.com/example/product-1',
+        commitSha: 'abc123',
+        assignedAt: '2026-09-11T08:30:00.000Z',
+      },
+      changeAssessmentId: 'CIA-1',
+      retestItems: [
+        {
+          requirementId: 'URS-OEE-001',
+          status: 'RETEST_REQUIRED',
+          relatedTestIds: ['IQ-T-001'],
+          evidenceIds: [],
+          updatedAt: '2026-09-11T08:30:00.000Z',
+        },
+      ],
+    };
     const api = {
-      getContext: jest.fn().mockResolvedValue(sampleContext),
+      getContext: jest.fn().mockResolvedValue(detailedContext),
+      getContextAudit: jest.fn().mockResolvedValue([]),
       getContextRequirements: jest.fn().mockResolvedValue({
         contextId: sampleContext.id,
         baselineId: sampleContext.source.baselineId,
@@ -160,7 +185,10 @@ describe('Validation contexts UI', () => {
     expect(api.getContextRuns).toHaveBeenCalledWith('VALIDATION-CTX-ABC');
     expect(api.getContextCoverage).toHaveBeenCalledWith('VALIDATION-CTX-ABC');
     expect(screen.getByText('Requirement coverage (lite)')).toBeInTheDocument();
+    expect(screen.getByText('Change impact assessment')).toBeInTheDocument();
+    expect(screen.getByText(/Assessment CIA-1/)).toBeInTheDocument();
+    expect(screen.getByText('RETEST_REQUIRED')).toBeInTheDocument();
     expect(screen.getByText('1/2')).toBeInTheDocument();
-    expect(screen.getByText('IQ-T-001')).toBeInTheDocument();
+    expect(screen.getAllByText('IQ-T-001').length).toBeGreaterThanOrEqual(2);
   });
 });

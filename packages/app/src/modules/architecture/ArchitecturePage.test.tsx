@@ -1,4 +1,6 @@
+import type { ReactElement } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { LandingApiProvider } from '../identity/landingTestUtils';
 import { ArchitecturePage } from './ArchitecturePage';
 import {
   ARCHITECTURE_OVERVIEW_IMAGE_ALT,
@@ -12,6 +14,10 @@ import {
   RUNTIME_STEPS,
   SYSTEM_OF_RECORD_SYSTEMS,
 } from './constants';
+
+function renderArchitecture(ui: ReactElement) {
+  return render(<LandingApiProvider>{ui}</LandingApiProvider>);
+}
 
 /** Diagram sections start collapsed; open one by its heading. */
 function openDiagram(title: RegExp) {
@@ -40,7 +46,7 @@ function openAllDiagrams() {
 
 describe('ArchitecturePage', () => {
   it('renders the architecture route content with the overview image', () => {
-    render(<ArchitecturePage standalone />);
+    renderArchitecture(<ArchitecturePage standalone />);
 
     expect(
       screen.getByRole('heading', {
@@ -61,7 +67,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('renders the system architecture diagram', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
     openDiagram(/From core systems to Data Products/i);
     const diagram = screen.getByLabelText(
       /System architecture from core systems through governed integration to Data Products/i,
@@ -82,7 +88,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('renders the Data Product runtime diagram', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
     openDiagram(/How an individual Data Product works/i);
     const diagram = screen.getByLabelText(
       /Data Product runtime from source system to consumers/i,
@@ -97,7 +103,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('renders the developer flow', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
     openDiagram(/Build once\. Govern by default\./i);
     const diagram = screen.getByLabelText(
       /Developer flow from Golden Path to catalog and documentation/i,
@@ -112,7 +118,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('renders the contract and consumer diagram', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
     openDiagram(/Contracts keep providers and consumers aligned/i);
     const diagram = screen.getByLabelText(
       /Data contract, catalog relationships, and compatibility examples/i,
@@ -129,7 +135,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('keeps the system-of-record boundary explicit', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
 
     // Boundary cards use the plural form; diagrams still say "Systems of record".
     expect(screen.getAllByText('SYSTEMS OF RECORD').length).toBeGreaterThan(0);
@@ -146,7 +152,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('includes diagram explanations and accessible labels', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
     openAllDiagrams();
 
     expect(screen.getAllByText('WHAT IT DOES').length).toBe(12);
@@ -170,7 +176,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('uses responsive native diagram styling rather than Mermaid', () => {
-    const { container } = render(<ArchitecturePage standalone />);
+    const { container } = renderArchitecture(<ArchitecturePage standalone />);
     openAllDiagrams();
     const image = screen.getByRole('img', {
       name: ARCHITECTURE_OVERVIEW_IMAGE_ALT,
@@ -187,7 +193,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('navigates back to the landing page from the architecture CTA', () => {
-    render(<ArchitecturePage standalone onSignIn={() => undefined} />);
+    renderArchitecture(<ArchitecturePage standalone onSignIn={() => undefined} />);
 
     expect(screen.getByRole('link', { name: 'Back to landing' })).toHaveAttribute(
       'href',
@@ -212,7 +218,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('explains AAS, UNS, Platform Components and future capabilities', () => {
-    render(<ArchitecturePage />);
+    renderArchitecture(<ArchitecturePage />);
     openDiagram(/AAS explains what an asset is/i);
     openDiagram(/UNS governs operational data flow/i);
     openDiagram(/Reusable technical building blocks/i);
@@ -234,7 +240,7 @@ describe('ArchitecturePage', () => {
   });
 
   it('links authenticated Developer Hub routes from the public architecture page', () => {
-    render(<ArchitecturePage standalone />);
+    renderArchitecture(<ArchitecturePage standalone />);
     const links = screen.getByLabelText('Authenticated architecture links');
 
     expect(within(links).getByRole('link', { name: 'Developer Hub Architecture' })).toHaveAttribute(

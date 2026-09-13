@@ -64,6 +64,12 @@ export interface DataProduct {
   dataProductSdkVersion?: string;
   contractLogicalName?: string;
   contractTitle?: string;
+  /** ProductManifest v0.1 pins from catalog-info (optional; set after Product Composer scaffold). */
+  productManifestContentHash?: string;
+  ursBaselineId?: string;
+  productBaselineId?: string;
+  productComposerVersionId?: string;
+  productComposerProductId?: string;
   upgrade?: ProductUpgrade;
   catalogClass?: string;
   entityRef: string;
@@ -246,6 +252,13 @@ export function toDataProduct(entity: Entity): DataProduct {
       annotations[`${ANNOTATION_PREFIX}/dataProductStandardVersion`],
     dataProductSdkVersion:
       annotations[`${ANNOTATION_PREFIX}/dataProductSdkVersion`],
+    productManifestContentHash:
+      annotations[`${ANNOTATION_PREFIX}/product-manifest-content-hash`],
+    ursBaselineId: annotations[`${ANNOTATION_PREFIX}/urs-baseline-id`],
+    productBaselineId: annotations[`${ANNOTATION_PREFIX}/product-baseline-id`],
+    productComposerVersionId:
+      annotations[`${ANNOTATION_PREFIX}/product-version-id`],
+    productComposerProductId: annotations[`${ANNOTATION_PREFIX}/product-id`],
     contractLogicalName: contractSource
       ? logicalContractName(contractSource)
       : undefined,

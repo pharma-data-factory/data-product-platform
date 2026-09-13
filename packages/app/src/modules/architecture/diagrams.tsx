@@ -1,5 +1,11 @@
 import { type ReactNode } from 'react';
-import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import {
+  C,
+  PHARMA_NAVY,
+  PHARMA_TEAL,
+  PHARMA_TEAL_LIGHT,
+  PHARMA_TEAL_ON_LIGHT,
+} from '../identity/landingTokens';
 import {
   CATALOG_RELATIONSHIPS,
   DEVELOPER_FLOW_STEPS,
@@ -23,15 +29,19 @@ type NodeTone =
   | 'break';
 
 const TONE: Record<NodeTone, { bg: string; border: string; color: string }> = {
-  core: { bg: '#F8FAFC', border: C.border, color: PHARMA_NAVY },
-  interface: { bg: 'rgba(0,194,217,0.08)', border: 'rgba(0,194,217,0.35)', color: PHARMA_NAVY },
-  factory: { bg: PHARMA_NAVY, border: PHARMA_NAVY, color: '#F8FAFC' },
+  core: { bg: C.cardHover, border: C.border, color: C.text },
+  interface: { bg: C.tint, border: 'rgba(0,194,217,0.35)', color: C.text },
+  factory: { bg: C.primary, border: C.primary, color: C.onPrimary },
   kernel: { bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.28)', color: '#E2E8F0' },
-  product: { bg: '#FFFFFF', border: 'rgba(0,194,217,0.45)', color: PHARMA_NAVY },
-  consumer: { bg: '#EEF2F6', border: C.border, color: PHARMA_NAVY },
-  step: { bg: '#FFFFFF', border: C.border, color: PHARMA_NAVY },
-  ok: { bg: 'rgba(0,194,217,0.10)', border: PHARMA_TEAL, color: PHARMA_NAVY },
-  break: { bg: '#FEF2F2', border: '#FECACA', color: '#7F1D1D' },
+  product: { bg: C.card, border: 'rgba(0,194,217,0.45)', color: C.text },
+  consumer: { bg: C.section, border: C.border, color: C.text },
+  step: { bg: C.card, border: C.border, color: C.text },
+  ok: { bg: C.tint, border: PHARMA_TEAL, color: C.text },
+  break: {
+    bg: 'rgba(185, 28, 28, 0.12)',
+    border: 'rgba(185, 28, 28, 0.35)',
+    color: '#B91C1C',
+  },
 };
 
 export function ArchitectureDiagramStyles() {
@@ -70,11 +80,11 @@ export function ArchitectureDiagramStyles() {
         border: 1px solid ${C.border};
       }
       .pdf-diag-layer-title {
-        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-family: var(--nexora-font-mono, 'JetBrains Mono', ui-monospace, monospace);
         font-size: 11px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: ${PHARMA_TEAL};
+        color: ${PHARMA_TEAL_ON_LIGHT};
         margin: 0 0 12px;
         font-weight: 600;
       }

@@ -14,6 +14,7 @@ import { SidebarSearchModal } from '@backstage/plugin-search';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
 import SearchIcon from '@material-ui/icons/Search';
 import SettingsIcon from '@material-ui/icons/Settings';
+import Brightness6Icon from '@material-ui/icons/Brightness6';
 import {
   PlatformRole,
   canAdministerPlatform,
@@ -42,6 +43,7 @@ import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
 import GroupIcon from '@material-ui/icons/Group';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
 import StoreIcon from '@material-ui/icons/Store';
+import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 export const SidebarContent = NavContentBlueprint.make({
   params: {
@@ -132,6 +134,16 @@ function PlatformSidebar() {
               />
               <SidebarSubmenuItem
                 icon={AssignmentTurnedInIcon}
+                to="/urs-composer/change-requests"
+                title="Change Requests"
+              />
+              <SidebarSubmenuItem
+                icon={CategoryIcon}
+                to="/urs-composer/portfolio"
+                title="Portfolio Coverage"
+              />
+              <SidebarSubmenuItem
+                icon={AssignmentTurnedInIcon}
                 to="/validation-expert"
                 title="Validation Expert"
               />
@@ -140,6 +152,7 @@ function PlatformSidebar() {
 
           <SidebarItem icon={StorefrontIcon} to="/marketplace" text="Marketplace" />
           <SidebarItem icon={BusinessIcon} to="/model-company" text="Model Company" />
+          <SidebarItem icon={AccountTreeIcon} to="/data-map" text="Data Map" />
 
           {admin ? (
             <SidebarItem icon={AdminIcon} to="/admin" text="Admin">
@@ -196,6 +209,11 @@ function PlatformSidebar() {
                 icon={VerifiedUserIcon}
                 to="/access"
                 title="My Access"
+              />
+              <SidebarSubmenuItem
+                icon={Brightness6Icon}
+                to="/settings"
+                title="Appearance"
               />
             </SidebarSubmenu>
           </SidebarItem>

@@ -6,6 +6,7 @@ import {
   documentationHref,
   platformComponentPath,
 } from '@internal/platform-common';
+import { nexoraThemeColor } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   wrap: {
@@ -41,7 +42,7 @@ const useStyles = makeStyles({
     width: '100%',
   },
   meta: {
-    color: '#475569',
+    color: nexoraThemeColor.textMuted,
     marginTop: 12,
   },
 });

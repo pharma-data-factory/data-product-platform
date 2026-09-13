@@ -13,6 +13,8 @@ export type {
   DataContract,
   TraceabilityLink,
   ProductBaseline,
+  ProductManifest,
+  PersistedProductManifest,
 } from '@internal/platform-common';
 
 export interface CreateProductRequest {
@@ -36,6 +38,12 @@ export interface CreateProductRequest {
 export interface CreateProductVersionRequest {
   version?: string;
   changelog?: string;
+  /** Required. APPROVED/BASELINED URS baseline id. */
+  ursBaselineId: string;
+  /** Optional when server can fill from live URS resolve; must match if set. */
+  requirementSetId?: string;
+  ursVersion?: string;
+  ursContentHash?: string;
 }
 
 export interface CreateProductComponentRequest {
@@ -75,7 +83,50 @@ export interface TransitionProductVersionRequest {
 
 export interface CreateProductBaselineRequest {
   baselineVersion?: string;
+  /** Exactly one APPROVED URS baseline id (required). */
+  ursBaselineId: string;
+  /**
+   * @deprecated Use ursBaselineId. Accepted only when ursBaselineId is absent
+   * and the array contains exactly one entry (migration compat).
+   */
   ursBaselineIds?: string[];
+}
+
+/** Server-built Scaffolder pin values from an approved Product Manifest. */
+export interface ProductScaffoldBinding {
+  productId: string;
+  productName: string;
+  productSlug: string;
+  description?: string;
+  domain?: string;
+  owner?: string;
+  productVersionId: string;
+  productVersion: string;
+  productBaselineId: string;
+  ursBaselineId: string;
+  requirementSetId: string;
+  ursVersion: string;
+  ursContentHash: string;
+  manifestContentHash: string;
+  manifestVersion: string;
+  /** Merge into scaffolderApi.scaffold({ values }). */
+  scaffolderPinValues: {
+    productManifestContentHash: string;
+    ursBaselineId: string;
+    productBaselineId: string;
+    productVersionId: string;
+    productId: string;
+    requirementSetId: string;
+    ursVersion: string;
+    ursContentHash: string;
+    productManifestYaml: string;
+    ursBaselineJson: string;
+    ursBaselineMd: string;
+    traceabilityMatrixYaml: string;
+    agentsMd: string;
+  };
+  /** Official Golden Path template entity names that accept these pins. */
+  supportedTemplateRefs: string[];
 }
 
 // ============================================================================
@@ -115,4 +166,36 @@ export interface AISpecDraft {
 
 export interface GenerateProductSpecRequest {
   ursBaselineId: string;
+}
+
+/** Advisory Composer reverse index for URS Change Requests (not GxP). */
+export type ProductChangeSignalMatchAxis =
+  | 'PRODUCT_VERSION'
+  | 'PRODUCT'
+  | 'URS_BASELINE';
+
+export interface ProductChangeSignal {
+  id: string;
+  productId?: string;
+  productVersionId: string;
+  ursBaselineId?: string;
+  changeRequestId: string;
+  source: 'SOFT_HYDRATE';
+  matchAxis: ProductChangeSignalMatchAxis;
+  createdBy: string;
+  createdAt: Date;
+  lastHydratedAt: Date;
+}
+
+export interface ProductChangeSignalView extends ProductChangeSignal {
+  title?: string;
+  status?: string;
+}
+
+export interface ProductChangeSignalsResult {
+  items: ProductChangeSignalView[];
+  scanned: number;
+  ursTotal: number;
+  hydratedCount: number;
+  disclaimer: 'advisory-soft-index-not-gxp';
 }

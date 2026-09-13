@@ -16,6 +16,7 @@ const RUNNING_STATUSES = new Set([
 ]);
 
 const STAGE_MATCHERS: Array<{ match: string; stage: QualityStage }> = [
+  { match: 'manifest pin', stage: 'Manifest Pins' },
   { match: 'contract test', stage: 'Contract Tests' },
   { match: 'unit test', stage: 'Unit Tests' },
   { match: 'data quality', stage: 'Data Quality' },

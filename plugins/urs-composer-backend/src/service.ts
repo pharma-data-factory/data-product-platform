@@ -54,12 +54,12 @@ import {
 } from './domain/signature-service';
 import { IURSRepository } from './repository-interface';
 import {
-  firstVersion,
   nextDraft,
   parseLabel,
   versionOrdinal,
   type VersionNumber,
 } from './domain/versioning';
+import { buildGenesisRequirementVersion } from './domain/genesis-seed';
 import type { LLMClient, GeneratedRequirement } from './llm-client';
 
 export interface URSServiceOptions {
@@ -823,32 +823,7 @@ export class URSService {
       return undefined;
     }
 
-    const first = firstVersion();
-    const now = new Date();
-    const version: RequirementVersion = {
-      id: this.generateUUID(),
-      requirementId: requirement.requirementId,
-      version: first.label,
-      versionLabel: first.label,
-      major: first.major,
-      minor: first.minor,
-      versionNumber: versionOrdinal(first),
-      title: requirement.title,
-      statement: requirement.statement,
-      rationale: requirement.rationale,
-      category: requirement.category,
-      priority: requirement.priority,
-      acceptanceIntent: requirement.acceptanceIntent,
-      classification: requirement.classification,
-      gxpRelevance: requirement.gxpRelevance,
-      source: requirement.source,
-      owner: requirement.owner,
-      status: URSStatus.DRAFT,
-      createdBy: actor,
-      createdAt: now,
-      revision: 1,
-    };
-    version.contentHash = hashOf(version);
+    const version = buildGenesisRequirementVersion(requirement, actor);
 
     await this.repository.createRequirementVersion(version);
 
@@ -860,7 +835,7 @@ export class URSService {
       eventType: 'CREATED',
       newValue: version,
       actor,
-      timestamp: now,
+      timestamp: version.createdAt,
       reason: 'Genesis version 0.1',
     });
 
@@ -1836,6 +1811,11 @@ export class URSService {
    *
    * Checked when the baseline is released rather than when it is assembled, so
    * that a draft baseline can still be put together from work in progress.
+   *
+   * Seed / first-release Freigabe often pins genesis 0.1 drafts. There is no
+   * separate per-version Freigabe UI yet, so the final approval step advances
+   * those pinned versions to APPROVED in the same transaction before this
+   * check runs (see cascadeApprovePinnedVersions).
    */
   private async assertPinnedVersionsReleased(
     repo: IURSRepository,
@@ -1853,6 +1833,109 @@ export class URSService {
       throw new ConflictError(
         `Baseline ${baseline.baselineVersion} cannot be released: ${unreleased.length} pinned version(s) are not approved — ${unreleased.map(v => `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`).join(', ')}`,
       );
+    }
+  }
+
+  /**
+   * Advance every pinned, still-open requirement version to APPROVED.
+   *
+   * Used on the final baseline approval step so a Freigabe of a draft seed
+   * set (genesis 0.1) can complete without a separate per-version signing UI.
+   * Walks legal status transitions only; already-approved pins are left alone.
+   */
+  private async cascadeApprovePinnedVersions(
+    repo: IURSRepository,
+    baseline: Baseline,
+    actor: string,
+  ): Promise<void> {
+    const versionIds = baseline.requirementVersionIds ?? [];
+    if (!versionIds.length) {
+      return;
+    }
+
+    const versions = await repo.getRequirementVersionsByIds(versionIds);
+    const releasedAt = new Date();
+
+    for (const version of versions) {
+      if (version.status === URSStatus.APPROVED) {
+        continue;
+      }
+
+      let current = version;
+      const path: URSStatus[] = [];
+      switch (current.status) {
+        case URSStatus.DRAFT:
+          path.push(
+            URSStatus.IN_REVIEW,
+            URSStatus.REVIEWED,
+            URSStatus.IN_APPROVAL,
+            URSStatus.APPROVED,
+          );
+          break;
+        case URSStatus.IN_REVIEW:
+          path.push(
+            URSStatus.REVIEWED,
+            URSStatus.IN_APPROVAL,
+            URSStatus.APPROVED,
+          );
+          break;
+        case URSStatus.REVIEWED:
+          path.push(URSStatus.IN_APPROVAL, URSStatus.APPROVED);
+          break;
+        case URSStatus.IN_APPROVAL:
+          path.push(URSStatus.APPROVED);
+          break;
+        default:
+          throw new ConflictError(
+            `Cannot release pinned version ${current.requirementId} (${current.versionLabel ?? current.version}) from status ${current.status}`,
+          );
+      }
+
+      for (const next of path) {
+        const updated =
+          next === URSStatus.APPROVED
+            ? {
+                ...current,
+                status: next,
+                approvedBy: actor,
+                approvedAt: releasedAt,
+                releasedAt,
+              }
+            : { ...current, status: next };
+        // updateRequirementVersion returns void and bumps the stored revision
+        // internally (optimistic concurrency), so the next transition must
+        // start from what we asked to be written, with the revision advanced
+        // the same way the repository advances it.
+        await repo.updateRequirementVersion(updated);
+        current = { ...updated, revision: (current.revision || 1) + 1 };
+      }
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'REQUIREMENT_VERSION',
+        entityId: version.id,
+        entityVersion: version.versionLabel ?? version.version,
+        eventType: 'RELEASED',
+        oldValue: { status: version.status },
+        newValue: { status: URSStatus.APPROVED, releasedAt, via: 'baseline-freigabe' },
+        actor,
+        timestamp: releasedAt,
+        reason: 'Released with baseline Freigabe',
+      });
+
+      // Only one version of a requirement is in force at a time.
+      const siblings = await repo.getRequirementVersions(version.requirementId);
+      for (const sibling of siblings) {
+        if (
+          sibling.id !== version.id &&
+          sibling.status === URSStatus.APPROVED
+        ) {
+          await repo.updateRequirementVersion({
+            ...sibling,
+            status: URSStatus.SUPERSEDED,
+          });
+        }
+      }
     }
   }
 
@@ -2221,6 +2304,14 @@ export class URSService {
       instance.steps.push(step);
     }
 
+    // The UI offers the approval action only on the ACTIVE step. Without
+    // activating the first required step here the chain could never begin:
+    // every step would stay PENDING and no approve button would ever render.
+    const firstRequired = instance.steps.find(s => s.required);
+    if (firstRequired) {
+      firstRequired.status = ApprovalStepStatus.ACTIVE;
+    }
+
     await this.repository.createApprovalInstance(instance);
 
     await this.repository.createAuditEvent({
@@ -2268,7 +2359,11 @@ export class URSService {
     }
 
     if (baseline.status !== 'DRAFT') {
-      throw new Error(`Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`);
+      // A repeat submit is a client/state error, not a server fault: map it to
+      // 409 so the caller sees why instead of a generic 500.
+      throw new ConflictError(
+        `Baseline ${baselineId} cannot be submitted in status ${baseline.status}. Only DRAFT baselines can be submitted.`,
+      );
     }
 
     // Select workflow: GxP relevance determines standard or non-GxP workflow.
@@ -2287,10 +2382,13 @@ export class URSService {
       actor,
     );
 
-    // Update baseline status to IN_REVIEW
+    // Update baseline status to IN_REVIEW. The instance link is persisted on
+    // the baseline so the UI can recover the in-flight workflow after a reload
+    // instead of offering "Submit for Approval" again on an IN_REVIEW baseline.
     await this.repository.updateBaseline({
       ...baseline,
       status: URSStatus.IN_REVIEW,
+      approvalInstanceId: instance.id,
       revision: baseline.revision || 1,
     });
 
@@ -2445,10 +2543,10 @@ export class URSService {
           throw new Error('Baseline not found');
         }
 
-        // Completing the chain releases the baseline, not its contents: a
-        // requirement version is released on its own quality signature. If any
-        // pinned version is still unreleased, invariant 9 refuses here and
-        // names them, rather than approving them as a side effect.
+        // Completing the chain releases the baseline. Pinned genesis drafts
+        // (typical for seeded URS sets) are advanced to APPROVED in the same
+        // transaction — there is no separate per-version Freigabe UI yet.
+        await this.cascadeApprovePinnedVersions(repo, baseline, actor);
         await this.releaseBaseline(repo, baseline, actor);
 
         // Propagate approval to the requirement set and close the version

@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: warehouse-sink
+  title: Warehouse Sink
+  description: >
+    Lands Product Publish Bus StreamEvent envelopes into warehouse staging.
+    Profiles: file (default), snowflake (DDL + JSONL stub), databricks (path stub).
+    No live Snowflake/Databricks connectivity in this DEVELOPMENT release.
+    Not a Data Product. Not GxP validated.
+  tags:
+    - platform-component
+    - integration
+    - warehouse
+  annotations:
+    dataprod.platform/kind: platform-component
+    dataprod.platform/version: 0.1.0
+    dataprod.platform/category: integration
+    dataprod.platform/certification-status: DEVELOPMENT
+    dataprod.platform/compatible-standard-versions: 1.x
+  links:
+    - url: http://localhost:7007/docs/default/component/data-product-platform/platform-components/index
+      title: Documentation
+      icon: docs
+    - url: http://localhost:7007/platform-components/warehouse-sink
+      title: Platform Components
+spec:
+  type: platform-component
+  lifecycle: experimental
+  owner: group:default/platform-team
+  system: integration-platform

@@ -17,7 +17,10 @@ describe('StatusChip', () => {
 
   it('uses warn tone for NOT_VALIDATED', () => {
     render(<StatusChip value="NOT_VALIDATED" />);
-    expect(chipRoot('NOT_VALIDATED')).toHaveStyle({ color: '#9A3412' });
+    expect(chipRoot('NOT_VALIDATED')).toHaveStyle({
+      backgroundColor: '#FF8A00',
+      color: '#FFFFFF',
+    });
   });
 
   it('uses fail tone for FAIL', () => {

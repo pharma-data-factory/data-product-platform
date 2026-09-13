@@ -1,11 +1,17 @@
 import { Chip } from '@material-ui/core';
+import {
+  NEXORA_CYAN,
+  NEXORA_MUTED,
+  NEXORA_NAVY,
+  NEXORA_STATUS,
+} from '@internal/plugin-nexora-common';
 import { QualityStatus } from '../model';
 
 const STYLES: Record<QualityStatus, { backgroundColor: string; color: string }> =
   {
-    DEVELOPMENT: { backgroundColor: '#64748B', color: '#FFFFFF' },
-    TESTED: { backgroundColor: '#0A1929', color: '#FFFFFF' },
-    CERTIFIED: { backgroundColor: '#00C2D9', color: '#FFFFFF' },
+    DEVELOPMENT: { backgroundColor: NEXORA_MUTED, color: NEXORA_STATUS.onAccent },
+    TESTED: { backgroundColor: NEXORA_NAVY, color: NEXORA_STATUS.onAccent },
+    CERTIFIED: { backgroundColor: NEXORA_CYAN, color: NEXORA_STATUS.onAccent },
   };
 
 export function StatusChip({

@@ -114,16 +114,16 @@ export const BusinessCapabilityStep: FC<BusinessCapabilityStepProps> = ({
 
   useEffect(() => {
     let mounted = true;
-    api
-      .listRequirementSets()
-      .then(result => {
+    (async () => {
+      try {
+        const result = await api.listRequirementSets();
         if (mounted) {
           setExistingSets(result.items ?? []);
         }
-      })
-      .catch(() => {
+      } catch {
         // existing-set hint is informational only
-      });
+      }
+    })();
     return () => {
       mounted = false;
     };

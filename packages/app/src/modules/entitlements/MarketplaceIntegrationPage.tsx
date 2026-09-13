@@ -4,10 +4,9 @@ import { useApi } from '@backstage/core-plugin-api';
 import { Button, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import {
-  NEXORA_MUTED,
-  NEXORA_NAVY,
   NexoraSection,
   NexoraToolPage,
+  nexoraThemeColor,
   outlineButtonSx,
   primaryButtonSx,
   useNexoraToolStyles,
@@ -40,7 +39,7 @@ const useActionStyles = makeStyles(theme => ({
     minWidth: 0,
   },
   status: {
-    color: NEXORA_NAVY,
+    color: nexoraThemeColor.text,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 12,
     fontWeight: 600,
@@ -48,7 +47,7 @@ const useActionStyles = makeStyles(theme => ({
     textTransform: 'uppercase',
   },
   mutedLabel: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 12,
     fontWeight: 600,
     letterSpacing: '0.06em',

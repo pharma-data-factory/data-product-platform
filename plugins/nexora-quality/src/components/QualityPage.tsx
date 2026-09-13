@@ -14,6 +14,7 @@ import {
   NEXORA_MUTED,
   NexoraSection,
   NexoraToolPage,
+  nexoraThemeColor,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -46,7 +47,7 @@ const useStyles = makeStyles({
     color: NEXORA_MUTED,
   },
   empty: {
-    color: NEXORA_MUTED,
+    color: nexoraThemeColor.textMuted,
     fontSize: 14,
   },
 });

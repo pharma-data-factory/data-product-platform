@@ -404,7 +404,15 @@ export function DataProductDetailPage() {
                   </Typography>
                 </div>
                 <div id="ci-quality-gate">
-                  <CiQualityGateCard entityRef={product.entityRef} />
+                  <CiQualityGateCard
+                    entityRef={product.entityRef}
+                    pins={{
+                      productManifestContentHash:
+                        product.productManifestContentHash,
+                      ursBaselineId: product.ursBaselineId,
+                      productBaselineId: product.productBaselineId,
+                    }}
+                  />
                 </div>
                 <div id="platform-compliance">
                   <PlatformComplianceCard product={product} />

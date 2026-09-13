@@ -107,6 +107,12 @@ export interface ValidationEvidenceItem {
   createdAt: string;
   createdBy?: string;
   candidate?: string;
+  /** Immutable traceability snapshot (assigned product solution at write time). */
+  productId?: string;
+  productVersionId?: string;
+  productBaselineId?: string;
+  ursBaselineId?: string;
+  manifestHash?: string;
   source: 'artifact' | 'runtime';
 }
 
@@ -128,11 +134,18 @@ export interface ValidationTestExecution {
 
 export interface ValidationRun {
   id: string;
+  /** Display label derived from the assigned product version (not a proof). */
   candidate: string;
   candidateCommit?: string;
   baselineId: string;
   /** Optional Validation Context anchor (URS approved baseline handoff). */
   contextId?: string;
+  /** Immutable traceability snapshot of the assigned product solution. */
+  productId?: string;
+  productVersionId?: string;
+  productBaselineId?: string;
+  /** Immutable ProductManifest hash used for this test run. */
+  manifestHash?: string;
   type: ProtocolType;
   status: RunStatus;
   createdAt: string;
@@ -202,4 +215,11 @@ export interface CreateValidationContextRequest {
 }
 
 export type { ApprovedURSReference, ValidationContext };
+
+export type {
+  ValidationContextStatus,
+  ValidationContextProductRef,
+  ValidationContextAuditEvent,
+  AssignProductRequest,
+} from '@internal/platform-common';
 

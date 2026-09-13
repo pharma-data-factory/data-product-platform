@@ -23,18 +23,21 @@ import {
   Button,
 } from '@material-ui/core';
 import ArrowBackIcon from '@material-ui/icons/ArrowBack';
+import AssignmentIcon from '@material-ui/icons/Assignment';
+import { NEXORA_STATUS } from '@internal/plugin-nexora-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
   ChangeSet,
   RequirementChange,
   ChangeType,
 } from '../api/types';
+import { ImpactGraph } from '../components/ImpactGraph/ImpactGraph';
 
 const CHANGE_COLORS: Record<ChangeType, string> = {
-  ADDED: '#4caf50',
-  MODIFIED: '#ff9800',
-  REMOVED: '#f44336',
-  UNCHANGED: '#9e9e9e',
+  ADDED: NEXORA_STATUS.success,
+  MODIFIED: NEXORA_STATUS.warning,
+  REMOVED: NEXORA_STATUS.error,
+  UNCHANGED: NEXORA_STATUS.pending,
 };
 
 const FILTER_OPTIONS: Array<{ label: string; value: ChangeType | 'ALL' }> = [
@@ -99,7 +102,7 @@ export const ChangeSetPage: FC = () => {
             size="small"
             style={{
               backgroundColor: CHANGE_COLORS[row.changeType],
-              color: '#fff',
+              color: NEXORA_STATUS.onAccent,
               fontWeight: 600,
             }}
           />
@@ -183,10 +186,34 @@ export const ChangeSetPage: FC = () => {
     <Page themeId="tool">
       <Header title="Baseline Change Set" subtitle={subtitle} />
       <Content>
-        <Box marginBottom={2}>
+        <Box marginBottom={2} display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
           <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
             Back
           </Button>
+          <Button
+            color="primary"
+            variant="contained"
+            startIcon={<AssignmentIcon />}
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (id) params.set('baselineId', id);
+              if (changeSet.baselineVersion) {
+                params.set('baselineVersion', changeSet.baselineVersion);
+              }
+              navigate(
+                `/urs-composer/change-requests/new?${params.toString()}`,
+              );
+            }}
+          >
+            Raise Change Request
+          </Button>
+        </Box>
+
+        <Box marginBottom={3}>
+          <Typography variant="h6" gutterBottom>
+            Impact overview
+          </Typography>
+          <ImpactGraph changeSet={changeSet} />
         </Box>
 
         {/* Summary Cards */}

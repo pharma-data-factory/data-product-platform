@@ -17,6 +17,7 @@ import { ursComposerApiRef } from '../../../api/ursComposerApi';
 
 const mockApi = {
   listCapabilities: jest.fn(),
+  listRequirementSets: jest.fn().mockResolvedValue({ items: [], total: 0 }),
 };
 
 const renderStep = (state: URSWizardState, onStateChange: jest.Mock) =>
@@ -140,7 +141,7 @@ describe('BusinessCapabilityStep', () => {
       renderStep(stateWithSelection, mockOnStateChange);
 
       await waitFor(() => {
-        expect(screen.getByText('OEE Management')).toBeInTheDocument();
+        expect(screen.getAllByText('OEE Management').length).toBeGreaterThanOrEqual(2);
         expect(screen.getByText('Selected Capabilities:')).toBeInTheDocument();
       });
     });

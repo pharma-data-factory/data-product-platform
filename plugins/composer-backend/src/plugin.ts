@@ -16,6 +16,11 @@ import { createRouter } from './router';
 import { ComposerService } from './service';
 import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
+import { createHttpCatalogManifestPinResolver } from './catalog-pin-resolver';
+import { createHttpCiStatusResolver } from './ci-status-resolver';
+import { createHttpTechnicalEvidenceRegistrar } from './evidence-registrar';
+import { createHttpTechnicalEvidenceLookup } from './evidence-lookup';
+import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
 import {
   ComposerLLMClient,
   OpenAIComposerLLMClient,
@@ -70,9 +75,39 @@ export const composerPlugin = createBackendPlugin({
       async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config }) {
         const repository = await ComposerRepository.create(database);
         const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
+        const catalogManifestPinResolver = createHttpCatalogManifestPinResolver({
+          discovery,
+          auth,
+        });
+        const ciStatusResolver = createHttpCiStatusResolver({
+          discovery,
+          auth,
+        });
+        const technicalEvidenceRegistrar = createHttpTechnicalEvidenceRegistrar({
+          discovery,
+          auth,
+        });
+        const technicalEvidenceLookup = createHttpTechnicalEvidenceLookup({
+          discovery,
+          auth,
+        });
+        const validationDecisionResolver = createHttpValidationDecisionResolver({
+          discovery,
+          auth,
+        });
         const llmClient = createLLMClient(config, logger);
         const llmEnabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
-        const service = new ComposerService({ logger, repository, ursBaselineResolver, llmClient });
+        const service = new ComposerService({
+          logger,
+          repository,
+          ursBaselineResolver,
+          catalogManifestPinResolver,
+          ciStatusResolver,
+          technicalEvidenceRegistrar,
+          technicalEvidenceLookup,
+          validationDecisionResolver,
+          llmClient,
+        });
 
         httpRouter.use(
           await createRouter({ logger, httpAuth, permissions, service, llmEnabled }),

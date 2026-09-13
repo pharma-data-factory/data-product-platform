@@ -37,6 +37,14 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
 
+      # Fail-closed when Product Composer scaffolded a manifest hash into catalog-info.
+      # Unpinned Marketplace creates skip. Technical check only — not GxP validation.
+      - name: Manifest pin check
+        run: python scripts/check_manifest_pins.py catalog-info.yaml
+
+      - name: Digital thread check
+        run: python scripts/check_digital_thread.py . "${{ github.ref }}"
+
       - name: Install
         run: pip install -e ".[dev]"
 

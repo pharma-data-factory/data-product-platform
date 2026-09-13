@@ -15,6 +15,7 @@ import { createRouter } from './router';
 import { createDefaultRunnerRegistry } from './runners';
 import { ValidationExpertService } from './service';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
+import { createHttpProductComposerResolver } from './product-resolver';
 
 type PersistenceMode = 'postgres' | 'file' | 'memory';
 
@@ -117,6 +118,10 @@ export const validationExpertPlugin = createBackendPlugin({
           runners: createDefaultRunnerRegistry(),
           healthBaseUrl,
           ursBaselineResolver: createHttpUrsBaselineResolver({
+            discovery,
+            auth,
+          }),
+          productResolver: createHttpProductComposerResolver({
             discovery,
             auth,
           }),
