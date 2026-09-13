@@ -6,11 +6,11 @@
 #   yarn start --config app-config.yaml --config app-config.github.yaml
 
 # IMPORTANT: GitHub OAuth App callback is registered as localhost (not 127.0.0.1).
-# Open the app as http://localhost:7007 — never http://127.0.0.1:7007 — or the
+# Open the app as http://localhost:3000 — never http://127.0.0.1:3000 — or the
 # OAuth popup cannot return the session (different browser origins).
 app:
   title: Nexora
-  baseUrl: http://localhost:7007
+  baseUrl: http://localhost:3000
 
 backend:
   baseUrl: http://localhost:7007

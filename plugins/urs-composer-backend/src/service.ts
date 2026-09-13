@@ -1902,7 +1902,12 @@ export class URSService {
                 releasedAt,
               }
             : { ...current, status: next };
-        current = await repo.updateRequirementVersion(updated);
+        // updateRequirementVersion returns void and bumps the stored revision
+        // internally (optimistic concurrency), so the next transition must
+        // start from what we asked to be written, with the revision advanced
+        // the same way the repository advances it.
+        await repo.updateRequirementVersion(updated);
+        current = { ...updated, revision: (current.revision || 1) + 1 };
       }
 
       await repo.createAuditEvent({
@@ -2299,6 +2304,14 @@ export class URSService {
       instance.steps.push(step);
     }
 
+    // The UI offers the approval action only on the ACTIVE step. Without
+    // activating the first required step here the chain could never begin:
+    // every step would stay PENDING and no approve button would ever render.
+    const firstRequired = instance.steps.find(s => s.required);
+    if (firstRequired) {
+      firstRequired.status = ApprovalStepStatus.ACTIVE;
+    }
+
     await this.repository.createApprovalInstance(instance);
 
     await this.repository.createAuditEvent({
@@ -2346,7 +2359,11 @@ export class URSService {
     }
 
     if (baseline.status !== 'DRAFT') {
-      throw new Error(`Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`);
+      // A repeat submit is a client/state error, not a server fault: map it to
+      // 409 so the caller sees why instead of a generic 500.
+      throw new ConflictError(
+        `Baseline ${baselineId} cannot be submitted in status ${baseline.status}. Only DRAFT baselines can be submitted.`,
+      );
     }
 
     // Select workflow: GxP relevance determines standard or non-GxP workflow.
@@ -2365,10 +2382,13 @@ export class URSService {
       actor,
     );
 
-    // Update baseline status to IN_REVIEW
+    // Update baseline status to IN_REVIEW. The instance link is persisted on
+    // the baseline so the UI can recover the in-flight workflow after a reload
+    // instead of offering "Submit for Approval" again on an IN_REVIEW baseline.
     await this.repository.updateBaseline({
       ...baseline,
       status: URSStatus.IN_REVIEW,
+      approvalInstanceId: instance.id,
       revision: baseline.revision || 1,
     });
 

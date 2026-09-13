@@ -35,7 +35,7 @@ metadata:
 spec:
   profile:
     displayName: Markus Schmeckenbecher
-  memberOf: [platform-admins]
+  memberOf: [platform-admins, urs-quality-reviewers]
 ---
 apiVersion: backstage.io/v1alpha1
 kind: User

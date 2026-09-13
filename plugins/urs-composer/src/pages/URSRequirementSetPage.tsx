@@ -2,7 +2,7 @@
  * URS Requirement Set Detail Page
  */
 
-import { useEffect, useState, useMemo, type FC, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, useMemo, type FC, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -325,43 +325,37 @@ export const URSRequirementSetPage: FC = () => {
 
   // Load any approved baseline for this requirement set (entry gate for a
   // Validation Context). Backend remains authoritative.
-  useEffect(() => {
+  const refreshBaselines = useCallback(async () => {
     if (!id) {
-      return undefined;
+      return;
     }
-    let mounted = true;
-    api
-      .listBaselines(id)
-      .then(baselineItems => {
-        if (mounted) {
-          setBaselines(baselineItems);
-          const approved = baselineItems.find(
-            b => String(b.status).toUpperCase() === 'APPROVED',
-          );
-          setApprovedBaselineId(approved ? approved.id : null);
-          if (approved) {
-            api
-              .findValidationContext(id, approved.id)
-              .then(existing => {
-                if (mounted && existing?.id) {
-                  setValidationContextId(existing.id);
-                }
-              })
-              .catch(() => {
-                // optional restore
-              });
-          } else if (mounted) {
-            setValidationContextId(null);
+    try {
+      const baselineItems = await api.listBaselines(id);
+      setBaselines(baselineItems);
+      const approved = baselineItems.find(
+        b => String(b.status).toUpperCase() === 'APPROVED',
+      );
+      setApprovedBaselineId(approved ? approved.id : null);
+      if (approved) {
+        try {
+          const existing = await api.findValidationContext(id, approved.id);
+          if (existing?.id) {
+            setValidationContextId(existing.id);
           }
+        } catch {
+          // optional restore
         }
-      })
-      .catch(() => {
-        // baselines may be unsupported/empty — not fatal
-      });
-    return () => {
-      mounted = false;
-    };
+      } else {
+        setValidationContextId(null);
+      }
+    } catch {
+      // baselines may be unsupported/empty — not fatal
+    }
   }, [id, api]);
+
+  useEffect(() => {
+    void refreshBaselines();
+  }, [refreshBaselines]);
 
   // Resolve the predecessor version when this set is a revision.
   const supersedesRef = set?.supersedesRef;
@@ -480,6 +474,9 @@ export const URSRequirementSetPage: FC = () => {
       });
       setApprovalInstance(updated);
       setStepComments(prev => { const next = { ...prev }; delete next[stepId]; return next; });
+      // The final step releases the baseline and approves the set; without a
+      // refetch the header keeps showing the pre-approval status (e.g. DRAFT).
+      await Promise.allSettled([reload(), refreshBaselines()]);
     } catch (err: any) {
       setActionError(err.message || 'Failed to approve step');
       throw err;
@@ -564,17 +561,40 @@ export const URSRequirementSetPage: FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Load approval instance when a baseline has one
+  // Load the in-flight approval instance across all baselines. Finished
+  // instances (APPROVED/REJECTED/CANCELLED) are ignored, otherwise a stale
+  // chain on the newest baseline would hide the chain that is still running
+  // and block the Create/Submit buttons.
   useEffect(() => {
-    const baselineWithApproval = baselines.find(
-      b => b.approvalInstanceId,
-    );
-    if (baselineWithApproval && baselineWithApproval.approvalInstanceId) {
-      api
-        .getApprovalInstance(baselineWithApproval.approvalInstanceId)
-        .then(setApprovalInstance)
-        .catch(() => {});
-    }
+    let cancelled = false;
+    (async () => {
+      const active: ApprovalInstance[] = [];
+      for (const b of [...baselines].reverse()) {
+        const instances = await api.getBaselineApprovals(b.id).catch(() => null);
+        if (instances && instances.length > 0) {
+          for (const inst of instances) {
+            const status = String(inst.status);
+            if (status === 'NOT_STARTED' || status === 'IN_PROGRESS') {
+              active.push(inst);
+            }
+          }
+        }
+      }
+      if (cancelled) {
+        return;
+      }
+      // Prefer the chain with actual progress (IN_PROGRESS) over a freshly
+      // submitted one, then the newest baseline.
+      active.sort((a, b) => {
+        const aScore = String(a.status) === 'IN_PROGRESS' ? 1 : 0;
+        const bScore = String(b.status) === 'IN_PROGRESS' ? 1 : 0;
+        return bScore - aScore;
+      });
+      setApprovalInstance(active.length > 0 ? active[0] : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [baselines, api]);
 
   if (loading) {
@@ -1109,7 +1129,7 @@ export const URSRequirementSetPage: FC = () => {
                         <Typography variant="body2">
                           v{b.baselineVersion} — {b.status}
                         </Typography>
-                        {String(b.status).toUpperCase() !== 'APPROVED' && !b.approvalInstanceId && (
+                        {String(b.status).toUpperCase() === 'DRAFT' && !b.approvalInstanceId && (
                           <Button
                             size="small"
                             variant="outlined"

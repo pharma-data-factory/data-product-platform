@@ -43,6 +43,7 @@ import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
 import GroupIcon from '@material-ui/icons/Group';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
 import StoreIcon from '@material-ui/icons/Store';
+import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 export const SidebarContent = NavContentBlueprint.make({
   params: {
@@ -151,6 +152,7 @@ function PlatformSidebar() {
 
           <SidebarItem icon={StorefrontIcon} to="/marketplace" text="Marketplace" />
           <SidebarItem icon={BusinessIcon} to="/model-company" text="Model Company" />
+          <SidebarItem icon={AccountTreeIcon} to="/data-map" text="Data Map" />
 
           {admin ? (
             <SidebarItem icon={AdminIcon} to="/admin" text="Admin">

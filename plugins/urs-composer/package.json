@@ -52,5 +52,10 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "jest": {
+    "transformIgnorePatterns": [
+      "/node_modules/(?:@material-ui|ajv|core-js|jest-.*|jsdom|knex|react|react-dom|highlight\\.js|prismjs|json-schema|react-use/lib|typescript|@xyflow|@reactflow|classcat|zustand|d3-|@dagrejs)/"
+    ]
+  }
 }

@@ -39,6 +39,14 @@ export {
   NexoraToolPage,
   useNexoraToolStyles,
 } from './components/NexoraToolPage';
+export { NexoraGraphMap } from './components/NexoraGraphMap/NexoraGraphMap';
+export type {
+  NexoraGraphEdge,
+  NexoraGraphMapProps,
+  NexoraGraphNode,
+  NexoraLayoutDirection,
+  NexoraNodeKind,
+} from './components/NexoraGraphMap/types';
 export {
   NEXORA_CONTROL,
   filterChipSx,
