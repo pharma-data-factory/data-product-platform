@@ -1,0 +1,1 @@
+${{ values.traceabilityMatrixYaml if values.traceabilityMatrixYaml else '# URS Requirement → Design/Component → Source/PR → Test → Evidence\nmatrix: []\n' }}

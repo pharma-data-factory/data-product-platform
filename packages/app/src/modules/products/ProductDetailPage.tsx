@@ -299,8 +299,21 @@ export function ProductDetailPage() {
   const latestVersion = versions[versions.length - 1];
 
   const createVersion = async () => {
+    if (!selectedUrsBaselineId) {
+      setActionError(
+        'Select an APPROVED URS baseline before creating a ProductVersion',
+      );
+      return;
+    }
     try {
-      await client.createProductVersion(productId);
+      const selected = approvedUrsOptions.find(
+        o => o.id === selectedUrsBaselineId,
+      );
+      await client.createProductVersion(productId, {
+        ursBaselineId: selectedUrsBaselineId,
+        requirementSetId: selected?.requirementSetId,
+        ursVersion: selected?.baselineVersion,
+      });
       await load();
     } catch (e) {
       setError(e as Error);
@@ -542,7 +555,12 @@ export function ProductDetailPage() {
               }}
             >
               <Typography variant="h6">Release Management</Typography>
-              <Button variant="contained" color="primary" onClick={createVersion}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={createVersion}
+                disabled={!selectedUrsBaselineId}
+              >
                 New version
               </Button>
             </div>

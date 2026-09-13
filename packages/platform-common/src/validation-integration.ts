@@ -70,6 +70,13 @@ export interface ValidationContextProductRef {
   productName?: string;
   productVersion?: string;
   productBaselineVersion?: string;
+  /** Digital-thread pins — Validation stores IDs only, never mutates URS/Product. */
+  manifestHash?: string;
+  gitRepositoryUrl?: string;
+  commitSha?: string;
+  releaseCandidateCommitSha?: string;
+  ursBaselineId?: string;
+  changeAssessmentId?: string;
   assignedAt: string;
   assignedBy?: string;
 }
@@ -86,6 +93,15 @@ export interface ValidationContext {
   status: ValidationContextStatus;
   /** Product assignment. Required for READY_FOR_VALIDATION and beyond. */
   productRef?: ValidationContextProductRef;
+  /** Open change-impact / retest markers for a newly assigned URS baseline. */
+  retestItems?: Array<{
+    requirementId: string;
+    status: 'RETEST_REQUIRED' | 'CARRIED_FORWARD' | 'CLEARED' | 'IMPACTED';
+    relatedTestIds: string[];
+    evidenceIds: string[];
+    updatedAt: string;
+  }>;
+  changeAssessmentId?: string;
   summary?: string;
   createdAt: string;
   createdBy?: string;
@@ -97,9 +113,20 @@ export type CreateValidationContextRequest = {
 };
 
 export type AssignProductRequest = {
+  ursBaselineId: string;
   productId: string;
   productVersionId: string;
   productBaselineId: string;
+  manifestHash: string;
+  gitRepositoryUrl?: string;
+  commitSha?: string;
+  releaseCandidateCommitSha?: string;
+  /** Optional impact payload from Product Composer when URS succession occurs. */
+  changeAssessment?: {
+    id: string;
+    retestRequiredRequirementIds: string[];
+    carriedForwardRequirementIds: string[];
+  };
 };
 
 /**

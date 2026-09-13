@@ -218,10 +218,12 @@ export async function createRouter(
           req,
           productManagePermission,
         );
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
         const version = await service.createProductVersion(
           req.params.id,
           req.body as CreateProductVersionRequest,
           actor,
+          credentials,
         );
         res.status(201).json(version);
       } catch (err) {

@@ -48,6 +48,7 @@ function mapRun(row: Record<string, unknown>): ValidationRun {
     productBaselineId: row.product_baseline_id
       ? String(row.product_baseline_id)
       : undefined,
+    manifestHash: row.manifest_hash ? String(row.manifest_hash) : undefined,
     type: String(row.type) as ProtocolType,
     status: String(row.status) as ValidationRun['status'],
     createdAt: String(row.created_at),
@@ -101,6 +102,7 @@ function mapEvidence(row: Record<string, unknown>): ValidationEvidenceItem {
     ursBaselineId: row.urs_baseline_id
       ? String(row.urs_baseline_id)
       : undefined,
+    manifestHash: row.manifest_hash ? String(row.manifest_hash) : undefined,
     source: String(row.source) as ValidationEvidenceItem['source'],
   };
 }
@@ -142,6 +144,13 @@ function mapContext(row: Record<string, unknown>): ValidationContext {
     },
     status: String(row.status) as ValidationContext['status'],
     productRef,
+    retestItems: parseJson<ValidationContext['retestItems']>(
+      row.retest_items,
+      undefined,
+    ),
+    changeAssessmentId: row.change_assessment_id
+      ? String(row.change_assessment_id)
+      : undefined,
     createdAt: String(row.created_at),
     createdBy: String(row.created_by),
   };
@@ -177,6 +186,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
     productId?: string;
     productVersionId?: string;
     productBaselineId?: string;
+    manifestHash?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     return this.db.transaction(async trx => {
@@ -205,6 +215,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         productId: input.productId,
         productVersionId: input.productVersionId,
         productBaselineId: input.productBaselineId,
+        manifestHash: input.manifestHash,
         type: input.type,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
@@ -221,6 +232,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         product_id: run.productId ?? null,
         product_version_id: run.productVersionId ?? null,
         product_baseline_id: run.productBaselineId ?? null,
+        manifest_hash: run.manifestHash ?? null,
         type: run.type,
         status: run.status,
         created_at: run.createdAt,
@@ -253,6 +265,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         product_id: run.productId ?? null,
         product_version_id: run.productVersionId ?? null,
         product_baseline_id: run.productBaselineId ?? null,
+        manifest_hash: run.manifestHash ?? null,
         type: run.type,
         status: run.status,
         created_at: run.createdAt,
@@ -316,6 +329,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       product_version_id: item.productVersionId ?? null,
       product_baseline_id: item.productBaselineId ?? null,
       urs_baseline_id: item.ursBaselineId ?? null,
+      manifest_hash: item.manifestHash ?? null,
       source: item.source,
     });
   }
@@ -375,6 +389,10 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       product_ref: context.productRef
         ? JSON.stringify(context.productRef)
         : null,
+      retest_items: context.retestItems
+        ? JSON.stringify(context.retestItems)
+        : null,
+      change_assessment_id: context.changeAssessmentId ?? null,
       created_at: context.createdAt,
       created_by: context.createdBy,
     });
@@ -391,6 +409,10 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         product_ref: context.productRef
           ? JSON.stringify(context.productRef)
           : null,
+        retest_items: context.retestItems
+          ? JSON.stringify(context.retestItems)
+          : null,
+        change_assessment_id: context.changeAssessmentId ?? null,
       });
     if (updated === 0) {
       throw new Error(`Unknown context ${context.id}`);

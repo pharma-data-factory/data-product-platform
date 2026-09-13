@@ -42,6 +42,9 @@ jobs:
       - name: Manifest pin check
         run: python scripts/check_manifest_pins.py catalog-info.yaml
 
+      - name: Digital thread check
+        run: python scripts/check_digital_thread.py . "${{ github.ref }}"
+
       - name: Install
         run: pip install -e ".[dev]"
 

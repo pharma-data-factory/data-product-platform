@@ -169,6 +169,51 @@ spec:
           type: string
           description: Optional. Product Composer product id.
           default: ""
+        requirementSetId:
+          title: Requirement Set ID
+          type: string
+          description: Optional. URS requirement set id pinned by Product Composer.
+          default: ""
+        ursVersion:
+          title: URS Baseline Version
+          type: string
+          description: Optional. URS baseline version string.
+          default: ""
+        ursContentHash:
+          title: URS Content Hash
+          type: string
+          description: Optional. SHA-256 of the approved URS baseline pin.
+          default: ""
+        productManifestYaml:
+          title: Product Manifest YAML
+          type: string
+          description: Optional. Controlled product-manifest.yaml body from Product Composer.
+          default: ""
+          ui:widget: textarea
+        ursBaselineJson:
+          title: URS Baseline JSON Snapshot
+          type: string
+          description: Optional. Immutable URS baseline JSON export.
+          default: ""
+          ui:widget: textarea
+        ursBaselineMd:
+          title: URS Baseline Markdown Snapshot
+          type: string
+          description: Optional. Immutable URS baseline Markdown export.
+          default: ""
+          ui:widget: textarea
+        traceabilityMatrixYaml:
+          title: Traceability Matrix YAML
+          type: string
+          description: Optional. Traceability matrix template body.
+          default: ""
+          ui:widget: textarea
+        agentsMd:
+          title: AGENTS.md
+          type: string
+          description: Optional. AI/developer instructions for the controlled repo.
+          default: ""
+          ui:widget: textarea
   steps:
     - id: fetch-base
       name: Fetch OEE data product skeleton
@@ -206,6 +251,14 @@ spec:
           productBaselineId: ${{ parameters.productBaselineId }}
           productVersionId: ${{ parameters.productVersionId }}
           productId: ${{ parameters.productId }}
+          requirementSetId: ${{ parameters.requirementSetId }}
+          ursVersion: ${{ parameters.ursVersion }}
+          ursContentHash: ${{ parameters.ursContentHash }}
+          productManifestYaml: ${{ parameters.productManifestYaml }}
+          ursBaselineJson: ${{ parameters.ursBaselineJson }}
+          ursBaselineMd: ${{ parameters.ursBaselineMd }}
+          traceabilityMatrixYaml: ${{ parameters.traceabilityMatrixYaml }}
+          agentsMd: ${{ parameters.agentsMd }}
     - id: publish
       name: Publish to GitHub
       action: publish:github

@@ -119,7 +119,17 @@ export interface ComposerClient {
   createProduct(input: Record<string, unknown>): Promise<Product>;
   listProducts(): Promise<{ items: Product[]; total: number }>;
   getProduct(id: string): Promise<Product>;
-  createProductVersion(productId: string): Promise<ProductVersion>;
+  createProductVersion(
+    productId: string,
+    input: {
+      version?: string;
+      changelog?: string;
+      ursBaselineId: string;
+      requirementSetId?: string;
+      ursVersion?: string;
+      ursContentHash?: string;
+    },
+  ): Promise<ProductVersion>;
   listProductVersions(productId: string): Promise<ProductVersion[]>;
   addProductComponent(
     versionId: string,
@@ -183,8 +193,8 @@ export function useComposerClient(): ComposerClient {
     createProduct: input => request('POST', '/products', input),
     listProducts: () => request('GET', '/products'),
     getProduct: id => request('GET', `/products/${id}`),
-    createProductVersion: productId =>
-      request('POST', `/products/${productId}/versions`, {}),
+    createProductVersion: (productId, input) =>
+      request('POST', `/products/${productId}/versions`, input),
     listProductVersions: productId =>
       request('GET', `/products/${productId}/versions`),
     addProductComponent: (versionId, input) =>

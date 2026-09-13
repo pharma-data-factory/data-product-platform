@@ -22,6 +22,9 @@ export interface BuildProductManifestInput {
   productVersionId: string;
   productBaselineId: string;
   ursBaselineId: string;
+  requirementSetId: string;
+  ursVersion: string;
+  ursContentHash: string;
   components: ProductComponent[];
   contracts: DataContract[];
   policies?: ProductManifest['spec']['policies'];
@@ -92,6 +95,9 @@ export function buildProductManifest(
     },
     spec: {
       ursBaselineId: input.ursBaselineId,
+      requirementSetId: input.requirementSetId,
+      ursVersion: input.ursVersion,
+      ursContentHash: input.ursContentHash,
       components,
       dataContracts,
       policies: input.policies ?? [],

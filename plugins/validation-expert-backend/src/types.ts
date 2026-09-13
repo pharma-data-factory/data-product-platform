@@ -112,6 +112,7 @@ export interface ValidationEvidenceItem {
   productVersionId?: string;
   productBaselineId?: string;
   ursBaselineId?: string;
+  manifestHash?: string;
   source: 'artifact' | 'runtime';
 }
 
@@ -143,6 +144,8 @@ export interface ValidationRun {
   productId?: string;
   productVersionId?: string;
   productBaselineId?: string;
+  /** Immutable ProductManifest hash used for this test run. */
+  manifestHash?: string;
   type: ProtocolType;
   status: RunStatus;
   createdAt: string;

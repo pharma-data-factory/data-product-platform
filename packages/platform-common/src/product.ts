@@ -97,6 +97,14 @@ export interface ProductVersion {
   releaseCommitSha?: string;
   artifactDigest?: string;
   baselineId?: string;
+  /**
+   * Immutable URS pin selected when the controlled ProductVersion is created.
+   * Required for controlled versions; copied onto ProductBaseline on baseline create.
+   */
+  requirementSetId: string;
+  ursBaselineId: string;
+  ursVersion: string;
+  ursContentHash: string;
   createdBy: string;
   createdAt: Date;
   approvedBy?: string;
@@ -179,8 +187,11 @@ export interface ProductBaseline {
   baselineVersion: string;
   status: ProductBaselineStatus;
   snapshot: Record<string, unknown>;
-  /** Exactly one APPROVED URS baseline — required for controlled product baselines. */
+  /** Exactly one APPROVED/BASELINED URS baseline — required for controlled product baselines. */
   ursBaselineId: string;
+  requirementSetId: string;
+  ursVersion: string;
+  ursContentHash: string;
   /**
    * @deprecated Prefer ursBaselineId. Kept for read-compat with legacy rows.
    */
@@ -251,6 +262,9 @@ export interface ProductManifest {
   };
   spec: {
     ursBaselineId: string;
+    requirementSetId: string;
+    ursVersion: string;
+    ursContentHash: string;
     components: ProductManifestComponent[];
     dataContracts: ProductManifestDataContract[];
     policies: ProductManifestPolicy[];

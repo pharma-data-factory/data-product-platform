@@ -8,6 +8,7 @@ import {
   PersistedProductManifest,
   ProductChangeSignal,
 } from './types';
+import type { ChangeImpactAssessment } from '@internal/platform-common';
 
 export interface ComposerAuditEvent {
   id: string;
@@ -66,6 +67,16 @@ export interface IComposerRepository {
   listProductChangeSignals(
     productVersionId: string,
   ): Promise<ProductChangeSignal[]>;
+
+  createChangeAssessment(
+    assessment: ChangeImpactAssessment,
+  ): Promise<ChangeImpactAssessment>;
+  listChangeAssessments(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment[]>;
+  getOpenChangeAssessment(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment | null>;
 
   createAuditEvent(event: ComposerAuditEvent): Promise<void>;
   getEntityAuditTrail(entityType: string, entityId: string): Promise<ComposerAuditEvent[]>;

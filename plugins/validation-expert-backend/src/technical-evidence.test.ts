@@ -10,16 +10,17 @@ const root = resolveValidationRoot(
 );
 
 const PRODUCT_REF = {
+  ursBaselineId: 'urs-1',
   productId: 'product-1',
   productVersionId: 'version-1',
   productBaselineId: 'baseline-1',
+  manifestHash: 'a'.repeat(64),
 };
 
 function makeReference(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
     kind: 'ci-quality-gate',
-    ursBaselineId: 'urs-1',
-    manifestContentHash: 'abc',
+    manifestContentHash: PRODUCT_REF.manifestHash,
     disclaimer: 'technical-control-not-gxp',
     ...PRODUCT_REF,
     ...overrides,

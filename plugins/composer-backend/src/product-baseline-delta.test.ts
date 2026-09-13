@@ -34,12 +34,22 @@ describe('Product Baseline Delta', () => {
       id,
       status: 'APPROVED',
       baselineVersion: '1.0',
+      requirementSetId: 'set-1',
+      contentHash: 'a'.repeat(64),
     })),
-    resolveBaselineContext: jest.fn(),
+    resolveBaselineContext: jest.fn(async (id: string) => ({
+      baselineId: id,
+      baselineVersion: '1.0',
+      requirementSetId: 'set-1',
+      businessCapabilities: [],
+      requirements: [],
+    })),
     inspectBaseline: jest.fn(async (id: string) => ({
       id,
       status: 'APPROVED',
       baselineVersion: '1.0',
+      requirementSetId: 'set-1',
+      contentHash: 'a'.repeat(64),
     })),
     listApprovedBaselines: jest.fn(async () => []),
     listChangeRequests: jest.fn(async () => ({ items: [], total: 0 })),
@@ -67,8 +77,15 @@ describe('Product Baseline Delta', () => {
     );
     const version = await service.createProductVersion(
       product.id,
-      { version: '1.0' },
+      {
+        version: '1.0',
+        requirementSetId: 'set-1',
+        ursBaselineId,
+        ursVersion: '1.0',
+        ursContentHash: 'a'.repeat(64),
+      },
       actor,
+      credentials,
     );
     for (const name of componentNames) {
       await service.addProductComponent(

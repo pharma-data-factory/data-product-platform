@@ -157,9 +157,11 @@ export function ContextDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [audit, setAudit] = useState<ValidationContextAuditEvent[] | null>(null);
   const [assign, setAssign] = useState<AssignProductRequest>({
+    ursBaselineId: '',
     productId: '',
     productVersionId: '',
     productBaselineId: '',
+    manifestHash: '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -170,7 +172,13 @@ export function ContextDetailPage() {
     }
     api
       .getContext(contextId)
-      .then(setContext)
+      .then(item => {
+        setContext(item);
+        setAssign(previous => ({
+          ...previous,
+          ursBaselineId: item.source.baselineId,
+        }));
+      })
       .catch(err => setError(err instanceof Error ? err.message : 'Failed'));
   }, [api, contextId]);
 
@@ -312,7 +320,11 @@ export function ContextDetailPage() {
 
   const { source, productRef } = context;
   const requirementIds = source.requirementIds ?? [];
-  const executable = EXECUTABLE_STATUSES.includes(context.status);
+  const hasOpenRetest = (context.retestItems || []).some(
+    item => item.status === 'RETEST_REQUIRED',
+  );
+  const executable =
+    EXECUTABLE_STATUSES.includes(context.status) && !hasOpenRetest;
 
   let runStartArea: ReactNode;
   if (!canStart) {
@@ -324,8 +336,9 @@ export function ContextDetailPage() {
   } else if (!executable) {
     runStartArea = (
       <Typography variant="body2" color="textSecondary" paragraph>
-        Run start is blocked until a product solution is assigned and the
-        context is READY_FOR_VALIDATION or ACTIVE.
+        {hasOpenRetest
+          ? 'Run start is blocked until all RETEST_REQUIRED items are cleared.'
+          : 'Run start is blocked until a product solution is assigned and the context is READY_FOR_VALIDATION or ACTIVE.'}
       </Typography>
     );
   } else {
@@ -478,6 +491,18 @@ export function ContextDetailPage() {
                 .filter(Boolean)
                 .join(' · ')}
             </Typography>
+            <Typography variant="body2" color="textSecondary">
+              URS baseline: {productRef.ursBaselineId || source.baselineId}
+              <br />
+              Manifest hash: {productRef.manifestHash || '—'}
+              <br />
+              Repository: {productRef.gitRepositoryUrl || '—'}
+              <br />
+              Commit:{' '}
+              {productRef.releaseCandidateCommitSha ||
+                productRef.commitSha ||
+                '—'}
+            </Typography>
             {canReview &&
             (context.status === 'READY_FOR_VALIDATION' ||
               context.status === 'ACTIVE') ? (
@@ -543,6 +568,42 @@ export function ContextDetailPage() {
                   }))
                 }
               />
+              <TextField
+                size="small"
+                label="Manifest SHA-256"
+                variant="outlined"
+                value={assign.manifestHash}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    manifestHash: event.target.value,
+                  }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Git Repository URL"
+                variant="outlined"
+                value={assign.gitRepositoryUrl || ''}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    gitRepositoryUrl: event.target.value,
+                  }))
+                }
+              />
+              <TextField
+                size="small"
+                label="Commit SHA"
+                variant="outlined"
+                value={assign.commitSha || ''}
+                onChange={event =>
+                  setAssign(prev => ({
+                    ...prev,
+                    commitSha: event.target.value,
+                  }))
+                }
+              />
               <PrimaryActionButton
                 disabled={Boolean(actionBusy)}
                 onClick={doAssign}
@@ -553,6 +614,57 @@ export function ContextDetailPage() {
           </Box>
         ) : null}
       </Box>
+
+      {context.changeAssessmentId || context.retestItems?.length ? (
+        <Box
+          mt={2}
+          mb={2}
+          p={2}
+          style={{
+            border: `1px solid ${NX.border}`,
+            borderRadius: 8,
+            background: NX.card,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Change impact assessment
+          </Typography>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Assessment {context.changeAssessmentId || '—'} · technical control,
+            not a GxP validation claim.
+          </Typography>
+          <Table size="small" aria-label="Change impact and retest status">
+            <TableHead>
+              <TableRow>
+                <TableCell>Requirement</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Tests</TableCell>
+                <TableCell>Evidence</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(context.retestItems || []).map(item => (
+                <TableRow key={`${item.requirementId}-${item.status}`}>
+                  <TableCell style={{ fontFamily: 'monospace' }}>
+                    {item.requirementId}
+                  </TableCell>
+                  <TableCell>
+                    <StatusChip value={item.status} />
+                  </TableCell>
+                  <TableCell>
+                    {item.relatedTestIds.length
+                      ? item.relatedTestIds.join(', ')
+                      : '—'}
+                  </TableCell>
+                  <TableCell>
+                    {item.evidenceIds.length ? item.evidenceIds.join(', ') : '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      ) : null}
 
       {actionError ? (
         <Typography color="error" paragraph>

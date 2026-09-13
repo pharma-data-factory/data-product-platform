@@ -134,7 +134,7 @@ describeWhenSqlite('W&D seed persistence', () => {
       .where({ requirement_id: target.requirementId })
       .del();
 
-    const setsBefore = await db('requirement_sets').count({ n: '*' });
+    const [setsBefore] = await db('requirement_sets').count({ n: '*' });
     await runMigrations(db);
 
     const versions = await repository.getRequirementVersions(target.requirementId);
@@ -145,7 +145,7 @@ describeWhenSqlite('W&D seed persistence', () => {
     const again = await repository.getRequirementVersions(target.requirementId);
     expect(again).toHaveLength(1);
 
-    const setsAfter = await db('requirement_sets').count({ n: '*' });
+    const [setsAfter] = await db('requirement_sets').count({ n: '*' });
     expect(Number(setsAfter.n)).toBe(Number(setsBefore.n));
   });
 

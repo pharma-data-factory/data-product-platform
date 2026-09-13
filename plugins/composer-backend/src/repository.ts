@@ -18,6 +18,7 @@ import {
   ProductManifest,
   ProductChangeSignal,
 } from './types';
+import type { ChangeImpactAssessment } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
 
@@ -112,6 +113,11 @@ export class ComposerRepository implements IComposerRepository {
       version_number: version.versionNumber,
       status: version.status,
       changelog: version.changelog || null,
+      parent_version_id: version.parentVersionId || null,
+      requirement_set_id: version.requirementSetId,
+      urs_baseline_id: version.ursBaselineId,
+      urs_version: version.ursVersion,
+      urs_content_hash: version.ursContentHash,
       created_by: version.createdBy,
       created_at: version.createdAt,
       revision: version.revision || 1,
@@ -260,6 +266,9 @@ export class ComposerRepository implements IComposerRepository {
       status: baseline.status,
       snapshot: JSON.stringify(baseline.snapshot),
       urs_baseline_id: baseline.ursBaselineId,
+      requirement_set_id: baseline.requirementSetId,
+      urs_version: baseline.ursVersion,
+      urs_content_hash: baseline.ursContentHash,
       urs_baseline_ids: JSON.stringify(
         baseline.ursBaselineIds ?? [baseline.ursBaselineId],
       ),
@@ -381,6 +390,44 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((row: any) => this.rowToProductChangeSignal(row));
   }
 
+  async createChangeAssessment(
+    assessment: ChangeImpactAssessment,
+  ): Promise<ChangeImpactAssessment> {
+    await this.db('product_change_assessments').insert({
+      id: assessment.id,
+      product_id: assessment.productId,
+      product_version_id: assessment.productVersionId,
+      product_baseline_id: assessment.productBaselineId,
+      previous_urs_baseline_id: assessment.previousUrsBaselineId ?? null,
+      urs_baseline_id: assessment.ursBaselineId,
+      requirement_set_id: assessment.requirementSetId,
+      document: JSON.stringify(assessment),
+      status: assessment.status,
+      created_by: assessment.createdBy,
+      created_at: assessment.createdAt,
+    });
+    return assessment;
+  }
+
+  async listChangeAssessments(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment[]> {
+    const rows = await this.db('product_change_assessments')
+      .where({ product_version_id: productVersionId })
+      .orderBy('created_at', 'desc');
+    return rows.map((row: any) => JSON.parse(row.document) as ChangeImpactAssessment);
+  }
+
+  async getOpenChangeAssessment(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment | null> {
+    const row = await this.db('product_change_assessments')
+      .where({ product_version_id: productVersionId, status: 'OPEN' })
+      .orderBy('created_at', 'desc')
+      .first();
+    return row ? (JSON.parse(row.document) as ChangeImpactAssessment) : null;
+  }
+
   private rowToProductChangeSignal(row: any): ProductChangeSignal {
     return {
       id: row.id,
@@ -435,6 +482,10 @@ export class ComposerRepository implements IComposerRepository {
       releaseCommitSha: row.release_commit_sha || undefined,
       artifactDigest: row.artifact_digest || undefined,
       baselineId: row.baseline_id || undefined,
+      requirementSetId: row.requirement_set_id || '',
+      ursBaselineId: row.urs_baseline_id || '',
+      ursVersion: row.urs_version || '',
+      ursContentHash: row.urs_content_hash || '',
       createdBy: row.created_by,
       createdAt: row.created_at,
       approvedBy: row.approved_by,
@@ -524,6 +575,9 @@ export class ComposerRepository implements IComposerRepository {
       status: row.status,
       snapshot: JSON.parse(row.snapshot),
       ursBaselineId,
+      requirementSetId: row.requirement_set_id || '',
+      ursVersion: row.urs_version || '',
+      ursContentHash: row.urs_content_hash || '',
       ursBaselineIds: legacyIds ?? (ursBaselineId ? [ursBaselineId] : undefined),
       createdBy: row.created_by,
       createdAt: row.created_at,

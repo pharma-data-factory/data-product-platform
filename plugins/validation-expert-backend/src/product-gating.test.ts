@@ -22,15 +22,19 @@ const root = resolveValidationRoot(
 );
 
 const PRODUCT_V1 = {
+  ursBaselineId: 'baseline-urs-1',
   productId: 'product-1',
   productVersionId: 'version-1',
   productBaselineId: 'baseline-1',
+  manifestHash: 'a'.repeat(64),
 };
 
 const PRODUCT_V2 = {
+  ursBaselineId: 'baseline-urs-1',
   productId: 'product-1',
   productVersionId: 'version-2',
   productBaselineId: 'baseline-2',
+  manifestHash: 'b'.repeat(64),
 };
 
 function makeReference(
@@ -206,9 +210,8 @@ describe('P0 product/version gating', () => {
     await expect(
       resolver.resolveProductRef(
         {
-          productId: 'product-1',
+          ...PRODUCT_V1,
           productVersionId: 'version-foreign',
-          productBaselineId: 'baseline-1',
         },
         'baseline-urs-1',
         { principal: { userEntityRef: 'user:default/author' } },
@@ -217,9 +220,8 @@ describe('P0 product/version gating', () => {
     await expect(
       resolver.resolveProductRef(
         {
-          productId: 'product-1',
+          ...PRODUCT_V1,
           productVersionId: 'version-foreign',
-          productBaselineId: 'baseline-1',
         },
         'baseline-urs-1',
         { principal: { userEntityRef: 'user:default/author' } },

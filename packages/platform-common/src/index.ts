@@ -638,6 +638,27 @@ export type {
 } from './product';
 
 export {
+  URS_BASELINE_BINDABLE_STATUSES,
+  DIGITAL_THREAD_REPO_PATHS,
+  isUrsBaselineBindableStatus,
+  validateUrsProductBinding,
+  computeUrsBaselineContentHash,
+  computeProductManifestFileHash,
+} from './digital-thread';
+export type {
+  UrsBaselineBindableStatus,
+  UrsProductBinding,
+  ProductManifestFileDocument,
+  RequirementDeltaType,
+  TraceabilityImpactStatus,
+  RequirementDeltaItem,
+  ChangeImpactAssessment,
+  ValidationDigitalThreadRef,
+  ValidationRetestItem,
+  DigitalThreadEvidenceRef,
+} from './digital-thread';
+
+export {
   NEXORA_ANNOTATION_PREFIX,
   NEXORA_ANNOTATIONS,
   EQUIPMENT_COMPONENT_TYPE,

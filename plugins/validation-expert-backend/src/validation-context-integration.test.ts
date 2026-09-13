@@ -156,9 +156,11 @@ describe('URS → Validation integration (entry gate + context)', () => {
     const { context: assigned } = await service.assignProduct(
       context.id,
       {
+        ursBaselineId: 'baseline-approved-1',
         productId: 'product-1',
         productVersionId: 'version-1',
         productBaselineId: 'baseline-1',
+        manifestHash: 'a'.repeat(64),
       },
       'user:default/author',
     );

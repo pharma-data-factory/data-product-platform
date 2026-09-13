@@ -20,6 +20,7 @@ import { createHttpCatalogManifestPinResolver } from './catalog-pin-resolver';
 import { createHttpCiStatusResolver } from './ci-status-resolver';
 import { createHttpTechnicalEvidenceRegistrar } from './evidence-registrar';
 import { createHttpTechnicalEvidenceLookup } from './evidence-lookup';
+import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
 import {
   ComposerLLMClient,
   OpenAIComposerLLMClient,
@@ -90,6 +91,10 @@ export const composerPlugin = createBackendPlugin({
           discovery,
           auth,
         });
+        const validationDecisionResolver = createHttpValidationDecisionResolver({
+          discovery,
+          auth,
+        });
         const llmClient = createLLMClient(config, logger);
         const llmEnabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
         const service = new ComposerService({
@@ -100,6 +105,7 @@ export const composerPlugin = createBackendPlugin({
           ciStatusResolver,
           technicalEvidenceRegistrar,
           technicalEvidenceLookup,
+          validationDecisionResolver,
           llmClient,
         });
 

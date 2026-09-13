@@ -37,18 +37,28 @@ function createApprovedResolver(
       status: 'APPROVED',
       baselineVersion: '1.0',
       requirementSetId: 'set-1',
+      contentHash: 'a'.repeat(64),
+      requirementVersionIds: ['rv-1'],
     })),
     resolveBaselineContext: jest.fn(async (id: string) => ({
       baselineId: id,
       baselineVersion: '1.0',
+      requirementSetId: 'set-1',
       businessCapabilities: [],
-      requirements: [],
+      requirements: [
+        {
+          id: 'URS-1',
+          title: 'Req 1',
+          statement: 'Must do X',
+        },
+      ],
     })),
     inspectBaseline: jest.fn(async (id: string) => ({
       id,
       status: 'APPROVED',
       baselineVersion: '1.0',
       requirementSetId: 'set-1',
+      contentHash: 'a'.repeat(64),
     })),
     listApprovedBaselines: jest.fn(async () => [
       {
@@ -57,12 +67,27 @@ function createApprovedResolver(
         baselineVersion: '1.0',
         requirementSetId: 'set-1',
         solutionName: 'Demo',
+        contentHash: 'a'.repeat(64),
       },
     ]),
     listChangeRequests: jest.fn(async () => ({ items: [], total: 0 })),
     ...overrides,
   };
 }
+
+const URS_PIN = {
+  requirementSetId: 'set-1',
+  ursBaselineId: 'urs-baseline-approved',
+  ursVersion: '1.0',
+  ursContentHash: 'a'.repeat(64),
+};
+const RELEASE_COMMIT = 'abcdef1';
+const approvedValidationDecisionResolver = {
+  resolve: jest.fn(async () => ({
+    status: 'APPROVED' as const,
+    contextId: 'validation-context-approved',
+  })),
+};
 
 describe('Phase 1: Versioning Foundation', () => {
   let db: Knex;
@@ -79,7 +104,13 @@ describe('Phase 1: Versioning Foundation', () => {
       logger: mockLogger,
       repository,
       ursBaselineResolver: mockResolver,
+      validationDecisionResolver: approvedValidationDecisionResolver,
     });
+  });
+
+  beforeEach(() => {
+    mockResolver = createApprovedResolver();
+    (service as any).ursBaselineResolver = mockResolver;
   });
 
   afterAll(async () => {
@@ -96,8 +127,9 @@ describe('Phase 1: Versioning Foundation', () => {
     );
     const version = await service.createProductVersion(
       product.id,
-      { version: '1.0' },
+      { version: '1.0', ...URS_PIN },
       actor,
+      credentials,
     );
     const component = await service.addProductComponent(
       version.id,
@@ -186,7 +218,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { name: `Empty Product ${Date.now()}`, productType: 'SERVICE' },
         actor,
       );
-      const version = await service.createProductVersion(product.id, {}, actor);
+      const version = await service.createProductVersion(product.id, { ...URS_PIN }, actor, credentials);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id, credentials);
@@ -348,26 +380,44 @@ describe('Phase 1: Versioning Foundation', () => {
   });
 
   describe('Product Baselines + URS pin', () => {
-    it('rejects baseline without ursBaselineId', async () => {
+    it('uses ProductVersion URS pin when request omits ursBaselineId', async () => {
       const { version } = await createFullSetup();
-      await expect(
-        service.createProductBaseline(version.id, {} as any, actor, credentials),
-      ).rejects.toThrow(/ursBaselineId is required/i);
+      const baseline = await service.createProductBaseline(
+        version.id,
+        {} as any,
+        actor,
+        credentials,
+      );
+      expect(baseline.ursBaselineId).toBe(version.ursBaselineId);
+      expect(baseline.requirementSetId).toBe(version.requirementSetId);
+      expect(baseline.ursContentHash).toBe(version.ursContentHash);
     });
 
     it('rejects baseline when URS is not APPROVED', async () => {
       const { version } = await createFullSetup();
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockRejectedValueOnce(
-        new Error('URS baseline bad is DRAFT; expected APPROVED'),
+        new Error('URS baseline urs-baseline-approved is DRAFT; expected APPROVED'),
       );
       await expect(
         service.createProductBaseline(
           version.id,
-          { ursBaselineId: 'bad' },
+          { ursBaselineId: version.ursBaselineId },
           actor,
           credentials,
         ),
       ).rejects.toThrow(/not valid for product baseline/i);
+    });
+
+    it('rejects baseline that does not match ProductVersion URS pin', async () => {
+      const { version } = await createFullSetup();
+      await expect(
+        service.createProductBaseline(
+          version.id,
+          { ursBaselineId: 'other-baseline' },
+          actor,
+          credentials,
+        ),
+      ).rejects.toThrow(/must match ProductVersion pin/i);
     });
 
     it('creates a baseline with snapshot, URS pin, and persisted manifest', async () => {
@@ -441,7 +491,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { name: `Baseline Link ${Date.now()}`, productType: 'DATA_PRODUCT' },
         actor,
       );
-      const version = await service.createProductVersion(product.id, { version: '1.0' }, actor);
+      const version = await service.createProductVersion(product.id, { version: '1.0', ...URS_PIN }, actor, credentials);
       const baseline = await service.createProductBaseline(
         version.id,
         { ursBaselineId },
@@ -558,8 +608,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -610,6 +661,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: {
           resolveByName: jest.fn().mockResolvedValue({
             entityRef: `component:default/${slug}`,
@@ -656,7 +708,7 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       await gated.transitionProductVersionStatus(
         version.id,
-        { targetStatus: 'RELEASED' },
+        { targetStatus: 'RELEASED', releaseCommitSha: RELEASE_COMMIT },
         actor,
         credentials,
       );
@@ -692,8 +744,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -727,6 +780,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: {
           resolveByName: jest.fn().mockResolvedValue({
             entityRef: `component:default/${slug}`,
@@ -773,7 +827,7 @@ describe('Phase 1: Versioning Foundation', () => {
       await expect(
         gated.transitionProductVersionStatus(
           version.id,
-          { targetStatus: 'RELEASED' },
+          { targetStatus: 'RELEASED', releaseCommitSha: RELEASE_COMMIT },
           actor,
           credentials,
         ),
@@ -791,8 +845,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -826,6 +881,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: {
           resolveByName: jest.fn().mockResolvedValue({
             entityRef: `component:default/${slug}`,
@@ -862,7 +918,7 @@ describe('Phase 1: Versioning Foundation', () => {
       await expect(
         gated.transitionProductVersionStatus(
           version.id,
-          { targetStatus: 'RELEASED' },
+          { targetStatus: 'RELEASED', releaseCommitSha: RELEASE_COMMIT },
           actor,
           credentials,
         ),
@@ -880,8 +936,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -920,6 +977,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: {
           resolveByName: jest.fn().mockResolvedValue({
             entityRef: `component:default/${slug}`,
@@ -971,7 +1029,7 @@ describe('Phase 1: Versioning Foundation', () => {
 
       await gated.transitionProductVersionStatus(
         version.id,
-        { targetStatus: 'RELEASED' },
+        { targetStatus: 'RELEASED', releaseCommitSha: RELEASE_COMMIT },
         actor,
         credentials,
       );
@@ -991,8 +1049,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -1119,6 +1178,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: catalogResolver,
       });
       const product = await gated.createProduct(
@@ -1127,8 +1187,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await gated.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await gated.addProductComponent(
         version.id,
@@ -1177,8 +1238,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -1218,6 +1280,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: catalogResolver,
       });
       await gated.transitionProductVersionStatus(
@@ -1244,8 +1307,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await service.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await service.addProductComponent(
         version.id,
@@ -1296,6 +1360,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: catalogResolver,
         ciStatusResolver: {
           resolveByEntityRef: jest.fn().mockResolvedValue({
@@ -1357,9 +1422,13 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: catalogResolver,
         ciStatusResolver: {
-          resolveByEntityRef: jest.fn().mockResolvedValue({ status: 'PASSED' }),
+          resolveByEntityRef: jest.fn().mockResolvedValue({
+            status: 'PASSED',
+            commitSha: RELEASE_COMMIT,
+          }),
         },
       });
       await gated.transitionProductVersionStatus(
@@ -1388,6 +1457,7 @@ describe('Phase 1: Versioning Foundation', () => {
         logger: mockLogger,
         repository,
         ursBaselineResolver: mockResolver,
+        validationDecisionResolver: approvedValidationDecisionResolver,
         catalogManifestPinResolver: catalogResolver,
         ciStatusResolver: ciResolver,
       });
@@ -1397,8 +1467,9 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const version = await gated.createProductVersion(
         product.id,
-        { version: '1.0' },
+        { version: '1.0', ...URS_PIN },
         actor,
+        credentials,
       );
       const component = await gated.addProductComponent(
         version.id,
@@ -1453,7 +1524,7 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const baseline = await service.createProductBaseline(
         version.id,
-        { ursBaselineId: 'urs-baseline-1' },
+        { ursBaselineId },
         actor,
         credentials,
       );
@@ -1461,11 +1532,10 @@ describe('Phase 1: Versioning Foundation', () => {
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockRejectedValueOnce(
         new UrsBaselineResolutionError({
           kind: 'SUPERSEDED',
-          baselineId: 'urs-baseline-1',
+          baselineId: ursBaselineId,
           status: 'SUPERSEDED',
           supersededBy: 'urs-baseline-2',
-          message:
-            'URS baseline urs-baseline-1 is SUPERSEDED; expected APPROVED',
+          message: `URS baseline ${ursBaselineId} is SUPERSEDED; expected APPROVED`,
         }),
       );
       await service.transitionProductVersionStatus(
@@ -1496,13 +1566,13 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const baseline = await service.createProductBaseline(
         version.id,
-        { ursBaselineId: 'urs-baseline-1' },
+        { ursBaselineId },
         actor,
         credentials,
       );
       await service.approveProductBaseline(baseline.id, actor, credentials);
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockRejectedValueOnce(
-        new Error('URS baseline urs-baseline-1 is DRAFT; expected APPROVED'),
+        new Error(`URS baseline ${ursBaselineId} is DRAFT; expected APPROVED`),
       );
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
@@ -1519,7 +1589,7 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const baseline = await service.createProductBaseline(
         version.id,
-        { ursBaselineId: 'urs-baseline-2' },
+        { ursBaselineId },
         actor,
         credentials,
       );

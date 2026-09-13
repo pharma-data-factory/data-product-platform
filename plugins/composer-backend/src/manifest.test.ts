@@ -15,6 +15,9 @@ describe('Product Manifest v0.1', () => {
     productVersionId: 'ver-1',
     productBaselineId: 'pbl-1',
     ursBaselineId: 'urs-bl-1',
+    requirementSetId: 'set-1',
+    ursVersion: '1.0',
+    ursContentHash: 'a'.repeat(64),
     components: [
       {
         id: 'comp-1',

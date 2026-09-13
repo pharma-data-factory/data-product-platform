@@ -1,5 +1,9 @@
 import type { ReactElement, ReactNode } from 'react';
-import { render, type RenderOptions } from '@testing-library/react';
+import {
+  render,
+  type RenderOptions,
+  type RenderResult,
+} from '@testing-library/react';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
 import {
   appThemeApiRef,
@@ -52,7 +56,7 @@ export function LandingApiProvider({
 export function renderLanding(
   ui: ReactElement,
   options?: Omit<RenderOptions, 'wrapper'> & { themeId?: string },
-) {
+): RenderResult & { themeApi: ReturnType<typeof createLandingThemeApi> } {
   const { themeId, ...renderOptions } = options ?? {};
   const themeApi = createLandingThemeApi(themeId);
   const result = render(

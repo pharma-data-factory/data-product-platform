@@ -488,16 +488,35 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       const productId = String(req.body?.productId ?? '').trim();
       const productVersionId = String(req.body?.productVersionId ?? '').trim();
       const productBaselineId = String(req.body?.productBaselineId ?? '').trim();
-      if (!productId || !productVersionId || !productBaselineId) {
+      const ursBaselineId = String(req.body?.ursBaselineId ?? '').trim();
+      const manifestHash = String(req.body?.manifestHash ?? '').trim();
+      if (
+        !productId ||
+        !productVersionId ||
+        !productBaselineId ||
+        !ursBaselineId ||
+        !manifestHash
+      ) {
         res.status(400).json({
           error:
-            'productId, productVersionId, and productBaselineId are required',
+            'ursBaselineId, productId, productVersionId, productBaselineId, and manifestHash are required',
         });
         return;
       }
       const result = await service.assignProduct(
         req.params.id,
-        { productId, productVersionId, productBaselineId },
+        {
+          ursBaselineId,
+          productId,
+          productVersionId,
+          productBaselineId,
+          manifestHash,
+          gitRepositoryUrl: String(req.body?.gitRepositoryUrl ?? '').trim() || undefined,
+          commitSha: String(req.body?.commitSha ?? '').trim() || undefined,
+          releaseCandidateCommitSha:
+            String(req.body?.releaseCandidateCommitSha ?? '').trim() || undefined,
+          changeAssessment: req.body?.changeAssessment,
+        },
         actor || 'unknown',
         credentials,
       );

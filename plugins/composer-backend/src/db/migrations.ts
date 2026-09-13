@@ -304,6 +304,52 @@ export async function up(knex: Knex): Promise<void> {
         .inTable('product_versions');
     });
   }
+
+  // Digital thread: immutable URS pin on product_versions
+  if (await knex.schema.hasTable('product_versions')) {
+    if (!(await knex.schema.hasColumn('product_versions', 'requirement_set_id'))) {
+      await knex.schema.alterTable('product_versions', table => {
+        table.string('requirement_set_id', 255);
+        table.string('urs_baseline_id', 255);
+        table.string('urs_version', 50);
+        table.string('urs_content_hash', 128);
+        table.index(['urs_baseline_id']);
+      });
+    }
+  }
+
+  // Digital thread: immutable URS pin fields on product_baselines
+  if (await knex.schema.hasTable('product_baselines')) {
+    if (!(await knex.schema.hasColumn('product_baselines', 'requirement_set_id'))) {
+      await knex.schema.alterTable('product_baselines', table => {
+        table.string('requirement_set_id', 255);
+        table.string('urs_version', 50);
+        table.string('urs_content_hash', 128);
+      });
+    }
+  }
+
+  // Change impact assessments (URS baseline succession)
+  if (!(await knex.schema.hasTable('product_change_assessments'))) {
+    await knex.schema.createTable('product_change_assessments', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255).notNullable();
+      table.string('product_version_id', 255).notNullable();
+      table.string('product_baseline_id', 255).notNullable();
+      table.string('previous_urs_baseline_id', 255);
+      table.string('urs_baseline_id', 255).notNullable();
+      table.string('requirement_set_id', 255).notNullable();
+      table.text('document').notNullable();
+      table.string('status', 50).notNullable().defaultTo('OPEN');
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+
+      table.index(['product_version_id']);
+      table.index(['product_baseline_id']);
+      table.index(['urs_baseline_id']);
+      table.index(['status']);
+    });
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {

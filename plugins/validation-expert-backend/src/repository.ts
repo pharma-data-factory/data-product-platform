@@ -28,6 +28,7 @@ export interface ValidationRunRepository {
     productId?: string;
     productVersionId?: string;
     productBaselineId?: string;
+    manifestHash?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun>;
   saveRun(run: ValidationRun): Promise<void>;
@@ -95,6 +96,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     productId?: string;
     productVersionId?: string;
     productBaselineId?: string;
+    manifestHash?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     const key = input.type;
@@ -109,6 +111,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
       productId: input.productId,
       productVersionId: input.productVersionId,
       productBaselineId: input.productBaselineId,
+      manifestHash: input.manifestHash,
       type: input.type,
       status: 'PENDING',
       createdAt: new Date().toISOString(),
@@ -267,6 +270,7 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     productId?: string;
     productVersionId?: string;
     productBaselineId?: string;
+    manifestHash?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     const run = await this.memory.createRun(input);
@@ -363,6 +367,13 @@ function cloneContext(context: ValidationContext): ValidationContext {
       requirementIds: [...context.source.requirementIds],
     },
     productRef: context.productRef ? { ...context.productRef } : undefined,
+    retestItems: context.retestItems
+      ? context.retestItems.map(item => ({
+          ...item,
+          relatedTestIds: [...item.relatedTestIds],
+          evidenceIds: [...item.evidenceIds],
+        }))
+      : undefined,
   };
 }
 

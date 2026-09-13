@@ -1,0 +1,1 @@
+${{ values.agentsMd if values.agentsMd else '# AI / Developer Instructions\n\nBefore architecture, code, or test changes, first read `/docs/urs/URS-baseline.md` and `/product-manifest.yaml` when present.\nEvery relevant implementation and test must be traceable to URS IDs.\n' }}

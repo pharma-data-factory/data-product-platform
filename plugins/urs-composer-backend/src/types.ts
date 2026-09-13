@@ -38,6 +38,7 @@ export {
   ReviewScope,
   SignatureMeaning,
   SignatureTargetType,
+  type RequirementClassification,
 } from '@internal/platform-common';
 import {
   ChangeRequestStatus,

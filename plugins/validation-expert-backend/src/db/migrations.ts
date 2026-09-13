@@ -22,6 +22,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('product_id', 255);
       table.string('product_version_id', 255);
       table.string('product_baseline_id', 255);
+      table.string('manifest_hash', 64);
       table.index(['type']);
       table.index(['status']);
       table.index(['baseline_id']);
@@ -44,6 +45,7 @@ export async function up(knex: Knex): Promise<void> {
       'product_id',
       'product_version_id',
       'product_baseline_id',
+      'manifest_hash',
     ]) {
       if (!(await knex.schema.hasColumn('validation_runs', column))) {
         await knex.schema.alterTable('validation_runs', table => {
@@ -86,6 +88,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('product_version_id', 255);
       table.string('product_baseline_id', 255);
       table.string('urs_baseline_id', 255);
+      table.string('manifest_hash', 64);
       table.string('source', 32).notNullable();
       table.index(['run_id']);
       table.index(['product_version_id']);
@@ -98,6 +101,7 @@ export async function up(knex: Knex): Promise<void> {
       'product_version_id',
       'product_baseline_id',
       'urs_baseline_id',
+      'manifest_hash',
     ]) {
       if (!(await knex.schema.hasColumn('validation_evidence', column))) {
         await knex.schema.alterTable('validation_evidence', table => {
@@ -118,6 +122,8 @@ export async function up(knex: Knex): Promise<void> {
       table.string('product_version_id', 255);
       table.string('product_baseline_id', 255);
       table.jsonb('product_ref');
+      table.jsonb('retest_items');
+      table.string('change_assessment_id', 255);
       table.string('created_at', 64).notNullable();
       table.string('created_by', 255).notNullable();
       table.index(['baseline_id']);
@@ -139,6 +145,21 @@ export async function up(knex: Knex): Promise<void> {
     if (!(await knex.schema.hasColumn('validation_contexts', 'product_ref'))) {
       await knex.schema.alterTable('validation_contexts', table => {
         table.jsonb('product_ref');
+      });
+    }
+    if (!(await knex.schema.hasColumn('validation_contexts', 'retest_items'))) {
+      await knex.schema.alterTable('validation_contexts', table => {
+        table.jsonb('retest_items');
+      });
+    }
+    if (
+      !(await knex.schema.hasColumn(
+        'validation_contexts',
+        'change_assessment_id',
+      ))
+    ) {
+      await knex.schema.alterTable('validation_contexts', table => {
+        table.string('change_assessment_id', 255);
       });
     }
     // Uniqueness applies only to live contexts: a SUPERSEDED context releases

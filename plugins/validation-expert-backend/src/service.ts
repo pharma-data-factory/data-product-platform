@@ -85,6 +85,52 @@ export function assertContextExecutable(context: ValidationContext): void {
       `Validation context ${context.id} has no assigned product/version/baseline`,
     );
   }
+  if (!ref.manifestHash || !/^[a-f0-9]{64}$/i.test(ref.manifestHash)) {
+    throw new ConflictError(
+      `Validation context ${context.id} has no valid ProductManifest hash`,
+    );
+  }
+  const openRetest = (context.retestItems ?? []).filter(
+    item => item.status === 'RETEST_REQUIRED',
+  );
+  if (openRetest.length > 0) {
+    throw new ConflictError(
+      `Validation context ${context.id} has open RETEST_REQUIRED items: ${openRetest
+        .map(i => i.requirementId)
+        .join(', ')}`,
+    );
+  }
+}
+
+function buildRetestItemsFromAssessment(
+  assessment:
+    | {
+        id: string;
+        retestRequiredRequirementIds: string[];
+        carriedForwardRequirementIds: string[];
+      }
+    | undefined,
+): ValidationContext['retestItems'] {
+  if (!assessment) {
+    return undefined;
+  }
+  const now = new Date().toISOString();
+  return [
+    ...assessment.retestRequiredRequirementIds.map(requirementId => ({
+      requirementId,
+      status: 'RETEST_REQUIRED' as const,
+      relatedTestIds: [],
+      evidenceIds: [],
+      updatedAt: now,
+    })),
+    ...assessment.carriedForwardRequirementIds.map(requirementId => ({
+      requirementId,
+      status: 'CARRIED_FORWARD' as const,
+      relatedTestIds: [],
+      evidenceIds: [],
+      updatedAt: now,
+    })),
+  ];
 }
 
 /**
@@ -209,7 +255,13 @@ export class ValidationExpertService {
       );
     }
 
-    let parsed: { productId?: string; productVersionId?: string; productBaselineId?: string; ursBaselineId?: string };
+    let parsed: {
+      productId?: string;
+      productVersionId?: string;
+      productBaselineId?: string;
+      ursBaselineId?: string;
+      manifestContentHash?: string;
+    };
     try {
       parsed = JSON.parse(reference) as typeof parsed;
     } catch {
@@ -234,6 +286,15 @@ export class ValidationExpertService {
       );
     }
     assertContextExecutable(context);
+    const manifestHash = String(parsed.manifestContentHash ?? '').trim();
+    if (
+      !manifestHash ||
+      manifestHash !== context.productRef?.manifestHash
+    ) {
+      throw new ConflictError(
+        'Technical evidence manifestContentHash does not match the assigned ProductManifest hash',
+      );
+    }
 
     const checksum = createHash('sha256')
       .update(`technical:${idempotencyKey}`)
@@ -261,6 +322,7 @@ export class ValidationExpertService {
       ursBaselineId:
         String(parsed.ursBaselineId ?? '').trim() ||
         context.source.baselineId,
+      manifestHash,
       source: 'runtime',
     };
     await this.options.repository.addEvidence(item);
@@ -333,6 +395,7 @@ export class ValidationExpertService {
       productId: productRef.productId,
       productVersionId: productRef.productVersionId,
       productBaselineId: productRef.productBaselineId,
+      manifestHash: productRef.manifestHash,
       createdBy: input.createdBy,
     });
 
@@ -528,6 +591,16 @@ export class ValidationExpertService {
         `Validation context ${contextId} is SUPERSEDED and immutable`,
       );
     }
+    if (request.ursBaselineId !== context.source.baselineId) {
+      throw new ConflictError(
+        `Validation assignment URS baseline ${request.ursBaselineId} does not match context baseline ${context.source.baselineId}`,
+      );
+    }
+    if (!/^[a-f0-9]{64}$/i.test(request.manifestHash)) {
+      throw new ConflictError(
+        'Validation assignment requires a 64-char ProductManifest SHA-256 hash',
+      );
+    }
 
     const resolved = await this.options.productResolver.resolveProductRef(
       request,
@@ -540,6 +613,38 @@ export class ValidationExpertService {
       context.productRef?.productBaselineId === request.productBaselineId;
     if (sameRef) {
       return { context, created: false };
+    }
+
+    const digitalThreadProductRef = {
+      ...resolved,
+      ursBaselineId: context.source.baselineId,
+      manifestHash: request.manifestHash,
+      gitRepositoryUrl: request.gitRepositoryUrl,
+      commitSha: request.commitSha,
+      releaseCandidateCommitSha: request.releaseCandidateCommitSha,
+      changeAssessmentId: request.changeAssessment?.id,
+      assignedAt: new Date().toISOString(),
+      assignedBy: actor,
+    };
+
+    const retestItems = buildRetestItemsFromAssessment(request.changeAssessment);
+    if (retestItems) {
+      const tests = (['IQ', 'OQ', 'UAT'] as const).flatMap(type =>
+        this.getProtocol(type),
+      );
+      const existingEvidence = await this.options.repository.listEvidence();
+      for (const item of retestItems) {
+        item.relatedTestIds = tests
+          .filter(test => test.requirementIds.includes(item.requirementId))
+          .map(test => test.id);
+        item.evidenceIds = existingEvidence
+          .filter(
+            evidence =>
+              Boolean(evidence.testId) &&
+              item.relatedTestIds.includes(evidence.testId!),
+          )
+          .map(evidence => evidence.id);
+      }
     }
 
     const needsSupersession =
@@ -564,11 +669,9 @@ export class ValidationExpertService {
         id: `VALIDATION-CTX-${randomUUID().slice(0, 8).toUpperCase()}`,
         source: context.source,
         status: 'READY_FOR_VALIDATION',
-        productRef: {
-          ...resolved,
-          assignedAt: new Date().toISOString(),
-          assignedBy: actor,
-        },
+        productRef: digitalThreadProductRef,
+        retestItems,
+        changeAssessmentId: request.changeAssessment?.id,
         createdAt: new Date().toISOString(),
         createdBy: actor,
       };
@@ -584,11 +687,9 @@ export class ValidationExpertService {
 
     const assigned: ValidationContext = {
       ...context,
-      productRef: {
-        ...resolved,
-        assignedAt: new Date().toISOString(),
-        assignedBy: actor,
-      },
+      productRef: digitalThreadProductRef,
+      retestItems,
+      changeAssessmentId: request.changeAssessment?.id,
     };
     const updated = await this.transitionContext(
       assigned.id,
@@ -599,6 +700,8 @@ export class ValidationExpertService {
         productId: request.productId,
         productVersionId: request.productVersionId,
         productBaselineId: request.productBaselineId,
+        changeAssessmentId: request.changeAssessment?.id,
+        retestRequired: request.changeAssessment?.retestRequiredRequirementIds,
       },
       assigned,
     );
@@ -1030,6 +1133,7 @@ export class ValidationExpertService {
       productVersionId: input.run.productVersionId,
       productBaselineId: input.run.productBaselineId,
       ursBaselineId: input.run.baselineId,
+      manifestHash: input.run.manifestHash,
       source: 'runtime',
     };
     await this.options.repository.addEvidence(item);

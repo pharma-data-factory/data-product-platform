@@ -8,6 +8,7 @@ import type {
   ValidationContextAuditEvent,
   ValidationContextProductRef,
   ValidationContextStatus,
+  ValidationRetestItem,
 } from '@internal/platform-common';
 
 export interface ValidationOverview {
@@ -114,6 +115,8 @@ export interface ValidationContext {
   };
   /** Product Composer solution assignment (product + version + baseline). */
   productRef?: ValidationContextProductRef;
+  retestItems?: ValidationRetestItem[];
+  changeAssessmentId?: string;
 }
 
 export interface ValidationContextRequirement {
@@ -171,6 +174,7 @@ export interface ValidationRun {
   productId?: string;
   productVersionId?: string;
   productBaselineId?: string;
+  manifestHash?: string;
   executions: Array<{
     id: string;
     testId: string;

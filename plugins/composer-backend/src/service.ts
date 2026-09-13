@@ -22,6 +22,8 @@ import {
   validateProduct,
   validateTraceabilityLink,
   resolveProductSoftRefMatchAxis,
+  validateUrsProductBinding,
+  ChangeImpactAssessment,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import {
@@ -48,12 +50,20 @@ import { evaluateCatalogManifestPins } from './catalog-pin-resolver';
 import type { CiStatusResolver } from './ci-status-resolver';
 import { evaluateCiStatusForReleaseGate } from './ci-status-resolver';
 import type { TechnicalEvidenceRegistrar } from './evidence-registrar';
+import { buildDigitalThreadScaffoldArtifacts } from './digital-thread-artifacts';
+import {
+  buildChangeImpactAssessment,
+  computeRequirementDeltas,
+  hasOpenRetestRequired,
+  type UrsRequirementPin,
+} from './change-impact';
 import {
   buildCiEvidenceIdempotencyKey,
   buildTechnicalCiEvidenceReference,
 } from './evidence-registrar';
 import type { TechnicalEvidenceLookup } from './evidence-lookup';
 import { findTechnicalCiEvidenceByIdempotencyKey } from './evidence-lookup';
+import type { ValidationDecisionResolver } from './validation-decision-resolver';
 import type {
   AvailableComponentSummary,
   ComposerLLMClient,
@@ -102,6 +112,7 @@ export interface ComposerServiceOptions {
   ciStatusResolver?: CiStatusResolver;
   technicalEvidenceRegistrar?: TechnicalEvidenceRegistrar;
   technicalEvidenceLookup?: TechnicalEvidenceLookup;
+  validationDecisionResolver?: ValidationDecisionResolver;
   llmClient?: ComposerLLMClient;
 }
 
@@ -113,6 +124,7 @@ export class ComposerService {
   private readonly ciStatusResolver?: CiStatusResolver;
   private readonly technicalEvidenceRegistrar?: TechnicalEvidenceRegistrar;
   private readonly technicalEvidenceLookup?: TechnicalEvidenceLookup;
+  private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly llmClient?: ComposerLLMClient;
   private readonly specDrafts = new Map<string, AISpecDraft>();
 
@@ -124,6 +136,7 @@ export class ComposerService {
     this.ciStatusResolver = options.ciStatusResolver;
     this.technicalEvidenceRegistrar = options.technicalEvidenceRegistrar;
     this.technicalEvidenceLookup = options.technicalEvidenceLookup;
+    this.validationDecisionResolver = options.validationDecisionResolver;
     this.llmClient = options.llmClient;
   }
 
@@ -208,12 +221,104 @@ export class ComposerService {
     productId: string,
     request: CreateProductVersionRequest,
     actor: string,
+    credentials?: unknown,
   ): Promise<ProductVersion> {
     const product = await this.repository.getProduct(productId);
     if (!product) {
       throw new Error(`Product ${productId} not found`);
     }
+
+    const ursBaselineId = request.ursBaselineId?.trim();
+    if (!ursBaselineId) {
+      throw new Error(
+        'Controlled ProductVersion requires ursBaselineId (APPROVED or BASELINED URS baseline)',
+      );
+    }
+    if (!this.ursBaselineResolver) {
+      throw new Error(
+        'URS baseline resolver is not configured; cannot create a controlled ProductVersion',
+      );
+    }
+
+    let ursRef: UrsBaselineReference;
+    try {
+      ursRef = await this.ursBaselineResolver.resolveApprovedBaseline(
+        ursBaselineId,
+        credentials,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Controlled Product without approved URS Baseline is rejected: ${message}`,
+      );
+    }
+
+    const requirementSetId = (
+      request.requirementSetId?.trim() ||
+      ursRef.requirementSetId ||
+      ''
+    ).trim();
+    const ursVersion = (
+      request.ursVersion?.trim() ||
+      ursRef.baselineVersion ||
+      ''
+    ).trim();
+    const ursContentHash = (
+      request.ursContentHash?.trim() ||
+      ursRef.contentHash ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+    const bindingIssues = validateUrsProductBinding({
+      requirementSetId,
+      ursBaselineId: ursRef.id,
+      ursVersion,
+      ursContentHash,
+    });
+    if (bindingIssues.length > 0) {
+      throw new Error(
+        `Controlled ProductVersion requires a valid URS binding: ${bindingIssues.join(
+          '; ',
+        )}`,
+      );
+    }
+
+    if (
+      request.requirementSetId?.trim() &&
+      ursRef.requirementSetId &&
+      request.requirementSetId.trim() !== ursRef.requirementSetId
+    ) {
+      throw new Error(
+        `requirementSetId '${request.requirementSetId}' does not match URS baseline ${ursRef.id} (${ursRef.requirementSetId})`,
+      );
+    }
+    if (
+      request.ursVersion?.trim() &&
+      ursRef.baselineVersion &&
+      request.ursVersion.trim() !== ursRef.baselineVersion
+    ) {
+      throw new Error(
+        `ursVersion '${request.ursVersion}' does not match URS baseline version '${ursRef.baselineVersion}'`,
+      );
+    }
+    if (
+      request.ursContentHash?.trim() &&
+      ursRef.contentHash &&
+      request.ursContentHash.trim().toLowerCase() !==
+        ursRef.contentHash.toLowerCase()
+    ) {
+      throw new Error(
+        `ursContentHash does not match live URS baseline content hash`,
+      );
+    }
+
     const versions = await this.repository.listProductVersions(productId);
+    const previousApproved = versions
+      .filter(v => v.status === 'RELEASED' || v.status === 'APPROVED')
+      .sort((a, b) => b.versionNumber - a.versionNumber)[0];
+
     const versionNumber = versions.length + 1;
     const version: ProductVersion = {
       id: randomUUID(),
@@ -222,12 +327,23 @@ export class ComposerService {
       versionNumber,
       status: 'DRAFT',
       changelog: request.changelog,
+      requirementSetId,
+      ursBaselineId: ursRef.id,
+      ursVersion,
+      ursContentHash,
+      parentVersionId: previousApproved?.id,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
     };
     await this.repository.createProductVersion(version);
-    await this.audit('PRODUCT_VERSION', version.id, 'PRODUCT_VERSION_CREATED', actor);
+    await this.audit('PRODUCT_VERSION', version.id, 'PRODUCT_VERSION_CREATED', actor, {
+      newValue: JSON.stringify({
+        ursBaselineId: version.ursBaselineId,
+        requirementSetId: version.requirementSetId,
+        ursContentHash: version.ursContentHash,
+      }),
+    });
     return version;
   }
 
@@ -349,7 +465,12 @@ export class ComposerService {
       );
     }
     if (request.targetStatus === 'RELEASED') {
-      const gate = await this.checkReleaseGate(versionId, credentials);
+      const gate = await this.checkReleaseGate(
+        versionId,
+        credentials,
+        request.releaseCommitSha,
+        true,
+      );
       if (!gate.passed) {
         throw new Error(
           `Release gate failed: ${gate.blockers.map(b => b.code).join(', ')}`,
@@ -842,6 +963,8 @@ export class ComposerService {
   async checkReleaseGate(
     versionId: string,
     credentials?: unknown,
+    releaseCommitShaOverride?: string,
+    requireReleaseCommit = false,
   ): Promise<{
     passed: boolean;
     blockers: ReleaseGateBlocker[];
@@ -855,6 +978,15 @@ export class ComposerService {
       blockers.push({
         code: 'INVALID_STATUS',
         message: `Version must be RELEASE_CANDIDATE, got ${version.status}`,
+      });
+    }
+    if (
+      requireReleaseCommit &&
+      !String(releaseCommitShaOverride ?? version.releaseCommitSha ?? '').trim()
+    ) {
+      blockers.push({
+        code: 'NO_RELEASE_COMMIT',
+        message: 'A Git release-candidate commit SHA is required',
       });
     }
     const components = await this.repository.listProductComponents(versionId);
@@ -886,6 +1018,18 @@ export class ComposerService {
       blockers.push({
         code: 'NO_APPROVED_BASELINE',
         message: 'An approved product baseline is required',
+      });
+    }
+
+    const openAssessment = await this.repository.getOpenChangeAssessment(
+      versionId,
+    );
+    if (hasOpenRetestRequired(openAssessment)) {
+      blockers.push({
+        code: 'RETEST_REQUIRED_OPEN',
+        message: `Release blocked while RETEST_REQUIRED is open for requirements: ${openAssessment!.retestRequiredRequirementIds.join(
+          ', ',
+        )}`,
       });
     }
 
@@ -940,6 +1084,46 @@ export class ComposerService {
           });
         }
 
+        if (!this.validationDecisionResolver) {
+          blockers.push({
+            code: 'VALIDATION_DECISION_UNAVAILABLE',
+            message:
+              'Validation decision resolver is not configured; release is fail-closed',
+          });
+        } else if (integrityIssues.length === 0) {
+          try {
+            const decision = await this.validationDecisionResolver.resolve(
+              {
+                ursBaselineId,
+                productId: version.productId,
+                productVersionId: version.id,
+                productBaselineId: approvedBaseline.id,
+                manifestHash: manifest.contentHash,
+                commitSha: String(
+                  releaseCommitShaOverride ?? version.releaseCommitSha ?? '',
+                ).trim(),
+              },
+              credentials,
+            );
+            if (decision.status !== 'APPROVED') {
+              blockers.push({
+                code: 'VALIDATION_DECISION_NOT_APPROVED',
+                message:
+                  decision.status === 'MISSING'
+                    ? 'No Validation Manager context matches the release binding'
+                    : `Validation context ${decision.contextId ?? ''} is not APPROVED`,
+              });
+            }
+          } catch (err) {
+            blockers.push({
+              code: 'VALIDATION_DECISION_UNAVAILABLE',
+              message: `Unable to verify Validation Manager decision: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            });
+          }
+        }
+
         // Catalog pin consistency — only when a Catalog entity exists (post-scaffold)
         if (
           this.catalogManifestPinResolver &&
@@ -975,6 +1159,25 @@ export class ComposerService {
                       credentials,
                     );
                     blockers.push(...evaluateCiStatusForReleaseGate(ci));
+                    const releaseCommitSha = String(
+                      releaseCommitShaOverride ?? version.releaseCommitSha ?? '',
+                    ).trim();
+                    if (ci.status === 'PASSED' && !ci.commitSha?.trim()) {
+                      blockers.push({
+                        code: 'CI_COMMIT_MISSING',
+                        message:
+                          'Passed CI evidence has no commit SHA for the release binding',
+                      });
+                    } else if (
+                      ci.status === 'PASSED' &&
+                      releaseCommitSha &&
+                      ci.commitSha !== releaseCommitSha
+                    ) {
+                      blockers.push({
+                        code: 'CI_COMMIT_MISMATCH',
+                        message: `CI commit ${ci.commitSha} does not match release commit ${releaseCommitSha}`,
+                      });
+                    }
                   } catch (err) {
                     blockers.push({
                       code: 'CI_STATUS_UNAVAILABLE',
@@ -1012,7 +1215,7 @@ export class ComposerService {
       throw new Error(`Product version ${productVersionId} not found`);
     }
 
-    const ursBaselineId = resolveUrsBaselineId(request);
+    const ursBaselineId = resolveUrsBaselineId(request) || version.ursBaselineId;
     if (!ursBaselineId) {
       await this.audit(
         'PRODUCT_BASELINE',
@@ -1025,6 +1228,15 @@ export class ComposerService {
       );
       throw new Error(
         'ursBaselineId is required: controlled product baselines must reference exactly one APPROVED URS baseline',
+      );
+    }
+
+    if (
+      version.ursBaselineId &&
+      version.ursBaselineId.trim() !== ursBaselineId.trim()
+    ) {
+      throw new Error(
+        `ProductBaseline ursBaselineId must match ProductVersion pin (${version.ursBaselineId})`,
       );
     }
 
@@ -1116,6 +1328,11 @@ export class ComposerService {
       status: 'DRAFT',
       snapshot,
       ursBaselineId: ursRef.id,
+      requirementSetId:
+        ursRef.requirementSetId?.trim() || version.requirementSetId,
+      ursVersion: ursRef.baselineVersion || version.ursVersion,
+      ursContentHash:
+        (ursRef.contentHash || version.ursContentHash).toLowerCase(),
       ursBaselineIds: [ursRef.id],
       createdBy: actor,
       createdAt: new Date(),
@@ -1130,6 +1347,9 @@ export class ComposerService {
       productVersionId: version.id,
       productBaselineId: baseline.id,
       ursBaselineId: ursRef.id,
+      requirementSetId: baseline.requirementSetId,
+      ursVersion: baseline.ursVersion,
+      ursContentHash: baseline.ursContentHash,
       components,
       contracts,
       policies: [],
@@ -1173,7 +1393,86 @@ export class ComposerService {
         newValue: document.metadata.contentHash,
       },
     );
+
+    await this.maybeCreateUrsChangeImpact(version, baseline, actor, credentials);
+
     return baseline;
+  }
+
+  /**
+   * When a successor ProductVersion pins a new APPROVED/BASELINED URS baseline
+   * against a prior released version, open a Change Impact Assessment with
+   * RETEST_REQUIRED for ADDED/MODIFIED/REMOVED requirements.
+   * Draft-only URS changes never reach resolveApprovedBaseline here.
+   */
+  private async maybeCreateUrsChangeImpact(
+    version: ProductVersion,
+    baseline: ProductBaseline,
+    actor: string,
+    credentials?: unknown,
+  ): Promise<ChangeImpactAssessment | null> {
+    if (!version.parentVersionId || !this.ursBaselineResolver) {
+      return null;
+    }
+    const parent = await this.repository.getProductVersion(version.parentVersionId);
+    if (!parent?.ursBaselineId) {
+      return null;
+    }
+    if (parent.ursBaselineId === baseline.ursBaselineId) {
+      return null;
+    }
+
+    const toPins = async (baselineId: string): Promise<UrsRequirementPin[]> => {
+      const ctx = await this.ursBaselineResolver!.resolveBaselineContext(
+        baselineId,
+        credentials,
+      );
+      return ctx.requirements.map(r => ({
+        requirementId: r.id,
+        versionId: r.versionId ?? r.id,
+      }));
+    };
+
+    let previous: UrsRequirementPin[] = [];
+    let current: UrsRequirementPin[] = [];
+    try {
+      previous = await toPins(parent.ursBaselineId);
+      current = await toPins(baseline.ursBaselineId);
+    } catch {
+      previous = [];
+      current = [];
+    }
+
+    const deltas = computeRequirementDeltas(previous, current);
+    const assessment = buildChangeImpactAssessment({
+      productId: version.productId,
+      productVersionId: version.id,
+      productBaselineId: baseline.id,
+      previousUrsBaselineId: parent.ursBaselineId,
+      ursBaselineId: baseline.ursBaselineId,
+      requirementSetId: baseline.requirementSetId,
+      deltas,
+      actor,
+      triggerRetest: true,
+    });
+    if (!assessment) {
+      return null;
+    }
+    await this.repository.createChangeAssessment(assessment);
+    await this.audit(
+      'PRODUCT_VERSION',
+      version.id,
+      'URS_CHANGE_IMPACT_CREATED',
+      actor,
+      { newValue: assessment.id },
+    );
+    return assessment;
+  }
+
+  async getChangeImpactAssessment(
+    productVersionId: string,
+  ): Promise<ChangeImpactAssessment | null> {
+    return this.repository.getOpenChangeAssessment(productVersionId);
   }
 
   async approveProductBaseline(
@@ -1352,6 +1651,30 @@ export class ComposerService {
       );
     }
 
+    let ursContext;
+    try {
+      ursContext = await this.ursBaselineResolver.resolveBaselineContext(
+        ursBaselineId,
+        credentials,
+      );
+    } catch {
+      ursContext = {
+        baselineId: ursBaselineId,
+        baselineVersion: approvedBaseline.ursVersion || version.ursVersion,
+        requirementSetId:
+          approvedBaseline.requirementSetId || version.requirementSetId,
+        businessCapabilities: [],
+        requirements: [],
+      };
+    }
+
+    const artifacts = buildDigitalThreadScaffoldArtifacts({
+      version,
+      baseline: approvedBaseline,
+      manifest,
+      ursContext,
+    });
+
     const productSlug = slugifyProductName(product.name);
     if (!productSlug) {
       throw new Error('Product name cannot be converted to a repository slug');
@@ -1368,6 +1691,11 @@ export class ComposerService {
       productVersion: version.version,
       productBaselineId: approvedBaseline.id,
       ursBaselineId,
+      requirementSetId:
+        approvedBaseline.requirementSetId || version.requirementSetId,
+      ursVersion: approvedBaseline.ursVersion || version.ursVersion,
+      ursContentHash:
+        approvedBaseline.ursContentHash || version.ursContentHash,
       manifestContentHash: manifest.contentHash,
       manifestVersion: manifest.manifestVersion,
       scaffolderPinValues: {
@@ -1376,6 +1704,16 @@ export class ComposerService {
         productBaselineId: approvedBaseline.id,
         productVersionId: version.id,
         productId: product.id,
+        requirementSetId:
+          approvedBaseline.requirementSetId || version.requirementSetId,
+        ursVersion: approvedBaseline.ursVersion || version.ursVersion,
+        ursContentHash:
+          approvedBaseline.ursContentHash || version.ursContentHash,
+        productManifestYaml: artifacts.productManifestYaml,
+        ursBaselineJson: artifacts.ursBaselineJson,
+        ursBaselineMd: artifacts.ursBaselineMd,
+        traceabilityMatrixYaml: artifacts.traceabilityMatrixYaml,
+        agentsMd: artifacts.agentsMd,
       },
       supportedTemplateRefs: [...OFFICIAL_GOLDEN_PATH_TEMPLATE_REFS],
     };
@@ -1390,6 +1728,7 @@ export class ComposerService {
           productBaselineId: approvedBaseline.id,
           ursBaselineId,
           manifestContentHash: manifest.contentHash,
+          digitalThreadManifestFileHash: artifacts.manifestFileHash,
         }),
       },
     );
@@ -1657,9 +1996,30 @@ export class ComposerService {
       actor,
     );
 
+    if (!this.ursBaselineResolver) {
+      throw new Error(
+        'URS baseline resolver is required to apply an AI spec draft to a controlled product',
+      );
+    }
+    const ursRef = await this.ursBaselineResolver.resolveApprovedBaseline(
+      draft.ursBaselineId,
+      undefined,
+    );
+    if (!ursRef.contentHash || !ursRef.requirementSetId) {
+      throw new Error(
+        'Resolved URS baseline is missing requirementSetId or contentHash',
+      );
+    }
+
     const version = await this.createProductVersion(
       product.id,
-      { changelog: `Generated from URS baseline ${draft.ursBaselineId} via AI spec draft ${draftId}` },
+      {
+        changelog: `Generated from URS baseline ${draft.ursBaselineId} via AI spec draft ${draftId}`,
+        requirementSetId: ursRef.requirementSetId,
+        ursBaselineId: ursRef.id,
+        ursVersion: ursRef.baselineVersion || '1.0',
+        ursContentHash: ursRef.contentHash,
+      },
       actor,
     );
 

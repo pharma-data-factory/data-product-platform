@@ -20,9 +20,11 @@ const root = resolveValidationRoot(
 );
 
 const PRODUCT_REF = {
+  ursBaselineId: 'baseline-1',
   productId: 'product-1',
   productVersionId: 'version-1',
   productBaselineId: 'baseline-1',
+  manifestHash: 'a'.repeat(64),
 };
 
 /** Service with an APPROVED URS resolver and a mock product resolver. */
@@ -214,7 +216,9 @@ describe('validation run service', () => {
     expect(run.id).toBe('OQ-RUN-0001');
     expect(run.createdBy.userEntityRef).toBe('user:default/markus');
     expect(run.contextId).toBe(context.id);
+    expect(run.baselineId).toBe('baseline-1');
     expect(run.productVersionId).toBe('version-1');
+    expect(run.manifestHash).toBe(PRODUCT_REF.manifestHash);
 
     const completed = await service.executeAutomated(run.id, executor);
     expect(completed.executions.length).toBeGreaterThan(0);
@@ -243,6 +247,15 @@ describe('validation run service', () => {
     expect(
       (await service.getFindings()).some(item => item.id === failed.findingId),
     ).toBe(true);
+    const evidence = (await service.getEvidence()).find(
+      item => item.runId === manualRun.id && item.testId === 'OQ-AUTH-001',
+    );
+    expect(evidence).toMatchObject({
+      ursBaselineId: 'baseline-1',
+      productVersionId: 'version-1',
+      productBaselineId: 'baseline-1',
+      manifestHash: PRODUCT_REF.manifestHash,
+    });
 
     await expect(
       service.recordManualResult({

@@ -38,6 +38,12 @@ export interface CreateProductRequest {
 export interface CreateProductVersionRequest {
   version?: string;
   changelog?: string;
+  /** Required. APPROVED/BASELINED URS baseline id. */
+  ursBaselineId: string;
+  /** Optional when server can fill from live URS resolve; must match if set. */
+  requirementSetId?: string;
+  ursVersion?: string;
+  ursContentHash?: string;
 }
 
 export interface CreateProductComponentRequest {
@@ -98,6 +104,9 @@ export interface ProductScaffoldBinding {
   productVersion: string;
   productBaselineId: string;
   ursBaselineId: string;
+  requirementSetId: string;
+  ursVersion: string;
+  ursContentHash: string;
   manifestContentHash: string;
   manifestVersion: string;
   /** Merge into scaffolderApi.scaffold({ values }). */
@@ -107,6 +116,14 @@ export interface ProductScaffoldBinding {
     productBaselineId: string;
     productVersionId: string;
     productId: string;
+    requirementSetId: string;
+    ursVersion: string;
+    ursContentHash: string;
+    productManifestYaml: string;
+    ursBaselineJson: string;
+    ursBaselineMd: string;
+    traceabilityMatrixYaml: string;
+    agentsMd: string;
   };
   /** Official Golden Path template entity names that accept these pins. */
   supportedTemplateRefs: string[];

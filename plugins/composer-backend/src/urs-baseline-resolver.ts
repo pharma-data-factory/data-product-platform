@@ -7,6 +7,11 @@
  * validation-expert-backend).
  */
 
+import {
+  computeUrsBaselineContentHash,
+  isUrsBaselineBindableStatus,
+} from '@internal/platform-common';
+
 export type UrsAuthCredentials = unknown;
 
 export interface UrsBaselineReference {
@@ -16,6 +21,9 @@ export interface UrsBaselineReference {
   requirementSetId?: string;
   solutionName?: string;
   supersededBy?: string;
+  /** SHA-256 of pinned baseline identity (hashOfBaseline-compatible). */
+  contentHash?: string;
+  requirementVersionIds?: string[];
 }
 
 /** Typed failure when a pinned URS baseline is not APPROVED (or unreachable). */
@@ -69,7 +77,10 @@ export function ursReleaseGateBlockerFromError(
 }
 
 export interface UrsRequirementSummary {
+  /** Stable logical requirement ID (for example URS-OEE-001). */
   id: string;
+  /** Immutable RequirementVersion ID pinned by the URS baseline. */
+  versionId?: string;
   title: string;
   statement: string;
   category?: string;
@@ -137,19 +148,40 @@ function assertApprovedOrThrow(
     baselineVersion?: string;
     requirementSetId?: string;
     supersededBy?: string;
+    requirementVersionIds?: string[];
+    approvalInstanceId?: string | null;
+    contentHash?: string;
   },
 ): UrsBaselineReference {
   const status = String(baseline.status ?? '').toUpperCase();
   const supersededBy = baseline.supersededBy
     ? String(baseline.supersededBy)
     : undefined;
-  if (status === 'APPROVED') {
+  const requirementVersionIds = Array.isArray(baseline.requirementVersionIds)
+    ? baseline.requirementVersionIds.map(String)
+    : [];
+  const contentHash =
+    baseline.contentHash?.trim() ||
+    (baseline.requirementSetId
+      ? computeUrsBaselineContentHash({
+          id: baseline.id,
+          requirementSetId: String(baseline.requirementSetId),
+          baselineVersion: String(baseline.baselineVersion ?? ''),
+          requirementVersionIds,
+          status,
+          approvalInstanceId: baseline.approvalInstanceId,
+        })
+      : undefined);
+
+  if (isUrsBaselineBindableStatus(status)) {
     return {
       id: baseline.id,
       status,
       baselineVersion: String(baseline.baselineVersion ?? ''),
       requirementSetId: baseline.requirementSetId,
       supersededBy,
+      contentHash,
+      requirementVersionIds,
     };
   }
   if (status === 'SUPERSEDED') {
@@ -158,7 +190,7 @@ function assertApprovedOrThrow(
       baselineId,
       status,
       supersededBy,
-      message: `URS baseline ${baselineId} is SUPERSEDED; expected APPROVED`,
+      message: `URS baseline ${baselineId} is SUPERSEDED; expected APPROVED or BASELINED`,
     });
   }
   throw new UrsBaselineResolutionError({
@@ -166,7 +198,7 @@ function assertApprovedOrThrow(
     baselineId,
     status: status || 'NOT_FOUND',
     supersededBy,
-    message: `URS baseline ${baselineId} is ${status || 'NOT_FOUND'}; expected APPROVED`,
+    message: `URS baseline ${baselineId} is ${status || 'NOT_FOUND'}; expected APPROVED or BASELINED`,
   });
 }
 
@@ -210,6 +242,9 @@ export function createHttpUrsBaselineResolver(options: {
     baselineVersion?: string;
     requirementSetId?: string;
     supersededBy?: string;
+    requirementVersionIds?: string[];
+    approvalInstanceId?: string | null;
+    contentHash?: string;
   }> {
     const base = await options.discovery.getBaseUrl('urs-composer');
     const url = `${base}/baselines/${encodeURIComponent(baselineId)}`;
@@ -228,6 +263,9 @@ export function createHttpUrsBaselineResolver(options: {
       baselineVersion?: string;
       requirementSetId?: string;
       supersededBy?: string;
+      requirementVersionIds?: string[];
+      approvalInstanceId?: string | null;
+      contentHash?: string;
     };
   }
 
@@ -316,6 +354,7 @@ export function createHttpUrsBaselineResolver(options: {
           if (vRes.ok) {
             const v = (await vRes.json()) as {
               id?: string;
+              requirementId?: string;
               title?: string;
               statement?: string;
               category?: string;
@@ -327,7 +366,8 @@ export function createHttpUrsBaselineResolver(options: {
               };
             };
             requirements.push({
-              id: v.id ?? vid,
+              id: v.requirementId ?? v.id ?? vid,
+              versionId: v.id ?? vid,
               title: v.title ?? '',
               statement: v.statement ?? '',
               category: v.category,
@@ -400,7 +440,7 @@ export function createHttpUrsBaselineResolver(options: {
             : baselines.items ?? [];
           for (const b of list) {
             const status = String(b.status ?? '').toUpperCase();
-            if (status === 'APPROVED') {
+            if (status === 'APPROVED' || status === 'BASELINED') {
               approved.push({
                 id: b.id,
                 status,
