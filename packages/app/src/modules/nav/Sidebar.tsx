@@ -78,12 +78,27 @@ function PlatformSidebar() {
         <>
           <SidebarItem icon={HomeIcon} to="/" text="Home" />
 
-          <SidebarItem icon={BuildIcon} to="/build" text="Build">
-            <SidebarSubmenu title="Build">
+          {/*
+            Grouped along the lifecycle a user actually follows:
+            discover what exists → define what is needed → build it →
+            operate it → validate it. Routes are unchanged; only the
+            grouping and the labels moved.
+
+            URS Composer used to sit under "Validate", which is where a
+            user looking for requirements would never think to look:
+            requirements come before building, validation after it.
+          */}
+          <SidebarItem icon={StorefrontIcon} to="/marketplace" text="Discover">
+            <SidebarSubmenu title="Discover">
               <SidebarSubmenuItem
-                icon={AddCircleIcon}
-                to="/create"
-                title="Start Building"
+                icon={StorefrontIcon}
+                to="/marketplace"
+                title="Marketplace"
+              />
+              <SidebarSubmenuItem
+                icon={ViewListIcon}
+                to="/catalog"
+                title="Catalog"
               />
               <SidebarSubmenuItem
                 icon={EmojiEventsIcon}
@@ -95,32 +110,11 @@ function PlatformSidebar() {
                 to="/platform-components"
                 title="Components"
               />
-              <SidebarSubmenuItem
-                icon={DeviceHubIcon}
-                to="/compose"
-                title="Composer"
-                subtitle="Advanced"
-              />
             </SidebarSubmenu>
           </SidebarItem>
 
-          <SidebarItem icon={FolderOpenIcon} to="/my-products" text="My Products">
-            <SidebarSubmenu title="My Products">
-              <SidebarSubmenuItem
-                icon={StorageIcon}
-                to="/data-products"
-                title="Data Products"
-              />
-              <SidebarSubmenuItem
-                icon={ViewListIcon}
-                to="/catalog"
-                title="Catalog"
-              />
-            </SidebarSubmenu>
-          </SidebarItem>
-
-          <SidebarItem icon={CheckCircleIcon} to="/validate" text="Validate">
-            <SidebarSubmenu title="Validate">
+          <SidebarItem icon={DescriptionIcon} to="/urs-composer" text="Define">
+            <SidebarSubmenu title="Define">
               <SidebarSubmenuItem
                 icon={DescriptionIcon}
                 to="/urs-composer"
@@ -131,6 +125,66 @@ function PlatformSidebar() {
                 to="/urs-composer/library"
                 title="URS Library"
               />
+              {/*
+                Business master data the URS workflow consumes, not platform
+                administration. Visibility stays admin-only exactly as before;
+                writes remain gated by businessCapabilityManagePermission in
+                the backend.
+              */}
+              {admin ? (
+                <SidebarSubmenuItem
+                  icon={CategoryIcon}
+                  to="/urs-composer/capabilities"
+                  title="Business Capabilities"
+                />
+              ) : null}
+              {admin ? (
+                <SidebarSubmenuItem
+                  icon={AssignmentTurnedInIcon}
+                  to="/urs-composer/business-roles"
+                  title="Business Roles"
+                />
+              ) : null}
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          <SidebarItem icon={BuildIcon} to="/build" text="Build">
+            <SidebarSubmenu title="Build">
+              <SidebarSubmenuItem
+                icon={AddCircleIcon}
+                to="/create"
+                title="Start Building"
+              />
+              <SidebarSubmenuItem
+                icon={DeviceHubIcon}
+                to="/compose"
+                title="Composer"
+                subtitle="Advanced"
+              />
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          <SidebarItem icon={FolderOpenIcon} to="/my-products" text="Operate">
+            <SidebarSubmenu title="Operate">
+              <SidebarSubmenuItem
+                icon={FolderOpenIcon}
+                to="/my-products"
+                title="My Products"
+              />
+              <SidebarSubmenuItem
+                icon={StorageIcon}
+                to="/data-products"
+                title="Data Products"
+              />
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          <SidebarItem
+            icon={CheckCircleIcon}
+            to="/validate"
+            text="Validate"
+          >
+            <SidebarSubmenu title="Validate">
               <SidebarSubmenuItem
                 icon={AssignmentTurnedInIcon}
                 to="/validation-expert"
@@ -139,7 +193,6 @@ function PlatformSidebar() {
             </SidebarSubmenu>
           </SidebarItem>
 
-          <SidebarItem icon={StorefrontIcon} to="/marketplace" text="Marketplace" />
           <SidebarItem icon={BusinessIcon} to="/model-company" text="Model Company" />
 
           {admin ? (
@@ -151,16 +204,6 @@ function PlatformSidebar() {
                   title="Users & Roles"
                 />
                 <SidebarSubmenuItem
-                  icon={CategoryIcon}
-                  to="/urs-composer/capabilities"
-                  title="Business Capabilities"
-                />
-                <SidebarSubmenuItem
-                  icon={AssignmentTurnedInIcon}
-                  to="/urs-composer/business-roles"
-                  title="Business Roles"
-                />
-                <SidebarSubmenuItem
                   icon={VerifiedUserIcon}
                   to="/admin/entitlements"
                   title="Entitlements"
@@ -170,10 +213,18 @@ function PlatformSidebar() {
                   to="/admin/marketplace-integration"
                   title="Marketplace Integration"
                 />
+              </SidebarSubmenu>
+            </SidebarItem>
+          ) : null}
+
+          {/* Reference material, not administration. */}
+          {admin ? (
+            <SidebarItem icon={ExtensionIcon} to="/admin/platform-architecture" text="Platform">
+              <SidebarSubmenu title="Platform">
                 <SidebarSubmenuItem
                   icon={BuildIcon}
                   to="/admin/platform-architecture"
-                  title="Platform Architecture"
+                  title="Architecture"
                 />
                 <SidebarSubmenuItem
                   icon={ExtensionIcon}
