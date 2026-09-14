@@ -51,10 +51,15 @@ export {
   NEXORA_CYAN_DARK,
   NEXORA_CYAN_FG,
   NEXORA_CYAN_LIGHT,
+  NEXORA_CYAN_PALE,
+  NEXORA_DARK,
   NEXORA_GREY,
   NEXORA_MUTED,
   NEXORA_NAVY,
   NEXORA_NAVY_DARK,
+  NEXORA_NAVY_LINE,
+  NEXORA_NAVY_SOFT,
+  NEXORA_ON_NAVY,
   NEXORA_SECTION,
   NEXORA_SECURITY,
   NEXORA_SECURITY_FG,
@@ -63,5 +68,6 @@ export {
   NEXORA_TEXT,
   NEXORA_TONE,
 } from './tokens';
+export { withAlpha } from './tokens';
 export type { NexoraToneName } from './tokens';
 export { IndustrialTestRoot } from './testUtils';

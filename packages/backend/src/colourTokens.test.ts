@@ -20,10 +20,13 @@ const TOKENISED_FILES = [
   'packages/app/src/modules/admin/UsersRolesPage.tsx',
   'packages/app/src/modules/admin/AdminLandingPage.tsx',
   'packages/app/src/modules/products/ProductDetailPage.tsx',
+  'packages/app/src/modules/nav/PlatformFooter.tsx',
   'plugins/data-products/src/components/CiStatusChip.tsx',
   'plugins/data-products/src/components/StatusChip.tsx',
   'plugins/data-products/src/components/CompatibilityChip.tsx',
   'plugins/nexora-common/src/components/StatusBadge.tsx',
+  'plugins/plugin-directory/src/components/shared.tsx',
+  'plugins/urs-composer/src/pages/ChangeSetPage.tsx',
   'plugins/urs-composer/src/pages/URSLibraryPage.tsx',
   'plugins/urs-composer/src/pages/URSRequirementSetPage.tsx',
 ];

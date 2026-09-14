@@ -1,15 +1,23 @@
 import { Chip } from '@material-ui/core';
-import { NEXORA_MUTED, NEXORA_NAVY } from '@internal/plugin-nexora-common';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_MUTED,
+  NEXORA_NAVY,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
 import type { CertificationTier } from '../tier';
 
-const PASS_BG = '#0D9488';
-const WARN_BG = 'rgba(255, 138, 0, 0.14)';
-const WARN_FG = '#9A3412';
-const INFO_BG = 'rgba(10, 25, 41, 0.08)';
-const NEUTRAL_BG = '#E2E8F0';
-const NEUTRAL_FG = '#334155';
-const CERTIFIED_BG = '#0E7490';
-const VALIDATED_BG = '#15803D';
+// Drawn from the shared ramp so a plugin's status reads the same as the same
+// status anywhere else in the platform.
+const PASS_BG = NEXORA_TONE.success.bg;
+const WARN_BG = NEXORA_TONE.warning.bg;
+const WARN_FG = NEXORA_TONE.warning.fg;
+const INFO_BG = NEXORA_TONE.info.bg;
+const NEUTRAL_BG = NEXORA_TONE.neutral.bg;
+const NEUTRAL_FG = NEXORA_TONE.neutral.fg;
+const CERTIFIED_BG = NEXORA_TONE.active.bg;
+const VALIDATED_BG = NEXORA_TONE.success.bg;
 
 function toneFor(value: string): { backgroundColor: string; color: string } {
   const upper = value.toUpperCase();
@@ -21,7 +29,7 @@ function toneFor(value: string): { backgroundColor: string; color: string } {
     upper === 'COMPLETED' ||
     upper === 'READY'
   ) {
-    return { backgroundColor: PASS_BG, color: '#FFFFFF' };
+    return { backgroundColor: PASS_BG, color: NEXORA_CARD };
   }
   if (
     upper.includes('NOT_VALIDATED') ||
@@ -60,9 +68,9 @@ function tierTone(tier: CertificationTier): {
 } {
   switch (tier) {
     case 'Validated':
-      return { backgroundColor: VALIDATED_BG, color: '#FFFFFF' };
+      return { backgroundColor: VALIDATED_BG, color: NEXORA_CARD };
     case 'Certified':
-      return { backgroundColor: CERTIFIED_BG, color: '#FFFFFF' };
+      return { backgroundColor: CERTIFIED_BG, color: NEXORA_CARD };
     case 'Not applicable':
       return { backgroundColor: INFO_BG, color: NEXORA_NAVY };
     case 'Community':
@@ -97,7 +105,7 @@ export function DetailRow({
   return (
     <div style={{ color: NEXORA_MUTED, fontSize: 14, marginBottom: 8 }}>
       <span style={{ display: 'inline-block', minWidth: 160 }}>{label}</span>
-      <span style={{ color: '#0F172A' }}>{value || '—'}</span>
+      <span style={{ color: NEXORA_GREY[900] }}>{value || '—'}</span>
     </div>
   );
 }

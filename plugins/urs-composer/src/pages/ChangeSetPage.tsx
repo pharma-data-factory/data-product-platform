@@ -6,6 +6,11 @@ import { useEffect, useState, useMemo, type FC } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
+  NEXORA_CARD,
+  NEXORA_SECURITY_FG,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
+import {
   Header,
   Page,
   Content,
@@ -31,10 +36,10 @@ import {
 } from '../api/types';
 
 const CHANGE_COLORS: Record<ChangeType, string> = {
-  ADDED: '#4caf50',
-  MODIFIED: '#ff9800',
-  REMOVED: '#f44336',
-  UNCHANGED: '#9e9e9e',
+  ADDED: NEXORA_TONE.success.text,
+  MODIFIED: NEXORA_SECURITY_FG,
+  REMOVED: NEXORA_TONE.danger.text,
+  UNCHANGED: NEXORA_TONE.neutral.text,
 };
 
 const FILTER_OPTIONS: Array<{ label: string; value: ChangeType | 'ALL' }> = [
@@ -99,7 +104,7 @@ export const ChangeSetPage: FC = () => {
             size="small"
             style={{
               backgroundColor: CHANGE_COLORS[row.changeType],
-              color: '#fff',
+              color: NEXORA_CARD,
               fontWeight: 600,
             }}
           />

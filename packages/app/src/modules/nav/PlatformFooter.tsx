@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { useApi } from '@backstage/core-plugin-api';
 import { discoveryApiRef } from '@backstage/core-plugin-api';
 import Tooltip from '@material-ui/core/Tooltip';
@@ -18,12 +19,12 @@ const SERVICES: ServiceStatus[] = [
 
 function statusDotColor(ok: boolean | null): string {
   if (ok === null) {
-    return '#94A3B8';
+    return NEXORA_GREY[400];
   }
   if (ok) {
-    return '#22C55E';
+    return NEXORA_TONE.success.text;
   }
-  return '#EF4444';
+  return NEXORA_TONE.danger.text;
 }
 
 function statusDotText(label: string, ok: boolean | null): string {
@@ -53,7 +54,7 @@ function StatusDot({ label, ok }: { label: string; ok: boolean | null }) {
             boxShadow: `0 0 3px ${color}`,
           }}
         />
-        <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>
+        <span style={{ fontSize: 11, color: NEXORA_GREY[400], fontFamily: "'JetBrains Mono', monospace" }}>
           {label}
         </span>
       </div>
@@ -102,8 +103,8 @@ export function PlatformFooter() {
         left: 0,
         right: 0,
         height: 28,
-        background: '#0F172A',
-        borderTop: '1px solid #1E293B',
+        background: NEXORA_GREY[900],
+        borderTop: `1px solid ${NEXORA_GREY[800]}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
@@ -116,7 +117,7 @@ export function PlatformFooter() {
         const key = svc.llmField ? svc.name : svc.name;
         return <StatusDot key={key} label={svc.name} ok={statuses[key] ?? null} />;
       })}
-      <span style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+      <span style={{ fontSize: 10, color: NEXORA_GREY[600], fontFamily: "'JetBrains Mono', monospace" }}>
         Nexora v0.1
       </span>
     </div>

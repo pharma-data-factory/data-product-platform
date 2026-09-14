@@ -41,6 +41,40 @@ export const NEXORA_CARD = '#FFFFFF';
 export const NEXORA_SURFACE = '#F4F6F8';
 export const NEXORA_SECTION = '#EEF2F6';
 
+/**
+ * Translucent overlay derived from a token, so tints and shadows follow the
+ * palette instead of freezing a colour that was current when they were
+ * written. `withAlpha(NEXORA_CYAN, 0.08)` rather than a literal rgba().
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const value = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(value.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Dark-theme surfaces. The dark theme defined these inline, which meant the
+ * two themes could drift apart and neither could be adjusted from one place.
+ */
+export const NEXORA_DARK = {
+  /** Page background. */
+  base: '#071521',
+  /** Cards and panels. */
+  paper: '#0B1F3A',
+  /** Sidebar submenu, one step deeper than the navigation. */
+  submenu: '#030B14',
+  /** Navigation item hover. */
+  hover: '#0F2744',
+} as const;
+
+/** Navy variants used for borders, dividers and selected navigation. */
+export const NEXORA_NAVY_SOFT = '#1E3A5F';
+export const NEXORA_NAVY_LINE = '#163154';
+/** Readable body text on navy. */
+export const NEXORA_ON_NAVY = '#C5D0DC';
+/** Palest cyan, for accents on dark surfaces only. */
+export const NEXORA_CYAN_PALE = '#A5F3FC';
+
 export const NEXORA_GREY = {
   50: '#F8FAFC',
   100: '#F1F5F9',
@@ -50,6 +84,7 @@ export const NEXORA_GREY = {
   500: '#64748B',
   600: '#475569',
   700: '#334155',
+  800: '#1E293B',
   900: '#0F172A',
 } as const;
 
