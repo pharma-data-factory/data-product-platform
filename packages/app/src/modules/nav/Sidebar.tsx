@@ -14,6 +14,7 @@ import { SidebarSearchModal } from '@backstage/plugin-search';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
 import SearchIcon from '@material-ui/icons/Search';
 import SettingsIcon from '@material-ui/icons/Settings';
+import BrightnessIcon from '@material-ui/icons/Brightness6';
 import {
   PlatformRole,
   canAdministerPlatform,
@@ -196,6 +197,16 @@ function PlatformSidebar() {
                 icon={VerifiedUserIcon}
                 to="/access"
                 title="My Access"
+              />
+              {/*
+                Backstage's own settings page. Appearance there switches
+                between the nexora-light and nexora-dark themes; both are
+                registered in modules/theme but had no entry point.
+              */}
+              <SidebarSubmenuItem
+                icon={BrightnessIcon}
+                to="/settings"
+                title="Appearance"
               />
             </SidebarSubmenu>
           </SidebarItem>

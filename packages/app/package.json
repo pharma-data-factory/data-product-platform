@@ -88,5 +88,10 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "jest": {
+    "moduleNameMapper": {
+      "^@backstage/plugin-app-module-user-settings$": "<rootDir>/../../../node_modules/@backstage/plugin-app-module-user-settings/dist/index.esm.js"
+    }
+  }
 }
