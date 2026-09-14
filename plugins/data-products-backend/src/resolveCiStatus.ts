@@ -91,7 +91,9 @@ export async function ciStatusForEntity(options: {
 function fetchFailureMessage(reason: GithubFetchFailure): string {
   switch (reason) {
     case 'inaccessible':
-      return 'GitHub denied access to Actions for this repository. The GitHub App needs the Actions: Read-only permission.';
+      // 401/403 covers both "no credentials configured for this host" and
+      // "the GitHub App is installed but lacks the permission", so name both.
+      return 'GitHub denied access to Actions for this repository. Check that a GitHub credential is configured for it and that the GitHub App has the Actions: Read-only permission.';
     case 'not-found':
       return 'No CI workflow was found for this repository.';
     case 'unavailable':
