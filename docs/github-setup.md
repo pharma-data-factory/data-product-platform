@@ -73,7 +73,10 @@ included.
 
 ## Local setup
 
-1. Copy `.env.example` to `.env`.
+1. Create `.env` by hand. Do **not** copy `.env.example` verbatim: it lists
+   every variable with an empty value, and Backstage rejects an empty
+   `${VAR}` with `got empty-string, wanted string` while it simply drops an
+   unset one. A variable you do not have must be absent, not empty.
 2. Create the GitHub App.
 3. If the App is owned by a user, open **Advanced** → **Transfer ownership**
    and transfer it to `pharma-data-factory`.
@@ -89,14 +92,14 @@ included.
 6. Stop any running `yarn start` process.
 7. Start the Golden Path backend:
 
-```powershell
+```bash
 cd data-product-platform
-copy .env.example .env
 yarn start:github
 ```
 
-8. Open http://localhost:3000 and continue as guest, or sign in with GitHub
-   if `AUTH_GITHUB_*` is configured.
+8. Open http://localhost:3000 and sign in with GitHub. Guest sign-in is
+   opt-in and off by default; set `AUTH_GUEST_ENABLED=true` in `.env` if you
+   want it for local work.
 
 Hosted login and Portainer: [hosted login](developer/hosted-login.md),
 [Portainer](deployment/portainer.md),
