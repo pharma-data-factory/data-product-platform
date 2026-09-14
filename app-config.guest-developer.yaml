@@ -1,0 +1,24 @@
+# Raises the local Guest from VIEWER to DEVELOPER.
+#
+# Opt-in on top of app-config.guest.yaml, loaded only when the .env sets
+# AUTH_GUEST_ROLE=developer. Use it to exercise the Create / Scaffolder journey
+# locally without a GitHub OAuth App.
+#
+# This grants scaffolder.task.create, catalog.entity.create, data-product.create
+# and validation.test.execute to an identity that nobody approved. Local
+# development only — never in the production image, and never on a shared host.
+#
+# Backstage replaces arrays on merge rather than concatenating them, so the list
+# below fully supersedes the one in app-config.guest.yaml.
+#
+# Note: this raises the issued *token* only. catalog/users.seed.yaml keeps the
+# Guest user in platform-viewers, which stays the documented default.
+auth:
+  providers:
+    guest:
+      # @visibility frontend
+      userEntityRef: user:default/guest
+      ownershipEntityRefs:
+        - user:default/guest
+        - group:default/guests
+        - group:default/data-product-developers

@@ -8,7 +8,11 @@ import {
   marketplaceViewPermission,
   platformAdminPermission,
 } from './permissions';
-import { PlatformRole } from './roles';
+import {
+  PlatformRole,
+  hasApprovedPlatformAccess,
+  resolvePlatformRole,
+} from './roles';
 
 const SCAFFOLDER_CREATE = {
   name: 'scaffolder.task.create',
@@ -381,5 +385,47 @@ describe('model company permissions', () => {
         ['group:default/platform-viewers'],
       ),
     ).toBe('deny');
+  });
+});
+
+describe('guest identity', () => {
+  // The ownership refs the guest auth provider issues, per
+  // app-config.guest.yaml. Membership in 'guests' is not a platform group and
+  // must not grant anything by itself.
+  const GUEST_OWNERSHIP = [
+    'user:default/guest',
+    'group:default/guests',
+    'group:default/platform-viewers',
+  ];
+
+  it('resolves to VIEWER, not DEVELOPER', () => {
+    expect(resolvePlatformRole(GUEST_OWNERSHIP)).toBe('VIEWER');
+  });
+
+  it('can read but cannot scaffold or create', () => {
+    const role = resolvePlatformRole(GUEST_OWNERSHIP);
+    expect(decidePermission(CATALOG_READ, role)).toBe('allow');
+    expect(decidePermission(marketplaceViewPermission, role)).toBe('allow');
+    expect(decidePermission(SCAFFOLDER_CREATE, role)).toBe('deny');
+    expect(decidePermission(SCAFFOLDER_ACTION, role)).toBe('deny');
+    expect(decidePermission(dataProductCreatePermission, role)).toBe('deny');
+  });
+
+  it('gets nothing from the guests group alone', () => {
+    expect(hasApprovedPlatformAccess(['group:default/guests'])).toBe(false);
+  });
+
+  // AUTH_GUEST_ROLE=developer loads app-config.guest-developer.yaml. The
+  // escalation is deliberate and local-only, but must stay below admin.
+  it('reaches DEVELOPER when explicitly escalated, never admin', () => {
+    const escalated = [
+      'user:default/guest',
+      'group:default/guests',
+      'group:default/data-product-developers',
+    ];
+    const role = resolvePlatformRole(escalated);
+    expect(role).toBe('DEVELOPER');
+    expect(decidePermission(SCAFFOLDER_CREATE, role)).toBe('allow');
+    expect(decidePermission(platformAdminPermission, role)).toBe('deny');
   });
 });

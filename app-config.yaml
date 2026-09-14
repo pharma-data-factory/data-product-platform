@@ -107,19 +107,13 @@ auth:
   environment: development
   # see https://backstage.io/docs/auth/ to learn about auth providers
   providers:
-    # Token-based guest for local development only. Must match catalog/users.seed.yaml.
-    # Guest is not a production identity. Do not set
-    # dangerouslyAllowOutsideDevelopment.
-    # The legacy frontend guest identity has no token and causes catalog 401s
-    # when permission.enabled is true.
-    guest:
-      # Frontend must see this key for the Guest sign-in button to appear.
-      # @visibility frontend
-      userEntityRef: user:default/guest
-      ownershipEntityRefs:
-        - user:default/guest
-        - group:default/guests
-        - group:default/data-product-developers
+    # Guest sign-in is NOT defined here. It lives in app-config.guest.yaml and
+    # is loaded only when AUTH_GUEST_ENABLED=true is set in .env — see
+    # scripts/ona-dev.sh. Without it the login offers GitHub only, which is the
+    # default this platform is built around. The sign-in button keys off the
+    # presence of auth.providers.guest, so leaving the provider out disables
+    # both the button and the backend route rather than only hiding the button.
+    #
     # GitHub *user* login. Separate from GitHub App repository publishing in
     # app-config.github.yaml (GITHUB_APP_ID / GITHUB_CLIENT_ID / private key).
     github:

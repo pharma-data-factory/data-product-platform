@@ -10,7 +10,11 @@ metadata:
   annotations:
     dataprod.platform/identity: development-fallback
 spec:
-  memberOf: [guests, data-product-developers]
+  # platform-viewers = VIEWER. Guest is deliberately read-only; it cannot
+  # scaffold or create. Local development can raise the issued token with
+  # AUTH_GUEST_ROLE=developer (app-config.guest-developer.yaml) without
+  # changing this default.
+  memberOf: [guests, platform-viewers]
 ---
 apiVersion: backstage.io/v1alpha1
 kind: User

@@ -49,13 +49,31 @@ describe('MVP 1.1 pilot hardening', () => {
     expect(read('app-config.docker.yaml')).not.toMatch(/^\s+guest:/m);
   });
 
-  it('does not grant Guest Platform Admin', () => {
-    expect(read('catalog/users.seed.yaml')).toContain('memberOf: [guests, data-product-developers]');
+  it('keeps Guest read-only and never an admin', () => {
+    // Guest is a VIEWER. It used to be a DEVELOPER, which let an identity
+    // nobody approved scaffold repositories and create data products.
+    expect(read('catalog/users.seed.yaml')).toContain('memberOf: [guests, platform-viewers]');
     expect(read('catalog/users.seed.yaml')).not.toContain(
       'memberOf: [guests, platform-admins]',
     );
-    expect(read('app-config.yaml')).toContain('group:default/data-product-developers');
-    expect(read('app-config.yaml')).not.toContain(
+    expect(read('app-config.guest.yaml')).toContain('group:default/platform-viewers');
+    expect(read('app-config.guest.yaml')).not.toContain(
+      'group:default/data-product-developers',
+    );
+    expect(read('app-config.guest.yaml')).not.toContain(
+      'group:default/platform-admins',
+    );
+  });
+
+  it('keeps Guest sign-in out of the default config and out of production', () => {
+    // The sign-in button and the backend guest route both key off the presence
+    // of auth.providers.guest, so leaving it out of app-config.yaml disables
+    // both rather than only hiding the button.
+    expect(read('app-config.yaml')).not.toMatch(/^\s+guest:/m);
+    expect(read('app-config.production.yaml')).not.toMatch(/^\s+guest:/m);
+    expect(read('app-config.docker.yaml')).not.toMatch(/^\s+guest:/m);
+    // The opt-in escalation must never reach admin either.
+    expect(read('app-config.guest-developer.yaml')).not.toContain(
       'group:default/platform-admins',
     );
   });

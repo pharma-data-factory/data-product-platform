@@ -23,6 +23,22 @@ if ! command -v node >/dev/null 2>&1 && [ -x "$HOME/.local/node22/bin/node" ]; t
   export PATH="$HOME/.local/node22/bin:$PATH"
 fi
 
+# Reads a key from the process environment, falling back to .env. The script
+# needs these flags before the app starts; only the app itself gets .env loaded
+# by `node --env-file`.
+env_value() {
+  local key="$1"
+  if [ -n "${!key:-}" ]; then
+    printf '%s' "${!key}"
+    return
+  fi
+  [ -f "$ROOT/.env" ] || return 0
+  sed -n "s/^[[:space:]]*${key}=//p" "$ROOT/.env" \
+    | tail -1 \
+    | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" \
+    | tr -d '\r'
+}
+
 ensure_env() {
   if [ -f "$ROOT/.env" ]; then
     return
@@ -33,6 +49,13 @@ ensure_env() {
 # Optional integrations (GITHUB_TOKEN, COMPOSER_AI_KEY, AUTH_GITHUB_*) must
 # stay ABSENT here. Setting them to an empty value breaks backend startup.
 BACKEND_SECRET=dev-local-auth-key
+
+# Guest sign-in. Without this the login offers GitHub only.
+#   AUTH_GUEST_ENABLED=true   shows "Continue as Guest"
+#   AUTH_GUEST_ROLE=viewer    read-only (default)
+#   AUTH_GUEST_ROLE=developer additionally allows scaffolding and create
+# AUTH_GUEST_ENABLED=true
+# AUTH_GUEST_ROLE=viewer
 EOF
 }
 
@@ -94,6 +117,27 @@ start() {
   # repo start resolves --config relative to each package, so these must be
   # absolute paths.
   local args=(--config "$ROOT/app-config.yaml" --config "$ROOT/app-config.local.yaml")
+
+  # Guest sign-in is opt-in. With no flag the login offers GitHub only, which
+  # is the default this platform is built around.
+  local guest_enabled guest_role
+  guest_enabled="$(env_value AUTH_GUEST_ENABLED)"
+  guest_role="$(env_value AUTH_GUEST_ROLE)"
+  if [ "$guest_enabled" = "true" ]; then
+    args+=(--config "$ROOT/app-config.guest.yaml")
+    if [ "$guest_role" = "developer" ]; then
+      args+=(--config "$ROOT/app-config.guest-developer.yaml")
+      echo "Guest sign-in: enabled, role DEVELOPER (can scaffold and create)"
+    else
+      echo "Guest sign-in: enabled, role VIEWER (read-only)"
+      if [ -n "$guest_role" ] && [ "$guest_role" != "viewer" ]; then
+        echo "  note: AUTH_GUEST_ROLE='$guest_role' is not recognised; using viewer"
+      fi
+    fi
+  else
+    echo "Guest sign-in: disabled (set AUTH_GUEST_ENABLED=true in .env to enable)"
+  fi
+
   if [ -f "$OVERRIDE" ]; then
     echo "Using gateway override $OVERRIDE"
     args+=(--config "$OVERRIDE")

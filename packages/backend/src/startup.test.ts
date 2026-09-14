@@ -6,6 +6,10 @@ const appConfig = fs.readFileSync(
   path.resolve(__dirname, '../../../app-config.yaml'),
   'utf8',
 );
+const guestConfig = fs.readFileSync(
+  path.resolve(__dirname, '../../../app-config.guest.yaml'),
+  'utf8',
+);
 
 describe('Backstage foundation', () => {
   it('starts the current backend architecture with required plugins', () => {
@@ -49,8 +53,10 @@ describe('Backstage foundation', () => {
     expect(appConfig).toContain('allow: [Component, System, API, Resource, Location, Template, Domain]');
   });
 
-  it('maps guest auth to the catalog guest user', () => {
-    expect(appConfig).toContain('userEntityRef: user:default/guest');
+  it('maps guest auth to the catalog guest user in the opt-in guest config', () => {
+    // Guest moved out of app-config.yaml so the default login offers GitHub
+    // only; scripts/ona-dev.sh adds this file when AUTH_GUEST_ENABLED=true.
+    expect(guestConfig).toContain('userEntityRef: user:default/guest');
   });
 
   it('allows local frontend origins for Guest sign-in CORS', () => {
