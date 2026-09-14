@@ -53,6 +53,24 @@ describe('Backstage foundation', () => {
     expect(appConfig).toContain('allow: [Component, System, API, Resource, Location, Template, Domain]');
   });
 
+  it('registers the app config schema so frontend visibility takes effect', () => {
+    // packages/app/config.d.ts is only read when package.json names it. Without
+    // the configSchema field the file is silently ignored, every key it marks
+    // frontend-visible is stripped from the served config, and the Guest button
+    // never appears however the YAML is written.
+    const appPackage = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '../../app/package.json'), 'utf8'),
+    );
+    expect(appPackage.configSchema).toBe('config.d.ts');
+
+    const schema = fs.readFileSync(
+      path.resolve(__dirname, '../../app/config.d.ts'),
+      'utf8',
+    );
+    expect(schema).toContain('guest?:');
+    expect(schema).toContain('userEntityRef');
+  });
+
   it('maps guest auth to the catalog guest user in the opt-in guest config', () => {
     // Guest moved out of app-config.yaml so the default login offers GitHub
     // only; scripts/ona-dev.sh adds this file when AUTH_GUEST_ENABLED=true.

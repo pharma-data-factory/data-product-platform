@@ -6,6 +6,7 @@
   "backstage": {
     "role": "frontend"
   },
+  "configSchema": "config.d.ts",
   "scripts": {
     "start": "node --env-file=../../.env ../../node_modules/@backstage/cli/bin/backstage-cli package start",
     "build": "backstage-cli package build",
