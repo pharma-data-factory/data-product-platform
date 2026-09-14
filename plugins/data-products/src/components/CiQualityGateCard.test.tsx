@@ -98,6 +98,40 @@ describe('CI Quality Gate UI', () => {
     expect(screen.getAllByText('Not available').length).toBeGreaterThan(0);
   });
 
+  it('shows why the result is UNKNOWN instead of only a bare status', () => {
+    render(
+      <MemoryRouter>
+        <CiQualityGateView
+          status={{
+            status: 'UNKNOWN',
+            message:
+              'GitHub denied access to Actions for this repository. The GitHub App needs the Actions: Read-only permission.',
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/Actions: Read-only permission/)).toBeInTheDocument();
+    expect(screen.getByText('DEGRADED / UNVERIFIED')).toBeInTheDocument();
+    expect(screen.queryByText('PASSED')).not.toBeInTheDocument();
+  });
+
+  it('renders a failed Security Scan stage', () => {
+    render(
+      <MemoryRouter>
+        <CiQualityGateView
+          status={{
+            status: 'FAILED',
+            workflowName: 'CI',
+            failedStages: ['Security Scan'],
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Security Scan')).toBeInTheDocument();
+  });
+
   it.each(['RUNNING', 'PASSED', 'FAILED', 'CANCELLED'] as const)(
     'renders the %s CI badge',
     status => {

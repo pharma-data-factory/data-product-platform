@@ -65,6 +65,15 @@ export function CiQualityGateView({
         <>
           <Typography variant="subtitle2">Status</Typography>
           <CiStatusChip status={status.status} />
+          {status.message && (
+            <Typography
+              variant="body2"
+              color="textSecondary"
+              style={{ marginTop: 8 }}
+            >
+              {status.message}
+            </Typography>
+          )}
           <div style={{ marginTop: 16 }}>
             <StructuredMetadataTable
               metadata={{

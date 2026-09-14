@@ -8,6 +8,9 @@ export const PLATFORM_CI_STATUSES = [
 
 export type PlatformCiStatus = (typeof PLATFORM_CI_STATUSES)[number];
 
+// Order matches the steps of the official Golden Path quality gate
+// (templates/*/content/.github/workflows/data-product-quality.yml) and drives
+// the display order in mapFailedStages.
 export const QUALITY_STAGES = [
   'Lint',
   'Unit Tests',
@@ -15,6 +18,7 @@ export const QUALITY_STAGES = [
   'Data Quality',
   'Compatibility',
   'Docker Build',
+  'Security Scan',
 ] as const;
 
 export type QualityStage = (typeof QUALITY_STAGES)[number];

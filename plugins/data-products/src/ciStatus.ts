@@ -8,6 +8,9 @@ export const PLATFORM_CI_STATUSES = [
 
 export type PlatformCiStatus = (typeof PLATFORM_CI_STATUSES)[number];
 
+// Must stay in sync with QUALITY_STAGES in plugins/data-products-backend:
+// sanitizeCiStatus filters failedStages against this list, so a stage missing
+// here is dropped before it reaches the UI.
 export const QUALITY_STAGES = [
   'Lint',
   'Unit Tests',
@@ -15,6 +18,7 @@ export const QUALITY_STAGES = [
   'Data Quality',
   'Compatibility',
   'Docker Build',
+  'Security Scan',
 ] as const;
 
 export type QualityStage = (typeof QUALITY_STAGES)[number];

@@ -13,6 +13,7 @@ import { resolveGithubRepository } from './resolveRepository';
 import {
   DataProductCiStatus,
   GithubActionsClient,
+  GithubFetchFailure,
   publicCiStatus,
   unknownCiStatus,
 } from './types';
@@ -53,10 +54,12 @@ export async function ciStatusForEntity(options: {
   try {
     const latest = await options.github.getLatestRun(repo);
     if (!latest.ok) {
-      return unknownCiStatus('Not available');
+      return unknownCiStatus(fetchFailureMessage(latest.reason));
     }
     if (!latest.value) {
-      return unknownCiStatus('Not available');
+      return unknownCiStatus(
+        'No workflow run has been recorded for this repository yet.',
+      );
     }
 
     const run = latest.value;
@@ -76,6 +79,24 @@ export async function ciStatusForEntity(options: {
       `GitHub CI lookup failed for ${repo.owner}/${repo.repo}: ${errorMessage(error)}`,
     );
     return unknownCiStatus('Not available');
+  }
+}
+
+/**
+ * Keeps the reason a CI lookup failed instead of collapsing everything to
+ * "Not available". The status stays UNKNOWN in every case — this only tells
+ * an operator which of the causes they are looking at, which matters most
+ * when the GitHub App is missing the Actions: Read-only permission.
+ */
+function fetchFailureMessage(reason: GithubFetchFailure): string {
+  switch (reason) {
+    case 'inaccessible':
+      return 'GitHub denied access to Actions for this repository. The GitHub App needs the Actions: Read-only permission.';
+    case 'not-found':
+      return 'No CI workflow was found for this repository.';
+    case 'unavailable':
+    default:
+      return 'GitHub Actions could not be reached.';
   }
 }
 
