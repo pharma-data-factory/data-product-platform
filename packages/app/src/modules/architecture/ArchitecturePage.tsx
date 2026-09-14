@@ -26,6 +26,11 @@ import {
   LAYER_COMPARISON,
 } from '../identity/platformStoryData';
 import { IDP_PILLARS, PLATFORM_FEATURES } from './constants';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_NAVY_DARK,
+} from '@internal/plugin-nexora-common';
 
 const archTh = {
   textAlign: 'left' as const,
@@ -218,7 +223,7 @@ function OverviewHero() {
       style={{
         padding: '128px 24px 72px',
         background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
-        color: '#F8FAFC',
+        color: NEXORA_GREY[50],
       }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -248,7 +253,7 @@ function OverviewHero() {
           <br />
           Innovate Through Data Products.
         </h1>
-        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: '#CBD5E1', maxWidth: 720 }}>
+        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: NEXORA_GREY[300], maxWidth: 720 }}>
           <strong>Nexora</strong> is the Internal Developer Platform for industrial Data
           Products, built on Backstage. It does not replace ERP, MES, LIMS, EWM, Historians
           or other IT/OT systems of record — it is the control plane
@@ -260,7 +265,7 @@ function OverviewHero() {
             borderRadius: 16,
             overflow: 'hidden',
             border: '1px solid rgba(255,255,255,0.12)',
-            background: '#05101C',
+            background: NEXORA_NAVY_DARK,
           }}
         >
           <ArchitectureOverviewImage priority />
@@ -313,7 +318,7 @@ function ViewSelectorSection() {
                 color: PHARMA_NAVY,
                 fontSize: 14,
                 fontWeight: 600,
-                background: '#FFFFFF',
+                background: NEXORA_CARD,
               }}
             >
               → Developer technical view
@@ -329,7 +334,7 @@ function ViewSelectorSection() {
                 color: PHARMA_NAVY,
                 fontSize: 14,
                 fontWeight: 600,
-                background: '#FFFFFF',
+                background: NEXORA_CARD,
               }}
             >
               → Admin governance map (sign in)
@@ -753,13 +758,13 @@ function ArchitectureCta({ onSignIn }: { onSignIn?: () => void }) {
         padding: '80px 24px',
         textAlign: 'center',
         background: PHARMA_NAVY,
-        color: '#F8FAFC',
+        color: NEXORA_GREY[50],
       }}
     >
       <h2 className="pdf-display" style={{ fontSize: 32, fontWeight: 600, margin: 0 }}>
         Ready to explore the factory
       </h2>
-      <p style={{ margin: '16px auto 0', maxWidth: 560, color: '#CBD5E1', lineHeight: 1.7 }}>
+      <p style={{ margin: '16px auto 0', maxWidth: 560, color: NEXORA_GREY[300], lineHeight: 1.7 }}>
         {onSignIn
           ? 'Continue to Golden Paths, return to the public landing, or sign in to the Control Plane.'
           : 'Return to the public landing to continue exploring Nexora.'}

@@ -10,6 +10,9 @@ import {
 } from '../identity/landingI18n';
 import { ecosystemCopy, type EcosystemLocale } from '../identity/ecosystemCopy';
 import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
+import {
   AcademySection,
   BuildSection,
   EcosystemFlywheelSection,
@@ -56,7 +59,7 @@ function SolutionsIndex() {
         style={{
           padding: '128px 24px 48px',
           background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
-          color: '#F8FAFC',
+          color: NEXORA_GREY[50],
         }}
       >
         <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -89,7 +92,7 @@ function SolutionsIndex() {
               marginTop: 20,
               fontSize: 18,
               lineHeight: 1.7,
-              color: '#CBD5E1',
+              color: NEXORA_GREY[300],
               maxWidth: 720,
             }}
           >
@@ -173,7 +176,7 @@ function SolutionHero({ slug }: { slug: SolutionSlug }) {
       style={{
         padding: '128px 24px 56px',
         background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
-        color: '#F8FAFC',
+        color: NEXORA_GREY[50],
       }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -217,7 +220,7 @@ function SolutionHero({ slug }: { slug: SolutionSlug }) {
             margin: '16px 0 0',
             fontSize: 17,
             lineHeight: 1.7,
-            color: '#CBD5E1',
+            color: NEXORA_GREY[300],
             maxWidth: 720,
           }}
         >

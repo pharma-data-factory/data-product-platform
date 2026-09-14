@@ -15,6 +15,10 @@ import {
   unknownCiStatus,
 } from '../ciStatus';
 import { CiStatusChip } from './CiStatusChip';
+import {
+  NEXORA_CARD,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
 
 export function CiQualityGateCard({ entityRef }: { entityRef: string }) {
   const ciApi = useApi(dataProductCiApiRef);
@@ -97,8 +101,8 @@ export function CiQualityGateView({
                   style={{
                     marginRight: 8,
                     marginTop: 8,
-                    backgroundColor: '#c62828',
-                    color: '#fff',
+                    backgroundColor: NEXORA_TONE.danger.bg,
+                    color: NEXORA_CARD,
                   }}
                 />
               ))}

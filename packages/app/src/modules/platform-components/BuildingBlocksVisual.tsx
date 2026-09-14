@@ -1,5 +1,9 @@
 import { makeStyles } from '@material-ui/core/styles';
 import { PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import {
+  NEXORA_ACCENT,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const LIBRARY_CHIPS = [
   'REST',
@@ -21,7 +25,7 @@ const useStyles = makeStyles({
     width: '100%',
   },
   captions: {
-    color: '#475569',
+    color: NEXORA_GREY[600],
     display: 'grid',
     gap: 6,
     marginTop: 12,
@@ -57,7 +61,7 @@ function chip(x: number, y: number, width: number, label: string) {
         x={x + width / 2}
         y={y + 19}
         textAnchor="middle"
-        fill="#99F6E4"
+        fill={NEXORA_ACCENT.tealPale}
         fontFamily="Space Grotesk, Inter, sans-serif"
         fontSize="12"
         fontWeight={600}
@@ -100,7 +104,7 @@ function box(
         x={x + width / 2}
         y={y + height / 2 + 5}
         textAnchor="middle"
-        fill={variant === 'dashed' ? '#CBD5E1' : '#F8FAFC'}
+        fill={variant === 'dashed' ? NEXORA_GREY[300] : NEXORA_GREY[50]}
         fontFamily="Space Grotesk, Inter, sans-serif"
         fontSize="13"
         fontWeight={700}
@@ -200,7 +204,7 @@ export function BuildingBlocksVisual() {
           x="200"
           y="268"
           textAnchor="middle"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="JetBrains Mono, ui-monospace, monospace"
           fontSize="10"
           fontWeight={600}
@@ -212,7 +216,7 @@ export function BuildingBlocksVisual() {
           x="520"
           y="268"
           textAnchor="middle"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="JetBrains Mono, ui-monospace, monospace"
           fontSize="10"
           fontWeight={600}
@@ -228,7 +232,7 @@ export function BuildingBlocksVisual() {
           x="520"
           y="390"
           textAnchor="middle"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="JetBrains Mono, ui-monospace, monospace"
           fontSize="11"
           fontWeight={600}
@@ -241,7 +245,7 @@ export function BuildingBlocksVisual() {
           x="360"
           y="456"
           textAnchor="middle"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="Inter, Segoe UI, sans-serif"
           fontSize="12"
         >
@@ -251,7 +255,7 @@ export function BuildingBlocksVisual() {
           x="360"
           y="478"
           textAnchor="middle"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="Inter, Segoe UI, sans-serif"
           fontSize="12"
         >

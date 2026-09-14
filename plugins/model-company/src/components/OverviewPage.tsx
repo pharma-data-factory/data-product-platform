@@ -15,6 +15,9 @@ import {
 import { formatQty } from '../factoryModel';
 import { useFactoryOperations } from '../hooks/useFactoryOperations';
 import { NX } from './visual/styles';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 export interface OverviewPageProps {
   publicMode?: boolean;
@@ -43,7 +46,7 @@ function PublicActions({
       <Button
         variant="outlined"
         onClick={onBack}
-        style={{ color: '#F8FAFC', borderColor: '#64748B' }}
+        style={{ color: NEXORA_GREY[50], borderColor: NEXORA_GREY[500] }}
       >
         Back to website
       </Button>
@@ -83,7 +86,7 @@ function SimulationActions({
         variant="outlined"
         disabled={busy || simulationStopped}
         onClick={onStop}
-        style={{ color: '#F8FAFC', borderColor: '#64748B' }}
+        style={{ color: NEXORA_GREY[50], borderColor: NEXORA_GREY[500] }}
       >
         Stop
       </Button>
@@ -91,7 +94,7 @@ function SimulationActions({
         variant="outlined"
         disabled={busy}
         onClick={onReset}
-        style={{ color: '#F8FAFC', borderColor: '#64748B' }}
+        style={{ color: NEXORA_GREY[50], borderColor: NEXORA_GREY[500] }}
       >
         Reset
       </Button>

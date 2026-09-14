@@ -1,6 +1,10 @@
 import { Button } from '@material-ui/core';
 import { BrandMark } from '../nav/BrandMark';
 import { BRAND_NAME, BRAND_WORDMARK, C, PHARMA_NAVY, PHARMA_TEAL, PLATFORM_POSITIONING } from '../theme/tokens';
+import {
+  NEXORA_ACCENT,
+  NEXORA_CARD,
+} from '@internal/plugin-nexora-common';
 
 export interface LoginPageProps {
   guestEnabled?: boolean;
@@ -103,7 +107,7 @@ export function LoginPage({
             startIcon={<GitHubMark />}
             style={{
               background: PHARMA_NAVY,
-              color: '#FFFFFF',
+              color: NEXORA_CARD,
               textTransform: 'none',
               fontWeight: 600,
               fontSize: 15,
@@ -157,8 +161,8 @@ export function LoginPage({
               marginTop: 20,
               marginBottom: 0,
               padding: '12px 14px',
-              background: '#FEF2F2',
-              border: '1px solid #FECACA',
+              background: NEXORA_ACCENT.dangerSurface,
+              border: `1px solid ${NEXORA_ACCENT.dangerBorder}`,
               borderRadius: 10,
               color: '#991B1B',
               fontSize: 13,

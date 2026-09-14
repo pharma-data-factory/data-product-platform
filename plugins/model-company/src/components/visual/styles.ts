@@ -1,27 +1,38 @@
 import { makeStyles } from '@material-ui/core';
+import {
+  NEXORA_BORDER,
+  NEXORA_CARD,
+  NEXORA_CYAN,
+  NEXORA_CYAN_DARK,
+  NEXORA_GREY,
+  NEXORA_NAVY,
+  NEXORA_NAVY_DARK,
+  NEXORA_SURFACE,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
 
 /** Align with packages/app theme tokens (Nexora navy / teal). */
 export const NX = {
-  base: '#F4F6F8',
-  card: '#FFFFFF',
-  border: '#E8EEF2',
-  text: '#0F172A',
-  muted: '#475569',
-  navy: '#0A1929',
-  navyDark: '#05101C',
-  teal: '#00C2D9',
-  tealDark: '#0098AB',
+  base: NEXORA_SURFACE,
+  card: NEXORA_CARD,
+  border: NEXORA_BORDER,
+  text: NEXORA_GREY[900],
+  muted: NEXORA_GREY[600],
+  navy: NEXORA_NAVY,
+  navyDark: NEXORA_NAVY_DARK,
+  teal: NEXORA_CYAN,
+  tealDark: NEXORA_CYAN_DARK,
   warnBg: 'rgba(255, 138, 0, 0.14)',
-  warnFg: '#9A3412',
+  warnFg: NEXORA_TONE.warning.fg,
   dangerBg: 'rgba(220, 38, 38, 0.12)',
-  dangerFg: '#B91C1C',
+  dangerFg: NEXORA_TONE.danger.bg,
   passBg: 'rgba(13, 148, 136, 0.14)',
-  passFg: '#0F766E',
+  passFg: NEXORA_TONE.success.bg,
   infoBg: 'rgba(10, 25, 41, 0.08)',
   runningBg: 'rgba(0, 194, 217, 0.12)',
   runningFg: '#0E7490',
   idleBg: 'rgba(71, 85, 105, 0.12)',
-  idleFg: '#475569',
+  idleFg: NEXORA_GREY[600],
 } as const;
 
 export const useVisualStyles = makeStyles({

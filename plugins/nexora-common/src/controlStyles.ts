@@ -10,6 +10,9 @@
  */
 import { Theme } from '@material-ui/core/styles';
 import {
+  NEXORA_GREY,
+} from './tokens';
+import {
   NEXORA_BORDER,
   NEXORA_CYAN,
   NEXORA_CYAN_DARK,
@@ -33,7 +36,7 @@ export const NEXORA_CONTROL = {
   text: NEXORA_TEXT,
   muted: NEXORA_MUTED,
   border: NEXORA_BORDER,
-  chipIdleBg: '#F1F5F9',
+  chipIdleBg: NEXORA_GREY[100],
 } as const;
 
 export const primaryButtonSx = (theme: Theme) => ({

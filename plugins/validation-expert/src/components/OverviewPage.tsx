@@ -5,6 +5,9 @@ import { useApi } from '@backstage/core-plugin-api';
 import { Grid, Typography, makeStyles } from '@material-ui/core';
 import { validationExpertApiRef, ValidationContext, ValidationOverview } from '../api';
 import { NX, PageShell, StatusChip } from './shared';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   tile: {
@@ -27,7 +30,7 @@ const useStyles = makeStyles({
     outline: 'none',
     textDecoration: 'none',
     '&:hover $tile': {
-      background: '#F8FAFC',
+      background: NEXORA_GREY[50],
       borderColor: 'rgba(10, 25, 41, 0.16)',
       boxShadow: `0 0 0 1px rgba(0, 194, 217, 0.28), 0 8px 20px rgba(10, 25, 41, 0.06)`,
       transform: 'translateY(-1px)',

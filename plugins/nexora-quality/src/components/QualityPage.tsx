@@ -11,6 +11,8 @@ import {
 } from '@internal/platform-common';
 import {
   NEXORA_BORDER,
+  NEXORA_CYAN,
+  NEXORA_GREY,
   NEXORA_MUTED,
   NexoraSection,
   NexoraToolPage,
@@ -24,14 +26,14 @@ const useStyles = makeStyles({
     gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
   },
   productCard: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px solid ${NEXORA_BORDER}`,
     borderRadius: 12,
     padding: '16px',
     cursor: 'pointer',
     transition: 'border-color 0.2s, box-shadow 0.2s',
     '&:hover': {
-      borderColor: '#00C2D9',
+      borderColor: NEXORA_CYAN,
       boxShadow: '0 2px 8px rgba(0,194,217,0.12)',
     },
   },

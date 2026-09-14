@@ -14,6 +14,7 @@ import {
 } from '@internal/platform-common';
 import {
   NEXORA_BORDER,
+  NEXORA_GREY,
   NEXORA_MUTED,
   NEXORA_TEXT,
   NexoraSection,
@@ -34,7 +35,7 @@ const useStyles = makeStyles(theme => ({
   filterChipSelected: filterChipSx(theme, true),
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px solid ${NEXORA_BORDER}`,
     borderRadius: 12,
     padding: '12px 14px',

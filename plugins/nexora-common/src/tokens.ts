@@ -108,6 +108,18 @@ export const NEXORA_TONE = {
 export type NexoraToneName = keyof typeof NEXORA_TONE;
 
 /**
+ * Pale surfaces and accents used by illustrations and callout panels. They are
+ * backgrounds, never text — pair them with a `text` variant from NEXORA_TONE.
+ */
+export const NEXORA_ACCENT = {
+  teal: '#14B8A6',
+  tealPale: '#99F6E4',
+  dangerSurface: '#FEF2F2',
+  dangerBorder: '#FECACA',
+  onNavyMuted: '#B6C3D2',
+} as const;
+
+/**
  * Legacy shape kept so existing imports keep working. Prefer NEXORA_TONE.
  * Previously declared in components/StatusBadge.tsx; palette belongs here.
  */

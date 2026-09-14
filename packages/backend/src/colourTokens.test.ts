@@ -32,6 +32,21 @@ const TOKENISED_FILES = [
   'plugins/urs-composer/src/pages/ChangeSetPage.tsx',
   'plugins/urs-composer/src/pages/URSLibraryPage.tsx',
   'plugins/urs-composer/src/pages/URSRequirementSetPage.tsx',
+  'packages/app/src/modules/architecture/ArchitectureOverviewImage.tsx',
+  'packages/app/src/modules/architecture/DeveloperArchitecturePage.tsx',
+  'packages/app/src/modules/assets/AssetsPage.tsx',
+  'packages/app/src/modules/composer/ComposePage.tsx',
+  'packages/app/src/modules/ecosystem/EcosystemPage.tsx',
+  'plugins/data-products/src/components/CiQualityGateCard.tsx',
+  'plugins/model-company/src/components/FactoryViewPage.tsx',
+  'plugins/model-company/src/components/OverviewPage.tsx',
+  'plugins/model-company/src/components/shared.tsx',
+  'plugins/nexora-assets/src/components/EquipmentPage.tsx',
+  'plugins/nexora-common/src/components/NexoraToolPage.tsx',
+  'plugins/nexora-common/src/index.ts',
+  'plugins/nexora-contracts/src/components/ContractExplorerPage.tsx',
+  'plugins/urs-composer/src/pages/BusinessCapabilitiesPage.tsx',
+  'plugins/urs-composer/src/pages/BusinessRolesPage.tsx',
 ];
 
 /** Hex colours and rgb()/rgba() literals. */

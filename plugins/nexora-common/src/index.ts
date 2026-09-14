@@ -44,6 +44,7 @@ export {
   primaryButtonSx,
 } from './controlStyles';
 export {
+  NEXORA_ACCENT,
   NEXORA_BORDER,
   NEXORA_CARD,
   NEXORA_COMPLIANCE,

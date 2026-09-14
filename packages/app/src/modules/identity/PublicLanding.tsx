@@ -39,6 +39,10 @@ import { C, BRAND_NAME, BRAND_WORDMARK, LANDING, PHARMA_NAVY, PHARMA_TEAL, PHARM
 import { CookieConsentBanner } from '../legal/CookieConsentBanner';
 import { legalNavCopy } from '../legal/legalCopy';
 import { openCookieSettings } from '../legal/cookieConsent';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const NAV_ITEMS = [
   { id: 'platform', href: '/platform/architecture' },
@@ -81,7 +85,7 @@ export const LandingStyles = () => (
       box-shadow: 0 1px 2px rgba(11, 31, 58, 0.06);
       transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .35s, box-shadow .35s, background .35s;
     }
-    .pdf-card:hover { transform: translateY(-3px); background: #F8FAFC; border-color: rgba(11,31,58,0.16); }
+    .pdf-card:hover { transform: translateY(-3px); background: ${NEXORA_GREY[50]}; border-color: rgba(11,31,58,0.16); }
     .pdf-glass {
       background: rgba(255,255,255,0.92);
       backdrop-filter: blur(14px);
@@ -89,7 +93,7 @@ export const LandingStyles = () => (
     }
     .pdf-btn-primary {
       background: linear-gradient(135deg, ${PHARMA_NAVY}, ${PHARMA_TEAL}) !important;
-      color: #fff !important;
+      color: ${NEXORA_CARD} !important;
       text-transform: none !important;
       box-shadow: none !important;
       font-weight: 600 !important;
@@ -105,7 +109,7 @@ export const LandingStyles = () => (
     .pdf-btn-ghost:hover { border-color: ${PHARMA_TEAL} !important; background: rgba(0,194,217,0.08) !important; }
     .pdf-btn-hero-primary {
       background: ${LANDING.teal} !important;
-      color: #fff !important;
+      color: ${NEXORA_CARD} !important;
       text-transform: none !important;
       box-shadow: none !important;
       font-weight: 600 !important;
@@ -114,7 +118,7 @@ export const LandingStyles = () => (
     .pdf-btn-hero-primary:hover { background: ${PHARMA_TEAL_DARK} !important; }
     .pdf-btn-hero-ghost {
       border: 1px solid rgba(255,255,255,0.35) !important;
-      color: #fff !important;
+      color: ${NEXORA_CARD} !important;
       text-transform: none !important;
       border-radius: 12px !important;
     }
@@ -235,7 +239,7 @@ function StatusPill({
     available: { bg: `${PHARMA_TEAL}14`, color: PHARMA_TEAL_DARK, border: `${PHARMA_TEAL}55` },
     certified: { bg: `${PHARMA_TEAL}14`, color: PHARMA_TEAL_DARK, border: `${PHARMA_TEAL}55` },
     planned: { bg: 'rgba(11,31,58,0.08)', color: PHARMA_NAVY, border: 'rgba(11,31,58,0.18)' },
-    future: { bg: 'rgba(71,85,105,0.10)', color: '#475569', border: 'rgba(71,85,105,0.22)' },
+    future: { bg: 'rgba(71,85,105,0.10)', color: NEXORA_GREY[600], border: 'rgba(71,85,105,0.22)' },
   }[tone];
 
   return (
@@ -354,7 +358,7 @@ function chromeButtonStyle(onDark: boolean): CSSProperties {
     border: 0,
     padding: 0,
     fontSize: 14,
-    color: onDark ? '#CBD5E1' : C.muted,
+    color: onDark ? NEXORA_GREY[300] : C.muted,
     cursor: 'pointer',
     fontFamily: 'inherit',
     textDecoration: 'none',
@@ -415,7 +419,7 @@ function LanguageMenu({ onDark }: { onDark: boolean }) {
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 fontSize: 14,
-                color: onDark ? '#F8FAFC' : C.text,
+                color: onDark ? NEXORA_GREY[50] : C.text,
               }}
             >
               {item.label}
@@ -500,7 +504,7 @@ export function LandingNav({
             display: 'flex',
             alignItems: 'center',
             gap: 14,
-            color: onDark ? '#F8FAFC' : C.text,
+            color: onDark ? NEXORA_GREY[50] : C.text,
             textDecoration: 'none',
             flexShrink: 0,
           }}
@@ -519,7 +523,7 @@ export function LandingNav({
               style={{
                 fontSize: 14,
                 textDecoration: 'none',
-                color: onDark ? '#CBD5E1' : C.muted,
+                color: onDark ? NEXORA_GREY[300] : C.muted,
                 whiteSpace: 'nowrap',
               }}
             >
@@ -538,7 +542,7 @@ export function LandingNav({
           style={{
             background: 'none',
             border: 0,
-            color: onDark ? '#F8FAFC' : C.text,
+            color: onDark ? NEXORA_GREY[50] : C.text,
             padding: 8,
             display: 'none',
           }}
@@ -744,7 +748,7 @@ function ProductEditions() {
 function FinalCta(props: PublicLandingProps) {
   const { t } = useLandingI18n();
   return (
-    <section id="sign-in" style={{ padding: '112px 24px', position: 'relative', overflow: 'hidden', textAlign: 'center', background: PHARMA_NAVY, color: '#F8FAFC' }}>
+    <section id="sign-in" style={{ padding: '112px 24px', position: 'relative', overflow: 'hidden', textAlign: 'center', background: PHARMA_NAVY, color: NEXORA_GREY[50] }}>
       <div className="pdf-hero-glow" style={{ width: 320, height: 320, left: '50%', top: 40, marginLeft: -160, background: PHARMA_TEAL, opacity: 0.22 }} />
       <div style={{ maxWidth: 880, margin: '0 auto', position: 'relative' }}>
         <Reveal>
@@ -753,7 +757,7 @@ function FinalCta(props: PublicLandingProps) {
           </h2>
         </Reveal>
         <Reveal delay={120}>
-          <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1' }}>
+          <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: NEXORA_GREY[300] }}>
             {t.finalCta.sub}
           </p>
         </Reveal>

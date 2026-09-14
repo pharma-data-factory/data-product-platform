@@ -4,6 +4,10 @@ import { makeStyles } from '@material-ui/core/styles';
 import type { DataProduct } from '@internal/plugin-data-products';
 import { PlatformRole, isAtLeast } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const BUILDER_ACTIONS = [
   { id: 'build', to: '/build', label: 'Build', copy: 'Create a Data Product using a guided Golden Path.', primary: true },
@@ -49,7 +53,7 @@ const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '28px 28px',
   },
@@ -71,7 +75,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   copy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 15,
     lineHeight: 1.7,
     marginBottom: 0,
@@ -82,7 +86,7 @@ const useStyles = makeStyles({
     background: PHARMA_TEAL,
     border: `1px solid ${PHARMA_TEAL}`,
     borderRadius: 10,
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 14,
@@ -129,19 +133,19 @@ const useStyles = makeStyles({
   primaryCard: {
     background: `linear-gradient(135deg, ${PHARMA_TEAL}, ${PHARMA_TEAL_DARK})`,
     border: 'none',
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
     '&:hover, &:focus-visible': {
       boxShadow: '0 10px 28px rgba(0, 194, 217, 0.28)',
     },
   },
   primaryLabel: {
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
   },
   primaryCopy: {
     color: '#E6FBFF !important',
   },
   primaryExplore: {
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
   },
   cardLabel: {
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",

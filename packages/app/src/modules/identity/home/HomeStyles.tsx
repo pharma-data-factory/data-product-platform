@@ -1,5 +1,10 @@
 import { NX } from './icons';
 import { C, PHARMA_NAVY } from '../landingTokens';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_NAVY_SOFT,
+} from '@internal/plugin-nexora-common';
 
 export const HomeStyles = () => (
   <style>{`
@@ -37,7 +42,7 @@ export const HomeStyles = () => (
       pointer-events: none;
     }
     .nx-hero-glow-a { width: 420px; height: 420px; top: 40px; left: -80px; background: var(--nx-cyan); }
-    .nx-hero-glow-b { width: 360px; height: 360px; top: 180px; right: -60px; background: #1E3A5F; }
+    .nx-hero-glow-b { width: 360px; height: 360px; top: 180px; right: -60px; background: ${NEXORA_NAVY_SOFT}; }
     .nx-hero-layout {
       position: relative;
       z-index: 1;
@@ -262,7 +267,7 @@ export const HomeStyles = () => (
       box-shadow: 0 12px 28px rgba(0,0,0,0.45), 0 0 22px rgba(34,211,238,0.28);
     }
     .nx-core-wordmark {
-      color: #F8FAFC;
+      color: ${NEXORA_GREY[50]};
       font-family: 'Space Grotesk', Inter, sans-serif;
       font-size: 22px;
       font-weight: 700;
@@ -324,7 +329,7 @@ export const HomeStyles = () => (
       margin: 16px 0 0;
       font-size: 17px;
       line-height: 1.7;
-      color: #475569;
+      color: ${NEXORA_GREY[600]};
     }
     .nx-why-cards {
       display: grid;
@@ -332,8 +337,8 @@ export const HomeStyles = () => (
       gap: 16px;
     }
     .nx-benefit {
-      background: #fff;
-      border: 1px solid #e2e8f0;
+      background: ${NEXORA_CARD};
+      border: 1px solid ${NEXORA_GREY[200]};
       border-radius: 16px;
       padding: 24px;
       box-shadow: 0 8px 24px rgba(11,31,58,0.04);

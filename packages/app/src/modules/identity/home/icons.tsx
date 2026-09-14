@@ -1,5 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react';
 import {
+  NEXORA_ACCENT,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
+import {
   PHARMA_NAVY,
   PHARMA_NAVY_DARK,
   PHARMA_TEAL,
@@ -14,8 +18,8 @@ export const NX = {
   cyan: PHARMA_TEAL,
   cyanBright: PHARMA_TEAL_LIGHT,
   cyanSoft: PHARMA_TEAL_LIGHT,
-  text: '#f8fafc',
-  muted: '#b6c3d2',
+  text: NEXORA_GREY[50],
+  muted: NEXORA_ACCENT.onNavyMuted,
   border: 'rgba(94, 228, 240, 0.22)',
   borderStrong: 'rgba(0, 194, 217, 0.45)',
 } as const;

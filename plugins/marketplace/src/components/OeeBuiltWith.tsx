@@ -2,6 +2,13 @@ import { Link } from '@backstage/core-components';
 import { Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import {
+  NEXORA_ACCENT,
+  NEXORA_CARD,
+  NEXORA_DARK,
+  NEXORA_GREY,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
+import {
   OeeBuiltWithSummary,
   documentationHref,
   platformComponentPath,
@@ -18,15 +25,15 @@ const useStyles = makeStyles({
     margin: '12px 0',
   },
   chip: {
-    background: '#0B1F3A',
+    background: NEXORA_DARK.paper,
     borderRadius: 10,
-    color: '#F8FAFC !important',
+    color: `${NEXORA_GREY[50]} !important`,
     fontSize: 12,
     fontWeight: 600,
     padding: '8px 12px',
     textDecoration: 'none',
     '&:hover, &:focus-visible': {
-      background: '#0D9488',
+      background: NEXORA_TONE.success.bg,
       outline: 'none',
       textDecoration: 'none',
     },
@@ -41,7 +48,7 @@ const useStyles = makeStyles({
     width: '100%',
   },
   meta: {
-    color: '#475569',
+    color: NEXORA_GREY[600],
     marginTop: 12,
   },
 });
@@ -86,12 +93,12 @@ export function CompositionTreeVisual(props: {
               height={boxH}
               rx="8"
               fill="rgba(20,184,166,0.16)"
-              stroke="#14B8A6"
+              stroke={NEXORA_ACCENT.teal}
             />
             <text
               x={left + 12}
               y={y + 19}
-              fill="#99F6E4"
+              fill={NEXORA_ACCENT.tealPale}
               fontFamily="JetBrains Mono, ui-monospace, monospace"
               fontSize="12"
             >
@@ -102,7 +109,7 @@ export function CompositionTreeVisual(props: {
               y1={midY}
               x2={spineX}
               y2={midY}
-              stroke="#14B8A6"
+              stroke={NEXORA_ACCENT.teal}
               strokeWidth="2"
             />
             <line
@@ -110,7 +117,7 @@ export function CompositionTreeVisual(props: {
               y1={midY}
               x2={spineX}
               y2={isLast ? lastMid : 16 + (index + 1) * row + boxH / 2}
-              stroke="#14B8A6"
+              stroke={NEXORA_ACCENT.teal}
               strokeWidth="2"
             />
           </g>
@@ -121,7 +128,7 @@ export function CompositionTreeVisual(props: {
         y1={lastMid}
         x2={centerX}
         y2={lastMid}
-        stroke="#14B8A6"
+        stroke={NEXORA_ACCENT.teal}
         strokeWidth="2"
       />
       <line
@@ -129,10 +136,10 @@ export function CompositionTreeVisual(props: {
         y1={lastMid}
         x2={centerX}
         y2={domainY}
-        stroke="#14B8A6"
+        stroke={NEXORA_ACCENT.teal}
         strokeWidth="2"
       />
-      <text x={centerX} y={domainY - 6} textAnchor="middle" fill="#14B8A6" fontSize="16">
+      <text x={centerX} y={domainY - 6} textAnchor="middle" fill={NEXORA_ACCENT.teal} fontSize="16">
         ↓
       </text>
       <rect
@@ -141,13 +148,13 @@ export function CompositionTreeVisual(props: {
         width="220"
         height="36"
         rx="8"
-        fill="#0D9488"
+        fill={NEXORA_TONE.success.bg}
       />
       <text
         x={centerX}
         y={domainY + 23}
         textAnchor="middle"
-        fill="#FFFFFF"
+        fill={NEXORA_CARD}
         fontFamily="Space Grotesk, Inter, sans-serif"
         fontSize="13"
         fontWeight={700}
@@ -158,7 +165,7 @@ export function CompositionTreeVisual(props: {
         x={centerX}
         y={productY - 6}
         textAnchor="middle"
-        fill="#14B8A6"
+        fill={NEXORA_ACCENT.teal}
         fontSize="16"
       >
         ↓
@@ -169,13 +176,13 @@ export function CompositionTreeVisual(props: {
         width="220"
         height="36"
         rx="8"
-        fill="#FFFFFF"
+        fill={NEXORA_CARD}
       />
       <text
         x={centerX}
         y={productY + 23}
         textAnchor="middle"
-        fill="#0B1F3A"
+        fill={NEXORA_DARK.paper}
         fontFamily="Space Grotesk, Inter, sans-serif"
         fontSize="13"
         fontWeight={700}

@@ -51,6 +51,11 @@ import { CompositionArchitectureVisual } from './CompositionArchitectureVisual';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
 import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
+import {
   suggestComponents,
   SuggestedComponent,
   generateProductSpec,
@@ -63,7 +68,7 @@ const useStyles = makeStyles(theme => ({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
@@ -90,14 +95,14 @@ const useStyles = makeStyles(theme => ({
     marginTop: 10,
   },
   copy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 15,
     lineHeight: 1.65,
     marginTop: 10,
     maxWidth: 720,
   },
   note: {
-    color: '#94A3B8',
+    color: NEXORA_GREY[400],
     fontSize: 13,
     marginTop: 12,
   },
@@ -142,7 +147,7 @@ const useStyles = makeStyles(theme => ({
     padding: 12,
   },
   disabledCard: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     opacity: 0.72,
   },
   developmentCard: {
@@ -163,7 +168,7 @@ const useStyles = makeStyles(theme => ({
     background: PHARMA_NAVY,
     border: 0,
     borderRadius: 10,
-    color: '#FFFFFF',
+    color: NEXORA_CARD,
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 600,
@@ -186,7 +191,7 @@ const useStyles = makeStyles(theme => ({
   pre: {
     background: PHARMA_NAVY,
     borderRadius: 12,
-    color: '#E2E8F0',
+    color: NEXORA_GREY[200],
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     lineHeight: 1.55,
@@ -195,7 +200,7 @@ const useStyles = makeStyles(theme => ({
     whiteSpace: 'pre-wrap',
   },
   banner: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px solid ${C.border}`,
     borderRadius: 10,
     color: C.text,
@@ -204,7 +209,7 @@ const useStyles = makeStyles(theme => ({
     padding: '10px 14px',
   },
   error: {
-    color: '#9A3412',
+    color: NEXORA_TONE.warning.fg,
     fontSize: 14,
     margin: '6px 0',
   },
@@ -217,7 +222,7 @@ const useStyles = makeStyles(theme => ({
     color: PHARMA_TEAL,
   },
   aiSection: {
-    border: '2px dashed #CBD5E1',
+    border: `2px dashed ${NEXORA_GREY[300]}`,
     borderRadius: 12,
     marginBottom: 20,
     padding: 16,
@@ -226,7 +231,7 @@ const useStyles = makeStyles(theme => ({
     background: PHARMA_NAVY,
     border: 0,
     borderRadius: 10,
-    color: '#FFFFFF',
+    color: NEXORA_CARD,
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',

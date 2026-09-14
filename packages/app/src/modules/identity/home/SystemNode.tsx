@@ -1,5 +1,8 @@
 import { NX, NxIcon, type NxIconName, NodeLabel, nodeButtonStyle } from './icons';
 import { PHARMA_NAVY } from '../landingTokens';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 export function SystemNode({
   id,
@@ -100,7 +103,7 @@ export function BenefitCard({
       <h3 className="pdf-display" style={{ margin: '16px 0 0', fontSize: 18, fontWeight: 600, color: PHARMA_NAVY }}>
         {title}
       </h3>
-      <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.6, color: '#475569' }}>{body}</p>
+      <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.6, color: NEXORA_GREY[600] }}>{body}</p>
     </article>
   );
 }

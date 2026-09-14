@@ -1,4 +1,8 @@
 import { PHARMA_NAVY, PHARMA_TEAL, C } from './landingTokens';
+import {
+  NEXORA_CARD,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
 
 /**
  * High-visibility Model Company entry on the public landing.
@@ -47,7 +51,7 @@ export function ModelCompanySection() {
             marginTop: 28,
             padding: 28,
             borderColor: 'rgba(0,194,217,0.35)',
-            background: '#fff',
+            background: NEXORA_CARD,
           }}
         >
           <div
@@ -64,7 +68,7 @@ export function ModelCompanySection() {
                 padding: '4px 10px',
                 borderRadius: 999,
                 background: 'rgba(255, 138, 0, 0.14)',
-                color: '#9A3412',
+                color: NEXORA_TONE.warning.fg,
                 fontSize: 11,
                 fontWeight: 700,
               }}
@@ -77,7 +81,7 @@ export function ModelCompanySection() {
                 padding: '4px 10px',
                 borderRadius: 999,
                 background: 'rgba(255, 138, 0, 0.14)',
-                color: '#9A3412',
+                color: NEXORA_TONE.warning.fg,
                 fontSize: 11,
                 fontWeight: 700,
               }}
@@ -90,7 +94,7 @@ export function ModelCompanySection() {
                 padding: '4px 10px',
                 borderRadius: 999,
                 background: 'rgba(255, 138, 0, 0.14)',
-                color: '#9A3412',
+                color: NEXORA_TONE.warning.fg,
                 fontSize: 11,
                 fontWeight: 700,
               }}

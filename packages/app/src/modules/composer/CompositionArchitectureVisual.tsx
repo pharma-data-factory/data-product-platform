@@ -2,6 +2,7 @@ import { makeStyles } from '@material-ui/core/styles';
 import { ComposerArchitectureLayer } from '@internal/platform-common';
 import { PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import {
+  NEXORA_ACCENT,
   NEXORA_GREY,
 } from '@internal/plugin-nexora-common';
 
@@ -72,7 +73,7 @@ export function CompositionArchitectureVisual(props: {
             <text
               x={left + 12}
               y={y + 19}
-              fill={dashed ? NEXORA_GREY[200] : '#99F6E4'}
+              fill={dashed ? NEXORA_GREY[200] : NEXORA_ACCENT.tealPale}
               fontFamily="Space Grotesk, Inter, sans-serif"
               fontSize="12"
               fontWeight={600}
@@ -102,7 +103,7 @@ export function CompositionArchitectureVisual(props: {
             <text
               x="332"
               y={36 + index * row + 19}
-              fill="#99F6E4"
+              fill={NEXORA_ACCENT.tealPale}
               fontFamily="Space Grotesk, Inter, sans-serif"
               fontSize="12"
             >

@@ -2,6 +2,9 @@ import { ReactNode, forwardRef } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { Button, Chip, makeStyles } from '@material-ui/core';
 import { NX } from './visual/styles';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const RouterLinkRef = forwardRef<HTMLAnchorElement, React.ComponentProps<typeof RouterLink>>(
   (props, ref) => <RouterLink {...props} ref={ref} />,
@@ -12,7 +15,7 @@ const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${NX.navyDark} 0%, ${NX.navy} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 20,
     padding: '24px 28px 20px',
   },
@@ -32,7 +35,7 @@ const useStyles = makeStyles({
     fontWeight: 600,
     margin: 0,
   },
-  subtitle: { color: '#94A3B8', marginTop: 8, marginBottom: 0, fontSize: 14 },
+  subtitle: { color: NEXORA_GREY[400], marginTop: 8, marginBottom: 0, fontSize: 14 },
   nav: {
     display: 'flex',
     flexWrap: 'wrap',

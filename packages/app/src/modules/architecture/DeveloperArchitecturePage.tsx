@@ -11,6 +11,9 @@ import { LandingFooter, LandingNav, LandingStyles } from '../identity/PublicLand
 import { LandingI18nProvider } from '../identity/landingI18n';
 import { StoryStatusBadge } from '../identity/ArchitecturePrinciple';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const linkStyle = {
   padding: '8px 12px',
@@ -74,7 +77,7 @@ function Hero() {
       style={{
         padding: '128px 24px 64px',
         background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
-        color: '#F8FAFC',
+        color: NEXORA_GREY[50],
       }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -102,13 +105,13 @@ function Hero() {
         >
           How a developer builds a Data Product.
         </h1>
-        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 760 }}>
+        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: NEXORA_GREY[300], maxWidth: 760 }}>
           The public architecture story explains why Nexora exists.
           This page explains how a developer uses Catalog, Marketplace, Create,
           Golden Paths and Platform Components to ship an independently running
           Data Product.
         </p>
-        <p style={{ marginTop: 12, fontSize: 16, lineHeight: 1.7, color: '#94A3B8', maxWidth: 760 }}>
+        <p style={{ marginTop: 12, fontSize: 16, lineHeight: 1.7, color: NEXORA_GREY[400], maxWidth: 760 }}>
           Detailed procedures stay in Developer Hub and TechDocs. This view does
           not replace that documentation.
         </p>
@@ -354,13 +357,13 @@ function Cta({ onSignIn }: Readonly<{ onSignIn?: () => void }>) {
         padding: '80px 24px',
         textAlign: 'center',
         background: PHARMA_NAVY,
-        color: '#F8FAFC',
+        color: NEXORA_GREY[50],
       }}
     >
       <h2 className="pdf-display" style={{ fontSize: 32, fontWeight: 600, margin: 0 }}>
         Build from a certified Golden Path
       </h2>
-      <p style={{ margin: '16px auto 0', maxWidth: 560, color: '#CBD5E1', lineHeight: 1.7 }}>
+      <p style={{ margin: '16px auto 0', maxWidth: 560, color: NEXORA_GREY[300], lineHeight: 1.7 }}>
         Public architecture explains the layers. Developer Hub holds the
         procedures. Create is the path into a generated Data Product.
       </p>
@@ -404,7 +407,7 @@ function Cta({ onSignIn }: Readonly<{ onSignIn?: () => void }>) {
           </button>
         ) : null}
       </div>
-      <p className="pdf-mono" style={{ margin: '24px 0 0', color: '#64748B', fontSize: 12 }}>
+      <p className="pdf-mono" style={{ margin: '24px 0 0', color: NEXORA_GREY[500], fontSize: 12 }}>
         {DEVELOPER_ARCHITECTURE_PATH}
       </p>
     </section>

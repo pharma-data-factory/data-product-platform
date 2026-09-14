@@ -2,6 +2,9 @@ import { LEARN_ASSEMBLY_EXAMPLES, LEARN_TOPICS } from '@internal/platform-common
 import { ArchitectureDiagramStyles } from '../architecture/diagrams';
 import { C, PHARMA_NAVY, PHARMA_TEAL } from './landingTokens';
 import { useLandingI18n } from './landingI18n';
+import {
+  NEXORA_CARD,
+} from '@internal/plugin-nexora-common';
 
 function AssemblyDiagram() {
   const { t } = useLandingI18n();
@@ -22,7 +25,7 @@ function AssemblyDiagram() {
             <span
               className="pdf-diag-node"
               style={{
-                background: index === t.learn.assemblySteps.length - 1 ? '#FFFFFF' : 'rgba(0,194,217,0.08)',
+                background: index === t.learn.assemblySteps.length - 1 ? NEXORA_CARD : 'rgba(0,194,217,0.08)',
                 border: `1px solid ${index === t.learn.assemblySteps.length - 1 ? 'rgba(0,194,217,0.45)' : 'rgba(0,194,217,0.35)'}`,
                 color: PHARMA_NAVY,
               }}
@@ -41,7 +44,7 @@ function AssemblyDiagram() {
             key={label}
             className="pdf-diag-node"
             style={{
-              background: '#FFFFFF',
+              background: NEXORA_CARD,
               border: '1px solid rgba(0,194,217,0.45)',
               color: PHARMA_NAVY,
             }}

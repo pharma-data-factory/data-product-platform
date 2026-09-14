@@ -10,6 +10,9 @@ import {
 } from './visual';
 import { useFactoryOperations } from '../hooks/useFactoryOperations';
 import { aggregateAreaState } from '../factoryModel';
+import {
+  NEXORA_CYAN,
+} from '@internal/plugin-nexora-common';
 
 export function FactoryViewPage() {
   const navigate = useNavigate();
@@ -92,7 +95,7 @@ export function FactoryViewPage() {
                   key={area.id}
                   style={
                     highlighted
-                      ? { outline: '2px solid #00C2D9', borderRadius: 12 }
+                      ? { outline: `2px solid ${NEXORA_CYAN}`, borderRadius: 12 }
                       : undefined
                   }
                 >

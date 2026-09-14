@@ -6179,6 +6179,7 @@ __metadata:
     "@backstage/frontend-plugin-api": "npm:^0.17.3"
     "@backstage/frontend-test-utils": "npm:^0.6.2"
     "@internal/platform-common": "workspace:^"
+    "@internal/plugin-nexora-common": "workspace:^"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
     "@testing-library/jest-dom": "npm:^6.0.0"

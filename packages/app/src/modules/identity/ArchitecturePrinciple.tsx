@@ -2,6 +2,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from './landingTokens';
 import { useLandingI18n } from './landingI18n';
 import {
+  NEXORA_GREY,
+  NEXORA_NAVY_SOFT,
+} from '@internal/plugin-nexora-common';
+import {
   AAS_CAPABILITIES,
   AAS_UNS_MAPPING,
   FILLER_ASSET_EXAMPLE,
@@ -115,7 +119,7 @@ function ArchitectureStyles() {
         position: relative;
         overflow: hidden;
         padding: 112px 24px 96px;
-        color: #F8FAFC;
+        color: ${NEXORA_GREY[50]};
         background: linear-gradient(180deg, #123152 0%, ${PHARMA_NAVY} 22%, ${PHARMA_NAVY_DARK} 100%);
       }
       .pdf-arch-inner { max-width: 1280px; margin: 0 auto; position: relative; }
@@ -158,7 +162,7 @@ function ArchitectureStyles() {
         font-size: 13px;
         font-weight: 600;
         line-height: 1.3;
-        color: #E2E8F0;
+        color: ${NEXORA_GREY[200]};
       }
       .pdf-arch-stable {
         margin-top: 16px;
@@ -260,7 +264,7 @@ function ArchitectureStyles() {
         font-family: 'JetBrains Mono', ui-monospace, monospace;
         font-size: 13px;
         line-height: 1.7;
-        color: #CBD5E1;
+        color: ${NEXORA_GREY[300]};
         opacity: 0;
         transform: translateY(8px);
         transition: opacity .55s ease, transform .55s cubic-bezier(.2,.8,.2,1);
@@ -346,7 +350,7 @@ function ArchitectureStyles() {
         backdrop-filter: blur(14px);
         font-size: 14px;
         line-height: 1.5;
-        color: #CBD5E1;
+        color: ${NEXORA_GREY[300]};
       }
       .pdf-arch-mobile-label { display: none; }
       .pdf-arch-arrow { display: none; }
@@ -355,7 +359,7 @@ function ArchitectureStyles() {
         margin: 8px 0 0;
         font-size: 13px;
         line-height: 1.55;
-        color: #94A3B8;
+        color: ${NEXORA_GREY[400]};
       }
       .pdf-arch-sr-only {
         position: absolute;
@@ -531,9 +535,9 @@ function statusBadgeColor(certified: boolean, future: boolean): string {
     return PHARMA_TEAL_LIGHT;
   }
   if (future) {
-    return '#94A3B8';
+    return NEXORA_GREY[400];
   }
-  return '#CBD5E1';
+  return NEXORA_GREY[300];
 }
 
 export function StoryStatusBadge({ status }: { status: CapabilityStatus | 'illustrative' }) {
@@ -584,7 +588,7 @@ function ProductChip({
         padding: '3px 8px',
         borderRadius: 999,
         background: certified ? 'rgba(0,194,217,0.14)' : 'rgba(71,85,105,0.18)',
-        color: certified ? PHARMA_TEAL_LIGHT : '#94A3B8',
+        color: certified ? PHARMA_TEAL_LIGHT : NEXORA_GREY[400],
         border: certified ? '1px solid rgba(0,194,217,0.45)' : '1px solid rgba(148,163,184,0.28)',
       }}
     >
@@ -626,7 +630,7 @@ export function ArchitecturePrinciple() {
           height: 320,
           top: 180,
           right: -80,
-          background: '#1E3A5F',
+          background: NEXORA_NAVY_SOFT,
           opacity: 0.35,
           animationDelay: '-8s',
         }}
@@ -661,10 +665,10 @@ export function ArchitecturePrinciple() {
           >
             {t.principle.title}
           </h2>
-          <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 720 }}>
+          <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: NEXORA_GREY[300], maxWidth: 720 }}>
             {t.principle.body1}
           </p>
-          <p style={{ marginTop: 12, fontSize: 18, lineHeight: 1.7, color: '#CBD5E1', maxWidth: 720 }}>
+          <p style={{ marginTop: 12, fontSize: 18, lineHeight: 1.7, color: NEXORA_GREY[300], maxWidth: 720 }}>
             {t.principle.body2}
           </p>
         </div>
@@ -690,7 +694,7 @@ export function ArchitecturePrinciple() {
               <span
                 className="pdf-mono"
                 style={{
-                  color: '#94A3B8',
+                  color: NEXORA_GREY[400],
                   fontSize: 11,
                   letterSpacing: '0.16em',
                   textTransform: 'uppercase',
@@ -905,7 +909,7 @@ export function ArchitecturePrinciple() {
                     <div className="pdf-display" style={{ fontSize: 16, fontWeight: 600 }}>
                       {product.name}
                     </div>
-                    <div className="pdf-mono" style={{ fontSize: 11, color: '#94A3B8', marginTop: 4, letterSpacing: '0.08em' }}>
+                    <div className="pdf-mono" style={{ fontSize: 11, color: NEXORA_GREY[400], marginTop: 4, letterSpacing: '0.08em' }}>
                       {t.principle.dataProductKind}
                     </div>
                     <ProductChip
@@ -918,7 +922,7 @@ export function ArchitecturePrinciple() {
                       </div>
                     ) : null}
                     {isEquipment && on && (
-                      <div className="pdf-arch-ver pdf-mono" style={{ fontSize: 12, color: '#CBD5E1' }}>
+                      <div className="pdf-arch-ver pdf-mono" style={{ fontSize: 12, color: NEXORA_GREY[300] }}>
                         <span>v1.0</span>
                         <span
                           className={`pdf-arch-ver-next${evolveOn ? ' pdf-arch-on' : ''}`}
@@ -964,7 +968,7 @@ export function ArchitecturePrinciple() {
                     key={label}
                     className="pdf-mono"
                     style={{
-                      color: '#94A3B8',
+                      color: NEXORA_GREY[400],
                       fontSize: 11,
                       letterSpacing: '0.10em',
                       textTransform: 'uppercase',

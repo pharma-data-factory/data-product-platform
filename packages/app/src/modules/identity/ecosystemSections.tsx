@@ -8,6 +8,15 @@ import {
 import { useLandingI18n } from './landingI18n';
 import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from './landingTokens';
 import { NxIcon, type NxIconName } from './home/icons';
+import {
+  NEXORA_CARD,
+  NEXORA_COMPLIANCE,
+  NEXORA_CYAN,
+  NEXORA_GREY,
+  NEXORA_NAVY,
+  NEXORA_SECURITY,
+  NEXORA_SECURITY_FG,
+} from '@internal/plugin-nexora-common';
 
 function useCopy() {
   const { locale } = useLandingI18n();
@@ -140,14 +149,14 @@ function statusTone(status: MarketplaceCard['status']) {
     case 'preview':
       return {
         bg: 'rgba(71,85,105,0.10)',
-        color: '#475569',
+        color: NEXORA_GREY[600],
         border: 'rgba(71,85,105,0.22)',
       };
     case 'example':
     default:
       return {
         bg: 'rgba(255,138,0,0.12)',
-        color: '#B45309',
+        color: NEXORA_SECURITY_FG,
         border: 'rgba(255,138,0,0.35)',
       };
   }
@@ -245,7 +254,7 @@ export function PlatformSection() {
               style={{
                 padding: 28,
                 borderColor: 'rgba(0,194,217,0.45)',
-                background: 'linear-gradient(180deg, rgba(0,194,217,0.06), #FFFFFF)',
+                background: `linear-gradient(180deg, rgba(0,194,217,0.06), ${NEXORA_CARD})`,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
@@ -256,7 +265,7 @@ export function PlatformSection() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
                 {c.platform.capabilities.map(cap => (
-                  <div key={cap.title} style={{ padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }}>
+                  <div key={cap.title} style={{ padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: NEXORA_CARD }}>
                     <p className="pdf-mono" style={{ margin: 0, color: PHARMA_TEAL, fontSize: 12, letterSpacing: '0.1em', fontWeight: 700 }}>{cap.title}</p>
                     <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.5, color: C.muted }}>{cap.text}</p>
                   </div>
@@ -274,7 +283,7 @@ export function PlatformSection() {
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
                 {c.platform.above.map((item, i) => (
-                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }}>
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: NEXORA_CARD }}>
                     <span style={{ color: PHARMA_TEAL, display: 'inline-flex' }}>
                       <NxIcon name={aboveIcons[i] ?? 'puzzle'} size={22} />
                     </span>
@@ -389,7 +398,7 @@ export function MarketplaceSection() {
             </Reveal>
           ))}
         </div>
-        <p className="pdf-mono" style={{ color: '#B45309', fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '40px 0 16px' }}>
+        <p className="pdf-mono" style={{ color: NEXORA_SECURITY_FG, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '40px 0 16px' }}>
           {c.marketplace.examplesLabel}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
@@ -418,7 +427,7 @@ export function BuildSection() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
               {c.build.artifacts.map(item => (
-                <div key={item} style={{ padding: '16px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff', textAlign: 'center' }}>
+                <div key={item} style={{ padding: '16px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: NEXORA_CARD, textAlign: 'center' }}>
                   <span style={{ fontSize: 15, fontWeight: 600, color: PHARMA_NAVY }}>{item}</span>
                 </div>
               ))}
@@ -432,7 +441,7 @@ export function BuildSection() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
               {c.build.developer.map((item, i) => (
-                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }}>
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 12, border: `1px solid ${C.border}`, background: NEXORA_CARD }}>
                   <span style={{ color: PHARMA_TEAL, display: 'inline-flex' }}>
                     <NxIcon name={devIcons[i] ?? 'puzzle'} size={20} />
                   </span>
@@ -456,7 +465,7 @@ export function BuildSection() {
   );
 }
 
-const TRUST_TONES = ['#0891B2', '#00C2D9', '#0A1929', '#FF8A00'] as const;
+const TRUST_TONES = [NEXORA_COMPLIANCE, NEXORA_CYAN, NEXORA_NAVY, NEXORA_SECURITY] as const;
 
 export function TrustSection() {
   const c = useCopy();
@@ -488,7 +497,7 @@ export function TrustSection() {
               padding: 28,
               borderRadius: 16,
               background: `linear-gradient(135deg, ${PHARMA_NAVY}, #0E2A43)`,
-              color: '#F8FAFC',
+              color: NEXORA_GREY[50],
               display: 'grid',
               gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)',
               gap: 32,
@@ -499,7 +508,7 @@ export function TrustSection() {
               <h3 className="pdf-display" style={{ fontSize: 20, fontWeight: 600, margin: 0, color: PHARMA_TEAL_LIGHT }}>
                 {c.trust.aiTitle}
               </h3>
-              <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.7, color: '#CBD5E1' }}>
+              <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.7, color: NEXORA_GREY[300] }}>
                 {c.trust.aiBody}
               </p>
             </div>
@@ -575,7 +584,7 @@ export function EcosystemFlywheelSection() {
     <section
       id="ecosystem"
       aria-label="Ecosystem"
-      style={{ padding: '112px 24px', position: 'relative', overflow: 'hidden', background: `linear-gradient(165deg, ${PHARMA_NAVY} 0%, #0E2A43 100%)`, color: '#F8FAFC' }}
+      style={{ padding: '112px 24px', position: 'relative', overflow: 'hidden', background: `linear-gradient(165deg, ${PHARMA_NAVY} 0%, #0E2A43 100%)`, color: NEXORA_GREY[50] }}
     >
       <div className="pdf-hero-glow" style={{ width: 320, height: 320, left: '50%', top: 40, marginLeft: -160, background: PHARMA_TEAL, opacity: 0.2 }} />
       <div style={{ maxWidth: 880, margin: '0 auto', position: 'relative' }}>

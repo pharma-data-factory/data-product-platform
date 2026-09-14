@@ -5,6 +5,7 @@ import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import { CreationSuccessAction } from './creationSuccess';
 import {
   NEXORA_CARD,
+  NEXORA_TONE,
 } from '@internal/plugin-nexora-common';
 
 export function CreationSuccessPage({
@@ -158,7 +159,7 @@ export function CreationFailurePage({
             fontSize: 12,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: '#c62828',
+            color: NEXORA_TONE.danger.bg,
             fontWeight: 600,
           }}
         >
