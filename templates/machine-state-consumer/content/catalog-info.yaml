@@ -34,9 +34,9 @@ metadata:
     - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
       title: Repository
       icon: github
-    - url: /catalog-graph?rootEntityRefs=component:default/${{ values.name }}
-      title: Catalog Graph
-      icon: catalog
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}/blob/main/docs/index.md
+      title: Documentation
+      icon: docs
 spec:
   type: data-product
   lifecycle: ${{ values.lifecycle }}
