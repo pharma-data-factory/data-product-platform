@@ -29,11 +29,8 @@ export {
   RuntimeStateCard,
   productItems,
 } from './components/Cards';
-export {
-  NEXORA_STATUS,
-  StatusBadge,
-  StatusWord,
-} from './components/StatusBadge';
+// NEXORA_STATUS is exported from './tokens' below, where the palette lives.
+export { StatusBadge, StatusWord } from './components/StatusBadge';
 export {
   NexoraSection,
   NexoraSummaryCard,
@@ -52,13 +49,19 @@ export {
   NEXORA_COMPLIANCE,
   NEXORA_CYAN,
   NEXORA_CYAN_DARK,
+  NEXORA_CYAN_FG,
   NEXORA_CYAN_LIGHT,
+  NEXORA_GREY,
   NEXORA_MUTED,
   NEXORA_NAVY,
   NEXORA_NAVY_DARK,
   NEXORA_SECTION,
   NEXORA_SECURITY,
+  NEXORA_SECURITY_FG,
+  NEXORA_STATUS,
   NEXORA_SURFACE,
   NEXORA_TEXT,
+  NEXORA_TONE,
 } from './tokens';
+export type { NexoraToneName } from './tokens';
 export { IndustrialTestRoot } from './testUtils';

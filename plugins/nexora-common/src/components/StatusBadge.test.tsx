@@ -39,6 +39,36 @@ describe('shared industrial components', () => {
     ).toHaveTextContent('UNKNOWN');
   });
 
+  it('renders a URS status with its domain wording, not the raw enum', () => {
+    render(<StatusBadge state="APPROVED" kind="urs" />);
+    // ursStatusAppearance relabels APPROVED as "Released"; users should not
+    // have to know the enum.
+    expect(screen.getByLabelText('requirement status Released')).toHaveTextContent(
+      'Released',
+    );
+  });
+
+  it('distinguishes URS states by tone instead of colouring them all alike', () => {
+    const { unmount } = render(<StatusBadge state="DRAFT" kind="urs" />);
+    const draft = screen.getByLabelText('requirement status Draft');
+    const draftBg = draft.style.backgroundColor;
+    unmount();
+
+    render(<StatusBadge state="REJECTED" kind="urs" />);
+    const rejected = screen.getByLabelText('requirement status Rejected');
+
+    expect(draftBg).toBeTruthy();
+    expect(rejected.style.backgroundColor).toBeTruthy();
+    expect(rejected.style.backgroundColor).not.toBe(draftBg);
+  });
+
+  it('strikes through states that are no longer effective', () => {
+    render(<StatusBadge state="SUPERSEDED" kind="urs" />);
+    expect(
+      screen.getByLabelText('requirement status Superseded'),
+    ).toHaveStyle('text-decoration: line-through');
+  });
+
   it('falls back for missing integrations', () => {
     render(
       <EmptyIntegrationState

@@ -49,7 +49,12 @@ import CancelIcon from '@material-ui/icons/Cancel';
 import HistoryIcon from '@material-ui/icons/History';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
-import { NEXORA_CYAN, NEXORA_SECURITY, NEXORA_STATUS } from '@internal/plugin-nexora-common';
+import {
+  NEXORA_SECURITY_FG,
+  NEXORA_STATUS,
+  NEXORA_TONE,
+  StatusBadge,
+} from '@internal/plugin-nexora-common';
 import { ursApprovePermission, ursManagePermission, formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
@@ -98,19 +103,22 @@ function approvalStepColor(
   isRejected: boolean,
   isSkipped: boolean,
 ) {
+  // Used both as a text colour (step label) and as a chip background under
+  // white text, so every value here has to be readable in both directions.
+  // Brand cyan and brand orange are not — their *_FG counterparts are.
   if (isActive) {
-    return NEXORA_CYAN;
+    return NEXORA_TONE.active.bg;
   }
   if (isApproved) {
-    return NEXORA_STATUS.passBg;
+    return NEXORA_TONE.success.bg;
   }
   if (isRejected) {
-    return NEXORA_STATUS.failBg;
+    return NEXORA_TONE.danger.bg;
   }
   if (isSkipped) {
-    return NEXORA_SECURITY;
+    return NEXORA_SECURITY_FG;
   }
-  return NEXORA_STATUS.neutralFg;
+  return NEXORA_TONE.neutral.text;
 }
 
 function confirmDialogTitle(action: 'reject' | 'cancel' | null) {
@@ -640,7 +648,7 @@ export const URSRequirementSetPage: FC = () => {
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" style={{ gap: 8, marginBottom: 8 }}>
-              <Chip label={set.status} color="primary" />
+              <StatusBadge kind="urs" state={set.status} />
               <Chip label={`v${set.versionNumber}`} variant="outlined" />
               <Typography color="textSecondary">
                 Created {set.createdBy} · {set.createdAt}
@@ -1045,7 +1053,10 @@ export const URSRequirementSetPage: FC = () => {
                             setConfirmOpen(true);
                           }}
                           disabled={actionLoading}
-                          style={{ color: NEXORA_SECURITY, borderColor: NEXORA_SECURITY }}
+                          style={{
+                            color: NEXORA_SECURITY_FG,
+                            borderColor: NEXORA_SECURITY_FG,
+                          }}
                         >
                           Cancel Workflow
                         </Button>

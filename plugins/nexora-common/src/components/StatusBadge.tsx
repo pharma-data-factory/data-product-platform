@@ -7,8 +7,22 @@ import {
   parseCompatibility,
   parseConnectivityStatus,
   parseHealthState,
+  ursStatusAppearance,
 } from '@internal/platform-common';
-import { NEXORA_MUTED, NEXORA_NAVY, NEXORA_TEXT } from '../tokens';
+import {
+  NEXORA_MUTED,
+  NEXORA_NAVY,
+  NEXORA_STATUS,
+  NEXORA_TEXT,
+  NEXORA_TONE,
+} from '../tokens';
+
+/**
+ * Re-exported for the call sites that already import it from here. The values
+ * live in ../tokens, because a palette in component code cannot be managed
+ * centrally and does not follow the theme.
+ */
+export { NEXORA_STATUS };
 
 const useStyles = makeStyles({
   badge: {
@@ -31,31 +45,17 @@ const useStyles = makeStyles({
   },
 });
 
-/** Status chip tones aligned with Validation Expert / Plugin Directory. */
-export const NEXORA_STATUS = {
-  passBg: '#0D9488',
-  passFg: '#FFFFFF',
-  failBg: '#B91C1C',
-  failFg: '#FFFFFF',
-  warnBg: 'rgba(255, 138, 0, 0.14)',
-  warnFg: '#9A3412',
-  infoBg: 'rgba(10, 25, 41, 0.08)',
-  infoFg: NEXORA_NAVY,
-  neutralBg: '#E2E8F0',
-  neutralFg: '#334155',
-} as const;
-
 const HEALTH_COLOR: Record<HealthState, string> = {
-  HEALTHY: NEXORA_STATUS.passBg,
-  WARNING: '#B45309',
-  ERROR: NEXORA_STATUS.failBg,
+  HEALTHY: NEXORA_TONE.success.text,
+  WARNING: NEXORA_TONE.warning.text,
+  ERROR: NEXORA_TONE.danger.text,
   UNKNOWN: NEXORA_MUTED,
 };
 
 const CONNECT_COLOR: Record<ConnectivityStatus, string> = {
-  CONNECTED: NEXORA_STATUS.passBg,
-  DEGRADED: '#B45309',
-  DISCONNECTED: NEXORA_STATUS.failBg,
+  CONNECTED: NEXORA_TONE.success.text,
+  DEGRADED: NEXORA_TONE.warning.text,
+  DISCONNECTED: NEXORA_TONE.danger.text,
   UNKNOWN: NEXORA_MUTED,
 };
 
@@ -108,9 +108,32 @@ export function StatusBadge({
   kind = 'health',
 }: {
   state?: string;
-  kind?: 'health' | 'connectivity' | 'compatibility' | 'entitlement';
+  kind?: 'health' | 'connectivity' | 'compatibility' | 'entitlement' | 'urs';
 }) {
   const classes = useStyles();
+
+  if (kind === 'urs') {
+    // The wording, tone and strike-through all come from the domain layer
+    // (ursStatusAppearance), so every URS surface reads the same. Only the
+    // colour is decided here.
+    const appearance = ursStatusAppearance(state ?? '');
+    const tone = NEXORA_TONE[appearance.tone];
+    return (
+      <Chip
+        size="small"
+        label={appearance.label}
+        className={classes.chip}
+        style={{
+          backgroundColor: tone.bg,
+          color: tone.fg,
+          ...(appearance.strikeThrough
+            ? { textDecoration: 'line-through' }
+            : {}),
+        }}
+        aria-label={`requirement status ${appearance.label}`}
+      />
+    );
+  }
 
   if (kind === 'entitlement') {
     const label = state && ENTITLEMENT_TONE[state] ? state : 'UNKNOWN';
