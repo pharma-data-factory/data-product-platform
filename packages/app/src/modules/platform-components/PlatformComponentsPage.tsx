@@ -25,12 +25,15 @@ import {
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
@@ -58,7 +61,7 @@ const useStyles = makeStyles({
     marginTop: 10,
   },
   copy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 15,
     lineHeight: 1.65,
     marginBottom: 0,
@@ -66,7 +69,7 @@ const useStyles = makeStyles({
     maxWidth: 720,
   },
   secondary: {
-    color: '#94A3B8',
+    color: NEXORA_GREY[400],
     fontSize: 14,
     lineHeight: 1.6,
     marginBottom: 0,
@@ -129,21 +132,21 @@ const useStyles = makeStyles({
     boxShadow: '0 0 0 1px rgba(13, 148, 136, 0.12)',
   },
   tested: {
-    borderColor: '#CBD5E1',
+    borderColor: NEXORA_GREY[300],
     borderLeft: `4px solid ${C.observability}`,
   },
   development: {
-    borderColor: '#CBD5E1',
+    borderColor: NEXORA_GREY[300],
     borderLeft: `4px solid ${C.security}`,
   },
   planned: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     borderStyle: 'dashed',
     color: `${C.muted} !important`,
     opacity: 0.72,
   },
   catalogOnly: {
-    borderColor: '#CBD5E1',
+    borderColor: NEXORA_GREY[300],
   },
   name: {
     color: PHARMA_NAVY,

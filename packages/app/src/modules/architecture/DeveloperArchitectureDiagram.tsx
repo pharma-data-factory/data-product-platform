@@ -1,14 +1,19 @@
 import { type ReactNode } from 'react';
 import { C, PHARMA_NAVY } from '../identity/landingTokens';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_SECTION,
+} from '@internal/plugin-nexora-common';
 
 const node = {
   factory: {
     background: PHARMA_NAVY,
     border: `1px solid ${PHARMA_NAVY}`,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
   },
   product: {
-    background: '#FFFFFF',
+    background: NEXORA_CARD,
     border: '1px solid rgba(0,194,217,0.45)',
     color: PHARMA_NAVY,
   },
@@ -18,7 +23,7 @@ const node = {
     color: PHARMA_NAVY,
   },
   consumer: {
-    background: '#EEF2F6',
+    background: NEXORA_SECTION,
     border: `1px solid ${C.border}`,
     color: PHARMA_NAVY,
   },

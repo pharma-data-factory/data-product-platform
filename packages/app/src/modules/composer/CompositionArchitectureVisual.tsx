@@ -1,6 +1,9 @@
 import { makeStyles } from '@material-ui/core/styles';
 import { ComposerArchitectureLayer } from '@internal/platform-common';
 import { PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   svg: {
@@ -45,7 +48,7 @@ export function CompositionArchitectureVisual(props: {
         x="124"
         y="22"
         textAnchor="middle"
-        fill="#94A3B8"
+        fill={NEXORA_GREY[400]}
         fontFamily="JetBrains Mono, ui-monospace, monospace"
         fontSize="10"
       >
@@ -69,7 +72,7 @@ export function CompositionArchitectureVisual(props: {
             <text
               x={left + 12}
               y={y + 19}
-              fill={dashed ? '#E2E8F0' : '#99F6E4'}
+              fill={dashed ? NEXORA_GREY[200] : '#99F6E4'}
               fontFamily="Space Grotesk, Inter, sans-serif"
               fontSize="12"
               fontWeight={600}
@@ -112,7 +115,7 @@ export function CompositionArchitectureVisual(props: {
           x="420"
           y={36 + operations.titles.length * row + 18}
           textAnchor="middle"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="JetBrains Mono, ui-monospace, monospace"
           fontSize="10"
         >

@@ -2,6 +2,9 @@ import { ARCHITECTURE_CONCEPTS, ARCHITECTURE_PATH } from './constants';
 import { ArchitectureOverviewImage } from './ArchitectureOverviewImage';
 import { C, PHARMA_NAVY, PHARMA_TEAL } from '../identity/landingTokens';
 import { useLandingI18n } from '../identity/landingI18n';
+import {
+  NEXORA_NAVY_DARK,
+} from '@internal/plugin-nexora-common';
 
 export function ArchitectureOverviewSection() {
   const { t } = useLandingI18n();
@@ -69,7 +72,7 @@ export function ArchitectureOverviewSection() {
             overflow: 'hidden',
             border: `1px solid ${C.border}`,
             boxShadow: '0 16px 48px rgba(11, 31, 58, 0.10)',
-            background: '#05101C',
+            background: NEXORA_NAVY_DARK,
           }}
         >
           <ArchitectureOverviewImage />

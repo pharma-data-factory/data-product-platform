@@ -30,12 +30,17 @@ import {
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
 import { ArchitectureStackVisual } from './ArchitectureStackVisual';
+import {
+  NEXORA_CARD,
+  NEXORA_CYAN_DARK,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '32px 28px',
   },
@@ -57,7 +62,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   heroCopy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 16,
     lineHeight: 1.7,
     marginTop: 12,
@@ -74,7 +79,7 @@ const useStyles = makeStyles({
     background: PHARMA_TEAL,
     border: `1px solid ${PHARMA_TEAL}`,
     borderRadius: 10,
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 13,
@@ -83,8 +88,8 @@ const useStyles = makeStyles({
     textDecoration: 'none',
     textTransform: 'none',
     '&:hover': {
-      background: '#0098AB',
-      borderColor: '#0098AB',
+      background: NEXORA_CYAN_DARK,
+      borderColor: NEXORA_CYAN_DARK,
       textDecoration: 'none',
     },
   },
@@ -93,7 +98,7 @@ const useStyles = makeStyles({
     background: 'transparent',
     border: '1px solid rgba(255,255,255,0.28)',
     borderRadius: 10,
-    color: '#F8FAFC !important',
+    color: `${NEXORA_GREY[50]} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 13,
@@ -176,7 +181,7 @@ const useStyles = makeStyles({
     marginTop: 8,
   },
   kind: {
-    background: '#F1F5F9',
+    background: NEXORA_GREY[100],
     border: `1px solid ${C.border}`,
     borderRadius: 999,
     color: `${C.text} !important`,
@@ -186,7 +191,7 @@ const useStyles = makeStyles({
     textDecoration: 'none',
     textTransform: 'none',
     '&:hover': {
-      background: '#E2E8F0',
+      background: NEXORA_GREY[200],
       textDecoration: 'none',
     },
   },

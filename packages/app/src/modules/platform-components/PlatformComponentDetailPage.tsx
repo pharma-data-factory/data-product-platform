@@ -27,6 +27,11 @@ import {
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_NAVY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   actions: {
@@ -38,7 +43,7 @@ const useStyles = makeStyles({
   action: {
     background: PHARMA_NAVY,
     borderRadius: 10,
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
     fontSize: 13,
     fontWeight: 600,
     padding: '8px 14px',
@@ -64,7 +69,7 @@ const useStyles = makeStyles({
     marginTop: 8,
   },
   banner: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px solid ${C.border}`,
     borderLeft: `4px solid ${C.security}`,
     borderRadius: 10,
@@ -74,7 +79,7 @@ const useStyles = makeStyles({
     padding: '10px 14px',
   },
   bannerMuted: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px dashed ${C.border}`,
     borderRadius: 10,
     color: C.muted,
@@ -83,9 +88,9 @@ const useStyles = makeStyles({
     padding: '10px 14px',
   },
   pre: {
-    background: '#0A1929',
+    background: NEXORA_NAVY,
     borderRadius: 12,
-    color: '#E2E8F0',
+    color: NEXORA_GREY[200],
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 13,
     lineHeight: 1.55,

@@ -23,13 +23,18 @@ import {
 } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import { signOutToLanding } from '../identity/session';
+import {
+  NEXORA_CARD,
+  NEXORA_NAVY_LINE,
+  NEXORA_ON_NAVY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   trigger: {
     alignItems: 'center',
     background: 'transparent',
     border: 0,
-    color: '#C5D0DC',
+    color: NEXORA_ON_NAVY,
     cursor: 'pointer',
     display: 'flex',
     gap: 12,
@@ -38,7 +43,7 @@ const useStyles = makeStyles({
     textAlign: 'left',
     width: '100%',
     '&:hover': {
-      background: '#163154',
+      background: NEXORA_NAVY_LINE,
     },
   },
   triggerClosed: {
@@ -47,7 +52,7 @@ const useStyles = makeStyles({
     paddingRight: 0,
   },
   name: {
-    color: '#FFFFFF',
+    color: NEXORA_CARD,
     fontSize: 13,
     fontWeight: 600,
     lineHeight: 1.3,
@@ -88,13 +93,13 @@ const useStyles = makeStyles({
     background: PHARMA_NAVY,
     borderRadius: 8,
     boxShadow: 'none',
-    color: '#FFFFFF',
+    color: NEXORA_CARD,
     fontWeight: 600,
     margin: '0 16px 16px',
     textTransform: 'none',
     width: 'calc(100% - 32px)',
     '&:hover': {
-      background: '#163154',
+      background: NEXORA_NAVY_LINE,
       boxShadow: 'none',
     },
   },
