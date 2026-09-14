@@ -1,5 +1,5 @@
 import { Content, Link, Page } from '@backstage/core-components';
-import { NEXORA_GREY } from '@internal/plugin-nexora-common';
+import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { Box, Grid, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
@@ -79,7 +79,7 @@ const useStyles = makeStyles({
     transition: 'border-color 120ms ease, box-shadow 120ms ease',
     '&:hover, &:focus-visible': {
       borderColor: PHARMA_TEAL_DARK,
-      boxShadow: '0 8px 24px rgba(11, 31, 58, 0.08)',
+      boxShadow: `0 8px 24px ${NEXORA_TONE.info.bg}`,
       outline: 'none',
       textDecoration: 'none',
     },

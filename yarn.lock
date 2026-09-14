@@ -6038,6 +6038,7 @@ __metadata:
     "@backstage/plugin-catalog-react": "npm:^3.2.0"
     "@internal/data-product-consumption": "workspace:^"
     "@internal/platform-common": "workspace:^"
+    "@internal/plugin-nexora-common": "workspace:^"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
     "@testing-library/jest-dom": "npm:^6.0.0"
