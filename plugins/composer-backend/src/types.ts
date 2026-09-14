@@ -6,6 +6,8 @@
  * here for convenience.
  */
 
+import type { ComponentType } from '@internal/platform-common';
+
 export type {
   Product,
   ProductVersion,
@@ -87,6 +89,12 @@ export type AISpecDraftStatus = 'PENDING_REVIEW' | 'APPLIED' | 'REJECTED';
 export interface AISuggestedComponent {
   name: string;
   reason: string;
+  /**
+   * Platform component vocabulary (see COMPONENT_TYPES in platform-common).
+   * The model picks one; the parser falls back to PROCESSING when it does not
+   * return a value from the list.
+   */
+  componentType: ComponentType;
   priority: 'required' | 'recommended' | 'optional';
   traceabilityRefs: string[];
 }

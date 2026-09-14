@@ -33,9 +33,10 @@ import {
   AISpecDraft,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
-import type {
-  AvailableComponentSummary,
-  ComposerLLMClient,
+import {
+  toComponentType,
+  type AvailableComponentSummary,
+  type ComposerLLMClient,
 } from './llm-client';
 import { buildSystemPrompt } from './prompt-template';
 import type { ProductSpecContext } from './prompt-template';
@@ -739,7 +740,7 @@ export class ComposerService {
       {
         name: draft.productName,
         description: draft.description,
-        productType: 'data-product',
+        productType: 'DATA_PRODUCT',
         domain: draft.domain,
       },
       actor,
@@ -755,13 +756,22 @@ export class ComposerService {
       await this.addProductComponent(
         version.id,
         {
-          componentType: 'service',
+          componentType: toComponentType(comp.componentType),
           name: comp.name,
           description: comp.reason,
         },
         actor,
       );
     }
+
+    // The changelog above is prose. Record the origin machine-readably as well,
+    // so the release gate's URS check can resolve it and traceability can be
+    // reported on. The baseline stays DRAFT — approving it is a human act.
+    await this.createProductBaseline(
+      version.id,
+      { ursBaselineIds: [draft.ursBaselineId] },
+      actor,
+    );
 
     draft.status = 'APPLIED';
     draft.appliedBy = actor;

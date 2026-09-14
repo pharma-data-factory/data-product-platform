@@ -1,3 +1,4 @@
+import { isComponentType, type ComponentType } from '@internal/platform-common';
 import {
   buildProductSpecSystemPrompt,
   buildProductSpecUserPrompt,
@@ -188,6 +189,11 @@ export class MockComposerLLMClient implements ComposerLLMClient {
       .map((c, i) => ({
         name: c.name,
         reason: `Addresses ${c.purpose} for ${context.businessNeed}`,
+        // This deterministic stub does not classify. The catalog category
+        // ('data', 'integration', …) is a different vocabulary from
+        // COMPONENT_TYPES, so it cannot be mapped; classification comes from
+        // the model on the real generateProductSpec path.
+        componentType: 'PROCESSING',
         priority: (['required', 'recommended', 'optional', 'recommended'] as const)[i],
         traceabilityRefs: reqIds.slice(i, i + 2),
       }));
@@ -280,6 +286,18 @@ function parseAndValidateResponse(raw: string): SuggestedComponent[] {
   return results;
 }
 
+/**
+ * The model is asked to pick a componentType from COMPONENT_TYPES, but it is
+ * not bound to do so. Anything outside the vocabulary — or a draft generated
+ * before the field existed — becomes PROCESSING, the neutral default, so an
+ * invalid value never reaches the database.
+ */
+export function toComponentType(value: unknown): ComponentType {
+  return typeof value === 'string' && isComponentType(value)
+    ? value
+    : 'PROCESSING';
+}
+
 function parseProductSpecResponse(raw: string): {
   productName: string;
   description: string;
@@ -321,7 +339,13 @@ function parseProductSpecResponse(raw: string): {
             (r): r is string => typeof r === 'string',
           )
         : [];
-      components.push({ name: c.name, reason: c.reason, priority, traceabilityRefs });
+      components.push({
+        name: c.name,
+        reason: c.reason,
+        componentType: toComponentType(c.componentType),
+        priority,
+        traceabilityRefs,
+      });
     }
   }
 

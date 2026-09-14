@@ -1,3 +1,4 @@
+import { COMPONENT_TYPES } from '@internal/platform-common';
 import type { AvailableComponentSummary } from './llm-client';
 
 export function buildSystemPrompt(): string {
@@ -69,6 +70,7 @@ export function buildProductSpecSystemPrompt(): string {
     '- Use exact component names as they appear in the list',
     '- Every suggested component MUST reference at least one URS requirement ID (traceability)',
     '- Assign priority: "required" (directly satisfies a MUST-have URS), "recommended" (best practice for SHOULD-have), "optional" (nice-to-have)',
+    `- Classify every component with a componentType from this list exactly: ${COMPONENT_TYPES.join(', ')}`,
     '- Consider ISA-88 batch control model: map requirements to recipe layers (General → Site → Master → Control)',
     '- Consider GxP compliance: audit, governance, and observability components are required for regulated environments',
     '- Suggest data contracts that define input/output interfaces between components',
@@ -80,7 +82,7 @@ export function buildProductSpecSystemPrompt(): string {
     '  "description": "What this product does and why",',
     '  "domain": "manufacturing|quality|lab|supply-chain|...",',
     '  "components": [',
-    '    { "name": "exact-component-name", "reason": "...", "priority": "required|recommended|optional", "traceabilityRefs": ["req-id-1"] }',
+    '    { "name": "exact-component-name", "reason": "...", "componentType": "PROCESSING", "priority": "required|recommended|optional", "traceabilityRefs": ["req-id-1"] }',
     '  ],',
     '  "contracts": [',
     '    { "name": "contract-name", "type": "input|output|internal", "description": "...", "traceabilityRefs": ["req-id-1"] }',
