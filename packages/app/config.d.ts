@@ -5,10 +5,14 @@ export interface Config {
         [authEnv: string]: {
           /**
            * GitHub OAuth App client ID for portal login.
-           * Public by design; required so the sign-in page can detect GitHub.
+           * Public by design, so the sign-in page can detect GitHub.
+           *
+           * Optional: AUTH_GITHUB_CLIENT_ID is frequently unset in local
+           * development, which drops the key entirely. Declaring it required
+           * fails app bundle validation at startup instead.
            * @visibility frontend
            */
-          clientId: string;
+          clientId?: string;
         };
       };
       /**
