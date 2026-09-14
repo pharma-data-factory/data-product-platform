@@ -118,10 +118,11 @@ auth:
     # app-config.github.yaml (GITHUB_APP_ID / GITHUB_CLIENT_ID / private key).
     github:
       development:
-        # Frontend must see this key. Default config visibility hides it,
-        # which made GitHub login look unconfigured even when the backend
-        # had a working OAuth App.
-        # @visibility frontend
+        # The sign-in page needs to see clientId. That visibility comes from
+        # packages/app/config.d.ts, NOT from a comment here — an "@visibility"
+        # comment in this file has no effect whatsoever.
+        # When AUTH_GITHUB_CLIENT_ID is unset the backend logs "Skipping github
+        # auth provider" and /api/auth/github/start answers 404.
         clientId: ${AUTH_GITHUB_CLIENT_ID}
         clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
         callbackUrl: ${AUTH_GITHUB_CALLBACK_URL:-http://localhost:7007/api/auth/github/handler/frame}
