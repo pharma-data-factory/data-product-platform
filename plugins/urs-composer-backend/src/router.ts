@@ -532,6 +532,23 @@ export async function createRouter(
   );
 
   /**
+   * GET /requirement-sets/:setId/impact
+   * What changing this set would affect: how far it has drifted from its
+   * released baseline, and which products were built on that baseline.
+   */
+  router.get('/requirement-sets/:setId/impact', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(
+        await service.getRequirementSetImpact(req.params.setId, credentials),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * GET /baselines/approved
    * Approved baselines across all requirement sets — what a product may be
    * built against. Scoped queries live under /requirement-sets/:id/baselines;

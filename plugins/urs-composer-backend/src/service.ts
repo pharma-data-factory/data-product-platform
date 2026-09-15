@@ -41,6 +41,9 @@ import {
   ImpactAssessment,
   SkippedVersion,
   ApprovedBaselineOption,
+  RequirementSetImpact,
+  ImpactedProduct,
+  URS_BASELINE_ANNOTATION,
 } from './types';
 import { SignaturePinReAuth } from './domain/reauth';
 import { computeReviewScopes } from './domain/baseline';
@@ -1817,6 +1820,91 @@ export class URSService {
     });
 
     return baseline;
+  }
+
+  /**
+   * What a change to this requirement set would affect.
+   *
+   * Answers the two questions an author has before revising a requirement:
+   * has this set moved on since its last release, and who is building on that
+   * release?
+   *
+   * Products are found through the catalog annotation a scaffolded product
+   * carries (dataprod.platform/urs-baseline), not through a table in this
+   * plugin. A product may be created by the scaffolder, by the composer or by
+   * hand; the catalog is the one place all of them appear, and the annotation
+   * is indexed, so this stays a filtered query rather than a scan.
+   *
+   * Drift is derived, never stored: comparing the versions in force against
+   * the ones the released baseline pinned cannot go stale, whereas a flag can.
+   */
+  async getRequirementSetImpact(
+    requirementSetId: string,
+    credentials?: BackstageCredentials,
+  ): Promise<RequirementSetImpact> {
+    const released =
+      await this.repository.getCurrentApprovedBaseline(requirementSetId);
+
+    const currentVersions = await this.getCurrentVersions(requirementSetId);
+    const pinned = new Set(released?.requirementVersionIds ?? []);
+
+    // A requirement whose version in force is not the pinned one has moved on
+    // since the release. Without a release everything counts as unreleased
+    // work rather than as drift.
+    const changedSinceRelease = released
+      ? currentVersions.filter(v => !pinned.has(v.id)).map(v => v.requirementId)
+      : [];
+
+    return {
+      releasedBaselineId: released?.id,
+      releasedBaselineVersion: released?.baselineVersion,
+      releasedAt: released?.approvedAt,
+      changedSinceRelease,
+      products: released
+        ? await this.productsBuiltOn(released.id, credentials)
+        : [],
+    };
+  }
+
+  /**
+   * Catalog entities that declare they were built on a given URS baseline.
+   *
+   * Returns an empty list rather than failing when the catalog is unreachable:
+   * impact is informational, and an author must still be able to read the set.
+   */
+  private async productsBuiltOn(
+    baselineId: string,
+    credentials?: BackstageCredentials,
+  ): Promise<ImpactedProduct[]> {
+    if (!this.catalog || !credentials) {
+      return [];
+    }
+
+    try {
+      const response = await this.catalog.getEntities(
+        {
+          filter: {
+            [`metadata.annotations.${URS_BASELINE_ANNOTATION}`]: baselineId,
+          },
+          fields: ['kind', 'metadata.name', 'metadata.title', 'spec.owner'],
+        },
+        { credentials },
+      );
+
+      return response.items.map(entity => ({
+        entityRef: `${entity.kind.toLowerCase()}:default/${entity.metadata.name}`,
+        name: entity.metadata.name,
+        title: entity.metadata.title,
+        owner: (entity.spec as { owner?: string } | undefined)?.owner,
+      }));
+    } catch (error) {
+      this.logger.warn(
+        `Could not resolve products built on baseline ${baselineId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return [];
+    }
   }
 
   /**

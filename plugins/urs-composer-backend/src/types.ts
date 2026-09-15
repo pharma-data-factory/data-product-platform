@@ -686,6 +686,37 @@ export interface RejectApprovalStepRequest {
 }
 
 /**
+ * Catalog annotation a scaffolded product carries to name the URS baseline it
+ * was built against. "unbound" when the author deliberately created it without
+ * one — written explicitly so an unbound product is findable rather than just
+ * missing an annotation.
+ */
+export const URS_BASELINE_ANNOTATION = 'dataprod.platform/urs-baseline';
+
+/** A catalog entity that declares it was built on a URS baseline. */
+export interface ImpactedProduct {
+  entityRef: string;
+  name: string;
+  title?: string;
+  owner?: string;
+}
+
+/**
+ * What changing this requirement set would affect.
+ *
+ * `changedSinceRelease` is derived from the versions in force versus the ones
+ * the released baseline pinned, so it cannot disagree with the data.
+ */
+export interface RequirementSetImpact {
+  releasedBaselineId?: string;
+  releasedBaselineVersion?: string;
+  releasedAt?: Date;
+  /** Logical requirement ids that moved on since the release. */
+  changedSinceRelease: string[];
+  products: ImpactedProduct[];
+}
+
+/**
  * An approved baseline as the URS baseline picker shows it.
  *
  * Carries the requirement set's identity, because nobody recognises a baseline
