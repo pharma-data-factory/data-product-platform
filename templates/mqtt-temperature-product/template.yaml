@@ -107,6 +107,9 @@ spec:
           # Always emitted, so an unbound product is explicit in the catalog and
           # can be found rather than merely missing an annotation.
           ursBaselineId: ${{ parameters.ursBaselineId or 'unbound' }}
+          # Pinned at creation: a later policy version makes this product
+          # visibly outdated instead of silently non-compliant.
+          policyVersion: '1'
     # Before anything is published: a URS claim that does not hold must not
     # reach the catalog. Fails the task unless the baseline is APPROVED.
     # "unbound" passes — creating without a URS is allowed, releasing is not.

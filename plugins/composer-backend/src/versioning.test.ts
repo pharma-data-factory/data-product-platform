@@ -45,7 +45,15 @@ describe('Phase 1: Versioning Foundation', () => {
 
   async function createFullSetup() {
     const product = await service.createProduct(
-      { name: `Test Product ${Date.now()}`, productType: 'DATA_PRODUCT' },
+      {
+        name: `Test Product ${Date.now()}`,
+        productType: 'DATA_PRODUCT',
+        // The platform policy requires these before release; a fixture without
+        // them would describe a product that could never ship.
+        owner: 'group:default/platform-team',
+        dataClassification: 'INTERNAL',
+        gxpRelevance: 'NONE',
+      },
       actor,
     );
     const version = await service.createProductVersion(
@@ -201,6 +209,51 @@ describe('Phase 1: Versioning Foundation', () => {
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(true);
       expect(result.blockers).toHaveLength(0);
+    });
+
+    it('blocks a product that meets no platform policy obligation', async () => {
+      // The policy says under which conditions a product may be released at
+      // all, independent of its requirements. Every unmet obligation is
+      // reported at once so they can be fixed in one pass.
+      const product = await service.createProduct(
+        { name: `Bare Product ${Date.now()}`, productType: 'DATA_PRODUCT' },
+        actor,
+      );
+      const version = await service.createProductVersion(
+        product.id,
+        { version: '1.0' },
+        actor,
+      );
+      const component = await service.addProductComponent(
+        version.id,
+        { componentType: 'SOURCE', name: 'Source' },
+        actor,
+      );
+      await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+      const baseline = await service.createProductBaseline(
+        version.id,
+        { ursBaselineIds: ['urs-baseline-1'] },
+        actor,
+      );
+      await service.approveProductBaseline(baseline.id, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+
+      const result = await service.checkReleaseGate(version.id);
+
+      expect(result.passed).toBe(false);
+      expect(
+        result.blockers.filter(b => b.code === 'POLICY_OBLIGATION_UNMET'),
+      ).toHaveLength(3);
     });
 
     it('blocks a product that references no URS baseline', async () => {
@@ -376,7 +429,13 @@ describe('Phase 1: Versioning Foundation', () => {
 
     async function createFullSetupWithResolver() {
       const product = await serviceWithResolver.createProduct(
-        { name: `XPlugin Product ${Date.now()}`, productType: 'DATA_PRODUCT' },
+        {
+          name: `XPlugin Product ${Date.now()}`,
+          productType: 'DATA_PRODUCT',
+          owner: 'group:default/platform-team',
+          dataClassification: 'INTERNAL',
+          gxpRelevance: 'NONE',
+        },
         actor,
       );
       const version = await serviceWithResolver.createProductVersion(

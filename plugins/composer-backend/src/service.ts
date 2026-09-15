@@ -21,6 +21,7 @@ import {
   validateTraceabilityLink,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
+import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
   CreateProductBaselineRequest,
@@ -367,6 +368,19 @@ export class ComposerService {
         code: 'NO_APPROVED_BASELINE',
         message: 'An approved product baseline is required',
       });
+    }
+
+    // Platform policy: the obligations a product must meet regardless of what
+    // its requirements say. Checked here rather than at creation for the same
+    // reason as the URS binding — experimenting stays free, releasing does not.
+    const product = await this.repository.getProduct(version.productId);
+    if (product) {
+      for (const finding of evaluatePlatformPolicy(product)) {
+        blockers.push({
+          code: 'POLICY_OBLIGATION_UNMET',
+          message: `${finding.title}: ${finding.message}`,
+        });
+      }
     }
 
     // A product must say which requirements it implements before it is
