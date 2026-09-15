@@ -86,6 +86,37 @@ describe('URSComposerApi', () => {
       expect(result.requirementSetId).toBe('URS-OEE');
       expect(result.status).toBe('DRAFT');
     });
+
+    test('listCurrentVersions asks for the versions a baseline would pin', async () => {
+      // The Create Baseline dialog pins whatever this returns. Sending
+      // requirement ids instead of these version ids is what produced
+      // "Requirement version(s) not found".
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            id: 'seed:urs-wd-urs-wd-001-v0.1',
+            requirementId: 'URS-WD-001',
+            versionLabel: '0.1',
+            versionNumber: 1,
+            statement: 'Operators must weigh each material.',
+            status: 'DRAFT',
+            revision: 1,
+            createdBy: 'system',
+            createdAt: '2026-08-26T00:00:00Z',
+          },
+        ],
+      });
+
+      const api = createApi();
+      const result = await api.listCurrentVersions('seed:urs-wd');
+
+      expect((fetchApi.fetch as jest.Mock).mock.calls[0][0]).toContain(
+        '/requirement-sets/seed:urs-wd/current-versions',
+      );
+      expect(result[0].id).toBe('seed:urs-wd-urs-wd-001-v0.1');
+      expect(result[0].requirementId).toBe('URS-WD-001');
+    });
   });
 
   // ============================================================================

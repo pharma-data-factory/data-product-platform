@@ -685,6 +685,27 @@ export interface RejectApprovalStepRequest {
   comment?: string;
 }
 
+/** Move a requirement version one step along its lifecycle. */
+export interface AdvanceVersionRequest {
+  /** IN_REVIEW, REVIEWED, IN_APPROVAL or REJECTED. Never APPROVED. */
+  status: URSStatus;
+  /** Required when rejecting. */
+  reason?: string;
+}
+
+/**
+ * A version a bulk advance left where it was, and why.
+ *
+ * Reported rather than thrown: a set part-way through its review is a normal
+ * state, and one version that cannot move must not roll back the others.
+ */
+export interface SkippedVersion {
+  versionId: string;
+  requirementId: string;
+  status: URSStatus;
+  reason: string;
+}
+
 /**
  * ============================================================================
  * CHANGE SET — Delta between two URS Baselines

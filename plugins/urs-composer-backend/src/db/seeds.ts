@@ -14,8 +14,13 @@
 
 import { Knex } from 'knex';
 import { BUSINESS_CAPABILITIES } from '../data/businessCapabilities';
-import { SEED_REQUIREMENT_SETS, acceptanceIntentFromSeed } from '../data/seedRequirementSets';
-import { URSStatus } from '../types';
+import {
+  SEED_REQUIREMENT_SETS,
+  acceptanceIntentFromSeed,
+  genesisVersionOf,
+  type SeedRequirement,
+} from '../data/seedRequirementSets';
+import { URSRequirement, URSStatus } from '../types';
 
 /**
  * Seed business capabilities.
@@ -231,17 +236,26 @@ export async function seedRequirementSets(knex: Knex): Promise<void> {
       revision: 1,
     });
 
-    const rows = seedSet.requirements.map(req => ({
+    // Built as domain objects first so the genesis versions below are derived
+    // from exactly the same content the requirement rows carry.
+    const requirements: URSRequirement[] = seedSet.requirements.map(req => ({
       id: `${setId}-${req.requirementId.toLowerCase()}`,
-      requirement_set_id: setId,
-      requirement_id: req.requirementId,
+      requirementSetId: setId,
+      requirementId: req.requirementId,
       title: req.title,
       statement: req.statement,
-      rationale: req.rationale ?? null,
-      category: req.category ?? null,
+      rationale: req.rationale,
+      category: req.category,
       priority: req.priority,
-      acceptance_intent: acceptanceIntentFromSeed(req.acceptanceCriteria) ?? null,
-      gxp_relevance: req.gxpRelevance,
+      acceptanceIntent: acceptanceIntentFromSeed(req.acceptanceCriteria),
+      classification: req.classification,
+      gxpRelevance: req.gxpRelevance,
+      status: URSStatus.DRAFT,
+      createdAt: now,
+      createdBy: 'system',
+    }));
+
+    const classificationColumns = (req: SeedRequirement) => ({
       component_type: req.classification.componentType,
       requirement_nature: req.classification.requirementNature,
       criticality: req.classification.criticality,
@@ -254,13 +268,169 @@ export async function seedRequirementSets(knex: Knex): Promise<void> {
         targetSystem: req.classification.targetSystem,
         automationReadiness: req.classification.automationReadiness,
       }),
-      status: URSStatus.DRAFT,
-      created_by: 'system',
-      created_at: now,
-    }));
+    });
 
-    await knex('requirements').insert(rows);
+    await knex('requirements').insert(
+      requirements.map((requirement, i) => ({
+        id: requirement.id,
+        requirement_set_id: requirement.requirementSetId,
+        requirement_id: requirement.requirementId,
+        title: requirement.title,
+        statement: requirement.statement,
+        rationale: requirement.rationale ?? null,
+        category: requirement.category ?? null,
+        priority: requirement.priority,
+        acceptance_intent: requirement.acceptanceIntent ?? null,
+        gxp_relevance: requirement.gxpRelevance,
+        ...classificationColumns(seedSet.requirements[i]),
+        status: URSStatus.DRAFT,
+        created_by: 'system',
+        created_at: now,
+      })),
+    );
+
+    // Without a genesis version a seeded requirement cannot be baselined,
+    // signed or revised — see genesisVersionOf. createRequirement opens this
+    // version for requirements created through the API; seeding has to do it
+    // itself, because it writes to the tables directly.
+    await knex('requirement_versions').insert(
+      requirements.map((requirement, i) => {
+        const version = genesisVersionOf(requirement, now);
+        return {
+          id: version.id,
+          requirement_id: version.requirementId,
+          version: version.version,
+          version_number: version.versionNumber,
+          major: version.major ?? null,
+          minor: version.minor ?? null,
+          version_label: version.versionLabel ?? version.version,
+          title: version.title,
+          statement: version.statement,
+          rationale: version.rationale ?? null,
+          category: version.category ?? null,
+          priority: version.priority ?? null,
+          acceptance_intent: version.acceptanceIntent ?? null,
+          gxp_relevance: version.gxpRelevance ?? null,
+          source: version.source ?? null,
+          owner: version.owner ?? null,
+          ...classificationColumns(seedSet.requirements[i]),
+          status: version.status,
+          created_by: version.createdBy,
+          created_at: version.createdAt,
+          content_hash: version.contentHash ?? null,
+          revision: version.revision ?? 1,
+        };
+      }),
+    );
   }
+}
+
+/**
+ * Open the genesis version for any requirement that has none.
+ *
+ * Fixing the seeder only helps a database that is seeded from now on.
+ * Installations seeded before the fix keep requirements that carry no version
+ * at all, and seedRequirementSets deliberately skips a set that already
+ * exists — so without this, those requirement sets would stay unbaselinable
+ * forever.
+ *
+ * A requirement without a version is broken data by definition: every
+ * requirement created through the API gets version 0.1 from createRequirement.
+ * So this repairs rather than changes behaviour, and it is idempotent — once
+ * every requirement has a version it finds nothing to do.
+ */
+export async function backfillMissingRequirementVersions(
+  knex: Knex,
+): Promise<number> {
+  const orphans = await knex('requirements')
+    .select(
+      'id',
+      'requirement_set_id',
+      'requirement_id',
+      'title',
+      'statement',
+      'rationale',
+      'category',
+      'priority',
+      'acceptance_intent',
+      'gxp_relevance',
+      'component_type',
+      'requirement_nature',
+      'criticality',
+      'classification_meta',
+      'created_at',
+    )
+    .whereNotExists(
+      knex('requirement_versions')
+        .select(knex.raw('1'))
+        .whereRaw('requirement_versions.requirement_id = requirements.requirement_id'),
+    );
+
+  if (!orphans.length) {
+    return 0;
+  }
+
+  const now = new Date();
+  const rows = orphans.map(row => {
+    const version = genesisVersionOf(
+      {
+        id: row.id,
+        requirementSetId: row.requirement_set_id,
+        requirementId: row.requirement_id,
+        title: row.title,
+        statement: row.statement,
+        rationale: row.rationale ?? undefined,
+        category: row.category ?? undefined,
+        priority: row.priority,
+        acceptanceIntent: row.acceptance_intent ?? undefined,
+        gxpRelevance: row.gxp_relevance ?? undefined,
+        // Rebuilt from the columns because hashOf reads criticality: a version
+        // whose content_hash ignored it would not match the hash the normal
+        // path produces for the same content, and signature verification
+        // compares exactly that.
+        classification: {
+          componentType: row.component_type ?? undefined,
+          requirementNature: row.requirement_nature ?? undefined,
+          criticality: row.criticality ?? undefined,
+        },
+        status: URSStatus.DRAFT,
+        createdAt: row.created_at ?? now,
+        createdBy: 'system',
+      } as URSRequirement,
+      row.created_at ?? now,
+    );
+
+    return {
+      id: version.id,
+      requirement_id: version.requirementId,
+      version: version.version,
+      version_number: version.versionNumber,
+      major: version.major ?? null,
+      minor: version.minor ?? null,
+      version_label: version.versionLabel ?? version.version,
+      title: version.title,
+      statement: version.statement,
+      rationale: version.rationale ?? null,
+      category: version.category ?? null,
+      priority: version.priority ?? null,
+      acceptance_intent: version.acceptanceIntent ?? null,
+      gxp_relevance: version.gxpRelevance ?? null,
+      // Carried over verbatim: the requirement row already holds the
+      // classification in column form, so it is copied rather than rebuilt.
+      component_type: row.component_type ?? null,
+      requirement_nature: row.requirement_nature ?? null,
+      criticality: row.criticality ?? null,
+      classification_meta: row.classification_meta ?? null,
+      status: version.status,
+      created_by: version.createdBy,
+      created_at: version.createdAt,
+      content_hash: version.contentHash ?? null,
+      revision: 1,
+    };
+  });
+
+  await knex('requirement_versions').insert(rows);
+  return rows.length;
 }
 
 /**
@@ -272,4 +442,5 @@ export async function seed(knex: Knex): Promise<void> {
   await seedApprovalWorkflows(knex);
   await seedBusinessRoles(knex);
   await seedRequirementSets(knex);
+  await backfillMissingRequirementVersions(knex);
 }

@@ -196,11 +196,23 @@ export interface Requirement {
   updatedAt?: string;
 }
 
+/**
+ * Mirrors the backend RequirementVersion.
+ *
+ * A version belongs to a REQUIREMENT, addressed by the logical requirement id
+ * (URS-WD-001) — not to a requirement set, and not by the requirement's row
+ * id. This interface previously declared `requirementSetId` and carried no
+ * requirementId at all, which is part of how requirement ids came to be sent
+ * where version ids were expected.
+ */
 export interface RequirementVersion {
   id: string;
-  requirementSetId: string;
-  versionNumber: string;
+  requirementId: string;
+  /** Sortable numeric form, e.g. 1.10 -> 110. */
+  versionNumber: number;
   version?: string;
+  /** The label the versioning domain computes, e.g. "0.1". */
+  versionLabel?: string;
   title?: string;
   statement: string;
   rationale?: string;
@@ -210,8 +222,11 @@ export interface RequirementVersion {
   supersededBy?: string;
   classification?: Record<string, unknown>;
   gxpRelevance?: string;
+  contentHash?: string;
   createdAt: string;
   createdBy: string;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface Baseline {

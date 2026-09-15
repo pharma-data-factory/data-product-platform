@@ -431,6 +431,30 @@ export class URSComposerApi {
   }
 
   /**
+   * GET /requirement-sets/:setId/current-versions
+   * The version in force for each requirement in the set — the versions a
+   * baseline pins. Resolved server-side so callers never have to turn
+   * requirement ids into version ids themselves.
+   */
+  async listCurrentVersions(setId: string): Promise<RequirementVersion[]> {
+    return this.get<RequirementVersion[]>(
+      `/requirement-sets/${setId}/current-versions`,
+    );
+  }
+
+  /**
+   * GET /requirement-sets/:setId/next-baseline-version
+   * The baseline version the server proposes next. A suggestion — the user may
+   * type a different label, e.g. to match a document number in an external QMS.
+   */
+  async getNextBaselineVersion(setId: string): Promise<string> {
+    const result = await this.get<{ baselineVersion: string }>(
+      `/requirement-sets/${setId}/next-baseline-version`,
+    );
+    return result.baselineVersion;
+  }
+
+  /**
    * GET /requirements/:id/versions/:version
    * Get a specific version of a requirement
    */

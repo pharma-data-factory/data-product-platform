@@ -103,3 +103,30 @@ export function versionOrdinal(v: VersionNumber): number {
 export function compareVersions(a: VersionNumber, b: VersionNumber): number {
   return versionOrdinal(a) - versionOrdinal(b);
 }
+
+/**
+ * The baseline version to propose next for a requirement set.
+ *
+ * Baselines are whole releases of a set, so they count up in majors: the first
+ * is 1.0, the next 2.0. Unlike a requirement version this is only a
+ * SUGGESTION — a baseline identifier often has to match a document number in
+ * an external QMS, so the caller may override it. What the server does not
+ * allow is a duplicate; see assertBaselineVersionAvailable.
+ *
+ * Existing labels are parsed leniently because earlier baselines were accepted
+ * as free text: anything without a leading number is ignored rather than
+ * throwing, so one odd historical label cannot block the next proposal.
+ */
+export function nextBaselineVersion(existingVersions: readonly string[]): string {
+  let highestMajor = 0;
+
+  for (const label of existingVersions) {
+    const match = /^\s*(\d+)/.exec(label ?? '');
+    if (!match) {
+      continue;
+    }
+    highestMajor = Math.max(highestMajor, parseInt(match[1], 10));
+  }
+
+  return `${highestMajor + 1}.0`;
+}

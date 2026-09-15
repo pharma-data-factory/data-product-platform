@@ -2,7 +2,14 @@
  * URS Requirement Set Detail Page
  */
 
-import { useEffect, useState, useMemo, type FC, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+  type FC,
+  type ReactNode,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import {
@@ -176,6 +183,8 @@ export const URSRequirementSetPage: FC = () => {
     null,
   );
   // Version History state
+  // The version in force for each requirement — what a baseline would pin.
+  const [currentVersions, setCurrentVersions] = useState<RequirementVersion[]>([]);
   const [versionHistory, setVersionHistory] = useState<Record<string, RequirementVersion[]>>({});
   const [expandedReqId, setExpandedReqId] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<RequirementVersion | null>(null);
@@ -256,24 +265,36 @@ export const URSRequirementSetPage: FC = () => {
   const approveAllowed = usePermission({ permission: ursApprovePermission });
   const manageAllowed = usePermission({ permission: ursManagePermission });
 
-  useEffect(() => {
+  /**
+   * Everything the page shows about the set.
+   *
+   * Mount and post-action refresh go through this one function. They used to
+   * be two near-identical loaders, which is how the current versions came to
+   * be fetched on refresh but not on first load — the page then offered a
+   * baseline with nothing to pin.
+   */
+  const reload = useCallback(async () => {
     if (!id) {
-      return undefined;
+      return;
     }
-    let mounted = true;
-    Promise.all([
+    // Current versions come from the backend rather than being derived here: a
+    // baseline pins requirement VERSIONS, and which version is in force is a
+    // domain rule.
+    const [requirementSet, reqs, auditEvents, versions] = await Promise.all([
       api.getRequirementSet(id),
       api.listRequirements(id),
       api.getRequirementSetAudit(id),
-    ])
-      .then(([requirementSet, reqs, auditEvents]) => {
-        if (!mounted) {
-          return;
-        }
-        setSet(requirementSet);
-        setRequirements(reqs);
-        setAudit(auditEvents);
-      })
+      api.listCurrentVersions(id),
+    ]);
+    setSet(requirementSet);
+    setRequirements(reqs);
+    setAudit(auditEvents);
+    setCurrentVersions(versions);
+  }, [id, api]);
+
+  useEffect(() => {
+    let mounted = true;
+    reload()
       .catch(err => {
         if (mounted) {
           setError(err.message || 'Failed to load requirement set');
@@ -287,7 +308,7 @@ export const URSRequirementSetPage: FC = () => {
     return () => {
       mounted = false;
     };
-  }, [id, api]);
+  }, [reload]);
 
   useEffect(() => {
     let mounted = true;
@@ -310,20 +331,6 @@ export const URSRequirementSetPage: FC = () => {
       mounted = false;
     };
   }, [api]);
-
-  const reload = async () => {
-    if (!id) {
-      return;
-    }
-    const [requirementSet, reqs, auditEvents] = await Promise.all([
-      api.getRequirementSet(id),
-      api.listRequirements(id),
-      api.getRequirementSetAudit(id),
-    ]);
-    setSet(requirementSet);
-    setRequirements(reqs);
-    setAudit(auditEvents);
-  };
 
   // Load any approved baseline for this requirement set (entry gate for a
   // Validation Context). Backend remains authoritative.
@@ -600,6 +607,19 @@ export const URSRequirementSetPage: FC = () => {
   }
 
   const canEdit = set.status === URSStatus.DRAFT;
+
+  // What a baseline would pin right now, so the dialog can state it up front.
+  const currentVersionByRequirement: Record<string, RequirementVersion> =
+    Object.fromEntries(currentVersions.map(v => [v.requirementId, v]));
+  const unapprovedCount = currentVersions.filter(
+    v => v.status !== URSStatus.APPROVED,
+  ).length;
+  const missingVersionCount = Math.max(
+    0,
+    requirements.length - currentVersions.length,
+  );
+  const nothingToPin = currentVersions.length === 0;
+
   const canRevise =
     manageAllowed &&
     set.status !== URSStatus.SUPERSEDED &&
@@ -775,8 +795,14 @@ export const URSRequirementSetPage: FC = () => {
                 ) : (
               filteredRequirements.map(req => {
                 const acceptanceCriteria = parseAcceptanceCriteria(req.acceptanceIntent);
-                const isExpanded = expandedReqId === req.id;
-                const versions = versionHistory[req.id];
+                // Versions are addressed by the LOGICAL requirement id
+                // (URS-WD-001), not by the row id (seed:urs-wd-urs-wd-001).
+                const logicalId = req.requirementId;
+                const isExpanded = Boolean(logicalId) && expandedReqId === logicalId;
+                const versions = logicalId ? versionHistory[logicalId] : undefined;
+                const currentVersion = logicalId
+                  ? currentVersionByRequirement[logicalId]
+                  : undefined;
                 return (
                   <Card key={req.id} style={{ marginBottom: 12 }}>
                     <CardContent>
@@ -801,10 +827,10 @@ export const URSRequirementSetPage: FC = () => {
                               Edit
                             </Button>
                           )}
-                          {req.id && (
+                          {logicalId && (
                             <IconButton
                               size="small"
-                              onClick={() => handleToggleVersionHistory(req.id)}
+                              onClick={() => handleToggleVersionHistory(logicalId)}
                               title="Version History"
                             >
                               {isExpanded ? <ExpandLessIcon /> : <HistoryIcon />}
@@ -825,16 +851,23 @@ export const URSRequirementSetPage: FC = () => {
                           </List>
                         </>
                       )}
-                      {req.id && (
+                      {logicalId && (
                         <Collapse in={isExpanded}>
                           <Divider style={{ margin: '12px 0' }} />
                           <Box display="flex" justifyContent="space-between" alignItems="center">
                             <Typography variant="subtitle2">Version History</Typography>
+                            {/*
+                              createRevision revises a VERSION, so the target is
+                              the version currently in force — not the
+                              requirement. Without one there is nothing to
+                              revise from.
+                            */}
                             <Button
                               size="small"
                               variant="outlined"
+                              disabled={!currentVersion}
                               onClick={() => {
-                                setRevisionTargetId(req.id);
+                                setRevisionTargetId(currentVersion!.id);
                                 setRevisionDialogOpen(true);
                               }}
                             >
@@ -1081,11 +1114,20 @@ export const URSRequirementSetPage: FC = () => {
                       color="primary"
                       variant="contained"
                       onClick={() => {
-                        const nextVersion = baselines.length > 0
-                          ? `${parseInt(baselines[baselines.length - 1].baselineVersion || '1', 10) + 1}.0`
-                          : '1.0';
-                        setBaselineVersion(nextVersion);
+                        setActionError(null);
                         setBaselineDialogOpen(true);
+                        // Proposed by the server, which reads the set's whole
+                        // baseline history. Deriving it here from the last
+                        // list entry assumed an ordering the API does not
+                        // promise, and produced "NaN.0" for any label that did
+                        // not start with a number.
+                        api
+                          .getNextBaselineVersion(id!)
+                          .then(setBaselineVersion)
+                          .catch(() => {
+                            // Keep whatever is in the field; the user can type
+                            // a label, and a duplicate is refused on create.
+                          });
                       }}
                     >
                       Create Baseline
@@ -1383,28 +1425,104 @@ export const URSRequirementSetPage: FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Create Baseline Dialog */}
+      {/*
+        Create Baseline Dialog.
+
+        A baseline is immutable once created and is what an approval chain then
+        acts on, so the dialog states the three things a user needs before
+        committing to one: exactly which versions get pinned, whether they are
+        approved, and what happens next. It previously showed a bare version
+        field and a count.
+      */}
       <Dialog open={baselineDialogOpen} onClose={() => setBaselineDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Baseline</DialogTitle>
+        <DialogTitle>Create baseline of {set.requirementSetId}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" paragraph>
-            This will snapshot all current requirement versions into an immutable baseline.
+            A baseline freezes the requirement versions listed below. It cannot
+            be edited afterwards — to change anything you revise a requirement
+            and create a new baseline.
           </Typography>
-          <Box display="flex" alignItems="center" style={{ gap: 16, marginBottom: 12 }}>
-            <TextField
-              label="Baseline Version"
-              value={baselineVersion}
-              onChange={e => setBaselineVersion(e.target.value)}
-              size="small"
-              variant="outlined"
-              style={{ width: 140 }}
-            />
-            <Typography variant="body2">
-              {requirements.length} requirement(s) will be included
-            </Typography>
-          </Box>
+
+          <TextField
+            label="Baseline version"
+            value={baselineVersion}
+            onChange={e => setBaselineVersion(e.target.value)}
+            size="small"
+            variant="outlined"
+            style={{ width: 180, marginBottom: 16 }}
+            error={!baselineVersion.trim()}
+            helperText={
+              baselineVersion.trim()
+                ? 'Your label for this snapshot, e.g. 1.0'
+                : 'A version label is required'
+            }
+          />
+
+          {nothingToPin ? (
+            <Alert severity="error">
+              <Typography variant="body2">
+                There is nothing to pin: none of the {requirements.length}{' '}
+                requirement(s) in this set has a version in force.
+              </Typography>
+              <Typography variant="body2" style={{ marginTop: 8 }}>
+                Every requirement gets version 0.1 when it is created. A set
+                showing none predates that and needs its versions backfilled —
+                restarting the backend re-seeds the example sets.
+              </Typography>
+            </Alert>
+          ) : (
+            <>
+              <Typography variant="subtitle2" gutterBottom>
+                {currentVersions.length} version(s) will be pinned
+              </Typography>
+
+              <List dense style={{ maxHeight: 220, overflow: 'auto' }}>
+                {currentVersions.map(version => (
+                  <ListItem key={version.id} divider>
+                    <ListItemText
+                      primary={`${version.requirementId} — ${version.title ?? ''}`}
+                      secondary={`v${version.versionLabel ?? version.version}`}
+                    />
+                    <Chip
+                      size="small"
+                      label={version.status}
+                      variant={
+                        version.status === URSStatus.APPROVED
+                          ? 'default'
+                          : 'outlined'
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+
+              {/*
+                The release gate refuses a baseline whose pinned versions are
+                not all approved (assertPinnedVersionsReleased). Saying so here
+                turns a later conflict into something the user saw coming.
+              */}
+              {unapprovedCount > 0 && (
+                <Alert severity="info" style={{ marginTop: 8 }}>
+                  {unapprovedCount} of {currentVersions.length} version(s) are
+                  not approved yet. You can create the baseline now and submit
+                  it for approval, but it cannot be released until every pinned
+                  version is approved.
+                </Alert>
+              )}
+
+              {missingVersionCount > 0 && (
+                <Alert severity="warning" style={{ marginTop: 8 }}>
+                  {missingVersionCount} requirement(s) have no version in force
+                  and will be left out of this baseline.
+                </Alert>
+              )}
+            </>
+          )}
+
           {actionError && (
-            <Typography color="error" variant="body2">{actionError}</Typography>
+            <Alert severity="error" style={{ marginTop: 8 }}>
+              {actionError}
+            </Alert>
           )}
         </DialogContent>
         <DialogActions>
@@ -1414,16 +1532,20 @@ export const URSRequirementSetPage: FC = () => {
           <Button
             color="primary"
             variant="contained"
-            disabled={creatingBaseline || !baselineVersion.trim()}
+            // Refused here rather than by the backend: an empty selection can
+            // only produce "requirementVersionIds must be a non-empty array".
+            disabled={creatingBaseline || !baselineVersion.trim() || nothingToPin}
             onClick={async () => {
               setCreatingBaseline(true);
               setActionError(null);
               try {
-                const reqIds = requirements.map(r => r.id);
+                // Requirement VERSION ids, not requirement ids. Sending the
+                // latter is what made every Create Baseline fail with
+                // "Requirement version(s) not found".
                 await api.createBaseline(id!, {
                   requirementSetId: id!,
                   baselineVersion: baselineVersion.trim(),
-                  requirementVersionIds: reqIds,
+                  requirementVersionIds: currentVersions.map(v => v.id),
                 });
                 setBaselineDialogOpen(false);
                 setBaselineSuccess(true);
