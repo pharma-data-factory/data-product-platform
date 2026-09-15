@@ -393,9 +393,9 @@ metadata:
     dataprod.platform/template: machine-state-consumer-data-product
     dataprod.platform/templateVersion: 1.0.0
   links:
-    - url: /catalog-graph?rootEntityRefs=component:default/sample-machine-state-consumer
-      title: Catalog Graph
-      icon: catalog
+    - url: https://github.com/example/sample-machine-state-consumer
+      title: Repository
+      icon: github
 spec:
   type: data-product
   lifecycle: experimental
