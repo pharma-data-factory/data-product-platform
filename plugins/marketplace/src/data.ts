@@ -51,6 +51,9 @@ export interface MarketplaceCatalogTemplate {
   templateVersion?: string;
   dataProductStandardVersion?: string;
   dataProductSdkVersion?: string;
+  /** Requirement set key the Golden Path declares it satisfies, e.g. URS-EPM. */
+  ursSatisfies?: string;
+  ursRequirementCount?: number;
 }
 
 export interface MarketplaceItem {
@@ -78,6 +81,8 @@ export interface MarketplaceItem {
   releaseDate?: string;
   commercialStatus?: CommercialCardStatus;
   commercialCopy?: string;
+  ursSatisfies?: string;
+  ursRequirementCount?: number;
 }
 
 export const marketplaceItems: MarketplaceItem[] = [
@@ -192,7 +197,8 @@ export const marketplaceItems: MarketplaceItem[] = [
     compatibility: 'Python 3.12+, MQTT, Docker, Unified Namespace',
     status: 'available',
     certificationStatus: 'DEVELOPMENT',
-    documentation: '/create/templates/default/machine-state-consumer-data-product',
+    documentation:
+      '/create/templates/default/machine-state-consumer-data-product',
     templateReference: 'template:default/machine-state-consumer-data-product',
     catalogEntityRef: 'component:default/sample-machine-state-consumer',
     contractApiRef:
@@ -273,14 +279,14 @@ export function enrichMarketplaceItem(
     ? products.find(entry => refersTo(item.catalogEntityRef ?? '', entry))
     : products.find(entry => entry.templateName === item.id);
   const apiName = item.contractApiRef?.split('/').pop();
-  const api = apiName
-    ? apis.find(entry => entry.name === apiName)
-    : undefined;
+  const api = apiName ? apis.find(entry => entry.name === apiName) : undefined;
   const templateName = item.templateReference?.split('/').pop();
   const template = templateName
     ? templates.find(entry => entry.name === templateName)
     : undefined;
-  const release = isOfficialGoldenPath(item.id) ? currentRelease(item.id) : undefined;
+  const release = isOfficialGoldenPath(item.id)
+    ? currentRelease(item.id)
+    : undefined;
   const commercial = marketplaceCommercialState(
     item,
     entitledProductIds
@@ -317,10 +323,17 @@ export function enrichMarketplaceItem(
       product?.dataProductSdkVersion ??
       template?.dataProductSdkVersion,
     releaseStatus: release?.status,
-    distribution: release ? visibleDistribution(release.distribution) : undefined,
+    distribution: release
+      ? visibleDistribution(release.distribution)
+      : undefined,
     releaseDate: release?.release.date,
     commercialStatus: commercial.commercialStatus,
     commercialCopy: commercial.commercialCopy,
+    // Taken from the Template entity only. Unlike version or certification
+    // there is no release-registry fallback: the requirements a path satisfies
+    // are stated by the path itself or not at all.
+    ursSatisfies: template?.ursSatisfies,
+    ursRequirementCount: template?.ursRequirementCount,
   };
 }
 

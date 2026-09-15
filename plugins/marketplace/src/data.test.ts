@@ -216,17 +216,97 @@ describe('marketplace data', () => {
     ]);
   });
 
+  it('reads the requirement set a template declares it satisfies', () => {
+    const sources = marketplaceCatalogSources([
+      {
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        kind: 'Template',
+        metadata: {
+          name: 'oee-data-product',
+          annotations: {
+            'dataprod.platform/urs-satisfies': 'URS-EPM',
+            'dataprod.platform/urs-requirement-count': '5',
+          },
+        },
+        spec: { type: 'data-product' },
+      },
+    ]);
+
+    expect(sources.templates[0].ursSatisfies).toBe('URS-EPM');
+    expect(sources.templates[0].ursRequirementCount).toBe(5);
+  });
+
+  it('drops a requirement count that is not a count', () => {
+    // Rendering NaN would read as a defect in the requirements rather than in
+    // the annotation, and the entry would look broken to a consumer.
+    const sources = marketplaceCatalogSources([
+      {
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        kind: 'Template',
+        metadata: {
+          name: 'oee-data-product',
+          annotations: {
+            'dataprod.platform/urs-satisfies': 'URS-EPM',
+            'dataprod.platform/urs-requirement-count': 'five',
+          },
+        },
+        spec: { type: 'data-product' },
+      },
+    ]);
+
+    expect(sources.templates[0].ursSatisfies).toBe('URS-EPM');
+    expect(sources.templates[0].ursRequirementCount).toBeUndefined();
+  });
+
+  it('carries the declared requirement set through enrichment', () => {
+    const oee = marketplaceItems.find(item => item.id === 'oee-data-product');
+    const enriched = enrichMarketplaceItem(
+      oee!,
+      [],
+      [],
+      [
+        {
+          name: 'oee-data-product',
+          ursSatisfies: 'URS-EPM',
+          ursRequirementCount: 5,
+        },
+      ],
+    );
+
+    expect(enriched.ursSatisfies).toBe('URS-EPM');
+    expect(enriched.ursRequirementCount).toBe(5);
+  });
+
+  it('leaves a template that declares no requirement set undeclared', () => {
+    // Most templates do not declare one yet. Absence has to stay absence
+    // rather than becoming an empty claim.
+    const python = marketplaceItems.find(
+      item => item.id === 'python-microservice',
+    );
+    const enriched = enrichMarketplaceItem(
+      python!,
+      [],
+      [],
+      [{ name: 'python-microservice' }],
+    );
+
+    expect(enriched.ursSatisfies).toBeUndefined();
+    expect(enriched.ursRequirementCount).toBeUndefined();
+  });
+
   it('references official templates for available factory items', () => {
-    const python = marketplaceItems.find(item => item.id === 'python-microservice');
+    const python = marketplaceItems.find(
+      item => item.id === 'python-microservice',
+    );
     expect(python?.templateReference).toBe(
       'template:default/python-microservice',
     );
   });
 
   it('filters by category and query', () => {
-    expect(filterMarketplaceItems(marketplaceItems, '', 'Templates')).toHaveLength(
-      2,
-    );
+    expect(
+      filterMarketplaceItems(marketplaceItems, '', 'Templates'),
+    ).toHaveLength(2);
     // Named rather than counted: the count said 4 and went stale when the AAS
     // data product was added, and a bare length does not say which one moved.
     expect(
@@ -240,17 +320,19 @@ describe('marketplace data', () => {
       'aas-data-product',
       'oee-data-product',
     ]);
-    expect(filterMarketplaceItems(marketplaceItems, 'mqtt', 'All').map(item => item.id)).toEqual(
-      [
-        'mqtt-data-connector',
-        'mqtt-temperature-data-product',
-        'unified-namespace',
-        'machine-state-consumer-data-product',
-        // Matches on its compatibility string, which lists MQTT.
-        'aas-data-product',
-        'oee-data-product',
-      ],
-    );
+    expect(
+      filterMarketplaceItems(marketplaceItems, 'mqtt', 'All').map(
+        item => item.id,
+      ),
+    ).toEqual([
+      'mqtt-data-connector',
+      'mqtt-temperature-data-product',
+      'unified-namespace',
+      'machine-state-consumer-data-product',
+      // Matches on its compatibility string, which lists MQTT.
+      'aas-data-product',
+      'oee-data-product',
+    ]);
     expect(filterMarketplaceItems(marketplaceItems, 'billing')).toHaveLength(0);
   });
 
@@ -287,7 +369,9 @@ describe('marketplace data', () => {
 
   it('resolves official Golden Path current RELEASED version from the release catalog', () => {
     const mqtt = enrichMarketplaceItem(
-      marketplaceItems.find(item => item.id === 'mqtt-temperature-data-product')!,
+      marketplaceItems.find(
+        item => item.id === 'mqtt-temperature-data-product',
+      )!,
     );
     expect(mqtt.version).toBe('1.0.0');
     expect(mqtt.releaseStatus).toBe('RELEASED');
@@ -323,7 +407,9 @@ describe('marketplace data', () => {
     expect(goldenPathCreateHighlights(uns).join(' ')).toMatch(/BUILDING BLOCK/);
     expect(uns.releaseStatus).toBeUndefined();
     expect(marketplaceCreateAllowed(uns, 'DEVELOPER')).toBe(true);
-    expect(goldenPathCreateHighlights(uns).join(' ')).toMatch(/Platform Component/);
+    expect(goldenPathCreateHighlights(uns).join(' ')).toMatch(
+      /Platform Component/,
+    );
     expect(
       filterMarketplaceItems(marketplaceItems, '', 'Platform Components').map(
         item => item.id,
@@ -333,7 +419,9 @@ describe('marketplace data', () => {
 
   it('shows commercial entitlement status without purchase CTAs', () => {
     const mqtt = enrichMarketplaceItem(
-      marketplaceItems.find(item => item.id === 'mqtt-temperature-data-product')!,
+      marketplaceItems.find(
+        item => item.id === 'mqtt-temperature-data-product',
+      )!,
     );
     const oee = enrichMarketplaceItem(
       marketplaceItems.find(item => item.id === 'oee-data-product')!,
@@ -348,9 +436,7 @@ describe('marketplace data', () => {
   });
 
   it('resolves certified Golden Path documentation through TechDocs', () => {
-    expect(
-      goldenPathDocumentationHref('mqtt-temperature-data-product'),
-    ).toBe(
+    expect(goldenPathDocumentationHref('mqtt-temperature-data-product')).toBe(
       '/docs/default/component/data-product-platform/how-to/mqtt-temperature',
     );
     expect(goldenPathDocumentationHref('rest-equipment-data-product')).toBe(

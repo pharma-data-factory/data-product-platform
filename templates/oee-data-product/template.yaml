@@ -21,6 +21,15 @@ metadata:
     dataprod.platform/dataProductStandardVersion: 1.0.0
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/category: Templates
+    # Requirements this path satisfies. Deliberately a different key from the
+    # product annotation dataprod.platform/urs-baseline: a template *satisfies*
+    # a requirement set, a product is *built against* one. The requirements
+    # themselves ship in urs.yaml beside this file, so an installation that
+    # never saw our URS Composer can still read them.
+    dataprod.platform/urs-satisfies: URS-EPM
+    # Denormalized so the Marketplace can state the size of the claim without
+    # fetching the artifact. Held to urs.yaml by templateUrsParity.test.ts.
+    dataprod.platform/urs-requirement-count: '5'
     backstage.io/techdocs-ref: dir:.
 spec:
   owner: group:default/platform-team

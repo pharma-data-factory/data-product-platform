@@ -56,11 +56,14 @@ export function MarketplaceDetailPage() {
     ? marketplaceCreateAllowed(
         item,
         role,
-        item.commercialStatus === 'ENTITLED' || item.commercialStatus === undefined,
+        item.commercialStatus === 'ENTITLED' ||
+          item.commercialStatus === undefined,
       )
     : false;
-  const release = item && isOfficialGoldenPath(item.id) ? currentRelease(item.id) : undefined;
-  const history = item && isOfficialGoldenPath(item.id) ? releasesForTemplate(item.id) : [];
+  const release =
+    item && isOfficialGoldenPath(item.id) ? currentRelease(item.id) : undefined;
+  const history =
+    item && isOfficialGoldenPath(item.id) ? releasesForTemplate(item.id) : [];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
   const [builtWith, setBuiltWith] = useState<OeeBuiltWithSummary>();
@@ -146,7 +149,11 @@ export function MarketplaceDetailPage() {
         )}
         {error && (
           <JourneyState
-            title={isUnauthorizedError(error) ? 'Unauthorized' : 'Catalog unavailable'}
+            title={
+              isUnauthorizedError(error)
+                ? 'Unauthorized'
+                : 'Catalog unavailable'
+            }
             message={formatJourneyError(error)}
           />
         )}
@@ -160,16 +167,32 @@ export function MarketplaceDetailPage() {
                     Offering: marketplaceOfferingKind(item) || item.category,
                     Category: item.category,
                     Version: item.version,
-                    'Release status': item.releaseStatus || 'Not an official Golden Path release',
+                    'Release status':
+                      item.releaseStatus ||
+                      'Not an official Golden Path release',
                     Certification: item.certificationStatus,
+                    // What this path was built to satisfy. A consumer reads it
+                    // before installing, which is the point: the requirements
+                    // travel with the template, so this answers "what is it
+                    // held to?" without access to the URS Composer it came
+                    // from. Not a validation or GxP claim.
+                    Requirements: item.ursSatisfies
+                      ? `Satisfies ${item.ursSatisfies}${
+                          item.ursRequirementCount
+                            ? ` · ${item.ursRequirementCount} requirements`
+                            : ''
+                        }`
+                      : 'No requirement set declared',
                     Owner: 'Assigned during create',
                     Domain:
-                      item.id.includes('temperature') || item.id.includes('equipment')
+                      item.id.includes('temperature') ||
+                      item.id.includes('equipment')
                         ? 'manufacturing'
                         : 'unassigned',
                     'GitHub Repository': 'Created in pharma-data-factory',
                     Contract: item.contractName || 'Not registered',
-                    'Contract version': item.contractVersion || 'Not registered',
+                    'Contract version':
+                      item.contractVersion || 'Not registered',
                     Provider: item.provider,
                     Status: item.status,
                     Commercial: item.commercialStatus || 'Not a commercial SKU',
@@ -195,8 +218,8 @@ export function MarketplaceDetailPage() {
                     }}
                   />
                   <Typography variant="body2" style={{ marginTop: 12 }}>
-                    CERTIFIED is technical conformance. RELEASED is approval
-                    for consumption. Neither is GxP validation.
+                    CERTIFIED is technical conformance. RELEASED is approval for
+                    consumption. Neither is GxP validation.
                   </Typography>
                 </InfoCard>
               )}
@@ -216,8 +239,8 @@ export function MarketplaceDetailPage() {
                   ))}
                   <Typography variant="body2" style={{ marginTop: 12 }}>
                     Marketplace Create uses Internal and Template Edition only.
-                    Platform Edition is PLANNED. SaaS is FUTURE. Distribution
-                    is not entitlement.
+                    Platform Edition is PLANNED. SaaS is FUTURE. Distribution is
+                    not entitlement.
                   </Typography>
                 </InfoCard>
               )}
@@ -247,9 +270,13 @@ export function MarketplaceDetailPage() {
                     {release.changelog.fixes.join('; ') || 'None'}
                   </Typography>
                   <Typography variant="subtitle2">Migration notes</Typography>
-                  <Typography variant="body2">{release.changelog.migration}</Typography>
+                  <Typography variant="body2">
+                    {release.changelog.migration}
+                  </Typography>
                   <Typography variant="body2" style={{ marginTop: 12 }}>
-                    <Link to={`/releases/${item.id}`}>Open Release Catalog</Link>
+                    <Link to={`/releases/${item.id}`}>
+                      Open Release Catalog
+                    </Link>
                   </Typography>
                 </InfoCard>
               )}
@@ -268,7 +295,9 @@ export function MarketplaceDetailPage() {
                 <CertificationChip status={item.certificationStatus} />
                 {goldenPathCreateHighlights(item).length > 0 && (
                   <div style={{ marginTop: 16 }}>
-                    <Typography variant="subtitle2">Before you create</Typography>
+                    <Typography variant="subtitle2">
+                      Before you create
+                    </Typography>
                     {goldenPathCreateHighlights(item).map(label => (
                       <Typography key={label} variant="body2">
                         {label}
@@ -277,8 +306,8 @@ export function MarketplaceDetailPage() {
                   </div>
                 )}
                 <Typography variant="body2" style={{ marginTop: 12 }}>
-                  Technical platform certification only. This is not GxP
-                  or regulatory validation.
+                  Technical platform certification only. This is not GxP or
+                  regulatory validation.
                 </Typography>
                 {item.contractName && (
                   <Typography variant="body2" style={{ marginTop: 12 }}>
@@ -319,11 +348,11 @@ export function MarketplaceDetailPage() {
                   canCreate &&
                   !createAllowed &&
                   item.commercialStatus !== 'NOT_ENTITLED' && (
-                  <JourneyState
-                    title="Not released"
-                    message="Create uses an approved RELEASED Golden Path version. Platform Admin can access non-released templates for internal development. Retired releases are not offered for new creation."
-                  />
-                )}
+                    <JourneyState
+                      title="Not released"
+                      message="Create uses an approved RELEASED Golden Path version. Platform Admin can access non-released templates for internal development. Retired releases are not offered for new creation."
+                    />
+                  )}
                 {item.templateReference && !canCreate && (
                   <JourneyState
                     title="Unauthorized"

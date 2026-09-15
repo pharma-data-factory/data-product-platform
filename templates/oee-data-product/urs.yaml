@@ -1,0 +1,121 @@
+# Requirements this Golden Path satisfies, shipped with the template.
+#
+# A template is consumed in installations that have no access to the URS
+# Composer it was authored in. A baseline id would dangle there, so the
+# requirements travel inside the artifact instead of being referenced.
+#
+# `inherited` is a chain, oldest author first. An organization that extends
+# this path and passes it on appends its own entry rather than editing this
+# one — that is what keeps provenance readable several hands down.
+#
+# STAND-IN: this file is currently derived by hand from the seeded
+# EPM_REQUIREMENT_SET in plugins/urs-composer-backend/src/data/
+# seedRequirementSets.ts. The production version is exported from an APPROVED
+# baseline when the Golden Path is released. Until that export exists this is a
+# requirements declaration, not an approval record — which is why no
+# baselineVersion or approvedAt is claimed here. Do not read it as evidence.
+
+apiVersion: dataprod.platform/v1alpha1
+kind: TemplateRequirements
+spec:
+  inherited:
+    - source: nexora
+      requirementSetKey: URS-EPM
+      solutionName: Equipment Performance Management
+      solutionType: DATA_PRODUCT
+      gxpRelevance: INDIRECT
+      businessCapabilityRefs:
+        - business-capability:make/equipment-performance-management
+      businessNeed: >-
+        Operations must understand equipment effectiveness and its major losses
+        so improvement and maintenance can be prioritized on evidence.
+      desiredOutcome: >-
+        Reliable OEE and loss visibility per equipment asset, available for
+        daily operations review.
+      scope: >-
+        OEE computation, loss categorization, equipment event ingestion,
+        performance metrics output, and metric definition traceability.
+      outOfScope: >-
+        Maintenance work-order execution and automated equipment control or
+        setpoint changes.
+      requirements:
+        - id: URS-EPM-001
+          title: OEE computation
+          statement: >-
+            The solution shall compute Overall Equipment Effectiveness from
+            availability, performance, and quality for each equipment asset.
+          rationale: >-
+            OEE is the primary measure operations uses to compare equipment
+            effectiveness.
+          priority: MUST
+          componentType: PROCESSING
+          requirementNature: FUNCTIONAL
+          criticality: HIGH
+          gxpRelevance: INDIRECT
+          acceptanceCriteria:
+            - title: OEE equals availability x performance x quality per asset
+              verificationMethod: Test
+
+        - id: URS-EPM-002
+          title: Loss categorization
+          statement: >-
+            The solution shall categorize equipment downtime into the major loss
+            types of availability, performance, and quality.
+          rationale: Categorized losses make improvement priorities actionable.
+          priority: SHOULD
+          componentType: PROCESSING
+          requirementNature: FUNCTIONAL
+          criticality: MEDIUM
+          gxpRelevance: INDIRECT
+          acceptanceCriteria:
+            - title: Each downtime event maps to exactly one loss type
+              verificationMethod: Analysis
+
+        - id: URS-EPM-003
+          title: Equipment event ingestion
+          statement: >-
+            The solution shall ingest equipment run, stop, and cycle events from
+            the connected data sources.
+          rationale: >-
+            Run, stop, and cycle events are the raw input for every performance
+            metric.
+          priority: MUST
+          componentType: INPUT_PORT
+          requirementNature: FUNCTIONAL
+          criticality: HIGH
+          interfaceType: EVENT
+          gxpRelevance: INDIRECT
+          acceptanceCriteria:
+            - title: Run, stop, and cycle events are ingested from source
+              verificationMethod: Test
+
+        - id: URS-EPM-004
+          title: Performance metrics output
+          statement: >-
+            The solution shall expose equipment performance metrics through a
+            queryable API for operational dashboards.
+          rationale: Dashboards and reviews need programmatic access to the metrics.
+          priority: SHOULD
+          componentType: OUTPUT_PORT
+          requirementNature: OPERABILITY
+          criticality: MEDIUM
+          interfaceType: REST
+          gxpRelevance: INDIRECT
+          acceptanceCriteria:
+            - title: API returns metrics for a given asset and time range
+              verificationMethod: Test
+
+        - id: URS-EPM-005
+          title: Metric definition traceability
+          statement: >-
+            The solution shall record the definition and version of each
+            performance metric used in calculations.
+          rationale: Versioned definitions keep metrics comparable over time.
+          priority: SHOULD
+          componentType: GOVERNANCE
+          requirementNature: MAINTAINABILITY
+          criticality: MEDIUM
+          gxpRelevance: INDIRECT
+          acceptanceCriteria:
+            - title: Each metric stores its definition and version
+              verificationMethod: Inspection
