@@ -34,12 +34,12 @@ The Composer is not too complex. It is **complex without a payoff**.
 
 ### 2. "Composer" names two different things
 
-| | Frontend `/compose` | `plugins/composer-backend` |
-| --- | --- | --- |
-| Builds | `GoldenPathComposition` manifest | `Product → ProductVersion → Baseline` |
-| File | `packages/app/src/modules/composer/ComposePage.tsx` (1116 lines) | `plugins/composer-backend/src/service.ts` |
-| Carries the release gate | no | yes |
-| Has a UI | yes | **no** |
+|                          | Frontend `/compose`                                              | `plugins/composer-backend`                |
+| ------------------------ | ---------------------------------------------------------------- | ----------------------------------------- |
+| Builds                   | `GoldenPathComposition` manifest                                 | `Product → ProductVersion → Baseline`     |
+| File                     | `packages/app/src/modules/composer/ComposePage.tsx` (1116 lines) | `plugins/composer-backend/src/service.ts` |
+| Carries the release gate | no                                                               | yes                                       |
+| Has a UI                 | yes                                                              | **no**                                    |
 
 The frontend consumes only the AI endpoints of the backend
 (`packages/app/src/modules/composer/composerApi.ts`). The whole product
@@ -63,18 +63,25 @@ None of them asks the Validation Expert. The gate also runs once, on the
 transition to `RELEASED`, and surfaces as an error string of concatenated
 codes rather than as a standing checklist.
 
-### 4. The Validation Expert role does not exist
+### 4. The Validation Expert function cannot conclude
 
-`PLATFORM_ROLES` (`packages/platform-common/src/roles.ts:11`) has five roles;
-Validation Expert is not one of them. `validation.approve`, `risk.accept` and
-`baseline.modify` are denied for **every** caller in `decidePermission`
+Validation Expert is a **function**, not a role: a frontend plugin with 15
+sub-pages — requirements, traceability, risks, IQ/OQ/UAT, runs, manual tests,
+evidence, findings, contexts — reachable as a menu entry under Validate
+(`plugins/validation-expert/src/plugin.tsx:46`).
+
+The function has pages for reaching a verdict but no way to record one.
+`validation.approve`, `risk.accept` and `baseline.modify` are denied to
+**every** caller in `decidePermission`
 (`packages/platform-common/src/policy.ts:52`) — including `PLATFORM_ADMIN`,
 because the denial is evaluated before any role check.
 
-Meanwhile `validation.review` sits on `DATA_PRODUCT_OWNER`
-(`packages/platform-common/src/permissions.ts:359`): the product owner
-reviews their own validation. So the involvement is not "insufficiently
-structured" — it is absent, plus a segregation-of-duties defect.
+This is a permission question inside existing roles, not a missing role.
+`validation.review` already sits on `DATA_PRODUCT_OWNER`
+(`packages/platform-common/src/permissions.ts:359`), which is the
+segregation-of-duties defect: the product owner reviews their own validation.
+So the open decision is _which existing role may conclude inside this
+function, and under what separation rule_ — not who the Validation Expert is.
 
 > Consequence: the goal is not to simplify two routes. It is to create **one
 > continuous product record** that both routes, the gate, and the Validation
@@ -84,18 +91,18 @@ structured" — it is absent, plus a segregation-of-duties defect.
 
 ### 1.1 Start Building vs Composer
 
-| Dimension | **Start Building** (`/create`) | **Composer** (`/compose`) |
-| --- | --- | --- |
-| Entry | Golden Path selection → scaffolder form | Empty checkbox list across 5 categories |
-| Mental model | "Pick a proven pattern" | "Build a pattern" |
-| Cognitive load | Low (guided, fields prefilled) | High (21 components; compatibility and conflicts are the user's problem) |
-| Output | Generated repo + catalog entry | YAML manifest; generation **only** on an exact OEE selection |
-| Success rate | Deterministic | 1 of n combinations |
-| Governance | Template is RELEASED and certified; RBAC applies per template | None — the manifest is not a product record |
-| URS binding | Not in the flow | Only via AI spec draft from a URS baseline |
-| Validation binding | None | None |
-| Actual audience | Developers | Nominally developers, in practice the platform team |
-| What the platform says about it | Primary CTA in the hero | `Advanced` pill, orange border, separate "Advanced" section |
+| Dimension                       | **Start Building** (`/create`)                                | **Composer** (`/compose`)                                                |
+| ------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Entry                           | Golden Path selection → scaffolder form                       | Empty checkbox list across 5 categories                                  |
+| Mental model                    | "Pick a proven pattern"                                       | "Build a pattern"                                                        |
+| Cognitive load                  | Low (guided, fields prefilled)                                | High (21 components; compatibility and conflicts are the user's problem) |
+| Output                          | Generated repo + catalog entry                                | YAML manifest; generation **only** on an exact OEE selection             |
+| Success rate                    | Deterministic                                                 | 1 of n combinations                                                      |
+| Governance                      | Template is RELEASED and certified; RBAC applies per template | None — the manifest is not a product record                              |
+| URS binding                     | Not in the flow                                               | Only via AI spec draft from a URS baseline                               |
+| Validation binding              | None                                                          | None                                                                     |
+| Actual audience                 | Developers                                                    | Nominally developers, in practice the platform team                      |
+| What the platform says about it | Primary CTA in the hero                                       | `Advanced` pill, orange border, separate "Advanced" section              |
 
 The last row is the real finding. The platform already signals in two places
 (`packages/app/src/modules/build/BuildLandingPage.tsx:321`,
@@ -142,8 +149,8 @@ Two preconditions, without which the simplification does not hold:
    Golden Path (required set plus optional set) instead of an exact match
    against one hardcoded list.
 2. **L3 must be honest.** When no signature matches, the outcome must not
-   silently be "download YAML" but: *"This combination matches no released
-   Golden Path. You can submit it as a Golden Path proposal."* — a defined
+   silently be "download YAML" but: _"This combination matches no released
+   Golden Path. You can submit it as a Golden Path proposal."_ — a defined
    exit instead of a dead end. `canProposeGoldenPathRelease`
    (`packages/platform-common/src/releases.ts:348`) already exists.
 
@@ -157,11 +164,11 @@ judgement, and in almost all cases returns no product.
 
 Three decoupled lifecycles exist today:
 
-| Lifecycle | States | Owner |
-| --- | --- | --- |
-| Requirement | `DRAFT → IN_REVIEW → APPROVED` + baseline | `plugins/urs-composer-backend` |
-| Product | `DRAFT → APPROVED → RELEASE_CANDIDATE → RELEASED → SUPERSEDED` | `plugins/composer-backend/src/service.ts:51` |
-| Validation | `PENDING → RUNNING → COMPLETED / ABORTED` | `plugins/validation-expert-backend` |
+| Lifecycle   | States                                                         | Owner                                        |
+| ----------- | -------------------------------------------------------------- | -------------------------------------------- |
+| Requirement | `DRAFT → IN_REVIEW → APPROVED` + baseline                      | `plugins/urs-composer-backend`               |
+| Product     | `DRAFT → APPROVED → RELEASE_CANDIDATE → RELEASED → SUPERSEDED` | `plugins/composer-backend/src/service.ts:50` |
+| Validation  | `PENDING → RUNNING → COMPLETED / ABORTED`                      | `plugins/validation-expert-backend`          |
 
 They share no object. The core of this concept is to make the **product
 record** from `composer-backend` that shared object — it already references
@@ -169,42 +176,47 @@ URS baselines through `ursBaselineIds` and already carries the gate.
 
 ### 2.2 Step by step
 
-| # | Step | Trigger | System behaviour | Resulting state |
-| --- | --- | --- | --- | --- |
-| 1 | **Capture need** | Business Capability Lead / Owner creates a requirement set | URS Composer, requirement quality checks | URS `DRAFT` |
-| 2 | **Approve requirement** | Review plus signature | `urs.approve` / `urs.sign`; baseline frozen | URS baseline `APPROVED` |
-| 3 | **Build** | Developer opens `/build`, picks the baseline as context | L1/L2/L3; scaffolder creates the repo **and** a product record carrying `ursBaselineIds` | Product version `DRAFT` |
-| 4 | **Automatic pre-check (continuous)** | Every commit / every change to the record | Gate evaluated in the background: policy obligations, traceability completeness, URS binding, CI quality | Readiness display, **no** state change |
-| 5 | **Draw a baseline** | Developer declares the state ready for review | Snapshot of components, contracts and traceability links (`createProductBaseline`) | Product baseline `DRAFT` → `APPROVED` |
-| 6 | **Hand off to validation** | Automatic on baseline approval | Validation context derived from the URS baseline (`urs-baseline-resolver`); case enters the **Validation Expert's work queue** | Validation run `PENDING` |
-| 7 | **Plan and execute validation** | Validation Expert | IQ/OQ/UAT protocols; automated runners produce evidence, manual tests are signed | Run `RUNNING → COMPLETED` |
-| 8 | **Validation verdict** | Validation Expert (**not** the owner) | `validation.approve` — currently denied to everyone, must be opened for this role | Validation `APPROVED` / `REJECTED` |
-| 9 | **Release gate** | Owner requests release | Gate checks all blockers **including a new `VALIDATION_NOT_APPROVED`** | Version `RELEASE_CANDIDATE → RELEASED` |
-| 10 | **Operate and re-validate** | URS change / new version | Impact assessment (`RequirementSetImpact` exists) flags affected products | Back to step 5 |
+| #   | Step                                 | Trigger                                                    | System behaviour                                                                                                                       | Resulting state                        |
+| --- | ------------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 1   | **Capture need**                     | Business Capability Lead / Owner creates a requirement set | URS Composer, requirement quality checks                                                                                               | URS `DRAFT`                            |
+| 2   | **Approve requirement**              | Review plus signature                                      | `urs.approve` / `urs.sign`; baseline frozen                                                                                            | URS baseline `APPROVED`                |
+| 3   | **Build**                            | Developer opens `/build`, picks the baseline as context    | L1/L2/L3; scaffolder creates the repo **and** a product record carrying `ursBaselineIds`                                               | Product version `DRAFT`                |
+| 4   | **Automatic pre-check (continuous)** | Every commit / every change to the record                  | Gate evaluated in the background: policy obligations, traceability completeness, URS binding, CI quality                               | Readiness display, **no** state change |
+| 5   | **Draw a baseline**                  | Developer declares the state ready for review              | Snapshot of components, contracts and traceability links (`createProductBaseline`)                                                     | Product baseline `DRAFT` → `APPROVED`  |
+| 6   | **Hand off to validation**           | Automatic on baseline approval                             | Validation context derived from the URS baseline (`urs-baseline-resolver`); case appears as work **in the Validation Expert function** | Validation run `PENDING`               |
+| 7   | **Plan and execute validation**      | Reviewer working in Validation Expert                      | IQ/OQ/UAT protocols; automated runners produce evidence, manual tests are signed                                                       | Run `RUNNING → COMPLETED`              |
+| 8   | **Validation verdict**               | Reviewer who does **not** own the product                  | `validation.approve` — currently denied to everyone, must be opened for a defined role                                                 | Validation `APPROVED` / `REJECTED`     |
+| 9   | **Release gate**                     | Owner requests release                                     | Gate checks all blockers **including a new `VALIDATION_NOT_APPROVED`**                                                                 | Version `RELEASE_CANDIDATE → RELEASED` |
+| 10  | **Operate and re-validate**          | URS change / new version                                   | Impact assessment (`RequirementSetImpact` exists) flags affected products                                                              | Back to step 5                         |
 
-The decisive difference from today is step 4: it runs *continuously and
-visibly* rather than as an exception in step 9. A gate you first meet when
+The decisive difference from today is step 4: it runs _continuously and
+visibly_ rather than as an exception in step 9. A gate you first meet when
 you press the release button produces exactly the frustration currently
 attributed to the Composer.
 
 ### 2.3 Responsibilities
 
-| Step | Developer | Data Product Owner | Validation Expert | Platform (automatic) |
-| --- | --- | --- | --- | --- |
-| 1–2 Requirement | Consulted | **Accountable** (approve/sign) | Informed (sees demand coming) | Requirement quality checks |
-| 3 Build | **Accountable** | Informed | — | Scaffolder, product record, URS binding |
-| 4 Pre-check | Receives findings | Informed | — | **Accountable** (gate evaluation) |
-| 5 Baseline | **Accountable** | Approves | Informed | Snapshot and immutability |
-| 6 Handoff | — | Triggers | **Recipient** | Validation context, queue entry |
-| 7 Execution | Supports on findings | Informed | **Accountable** | Automated runners, evidence store |
-| 8 Verdict | — | **Excluded (SoD)** | **Solely accountable** | Audit trail |
-| 9 Release | — | **Accountable** (request) | Contributor (validation result) | The gate decides, not a person |
-| 10 Change | Implements | **Accountable** | Scope of re-validation | Impact assessment |
+The "Reviewer" column is not a new job title. It is whoever holds the
+validation permissions at the time, acting **inside the Validation Expert
+function**. Which existing role that is remains the open decision from
+finding 4.
+
+| Step            | Developer            | Data Product Owner             | Reviewer (in Validation Expert) | Platform (automatic)                    |
+| --------------- | -------------------- | ------------------------------ | ------------------------------- | --------------------------------------- |
+| 1–2 Requirement | Consulted            | **Accountable** (approve/sign) | Informed (sees demand coming)   | Requirement quality checks              |
+| 3 Build         | **Accountable**      | Informed                       | —                               | Scaffolder, product record, URS binding |
+| 4 Pre-check     | Receives findings    | Informed                       | —                               | **Accountable** (gate evaluation)       |
+| 5 Baseline      | **Accountable**      | Approves                       | Informed                        | Snapshot and immutability               |
+| 6 Handoff       | —                    | Triggers                       | **Recipient**                   | Validation context, work entry          |
+| 7 Execution     | Supports on findings | Informed                       | **Accountable**                 | Automated runners, evidence store       |
+| 8 Verdict       | —                    | **Excluded (SoD)**             | **Solely accountable**          | Audit trail                             |
+| 9 Release       | —                    | **Accountable** (request)      | Contributor (validation result) | The gate decides, not a person          |
+| 10 Change       | Implements           | **Accountable**                | Scope of re-validation          | Impact assessment                       |
 
 Three boundary rules to enforce in code, not in prose:
 
-- **The Validation Expert validates and does not build.** No `scaffolder.*`
-  and no `product.manage`.
+- **Validating and building stay apart.** Whoever concludes a validation for
+  a product does not hold `scaffolder.*` or `product.manage` on it.
 - **The owner requests a release and does not grant it.** The gate grants it.
   `validation.review` must move off `DATA_PRODUCT_OWNER`; today the owner
   reviews their own work.
@@ -242,18 +254,22 @@ right, only the visibility is missing.
 
 **Effect:** nobody learns about a requirement on release day.
 
-### M3 — Introduce the Validation Expert role for real
+### M3 — Let the Validation Expert function conclude
 
-**Problem:** the role exists as a plugin and a sidebar entry but not in the
-role model. `validation.approve`, `risk.accept` and `baseline.modify` are
-globally denied.
+**Problem:** the function has pages for reaching a verdict, but
+`validation.approve`, `risk.accept` and `baseline.modify` are denied to every
+caller. Nothing in the module can be closed.
 
-**Measure:** a sixth role `VALIDATION_EXPERT` with group
-`validation-experts`; open the three reserved permissions for that role only,
-keeping them denied for everyone else including `PLATFORM_ADMIN`; move
-`validation.review` from the owner to the Validation Expert. Apply a
-segregation-of-duties check analogous to the one the URS signature service
-already performs.
+**Measure:** decide which existing role may conclude inside the function, and
+open the three reserved permissions for that role only — keeping them denied
+for everyone else. Enforce separation per product: the concluding user must
+not be the owner of the product under review, analogous to the check the URS
+signature service already performs. Move `validation.review` off
+`DATA_PRODUCT_OWNER` accordingly.
+
+No new role is required for this. A dedicated role becomes worth discussing
+only if the answer is "none of the existing five fits" — and that is an
+outcome of the decision, not its premise.
 
 **Effect:** the approval process becomes executable rather than described.
 **This is the precondition for step 8 — without M3 the E2E path cannot be
@@ -261,13 +277,14 @@ completed.**
 
 ### M4 — Role-based dashboards with a work queue
 
-**Problem:** there is no handoff point. The Validation Expert is never told
-that something is waiting.
+**Problem:** there is no handoff point. Nothing tells anyone that a product
+is waiting in the Validation Expert function; the module has no inbox.
 
 **Measure:** a work list per role instead of a landing page — Developer:
 "products with open gate blockers"; Owner: "awaiting approval / ready to
-release"; Validation Expert: "awaiting validation, ordered by risk"; Business
-Capability Lead: "URS in review". The notifications plugin is already wired
+release"; Business Capability Lead: "URS in review" — plus a queue on the
+Validation Expert overview page itself: "awaiting validation, ordered by
+risk". The notifications plugin is already wired
 in (`packages/app/src/modules/nav/Sidebar.tsx:243`) and can deliver the
 handoffs in steps 6 and 8.
 
@@ -291,9 +308,9 @@ construction the indicator cannot imply a compliance claim.
 ### Dependencies and order
 
 ```text
-M3 (role)    ──┐
-               ├──> M2 (visible gate + validation blocker) ──> M4 (queues) ──> M5 (readiness)
-M1 (record)  ──┘
+M3 (verdict)  ──┐
+                ├──> M2 (visible gate + validation blocker) ──> M4 (queues) ──> M5 (readiness)
+M1 (record)   ──┘
 ```
 
 M1 and M3 are independent and can run in parallel. M3 is the smallest change
@@ -306,10 +323,10 @@ rework (1 → n Golden Paths) as a precondition.
 
 The Composer is not too complex but inconsequential — 21 choices lead to
 exactly one producible product, and the product backend that carries the
-release gate has no interface at all. The Validation Expert is not an
-insufficiently integrated process step but a role that does not exist in the
-permission model, whose central permissions are hard-denied to every user.
-The consolidation is therefore two movements: **at the front**, one door with
-three depth levels instead of two routes; **at the back**, one continuous
-product record carrying a permanently visible quality gate and a validation
-role that actually exists.
+release gate has no interface at all. The Validation Expert is a function
+with fifteen pages that cannot conclude anything, because its central
+permissions are hard-denied to every user — and nothing routes work into it
+or out of it. The consolidation is therefore two movements: **at the front**,
+one door with three depth levels instead of two routes; **at the back**, one
+continuous product record carrying a permanently visible quality gate and a
+validation function that can actually close.

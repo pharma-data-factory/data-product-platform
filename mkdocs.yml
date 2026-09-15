@@ -40,6 +40,7 @@ nav:
       - Cold Chain via UNS: uns/cold-chain-example.md
       - Identity: architecture/identity.md
       - Deployment models: architecture/deployment-models.md
+      - E2E platform consolidation: e2e-platform-consolidation.md
       - Engineering notes: architecture.md
   - Engineering:
       - Standard: engineering/standard.md
