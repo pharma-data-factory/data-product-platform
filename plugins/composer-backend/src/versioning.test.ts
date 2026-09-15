@@ -188,13 +188,44 @@ describe('Phase 1: Versioning Foundation', () => {
         },
         actor,
       );
-      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      // A URS baseline is part of "all conditions" now: a release has to say
+      // which requirements it implements.
+      const baseline = await service.createProductBaseline(
+        version.id,
+        { ursBaselineIds: ['urs-baseline-1'] },
+        actor,
+      );
       await service.approveProductBaseline(baseline.id, actor);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(true);
       expect(result.blockers).toHaveLength(0);
+    });
+
+    it('blocks a product that references no URS baseline', async () => {
+      // The agreed rule: free to create, bound to release. Without this the
+      // platform can ship a product nobody can trace to a requirement.
+      const { version, component } = await createFullSetup();
+      await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(baseline.id, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+
+      const result = await service.checkReleaseGate(version.id);
+
+      expect(result.passed).toBe(false);
+      expect(result.blockers.some(b => b.code === 'NO_URS_BASELINE')).toBe(true);
     });
   });
 
@@ -299,7 +330,13 @@ describe('Phase 1: Versioning Foundation', () => {
         actor,
       );
 
-      const baseline = await service.createProductBaseline(version.id, {}, actor);
+      // A released product states which requirements it implements; the gate
+      // refuses one that does not.
+      const baseline = await service.createProductBaseline(
+        version.id,
+        { ursBaselineIds: ['urs-baseline-1'] },
+        actor,
+      );
       await service.approveProductBaseline(baseline.id, actor);
 
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
@@ -400,7 +437,11 @@ describe('Phase 1: Versioning Foundation', () => {
       expect(result.passed).toBe(true);
     });
 
-    it('skips URS check when baseline has no ursBaselineIds', async () => {
+    it('blocks, without consulting the resolver, when no URS is referenced', async () => {
+      // There is nothing to resolve, so the resolver must stay untouched — but
+      // the release is refused all the same, by NO_URS_BASELINE rather than by
+      // a failed lookup. The two blockers answer different questions: "you
+      // named no requirements" versus "the ones you named are not approved".
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockClear();
       const { version, component } = await createFullSetupWithResolver();
       await serviceWithResolver.createTraceabilityLink(
@@ -411,8 +452,14 @@ describe('Phase 1: Versioning Foundation', () => {
       await serviceWithResolver.approveProductBaseline(baseline.id, actor);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+
       const result = await serviceWithResolver.checkReleaseGate(version.id);
-      expect(result.passed).toBe(true);
+
+      expect(result.passed).toBe(false);
+      expect(result.blockers.map(b => b.code)).toContain('NO_URS_BASELINE');
+      expect(result.blockers.map(b => b.code)).not.toContain(
+        'NO_APPROVED_URS_BASELINE',
+      );
       expect(mockResolver.resolveApprovedBaseline).not.toHaveBeenCalled();
     });
   });

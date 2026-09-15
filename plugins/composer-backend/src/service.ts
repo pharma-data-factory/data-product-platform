@@ -369,13 +369,24 @@ export class ComposerService {
       });
     }
 
+    // A product must say which requirements it implements before it is
+    // released. Creating one without a URS stays allowed — this is the single
+    // point where the binding becomes mandatory, so experimenting is free and
+    // nothing unattributed reaches production.
+    const ursBaselineIds = approvedBaseline?.ursBaselineIds ?? [];
+    if (approvedBaseline && ursBaselineIds.length === 0) {
+      blockers.push({
+        code: 'NO_URS_BASELINE',
+        message:
+          'This product references no URS baseline. Bind it to an approved ' +
+          'baseline before releasing, so the release states which requirements ' +
+          'it implements.',
+      });
+    }
+
     // Cross-plugin: verify referenced URS baselines are APPROVED
-    if (
-      this.ursBaselineResolver &&
-      approvedBaseline?.ursBaselineIds &&
-      approvedBaseline.ursBaselineIds.length > 0
-    ) {
-      for (const ursId of approvedBaseline.ursBaselineIds) {
+    if (this.ursBaselineResolver && ursBaselineIds.length > 0) {
+      for (const ursId of ursBaselineIds) {
         try {
           await this.ursBaselineResolver.resolveApprovedBaseline(ursId);
         } catch (err) {

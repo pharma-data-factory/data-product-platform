@@ -1,5 +1,6 @@
 import { createBackend } from '@backstage/backend-defaults';
 import { catalogModuleCertificationOverlay } from '@internal/plugin-data-products-backend';
+import { scaffolderModuleUrsBinding } from '@internal/plugin-composer-backend';
 import { permissionModulePlatformPolicy } from './permission/module';
 import { aasPlugin } from '@internal/plugin-aas-backend';
 
@@ -10,6 +11,9 @@ backend.add(import('@backstage/plugin-proxy-backend'));
 
 backend.add(import('@backstage/plugin-scaffolder-backend'));
 backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
+// Verifies a scaffolded product's URS baseline inside the task, so the binding
+// written into catalog-info.yaml cannot be a claim the browser made up.
+backend.add(scaffolderModuleUrsBinding);
 
 backend.add(import('@backstage/plugin-techdocs-backend'));
 
