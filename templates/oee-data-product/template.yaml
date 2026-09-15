@@ -82,6 +82,7 @@ spec:
             to create the product without one — it can then be built and tested,
             but the release gate will refuse to release it until it references an
             approved baseline.
+          ui:field: UrsBaselinePicker
         system:
           title: System
           type: string

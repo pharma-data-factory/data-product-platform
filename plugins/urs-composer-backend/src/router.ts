@@ -532,6 +532,25 @@ export async function createRouter(
   );
 
   /**
+   * GET /baselines/approved
+   * Approved baselines across all requirement sets — what a product may be
+   * built against. Scoped queries live under /requirement-sets/:id/baselines;
+   * this one answers the question asked before a set has been chosen.
+   */
+  router.get('/baselines/approved', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const limit = Math.min(
+        parseInt(req.query.limit as string, 10) || 100,
+        200,
+      );
+      res.json({ items: await service.listApprovedBaselineOptions(limit) });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * GET /requirement-sets/:setId/next-baseline-version
    * The baseline version to propose for the next baseline. A suggestion the
    * caller may override — only duplicates are refused on create.

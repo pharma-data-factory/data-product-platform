@@ -518,6 +518,17 @@ export class URSRepository implements IURSRepository {
     return { items, total };
   }
 
+  async listApprovedBaselines(limit: number): Promise<Baseline[]> {
+    return Array.from(this.baselines.values())
+      .filter(b => b.status === URSStatus.APPROVED)
+      .sort(
+        (a, b) =>
+          (b.approvedAt?.getTime() ?? b.createdAt.getTime()) -
+          (a.approvedAt?.getTime() ?? a.createdAt.getTime()),
+      )
+      .slice(0, limit);
+  }
+
   async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {
     const baselines = Array.from(this.baselines.values())
       .filter(b => b.requirementSetId === requirementSetId && b.status === URSStatus.APPROVED)

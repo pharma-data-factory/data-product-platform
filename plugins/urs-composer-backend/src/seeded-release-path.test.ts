@@ -157,6 +157,41 @@ describe('a seeded requirement set reaches Released', () => {
     // labels APPROVED as "Released".
     const set = await repository.getRequirementSet(SET_ID);
     expect(set!.status).toBe(URSStatus.APPROVED);
+
+    // ...and only now can a product be built against it. This is what the
+    // Scaffolder URS baseline picker lists and what nexora:urs:verify-baseline
+    // accepts; before the release it offered nothing, which is the point.
+    const options = await service.listApprovedBaselineOptions();
+    expect(options).toHaveLength(1);
+    expect(options[0]).toMatchObject({
+      baselineId: baseline.id,
+      baselineVersion: '1.0',
+      requirementSetKey: WD_REQUIREMENT_SET.requirementSetId,
+      solutionName: WD_REQUIREMENT_SET.solutionName,
+      requirementCount: expectedCount,
+    });
+  });
+
+  test('an unreleased baseline is not offered to build against', async () => {
+    // The picker must not let anyone bind a product to a draft. The scaffolder
+    // action refuses it server-side too, but an option that cannot be used
+    // should never appear in the first place.
+    const { service } = await setup();
+
+    await service.advanceRequirementSetVersions(
+      SET_ID,
+      URSStatus.IN_REVIEW,
+      ACTOR,
+    );
+    const current = await service.getCurrentVersions(SET_ID);
+    await service.createBaseline(
+      SET_ID,
+      current.map(v => v.id),
+      '1.0',
+      ACTOR,
+    );
+
+    expect(await service.listApprovedBaselineOptions()).toEqual([]);
   });
 
   test('release is refused while any pinned version is unapproved', async () => {

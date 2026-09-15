@@ -229,6 +229,22 @@ export interface RequirementVersion {
   approvedAt?: string;
 }
 
+/**
+ * An approved baseline as the picker shows it. Mirrors the backend read model
+ * from GET /baselines/approved — identity of the requirement set included,
+ * because nobody recognises a baseline by its UUID.
+ */
+export interface ApprovedBaselineOption {
+  baselineId: string;
+  baselineVersion: string;
+  requirementSetId: string;
+  requirementSetKey: string;
+  solutionName?: string;
+  gxpRelevance?: string;
+  requirementCount: number;
+  approvedAt: string;
+}
+
 export interface Baseline {
   id: string;
   requirementSetId: string;

@@ -32,6 +32,7 @@ import { adminModule } from './modules/admin';
 import { searchModule } from './modules/search';
 import { identityModule } from './modules/identity';
 import { createModule } from './modules/create';
+import { scaffolderFieldsModule } from './modules/scaffolder';
 import { entitlementsModule } from './modules/entitlements';
 import { navModule } from './modules/nav';
 import { themeModule } from './modules/theme';
@@ -59,6 +60,7 @@ export default createApp({
     validateModule,
     adminModule,
     createModule,
+    scaffolderFieldsModule,
     entitlementsModule,
     navModule,
     dataProductsPlugin,

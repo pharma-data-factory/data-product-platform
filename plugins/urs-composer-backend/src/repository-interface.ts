@@ -127,6 +127,15 @@ export interface IURSRepository {
    */
   getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null>;
 
+  /**
+   * Every approved baseline, across all requirement sets.
+   *
+   * listBaselines is scoped to one set, which cannot answer "what can a
+   * product be built against?" — the question the URS baseline picker asks
+   * before any set has been chosen.
+   */
+  listApprovedBaselines(limit: number): Promise<Baseline[]>;
+
   updateBaseline(baseline: Baseline): Promise<void>;
 
   // ============================================================================

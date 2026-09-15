@@ -685,6 +685,25 @@ export interface RejectApprovalStepRequest {
   comment?: string;
 }
 
+/**
+ * An approved baseline as the URS baseline picker shows it.
+ *
+ * Carries the requirement set's identity, because nobody recognises a baseline
+ * by its UUID — and a picker nobody can read is a picker nobody uses.
+ */
+export interface ApprovedBaselineOption {
+  baselineId: string;
+  baselineVersion: string;
+  /** Internal id of the requirement set. */
+  requirementSetId: string;
+  /** Stable, human key of the set, e.g. URS-WD. */
+  requirementSetKey: string;
+  solutionName?: string;
+  gxpRelevance?: GxPRelevance;
+  requirementCount: number;
+  approvedAt: Date;
+}
+
 /** Move a requirement version one step along its lifecycle. */
 export interface AdvanceVersionRequest {
   /** IN_REVIEW, REVIEWED, IN_APPROVAL or REJECTED. Never APPROVED. */

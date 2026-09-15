@@ -18,6 +18,7 @@ import {
   RequirementSet,
   Requirement,
   RequirementVersion,
+  ApprovedBaselineOption,
   Baseline,
   ApprovalInstance,
   AuditEvent,
@@ -440,6 +441,18 @@ export class URSComposerApi {
     return this.get<RequirementVersion[]>(
       `/requirement-sets/${setId}/current-versions`,
     );
+  }
+
+  /**
+   * GET /baselines/approved
+   * Approved baselines across all requirement sets — the options a product can
+   * be built against.
+   */
+  async listApprovedBaselines(): Promise<ApprovedBaselineOption[]> {
+    const result = await this.get<{ items: ApprovedBaselineOption[] }>(
+      '/baselines/approved',
+    );
+    return result.items ?? [];
   }
 
   /**

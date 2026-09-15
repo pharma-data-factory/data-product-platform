@@ -40,6 +40,7 @@ import {
   ChangeRequestStatus,
   ImpactAssessment,
   SkippedVersion,
+  ApprovedBaselineOption,
 } from './types';
 import { SignaturePinReAuth } from './domain/reauth';
 import { computeReviewScopes } from './domain/baseline';
@@ -1816,6 +1817,47 @@ export class URSService {
     });
 
     return baseline;
+  }
+
+  /**
+   * Approved baselines a product can be built against, with enough of their
+   * requirement set to be recognisable.
+   *
+   * A picker offering bare UUIDs would not be used, and an unused picker means
+   * the binding gets typed wrong or skipped. So this returns the set key and
+   * solution name alongside the id — what a reader actually identifies a
+   * baseline by.
+   */
+  async listApprovedBaselineOptions(
+    limit: number = MAX_BASELINE_HISTORY,
+  ): Promise<ApprovedBaselineOption[]> {
+    const baselines = await this.repository.listApprovedBaselines(limit);
+
+    // Sets are looked up once each, not once per baseline: a set with several
+    // approved baselines is the normal case after a few revisions.
+    const setIds = [...new Set(baselines.map(b => b.requirementSetId))];
+    const sets = new Map(
+      await Promise.all(
+        setIds.map(
+          async id =>
+            [id, await this.repository.getRequirementSet(id)] as const,
+        ),
+      ),
+    );
+
+    return baselines.map(baseline => {
+      const set = sets.get(baseline.requirementSetId);
+      return {
+        baselineId: baseline.id,
+        baselineVersion: baseline.baselineVersion,
+        requirementSetId: baseline.requirementSetId,
+        requirementSetKey: set?.requirementSetId ?? baseline.requirementSetId,
+        solutionName: set?.solutionName,
+        gxpRelevance: set?.gxpRelevance,
+        requirementCount: baseline.requirementVersionIds?.length ?? 0,
+        approvedAt: baseline.approvedAt ?? baseline.createdAt,
+      };
+    });
   }
 
   /**
