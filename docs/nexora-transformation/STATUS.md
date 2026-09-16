@@ -4,7 +4,7 @@
 Phase 1 — Core Domain Foundation
 
 ## Current Vertical Slice
-P1-S2 — ProductBaseline identity invariants (**done**).
+P1-S4 — Consolidate the duplicated baseline-label logic (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -38,6 +38,13 @@ state recorded and green, migration risks documented.
   reached — presence and case-insensitive uniqueness, not a version grammar,
   because baseline labels are often QMS document numbers. See
   [`NXD-007`](DECISIONS.md). No data migration.
+- **P1-S4 — Baseline-label logic consolidated.** `urs-composer-backend` no
+  longer carries its own copy: `nextBaselineVersion` is the shared
+  `nextMajorVersionLabel` under the name the URS domain speaks, and
+  `assertBaselineVersionAvailable` uses the shared `findVersionLabelClash`.
+  Equivalence was checked across the URS test vectors and edge cases before
+  the swap. All 418 URS tests pass, including the GxP invariants against real
+  PostgreSQL. See [`NXD-008`](DECISIONS.md).
 
 ## In Progress
 Nothing in flight.
@@ -50,10 +57,7 @@ Nothing in flight.
    `(product_id, version_number)`. This is a schema change against tables
    holding data, so it needs a reversible migration and a decision on what to
    do with any pre-existing duplicate rows — see Blocked Decisions.
-2. **P1-S4 — Consolidate the duplicated baseline-label logic.**
-   `urs-composer-backend` still has its own `nextBaselineVersion` and
-   `assertBaselineVersionAvailable`. See [`NXD-008`](DECISIONS.md).
-3. **P1-S5 — `DataContract` identity.** `DataContract` is keyed to a
+2. **P1-S5 — `DataContract` identity.** `DataContract` is keyed to a
    `productComponentId` and has no independent identity, owner or semantic
    version, so a contract cannot be referenced or versioned on its own. Phase
    4 cannot begin until it can. Also a migration.

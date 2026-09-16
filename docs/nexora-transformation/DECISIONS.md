@@ -198,3 +198,10 @@ Use this file for durable architecture decisions.
   when it happens.
 - Affected components: `plugins/urs-composer-backend/src/domain/versioning.ts`,
   `plugins/urs-composer-backend/src/service.ts`.
+- **Resolved** in the following slice (P1-S4). `nextBaselineVersion` is now
+  `nextMajorVersionLabel` re-exported under the name the URS domain speaks,
+  and `assertBaselineVersionAvailable` uses the shared
+  `findVersionLabelClash`. Equivalence was checked across the URS test vectors
+  and edge cases (leading zeros, QMS labels, blank strings, mixed sets) before
+  the swap; all 418 URS tests pass afterwards, including the GxP invariants
+  against real PostgreSQL.

@@ -15,6 +15,7 @@
  */
 
 import { InputError } from '@backstage/errors';
+import { nextMajorVersionLabel } from '@internal/platform-common';
 
 export interface VersionNumber {
   major: number;
@@ -116,17 +117,9 @@ export function compareVersions(a: VersionNumber, b: VersionNumber): number {
  * Existing labels are parsed leniently because earlier baselines were accepted
  * as free text: anything without a leading number is ignored rather than
  * throwing, so one odd historical label cannot block the next proposal.
+ *
+ * The Product Composer asks the same question of Product versions and Product
+ * baselines, so the implementation is shared. This name is kept because it is
+ * the vocabulary the URS domain speaks.
  */
-export function nextBaselineVersion(existingVersions: readonly string[]): string {
-  let highestMajor = 0;
-
-  for (const label of existingVersions) {
-    const match = /^\s*(\d+)/.exec(label ?? '');
-    if (!match) {
-      continue;
-    }
-    highestMajor = Math.max(highestMajor, parseInt(match[1], 10));
-  }
-
-  return `${highestMajor + 1}.0`;
-}
+export const nextBaselineVersion = nextMajorVersionLabel;

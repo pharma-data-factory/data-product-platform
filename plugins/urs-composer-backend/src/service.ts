@@ -12,6 +12,7 @@ import {
   NotFoundError,
 } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
+import { findVersionLabelClash } from '@internal/platform-common';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
   RequirementSet,
@@ -1988,9 +1989,14 @@ export class URSService {
       MAX_BASELINE_HISTORY,
       0,
     );
-    const clash = existing.items.find(
-      b => b.baselineVersion.trim().toLowerCase() === label.toLowerCase(),
+    const clashLabel = findVersionLabelClash(
+      existing.items.map(b => b.baselineVersion),
+      label,
     );
+    const clash =
+      clashLabel === undefined
+        ? undefined
+        : existing.items.find(b => b.baselineVersion === clashLabel);
 
     if (clash) {
       throw new ConflictError(
