@@ -287,3 +287,44 @@ Use this file for durable architecture decisions.
   form is not. Other suites using `expect(builder).rejects` would be worth
   auditing if the symptom reappears elsewhere.
 - Affected components: `plugins/composer-backend/src/identityConstraints.test.ts`.
+
+### NXD-012 — Artifacts reuse the Golden Path lifecycle
+- Date: 2026-09-16
+- Context: Phase 2 needs an Artifact lifecycle covering the producer actions —
+  Create, Develop, Test, Submit, Review, Certify, Publish, Version, Deprecate.
+  `releases.ts` already defines `GOLDEN_PATH_LIFECYCLE_STATES`
+  (DRAFT → TESTING → CERTIFIED → RELEASED → DEPRECATED → RETIRED) with
+  transition rules and role gating that express the same progression.
+- Decision: `ArtifactLifecycle` is `GoldenPathLifecycle`, and
+  `ARTIFACT_LIFECYCLE_STATES` is the same array. Only the name is local to the
+  Artifact domain. A Golden Path is itself one Artifact kind, so a separate
+  lifecycle would have had to be kept in step with this one by hand.
+- Alternatives considered: declare a distinct set (PUBLISHED, WITHDRAWN and so
+  on) — rejected as exactly the duplication this transformation removes, and
+  it would leave two answers to "is this certified?"; rename the Golden Path
+  constant to the Artifact one now — deferred, since Golden Path release code
+  and the release catalogue read it today and the rename is not needed to make
+  progress.
+- Consequences: one lifecycle across Artifact kinds, and the existing
+  transition and role-gating logic applies unchanged. A test asserts the two
+  arrays are identical, so a future divergence has to be deliberate rather
+  than accidental.
+- Affected components: `packages/platform-common/src/artifact.ts`,
+  `packages/platform-common/src/releases.ts`.
+
+### NXD-013 — Artifact dependencies pin exact versions
+- Date: 2026-09-16
+- Context: `spec.dependencies` in a `nexora.yaml` could accept ranges
+  (`^1.0`, `1.x`) or exact versions.
+- Decision: exact only — `namespace/name@version`, validated by the shared
+  version grammar. A range is a manifest error.
+- Alternatives considered: allow ranges with resolution at install time, which
+  is what general-purpose package managers do.
+- Consequences: a range would make the set of Artifacts a Product was built
+  from depend on *when* it was resolved. A validated Product has to be able to
+  state exactly what it was built from, and a ValidationContext binds exact
+  Artifact versions, so resolution-time variability cannot be allowed to reach
+  it. The cost is that upgrades become an explicit act — which Phase 6 already
+  treats as one ("Upgrade" is a listed consumer action) rather than something
+  that happens silently on reinstall.
+- Affected components: `packages/platform-common/src/artifact.ts`.

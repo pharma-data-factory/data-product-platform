@@ -1,10 +1,10 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 1 — Core Domain Foundation
+Phase 2 — Artifact Registry and Marketplace 2.0
 
 ## Current Vertical Slice
-P1-S5 — DataContract input validation (**done**). Phase 1 is complete.
+P2-S1 — Artifact domain model and manifest validation (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -66,16 +66,29 @@ state recorded and green, migration risks documented.
 invariants are defined in `platform-common`, enforced in the service, backed by
 database constraints where a key exists, and covered by tests.
 
+- **P2-S1 — Artifact domain model.** `Artifact`, `ArtifactVersion`,
+  `Publisher`, the seven Artifact kinds, coordinate identity
+  (`namespace/name@version`) and `nexora.yaml` manifest validation, all
+  framework-independent in `packages/platform-common/src/artifact.ts`. The
+  lifecycle reuses the Golden Path states rather than declaring a parallel set
+  ([`NXD-012`](DECISIONS.md)); dependencies pin exact versions
+  ([`NXD-013`](DECISIONS.md)). No persistence yet — that is P2-S2.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-**Phase 2 — Artifact Registry and Marketplace 2.0.** The Phase 0 audit found
-no `Artifact`, `ArtifactVersion` or `Publisher` type anywhere in the
-repository, and the Marketplace is a static TypeScript array
-(`plugins/marketplace/src/data.ts`), not a registry. Phase 2 is therefore
-largely greenfield, with a compatibility adapter for the legacy marketplace
-items until parity is proven.
+1. **P2-S2 — Persistent registry.** A backend plugin owning
+   `artifacts`, `artifact_versions` and `publishers`, with namespace ownership.
+   Only three of 21 plugins currently own a database, so this cannot follow the
+   filesystem pattern the rest use.
+2. **P2-S3 — Registry API and Producer/Consumer permissions**
+   (`artifact.read/create/submit/review/certify/publish/deprecate`,
+   `publisher.manage`), on the Backstage permission framework.
+3. **P2-S4 — Legacy Marketplace adapter.** Map the 12 hard-coded items in
+   `plugins/marketplace/src/data.ts` (493 lines) onto the registry model and
+   prove parity before anything is deleted.
+4. **P2-S5 — Move Marketplace reads to the registry**, behind the adapter.
 
 Carried into Phase 4 rather than done early: **`DataContract` identity**. A
 contract is keyed to a `productComponentId` and has no name, owner or
@@ -92,7 +105,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 194 suites, 1461 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 195 suites, 1501 tests, **0 skipped** |
 
 Without the optional infrastructure the same command reports 1343 passed and
 62 skipped, and still exits 0 — that is the intended developer-machine

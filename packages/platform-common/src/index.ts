@@ -560,6 +560,31 @@ export type {
 } from './classification';
 
 export {
+  ARTIFACT_KINDS,
+  ARTIFACT_LIFECYCLE_STATES,
+  ARTIFACT_MANIFEST_API_VERSION,
+  ARTIFACT_SEGMENT_MAX_LENGTH,
+  artifactCoordinateOf,
+  formatArtifactRef,
+  isArtifactKind,
+  isArtifactLifecycle,
+  isArtifactManifest,
+  isArtifactSegment,
+  parseArtifactRef,
+  validateArtifactManifest,
+} from './artifact';
+export type {
+  Artifact,
+  ArtifactCertificationStatus,
+  ArtifactCoordinate,
+  ArtifactKind,
+  ArtifactLifecycle,
+  ArtifactManifest,
+  ArtifactVersion,
+  Publisher,
+} from './artifact';
+
+export {
   PRODUCT_TYPES,
   PRODUCT_LIFECYCLES,
   PRODUCT_STATUSES,
