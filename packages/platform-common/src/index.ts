@@ -572,12 +572,17 @@ export {
   isProductVersionStatus,
   isDataContractStatus,
   isProductBaselineStatus,
+  isProductVersionLabel,
+  nextProductVersionLabel,
+  parseProductVersionLabel,
   validateProduct,
+  validateProductVersionLabel,
   validateTraceabilityLink,
 } from './product';
 export type {
   Product,
   ProductVersion,
+  ProductVersionLabelParts,
   ProductComponent,
   DataContract,
   TraceabilityLink,

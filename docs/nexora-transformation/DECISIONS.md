@@ -101,3 +101,45 @@ Use this file for durable architecture decisions.
 - Affected components: `.github/workflows/ci.yml`, `docker-compose.test.yml`,
   `plugins/urs-composer-backend` test harness,
   `packages/backend/src/compatibilityPolicyParity.test.ts`.
+
+### NXD-006 — ProductVersion label is validated; the ordinal is a sequence
+- Date: 2026-09-16
+- Context: `createProductVersion` derived `versionNumber` from
+  `versions.length + 1` and accepted any caller-supplied string as the version
+  label, unvalidated, straight from `req.body`. Three consequences, all
+  reachable through the HTTP API: a Product version could be labelled
+  `latest`, `v1` or an empty string; supplying an out-of-order label such as
+  `3.0` as the second version made the next generated label `3.0` too, which
+  hit the `(product_id, version)` unique index and surfaced as a 500; and the
+  ordinal drifted from the labels, so `listProductVersions`, which orders by
+  it, no longer reflected creation order. ProductVersion is the anchor for
+  ProductBaseline, ValidationContext, release identity and — from Phase 4 —
+  dependency and change-impact analysis, so unvalidated identity here
+  propagates into every one of them.
+- Decision: three rules.
+  1. A version label is `MAJOR.MINOR` or `MAJOR.MINOR.PATCH`, non-negative,
+     no leading zeros. Leading zeros are rejected because `01.0` and `1.0`
+     would be distinct rows naming the same version.
+  2. `versionNumber` is a per-product sequence of `max + 1`. It orders
+     versions by creation and is never reused, independently of the labels.
+  3. A generated label clears the highest existing *label*, not the row count,
+     so it cannot collide with an explicitly supplied one. A duplicate label
+     is a `ConflictError` (HTTP 409), not a driver error behind a 500.
+  The rules live in `packages/platform-common/src/product.ts` as
+  framework-independent functions, per the Phase 1 focus on stable contracts
+  and invariants.
+- Alternatives considered: derive `versionNumber` from the label's major
+  (collides as soon as two versions share a major, e.g. `1.0` and `1.1`);
+  full semver with pre-release and build metadata (more identity surface than
+  the lifecycle currently uses — `MAJOR.MINOR.PATCH` can be widened later
+  without invalidating stored labels); add a unique index on
+  `(product_id, version_number)` (worth doing, but a schema change on a table
+  holding data is a separate, reversible-migration decision rather than part
+  of this slice).
+- Consequences: existing rows are untouched — validation applies on create
+  only, and `nextProductVersionLabel` deliberately tolerates unparseable
+  historical labels so that a legacy row cannot wedge the sequence. Callers
+  that relied on sending arbitrary version strings now receive a 400. No data
+  migration.
+- Affected components: `packages/platform-common/src/product.ts`,
+  `plugins/composer-backend` service and router.

@@ -1,11 +1,10 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 0 — Stabilize and Baseline
+Phase 1 — Core Domain Foundation
 
 ## Current Vertical Slice
-P0-S3 — Inventory the hard-coded domain surface in Core (**done**).
-Phase 0 is complete.
+P1-S1 — ProductVersion identity invariants (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -27,19 +26,26 @@ Phase 0 is complete.
 **Phase 0 exit criteria are met:** current behaviour documented, baseline test
 state recorded and green, migration risks documented.
 
+- **P1-S1 — ProductVersion identity invariants.** `createProductVersion`
+  accepted any caller-supplied string as a version label and derived the
+  ordinal from the row count. Both are fixed, with the rules as
+  framework-independent functions in `platform-common`. See
+  [`NXD-006`](DECISIONS.md). No data migration; existing rows are untouched.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-Phase 1 — Core Domain Foundation. The proposed first slice is the
-`DataContract` identity defect recorded under "Phase 0 audit" below:
-`DataContract` is keyed to a `productComponentId` and has no independent
-identity, owner or semantic version. Phase 1 exists to "fix foundational
-versioning defects that would undermine later lifecycle behaviour", and Phase
-4 (contracts, dependencies, lineage, impact analysis) cannot begin until a
-contract can be referenced and versioned on its own. Awaiting confirmation
-before starting, since it is the first change to committed domain types rather
-than to tests or CI.
+1. **P1-S2 — `DataContract` identity.** `DataContract` is keyed to a
+   `productComponentId` and has no independent identity, owner or semantic
+   version, so a contract cannot be referenced or versioned on its own. Phase
+   4 (contracts, dependencies, lineage, impact analysis) cannot begin until it
+   can. Unlike P1-S1 this one **does** imply a schema change on a table that
+   holds data, so it needs a reversible migration and should be planned as
+   such rather than folded into a code change.
+2. **P1-S3** — Consider a unique index on
+   `(product_id, version_number)`. P1-S1 makes collisions unreachable through
+   the service, but the database does not yet enforce it. Also a migration.
 
 ## Test Status
 Verified on 2026-09-16, running the gate the way CI runs it (`CI=true`,
@@ -50,7 +56,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 189 suites, 1405 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 190 suites, 1429 tests, **0 skipped** |
 
 Without the optional infrastructure the same command reports 1343 passed and
 62 skipped, and still exits 0 — that is the intended developer-machine

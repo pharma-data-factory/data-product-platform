@@ -226,6 +226,83 @@ export interface ProductBaselineDelta {
   computedBy: string;
 }
 
+// ============================================================================
+// PRODUCT VERSION LABELS
+// ============================================================================
+
+/**
+ * `MAJOR.MINOR` or `MAJOR.MINOR.PATCH`, non-negative, no leading zeros.
+ *
+ * Leading zeros are rejected on purpose: "01.0" and "1.0" would be two
+ * distinct rows naming the same version, and a ProductVersion label is an
+ * identity that baselines, validation contexts and releases point at.
+ */
+const PRODUCT_VERSION_LABEL = /^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/;
+
+export interface ProductVersionLabelParts {
+  major: number;
+  minor: number;
+  patch?: number;
+}
+
+export function parseProductVersionLabel(
+  label: string,
+): ProductVersionLabelParts | undefined {
+  const match = PRODUCT_VERSION_LABEL.exec(label.trim());
+  if (!match) {
+    return undefined;
+  }
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    ...(match[3] === undefined ? {} : { patch: parseInt(match[3], 10) }),
+  };
+}
+
+export function isProductVersionLabel(label: string): boolean {
+  return parseProductVersionLabel(label) !== undefined;
+}
+
+export function validateProductVersionLabel(label: string): string[] {
+  if (!label.trim()) {
+    return ['Product version is required'];
+  }
+  if (!isProductVersionLabel(label)) {
+    return [
+      `Unsupported product version "${label}": expected MAJOR.MINOR or ` +
+        `MAJOR.MINOR.PATCH with no leading zeros`,
+    ];
+  }
+  return [];
+}
+
+/**
+ * The label to generate for the next version of a product.
+ *
+ * Derived from the highest existing label rather than from how many versions
+ * exist, so an explicitly numbered version cannot cause the next generated one
+ * to collide with it. Unparseable labels are skipped rather than throwing:
+ * rows predating this validation must not be able to block a new version.
+ */
+export function nextProductVersionLabel(
+  existingLabels: readonly string[],
+): string {
+  let highestMajor = 0;
+  for (const label of existingLabels) {
+    const parsed = parseProductVersionLabel(label ?? '');
+    if (parsed) {
+      highestMajor = Math.max(highestMajor, parsed.major);
+      continue;
+    }
+    // Tolerate historical free text of the form "2.x-something".
+    const leading = /^\s*(\d+)/.exec(label ?? '');
+    if (leading) {
+      highestMajor = Math.max(highestMajor, parseInt(leading[1], 10));
+    }
+  }
+  return `${highestMajor + 1}.0`;
+}
+
 export function validateProduct(product: {
   name?: string;
   productType?: string;

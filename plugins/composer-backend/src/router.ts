@@ -10,6 +10,7 @@ import express from 'express';
 import Router from 'express-promise-router';
 import {
   AuthenticationError,
+  ConflictError,
   InputError,
   NotAllowedError,
 } from '@backstage/errors';
@@ -87,6 +88,12 @@ function respondError(
   }
   if (error instanceof InputError) {
     res.status(400).json({ error: String(error) });
+    return;
+  }
+  // A duplicate version label is the caller asking for something that already
+  // exists, not a server fault. Without this it fell through to a 500.
+  if (error instanceof ConflictError) {
+    res.status(409).json({ error: String(error) });
     return;
   }
   logger.error(`Unexpected error: ${error}`);

@@ -6,6 +6,7 @@
  */
 
 import { LoggerService } from '@backstage/backend-plugin-api';
+import { ConflictError, InputError } from '@backstage/errors';
 import { randomUUID } from 'crypto';
 import {
   DataClassification,
@@ -17,7 +18,9 @@ import {
   ProductVersion,
   SnapshotItemChange,
   TraceabilityLink,
+  nextProductVersionLabel,
   validateProduct,
+  validateProductVersionLabel,
   validateTraceabilityLink,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
@@ -163,11 +166,46 @@ export class ComposerService {
       throw new Error(`Product ${productId} not found`);
     }
     const versions = await this.repository.listProductVersions(productId);
-    const versionNumber = versions.length + 1;
+
+    // An absent version means "number it for me". A version that is present
+    // but blank is a malformed request, not an omitted one — silently
+    // generating a label there would invent version identity on the caller's
+    // behalf without them knowing which one they got.
+    const supplied = request.version;
+    const label =
+      supplied === undefined || supplied === null
+        ? nextProductVersionLabel(versions.map(existing => existing.version))
+        : String(supplied).trim();
+
+    const labelIssues = validateProductVersionLabel(label);
+    if (labelIssues.length > 0) {
+      throw new InputError(labelIssues.join('; '));
+    }
+
+    // (product_id, version) is unique in the schema. Checking here turns a
+    // duplicate into a client error instead of a driver error surfacing as a
+    // 500, and keeps the message about the domain rather than the index.
+    if (versions.some(existing => existing.version === label)) {
+      throw new ConflictError(
+        `Product ${productId} already exists at version ${label}`,
+      );
+    }
+
+    // The ordinal is a per-product sequence that only ever moves forward, so
+    // it stays a stable ordering key even when a caller supplies labels out of
+    // order. Deriving it from the row count would reuse an ordinal after any
+    // future deletion, and would drift from the labels as soon as one was
+    // supplied explicitly.
+    const versionNumber =
+      versions.reduce(
+        (highest, existing) => Math.max(highest, existing.versionNumber ?? 0),
+        0,
+      ) + 1;
+
     const version: ProductVersion = {
       id: randomUUID(),
       productId,
-      version: request.version ?? `${versionNumber}.0`,
+      version: label,
       versionNumber,
       status: 'DRAFT',
       changelog: request.changelog,
