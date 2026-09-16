@@ -378,7 +378,7 @@ describe('URS → Validation integration against real PostgreSQL', () => {
     expect(context.source.approvalStatus).toBe('APPROVED');
     expect(context.source.businessCapabilityIds).toEqual([CAPABILITY]);
     expect(context.source.baselineVersion).toBe('1.0');
-    expect(store.listContexts()).toHaveLength(1);
+    await expect(store.listContexts()).resolves.toHaveLength(1);
   });
 });
 

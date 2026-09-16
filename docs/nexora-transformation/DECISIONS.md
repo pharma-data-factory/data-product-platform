@@ -71,3 +71,33 @@ Use this file for durable architecture decisions.
   is restored alongside the id, and `packages/app/src/index.tsx` does import a
   `.css` file.
 - Affected components: `packages/app` test configuration.
+
+### NXD-005 — Infrastructure-dependent tests skip locally but must run in CI
+- Date: 2026-09-16
+- Context: Six suites (the URS GxP invariants, the persistence and runtime
+  PostgreSQL proofs, the seed-persistence and P1A verifications, and the
+  URS → Validation integration) skip themselves when PostgreSQL does not
+  answer. `.github/workflows/ci.yml` provisioned no database, so 62 tests
+  skipped in every CI run while the pipeline reported green. The Python SDK
+  parity test had the mirror-image problem: it hard-coded the `python` binary
+  and failed on any machine where the interpreter is `python3`. Running the
+  PostgreSQL suites for the first time immediately surfaced a real defect — a
+  missing `await` meant the final assertion of the URS → Validation
+  integration proof had never executed.
+- Decision: a test that depends on external infrastructure skips on a
+  developer machine and **fails** in CI. The skip path must name what to
+  install. CI provisions the infrastructure; the probe tests the capability
+  actually needed (can this interpreter import the SDK?), not a proxy for it.
+- Alternatives considered: require PostgreSQL for every local run (punishes
+  developers without Docker and would have made the baseline red for the wrong
+  reason); leave the suites skipped and rely on manual verification runs (this
+  is what allowed the defect to survive); delete the skip logic and let the
+  suites fail locally (same problem, louder).
+- Consequences: CI runs 188 suites / 1399 tests with nothing skipped. A
+  developer without Docker or Python still gets a green local run and a
+  message explaining what is not being covered. Regressions in the GxP
+  invariants and persistence guarantees are now caught by the pipeline rather
+  than by whoever next runs the suites by hand.
+- Affected components: `.github/workflows/ci.yml`, `docker-compose.test.yml`,
+  `plugins/urs-composer-backend` test harness,
+  `packages/backend/src/compatibilityPolicyParity.test.ts`.

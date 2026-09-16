@@ -5,15 +5,23 @@ import yaml from 'yaml';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
+const SDK_DIR = path
+  .join(ROOT, 'packages/data-product-sdk')
+  .replace(/\\/g, '/');
+
 /**
  * Finds an interpreter that can actually run the Python SDK.
  *
- * The binary is not always called `python` (CI's setup-python provides that
- * name, most Linux distributions only provide `python3`), and a `-minimal`
- * install can be on PATH while lacking the standard library the SDK imports.
- * Both cases used to surface as a bare `spawnSync python ENOENT`.
+ * Three things can be missing, and all three used to surface as an unhelpful
+ * `spawnSync python ENOENT`: the binary is not always called `python` (CI's
+ * setup-python provides that name, most Linux distributions only provide
+ * `python3`); a `-minimal` install can be on PATH without the standard
+ * library; and the SDK's own third-party dependencies may not be installed.
+ *
+ * The probe is the real import the test needs, so a candidate that cannot run
+ * the check is never selected.
  */
-function resolvePythonInterpreter(): string | undefined {
+function resolveSdkInterpreter(): string | undefined {
   const candidates = [
     process.env.PYTHON,
     process.env.PYTHON_BIN,
@@ -23,7 +31,18 @@ function resolvePythonInterpreter(): string | undefined {
 
   for (const candidate of candidates) {
     try {
-      execFileSync(candidate, ['-c', 'import json, sys'], { stdio: 'ignore' });
+      execFileSync(
+        candidate,
+        [
+          '-c',
+          [
+            'import json,sys',
+            `sys.path.insert(0, r"${SDK_DIR}")`,
+            'from dataprod.compatibility import evaluate_compatibility',
+          ].join(';'),
+        ],
+        { stdio: 'ignore' },
+      );
       return candidate;
     } catch {
       // Try the next candidate.
@@ -79,29 +98,30 @@ describe('shared compatibility policy', () => {
   });
 
   it('applies the shared policy in the Python SDK', () => {
-    const interpreter = resolvePythonInterpreter();
+    const interpreter = resolveSdkInterpreter();
 
-    // CI installs Python and the SDK, so a missing interpreter there is a real
-    // failure and must not be skipped away — the cross-language parity of this
-    // policy is the whole point of the test. On a developer machine without a
-    // usable Python the suite skips instead of reporting a red baseline.
+    // CI installs Python and the SDK's dependencies, so a missing interpreter
+    // there is a broken pipeline and must not be skipped away — the
+    // cross-language parity of this policy is the whole point of the test. On
+    // a developer machine without the Python toolchain the suite skips rather
+    // than reporting a red baseline.
     if (!interpreter) {
       if (process.env.CI) {
         throw new Error(
-          'No usable Python interpreter found (tried $PYTHON, $PYTHON_BIN, python3, python). ' +
-            'CI must run the Python SDK parity check.',
+          'No Python interpreter able to import the data-product SDK was found ' +
+            '(tried $PYTHON, $PYTHON_BIN, python3, python). CI must run the ' +
+            'Python SDK parity check.',
         );
       }
       console.warn(
-        'Skipping Python SDK parity: no interpreter with a working standard ' +
-          'library found. Set PYTHON=/path/to/python to run it locally.',
+        'Skipping Python SDK parity: no interpreter can import the SDK. Run ' +
+          "`python -m pip install pydantic 'jsonschema[format]' -e " +
+          'packages/data-product-sdk` to enable it locally.',
       );
       return;
     }
 
-    const sdkDir = path
-      .join(ROOT, 'packages/data-product-sdk')
-      .replace(/\\/g, '/');
+    const sdkDir = SDK_DIR;
     const python = JSON.parse(
       execFileSync(
         interpreter,

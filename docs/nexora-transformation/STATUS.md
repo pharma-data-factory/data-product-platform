@@ -4,7 +4,7 @@
 Phase 0 — Stabilize and Baseline
 
 ## Current Vertical Slice
-P0-S1 — Restore a green, reproducible test baseline (**done**).
+P0-S2 — Make the infrastructure-dependent suites run in CI (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -13,29 +13,42 @@ P0-S1 — Restore a green, reproducible test baseline (**done**).
 - **P0-S1 — Green baseline restored.** The repository baseline was red on
   arrival: 9 of 188 test suites failed. All nine are fixed and the full
   CI-equivalent gate now passes. See "Baseline findings" below.
+- **P0-S2 — Infrastructure-dependent suites now run in CI.** 62 tests that
+  skipped in every CI run now execute. Running them for the first time found a
+  real defect. See [`NXD-005`](DECISIONS.md).
 
 ## In Progress
-Phase 0 audit write-up. The domain/architecture inventory below is complete;
-the remaining Phase 0 work is the CI coverage gap recorded under Migration
-Debt (P0-S2).
+Nothing in flight. Phase 0's audit and stabilisation objectives are met.
 
 ## Next
-1. **P0-S2** — Make the PostgreSQL-backed suites run in CI. 62 tests,
-   including the GxP invariants, currently skip in every CI run.
-2. **P0-S3** — Record the hard-coded Golden Path composition surface as
-   explicit migration debt with a per-symbol inventory (input to Phase 3).
-3. Propose the smallest Phase 1 vertical slice against the consolidated
-   domain model in `packages/platform-common/src/product.ts`.
+1. **P0-S3** — Inventory the hard-coded Golden Path composition surface
+   per symbol, as the input to Phase 3.
+2. Propose the smallest Phase 1 vertical slice against the consolidated
+   domain model in `packages/platform-common/src/product.ts`. The strongest
+   candidate is the `DataContract` identity defect recorded below: it is a
+   foundational versioning/identity problem, which is explicitly Phase 1
+   scope, and Phase 4 cannot start until it is resolved.
 
 ## Test Status
-Verified on 2026-09-16 at the repository baseline:
+Verified on 2026-09-16, running the gate the way CI runs it (`CI=true`,
+PostgreSQL up, Python toolchain installed):
 
 | Gate | Command | Result |
 | --- | --- | --- |
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 185 suites, 1337 tests |
+| Unit tests | `yarn test` | PASS — 188 suites, 1399 tests, **0 skipped** |
+
+Without the optional infrastructure the same command reports 185 suites /
+1337 tests with 62 skipped, and still exits 0 — that is the intended
+developer-machine behaviour under `NXD-005`. To run everything locally:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+python -m pip install pydantic 'jsonschema[format]' -e packages/data-product-sdk
+yarn test
+```
 
 `yarn prettier:check` reports style drift in 883 files. It is **not** part of
 the CI gate (`.github/workflows/ci.yml` runs guardrails, tsc, lint and tests
@@ -124,15 +137,17 @@ within its configured composition limits, but it is far larger than a pure
 wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
 
 ## Migration Debt
-- **The GxP invariant suites never run in CI.** 62 tests across six files
-  (`urs-composer-backend`: `gxp-invariants`, `runtime-postgres-proof`,
-  `wd-seed-persistence`, `p1a-verification`, `repository`;
-  `validation-expert-backend`: `validation-context-integration`) skip unless
-  PostgreSQL answers on `TEST_DB_HOST:TEST_DB_PORT` (default
-  `127.0.0.1:5435`). `.github/workflows/ci.yml` defines no `services:` block,
-  so these tests skip in every CI run and the pipeline still reports green.
-  The persistence and GxP guarantees they assert are therefore unverified by
-  the authoritative pipeline. Scheduled as **P0-S2**.
+- ~~The GxP invariant suites never run in CI.~~ **Resolved in P0-S2.** 62
+  tests across six files (`urs-composer-backend`: `gxp-invariants`,
+  `runtime-postgres-proof`, `wd-seed-persistence`, `p1a-verification`,
+  `repository`; `validation-expert-backend`:
+  `validation-context-integration`) skipped unless PostgreSQL answered on
+  `TEST_DB_HOST:TEST_DB_PORT` (default `127.0.0.1:5435`), and
+  `.github/workflows/ci.yml` defined no `services:` block. CI now provisions
+  PostgreSQL and fails rather than skipping. The first real execution found a
+  missing `await` in `validation-context-integration.test.ts`: the closing
+  assertion of the URS → Validation integration proof was resolving a Promise
+  against `toHaveLength` and had never actually run.
 - `plugins/validation-expert-backend` imports another workspace's private
   source (`@internal/plugin-urs-composer-backend/src/__testUtils__/...`),
   flagged by `guard:platform` as a cross-plugin boundary warning.
