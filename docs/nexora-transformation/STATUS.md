@@ -201,25 +201,35 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   turn into a hard test failure.
 
 ## Blocked Decisions
-**DEPENDENCY_CHANGE_REQUIRED — `supertest` (test-only).** Not blocking any
-phase; raised because `AGENTS.md` requires approval before installation.
+**DEPENDENCY_CHANGE_REQUIRED — `supertest` (test-only).** Evidence gathered
+2026-09-16 as the dependency gate requires; **not installed**, awaiting a
+decision. Not blocking any phase.
 
-- Package: `supertest` (+ `@types/supertest`), `devDependencies` only
-- Requested version: to be pinned against the repository's existing
-  Express/Node baseline, not "latest"
+- Package: `supertest@^7.2.2`, `@types/supertest@^7.2.1` — `devDependencies`
+  only, in the backend plugin workspaces that currently bind sockets
 - Existing alternative checked: the current pattern is `app.listen(0)` plus a
-  real `fetch`; there is no in-process HTTP test helper in the repository
+  real `fetch` in twelve files; there is no in-process HTTP test helper in the
+  repository
 - Backstage capability checked: `@backstage/backend-test-utils` provides
   service mocks and test databases, not in-process Express request driving
-- Reason: twelve backend test files bind real TCP sockets, which is the
-  likeliest cause of the intermittent failure recorded under Known Risks.
-  In-process requests would remove the socket and the port entirely.
-- Expected `package.json` impact: devDependency in the affected backend
-  plugin workspaces
-- Expected `yarn.lock` impact: `supertest` and its transitive tree; no change
-  to any `@backstage/*`, React or Material UI resolution
-- Compatibility evidence: **not yet gathered** — to be produced before any
-  installation, per the dependency-governance gate
+- Reason: the real TCP socket is the likeliest cause of the intermittent
+  failure under Known Risks. In-process requests remove the socket and the
+  port entirely
+- Engine compatibility: `supertest` requires Node `>=14.18.0`; this repository
+  is `22 || 24` — compatible
+- Expected `yarn.lock` impact: `supertest`, `superagent@^10.3.0` and its tree
+  (`component-emitter`, `cookiejar`, `debug`, `fast-safe-stringify`,
+  `form-data`, `formidable`, `methods`, `mime`, `qs`) plus the two `@types`
+  packages. Neither `supertest` nor `superagent` is in the lockfile today.
+  `formidable` and `component-emitter` would be genuinely new; `methods`,
+  `qs`, `mime`, `debug`, `fast-safe-stringify` and `cookie-signature` already
+  have entries, so those would at most add a resolution
+- Compatibility evidence: **no `@backstage/*`, React or Material UI package
+  appears anywhere in that tree**, so the resolutions the guardrails protect
+  are untouched. `supertest` works against any `http.Server`, so it needs no
+  particular Express version; the repository is uniformly `express@^4.22.0`
+- Residual risk: `formidable` (multipart parsing) is new transitive surface in
+  a devDependency. It is not reachable from any production bundle
 
 Until approved, the flake stays documented and unfixed rather than papered
 over with a retry.
