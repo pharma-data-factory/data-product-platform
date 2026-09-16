@@ -254,27 +254,32 @@ export interface ProductBaselineDelta {
 }
 
 // ============================================================================
-// PRODUCT VERSION LABELS
+// VERSION LABELS
 // ============================================================================
 
 /**
  * `MAJOR.MINOR` or `MAJOR.MINOR.PATCH`, non-negative, no leading zeros.
  *
  * Leading zeros are rejected on purpose: "01.0" and "1.0" would be two
- * distinct rows naming the same version, and a ProductVersion label is an
- * identity that baselines, validation contexts and releases point at.
+ * distinct rows naming the same version, and a version label is an identity
+ * that baselines, validation contexts and releases point at.
+ *
+ * Shared by ProductVersion, DataContract and Artifact versions. The name is
+ * deliberately neutral: it started out as the Product rule and now governs
+ * three concepts. A concept that needs a different grammar (pre-release tags,
+ * for instance) should get its own validator rather than widen this one.
  */
 const PRODUCT_VERSION_LABEL = /^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/;
 
-export interface ProductVersionLabelParts {
+export interface VersionLabelParts {
   major: number;
   minor: number;
   patch?: number;
 }
 
-export function parseProductVersionLabel(
+export function parseVersionLabel(
   label: string,
-): ProductVersionLabelParts | undefined {
+): VersionLabelParts | undefined {
   const match = PRODUCT_VERSION_LABEL.exec(label.trim());
   if (!match) {
     return undefined;
@@ -286,15 +291,15 @@ export function parseProductVersionLabel(
   };
 }
 
-export function isProductVersionLabel(label: string): boolean {
-  return parseProductVersionLabel(label) !== undefined;
+export function isVersionLabel(label: string): boolean {
+  return parseVersionLabel(label) !== undefined;
 }
 
-export function validateProductVersionLabel(label: string): string[] {
+export function validateVersionLabel(label: string): string[] {
   if (!label.trim()) {
     return ['Product version is required'];
   }
-  if (!isProductVersionLabel(label)) {
+  if (!isVersionLabel(label)) {
     return [
       `Unsupported product version "${label}": expected MAJOR.MINOR or ` +
         `MAJOR.MINOR.PATCH with no leading zeros`,
@@ -319,7 +324,7 @@ export function nextMajorVersionLabel(
 ): string {
   let highestMajor = 0;
   for (const label of existingLabels) {
-    const parsed = parseProductVersionLabel(label ?? '');
+    const parsed = parseVersionLabel(label ?? '');
     if (parsed) {
       highestMajor = Math.max(highestMajor, parsed.major);
       continue;

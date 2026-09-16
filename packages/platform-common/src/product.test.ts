@@ -3,15 +3,15 @@ import {
   findVersionLabelClash,
   isDataContractSchemaType,
   isProductType,
-  isProductVersionLabel,
+  isVersionLabel,
   isProductVersionStatus,
   nextMajorVersionLabel,
-  parseProductVersionLabel,
+  parseVersionLabel,
   PRODUCT_VERSION_STATUSES,
   validateBaselineLabel,
   validateDataContractSchemaType,
   validateProduct,
-  validateProductVersionLabel,
+  validateVersionLabel,
   validateTraceabilityLink,
 } from './product';
 
@@ -73,8 +73,8 @@ describe('product model', () => {
     it.each(['0.1', '1.0', '2.11', '1.0.0', '10.20.30'])(
       'accepts %s',
       label => {
-        expect(isProductVersionLabel(label)).toBe(true);
-        expect(validateProductVersionLabel(label)).toEqual([]);
+        expect(isVersionLabel(label)).toBe(true);
+        expect(validateVersionLabel(label)).toEqual([]);
       },
     );
 
@@ -93,18 +93,18 @@ describe('product model', () => {
       '01.0',
       '1.00',
     ])('rejects %p', label => {
-      expect(isProductVersionLabel(label)).toBe(false);
-      expect(validateProductVersionLabel(label)).not.toEqual([]);
+      expect(isVersionLabel(label)).toBe(false);
+      expect(validateVersionLabel(label)).not.toEqual([]);
     });
 
     it('parses the parts, with patch only when present', () => {
-      expect(parseProductVersionLabel('2.7')).toEqual({ major: 2, minor: 7 });
-      expect(parseProductVersionLabel('2.7.3')).toEqual({
+      expect(parseVersionLabel('2.7')).toEqual({ major: 2, minor: 7 });
+      expect(parseVersionLabel('2.7.3')).toEqual({
         major: 2,
         minor: 7,
         patch: 3,
       });
-      expect(parseProductVersionLabel('nope')).toBeUndefined();
+      expect(parseVersionLabel('nope')).toBeUndefined();
     });
 
     it('generates the next label above the highest existing major', () => {

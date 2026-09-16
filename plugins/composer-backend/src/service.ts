@@ -24,7 +24,7 @@ import {
   validateBaselineLabel,
   validateDataContractSchemaType,
   validateProduct,
-  validateProductVersionLabel,
+  validateVersionLabel,
   validateTraceabilityLink,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
@@ -181,7 +181,7 @@ export class ComposerService {
         ? nextMajorVersionLabel(versions.map(existing => existing.version))
         : String(supplied).trim();
 
-    const labelIssues = validateProductVersionLabel(label);
+    const labelIssues = validateVersionLabel(label);
     if (labelIssues.length > 0) {
       throw new InputError(labelIssues.join('; '));
     }
@@ -290,7 +290,7 @@ export class ComposerService {
       suppliedVersion === undefined || suppliedVersion === null
         ? '1.0'
         : String(suppliedVersion).trim();
-    const versionIssues = validateProductVersionLabel(version);
+    const versionIssues = validateVersionLabel(version);
     if (versionIssues.length > 0) {
       throw new InputError(versionIssues.join('; '));
     }
