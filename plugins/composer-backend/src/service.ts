@@ -18,7 +18,9 @@ import {
   ProductVersion,
   SnapshotItemChange,
   TraceabilityLink,
-  nextProductVersionLabel,
+  findVersionLabelClash,
+  nextMajorVersionLabel,
+  validateBaselineLabel,
   validateProduct,
   validateProductVersionLabel,
   validateTraceabilityLink,
@@ -174,7 +176,7 @@ export class ComposerService {
     const supplied = request.version;
     const label =
       supplied === undefined || supplied === null
-        ? nextProductVersionLabel(versions.map(existing => existing.version))
+        ? nextMajorVersionLabel(versions.map(existing => existing.version))
         : String(supplied).trim();
 
     const labelIssues = validateProductVersionLabel(label);
@@ -463,6 +465,41 @@ export class ComposerService {
       throw new Error(`Product version ${productVersionId} not found`);
     }
     const existing = await this.repository.listProductBaselines(productVersionId);
+
+    // Resolve and check the label before anything is written. Creating a
+    // baseline supersedes the currently APPROVED one, so rejecting the request
+    // afterwards would leave a product version with a superseded baseline and
+    // no replacement.
+    //
+    // A baseline label is not required to look like a version — it often has
+    // to match a document number in an external QMS — so it is checked for
+    // presence and uniqueness rather than for a grammar. Same rule the URS
+    // side reached for requirement-set baselines.
+    const suppliedLabel = request.baselineVersion;
+    const baselineVersion =
+      suppliedLabel === undefined || suppliedLabel === null
+        ? nextMajorVersionLabel(existing.map(b => b.baselineVersion))
+        : String(suppliedLabel).trim();
+
+    const labelIssues = validateBaselineLabel(baselineVersion);
+    if (labelIssues.length > 0) {
+      throw new InputError(labelIssues.join('; '));
+    }
+
+    // product_baselines has no unique index, so without this a duplicate was
+    // simply stored. Two baselines of one ProductVersion sharing a label make
+    // the candidate a ValidationContext binds to ambiguous.
+    const clash = findVersionLabelClash(
+      existing.map(b => b.baselineVersion),
+      baselineVersion,
+    );
+    if (clash) {
+      throw new ConflictError(
+        `Baseline ${clash} already exists for product version ` +
+          `${productVersionId}. Choose a different label.`,
+      );
+    }
+
     for (const prev of existing) {
       if (prev.status === 'APPROVED') {
         const superseded: ProductBaseline = {
@@ -503,8 +540,6 @@ export class ComposerService {
         relationshipType: l.relationshipType,
       })),
     };
-    const baselineVersion =
-      request.baselineVersion ?? `${existing.length + 1}.0`;
     const baseline: ProductBaseline = {
       id: randomUUID(),
       productVersionId,

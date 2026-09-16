@@ -4,7 +4,7 @@
 Phase 1 — Core Domain Foundation
 
 ## Current Vertical Slice
-P1-S1 — ProductVersion identity invariants (**done**).
+P1-S2 — ProductBaseline identity invariants (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -31,21 +31,32 @@ state recorded and green, migration risks documented.
   ordinal from the row count. Both are fixed, with the rules as
   framework-independent functions in `platform-common`. See
   [`NXD-006`](DECISIONS.md). No data migration; existing rows are untouched.
+- **P1-S2 — ProductBaseline identity invariants.** The same defect family, plus
+  two worse ones: `product_baselines` has no unique index, so duplicate labels
+  were simply stored; and the method superseded the APPROVED baseline before
+  deciding whether the request was valid. Adopted the rule the URS side already
+  reached — presence and case-insensitive uniqueness, not a version grammar,
+  because baseline labels are often QMS document numbers. See
+  [`NXD-007`](DECISIONS.md). No data migration.
 
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P1-S2 — `DataContract` identity.** `DataContract` is keyed to a
+1. **P1-S3 — Database-level uniqueness.** P1-S1 and P1-S2 make duplicate
+   labels unreachable through the service, but the service check is racy under
+   concurrent creates and `product_baselines` has no constraint at all. Needs
+   a unique index on `(product_version_id, baseline_version)` and one on
+   `(product_id, version_number)`. This is a schema change against tables
+   holding data, so it needs a reversible migration and a decision on what to
+   do with any pre-existing duplicate rows — see Blocked Decisions.
+2. **P1-S4 — Consolidate the duplicated baseline-label logic.**
+   `urs-composer-backend` still has its own `nextBaselineVersion` and
+   `assertBaselineVersionAvailable`. See [`NXD-008`](DECISIONS.md).
+3. **P1-S5 — `DataContract` identity.** `DataContract` is keyed to a
    `productComponentId` and has no independent identity, owner or semantic
    version, so a contract cannot be referenced or versioned on its own. Phase
-   4 (contracts, dependencies, lineage, impact analysis) cannot begin until it
-   can. Unlike P1-S1 this one **does** imply a schema change on a table that
-   holds data, so it needs a reversible migration and should be planned as
-   such rather than folded into a code change.
-2. **P1-S3** — Consider a unique index on
-   `(product_id, version_number)`. P1-S1 makes collisions unreachable through
-   the service, but the database does not yet enforce it. Also a migration.
+   4 cannot begin until it can. Also a migration.
 
 ## Test Status
 Verified on 2026-09-16, running the gate the way CI runs it (`CI=true`,
@@ -56,7 +67,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 190 suites, 1429 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 191 suites, 1437 tests, **0 skipped** |
 
 Without the optional infrastructure the same command reports 1343 passed and
 62 skipped, and still exits 0 — that is the intended developer-machine
@@ -208,6 +219,13 @@ phase; raised because `AGENTS.md` requires approval before installation.
 
 Until approved, the flake stays documented and unfixed rather than papered
 over with a retry.
+
+**Open question for P1-S3 — pre-existing duplicate rows.** Adding the unique
+indexes needs a decision on what happens if a deployed database already holds
+duplicate baseline labels for one product version. The migration can fail
+loudly, or relabel the duplicates. Relabelling rewrites a GxP-relevant
+identifier, so it is not a call to make unilaterally. Nothing is blocked until
+P1-S3 starts.
 
 ## Last Commit
 See `git log` on `ms/composer-ai-spec-and-ci-quality-gate`. Phase 0 landed as

@@ -277,14 +277,17 @@ export function validateProductVersionLabel(label: string): string[] {
 }
 
 /**
- * The label to generate for the next version of a product.
+ * The next `N.0` label above the highest existing one.
  *
- * Derived from the highest existing label rather than from how many versions
- * exist, so an explicitly numbered version cannot cause the next generated one
+ * Derived from the highest existing label rather than from how many labels
+ * exist, so an explicitly numbered entry cannot cause the next generated one
  * to collide with it. Unparseable labels are skipped rather than throwing:
- * rows predating this validation must not be able to block a new version.
+ * rows predating this validation must not be able to block a new entry.
+ *
+ * Shared by ProductVersion labels and ProductBaseline labels — the two have
+ * different validation rules but the same "what comes next" question.
  */
-export function nextProductVersionLabel(
+export function nextMajorVersionLabel(
   existingLabels: readonly string[],
 ): string {
   let highestMajor = 0;
@@ -301,6 +304,38 @@ export function nextProductVersionLabel(
     }
   }
   return `${highestMajor + 1}.0`;
+}
+
+// ============================================================================
+// BASELINE LABELS
+// ============================================================================
+
+/**
+ * A baseline label is checked for presence, not for format.
+ *
+ * Unlike a ProductVersion label, a baseline identifier often has to match a
+ * document number in an external QMS ("SOP-1234 Rev B"), so imposing a version
+ * grammar here would reject legitimate identifiers. What must hold is that the
+ * label exists and names exactly one baseline within its parent.
+ */
+export function validateBaselineLabel(label: string): string[] {
+  return label.trim() ? [] : ['A baseline version label is required'];
+}
+
+/**
+ * The existing label that collides with `candidate`, if any.
+ *
+ * Comparison ignores case and surrounding space, so "Rev-A" and "rev-a" are
+ * the same baseline identity rather than two.
+ */
+export function findVersionLabelClash(
+  existingLabels: readonly string[],
+  candidate: string,
+): string | undefined {
+  const normalized = candidate.trim().toLowerCase();
+  return existingLabels.find(
+    label => (label ?? '').trim().toLowerCase() === normalized,
+  );
 }
 
 export function validateProduct(product: {

@@ -1,10 +1,12 @@
 import {
+  findVersionLabelClash,
   isProductType,
   isProductVersionLabel,
   isProductVersionStatus,
-  nextProductVersionLabel,
+  nextMajorVersionLabel,
   parseProductVersionLabel,
   PRODUCT_VERSION_STATUSES,
+  validateBaselineLabel,
   validateProduct,
   validateProductVersionLabel,
   validateTraceabilityLink,
@@ -103,17 +105,37 @@ describe('product model', () => {
     });
 
     it('generates the next label above the highest existing major', () => {
-      expect(nextProductVersionLabel([])).toBe('1.0');
-      expect(nextProductVersionLabel(['1.0'])).toBe('2.0');
+      expect(nextMajorVersionLabel([])).toBe('1.0');
+      expect(nextMajorVersionLabel(['1.0'])).toBe('2.0');
       // Not the count of versions: three rows whose highest major is 5.
-      expect(nextProductVersionLabel(['1.0', '5.2', '3.0'])).toBe('6.0');
+      expect(nextMajorVersionLabel(['1.0', '5.2', '3.0'])).toBe('6.0');
     });
 
     it('does not let an unparseable historical label block a new version', () => {
       // Rows created before the label rules existed must not wedge the
       // sequence. A leading number is still honoured; anything else is skipped.
-      expect(nextProductVersionLabel(['1.0', 'draft', '2.x-legacy'])).toBe('3.0');
-      expect(nextProductVersionLabel(['nonsense'])).toBe('1.0');
+      expect(nextMajorVersionLabel(['1.0', 'draft', '2.x-legacy'])).toBe('3.0');
+      expect(nextMajorVersionLabel(['nonsense'])).toBe('1.0');
+    });
+  });
+
+  describe('baseline labels', () => {
+    it('requires presence but not a version grammar', () => {
+      // A baseline identifier often has to match an external QMS document
+      // number, so imposing MAJOR.MINOR here would reject valid identifiers.
+      expect(validateBaselineLabel('SOP-1234 Rev B')).toEqual([]);
+      expect(validateBaselineLabel('1.0')).toEqual([]);
+      expect(validateBaselineLabel('')).not.toEqual([]);
+      expect(validateBaselineLabel('   ')).not.toEqual([]);
+    });
+
+    it('finds a clash ignoring case and surrounding space', () => {
+      const existing = ['Rev-A', '1.0'];
+      expect(findVersionLabelClash(existing, 'rev-a')).toBe('Rev-A');
+      expect(findVersionLabelClash(existing, '  REV-A  ')).toBe('Rev-A');
+      expect(findVersionLabelClash(existing, '1.0')).toBe('1.0');
+      expect(findVersionLabelClash(existing, '2.0')).toBeUndefined();
+      expect(findVersionLabelClash([], 'anything')).toBeUndefined();
     });
   });
 });

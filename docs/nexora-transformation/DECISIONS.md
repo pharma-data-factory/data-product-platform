@@ -143,3 +143,58 @@ Use this file for durable architecture decisions.
   migration.
 - Affected components: `packages/platform-common/src/product.ts`,
   `plugins/composer-backend` service and router.
+
+### NXD-007 — ProductBaseline labels: presence and uniqueness, not format
+- Date: 2026-09-16
+- Context: `createProductBaseline` had the same defects as
+  `createProductVersion` before [`NXD-006`](#nxd-006--productversion-label-is-validated-the-ordinal-is-a-sequence),
+  and one more. `baselineVersion` was generated as `${existing.length + 1}.0`,
+  any string was accepted, and — unlike `product_versions` — the
+  `product_baselines` table carries **no unique index**, so a duplicate label
+  was simply stored. A ValidationContext binds the exact validated candidate,
+  and a ProductBaseline is part of that binding; two baselines of one
+  ProductVersion sharing a label make the validated candidate ambiguous.
+  Separately, the method superseded the currently APPROVED baseline *before*
+  it had finished deciding whether the request was valid.
+- Decision: adopt the rule the URS side already reached for requirement-set
+  baselines (`assertBaselineVersionAvailable`): a baseline label is checked
+  for **presence and case-insensitive uniqueness within its parent, not for
+  format**, because it often has to match a document number in an external QMS
+  ("SOP-1234 Rev B"). A duplicate is a `ConflictError` → HTTP 409. All
+  validation happens before the first write, so a rejected request cannot
+  leave a product version with a superseded baseline and no replacement.
+  The generated label clears the highest existing label rather than the row
+  count, via the shared `nextMajorVersionLabel`.
+- Alternatives considered: impose the ProductVersion grammar on baselines
+  (would reject legitimate QMS identifiers, and contradicts the reasoning
+  already recorded in `urs-composer-backend/domain/versioning.ts`); add the
+  unique index now (correct, but a schema change against a table holding data
+  belongs in a slice with a reversible migration); leave uniqueness to the
+  database (there is no constraint to leave it to).
+- Consequences: the service is now the only thing preventing duplicate
+  baseline labels, which means the check is racy under concurrent creates for
+  the same product version. That is strictly better than no check, and the
+  unique index that would close it is tracked as P1-S3. `nextMajorVersionLabel`
+  was renamed from `nextProductVersionLabel` (introduced one commit earlier in
+  NXD-006) now that it serves both concepts.
+- Affected components: `packages/platform-common/src/product.ts`,
+  `plugins/composer-backend` service.
+
+### NXD-008 — Duplicated baseline-label logic is not yet consolidated
+- Date: 2026-09-16
+- Context: `urs-composer-backend` has `nextBaselineVersion` and
+  `assertBaselineVersionAvailable` implementing the same rules that NXD-007
+  puts in `platform-common`. Behaviourally the "next label" functions agree on
+  every input checked (numeric labels, unparseable labels, labels with a
+  leading integer).
+- Decision: do **not** fold the URS implementations into the shared ones in
+  this slice. Fix the defect first; consolidate as its own change.
+- Alternatives considered: consolidate now — rejected because it would mix a
+  defect fix with a refactor of GxP-relevant code paths, and the two should be
+  reviewable separately.
+- Consequences: one duplicated 12-line function and one duplicated uniqueness
+  check remain. Tracked as a Phase 1 consolidation candidate in `STATUS.md`.
+  The URS suites now run in CI (NXD-005), so the consolidation is verifiable
+  when it happens.
+- Affected components: `plugins/urs-composer-backend/src/domain/versioning.ts`,
+  `plugins/urs-composer-backend/src/service.ts`.
