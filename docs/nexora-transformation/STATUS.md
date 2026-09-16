@@ -4,7 +4,7 @@
 Phase 1 — Core Domain Foundation
 
 ## Current Vertical Slice
-P1-S3 — Database-level identity constraints (**done**).
+P1-S5 — DataContract input validation (**done**). Phase 1 is complete.
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -52,15 +52,36 @@ state recorded and green, migration risks documented.
   violates them, listing the offending keys and changing nothing — per the
   product decision not to relabel a controlled identifier unattended. Verified
   on PostgreSQL, not just SQLite. See [`NXD-009`](DECISIONS.md).
+- **P1-S5 — DataContract input validation.** `DATA_CONTRACT_SCHEMA_TYPES` had
+  always existed and was never enforced: `addDataContract` cast any string
+  through, so stored rows could hold values the type said were impossible.
+  `version` was unvalidated free text. Both fixed, no schema change. Contract
+  *identity* (name, owner, uniqueness) is deliberately left to Phase 4 rather
+  than half-built now. See [`NXD-010`](DECISIONS.md).
+- **Flake introduced in P1-S3 and fixed.** `identityConstraints.test.ts` failed
+  ~60% of full runs while passing in isolation, because a knex QueryBuilder was
+  handed to `expect().rejects`. See [`NXD-011`](DECISIONS.md).
+
+**Phase 1 exit criteria are met:** core version/baseline/contract identity
+invariants are defined in `platform-common`, enforced in the service, backed by
+database constraints where a key exists, and covered by tests.
 
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P1-S5 — `DataContract` identity.** `DataContract` is keyed to a
-   `productComponentId` and has no independent identity, owner or semantic
-   version, so a contract cannot be referenced or versioned on its own. Phase
-   4 cannot begin until it can. Also a migration.
+**Phase 2 — Artifact Registry and Marketplace 2.0.** The Phase 0 audit found
+no `Artifact`, `ArtifactVersion` or `Publisher` type anywhere in the
+repository, and the Marketplace is a static TypeScript array
+(`plugins/marketplace/src/data.ts`), not a registry. Phase 2 is therefore
+largely greenfield, with a compatibility adapter for the legacy marketplace
+items until parity is proven.
+
+Carried into Phase 4 rather than done early: **`DataContract` identity**. A
+contract is keyed to a `productComponentId` and has no name, owner or
+independent version, so it cannot be referenced or versioned on its own.
+Phase 4 needs the whole first-class model in one designed migration — see
+[`NXD-010`](DECISIONS.md).
 
 ## Test Status
 Verified on 2026-09-16, running the gate the way CI runs it (`CI=true`,
@@ -71,7 +92,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 193 suites, 1444 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 194 suites, 1461 tests, **0 skipped** |
 
 Without the optional infrastructure the same command reports 1343 passed and
 62 skipped, and still exits 0 — that is the intended developer-machine

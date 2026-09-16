@@ -20,7 +20,9 @@ import {
   TraceabilityLink,
   findVersionLabelClash,
   nextMajorVersionLabel,
+  isDataContractSchemaType,
   validateBaselineLabel,
+  validateDataContractSchemaType,
   validateProduct,
   validateProductVersionLabel,
   validateTraceabilityLink,
@@ -269,17 +271,38 @@ export class ComposerService {
     request: CreateDataContractRequest,
     actor: string,
   ): Promise<DataContract> {
-    if (!request.schemaType?.trim()) {
-      throw new Error('Data contract schemaType is required');
+    // Narrowing with the guard rather than casting: the cast that used to be
+    // here is what let any string through as a schemaType in the first place,
+    // producing stored values the type said could not exist.
+    const schemaType = String(request.schemaType ?? '').trim();
+    if (!isDataContractSchemaType(schemaType)) {
+      throw new InputError(
+        validateDataContractSchemaType(schemaType).join('; '),
+      );
     }
+
+    // A contract version is a semantic version, so it follows the same rules
+    // as a Product version label rather than being free text. As with
+    // ProductVersion, an absent value is defaulted and a present-but-blank one
+    // is a malformed request.
+    const suppliedVersion = request.version;
+    const version =
+      suppliedVersion === undefined || suppliedVersion === null
+        ? '1.0'
+        : String(suppliedVersion).trim();
+    const versionIssues = validateProductVersionLabel(version);
+    if (versionIssues.length > 0) {
+      throw new InputError(versionIssues.join('; '));
+    }
+
     const contract: DataContract = {
       id: randomUUID(),
       productComponentId: componentId,
-      schemaType: request.schemaType as DataContract['schemaType'],
+      schemaType,
       schemaRef: request.schemaRef,
       contractSpec: request.contractSpec,
       status: 'DRAFT',
-      version: request.version ?? '1.0',
+      version,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,

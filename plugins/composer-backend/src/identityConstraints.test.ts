@@ -31,6 +31,23 @@ function freshDb(): Knex {
 }
 
 describe('version and baseline identity constraints', () => {
+  /**
+   * Runs an insert as a real Promise.
+   *
+   * A knex QueryBuilder is a lazily-executed thenable, not a Promise. Handing
+   * one directly to `expect(...).rejects` made this suite fail intermittently
+   * (~60% of full runs) while passing in isolation, with the indexes provably
+   * present and the data provably colliding. Awaiting inside an async function
+   * removes the ambiguity about when — or whether — the query runs.
+   */
+  async function insertRow(
+    database: Knex,
+    table: string,
+    values: Record<string, unknown>,
+  ): Promise<void> {
+    await database(table).insert(values);
+  }
+
   describe('with a migrated database', () => {
     let db: Knex;
     let service: ComposerService;
@@ -70,7 +87,7 @@ describe('version and baseline identity constraints', () => {
       // Bypassing the service is the point: this is what a concurrent create
       // racing the application-level check would produce.
       await expect(
-        db('product_versions').insert({
+        insertRow(db, 'product_versions', {
           id: 'forced-duplicate-ordinal',
           product_id: product.id,
           version: '99.0',
@@ -100,7 +117,7 @@ describe('version and baseline identity constraints', () => {
       // lower(baseline_version) so the database agrees rather than quietly
       // permitting what the service forbids.
       await expect(
-        db('product_baselines').insert({
+        insertRow(db, 'product_baselines', {
           id: 'forced-duplicate-label',
           product_version_id: version.id,
           baseline_version: 'rev-a',

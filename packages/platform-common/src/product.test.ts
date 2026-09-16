@@ -1,5 +1,7 @@
 import {
+  DATA_CONTRACT_SCHEMA_TYPES,
   findVersionLabelClash,
+  isDataContractSchemaType,
   isProductType,
   isProductVersionLabel,
   isProductVersionStatus,
@@ -7,6 +9,7 @@ import {
   parseProductVersionLabel,
   PRODUCT_VERSION_STATUSES,
   validateBaselineLabel,
+  validateDataContractSchemaType,
   validateProduct,
   validateProductVersionLabel,
   validateTraceabilityLink,
@@ -136,6 +139,32 @@ describe('product model', () => {
       expect(findVersionLabelClash(existing, '1.0')).toBe('1.0');
       expect(findVersionLabelClash(existing, '2.0')).toBeUndefined();
       expect(findVersionLabelClash([], 'anything')).toBeUndefined();
+    });
+  });
+
+  describe('data contract schema types', () => {
+    it.each(DATA_CONTRACT_SCHEMA_TYPES)('accepts %s', value => {
+      expect(isDataContractSchemaType(value)).toBe(true);
+      expect(validateDataContractSchemaType(value)).toEqual([]);
+    });
+
+    it('rejects anything outside the set, including case variants', () => {
+      // The stored value is the discriminant consumers switch on, so a
+      // case-insensitive match that stored the input verbatim would produce a
+      // value the type says cannot exist.
+      for (const value of ['XSD', 'json_schema', 'JSON-SCHEMA', 'GraphQL']) {
+        expect(isDataContractSchemaType(value)).toBe(false);
+        expect(validateDataContractSchemaType(value)).not.toEqual([]);
+      }
+    });
+
+    it('reports a missing schema type as missing, not unsupported', () => {
+      expect(validateDataContractSchemaType('')).toEqual([
+        'Data contract schemaType is required',
+      ]);
+      expect(validateDataContractSchemaType('   ')).toEqual([
+        'Data contract schemaType is required',
+      ]);
     });
   });
 });

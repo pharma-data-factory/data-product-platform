@@ -234,3 +234,56 @@ Use this file for durable architecture decisions.
   PostgreSQL test (`db/migrations.postgres.test.ts`) because a schema change
   proven only on SQLite is proven on the wrong database.
 - Affected components: `plugins/composer-backend/src/db/migrations.ts`.
+
+### NXD-010 — DataContract: validate inputs now, identity in Phase 4
+- Date: 2026-09-16
+- Context: `addDataContract` cast `request.schemaType` straight to
+  `DataContract['schemaType']`. `DATA_CONTRACT_SCHEMA_TYPES` has always
+  existed and was never enforced anywhere, so any string became a stored
+  schema type and every consumer had to cope with values the type said were
+  impossible. `version` was likewise unvalidated free text defaulting to
+  '1.0'. Separately, a DataContract has no name — a row is identified by a
+  UUID and its parent component — so there is no well-defined key to make
+  unique.
+- Decision: validate what exists; do not invent identity. `schemaType` is
+  narrowed with a type guard instead of cast, and `version` follows the same
+  semantic-version rules as a ProductVersion label. Giving DataContract an
+  identity, an owner and the rest of the first-class field set stays Phase 4,
+  where `IMPLEMENTATION_PLAN.md` puts it.
+- Alternatives considered: add a `name` and a unique key now — rejected
+  because it would commit to a uniqueness key before the Phase 4 model is
+  designed, and would mean two migrations against one table. The full field
+  set (semantics, quality rules, SLA, classification, access policy, delivery
+  mechanisms, compatibility) should land as one designed change.
+- Consequences: no schema change and no migration. Existing rows are
+  untouched; validation applies on create. Callers sending a schema type
+  outside the supported set, or a non-version version, now receive a 400 where
+  they previously got a stored row. Phase 4 still has to supply contract
+  identity before contracts can be referenced, versioned or used for impact
+  analysis independently of their component.
+- Affected components: `packages/platform-common/src/product.ts`,
+  `plugins/composer-backend` service.
+
+### NXD-011 — Do not hand a knex QueryBuilder to `expect().rejects`
+- Date: 2026-09-16
+- Context: `identityConstraints.test.ts`, added with NXD-009, failed in about
+  60% of full repository runs (2 of 3 measured, 3 of 5 including earlier runs)
+  while passing every time the composer-backend project ran alone. Diagnostics
+  showed the unique indexes present and the data genuinely colliding, yet the
+  duplicate insert reported "did not throw". A pool-size theory was tested and
+  ruled out: the better-sqlite3 pool is min 1 / max 1.
+- Decision: never pass a knex QueryBuilder directly to `expect(...).rejects`.
+  A builder is a lazily-executed thenable, not a Promise; wrap the query in an
+  `async` function so the assertion is made against a real Promise and the
+  query's execution point is unambiguous.
+- Alternatives considered: retry the test (hides it); drop the assertions
+  (removes the only proof the indexes enforce anything); keep investigating
+  jest's thenable handling (the wrapper is correct regardless of the precise
+  internal cause, and an intermittently red pipeline is worse than an
+  unexplained jest internal).
+- Consequences: four consecutive full runs of 1461 tests pass, against 3
+  failures in 5 runs before. The root cause inside jest is not proven — what
+  is established is that the builder form is unreliable here and the Promise
+  form is not. Other suites using `expect(builder).rejects` would be worth
+  auditing if the symptom reappears elsewhere.
+- Affected components: `plugins/composer-backend/src/identityConstraints.test.ts`.

@@ -165,6 +165,33 @@ export function isDataContractStatus(value: string): value is DataContractStatus
   return (DATA_CONTRACT_STATUSES as readonly string[]).includes(value);
 }
 
+export function isDataContractSchemaType(
+  value: string,
+): value is DataContractSchemaType {
+  return (DATA_CONTRACT_SCHEMA_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * A contract's schema type has to be one Nexora can actually interpret.
+ *
+ * The match is exact rather than case-insensitive: the stored value is the
+ * discriminant every consumer switches on, so accepting "json_schema" and
+ * storing it verbatim would produce a value the type says cannot exist.
+ */
+export function validateDataContractSchemaType(value: string): string[] {
+  if (!value.trim()) {
+    return ['Data contract schemaType is required'];
+  }
+  if (!isDataContractSchemaType(value)) {
+    return [
+      `Unsupported data contract schemaType "${value}": expected one of ${DATA_CONTRACT_SCHEMA_TYPES.join(
+        ', ',
+      )}`,
+    ];
+  }
+  return [];
+}
+
 export const PRODUCT_BASELINE_STATUSES = [
   'DRAFT',
   'APPROVED',
