@@ -175,13 +175,13 @@ spec:
     ).toBe(
       '/catalog-graph?rootEntityRefs=component%3Adefault%2Fsample-machine-state-consumer',
     );
-    expect(
-      (consumer.metadata.links ?? []).some(
-        link =>
-          link.url ===
-          '/catalog-graph?rootEntityRefs=component:default/sample-machine-state-consumer',
-      ),
-    ).toBe(true);
+    // Entity links must be absolute URLs. A relative shortcut here made the
+    // Backstage catalog reject the whole entity, so the Catalog Graph is
+    // reached through its entity-page tab instead (see the helper assertions
+    // above, which cover the in-app navigation path).
+    for (const link of consumer.metadata.links ?? []) {
+      expect(() => new URL(link.url)).not.toThrow();
+    }
   });
 
   it('does not treat the composition proof as an official Golden Path', () => {

@@ -159,6 +159,7 @@ describe('OEE Data Product Golden Path', () => {
       'name',
       'description',
       'owner',
+      'ursBaselineId',
       'system',
       'domain',
       'site',
@@ -191,7 +192,12 @@ describe('OEE Data Product Golden Path', () => {
     expect(JSON.stringify(entity.spec.parameters)).not.toContain('token');
     expect(JSON.stringify(entity.spec.parameters)).not.toContain('requestUserCredentials');
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
-      ['fetch:template', 'publish:github', 'catalog:register'],
+      [
+        'fetch:template',
+        'nexora:urs:verify-baseline',
+        'publish:github',
+        'catalog:register',
+      ],
     );
     expect(entity.metadata.annotations['dataprod.platform/certification-status']).toBe(
       'CERTIFIED',

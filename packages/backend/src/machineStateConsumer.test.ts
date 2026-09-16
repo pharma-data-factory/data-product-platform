@@ -115,6 +115,7 @@ describe('Machine State Consumer Data Product', () => {
       'name',
       'description',
       'owner',
+      'ursBaselineId',
       'domain',
       'unsComponent',
       'topicPattern',
@@ -132,7 +133,12 @@ describe('Machine State Consumer Data Product', () => {
     expect(entity.spec.parameters[0].description).toMatch(/Unified Namespace/);
     expect(entity.spec.parameters[0].description).not.toMatch(/OEE calculation/i);
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
-      ['fetch:template', 'publish:github', 'catalog:register'],
+      [
+        'fetch:template',
+        'nexora:urs:verify-baseline',
+        'publish:github',
+        'catalog:register',
+      ],
     );
   });
 

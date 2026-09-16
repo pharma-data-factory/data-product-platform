@@ -5,6 +5,33 @@ import yaml from 'yaml';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
+/**
+ * Finds an interpreter that can actually run the Python SDK.
+ *
+ * The binary is not always called `python` (CI's setup-python provides that
+ * name, most Linux distributions only provide `python3`), and a `-minimal`
+ * install can be on PATH while lacking the standard library the SDK imports.
+ * Both cases used to surface as a bare `spawnSync python ENOENT`.
+ */
+function resolvePythonInterpreter(): string | undefined {
+  const candidates = [
+    process.env.PYTHON,
+    process.env.PYTHON_BIN,
+    'python3',
+    'python',
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ['-c', 'import json, sys'], { stdio: 'ignore' });
+      return candidate;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return undefined;
+}
+
 describe('shared compatibility policy', () => {
   it('keeps YAML, SDK JSON, and plugin JSON identical', () => {
     const canonical = yaml.parse(
@@ -52,12 +79,32 @@ describe('shared compatibility policy', () => {
   });
 
   it('applies the shared policy in the Python SDK', () => {
+    const interpreter = resolvePythonInterpreter();
+
+    // CI installs Python and the SDK, so a missing interpreter there is a real
+    // failure and must not be skipped away — the cross-language parity of this
+    // policy is the whole point of the test. On a developer machine without a
+    // usable Python the suite skips instead of reporting a red baseline.
+    if (!interpreter) {
+      if (process.env.CI) {
+        throw new Error(
+          'No usable Python interpreter found (tried $PYTHON, $PYTHON_BIN, python3, python). ' +
+            'CI must run the Python SDK parity check.',
+        );
+      }
+      console.warn(
+        'Skipping Python SDK parity: no interpreter with a working standard ' +
+          'library found. Set PYTHON=/path/to/python to run it locally.',
+      );
+      return;
+    }
+
     const sdkDir = path
       .join(ROOT, 'packages/data-product-sdk')
       .replace(/\\/g, '/');
     const python = JSON.parse(
       execFileSync(
-        'python',
+        interpreter,
         [
           '-c',
           [
