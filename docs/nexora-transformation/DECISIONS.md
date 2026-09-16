@@ -205,3 +205,32 @@ Use this file for durable architecture decisions.
   and edge cases (leading zeros, QMS labels, blank strings, mixed sets) before
   the swap; all 418 URS tests pass afterwards, including the GxP invariants
   against real PostgreSQL.
+
+### NXD-009 — Identity constraints in the database; migration stops on conflict
+- Date: 2026-09-16
+- Context: NXD-006 and NXD-007 made duplicate version ordinals and duplicate
+  baseline labels unreachable through the service, but an application check is
+  not a constraint — two concurrent creates can both pass it — and
+  `product_baselines` had no index of any kind. Data written before those
+  changes may already contain duplicates.
+- Decision: add `product_versions_ordinal_unique` on
+  `(product_id, version_number)` and `product_baselines_label_unique` on
+  `(product_version_id, lower(baseline_version))`. The expression index makes
+  the database agree with the service, which treats "Rev-A" and "rev-a" as one
+  identity; a plain index would permit what the service forbids. Before
+  installing them the migration scans for rows that would violate them and, if
+  it finds any, **stops with the offending keys listed and changes nothing**.
+- Alternatives considered: relabel duplicates automatically (rewrites a
+  GxP-relevant identifier that an external QMS or an existing ValidationContext
+  may reference — not a decision a migration should make unattended); ship a
+  read-only detection report first and constrain in a later release (safer for
+  rollout, but leaves the race open for another cycle); rely on the service
+  check alone (does not survive concurrency).
+- Consequences: a deployment carrying ambiguous data fails to migrate and is
+  blocked until a human decides which row keeps the label. That is the
+  intended outcome: the data was already ambiguous and the constraint only
+  makes it visible. The error names the exact keys so remediation is targeted.
+  Verified on both dialects — SQLite for the domain suite, and a dedicated
+  PostgreSQL test (`db/migrations.postgres.test.ts`) because a schema change
+  proven only on SQLite is proven on the wrong database.
+- Affected components: `plugins/composer-backend/src/db/migrations.ts`.

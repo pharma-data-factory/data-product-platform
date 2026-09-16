@@ -4,7 +4,7 @@
 Phase 1 — Core Domain Foundation
 
 ## Current Vertical Slice
-P1-S4 — Consolidate the duplicated baseline-label logic (**done**).
+P1-S3 — Database-level identity constraints (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -45,19 +45,19 @@ state recorded and green, migration risks documented.
   Equivalence was checked across the URS test vectors and edge cases before
   the swap. All 418 URS tests pass, including the GxP invariants against real
   PostgreSQL. See [`NXD-008`](DECISIONS.md).
+- **P1-S3 — Identity enforced by the database.** Unique indexes on
+  `(product_id, version_number)` and
+  `(product_version_id, lower(baseline_version))`, closing the race the service
+  check cannot. The migration refuses to install them over data that already
+  violates them, listing the offending keys and changing nothing — per the
+  product decision not to relabel a controlled identifier unattended. Verified
+  on PostgreSQL, not just SQLite. See [`NXD-009`](DECISIONS.md).
 
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P1-S3 — Database-level uniqueness.** P1-S1 and P1-S2 make duplicate
-   labels unreachable through the service, but the service check is racy under
-   concurrent creates and `product_baselines` has no constraint at all. Needs
-   a unique index on `(product_version_id, baseline_version)` and one on
-   `(product_id, version_number)`. This is a schema change against tables
-   holding data, so it needs a reversible migration and a decision on what to
-   do with any pre-existing duplicate rows — see Blocked Decisions.
-2. **P1-S5 — `DataContract` identity.** `DataContract` is keyed to a
+1. **P1-S5 — `DataContract` identity.** `DataContract` is keyed to a
    `productComponentId` and has no independent identity, owner or semantic
    version, so a contract cannot be referenced or versioned on its own. Phase
    4 cannot begin until it can. Also a migration.
@@ -71,7 +71,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 191 suites, 1437 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 193 suites, 1444 tests, **0 skipped** |
 
 Without the optional infrastructure the same command reports 1343 passed and
 62 skipped, and still exits 0 — that is the intended developer-machine
@@ -224,12 +224,9 @@ phase; raised because `AGENTS.md` requires approval before installation.
 Until approved, the flake stays documented and unfixed rather than papered
 over with a retry.
 
-**Open question for P1-S3 — pre-existing duplicate rows.** Adding the unique
-indexes needs a decision on what happens if a deployed database already holds
-duplicate baseline labels for one product version. The migration can fail
-loudly, or relabel the duplicates. Relabelling rewrites a GxP-relevant
-identifier, so it is not a call to make unilaterally. Nothing is blocked until
-P1-S3 starts.
+**Resolved (2026-09-16) — pre-existing duplicate rows.** Decision: the
+migration fails loudly and remediation is manual. Implemented in P1-S3, see
+[`NXD-009`](DECISIONS.md).
 
 ## Last Commit
 See `git log` on `ms/composer-ai-spec-and-ci-quality-gate`. Phase 0 landed as

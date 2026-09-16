@@ -216,6 +216,94 @@ export async function up(knex: Knex): Promise<void> {
       table.foreign('product_version_id').references('id').inTable('product_versions');
     });
   }
+
+  // Phase 1: enforce version and baseline identity in the database.
+  await assertNoDuplicateIdentities(knex);
+  await createIdentityIndexes(knex);
+}
+
+/**
+ * Rows that would violate the identity indexes added below.
+ *
+ * The service has refused duplicates since NXD-006/NXD-007, but data written
+ * before that could already contain them, and a duplicate baseline label means
+ * the candidate a ValidationContext binds to was ambiguous. Deciding which of
+ * two colliding baselines keeps the label is a records decision, not something
+ * a migration should make: relabelling would rewrite a GxP-relevant identifier
+ * that an external QMS or an existing ValidationContext may reference.
+ *
+ * So this reports and stops. Deployment is blocked until someone resolves the
+ * collision deliberately, which is the correct outcome — the data was already
+ * ambiguous, the constraint only makes that visible.
+ */
+async function assertNoDuplicateIdentities(knex: Knex): Promise<void> {
+  const problems: string[] = [];
+
+  if (await knex.schema.hasTable('product_versions')) {
+    const rows = await knex('product_versions')
+      .select('product_id', 'version_number')
+      .select(knex.raw('count(*) as occurrences'))
+      .groupBy('product_id', 'version_number')
+      .havingRaw('count(*) > 1');
+    for (const row of rows as any[]) {
+      problems.push(
+        `  product_versions: product_id=${row.product_id} ` +
+          `version_number=${row.version_number} (${row.occurrences} rows)`,
+      );
+    }
+  }
+
+  if (await knex.schema.hasTable('product_baselines')) {
+    const rows = await knex('product_baselines')
+      .select('product_version_id')
+      .select(knex.raw('lower(baseline_version) as label'))
+      .select(knex.raw('count(*) as occurrences'))
+      .groupBy('product_version_id', knex.raw('lower(baseline_version)'))
+      .havingRaw('count(*) > 1');
+    for (const row of rows as any[]) {
+      problems.push(
+        `  product_baselines: product_version_id=${row.product_version_id} ` +
+          `baseline_version=${row.label} (${row.occurrences} rows)`,
+      );
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      'Composer migration stopped: the database already contains rows that ' +
+        'would violate the version/baseline identity constraints.\n' +
+        `${problems.join('\n')}\n` +
+        'These rows are ambiguous and must be resolved deliberately — the ' +
+        'migration will not relabel a controlled identifier on your behalf. ' +
+        'Decide which row keeps the label, correct the others, then redeploy.',
+    );
+  }
+}
+
+/**
+ * Unique indexes backing the identity rules the service enforces.
+ *
+ * The baseline index is on `lower(baseline_version)` so the database agrees
+ * with the service, which treats "Rev-A" and "rev-a" as one label. Expression
+ * indexes with `IF NOT EXISTS` are supported by both dialects in use here
+ * (PostgreSQL in production, SQLite in tests), so one statement covers both.
+ *
+ * These close the race the service check cannot: two concurrent creates can
+ * both pass an application-level uniqueness check.
+ */
+async function createIdentityIndexes(knex: Knex): Promise<void> {
+  if (await knex.schema.hasTable('product_versions')) {
+    await knex.raw(
+      'create unique index if not exists product_versions_ordinal_unique ' +
+        'on product_versions (product_id, version_number)',
+    );
+  }
+  if (await knex.schema.hasTable('product_baselines')) {
+    await knex.raw(
+      'create unique index if not exists product_baselines_label_unique ' +
+        'on product_baselines (product_version_id, lower(baseline_version))',
+    );
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {
