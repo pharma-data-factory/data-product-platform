@@ -4,7 +4,8 @@
 Phase 0 — Stabilize and Baseline
 
 ## Current Vertical Slice
-P0-S2 — Make the infrastructure-dependent suites run in CI (**done**).
+P0-S3 — Inventory the hard-coded domain surface in Core (**done**).
+Phase 0 is complete.
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -16,18 +17,29 @@ P0-S2 — Make the infrastructure-dependent suites run in CI (**done**).
 - **P0-S2 — Infrastructure-dependent suites now run in CI.** 62 tests that
   skipped in every CI run now execute. Running them for the first time found a
   real defect. See [`NXD-005`](DECISIONS.md).
+- **P0-S3 — Hard-coded domain surface inventoried.** Seven items recorded in
+  [`HARDCODED_DOMAIN_INVENTORY.md`](HARDCODED_DOMAIN_INVENTORY.md) with their
+  consumers and removal conditions. The five composition lists that Core
+  duplicated from `catalog/compositions/*.yaml` had nothing keeping them in
+  step; they agree today and are now guarded by
+  `packages/backend/src/compositionManifestParity.test.ts`.
+
+**Phase 0 exit criteria are met:** current behaviour documented, baseline test
+state recorded and green, migration risks documented.
 
 ## In Progress
-Nothing in flight. Phase 0's audit and stabilisation objectives are met.
+Nothing in flight.
 
 ## Next
-1. **P0-S3** — Inventory the hard-coded Golden Path composition surface
-   per symbol, as the input to Phase 3.
-2. Propose the smallest Phase 1 vertical slice against the consolidated
-   domain model in `packages/platform-common/src/product.ts`. The strongest
-   candidate is the `DataContract` identity defect recorded below: it is a
-   foundational versioning/identity problem, which is explicitly Phase 1
-   scope, and Phase 4 cannot start until it is resolved.
+Phase 1 — Core Domain Foundation. The proposed first slice is the
+`DataContract` identity defect recorded under "Phase 0 audit" below:
+`DataContract` is keyed to a `productComponentId` and has no independent
+identity, owner or semantic version. Phase 1 exists to "fix foundational
+versioning defects that would undermine later lifecycle behaviour", and Phase
+4 (contracts, dependencies, lineage, impact analysis) cannot begin until a
+contract can be referenced and versioned on its own. Awaiting confirmation
+before starting, since it is the first change to committed domain types rather
+than to tests or CI.
 
 ## Test Status
 Verified on 2026-09-16, running the gate the way CI runs it (`CI=true`,
@@ -38,11 +50,11 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 188 suites, 1399 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 189 suites, 1405 tests, **0 skipped** |
 
-Without the optional infrastructure the same command reports 185 suites /
-1337 tests with 62 skipped, and still exits 0 — that is the intended
-developer-machine behaviour under `NXD-005`. To run everything locally:
+Without the optional infrastructure the same command reports 1343 passed and
+62 skipped, and still exits 0 — that is the intended developer-machine
+behaviour under `NXD-005`. To run everything locally:
 
 ```bash
 docker compose -f docker-compose.test.yml up -d
@@ -89,7 +101,18 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
 - URS/Validation lifecycle integration is incomplete.
 - Formal Validation approval and SoD require consolidation.
 - Data Exchange, Lineage and Analytics concepts are not yet unified.
-- The GxP invariant suites do not execute in CI (see Migration Debt).
+- **Intermittent test flake under parallel load.**
+  `plugins/entitlements-backend/src/router.test.ts` → "does not enable SaaS
+  registration or log the Marketplace token" failed once with an empty error
+  cause during a full run, then passed in three consecutive full runs of 1405
+  tests. Twelve backend test files bind a real TCP socket (`app.listen(0)`)
+  and issue a real `fetch` against it; under a fully parallel run that is a
+  plausible source of intermittent failures, and the empty cause is consistent
+  with a socket/fetch error rather than a failed assertion. Not reproduced on
+  demand, so the diagnosis is unconfirmed. A proper fix means driving the
+  routers in-process instead of over a real socket, which needs `supertest` —
+  an **unapproved dependency**, so it is recorded rather than installed. See
+  Blocked Decisions.
 
 ## Phase 0 audit — discovered reality
 
@@ -157,8 +180,32 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   turn into a hard test failure.
 
 ## Blocked Decisions
-None. No stop condition reached.
+**DEPENDENCY_CHANGE_REQUIRED — `supertest` (test-only).** Not blocking any
+phase; raised because `AGENTS.md` requires approval before installation.
+
+- Package: `supertest` (+ `@types/supertest`), `devDependencies` only
+- Requested version: to be pinned against the repository's existing
+  Express/Node baseline, not "latest"
+- Existing alternative checked: the current pattern is `app.listen(0)` plus a
+  real `fetch`; there is no in-process HTTP test helper in the repository
+- Backstage capability checked: `@backstage/backend-test-utils` provides
+  service mocks and test databases, not in-process Express request driving
+- Reason: twelve backend test files bind real TCP sockets, which is the
+  likeliest cause of the intermittent failure recorded under Known Risks.
+  In-process requests would remove the socket and the port entirely.
+- Expected `package.json` impact: devDependency in the affected backend
+  plugin workspaces
+- Expected `yarn.lock` impact: `supertest` and its transitive tree; no change
+  to any `@backstage/*`, React or Material UI resolution
+- Compatibility evidence: **not yet gathered** — to be produced before any
+  installation, per the dependency-governance gate
+
+Until approved, the flake stays documented and unfixed rather than papered
+over with a retry.
 
 ## Last Commit
-See `git log` on `ms/composer-ai-spec-and-ci-quality-gate`. P0-S1 landed as
-"fix(test): restore a green baseline and stop the jest resolver collision".
+See `git log` on `ms/composer-ai-spec-and-ci-quality-gate`. Phase 0 landed as
+three commits: the transformation memory, "fix(test): restore a green
+baseline and stop the jest resolver collision" (P0-S1), "ci(test): run the GxP
+and persistence suites instead of skipping them" (P0-S2) and the hard-coded
+domain inventory (P0-S3).
