@@ -48,6 +48,43 @@ describe('version and baseline identity constraints', () => {
     await database(table).insert(values);
   }
 
+  /**
+   * Asserts that a write was refused by the database, matching on the message.
+   *
+   * Deliberately not `expect(...).rejects.toThrow()`. better-sqlite3 is a
+   * native module: the binding is loaded once per worker process, and the
+   * `SqliteError` it raises carries the `Error` intrinsic of whichever jest
+   * module realm loaded it first. When another suite in the same worker got
+   * there first, `error instanceof Error` is false inside this file, and
+   * jest's `toThrow` then reports "Received function did not throw" — even
+   * though the constraint fired and the message is right there. That is the
+   * residue of the flake in NXD-011, and it is why this suite passed in
+   * isolation and failed in full runs. Matching the message is realm-blind.
+   * See NXD-016.
+   */
+  async function expectRefusedByDatabase(
+    write: Promise<unknown>,
+    pattern: RegExp,
+  ): Promise<void> {
+    let raised: unknown;
+    let succeeded = false;
+    try {
+      await write;
+      succeeded = true;
+    } catch (error) {
+      raised = error;
+    }
+    if (succeeded) {
+      throw new Error(
+        `Expected the database to refuse this write with ${pattern}, but it ` +
+          `was accepted — the constraint is missing.`,
+      );
+    }
+    expect(String((raised as { message?: unknown })?.message ?? raised)).toMatch(
+      pattern,
+    );
+  }
+
   describe('with a migrated database', () => {
     let db: Knex;
     let service: ComposerService;
@@ -86,7 +123,7 @@ describe('version and baseline identity constraints', () => {
 
       // Bypassing the service is the point: this is what a concurrent create
       // racing the application-level check would produce.
-      await expect(
+      await expectRefusedByDatabase(
         insertRow(db, 'product_versions', {
           id: 'forced-duplicate-ordinal',
           product_id: product.id,
@@ -97,7 +134,8 @@ describe('version and baseline identity constraints', () => {
           created_at: new Date(),
           revision: 1,
         }),
-      ).rejects.toThrow(/unique/i);
+        /unique/i,
+      );
     });
 
     it('rejects a duplicate baseline label differing only in case', async () => {
@@ -116,7 +154,7 @@ describe('version and baseline identity constraints', () => {
       // The service treats Rev-A and rev-a as one label. The index is on
       // lower(baseline_version) so the database agrees rather than quietly
       // permitting what the service forbids.
-      await expect(
+      await expectRefusedByDatabase(
         insertRow(db, 'product_baselines', {
           id: 'forced-duplicate-label',
           product_version_id: version.id,
@@ -127,7 +165,8 @@ describe('version and baseline identity constraints', () => {
           created_at: new Date(),
           revision: 1,
         }),
-      ).rejects.toThrow(/unique/i);
+        /unique/i,
+      );
     });
 
     it('still allows the same label under a different product version', async () => {

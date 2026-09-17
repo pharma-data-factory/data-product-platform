@@ -4,7 +4,7 @@
 Phase 2 — Artifact Registry and Marketplace 2.0
 
 ## Current Vertical Slice
-P2-S1 — Artifact domain model and manifest validation (**done**).
+P2-S3 — Registry API and permissions (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -58,9 +58,13 @@ state recorded and green, migration risks documented.
   `version` was unvalidated free text. Both fixed, no schema change. Contract
   *identity* (name, owner, uniqueness) is deliberately left to Phase 4 rather
   than half-built now. See [`NXD-010`](DECISIONS.md).
-- **Flake introduced in P1-S3 and fixed.** `identityConstraints.test.ts` failed
-  ~60% of full runs while passing in isolation, because a knex QueryBuilder was
-  handed to `expect().rejects`. See [`NXD-011`](DECISIONS.md).
+- **Flake introduced in P1-S3, closed in P2-S3.**
+  `identityConstraints.test.ts` failed ~60% of full runs while passing in
+  isolation. Two separate causes: a knex QueryBuilder handed to
+  `expect().rejects` ([`NXD-011`](DECISIONS.md)), which was real but not what
+  drove the flake, and a native-module realm crossing that made jest misread a
+  genuine `SqliteError` as "did not throw" ([`NXD-016`](DECISIONS.md)). Both
+  fixed — see Test Status.
 
 **Phase 1 exit criteria are met:** core version/baseline/contract identity
 invariants are defined in `platform-common`, enforced in the service, backed by
@@ -73,22 +77,46 @@ database constraints where a key exists, and covered by tests.
   lifecycle reuses the Golden Path states rather than declaring a parallel set
   ([`NXD-012`](DECISIONS.md)); dependencies pin exact versions
   ([`NXD-013`](DECISIONS.md)). No persistence yet — that is P2-S2.
+- **P2-S2 — Persistent registry.** `plugins/artifact-registry-backend` owns
+  `publishers`, `artifacts` and `artifact_versions`. Identity is in the
+  database as well as the service, per [`NXD-009`](DECISIONS.md): unique
+  indexes on `(namespace)`, `(namespace, name)` and `(artifact_id, version)`,
+  plus `lower()` expression indexes wherever the service compares
+  case-insensitively, so `Acme` and `acme` cannot become two publishers.
+  Registration is manifest-driven — the service knows nothing about SAP, MQTT
+  or OEE — and refuses a namespace no publisher owns, a kind change between
+  versions, and dependencies that do not resolve. Every version starts in
+  DRAFT, so registering content can never by itself publish it. Verified on
+  PostgreSQL, not just SQLite.
+- **P2-S3 — Registry API and permissions.** Twelve routes over the Backstage
+  permission framework, and eight permissions tiered across the *existing*
+  roles rather than new Producer/Consumer roles — reviewing sits at DEVELOPER,
+  certifying and publishing at DATA_PRODUCT_OWNER, so no single grant carries
+  a version from draft to released. Review records evidence
+  (`certificationStatus: TESTED`) without moving the lifecycle; certifying
+  refuses to run without it. See [`NXD-014`](DECISIONS.md). Each transition
+  names the one state it may start from and returns 409 otherwise, and the
+  write is guarded on the revision it was checked against, so a concurrent
+  transition loses rather than overwrites — [`NXD-015`](DECISIONS.md).
 
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P2-S2 — Persistent registry.** A backend plugin owning
-   `artifacts`, `artifact_versions` and `publishers`, with namespace ownership.
-   Only three of 21 plugins currently own a database, so this cannot follow the
-   filesystem pattern the rest use.
-2. **P2-S3 — Registry API and Producer/Consumer permissions**
-   (`artifact.read/create/submit/review/certify/publish/deprecate`,
-   `publisher.manage`), on the Backstage permission framework.
-3. **P2-S4 — Legacy Marketplace adapter.** Map the 12 hard-coded items in
+1. **P2-S4 — Legacy Marketplace adapter.** Map the 12 hard-coded items in
    `plugins/marketplace/src/data.ts` (493 lines) onto the registry model and
    prove parity before anything is deleted.
-4. **P2-S5 — Move Marketplace reads to the registry**, behind the adapter.
+2. **P2-S5 — Move Marketplace reads to the registry**, behind the adapter.
+3. **Sweep the blocked-port guard into the other eleven socket-binding test
+   files** ([`NXD-017`](DECISIONS.md)). Small and mechanical — the same guard
+   already in `artifact-registry-backend/src/router.test.ts`. Worth a shared
+   test helper at that point rather than a twelfth copy. Not phase-blocking,
+   but it is a live intermittent-CI source until it is done.
+
+Deferred within Phase 2: **per-namespace permission scoping.** The eight
+registry permissions are platform-wide today, so a DATA_PRODUCT_OWNER may
+certify in any namespace, not only their own. `Publisher.memberGroups` is the
+field a later slice resolves against — see [`NXD-014`](DECISIONS.md).
 
 Carried into Phase 4 rather than done early: **`DataContract` identity**. A
 contract is keyed to a `productComponentId` and has no name, owner or
@@ -97,7 +125,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
-Verified on 2026-09-16, running the gate the way CI runs it (`CI=true`,
+Verified on 2026-09-17, running the gate the way CI runs it (`CI=true`,
 PostgreSQL up, Python toolchain installed):
 
 | Gate | Command | Result |
@@ -105,7 +133,24 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 195 suites, 1501 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 199 suites, 1552 tests, **0 skipped** |
+
+**The identityConstraints flake is closed (2026-09-17).** It was never a
+missing constraint. better-sqlite3 is a native module, so its binding loads
+once per jest *worker* and the `SqliteError` it raises carries the `Error`
+intrinsic of whichever module realm loaded it first; in a later file in the
+same worker `error instanceof Error` is false, and jest renders a non-Error
+rejection value as "Received function did not throw". The insert always
+raised, and the message was always correct — the assertion was what broke.
+Fixed by matching the message instead of the type, see
+[`NXD-016`](DECISIONS.md), which also corrects [`NXD-011`](DECISIONS.md).
+
+The direction of this risk was recorded backwards. It was a false **red**, not
+a false green: a green `yarn test` was never able to hide a missing
+constraint, so no identity guarantee went unverified while this was open.
+
+`--runInBand` makes it deterministic rather than ~2-in-10 (one process, so the
+realm crossing is guaranteed), and is now the repro for this class of bug.
 
 Without the optional infrastructure the same command reports 1343 passed and
 62 skipped, and still exits 0 — that is the intended developer-machine
@@ -149,6 +194,11 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
    passed in isolation and failed in the full run.
 
 ## Known Risks
+- ~~`identityConstraints.test.ts` still fails intermittently under full-run
+  load with no identified mechanism.~~ **Root-caused and fixed 2026-09-17**,
+  see [`NXD-016`](DECISIONS.md) and Test Status. The risk was also stated
+  backwards: it was a false red, not a gate that could go green over a missing
+  constraint.
 - Legacy Marketplace is a static, hard-coded TypeScript array
   (`plugins/marketplace/src/data.ts`), not a registry.
 - Composer/Core contains domain-specific Golden Path logic (OEE, Machine
@@ -156,18 +206,25 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
 - URS/Validation lifecycle integration is incomplete.
 - Formal Validation approval and SoD require consolidation.
 - Data Exchange, Lineage and Analytics concepts are not yet unified.
-- **Intermittent test flake under parallel load.**
-  `plugins/entitlements-backend/src/router.test.ts` → "does not enable SaaS
-  registration or log the Marketplace token" failed once with an empty error
-  cause during a full run, then passed in three consecutive full runs of 1405
-  tests. Twelve backend test files bind a real TCP socket (`app.listen(0)`)
-  and issue a real `fetch` against it; under a fully parallel run that is a
-  plausible source of intermittent failures, and the empty cause is consistent
-  with a socket/fetch error rather than a failed assertion. Not reproduced on
-  demand, so the diagnosis is unconfirmed. A proper fix means driving the
-  routers in-process instead of over a real socket, which needs `supertest` —
-  an **unapproved dependency**, so it is recorded rather than installed. See
-  Blocked Decisions.
+- **Socket test flake — root-caused 2026-09-17, fixed in one of twelve files.**
+  Previously recorded here as an unreproducible failure in
+  `plugins/entitlements-backend/src/router.test.ts` under parallel load. The
+  mechanism is now known and it is not load at all: `fetch` refuses the Fetch
+  standard's **blocked ports** (6000, 6697, 10080, …) before opening a socket,
+  raising `TypeError: fetch failed` with cause `bad port`. Twelve backend test
+  files bind with `app.listen(0)`, and this container's `ip_local_port_range`
+  is `1024 65535` instead of the usual `32768 60999`, so the OS can hand one
+  of those ports straight to a test server. Reproduced directly and on demand.
+  See [`NXD-017`](DECISIONS.md).
+
+  Fixed in `plugins/artifact-registry-backend/src/router.test.ts`, which
+  rebinds when it draws a blocked port. **The other eleven files still carry
+  the bug** — same four-line guard, deliberately left to a follow-up rather
+  than swept into the P2-S3 commit. They are the remaining risk here.
+
+  This also removes the stated justification for the `supertest` dependency
+  request under Blocked Decisions: the flake it was meant to fix has a fix
+  that needs no dependency.
 
 ## Phase 0 audit — discovered reality
 
@@ -239,6 +296,14 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
 2026-09-16 as the dependency gate requires; **not installed**, awaiting a
 decision. Not blocking any phase.
 
+> **Justification withdrawn 2026-09-17.** The "Reason" below — that the real
+> TCP socket is the likeliest cause of the intermittent failure — was wrong.
+> The cause was the Fetch blocked-port list ([`NXD-017`](DECISIONS.md)), fixed
+> with a four-line rebind and no dependency. The evidence below stays on
+> record because it is still accurate about the package, but `supertest`
+> should now be approved on its own merits (in-process routers are faster and
+> need no port at all) or dropped — not adopted as a flake fix.
+
 - Package: `supertest@^7.2.2`, `@types/supertest@^7.2.1` — `devDependencies`
   only, in the backend plugin workspaces that currently bind sockets
 - Existing alternative checked: the current pattern is `app.listen(0)` plus a
@@ -265,8 +330,8 @@ decision. Not blocking any phase.
 - Residual risk: `formidable` (multipart parsing) is new transitive surface in
   a devDependency. It is not reachable from any production bundle
 
-Until approved, the flake stays documented and unfixed rather than papered
-over with a retry.
+Until approved, the sockets stay. That is no longer a cost: the flake is
+fixed at its actual cause rather than papered over with a retry.
 
 **Resolved (2026-09-16) — pre-existing duplicate rows.** Decision: the
 migration fails loudly and remediation is manual. Implemented in P1-S3, see

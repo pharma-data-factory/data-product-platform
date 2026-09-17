@@ -287,6 +287,12 @@ Use this file for durable architecture decisions.
   form is not. Other suites using `expect(builder).rejects` would be worth
   auditing if the symptom reappears elsewhere.
 - Affected components: `plugins/composer-backend/src/identityConstraints.test.ts`.
+- **Superseded in part (2026-09-17).** The builder-vs-Promise point stands and
+  is still the rule. But it was *not* what made this suite flake, and the
+  "four consecutive passes" above were luck, not a fix — the suite went on
+  failing intermittently. The actual cause is a native-module realm crossing,
+  root-caused in NXD-016. Read the decision above as a style rule, not as a
+  closed flake investigation.
 
 ### NXD-012 — Artifacts reuse the Golden Path lifecycle
 - Date: 2026-09-16
@@ -328,3 +334,151 @@ Use this file for durable architecture decisions.
   treats as one ("Upgrade" is a listed consumer action) rather than something
   that happens silently on reinstall.
 - Affected components: `packages/platform-common/src/artifact.ts`.
+
+### NXD-014 — Registry authority is granular permissions, not Producer/Consumer roles
+- Date: 2026-09-17
+- Context: Phase 2 calls for "Producer/Consumer permissions". The obvious
+  reading is two new platform roles. But the platform already has a five-tier
+  role model (VIEWER → DEVELOPER → BUSINESS_CAPABILITY_LEAD →
+  DATA_PRODUCT_OWNER → PLATFORM_ADMIN) whose grants are named permission sets,
+  and nearly everyone is both a producer and a consumer depending on which
+  namespace they are looking at.
+- Decision: no Producer or Consumer role. The registry declares eight
+  permissions — `artifact.read/create/submit/review/certify/publish/deprecate`
+  and `publisher.manage` — and tiers them across the existing roles: reading
+  at VIEWER, registering/submitting/reviewing at DEVELOPER, certifying,
+  publishing and deprecating at DATA_PRODUCT_OWNER, and claiming a namespace
+  at PLATFORM_ADMIN.
+  Reviewing is deliberately *not* a lifecycle transition: it sets
+  `certificationStatus` to TESTED and leaves `lifecycle` at TESTING. Certifying
+  is the act that advances the lifecycle, and it refuses to run unless the
+  review already happened.
+- Alternatives considered: add PRODUCER and CONSUMER roles — rejected, it
+  creates a second, parallel authority model that would have to be reconciled
+  with the tier model at every call site, and "producer" is a relationship to
+  a namespace rather than a property of a person. Grant certify and publish to
+  DEVELOPER for convenience — rejected: it lets the author of a version
+  certify and release it on their own authority, which is the separation of
+  duties the tiering exists to create.
+- Consequences: the split between `artifact.review` (DEVELOPER) and
+  `artifact.certify` (DATA_PRODUCT_OWNER) means no single grant carries a
+  version from draft to released. `publisher.manage` sits above release
+  authority because claiming a namespace decides who is accountable for
+  everything published under it, not merely what it contains. Per-namespace
+  scoping — "this team produces into `acme`" — is not expressed yet; the
+  permissions are platform-wide today and `Publisher.memberGroups` is the
+  field a later slice would resolve against.
+- Affected components: `packages/platform-common/src/permissions.ts`,
+  `packages/platform-common/src/policy.ts`,
+  `plugins/artifact-registry-backend/src/router.ts`.
+
+### NXD-015 — Lifecycle transitions are guarded by revision, not by a lock
+- Date: 2026-09-17
+- Context: every transition reads the version, checks the precondition
+  ("publishing requires CERTIFIED") and writes, in three statements. Between
+  the read and the write another caller can move the same row, so the
+  precondition check is advisory unless something binds it to the write. This
+  is the same gap NXD-009 closed for identity, on the mutation path.
+- Decision: the update is guarded on the revision that was read
+  (`where id = ? and revision = ?`), bumps it, and the service raises
+  `ConflictError` when it matches no row. This is the optimistic-concurrency
+  pattern `urs-composer-backend/src/postgres-repository.ts` already uses.
+- Alternatives considered: wrap read-check-write in a transaction with
+  `select ... for update` — correct, but pessimistic locking is not used
+  anywhere in the repository today and `for update` has no SQLite equivalent,
+  so the test suite would stop exercising the same code as production. Leave
+  it unguarded because the transitions are nearly idempotent — rejected: the
+  `revision` column exists precisely to make a lost update detectable, and
+  writing it without checking it is worse than not having it.
+- Consequences: a losing caller gets a 409 telling it to re-read, rather than
+  silently overwriting. The guard is exercised by a test that races two
+  submissions of the same version.
+- Affected components: `plugins/artifact-registry-backend/src/repository.ts`,
+  `plugins/artifact-registry-backend/src/service.ts`.
+
+### NXD-016 — Assert database refusals on the message, not with `.rejects.toThrow()`
+- Date: 2026-09-17
+- Context: the flake NXD-011 was opened for never closed. `identityConstraints.test.ts`
+  kept failing in roughly 2 of 10 full composer-backend runs with "Received
+  function did not throw", while passing every run in isolation. Instrumenting
+  the catch showed the correlation exactly: every failing round logged
+  `isErrorInstance=false`, every passing round `isErrorInstance=true` — always
+  the same `SqliteError`, always with a correct UNIQUE message. The constraint
+  fired every single time; the assertion was what failed.
+  better-sqlite3 is a native module, so its binding is loaded once per jest
+  *worker process* and the `SqliteError` it raises carries the `Error`
+  intrinsic of whichever jest module realm loaded it first. When another suite
+  in the same worker got there first, `error instanceof Error` is false in the
+  later file, and jest reports a non-Error rejection value as "Received
+  function did not throw" (verified against a scratch test; a resolved promise
+  instead says "Received promise resolved instead of rejected"). That single
+  misleading message is what sent NXD-011 after the thenable.
+- Decision: for errors raised by a *native* driver, assert on the message
+  rather than the type. A local `expectRefusedByDatabase(write, pattern)`
+  helper awaits the write, fails loudly with a written-out explanation if the
+  write was *accepted* (the case that actually matters — a missing
+  constraint), and otherwise matches
+  `String((raised as {message?: unknown})?.message ?? raised)` against the
+  pattern. Matching the message is realm-blind.
+- Alternatives considered: `expect.assertions()` plus a manual try/catch in
+  every test (same thing, repeated at each call site); forcing jest to one
+  worker (`--runInBand` repo-wide costs far more than the bug); a custom jest
+  matcher or `serializer`/`snapshotResolver` shim (more machinery than a
+  nine-line helper); leaving `.rejects.toThrow()` and retrying the suite
+  (hides a red that was telling the truth about *something*). Pure-JS drivers
+  like `pg` are re-instantiated per test file, so their errors are same-realm
+  and `.rejects.toThrow()` stays correct there — this is deliberately not a
+  repo-wide ban.
+- Consequences: the risk this flake represented was a false **red**, not a
+  false green. A green `yarn test` was never covering up a missing constraint,
+  so no identity guarantee was ever unverified — the correction to STATUS's
+  Known Risks matters, because it had the direction backwards.
+  `--runInBand` turns the flake from ~2-in-10 into deterministic, which is now
+  the repro: every file shares one process, so whichever suite loads the
+  binding first owns the intrinsic. Verified by reverting one assertion under
+  `--runInBand` and watching "Received function did not throw" come back.
+  The helper is duplicated in two packages rather than shared: the only
+  plausible home, `platform-common`, is a runtime export surface and a jest
+  helper does not belong in it. A test-utils workspace is worth creating if a
+  third package needs it.
+  `jest/expect-expect` cannot see through the helper, so both packages declare
+  it in `assertFunctionNames` rather than carrying per-test disables.
+- Affected components:
+  `plugins/composer-backend/src/identityConstraints.test.ts`,
+  `plugins/artifact-registry-backend/src/service.test.ts`,
+  `plugins/composer-backend/.eslintrc.js`,
+  `plugins/artifact-registry-backend/.eslintrc.js`.
+
+### NXD-017 — Test servers must rebind off the Fetch blocked-port list
+- Date: 2026-09-17
+- Context: while stressing NXD-016, `artifact-registry-backend` failed about 1
+  run in 15 — but in `router.test.ts`, on a different test each time, with
+  `TypeError: fetch failed` and cause `bad port`. This is the flake STATUS
+  recorded under Known Risks as unexplained and "not reproduced on demand"
+  (seen once in `entitlements-backend/src/router.test.ts` with an empty error
+  cause). It is now root-caused. `bad port` is not a network error: it is the
+  Fetch standard's blocked-port list, which `fetch` refuses *before* opening a
+  socket. Twelve backend test files bind with `app.listen(0)`, and this
+  container's `ip_local_port_range` is `1024 65535` rather than the usual
+  `32768 60999`, so the OS can hand back 6000, 6697, 10080 and friends.
+  Confirmed directly: a server on port 6000 plus `fetch` reproduces
+  `TypeError: fetch failed` / cause `bad port` every time.
+- Decision: the `listen` helper checks the port it was assigned against the
+  blocked list and rebinds if it drew one, bounded at 20 attempts. Only ports
+  ≥1024 are listed, because nothing below that is reachable from an
+  unprivileged `listen(0)`.
+- Alternatives considered: `supertest`, which is what the Blocked Decisions
+  entry proposed and which would remove sockets entirely — no longer needed
+  for *this* bug, and it should be approved on its own merits rather than as a
+  flake fix for a flake that is now fixed. Widening the container's
+  `ip_local_port_range` — fixes one machine, not CI or anyone else's. Pinning
+  a fixed port per suite — reintroduces collisions under parallel runs.
+  Retrying the `fetch` — retries a request that is deterministically refused.
+- Consequences: 20 consecutive `--runInBand` runs pass, against 2 failures in
+  the ~40 runs before. The other eleven socket-binding test files have the
+  same latent bug and are **not** fixed here; that is a follow-up, and the
+  remedy is this same four-line guard. Because the diagnosis was wrong before
+  (a real socket under parallel load), the Blocked Decisions entry for
+  `supertest` loses its stated justification.
+- Affected components: `plugins/artifact-registry-backend/src/router.test.ts`;
+  latent in eleven other backend `router.test.ts` files.

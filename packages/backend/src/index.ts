@@ -47,6 +47,7 @@ backend.add(import('@internal/plugin-nexora-backend'));
 backend.add(import('@internal/plugin-validation-expert-backend'));
 backend.add(import('@internal/plugin-urs-composer-backend'));
 backend.add(import('@internal/plugin-composer-backend'));
+backend.add(import('@internal/plugin-artifact-registry-backend'));
 backend.add(import('@internal/plugin-directory-backend'));
 backend.add(import('@internal/plugin-model-company-backend'));
 backend.add(import('@internal/plugin-users-backend'));

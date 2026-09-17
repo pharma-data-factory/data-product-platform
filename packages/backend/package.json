@@ -49,6 +49,7 @@
     "@internal/data-product-consumption": "workspace:^",
     "@internal/platform-common": "workspace:^",
     "@internal/plugin-aas-backend": "workspace:^",
+    "@internal/plugin-artifact-registry-backend": "workspace:^",
     "@internal/plugin-composer-backend": "workspace:^",
     "@internal/plugin-data-products-backend": "workspace:^",
     "@internal/plugin-directory-backend": "workspace:^",

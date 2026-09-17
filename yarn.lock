@@ -5986,6 +5986,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@internal/plugin-artifact-registry-backend@workspace:^, @internal/plugin-artifact-registry-backend@workspace:plugins/artifact-registry-backend":
+  version: 0.0.0-use.local
+  resolution: "@internal/plugin-artifact-registry-backend@workspace:plugins/artifact-registry-backend"
+  dependencies:
+    "@backstage/backend-plugin-api": "npm:^1.9.3"
+    "@backstage/cli": "npm:^0.36.4"
+    "@backstage/errors": "npm:^1.3.1"
+    "@backstage/plugin-permission-common": "npm:^0.9.9"
+    "@internal/platform-common": "workspace:^"
+    "@types/express": "npm:^4.17.21"
+    express: "npm:^4.22.0"
+    express-promise-router: "npm:^4.1.1"
+    jest: "npm:~30.2.0"
+    knex: "npm:^3.0.0"
+  languageName: unknown
+  linkType: soft
+
 "@internal/plugin-composer-backend@workspace:^, @internal/plugin-composer-backend@workspace:plugins/composer-backend":
   version: 0.0.0-use.local
   resolution: "@internal/plugin-composer-backend@workspace:plugins/composer-backend"
@@ -5995,6 +6012,7 @@ __metadata:
     "@backstage/config": "npm:^1.3.8"
     "@backstage/errors": "npm:^1.3.1"
     "@backstage/plugin-permission-common": "npm:^0.9.9"
+    "@backstage/plugin-scaffolder-node": "npm:^0.13.5"
     "@internal/platform-common": "workspace:^"
     "@types/express": "npm:^4.17.21"
     express: "npm:^4.22.0"
@@ -14165,6 +14183,7 @@ __metadata:
     "@internal/data-product-consumption": "workspace:^"
     "@internal/platform-common": "workspace:^"
     "@internal/plugin-aas-backend": "workspace:^"
+    "@internal/plugin-artifact-registry-backend": "workspace:^"
     "@internal/plugin-composer-backend": "workspace:^"
     "@internal/plugin-data-products-backend": "workspace:^"
     "@internal/plugin-directory-backend": "workspace:^"
