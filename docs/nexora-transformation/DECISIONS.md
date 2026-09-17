@@ -482,3 +482,61 @@ Use this file for durable architecture decisions.
   `supertest` loses its stated justification.
 - Affected components: `plugins/artifact-registry-backend/src/router.test.ts`;
   latent in eleven other backend `router.test.ts` files.
+
+### NXD-018 — The Marketplace category travels as manifest metadata, not as a kind
+- Date: 2026-09-17
+- Context: the legacy Marketplace sorts its offerings into five display
+  categories (Templates, Connectors, Data Products, Platform Components,
+  Solutions). The registry has seven Artifact kinds. The two taxonomies are
+  neither the same size nor the same idea: a kind says what an Artifact *is*
+  and is what every dependency on it means; a category says which shelf it
+  sits on. Mapping the Marketplace onto the registry needs an answer for the
+  offerings whose category has no kind, and for reading the category back.
+- Decision: category → kind is a one-way derivation at registration
+  (`MARKETPLACE_CATEGORY_KINDS`), and the category itself is stored verbatim
+  under `spec.marketplace` in the manifest. Reading back uses the stored
+  category rather than inverting the table.
+- Alternatives considered: make the category a first-class field on `Artifact`
+  — rejected, because it puts a Marketplace presentation concern into the
+  domain model every other consumer also carries, and Phase 6's consumer
+  experience is likely to want a different grouping. Invert the kind table on
+  read — rejected, because the mapping is not injective in principle: two
+  categories may legitimately land on one kind, and the inverse would then
+  silently pick one. Add a `SOLUTION` kind so the table is total — rejected as
+  inventing product semantics; no offering uses that category today, and what
+  a Solution is in registry terms is a product question, not a mapping detail.
+- Consequences: an offering whose category has no kind is *reported* by
+  `validateMarketplaceOffering` and produces no manifest, rather than being
+  filed under a near-enough kind. `Solutions` is that case today and the
+  parity suite names it as a known, deliberate gap; the first offering to use
+  it turns the gap into a red test rather than into silently mis-filed data.
+  The round trip is checkable, and it is checked for all twelve offerings.
+- Affected components: `packages/platform-common/src/marketplace-artifact.ts`,
+  `plugins/marketplace/src/registryParity.test.ts`.
+
+### NXD-019 — A manifest may not declare its own certification
+- Date: 2026-09-17
+- Context: the legacy offerings carry `certificationStatus`, and three of the
+  twelve claim CERTIFIED. The obvious mapping is onto
+  `ArtifactVersion.certificationStatus`, so the Marketplace shows the same
+  badge after the switch as before it. But P2-S3 deliberately made
+  registration yield DRAFT with no certification status, and made certifying
+  refuse to run without a recorded review ([`NXD-014`](DECISIONS.md)).
+- Decision: the legacy value travels as Marketplace metadata under
+  `spec.marketplace.certificationStatus` — a record of what the old UI
+  displayed — and nothing in a manifest may set the registry's own
+  certification or lifecycle. A test asserts the manifest carries neither.
+- Alternatives considered: map it onto the ArtifactVersion at registration —
+  rejected, because it lets the artifact being reviewed declare the outcome of
+  its own review, which is the separation of duties the whole lifecycle
+  exists to enforce; a GxP platform cannot have a certification whose only
+  provenance is that someone typed it into the thing being certified. Drop the
+  field — rejected, because then parity is not parity: the Marketplace would
+  lose a badge it shows today with no decision having been taken about it.
+- Consequences: the legacy claim and the registry's own status are two
+  distinct facts, and the read-switch slice has to decide which one the
+  Marketplace displays. That is the honest state of affairs — the twelve
+  offerings have never been through this registry's review — and it is better
+  surfaced as a decision than papered over by a mapping.
+- Affected components: `packages/platform-common/src/marketplace-artifact.ts`,
+  `plugins/marketplace/src/registryParity.test.ts`.

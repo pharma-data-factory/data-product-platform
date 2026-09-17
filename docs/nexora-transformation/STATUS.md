@@ -4,7 +4,7 @@
 Phase 2 — Artifact Registry and Marketplace 2.0
 
 ## Current Vertical Slice
-P2-S3 — Registry API and permissions (**done**).
+P2-S4 — Legacy Marketplace adapter (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -98,16 +98,37 @@ database constraints where a key exists, and covered by tests.
   names the one state it may start from and returns 409 otherwise, and the
   write is guarded on the revision it was checked against, so a concurrent
   transition loses rather than overwrites — [`NXD-015`](DECISIONS.md).
+- **P2-S4 — Legacy Marketplace adapter.** All 12 offerings in
+  `plugins/marketplace/src/data.ts` now map onto the registry model and come
+  back unchanged. The adapter is framework-independent in
+  `packages/platform-common/src/marketplace-artifact.ts` and names no domain
+  capability — the offerings keep SAP, MQTT and OEE to themselves. Parity is a
+  test over the real array, not a claim: 55 assertions across mappability,
+  manifest validity, round trip, kind derivation, coordinate uniqueness.
+  Two decisions came out of it. The display category is stored in the manifest
+  rather than inverted back out of the Artifact kind
+  ([`NXD-018`](DECISIONS.md)), and a manifest may not declare its own
+  certification ([`NXD-019`](DECISIONS.md)). Nothing deleted, nothing seeded,
+  no schema change — the array is still what the UI reads.
 
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P2-S4 — Legacy Marketplace adapter.** Map the 12 hard-coded items in
-   `plugins/marketplace/src/data.ts` (493 lines) onto the registry model and
-   prove parity before anything is deleted.
-2. **P2-S5 — Move Marketplace reads to the registry**, behind the adapter.
-3. **Sweep the blocked-port guard into the other eleven socket-binding test
+1. **P2-S5 — Move Marketplace reads to the registry**, behind the adapter.
+   Two things this slice has to decide, both surfaced by P2-S4:
+   - *Where the manifests come from.* The adapter converts offerings; it does
+     not say whether the 12 live as `nexora.yaml` files on disk (the target
+     architecture — a capability is a manifest, not a branch) or are seeded
+     from the array at startup. Files on disk are the direction, but that puts
+     12 YAML files in the repo that must stay in step with the array until the
+     array is deleted — the same shape as
+     `compositionManifestParity.test.ts`.
+   - *Which certification the UI shows.* The legacy claim and the registry's
+     own status are now two distinct facts and they disagree: three offerings
+     display CERTIFIED, and none of the 12 has been through this registry's
+     review. See [`NXD-019`](DECISIONS.md).
+2. **Sweep the blocked-port guard into the other eleven socket-binding test
    files** ([`NXD-017`](DECISIONS.md)). Small and mechanical — the same guard
    already in `artifact-registry-backend/src/router.test.ts`. Worth a shared
    test helper at that point rather than a twelfth copy. Not phase-blocking,
@@ -133,7 +154,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 199 suites, 1552 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 201 suites, 1633 tests, **0 skipped** |
 
 **The identityConstraints flake is closed (2026-09-17).** It was never a
 missing constraint. better-sqlite3 is a native module, so its binding loads
@@ -152,9 +173,12 @@ constraint, so no identity guarantee went unverified while this was open.
 `--runInBand` makes it deterministic rather than ~2-in-10 (one process, so the
 realm crossing is guaranteed), and is now the repro for this class of bug.
 
-Without the optional infrastructure the same command reports 1343 passed and
-62 skipped, and still exits 0 — that is the intended developer-machine
-behaviour under `NXD-005`. To run everything locally:
+Without the optional infrastructure the same 62 infrastructure-dependent tests
+skip and the command still exits 0 — that is the intended developer-machine
+behaviour under `NXD-005`. (The absolute pass count that used to stand here
+was measured before P2-S4 added 81 tests and has been dropped rather than
+adjusted by arithmetic; only the skip count was ever the point.) To run
+everything locally:
 
 ```bash
 docker compose -f docker-compose.test.yml up -d
@@ -200,7 +224,10 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
   backwards: it was a false red, not a gate that could go green over a missing
   constraint.
 - Legacy Marketplace is a static, hard-coded TypeScript array
-  (`plugins/marketplace/src/data.ts`), not a registry.
+  (`plugins/marketplace/src/data.ts`), not a registry. **Still true after
+  P2-S4** — the array is what the UI reads. What changed is that every entry
+  in it is now provably representable in the registry, so P2-S5 can switch the
+  read without discovering the mapping mid-flight.
 - Composer/Core contains domain-specific Golden Path logic (OEE, Machine
   State) inside `packages/platform-common`.
 - URS/Validation lifecycle integration is incomplete.
@@ -286,7 +313,10 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
 - `plugins/validation-expert-backend` imports another workspace's private
   source (`@internal/plugin-urs-composer-backend/src/__testUtils__/...`),
   flagged by `guard:platform` as a cross-plugin boundary warning.
-- Legacy Marketplace data must stay until registry parity exists (Phase 2).
+- Legacy Marketplace data must stay until the Marketplace reads the registry
+  (P2-S5). Model parity is proven as of P2-S4
+  (`plugins/marketplace/src/registryParity.test.ts`); nothing yet *serves* the
+  offerings from the registry, so deleting the array now would empty the UI.
 - `packages/data-product-sdk` has no TypeScript sources; it is a Python
   package inside a Yarn workspace, which is why a missing interpreter could
   turn into a hard test failure.

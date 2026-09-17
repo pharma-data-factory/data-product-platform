@@ -593,6 +593,22 @@ export type {
 } from './artifact';
 
 export {
+  MARKETPLACE_CATEGORY_KINDS,
+  MARKETPLACE_OFFERING_STATUSES,
+  MARKETPLACE_SPEC_KEY,
+  marketplaceNamespaceFor,
+  marketplaceOfferingToManifest,
+  marketplaceOfferingView,
+  marketplaceViewOfManifest,
+  validateMarketplaceOffering,
+} from './marketplace-artifact';
+export type {
+  MarketplaceOffering,
+  MarketplaceOfferingStatus,
+  MarketplaceOfferingView,
+} from './marketplace-artifact';
+
+export {
   PRODUCT_TYPES,
   PRODUCT_LIFECYCLES,
   PRODUCT_STATUSES,
