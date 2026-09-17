@@ -599,3 +599,61 @@ Use this file for durable architecture decisions.
 - Affected components:
   `plugins/artifact-registry-backend/src/manifestLoader.ts`;
   duplicate of `plugins/model-company-backend/src/factory.ts`.
+
+### NXD-022 — The Marketplace reads the registry over HTTP, with the array as fallback
+- Date: 2026-09-17
+- Context: the registry holds the twelve offerings as of P2-S5a but nothing
+  reads them. The Marketplace is a frontend plugin; the registry is a backend
+  one behind `artifact.read`.
+- Decision: a read-only client in the Marketplace calls
+  `GET /artifacts?includeVersions=true` and converts the embedded manifests
+  back into offerings through `marketplaceViewOfManifest`. `loadOfferings`
+  never rejects: a registry that fails, or answers with nothing renderable,
+  falls back to `marketplaceItems` and logs why. The array stays.
+- Alternatives considered: read the registry's tables directly — rejected, the
+  permissioned API is the boundary the registry was given one for, and a
+  private path for the first consumer is a private path for all of them. Cut
+  over with no fallback — rejected; the migration architecture warns against
+  exactly the switch that cannot be undone, and an empty Marketplace on a
+  working installation is a worse failure than twelve cards from an array.
+  Expose a Marketplace-shaped endpoint on the registry — rejected, it puts a
+  consumer's presentation concern inside the registry.
+- `includeVersions` is opt-in on the existing listing rather than a new route:
+  a caller needing every manifest would otherwise turn one catalogue page into
+  N+1 round trips, and a caller needing only the list should not pay for every
+  manifest. It is behind the same `artifact.read` permission, tested
+  explicitly, because the expanded shape carries more and must not be a way
+  around the gate the plain listing is behind.
+- Consequences: the Marketplace has a real consumer relationship with the
+  registry, and the fallback means the read path can be wrong without being
+  catastrophic — which is also its risk, so the fallback warns loudly in the
+  console. Unchanged for the user: same twelve cards, same order, same badges.
+- Affected components: `plugins/marketplace/src/artifactRegistryApi.ts`,
+  `plugins/marketplace/src/offeringSource.ts`,
+  `plugins/marketplace/src/components/`,
+  `plugins/artifact-registry-backend/src/router.ts`,
+  `packages/platform-common/src/marketplace-artifact.ts`.
+
+### NXD-023 — Card order is preserved from the array, and is not an Artifact property
+- Date: 2026-09-17
+- Context: the registry returns artifacts ordered by name. Switching the
+  source therefore re-sorted the catalogue alphabetically. Nothing in the
+  tests caught it — order was not asserted — and it was visible immediately on
+  screen the first time the switch ran against the real app.
+- Decision: `offeringsFromRegistryResponse` sorts by each offering's position
+  in `marketplaceItems`, with anything the array never had placed after it in
+  name order. The position is derived from the array rather than restated, so
+  it is not another copy of the twelve.
+- Alternatives considered: accept the alphabetical order — rejected, order is
+  visible and parity means not changing what the user sees while the switch is
+  being proven; being strict about the certification badge and loose about
+  ordering would not be a consistent reading of the same rule. Add a display
+  order to the manifest — rejected, an Artifact's identity should not carry a
+  Marketplace shelf position, and inventing one would mean choosing a curation
+  on the platform's behalf.
+- Consequences: the UI is unchanged today. What is preserved, though, is the
+  order the offerings were *added over time*, not a designed one — so this is
+  fidelity to an accident. Whether the Marketplace wants a deliberate order,
+  and where it would live, is a question for after the array is deleted; this
+  function is what gets replaced or removed then.
+- Affected components: `plugins/marketplace/src/offeringSource.ts`.

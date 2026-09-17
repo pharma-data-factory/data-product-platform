@@ -213,11 +213,16 @@ export async function createRouter(
         if (kind !== undefined && !isArtifactKind(kind)) {
           throw new InputError(`Unknown artifact kind "${kind}"`);
         }
+        const filter = {
+          kind,
+          namespace: req.query.namespace as string | undefined,
+        };
+        // Opt-in rather than always embedded: a caller that only needs the
+        // artifact list should not pay for every version's manifest.
         res.json(
-          await service.listArtifacts({
-            kind,
-            namespace: req.query.namespace as string | undefined,
-          }),
+          req.query.includeVersions === 'true'
+            ? await service.listArtifactsWithVersions(filter)
+            : await service.listArtifacts(filter),
         );
       } catch (err) {
         respondError(res, logger, err);

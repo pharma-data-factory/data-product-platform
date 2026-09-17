@@ -224,6 +224,29 @@ export class ArtifactRegistryService {
     return this.repository.listArtifacts(filter);
   }
 
+  /**
+   * Artifacts with their versions embedded.
+   *
+   * A consumer that needs the manifest of every artifact — the Marketplace is
+   * the first — would otherwise list the artifacts and then fetch versions one
+   * coordinate at a time, turning a catalogue page into N+1 round trips over
+   * HTTP. The loop is still per-artifact, but in-process against the database
+   * rather than across the network; if the registry grows to where that
+   * matters, the fix is one join in the repository, not a change here.
+   */
+  async listArtifactsWithVersions(filter?: {
+    kind?: Artifact['kind'];
+    namespace?: string;
+  }): Promise<(Artifact & { versions: ArtifactVersion[] })[]> {
+    const artifacts = await this.repository.listArtifacts(filter);
+    return Promise.all(
+      artifacts.map(async artifact => ({
+        ...artifact,
+        versions: await this.repository.listArtifactVersions(artifact.id),
+      })),
+    );
+  }
+
   async getArtifactByCoordinate(
     namespace: string,
     name: string,

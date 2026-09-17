@@ -34,7 +34,7 @@ import {
   type ArtifactManifest,
 } from './artifact';
 import { GOLDEN_PATH_CERTIFICATION_STATUSES } from './releases';
-import { validateVersionLabel } from './product';
+import { parseVersionLabel, validateVersionLabel } from './product';
 
 // ============================================================================
 // CATEGORY → KIND
@@ -387,6 +387,89 @@ export function marketplaceViewOfManifest(
       ? {}
       : { contractApiRef: optional('contractApiRef') }),
   };
+}
+
+// ============================================================================
+// READING THE REGISTRY
+// ============================================================================
+
+/** The shape the registry serves when versions are embedded. */
+export interface RegistryArtifactWithVersions {
+  namespace: string;
+  name: string;
+  versions: {
+    version: string;
+    lifecycle: string;
+    manifest?: unknown;
+  }[];
+}
+
+/**
+ * The version of an Artifact a consumer should be shown.
+ *
+ * A RELEASED version wins, because that is what "available" means to someone
+ * choosing something to build on. Falling back to the highest version when
+ * none is released is what lets a registry still filling up be readable at
+ * all — and today that fallback is the only branch that runs, because nothing
+ * has been through review and certification yet. That is the honest state of
+ * the registry, not a gap in this function.
+ */
+export function representativeVersion<
+  T extends { version: string; lifecycle: string },
+>(versions: readonly T[]): T | undefined {
+  if (versions.length === 0) {
+    return undefined;
+  }
+  const released = versions.filter(v => v.lifecycle === 'RELEASED');
+  return highestVersion(released.length > 0 ? released : versions);
+}
+
+function highestVersion<T extends { version: string }>(
+  versions: readonly T[],
+): T {
+  return versions.reduce((best, candidate) =>
+    compareVersionLabels(candidate.version, best.version) > 0 ? candidate : best,
+  );
+}
+
+/** Orders two version labels; unparseable labels sort below parseable ones. */
+function compareVersionLabels(left: string, right: string): number {
+  const a = parseVersionLabel(left);
+  const b = parseVersionLabel(right);
+  if (!a || !b) {
+    return (a ? 1 : 0) - (b ? 1 : 0);
+  }
+  return (
+    a.major - b.major ||
+    a.minor - b.minor ||
+    (a.patch ?? 0) - (b.patch ?? 0)
+  );
+}
+
+/**
+ * The Marketplace offerings a registry listing describes.
+ *
+ * Artifacts the Marketplace cannot render — no versions, no manifest, or a
+ * manifest carrying no Marketplace metadata — are dropped rather than shown
+ * half-populated. An Artifact registered by some other route is not
+ * necessarily a Marketplace offering, and inventing the missing fields would
+ * put a card on the page that nothing stands behind.
+ */
+export function marketplaceOfferingsFromRegistry(
+  artifacts: readonly RegistryArtifactWithVersions[],
+): MarketplaceOfferingView[] {
+  const offerings: MarketplaceOfferingView[] = [];
+  for (const artifact of artifacts) {
+    const version = representativeVersion(artifact.versions ?? []);
+    if (!version?.manifest) {
+      continue;
+    }
+    const view = marketplaceViewOfManifest(version.manifest as ArtifactManifest);
+    if (view) {
+      offerings.push(view);
+    }
+  }
+  return offerings;
 }
 
 /** The stored fields of an offering, with the computed ones dropped. */

@@ -37,8 +37,10 @@ import {
   filterChipSx,
   outlineButtonSx,
 } from '@internal/plugin-nexora-common';
+import { artifactRegistryApiRef } from '../artifactRegistryApi';
 import { marketplaceCatalogSources } from '../catalog';
 import { entitlementApiRef } from '../entitlementApi';
+import { loadOfferings } from '../offeringSource';
 import {
   MARKETPLACE_CATEGORIES,
   MarketplaceCategory,
@@ -91,6 +93,7 @@ export function MarketplacePage() {
   const navigate = useNavigate();
   const catalogApi = useApi(catalogApiRef);
   const entitlementApi = useApi(entitlementApiRef);
+  const registryApi = useApi(artifactRegistryApiRef);
   const { role } = usePlatformRole();
   const isAdmin = canAdministerPlatform(role);
   const [query, setQuery] = useState('');
@@ -106,10 +109,23 @@ export function MarketplacePage() {
         filter: { kind: ['Component', 'API', 'Template'] },
       }),
       entitlementApi.getProducts().catch(() => undefined),
+      // The registry is the offering source; `loadOfferings` falls back to the
+      // legacy array on its own rather than rejecting, so a registry that is
+      // still starting up cannot empty the catalogue.
+      loadOfferings(registryApi),
     ])
-      .then(([response, productsSnapshot]) => {
+      .then(([response, productsSnapshot, offerings]) => {
         if (!active) {
           return;
+        }
+        if (offerings.source === 'legacy') {
+          // Visible to a developer, invisible to the user: the twelve cards
+          // are the same either way, and a fallback nobody notices is how a
+          // broken read path survives a release.
+          // eslint-disable-next-line no-console
+          console.warn(
+            `Marketplace is showing legacy offerings: ${offerings.reason}`,
+          );
         }
         const { products, apis, templates } = marketplaceCatalogSources(
           response.items,
@@ -120,7 +136,7 @@ export function MarketplacePage() {
             .map(product => product.productId) ?? undefined;
         setItems(
           enrichMarketplaceItems(
-            marketplaceItems,
+            offerings.items,
             products,
             apis,
             templates,
@@ -154,7 +170,7 @@ export function MarketplacePage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, entitlementApi]);
+  }, [catalogApi, entitlementApi, registryApi]);
 
   const visible = useMemo(
     () => filterMarketplaceItems(items, query, category),

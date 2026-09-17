@@ -370,6 +370,49 @@ describe('Artifact Registry router', () => {
       const bogus = await request('/artifacts?kind=NOT_A_KIND');
       expect(bogus.status).toBe(400);
     });
+
+    it('omits versions unless the caller asks for them', async () => {
+      await seedVersion();
+
+      const response = await request('/artifacts');
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as Record<string, unknown>[];
+      expect(body).toHaveLength(1);
+      expect(body[0]).not.toHaveProperty('versions');
+    });
+
+    it('embeds versions and manifests on request', async () => {
+      // A consumer needing every manifest — the Marketplace is the first —
+      // would otherwise turn one catalogue page into N+1 round trips.
+      await seedVersion();
+      await service.registerArtifactVersion(manifest('1.1'), actor);
+
+      const response = await request('/artifacts?includeVersions=true');
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        name: string;
+        versions: { version: string; lifecycle: string; manifest?: unknown }[];
+      }[];
+      expect(body).toHaveLength(1);
+      expect(body[0].name).toBe('sap-odata');
+      expect(body[0].versions.map(v => v.version)).toEqual(['1.0', '1.1']);
+      expect(body[0].versions.every(v => v.lifecycle === 'DRAFT')).toBe(true);
+      expect(body[0].versions[0].manifest).toBeDefined();
+    });
+
+    it('still requires artifact.read to embed versions', async () => {
+      // The expanded shape carries every manifest, so it must not be a way
+      // around the permission the plain listing is behind.
+      await seedVersion();
+      decision = AuthorizeResult.DENY;
+
+      const response = await request('/artifacts?includeVersions=true');
+
+      expect(response.status).toBe(403);
+      expect(checked).toContain('artifact.read');
+    });
   });
 
   describe('registration errors', () => {

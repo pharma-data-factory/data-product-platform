@@ -4,7 +4,7 @@
 Phase 2 — Artifact Registry and Marketplace 2.0
 
 ## Current Vertical Slice
-P2-S5a — Manifests on disk, loaded into the registry (**done**).
+P2-S5b — The Marketplace reads the registry (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -135,29 +135,53 @@ database constraints where a key exists, and covered by tests.
   by walking up — [`NXD-021`](DECISIONS.md), which also records that this is
   now the second copy of that logic in the repository.
 
+- **P2-S5b — The Marketplace reads the registry.** The twelve cards on the
+  Marketplace page now come from `GET /artifacts?includeVersions=true`, not
+  from the array. A read-only client in the Marketplace goes over the
+  permissioned API rather than into the registry's tables
+  ([`NXD-022`](DECISIONS.md)); `loadOfferings` never rejects, so a registry
+  that is failing or empty falls back to `marketplaceItems` and says why in
+  the console. The array is still there — this is the switch, not the
+  retirement.
+
+  Verified live: one request to the registry per page load, 12 rows, no
+  fallback warning, detail pages resolve from the same source.
+
+  **Running it caught a parity break the tests did not.** The registry returns
+  artifacts by name, so the catalogue silently re-sorted itself
+  alphabetically. Order is visible, so that is a behaviour change, and the
+  migration rule does not allow one while the switch is being proven. Fixed by
+  sorting on each offering's position in the array — derived, not restated —
+  and the assertion is now on the exact list rather than the set
+  ([`NXD-023`](DECISIONS.md)). Worth noting what the fidelity is to: the
+  array's order is the order things were added over time, not a designed one.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P2-S5b — Move Marketplace reads to the registry.** The content is there;
-   this is the read switch and the array's retirement. One decision it cannot
-   avoid: *which certification the UI shows.* The legacy claim and the
-   registry's own status are two distinct facts and they disagree — three
-   offerings display CERTIFIED, and none of the 12 has been through this
-   registry's review, because registration deliberately cannot grant it. See
-   [`NXD-019`](DECISIONS.md). Showing the legacy badge from registry-sourced
-   data would launder an unearned claim through a system built to prevent
-   exactly that; showing the real status changes what users see. That is a
-   product call, not a technical one.
-
-   Note also that the Marketplace is a frontend plugin and the registry is
-   behind `artifact.read`, so this slice needs a client against the registry
-   API, not a direct read.
-2. **Sweep the blocked-port guard into the other eleven socket-binding test
+1. **Sweep the blocked-port guard into the other eleven socket-binding test
    files** ([`NXD-017`](DECISIONS.md)). Small and mechanical — the same guard
    already in `artifact-registry-backend/src/router.test.ts`. Worth a shared
    test helper at that point rather than a twelfth copy. Not phase-blocking,
-   but it is a live intermittent-CI source until it is done.
+   but it is a live intermittent-CI source until it is done — and it **hit the
+   gate during P2-S5b**: `data-products-backend/src/router.test.ts` failed
+   once with an empty `Cause:`, passed in isolation, and passed on a full
+   re-run. That file is `app.listen(0, '127.0.0.1')` plus a bare `fetch`, with
+   no guard. This is now the first observed CI-shaped failure from this bug
+   rather than a predicted one, which moves the sweep from tidy-up to overdue.
+
+2. **P2-S5c — Retire `marketplaceItems`.** The read switch is done and the
+   fallback has to stop being permanent. Deleting the array removes: the
+   fallback in `offeringSource.ts`, the legacy-order function that derives
+   from it ([`NXD-023`](DECISIONS.md)), and the two lists of twelve ids that
+   hold the array and the manifests in step. It also forces the question
+   P2-S5b deferred rather than answered: *which certification the UI shows.*
+   Three offerings display CERTIFIED as legacy metadata, and none of the 12
+   has been through this registry's review, because registration deliberately
+   cannot grant it ([`NXD-019`](DECISIONS.md)). Parity licensed carrying the
+   claim across the switch; it does not license carrying it forever. That is a
+   product call.
 
 Deferred within Phase 2: **per-namespace permission scoping.** The eight
 registry permissions are platform-wide today, so a DATA_PRODUCT_OWNER may
@@ -179,7 +203,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 203 suites, 1697 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 204 suites, 1711 tests, **0 skipped** |
 
 **The identityConstraints flake is closed (2026-09-17).** It was never a
 missing constraint. better-sqlite3 is a native module, so its binding loads

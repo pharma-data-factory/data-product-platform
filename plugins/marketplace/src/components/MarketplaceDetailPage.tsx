@@ -33,7 +33,9 @@ import {
 } from '@internal/platform-common';
 import { marketplaceCatalogSources } from '../catalog';
 import { OeeBuiltWith } from './OeeBuiltWith';
+import { artifactRegistryApiRef } from '../artifactRegistryApi';
 import { entitlementApiRef } from '../entitlementApi';
+import { loadOfferings } from '../offeringSource';
 import {
   MarketplaceItem,
   enrichMarketplaceItem,
@@ -47,6 +49,7 @@ export function MarketplaceDetailPage() {
   const { id } = useParams();
   const catalogApi = useApi(catalogApiRef);
   const entitlementApi = useApi(entitlementApiRef);
+  const registryApi = useApi(artifactRegistryApiRef);
   const { role } = usePlatformRole();
   const canCreate = canCreateDataProduct(role);
   const [item, setItem] = useState<MarketplaceItem | undefined>(
@@ -69,21 +72,25 @@ export function MarketplaceDetailPage() {
   const [builtWith, setBuiltWith] = useState<OeeBuiltWithSummary>();
 
   useEffect(() => {
-    const base = marketplaceItems.find(entry => entry.id === id);
-    if (!base) {
-      setItem(undefined);
-      setLoading(false);
-      return undefined;
-    }
     let active = true;
     Promise.all([
       catalogApi.getEntities({
         filter: { kind: ['Component', 'API', 'Template'] },
       }),
       entitlementApi.getProducts().catch(() => undefined),
+      loadOfferings(registryApi),
     ])
-      .then(([response, productsSnapshot]) => {
+      .then(([response, productsSnapshot, offerings]) => {
         if (!active) {
+          return;
+        }
+        // Resolved from the same source the list page uses, so a coordinate
+        // that is only in the registry still has a detail page — and one that
+        // has been removed from it no longer does.
+        const base = offerings.items.find(entry => entry.id === id);
+        if (!base) {
+          setItem(undefined);
+          setLoading(false);
           return;
         }
         const { products, apis, templates } = marketplaceCatalogSources(
@@ -121,7 +128,9 @@ export function MarketplaceDetailPage() {
       })
       .catch(err => {
         if (active) {
-          setItem(base);
+          // Catalog or entitlements failed. `loadOfferings` does not reject,
+          // so the legacy array is the only offering source left here.
+          setItem(marketplaceItems.find(entry => entry.id === id));
           setError(err instanceof Error ? err : new Error(String(err)));
           setLoading(false);
         }
@@ -129,7 +138,7 @@ export function MarketplaceDetailPage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, entitlementApi, id]);
+  }, [catalogApi, entitlementApi, registryApi, id]);
 
   return (
     <Page themeId="tool">

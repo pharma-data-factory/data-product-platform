@@ -597,15 +597,18 @@ export {
   MARKETPLACE_OFFERING_STATUSES,
   MARKETPLACE_SPEC_KEY,
   marketplaceNamespaceFor,
+  marketplaceOfferingsFromRegistry,
   marketplaceOfferingToManifest,
   marketplaceOfferingView,
   marketplaceViewOfManifest,
+  representativeVersion,
   validateMarketplaceOffering,
 } from './marketplace-artifact';
 export type {
   MarketplaceOffering,
   MarketplaceOfferingStatus,
   MarketplaceOfferingView,
+  RegistryArtifactWithVersions,
 } from './marketplace-artifact';
 
 export {

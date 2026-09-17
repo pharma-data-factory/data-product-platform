@@ -6,8 +6,26 @@ import {
   fetchApiRef,
 } from '@backstage/frontend-plugin-api';
 import StorefrontIcon from '@material-ui/icons/Storefront';
+import {
+  ArtifactRegistryClient,
+  artifactRegistryApiRef,
+} from './artifactRegistryApi';
 import { EntitlementClient, entitlementApiRef } from './entitlementApi';
 import { detailRouteRef, rootRouteRef } from './routes';
+
+const artifactRegistryApi = ApiBlueprint.make({
+  name: 'artifact-registry',
+  params: defineParams =>
+    defineParams({
+      api: artifactRegistryApiRef,
+      deps: {
+        discoveryApi: discoveryApiRef,
+        fetchApi: fetchApiRef,
+      },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new ArtifactRegistryClient({ discoveryApi, fetchApi }),
+    }),
+});
 
 const entitlementApi = ApiBlueprint.make({
   name: 'entitlements',
@@ -48,7 +66,12 @@ const marketplaceDetailPage = PageBlueprint.make({
 
 export const marketplacePlugin = createFrontendPlugin({
   pluginId: 'marketplace',
-  extensions: [entitlementApi, marketplacePage, marketplaceDetailPage],
+  extensions: [
+    artifactRegistryApi,
+    entitlementApi,
+    marketplacePage,
+    marketplaceDetailPage,
+  ],
   routes: {
     root: rootRouteRef,
     detail: detailRouteRef,
