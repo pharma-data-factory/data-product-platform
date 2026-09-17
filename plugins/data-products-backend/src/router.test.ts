@@ -2,27 +2,23 @@ import express from 'express';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { AddressInfo } from 'net';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { listenOnFetchablePort } from '@internal/backend-test-utils';
 
 import { FileCertificationOverlay } from './certificationOverlay';
 import { createRouter } from './router';
 import { GithubActionsClient } from './types';
 
 async function get(app: express.Express, urlPath: string) {
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', () => resolve()));
+  const server = await listenOnFetchablePort(app);
   try {
-    const { port } = server.address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${port}${urlPath}`);
+    const response = await fetch(`${server.url}${urlPath}`);
     return {
       status: response.status,
       body: await response.json(),
     };
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close(error => (error ? reject(error) : resolve())),
-    );
+    await server.close();
   }
 }
 
@@ -105,11 +101,9 @@ describe('data-products router', () => {
     });
     const server = express();
     server.use(router);
-    const listener = server.listen(0, '127.0.0.1');
-    await new Promise<void>(resolve => listener.once('listening', () => resolve()));
+    const listener = await listenOnFetchablePort(server);
     try {
-      const { port } = listener.address() as AddressInfo;
-      const response = await fetch(`http://127.0.0.1:${port}/certification`, {
+      const response = await fetch(`${listener.url}/certification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,9 +121,7 @@ describe('data-products router', () => {
       expect(overlay.getStatus('component:default/cold-room')).toBe('CERTIFIED');
       expect(catalog.refreshEntity).toHaveBeenCalled();
     } finally {
-      await new Promise<void>((resolve, reject) =>
-        listener.close(error => (error ? reject(error) : resolve())),
-      );
+      await listener.close();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -157,11 +149,9 @@ describe('data-products router', () => {
     });
     const server = express();
     server.use(router);
-    const listener = server.listen(0, '127.0.0.1');
-    await new Promise<void>(resolve => listener.once('listening', () => resolve()));
+    const listener = await listenOnFetchablePort(server);
     try {
-      const { port } = listener.address() as AddressInfo;
-      const response = await fetch(`http://127.0.0.1:${port}/certification`, {
+      const response = await fetch(`${listener.url}/certification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,9 +162,7 @@ describe('data-products router', () => {
       expect(response.status).toBe(403);
       expect(overlay.getStatus('component:default/cold-room')).toBeUndefined();
     } finally {
-      await new Promise<void>((resolve, reject) =>
-        listener.close(error => (error ? reject(error) : resolve())),
-      );
+      await listener.close();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });

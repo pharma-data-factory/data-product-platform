@@ -9,9 +9,9 @@
  */
 
 import express from 'express';
-import { AddressInfo } from 'net';
 import knex, { Knex } from 'knex';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { listenOnFetchablePort as listen } from '@internal/backend-test-utils';
 import {
   ARTIFACT_MANIFEST_API_VERSION,
   type ArtifactVersion,
@@ -28,50 +28,6 @@ function manifest(version = '1.0') {
     kind: 'CONNECTOR',
     metadata: { namespace: 'acme', name: 'sap-odata', version },
   };
-}
-
-/**
- * Ports the Fetch standard refuses to connect to, restricted to those an
- * unprivileged `listen(0)` can actually be handed.
- *
- * `fetch` rejects these before opening a socket, with `TypeError: fetch
- * failed` and cause `bad port`. That is normally unreachable, because the
- * usual Linux ephemeral range starts at 32768 — but this container's
- * `ip_local_port_range` is `1024 65535`, so `app.listen(0)` can hand back one
- * of these and the request fails for reasons that have nothing to do with the
- * test. Rebinding is the entire fix. See NXD-017.
- *
- * https://fetch.spec.whatwg.org/#bad-port-blocklist
- */
-const FETCH_BLOCKED_PORTS = new Set([
-  1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666,
-  6667, 6668, 6669, 6679, 6697, 10080,
-]);
-
-async function listen(app: express.Express) {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const server = app.listen(0, '127.0.0.1');
-    await new Promise<void>(resolve =>
-      server.once('listening', () => resolve()),
-    );
-    const { port } = server.address() as AddressInfo;
-
-    if (FETCH_BLOCKED_PORTS.has(port)) {
-      await new Promise<void>(resolve => server.close(() => resolve()));
-      continue;
-    }
-
-    return {
-      url: `http://127.0.0.1:${port}`,
-      close: () =>
-        new Promise<void>((resolve, reject) =>
-          server.close(error => (error ? reject(error) : resolve())),
-        ),
-    };
-  }
-  throw new Error(
-    'Could not bind a port that fetch will connect to after 20 attempts.',
-  );
 }
 
 describe('Artifact Registry router', () => {

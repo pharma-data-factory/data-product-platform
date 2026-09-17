@@ -1,7 +1,7 @@
 import express from 'express';
-import { AddressInfo } from 'net';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { ConfigReader } from '@backstage/config';
+import { listenOnFetchablePort } from '@internal/backend-test-utils';
 import { createRouter } from './router';
 import { createEntitlementRuntime } from './runtime';
 
@@ -10,18 +10,16 @@ async function request(
   urlPath: string,
   init?: RequestInit,
 ) {
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', () => resolve()));
+  const server = await listenOnFetchablePort(app);
   try {
-    const { port } = server.address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${port}${urlPath}`, init);
+    const response = await fetch(`${server.url}${urlPath}`, init);
     return {
       status: response.status,
       headers: response.headers,
       body: await response.json(),
     };
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await server.close();
   }
 }
 

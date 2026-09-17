@@ -657,3 +657,42 @@ Use this file for durable architecture decisions.
   and where it would live, is a question for after the array is deleted; this
   function is what gets replaced or removed then.
 - Affected components: `plugins/marketplace/src/offeringSource.ts`.
+
+### NXD-024 — The blocked-port guard is a shared helper, and four files never needed it
+- Date: 2026-09-17
+- Context: [`NXD-017`](DECISIONS.md) fixed the Fetch blocked-port flake in one
+  file and recorded that "twelve backend test files bind with `app.listen(0)`"
+  with "the other eleven" still carrying the bug. Sweeping it revealed both
+  numbers were wrong, and in opposite directions.
+- **Thirteen files bind an ephemeral port, not twelve.** The original count
+  missed one.
+- **Only nine of them can hit the bug.** The blocklist is a *Fetch* standard
+  rule: `fetch` refuses those ports before opening a socket. `http.request`
+  does not consult it at all. Four files —
+  `urs-composer-backend/{authorize-approve-proof, p1b-http-final-verification,
+  seeded-baseline-http}.test.ts` and
+  `validation-expert-backend/validation-context-integration.test.ts` — drive
+  their servers with `http.request` and were never affected. Eight needed
+  fixing, not eleven.
+- Decision: `listenOnFetchablePort` in a new `@internal/backend-test-utils`
+  workspace, used by all nine. The blocklist is a spec detail that will change;
+  nine copies of it is nine chances for one to fall behind, and the original
+  entry already anticipated this ("worth a shared test helper at that point
+  rather than a twelfth copy").
+- Alternatives considered: copy the guard into each file — rejected on the
+  duplication the original entry already called out. Put the helper in
+  `platform-common` — rejected; it is a Node HTTP test concern, and
+  `platform-common` is framework-independent domain code that also ships to
+  the frontend. Widen the container's `ip_local_port_range` — fixes one
+  machine, not CI.
+- Consequences: the flake class is closed for every file that could have it,
+  and the blocklist has one home. The helper is unit-tested against a stand-in
+  server that hands back chosen ports, because the real bug depends on what
+  the OS happens to offer and cannot be provoked on demand. It also bounds its
+  retries: twenty blocked ports in a row is a broken assumption, not bad luck,
+  and a suite that hangs is worse than one that fails with a reason.
+- This was not preventive. The flake failed a full run during P2-S5b, in
+  `data-products-backend/src/router.test.ts` — one of the eight — with an
+  empty `Cause:`, passing in isolation and on re-run.
+- Affected components: `packages/backend-test-utils/`, and the nine test files
+  listed above minus the four that use `http.request`.

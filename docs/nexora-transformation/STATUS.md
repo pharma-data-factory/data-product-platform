@@ -4,7 +4,7 @@
 Phase 2 — Artifact Registry and Marketplace 2.0
 
 ## Current Vertical Slice
-P2-S5b — The Marketplace reads the registry (**done**).
+Blocked-port guard swept into every affected test file (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -156,22 +156,22 @@ database constraints where a key exists, and covered by tests.
   ([`NXD-023`](DECISIONS.md)). Worth noting what the fidelity is to: the
   array's order is the order things were added over time, not a designed one.
 
+- **Blocked-port guard swept.** `listenOnFetchablePort` now lives once, in a
+  new `@internal/backend-test-utils` workspace, and every test file that binds
+  an ephemeral port and drives it with `fetch` uses it. The flake class that
+  failed a full run during P2-S5b is closed.
+
+  The sweep corrected the recorded count in both directions
+  ([`NXD-024`](DECISIONS.md)): thirteen files bind a port rather than twelve,
+  but only nine could ever hit the bug, because the blocklist is a `fetch`
+  rule and four suites drive their servers with `http.request`. Eight needed
+  fixing, not eleven.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **Sweep the blocked-port guard into the other eleven socket-binding test
-   files** ([`NXD-017`](DECISIONS.md)). Small and mechanical — the same guard
-   already in `artifact-registry-backend/src/router.test.ts`. Worth a shared
-   test helper at that point rather than a twelfth copy. Not phase-blocking,
-   but it is a live intermittent-CI source until it is done — and it **hit the
-   gate during P2-S5b**: `data-products-backend/src/router.test.ts` failed
-   once with an empty `Cause:`, passed in isolation, and passed on a full
-   re-run. That file is `app.listen(0, '127.0.0.1')` plus a bare `fetch`, with
-   no guard. This is now the first observed CI-shaped failure from this bug
-   rather than a predicted one, which moves the sweep from tidy-up to overdue.
-
-2. **P2-S5c — Retire `marketplaceItems`.** The read switch is done and the
+1. **P2-S5c — Retire `marketplaceItems`.** The read switch is done and the
    fallback has to stop being permanent. Deleting the array removes: the
    fallback in `offeringSource.ts`, the legacy-order function that derives
    from it ([`NXD-023`](DECISIONS.md)), and the two lists of twelve ids that
@@ -203,7 +203,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 204 suites, 1711 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 205 suites, 1718 tests, **0 skipped** |
 
 **The identityConstraints flake is closed (2026-09-17).** It was never a
 missing constraint. better-sqlite3 is a native module, so its binding loads
@@ -317,25 +317,24 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
   the baseline is the fix, which is why it waits on Phase 2 finishing.
 - Formal Validation approval and SoD require consolidation.
 - Data Exchange, Lineage and Analytics concepts are not yet unified.
-- **Socket test flake — root-caused 2026-09-17, fixed in one of twelve files.**
-  Previously recorded here as an unreproducible failure in
-  `plugins/entitlements-backend/src/router.test.ts` under parallel load. The
-  mechanism is now known and it is not load at all: `fetch` refuses the Fetch
-  standard's **blocked ports** (6000, 6697, 10080, …) before opening a socket,
-  raising `TypeError: fetch failed` with cause `bad port`. Twelve backend test
-  files bind with `app.listen(0)`, and this container's `ip_local_port_range`
-  is `1024 65535` instead of the usual `32768 60999`, so the OS can hand one
-  of those ports straight to a test server. Reproduced directly and on demand.
-  See [`NXD-017`](DECISIONS.md).
+- ~~**Socket test flake.**~~ **Closed 2026-09-17.** `fetch` refuses the Fetch
+  standard's blocked ports (6000, 6697, 10080, …) before opening a socket,
+  raising `TypeError: fetch failed` with cause `bad port`; this container's
+  `ip_local_port_range` is `1024 65535` instead of the usual `32768 60999`, so
+  `app.listen(0)` can hand one straight to a test server. The guard now lives
+  once, in `@internal/backend-test-utils`, and every affected file uses it.
 
-  Fixed in `plugins/artifact-registry-backend/src/router.test.ts`, which
-  rebinds when it draws a blocked port. **The other eleven files still carry
-  the bug** — same four-line guard, deliberately left to a follow-up rather
-  than swept into the P2-S3 commit. They are the remaining risk here.
+  The sweep corrected the count in both directions — see
+  [`NXD-024`](DECISIONS.md). **Thirteen** files bind an ephemeral port, not
+  twelve. But only **nine** could ever hit this: the blocklist is a `fetch`
+  rule, and `http.request` does not consult it, so the three
+  `urs-composer-backend` HTTP suites and
+  `validation-expert-backend/validation-context-integration.test.ts` were
+  never affected. Eight needed fixing, not eleven.
 
-  This also removes the stated justification for the `supertest` dependency
-  request under Blocked Decisions: the flake it was meant to fix has a fix
-  that needs no dependency.
+  It stopped being theoretical first: a full run during P2-S5b failed on
+  `data-products-backend/src/router.test.ts` with an empty `Cause:`, passing in
+  isolation and on re-run.
 
 ## Phase 0 audit — discovered reality
 

@@ -16,8 +16,8 @@ import express from 'express';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { AddressInfo } from 'net';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { listenOnFetchablePort } from '@internal/backend-test-utils';
 
 import { createRouter } from './router';
 
@@ -31,14 +31,12 @@ async function call(
   urlPath: string,
   body?: unknown,
 ) {
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', () => resolve()));
+  const server = await listenOnFetchablePort(app);
   try {
-    const { port } = server.address() as AddressInfo;
     // fetch refuses a body on GET, so the callers below may pass one
     // unconditionally.
     const sendBody = body !== undefined && method !== 'GET';
-    const response = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
+    const response = await fetch(`${server.url}${urlPath}`, {
       method,
       headers: sendBody ? { 'Content-Type': 'application/json' } : undefined,
       body: sendBody ? JSON.stringify(body) : undefined,
@@ -48,9 +46,7 @@ async function call(
       body: (await response.json()) as any,
     };
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close(error => (error ? reject(error) : resolve())),
-    );
+    await server.close();
   }
 }
 
