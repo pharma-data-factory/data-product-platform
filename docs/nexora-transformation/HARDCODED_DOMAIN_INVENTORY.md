@@ -27,6 +27,7 @@ proven — see the migration architecture in `TARGET_ARCHITECTURE.md`.
 | GP-5 | `WAVE1_COMPONENT_TITLES` — display names for a fixed component set | `platform-component-library.ts` | Low |
 | GP-6 | `EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string | `platform-component-library.ts` | Medium |
 | GP-7 | `RUNTIME_PACKAGE_*` / `CATALOG_ONLY_COMPONENT_NAMES` — fixed component registry | `platform-component-library.ts` | Medium |
+| GP-8 | Industrial semantics as a Core vocabulary — equipment, site, area, line, OEE and equipment-state API annotations | `nexora-industrial.ts` | **High** |
 
 **Not** hard-coded, and worth preserving as the precedent to follow:
 `OFFICIAL_GOLDEN_PATHS` in `releases.ts` is *derived* from
@@ -148,6 +149,41 @@ runtime availability becomes a property of an `ArtifactVersion`.
 
 ---
 
+## GP-8 — Industrial semantics are a Core vocabulary
+
+*Added 2026-09-17 by the status audit. Missed by the P0-S3 sweep, which looked
+for hard-coded Golden Paths and composition lists and therefore did not catch
+a domain vocabulary that names no Golden Path at all.*
+
+`packages/platform-common/src/nexora-industrial.ts` is 589 lines and 62
+exports of manufacturing domain: `NEXORA_ANNOTATIONS` (equipment-id, site,
+area, line, equipment-type, manufacturer, model, plus `oee-api` and
+`equipment-state-api`), `EQUIPMENT_COMPONENT_TYPE`, `EQUIPMENT_STATES`,
+`CONNECTIVITY_KINDS`, `EquipmentStateView`, `DataProductHealth` and the rest.
+
+This is a larger domain surface than GP-1 through GP-7 combined, and it is
+different in kind. Those are *instances* — OEE, Equipment Use Log — hard-coded
+into generic machinery. This is the *vocabulary itself*: Core states what a
+plant is made of. Under the strategy that belongs to a POLICY_PACK or a
+semantic Artifact, not to the kernel-adjacent domain package. The strategy
+names the same concepts as the semantic layer ("Plant, Area, Line, Work
+Center, Equipment, Material, Batch, Order, Operation, State, Downtime") —
+which is Phase 4/6 work, not something Core should already have decided.
+
+Consumers: `documentation.ts`, `plugins/nexora-quality`,
+`plugins/nexora-backend` (plugin and fixtures), `plugins/nexora-common/api.ts`,
+`plugins/plugin-directory-backend/inventory.ts`.
+
+**Severity is High** for scope, not for urgency. Nothing is blocked by it
+today, and it is not Phase 2 or Phase 3 work.
+
+**Removal condition:** the semantic layer exists as a first-class concept
+(Phase 4/6) and industrial semantics ship as a versioned Artifact. Until then
+the honest statement is that "Core stays small and generic" is not currently
+true, and this file is the largest single reason.
+
+---
+
 ## Sequencing note
 
 GP-7 depends on Phase 2 (Artifact Registry). GP-1 through GP-6 are Phase 3 and
@@ -158,3 +194,7 @@ rather than rewrites.
 
 GP-1 is guarded, so the duplication can no longer drift while the rest is
 migrated.
+
+GP-8 sits outside that sequence. It is neither a composition list nor a Golden
+Path, so the Phase 3 resolver does nothing for it; it waits on the semantic
+layer instead.

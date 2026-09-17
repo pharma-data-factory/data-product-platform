@@ -229,8 +229,43 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
   in it is now provably representable in the registry, so P2-S5 can switch the
   read without discovering the mapping mid-flight.
 - Composer/Core contains domain-specific Golden Path logic (OEE, Machine
-  State) inside `packages/platform-common`.
-- URS/Validation lifecycle integration is incomplete.
+  State) inside `packages/platform-common`. **Wider than recorded** — the
+  status audit of 2026-09-17 added
+  [`GP-8`](HARDCODED_DOMAIN_INVENTORY.md): `nexora-industrial.ts` is 589 lines
+  and 62 exports of manufacturing vocabulary in Core, larger than GP-1..GP-7
+  combined and missed by the P0-S3 sweep, which looked for Golden Paths and
+  composition lists rather than for a domain vocabulary.
+- URS/Validation lifecycle integration is incomplete. **The audit of
+  2026-09-17 found the gap is specifically at the end of the chain, and it is
+  the platform's largest:**
+  - `packages/platform-common/src/policy.ts:53-60` denies `validation.approve`,
+    `risk.accept` and `baseline.modify` to **every role, including
+    PLATFORM_ADMIN** — "Reserved Validation Expert controls, never
+    auto-granted in v0.1". The permissions are defined and unit-tested, and no
+    route or service authorizes against them. **There is no Validation
+    Decision step in the product.**
+  - `plugins/composer-backend/src/service.ts:378` sets
+    `updated.approvedBy = actor`. The actor requesting the transition becomes
+    the approver, with no check that they differ from the creator. **Product
+    release has no Segregation of Duties.** The URS side does enforce it,
+    through the approval chain and e-signature; the Product side does not.
+  - The release gate never consults validation. The only occurrence of
+    "validation" in `composer-backend/src/service.ts` is a comment. A Product
+    version can reach RELEASED with no ValidationContext, no executed protocol
+    and no evidence.
+  - `ProtocolType` is `'IQ' | 'OQ' | 'UAT'`; there is no PQ.
+
+  These are Phase 5 and nothing blocks them today. They are recorded here
+  because the chain visibly does not close, and discovering that in Phase 5
+  rather than now would put the GxP positioning on a claim the code does not
+  support.
+- **`ProductBaseline` does not record what was built.**
+  `composer-backend/src/service.ts:546` snapshots the version, components
+  (id/name/type), contracts (id/schemaType/version) and traceability links —
+  and no Artifact versions, commit SHA, artifact digest, configuration or
+  policies. Exact Artifact version provenance therefore has no carrier, and
+  revalidation scope has nothing to diff against. Connecting the registry to
+  the baseline is the fix, which is why it waits on Phase 2 finishing.
 - Formal Validation approval and SoD require consolidation.
 - Data Exchange, Lineage and Analytics concepts are not yet unified.
 - **Socket test flake — root-caused 2026-09-17, fixed in one of twelve files.**
