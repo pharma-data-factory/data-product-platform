@@ -1,0 +1,17 @@
+apiVersion: nexora.dev/v1alpha1
+kind: CONNECTOR
+metadata:
+  namespace: nexora
+  name: snowflake-connector
+  version: "0.1.0"
+  displayName: "Snowflake Connector"
+  description: "Warehouse product: certified plant contracts (temperature, equipment, OEE) would land in Snowflake as versioned tables. No live Snowflake connectivity and no Create template in this release."
+spec:
+  # No sourceRef: this offering has no scaffolder template yet.
+  marketplace:
+    category: "Connectors"
+    provider: "Nexora"
+    compatibility: "Future release"
+    status: "preview"
+    certificationStatus: "DEVELOPMENT"
+    documentation: "/docs/marketplace"

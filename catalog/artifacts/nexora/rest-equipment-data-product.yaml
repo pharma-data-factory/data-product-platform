@@ -1,0 +1,17 @@
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: nexora
+  name: rest-equipment-data-product
+  version: "1.0.0"
+  displayName: "REST Equipment Data Product"
+  description: "REST equipment data product with a versioned equipment-event contract."
+spec:
+  sourceRef: "template:default/rest-equipment-data-product"
+  marketplace:
+    category: "Data Products"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, REST, Docker"
+    status: "available"
+    certificationStatus: "DEVELOPMENT"
+    documentation: "/create/templates/default/rest-equipment-data-product"

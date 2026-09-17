@@ -4,7 +4,7 @@
 Phase 2 — Artifact Registry and Marketplace 2.0
 
 ## Current Vertical Slice
-P2-S4 — Legacy Marketplace adapter (**done**).
+P2-S5a — Manifests on disk, loaded into the registry (**done**).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -111,23 +111,48 @@ database constraints where a key exists, and covered by tests.
   certification ([`NXD-019`](DECISIONS.md)). Nothing deleted, nothing seeded,
   no schema change — the array is still what the UI reads.
 
+- **P2-S5a — Manifests on disk, loaded into the registry.** The registry is no
+  longer empty. `catalog/artifacts/nexora/` holds a `kind: Publisher`
+  declaration and 12 `nexora.yaml` manifests, and
+  `plugins/artifact-registry-backend/src/manifestLoader.ts` registers them
+  when the plugin initialises, through the same service an HTTP caller uses.
+  Content is files, not a seed from the array and not a migration —
+  [`NXD-020`](DECISIONS.md). The loader is idempotent, non-fatal on bad
+  content, and cannot publish: every version lands in DRAFT with no
+  certification status.
+
+  Verified live, not only in tests: first start logged
+  `12 registered, 1 publishers created, 0 failed`; a reload logged
+  `0 registered, 12 already present, 0 failed`. The database holds 1 publisher
+  and 12 artifacts across 4 kinds (TEMPLATE, CONNECTOR, DATA_PRODUCT,
+  COMPONENT), all 12 versions DRAFT. The Marketplace UI is unchanged — still
+  12 entries from the array, which is the point: this slice adds content and
+  changes nothing a user sees.
+
+  One real bug was caught by running it rather than by testing it: `yarn start`
+  and `serve` mode have different working directories, so the default path
+  resolved to `packages/backend/catalog/artifacts` and loaded nothing. Fixed
+  by walking up — [`NXD-021`](DECISIONS.md), which also records that this is
+  now the second copy of that logic in the repository.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P2-S5 — Move Marketplace reads to the registry**, behind the adapter.
-   Two things this slice has to decide, both surfaced by P2-S4:
-   - *Where the manifests come from.* The adapter converts offerings; it does
-     not say whether the 12 live as `nexora.yaml` files on disk (the target
-     architecture — a capability is a manifest, not a branch) or are seeded
-     from the array at startup. Files on disk are the direction, but that puts
-     12 YAML files in the repo that must stay in step with the array until the
-     array is deleted — the same shape as
-     `compositionManifestParity.test.ts`.
-   - *Which certification the UI shows.* The legacy claim and the registry's
-     own status are now two distinct facts and they disagree: three offerings
-     display CERTIFIED, and none of the 12 has been through this registry's
-     review. See [`NXD-019`](DECISIONS.md).
+1. **P2-S5b — Move Marketplace reads to the registry.** The content is there;
+   this is the read switch and the array's retirement. One decision it cannot
+   avoid: *which certification the UI shows.* The legacy claim and the
+   registry's own status are two distinct facts and they disagree — three
+   offerings display CERTIFIED, and none of the 12 has been through this
+   registry's review, because registration deliberately cannot grant it. See
+   [`NXD-019`](DECISIONS.md). Showing the legacy badge from registry-sourced
+   data would launder an unearned claim through a system built to prevent
+   exactly that; showing the real status changes what users see. That is a
+   product call, not a technical one.
+
+   Note also that the Marketplace is a frontend plugin and the registry is
+   behind `artifact.read`, so this slice needs a client against the registry
+   API, not a direct read.
 2. **Sweep the blocked-port guard into the other eleven socket-binding test
    files** ([`NXD-017`](DECISIONS.md)). Small and mechanical — the same guard
    already in `artifact-registry-backend/src/router.test.ts`. Worth a shared
@@ -154,7 +179,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 201 suites, 1633 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 203 suites, 1697 tests, **0 skipped** |
 
 **The identityConstraints flake is closed (2026-09-17).** It was never a
 missing constraint. better-sqlite3 is a native module, so its binding loads
@@ -349,9 +374,16 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   source (`@internal/plugin-urs-composer-backend/src/__testUtils__/...`),
   flagged by `guard:platform` as a cross-plugin boundary warning.
 - Legacy Marketplace data must stay until the Marketplace reads the registry
-  (P2-S5). Model parity is proven as of P2-S4
-  (`plugins/marketplace/src/registryParity.test.ts`); nothing yet *serves* the
-  offerings from the registry, so deleting the array now would empty the UI.
+  (P2-S5b). Model parity is proven as of P2-S4
+  (`plugins/marketplace/src/registryParity.test.ts`) and the registry now holds
+  the twelve as of P2-S5a — but nothing *reads* them, so deleting the array
+  would still empty the UI. The twelve therefore exist twice. Two suites hold
+  the copies in step: `registryParity.test.ts` (array to manifest) and
+  `packages/platform-common/src/artifactManifestFiles.test.ts` (the files
+  themselves). Each carries the same named list of twelve ids, because the
+  array lives in a frontend plugin and nothing that may read the filesystem is
+  allowed to depend on one. That seam is deliberate and temporary; it is
+  deleted with the array.
 - `packages/data-product-sdk` has no TypeScript sources; it is a Python
   package inside a Yarn workspace, which is why a missing interpreter could
   turn into a hard test failure.

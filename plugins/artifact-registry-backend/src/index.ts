@@ -12,6 +12,18 @@ export { createRouter } from './router';
 export type { RouterOptions } from './router';
 export { ArtifactRegistryRepository } from './repository';
 export { ArtifactRegistryService } from './service';
+export {
+  loadManifestsFromDisk,
+  resolveManifestDirectory,
+  validatePublisherManifest,
+  MANIFEST_LOADER_ACTOR,
+  PUBLISHER_MANIFEST_KIND,
+} from './manifestLoader';
+export type {
+  LoadManifestsOptions,
+  ManifestLoadResult,
+  PublisherManifest,
+} from './manifestLoader';
 export type {
   CreatePublisherRequest,
   RegisterArtifactVersionResult,

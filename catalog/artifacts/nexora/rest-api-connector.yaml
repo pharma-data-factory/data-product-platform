@@ -1,0 +1,17 @@
+apiVersion: nexora.dev/v1alpha1
+kind: CONNECTOR
+metadata:
+  namespace: nexora
+  name: rest-api-connector
+  version: "0.1.0"
+  displayName: "REST API Connector"
+  description: "Reusable REST ingest building block: poll a governed HTTP source, validate a contract, and feed Data Products. Template not generated in this release; REST Equipment already proves the pattern."
+spec:
+  # No sourceRef: this offering has no scaffolder template yet.
+  marketplace:
+    category: "Connectors"
+    provider: "Nexora"
+    compatibility: "HTTP APIs"
+    status: "preview"
+    certificationStatus: "DEVELOPMENT"
+    documentation: "/docs/marketplace"

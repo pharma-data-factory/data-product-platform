@@ -26,14 +26,17 @@
     "@internal/platform-common": "workspace:^",
     "express": "^4.22.0",
     "express-promise-router": "^4.1.1",
-    "knex": "^3.0.0"
+    "knex": "^3.0.0",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
     "@backstage/cli": "^0.36.4",
     "@types/express": "^4.17.21",
     "jest": "~30.2.0"
   },
+  "configSchema": "config.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "config.d.ts"
   ]
 }

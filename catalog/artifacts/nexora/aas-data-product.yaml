@@ -1,0 +1,20 @@
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: nexora
+  name: aas-data-product
+  version: "1.0.0"
+  displayName: "AAS Asset Administration Shell Data Product"
+  description: "Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) for asset registry, multi-source ingestion (MQTT/REST), and semantic asset management. Technical CERTIFIED; asset-event-v1.0.0 data contract."
+spec:
+  sourceRef: "template:default/aas-data-product"
+  marketplace:
+    category: "Data Products"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, MQTT, REST, Docker, BaSyx SDK"
+    status: "available"
+    # What the legacy Marketplace displays, not a registry certification. This
+    # version registers as DRAFT with no certification status — earning one
+    # means going through review and certification. See NXD-019.
+    certificationStatus: "CERTIFIED"
+    documentation: "/create/templates/default/aas-data-product"

@@ -540,3 +540,62 @@ Use this file for durable architecture decisions.
   surfaced as a decision than papered over by a mapping.
 - Affected components: `packages/platform-common/src/marketplace-artifact.ts`,
   `plugins/marketplace/src/registryParity.test.ts`.
+
+### NXD-020 — Registry content is files on disk, loaded at startup
+- Date: 2026-09-17
+- Context: the registry needed its first content. Two ways to get the twelve
+  legacy offerings in: seed them from `marketplaceItems` at startup, or commit
+  them as `nexora.yaml` files the backend reads.
+- Decision: files, under `catalog/artifacts/<namespace>/`, loaded by
+  `manifestLoader.ts` when the plugin initialises. A `kind: Publisher`
+  document declares namespace ownership; everything else is an Artifact
+  manifest. Registration goes through the same service an HTTP caller uses,
+  so the rules are enforced once and in one place.
+- Alternatives considered: seed from the array — rejected, because it makes
+  the frontend plugin the registry's source of truth and inverts the
+  dependency the transformation is trying to establish; the array is the thing
+  being retired, not the thing to build on. A database migration that inserts
+  the rows — rejected, because content is not schema: a wrong manifest should
+  be fixable by editing a file and restarting, not by writing a second
+  migration to correct the first.
+- Consequences: "manifest driven" becomes literally true — a capability enters
+  the registry by being a file. It also means the twelve exist in two places
+  until the array is deleted, which is the cost of not deleting working
+  behaviour before parity. Two tests hold them in step, and the seam is named
+  in both.
+- Three properties the loader must have, and has: **idempotent**, because a
+  backend restarts often and a loader that duplicates or throws on the second
+  run is worse than none; **non-fatal**, because a malformed manifest must not
+  be able to stop the platform starting; and **draft-only**, because loading a
+  file must never be a way to publish. Verified live: 12 registered on first
+  start, 0 registered / 12 already present on reload.
+- Affected components: `plugins/artifact-registry-backend/src/manifestLoader.ts`,
+  `plugins/artifact-registry-backend/src/plugin.ts`, `catalog/artifacts/`.
+
+### NXD-021 — A repo-relative content path is resolved by walking up
+- Date: 2026-09-17
+- Context: `yarn start` from the repo root runs the backend with cwd at the
+  root; `backstage-cli package start` — the production-shaped `serve` mode —
+  runs it with cwd at `packages/backend`. A default of `catalog/artifacts` is
+  therefore correct from one and wrong from the other. This was not
+  theoretical: the first live run logged `directory
+  .../packages/backend/catalog/artifacts does not exist` and loaded nothing.
+- Decision: resolve a relative manifest directory by walking up from the
+  working directory to the first candidate that exists, bounded at six levels,
+  falling back to the cwd-relative path so a genuinely missing directory is
+  reported against the location the operator meant. Absolute paths pass
+  through untouched.
+- Alternatives considered: require an absolute path in config — pushes a
+  deployment detail onto every environment, including tests. Pin the default
+  to the repo root found by walking up for a marker file — more machinery for
+  the same answer.
+- Consequences: the same config works in both start modes. This is the
+  **second** copy of this logic in the repository; `resolveFactoryPath` in
+  `model-company-backend` solves the same problem the same way, and its
+  comment describes the same two cwds. Two copies is one too many. A third
+  caller should move it into `platform-common` rather than copy it again —
+  recorded so that the next person meets the decision rather than the
+  precedent.
+- Affected components:
+  `plugins/artifact-registry-backend/src/manifestLoader.ts`;
+  duplicate of `plugins/model-company-backend/src/factory.ts`.

@@ -37,6 +37,28 @@ describe('legacy marketplace offerings map onto the registry model', () => {
     expect(marketplaceItems.length).toBeGreaterThan(0);
   });
 
+  it('ships the twelve offerings the manifest directory holds', () => {
+    // A tripwire, not a proof. This plugin is frontend and may not read the
+    // filesystem, so it cannot compare itself to `catalog/artifacts/nexora/`.
+    // Changing this array without adding the matching manifest fails here and
+    // in `packages/platform-common/src/artifactManifestFiles.test.ts`, which
+    // owns the other half. Both lists go away when the array does.
+    expect(marketplaceItems.map(item => item.id).sort()).toEqual([
+      'aas-data-product',
+      'aas-foundation',
+      'machine-state-consumer-data-product',
+      'mqtt-data-connector',
+      'mqtt-temperature-data-product',
+      'nodejs-microservice',
+      'oee-data-product',
+      'python-microservice',
+      'rest-api-connector',
+      'rest-equipment-data-product',
+      'snowflake-connector',
+      'unified-namespace',
+    ]);
+  });
+
   it.each(cases)('%s is a mappable offering', (_id, item) => {
     expect(validateMarketplaceOffering(item)).toEqual([]);
   });
