@@ -13,5 +13,4 @@ spec:
     provider: "Nexora"
     compatibility: "Python 3.12+, MQTT 3.1.1, Docker"
     status: "available"
-    certificationStatus: "DEVELOPMENT"
     documentation: "/create/templates/default/mqtt-temperature-data-product"

@@ -696,3 +696,92 @@ Use this file for durable architecture decisions.
   empty `Cause:`, passing in isolation and on re-run.
 - Affected components: `packages/backend-test-utils/`, and the nine test files
   listed above minus the four that use `http.request`.
+
+### NXD-025 — Marketplace certification comes from the ArtifactVersion, not the manifest
+- Date: 2026-09-19
+- Context: P2-S5b deferred a question rather than answering it: once
+  `marketplaceItems` is deleted, which certification does the Marketplace show?
+  Three offerings display CERTIFIED today as a value carried in
+  `spec.marketplace.certificationStatus` — legacy display metadata, per
+  NXD-019 — while none of the twelve has ever been through this registry's own
+  review, because registration deliberately cannot grant one. Carrying the
+  legacy claim across the read switch was licensed by parity; carrying it
+  forever was explicitly left open.
+- Decision: the manifest can no longer state a certification at all —
+  `certificationStatus` is removed from `MarketplaceManifestView` and from
+  every manifest under `catalog/artifacts/nexora/` — and the Marketplace shows
+  the registry's own `ArtifactVersion.certificationStatus` instead, joined onto
+  the manifest-derived view in `marketplaceOfferingsFromRegistry`. An Artifact
+  version that has not been reviewed shows `DEVELOPMENT`
+  (`UNCERTIFIED_STATUS`), the floor of the scale and the true statement about
+  content nothing has certified, rather than a blank or an inherited claim.
+  This is a visible regression for `aas-data-product` and `oee-data-product`,
+  whose cards lose their CERTIFIED badge until they are actually reviewed and
+  certified in the registry — which is the point: the badge now means what it
+  says.
+- Alternatives considered: keep the legacy value as a labelled "legacy" badge
+  alongside the registry status — rejected, it keeps an unearned claim visible
+  under a new name rather than retiring it, and doubles the certification UI
+  for a distinction most readers of a marketplace card have no reason to
+  parse. Show both facts side by side — rejected for the same reason with less
+  excuse: two certification lines on one card reads as the platform being
+  unsure which one is true. Leave the manifest field in place but stop reading
+  it — rejected, a field the code no longer reads is exactly the kind of
+  contradiction NXD-019 already refuses to let a manifest state.
+- Consequences: `marketplace-artifact.ts` splits `MarketplaceManifestView`
+  (what a manifest states) from `MarketplaceOfferingView` (that plus the
+  registry's certification), so the type system says which half each fact
+  comes from. `marketplaceViewOfManifest` additionally refuses a manifest whose
+  category maps to a different kind than the one it declares — a check the
+  forward-mapping direction enforced by construction but the read direction
+  never had, now that reading manifests is the only direction this module has.
+  `marketplaceOfferingToManifest`, `validateMarketplaceOffering`,
+  `marketplaceNamespaceFor` and `marketplaceOfferingView` are deleted along
+  with `marketplaceItems`: they existed to prove an offering could become a
+  manifest, and the migration they served is finished — the twelve
+  hand-authored manifests are now edited directly, not generated.
+- Affected components: `packages/platform-common/src/marketplace-artifact.ts`,
+  `catalog/artifacts/nexora/*.yaml`, `plugins/marketplace/src/offeringSource.ts`.
+
+### NXD-026 — `marketplaceItems` is deleted; card order is the registry's
+- Date: 2026-09-19
+- Context: P2-S5c. The read switch (NXD-022) has been the source in practice
+  since P2-S5b, with the array kept only as a fallback nobody had needed to
+  fall back to, plus two hand-maintained lists of the same twelve ids
+  (`registryParity.test.ts`, `artifactManifestFiles.test.ts`) whose only job
+  was to keep the array and the manifest directory in step. NXD-023 named the
+  array's retirement as the point at which `inLegacyOrder` "gets deleted or
+  replaced."
+- Decision: delete `marketplaceItems`, its fallback branch in `loadOfferings`,
+  and `inLegacyOrder`. `loadOfferings` now rejects when the registry call
+  fails, which the Marketplace pages already render as an error state
+  (`JourneyState`) rather than a substitution nobody notices. Card order is
+  whatever the registry returns — by name today. The two twelve-id lists go
+  with the array: `registryParity.test.ts` is deleted outright (its subject no
+  longer exists), and `artifactManifestFiles.test.ts` asserts the directory is
+  non-empty and internally consistent rather than naming its contents, since a
+  list beside the directory it counts would be the second copy this
+  transformation exists to remove.
+- Alternatives considered: keep a fallback against total registry outage —
+  rejected; the migration architecture's own reasoning for a fallback was
+  proving parity during the switch, not permanent resilience against a backend
+  the rest of the platform already depends on. Invent a deliberate display
+  order to replace `inLegacyOrder` — rejected as a product decision with no
+  product behind it yet; NXD-023 already named this as a question for *after*
+  the array is gone, not a design to smuggle in while removing it.
+- Consequences: the Marketplace's card order changes from
+  insertion-into-the-array order to alphabetical-by-name, a visible but
+  small change, now that nothing is proving parity against a legacy source
+  anymore. A registry outage now empties the Marketplace with a visible error
+  instead of silently substituting twelve cards — an honest failure rather
+  than a hidden one, and the tradeoff the fallback's own doc comment always
+  named as temporary. `data.test.ts` keeps a private, unexported fixture array
+  of the same twelve entries so the pure functions in `data.ts`
+  (`enrichMarketplaceItem`, `filterMarketplaceItems`,
+  `goldenPathCreateHighlights`, `marketplaceCreateAllowed`) stay covered
+  against representative data without resurrecting a production array.
+- Affected components: `plugins/marketplace/src/data.ts`,
+  `plugins/marketplace/src/offeringSource.ts`,
+  `plugins/marketplace/src/components/MarketplacePage.tsx`,
+  `plugins/marketplace/src/components/MarketplaceDetailPage.tsx`; deletes
+  `plugins/marketplace/src/registryParity.test.ts`.

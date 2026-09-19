@@ -1,10 +1,11 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 2 — Artifact Registry and Marketplace 2.0
+Phase 3 — Product Studio and AI-assisted Development (Phase 2 closed)
 
 ## Current Vertical Slice
-Blocked-port guard swept into every affected test file (**done**).
+Nothing in flight. Phase 2 exit criteria are met (below); Phase 3 has not
+started.
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -167,26 +168,51 @@ database constraints where a key exists, and covered by tests.
   rule and four suites drive their servers with `http.request`. Eight needed
   fixing, not eleven.
 
+- **P2-S5c — `marketplaceItems` retired.** The array, its fallback in
+  `offeringSource.ts`, the legacy-order function that derived from it, and the
+  two hand-maintained twelve-id lists are all deleted — see
+  [`NXD-026`](DECISIONS.md). `loadOfferings` now rejects on a registry failure
+  instead of substituting anything, which the Marketplace pages already render
+  as an error state. This also forced the question P2-S5b deferred:
+  *which certification does the UI show.* The manifest can no longer state one
+  at all; the Marketplace shows the registry's own
+  `ArtifactVersion.certificationStatus`, floored at `DEVELOPMENT` for a
+  version nothing has reviewed — see [`NXD-025`](DECISIONS.md). Two of the
+  twelve (`aas-data-product`, `oee-data-product`) visibly lose the CERTIFIED
+  badge they showed as legacy metadata; that is the intended outcome, not a
+  regression to paper over — the badge now means what it says. Card order
+  changed from array-insertion order to the registry's own (alphabetical by
+  name), which NXD-023 named as the question for after the array was gone.
+
+**Phase 2 exit criteria are met:** the registry persists Artifacts,
+ArtifactVersions and Publishers with identity enforced in the database; the
+lifecycle is manifest-driven, permissioned across the existing five roles with
+no single grant carrying a version from draft to release, and guarded against
+lost updates; the legacy Marketplace has been fully replaced — it reads the
+registry, the array is deleted, and the certification it shows is the
+registry's own rather than an inherited claim.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-1. **P2-S5c — Retire `marketplaceItems`.** The read switch is done and the
-   fallback has to stop being permanent. Deleting the array removes: the
-   fallback in `offeringSource.ts`, the legacy-order function that derives
-   from it ([`NXD-023`](DECISIONS.md)), and the two lists of twelve ids that
-   hold the array and the manifests in step. It also forces the question
-   P2-S5b deferred rather than answered: *which certification the UI shows.*
-   Three offerings display CERTIFIED as legacy metadata, and none of the 12
-   has been through this registry's review, because registration deliberately
-   cannot grant it ([`NXD-019`](DECISIONS.md)). Parity licensed carrying the
-   claim across the switch; it does not license carrying it forever. That is a
-   product call.
+Phase 3 — Product Studio and AI-assisted Development has not started. No
+Phase 3 slice has been scoped yet.
 
-Deferred within Phase 2: **per-namespace permission scoping.** The eight
-registry permissions are platform-wide today, so a DATA_PRODUCT_OWNER may
-certify in any namespace, not only their own. `Publisher.memberGroups` is the
-field a later slice resolves against — see [`NXD-014`](DECISIONS.md).
+Deferred, not part of Phase 2: **per-namespace permission scoping.** The eight
+registry permissions are platform-wide, so a DATA_PRODUCT_OWNER may certify in
+any namespace, not only their own. `Publisher.memberGroups` is written and
+serialized but read by nothing — no update path exists either. Closing this
+needs new ground the repository has never used: all eight permissions are
+`BasicPermission`, not `ResourcePermission`, the policy's decision type
+(`'allow' | 'deny'`) cannot express a conditional or a list filter, no
+Backstage conditional-permission or permission-rule machinery is used
+anywhere in the repository, and the registry router authorizes the five
+lifecycle transitions before it knows which namespace a version belongs to.
+`resourceRef`-aware but non-conditional gating exists once, for scaffolder
+templates (`allowScaffolderTemplateIfReleased`), but it cannot filter a list
+and is not a precedent for a list-filtering decision. See
+[`NXD-014`](DECISIONS.md).
 
 Carried into Phase 4 rather than done early: **`DataContract` identity**. A
 contract is keyed to a `productComponentId` and has no name, owner or
@@ -195,7 +221,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
-Verified on 2026-09-17, running the gate the way CI runs it (`CI=true`,
+Verified on 2026-09-19, running the gate the way CI runs it (`CI=true`,
 PostgreSQL up, Python toolchain installed):
 
 | Gate | Command | Result |
@@ -203,7 +229,7 @@ PostgreSQL up, Python toolchain installed):
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `yarn test` | PASS — 205 suites, 1718 tests, **0 skipped** |
+| Unit tests | `yarn test` | PASS — 204 suites, 1665 tests, **0 skipped** |
 
 **The identityConstraints flake is closed (2026-09-17).** It was never a
 missing constraint. better-sqlite3 is a native module, so its binding loads
@@ -272,11 +298,11 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
   see [`NXD-016`](DECISIONS.md) and Test Status. The risk was also stated
   backwards: it was a false red, not a gate that could go green over a missing
   constraint.
-- Legacy Marketplace is a static, hard-coded TypeScript array
-  (`plugins/marketplace/src/data.ts`), not a registry. **Still true after
-  P2-S4** — the array is what the UI reads. What changed is that every entry
-  in it is now provably representable in the registry, so P2-S5 can switch the
-  read without discovering the mapping mid-flight.
+- ~~Legacy Marketplace is a static, hard-coded TypeScript array
+  (`plugins/marketplace/src/data.ts`), not a registry.~~ **Closed in P2-S5c
+  (2026-09-19).** The array is deleted; the registry is the only source and a
+  failure of it is now a visible error, not a silent substitution — see
+  [`NXD-026`](DECISIONS.md).
 - Composer/Core contains domain-specific Golden Path logic (OEE, Machine
   State) inside `packages/platform-common`. **Wider than recorded** — the
   status audit of 2026-09-17 added
@@ -396,17 +422,11 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
 - `plugins/validation-expert-backend` imports another workspace's private
   source (`@internal/plugin-urs-composer-backend/src/__testUtils__/...`),
   flagged by `guard:platform` as a cross-plugin boundary warning.
-- Legacy Marketplace data must stay until the Marketplace reads the registry
-  (P2-S5b). Model parity is proven as of P2-S4
-  (`plugins/marketplace/src/registryParity.test.ts`) and the registry now holds
-  the twelve as of P2-S5a — but nothing *reads* them, so deleting the array
-  would still empty the UI. The twelve therefore exist twice. Two suites hold
-  the copies in step: `registryParity.test.ts` (array to manifest) and
-  `packages/platform-common/src/artifactManifestFiles.test.ts` (the files
-  themselves). Each carries the same named list of twelve ids, because the
-  array lives in a frontend plugin and nothing that may read the filesystem is
-  allowed to depend on one. That seam is deliberate and temporary; it is
-  deleted with the array.
+- ~~Legacy Marketplace data must stay until the Marketplace reads the registry
+  (P2-S5b)~~. **Resolved in P2-S5c.** The array and `registryParity.test.ts`
+  are deleted; `artifactManifestFiles.test.ts` no longer carries a named
+  twelve-id list either, since the directory it reads is now the only copy —
+  see [`NXD-026`](DECISIONS.md).
 - `packages/data-product-sdk` has no TypeScript sources; it is a Python
   package inside a Yarn workspace, which is why a missing interpreter could
   turn into a hard test failure.

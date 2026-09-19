@@ -1,34 +1,43 @@
 import {
   MARKETPLACE_CATEGORY_KINDS,
   MARKETPLACE_SPEC_KEY,
-  marketplaceNamespaceFor,
-  marketplaceOfferingToManifest,
-  marketplaceOfferingView,
+  UNCERTIFIED_STATUS,
+  marketplaceOfferingsFromRegistry,
   marketplaceViewOfManifest,
-  validateMarketplaceOffering,
-  type MarketplaceOffering,
+  representativeVersion,
+  type RegistryArtifactWithVersions,
 } from './marketplace-artifact';
 import {
   ARTIFACT_MANIFEST_API_VERSION,
-  validateArtifactManifest,
+  type ArtifactManifest,
 } from './artifact';
 
-function offering(
-  overrides: Partial<MarketplaceOffering> = {},
-): MarketplaceOffering {
+function manifest(overrides: Partial<ArtifactManifest> = {}): ArtifactManifest {
   return {
-    id: 'acme-connector',
-    name: 'Acme Connector',
-    category: 'Connectors',
-    version: '1.2.0',
-    description: 'Reads from the Acme system.',
-    provider: 'Acme',
-    compatibility: 'Python 3.12+, Docker',
-    status: 'available',
-    certificationStatus: 'TESTED',
-    documentation: '/docs/acme-connector',
+    apiVersion: ARTIFACT_MANIFEST_API_VERSION,
+    kind: 'CONNECTOR',
+    metadata: {
+      namespace: 'acme',
+      name: 'acme-connector',
+      version: '1.2.0',
+      displayName: 'Acme Connector',
+      description: 'Reads from the Acme system.',
+    },
+    spec: {
+      [MARKETPLACE_SPEC_KEY]: {
+        category: 'Connectors',
+        provider: 'Acme',
+        compatibility: 'Python 3.12+, Docker',
+        status: 'available',
+        documentation: '/docs/acme-connector',
+      },
+    },
     ...overrides,
   };
+}
+
+function marketplaceField(m: ArtifactManifest): Record<string, unknown> {
+  return { ...(m.spec?.[MARKETPLACE_SPEC_KEY] as Record<string, unknown>) };
 }
 
 describe('category mapping', () => {
@@ -40,202 +49,176 @@ describe('category mapping', () => {
       'Platform Components': 'COMPONENT',
     });
   });
-
-  it('rejects a category it has no kind for rather than guessing one', () => {
-    const issues = validateMarketplaceOffering(
-      offering({ category: 'Solutions' }),
-    );
-    expect(issues).toEqual([
-      expect.stringContaining('category "Solutions" has no artifact kind'),
-    ]);
-    expect(
-      marketplaceOfferingToManifest(offering({ category: 'Solutions' })),
-    ).toBeUndefined();
-  });
 });
 
-describe('namespace derivation', () => {
-  it.each([
-    ['Nexora', 'nexora'],
-    ['Acme Corp', 'acme-corp'],
-    ['Acme  Corp. GmbH', 'acme-corp-gmbh'],
-    ['  Acme  ', 'acme'],
-  ])('reduces %p to %p', (provider, expected) => {
-    expect(marketplaceNamespaceFor(provider)).toBe(expected);
+describe('manifest to offering view', () => {
+  it('reads a complete manifest back into a view', () => {
+    const view = marketplaceViewOfManifest(manifest());
+    expect(view).toEqual({
+      id: 'acme-connector',
+      name: 'Acme Connector',
+      category: 'Connectors',
+      version: '1.2.0',
+      description: 'Reads from the Acme system.',
+      provider: 'Acme',
+      compatibility: 'Python 3.12+, Docker',
+      status: 'available',
+      documentation: '/docs/acme-connector',
+    });
   });
 
-  it('gives nothing back for a provider with no usable segment', () => {
-    expect(marketplaceNamespaceFor('///')).toBeUndefined();
-    expect(marketplaceNamespaceFor('')).toBeUndefined();
-  });
-
-  it('refuses a provider name too long to be a segment', () => {
-    expect(marketplaceNamespaceFor('a'.repeat(65))).toBeUndefined();
-  });
-});
-
-describe('offering validation', () => {
-  it('accepts an offering the registry can take', () => {
-    expect(validateMarketplaceOffering(offering())).toEqual([]);
-  });
-
-  it('reports every missing required field at once', () => {
-    const issues = validateMarketplaceOffering({ id: 'acme-connector' });
-    expect(issues).toEqual(
-      expect.arrayContaining([
-        'name is required',
-        'category is required',
-        'version is required',
-        'description is required',
-        'provider is required',
-        'compatibility is required',
-        'status is required',
-        'certificationStatus is required',
-        'documentation is required',
-      ]),
+  it('carries the source ref as the template reference', () => {
+    const withSourceRef = manifest();
+    withSourceRef.spec = {
+      sourceRef: 'template:default/acme-connector',
+      [MARKETPLACE_SPEC_KEY]: marketplaceField(withSourceRef),
+    };
+    expect(marketplaceViewOfManifest(withSourceRef)?.templateReference).toBe(
+      'template:default/acme-connector',
     );
   });
 
-  it('refuses an id that cannot be an artifact name', () => {
-    expect(validateMarketplaceOffering(offering({ id: 'Acme Connector' }))).toEqual([
-      expect.stringContaining('cannot be an artifact name'),
-    ]);
+  it('leaves templateReference out when the manifest has no sourceRef', () => {
+    const view = marketplaceViewOfManifest(manifest());
+    expect(view).not.toHaveProperty('templateReference');
   });
 
-  it('refuses a version the shared grammar rejects', () => {
-    expect(validateMarketplaceOffering(offering({ version: 'v1' }))).toEqual([
-      expect.stringContaining('version:'),
-    ]);
+  it('carries catalogEntityRef and contractApiRef when present', () => {
+    const m = manifest();
+    m.spec = {
+      [MARKETPLACE_SPEC_KEY]: {
+        ...marketplaceField(m),
+        catalogEntityRef: 'component:default/acme-connector',
+        contractApiRef: 'api:default/acme-connector--acme-event',
+      },
+    };
+    const view = marketplaceViewOfManifest(m);
+    expect(view?.catalogEntityRef).toBe('component:default/acme-connector');
+    expect(view?.contractApiRef).toBe(
+      'api:default/acme-connector--acme-event',
+    );
   });
 
-  it('accepts a zero major version', () => {
-    expect(validateMarketplaceOffering(offering({ version: '0.1.0' }))).toEqual(
+  it('gives nothing back for a manifest with no marketplace metadata', () => {
+    expect(marketplaceViewOfManifest(manifest({ spec: {} }))).toBeUndefined();
+  });
+
+  it('gives nothing back when a required marketplace field is missing', () => {
+    const m = manifest();
+    const fields = marketplaceField(m);
+    delete fields.category;
+    m.spec = { [MARKETPLACE_SPEC_KEY]: fields };
+    expect(marketplaceViewOfManifest(m)).toBeUndefined();
+  });
+
+  it('gives nothing back for a manifest the registry would reject', () => {
+    const m = manifest({
+      metadata: { ...manifest().metadata, version: 'nightly' },
+    });
+    expect(marketplaceViewOfManifest(m)).toBeUndefined();
+  });
+
+  it('gives nothing back when the category names a different kind than the manifest declares', () => {
+    // Connectors maps to CONNECTOR; declaring TEMPLATE alongside it is a
+    // contradiction, not a category the mapping simply lacks.
+    const m = manifest({ kind: 'TEMPLATE' });
+    expect(marketplaceViewOfManifest(m)).toBeUndefined();
+  });
+
+  it('has no certificationStatus field to read back', () => {
+    const view = marketplaceViewOfManifest(manifest());
+    expect(view).not.toHaveProperty('certificationStatus');
+  });
+});
+
+describe('representativeVersion', () => {
+  it('prefers a RELEASED version over any other', () => {
+    const versions = [
+      { version: '2.0.0', lifecycle: 'DRAFT' },
+      { version: '1.0.0', lifecycle: 'RELEASED' },
+    ];
+    expect(representativeVersion(versions)?.version).toBe('1.0.0');
+  });
+
+  it('falls back to the highest version when none is released', () => {
+    const versions = [
+      { version: '1.0.0', lifecycle: 'DRAFT' },
+      { version: '1.2.0', lifecycle: 'TESTING' },
+    ];
+    expect(representativeVersion(versions)?.version).toBe('1.2.0');
+  });
+
+  it('gives nothing back for an empty list', () => {
+    expect(representativeVersion([])).toBeUndefined();
+  });
+});
+
+describe('offerings from a registry listing', () => {
+  function artifact(
+    overrides: Partial<RegistryArtifactWithVersions> = {},
+  ): RegistryArtifactWithVersions {
+    return {
+      namespace: 'acme',
+      name: 'acme-connector',
+      versions: [
+        {
+          version: '1.2.0',
+          lifecycle: 'DRAFT',
+          manifest: manifest(),
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  it('joins the manifest view with the version certification', () => {
+    const offerings = marketplaceOfferingsFromRegistry([
+      artifact({
+        versions: [
+          {
+            version: '1.2.0',
+            lifecycle: 'CERTIFIED',
+            certificationStatus: 'CERTIFIED',
+            manifest: manifest(),
+          },
+        ],
+      }),
+    ]);
+    expect(offerings).toHaveLength(1);
+    expect(offerings[0].certificationStatus).toBe('CERTIFIED');
+  });
+
+  it('shows the uncertified floor when the version carries no certification', () => {
+    const offerings = marketplaceOfferingsFromRegistry([artifact()]);
+    expect(offerings).toHaveLength(1);
+    expect(offerings[0].certificationStatus).toBe(UNCERTIFIED_STATUS);
+  });
+
+  it('drops an artifact with no versions', () => {
+    expect(marketplaceOfferingsFromRegistry([artifact({ versions: [] })])).toEqual(
       [],
     );
   });
 
-  it('refuses a status or certification outside the known sets', () => {
-    expect(validateMarketplaceOffering(offering({ status: 'beta' }))).toEqual([
-      expect.stringContaining('status "beta"'),
-    ]);
+  it('drops an artifact whose representative version has no manifest', () => {
     expect(
-      validateMarketplaceOffering(offering({ certificationStatus: 'GOLD' })),
-    ).toEqual([expect.stringContaining('certificationStatus "GOLD"')]);
+      marketplaceOfferingsFromRegistry([
+        artifact({
+          versions: [{ version: '1.2.0', lifecycle: 'DRAFT' }],
+        }),
+      ]),
+    ).toEqual([]);
   });
 
-  it('rejects a non-object', () => {
-    expect(validateMarketplaceOffering(null)).toEqual(['Offering must be an object']);
-    expect(validateMarketplaceOffering([])).toEqual(['Offering must be an object']);
-  });
-});
-
-describe('offering to manifest', () => {
-  it('produces a manifest the registry accepts', () => {
-    const manifest = marketplaceOfferingToManifest(offering())!;
-    expect(validateArtifactManifest(manifest)).toEqual([]);
-    expect(manifest.apiVersion).toBe(ARTIFACT_MANIFEST_API_VERSION);
-    expect(manifest.kind).toBe('CONNECTOR');
-    expect(manifest.metadata).toMatchObject({
-      namespace: 'acme',
-      name: 'acme-connector',
-      version: '1.2.0',
-      displayName: 'Acme Connector',
-    });
-  });
-
-  it('carries the template reference as the version source', () => {
-    const manifest = marketplaceOfferingToManifest(
-      offering({ templateReference: 'template:default/acme-connector' }),
-    )!;
-    expect(manifest.spec?.sourceRef).toBe('template:default/acme-connector');
-  });
-
-  it('leaves sourceRef out when the offering has no template', () => {
-    const manifest = marketplaceOfferingToManifest(offering())!;
-    expect(manifest.spec).not.toHaveProperty('sourceRef');
-  });
-
-  it('keeps the display category as metadata rather than as a kind', () => {
-    const manifest = marketplaceOfferingToManifest(offering())!;
-    expect(manifest.spec?.[MARKETPLACE_SPEC_KEY]).toMatchObject({
-      category: 'Connectors',
-      provider: 'Acme',
-    });
-  });
-
-  it('does not let an offering declare its own registry certification', () => {
-    // The claim travels as Marketplace metadata only. Nothing in the manifest
-    // may set ArtifactVersion.certificationStatus — that is what review and
-    // certification are for.
-    const manifest = marketplaceOfferingToManifest(
-      offering({ certificationStatus: 'CERTIFIED' }),
-    )!;
-    expect(manifest).not.toHaveProperty('certificationStatus');
-    expect(manifest.spec).not.toHaveProperty('certificationStatus');
+  it('drops an artifact whose manifest is not a renderable offering', () => {
     expect(
-      (manifest.spec?.[MARKETPLACE_SPEC_KEY] as Record<string, unknown>)
-        .certificationStatus,
-    ).toBe('CERTIFIED');
-  });
-
-  it('gives nothing back for an offering it cannot map', () => {
-    expect(
-      marketplaceOfferingToManifest(offering({ version: 'nightly' })),
-    ).toBeUndefined();
-  });
-});
-
-describe('manifest back to offering', () => {
-  it('round-trips every stored field', () => {
-    const original = offering({
-      templateReference: 'template:default/acme-connector',
-      catalogEntityRef: 'component:default/acme-connector',
-      contractApiRef: 'api:default/acme-connector--acme-event',
-    });
-    const manifest = marketplaceOfferingToManifest(original)!;
-    expect(marketplaceViewOfManifest(manifest)).toEqual(
-      marketplaceOfferingView(original),
-    );
-  });
-
-  it('round-trips an offering with no optional references', () => {
-    const original = offering();
-    const manifest = marketplaceOfferingToManifest(original)!;
-    const view = marketplaceViewOfManifest(manifest);
-    expect(view).toEqual(marketplaceOfferingView(original));
-    expect(view).not.toHaveProperty('templateReference');
-    expect(view).not.toHaveProperty('catalogEntityRef');
-    expect(view).not.toHaveProperty('contractApiRef');
-  });
-
-  it('gives nothing back for a manifest with no marketplace metadata', () => {
-    const manifest = marketplaceOfferingToManifest(offering())!;
-    expect(
-      marketplaceViewOfManifest({ ...manifest, spec: {} }),
-    ).toBeUndefined();
-  });
-
-  it('gives nothing back when a required marketplace field is missing', () => {
-    const manifest = marketplaceOfferingToManifest(offering())!;
-    const fields = {
-      ...(manifest.spec?.[MARKETPLACE_SPEC_KEY] as Record<string, unknown>),
-    };
-    delete fields.category;
-    expect(
-      marketplaceViewOfManifest({
-        ...manifest,
-        spec: { ...manifest.spec, [MARKETPLACE_SPEC_KEY]: fields },
-      }),
-    ).toBeUndefined();
-  });
-
-  it('gives nothing back for a manifest the registry would reject', () => {
-    const manifest = marketplaceOfferingToManifest(offering())!;
-    expect(
-      marketplaceViewOfManifest({
-        ...manifest,
-        metadata: { ...manifest.metadata, version: 'nightly' },
-      }),
-    ).toBeUndefined();
+      marketplaceOfferingsFromRegistry([
+        artifact({
+          versions: [
+            { version: '1.2.0', lifecycle: 'DRAFT', manifest: manifest({ spec: {} }) },
+          ],
+        }),
+      ]),
+    ).toEqual([]);
   });
 });

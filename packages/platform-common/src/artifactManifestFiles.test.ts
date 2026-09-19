@@ -7,14 +7,13 @@
  * manifest into a loud failure. This suite is that loud failure, at build time
  * instead.
  *
- * What it cannot check, and why: the legacy `marketplaceItems` array lives in
- * a frontend plugin, and nothing that may read the filesystem is allowed to
- * depend on one. So the two halves are checked separately — the array maps to
- * manifests in `plugins/marketplace/src/registryParity.test.ts`, and the files
- * are checked here. The named list below is the seam between them: adding an
- * offering means adding a file and a name here, and forgetting either fails.
- * The seam disappears in the slice that deletes the array, at which point the
- * files are the only copy and there is nothing left to hold in step.
+ * These files are now the only copy. While the legacy `marketplaceItems` array
+ * still existed, this suite also carried a spelled-out list of the twelve names
+ * as its half of the seam holding array and files in step. The array is gone,
+ * so the list went with it: enumerating the directory's contents in a test
+ * beside the directory would be the second copy this transformation exists to
+ * remove. What is checked instead is that whatever the directory holds is
+ * loadable, nameable and renderable.
  */
 
 import { readdirSync, readFileSync } from 'fs';
@@ -24,33 +23,15 @@ import {
   validateArtifactManifest,
   type ArtifactManifest,
 } from './artifact';
-import { marketplaceViewOfManifest } from './marketplace-artifact';
+import {
+  MARKETPLACE_CATEGORY_KINDS,
+  MARKETPLACE_SPEC_KEY,
+  marketplaceViewOfManifest,
+} from './marketplace-artifact';
 
 const MANIFEST_ROOT = join(__dirname, '..', '..', '..', 'catalog', 'artifacts');
 const NEXORA_DIR = join(MANIFEST_ROOT, 'nexora');
 const PUBLISHER_FILE = 'publisher.yaml';
-
-/**
- * The offerings the Control Plane ships, by artifact name.
- *
- * Kept sorted and spelled out rather than derived from the directory, because
- * a list derived from the directory would agree with the directory no matter
- * what the directory contained.
- */
-const EXPECTED_ARTIFACTS = [
-  'aas-data-product',
-  'aas-foundation',
-  'machine-state-consumer-data-product',
-  'mqtt-data-connector',
-  'mqtt-temperature-data-product',
-  'nodejs-microservice',
-  'oee-data-product',
-  'python-microservice',
-  'rest-api-connector',
-  'rest-equipment-data-product',
-  'snowflake-connector',
-  'unified-namespace',
-];
 
 function read(file: string): unknown {
   return parseYaml(readFileSync(join(NEXORA_DIR, file), 'utf8'));
@@ -60,10 +41,11 @@ const files = readdirSync(NEXORA_DIR).filter(f => f.endsWith('.yaml')).sort();
 const artifactFiles = files.filter(f => f !== PUBLISHER_FILE);
 
 describe('artifact manifests on disk', () => {
-  it('holds exactly the offerings the Control Plane ships', () => {
-    expect(artifactFiles).toEqual(
-      EXPECTED_ARTIFACTS.map(name => `${name}.yaml`),
-    );
+  it('holds the offerings the Control Plane ships', () => {
+    // Not a count and not a list: the directory is the source, so the only
+    // thing a test beside it can honestly assert is that it is not empty.
+    // An empty directory means an empty Marketplace, which is worth failing on.
+    expect(artifactFiles.length).toBeGreaterThan(0);
   });
 
   it('declares the publisher that owns the namespace', () => {
@@ -89,12 +71,22 @@ describe('artifact manifests on disk', () => {
   it.each(artifactFiles)(
     '%s round-trips to a complete Marketplace offering',
     file => {
-      // The registry is about to become what the Marketplace reads. A manifest
-      // the Marketplace cannot render back into an offering would silently
-      // drop a card from the catalogue after the switch.
+      // The registry is what the Marketplace reads, and these files are what
+      // the registry holds. A manifest the Marketplace cannot render back into
+      // an offering silently drops a card from the catalogue.
       expect(marketplaceViewOfManifest(read(file) as ArtifactManifest)).toBeDefined();
     },
   );
+
+  it.each(artifactFiles)('%s files itself under its own kind', file => {
+    const manifest = read(file) as ArtifactManifest;
+    const marketplace = manifest.spec?.[MARKETPLACE_SPEC_KEY] as {
+      category?: string;
+    };
+    expect(MARKETPLACE_CATEGORY_KINDS[marketplace?.category ?? '']).toBe(
+      manifest.kind,
+    );
+  });
 
   it('registers everything into the namespace the publisher owns', () => {
     const namespaces = new Set(
@@ -115,10 +107,18 @@ describe('artifact manifests on disk', () => {
     // Registration yields DRAFT with no certification status. A manifest that
     // set either would be asking the registry to trust the artifact's own
     // account of whether it has been reviewed. See NXD-019.
+    //
+    // The Marketplace block is checked too, and that is the newer half: it is
+    // where the legacy claim used to travel as display metadata. The UI reads
+    // the registry now, so a value left there would be a claim nothing renders
+    // and nothing stands behind. See NXD-025.
     for (const file of artifactFiles) {
       const manifest = read(file) as ArtifactManifest;
       expect(manifest.spec).not.toHaveProperty('lifecycle');
       expect(manifest.spec).not.toHaveProperty('certificationStatus');
+      expect(manifest.spec?.[MARKETPLACE_SPEC_KEY]).not.toHaveProperty(
+        'certificationStatus',
+      );
     }
   });
 });

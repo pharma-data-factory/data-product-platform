@@ -13,5 +13,4 @@ spec:
     provider: "Nexora"
     compatibility: "HTTP APIs"
     status: "preview"
-    certificationStatus: "DEVELOPMENT"
     documentation: "/docs/marketplace"

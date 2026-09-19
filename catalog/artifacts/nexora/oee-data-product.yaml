@@ -13,6 +13,4 @@ spec:
     provider: "Nexora"
     compatibility: "Python 3.12+, MQTT, REST, Docker, Wave 1 components"
     status: "available"
-    # See the note in aas-data-product.yaml and NXD-019.
-    certificationStatus: "CERTIFIED"
     documentation: "/create/templates/default/oee-data-product"

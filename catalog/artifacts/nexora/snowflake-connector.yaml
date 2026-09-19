@@ -13,5 +13,4 @@ spec:
     provider: "Nexora"
     compatibility: "Future release"
     status: "preview"
-    certificationStatus: "DEVELOPMENT"
     documentation: "/docs/marketplace"

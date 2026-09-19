@@ -596,16 +596,13 @@ export {
   MARKETPLACE_CATEGORY_KINDS,
   MARKETPLACE_OFFERING_STATUSES,
   MARKETPLACE_SPEC_KEY,
-  marketplaceNamespaceFor,
+  UNCERTIFIED_STATUS,
   marketplaceOfferingsFromRegistry,
-  marketplaceOfferingToManifest,
-  marketplaceOfferingView,
   marketplaceViewOfManifest,
   representativeVersion,
-  validateMarketplaceOffering,
 } from './marketplace-artifact';
 export type {
-  MarketplaceOffering,
+  MarketplaceManifestView,
   MarketplaceOfferingStatus,
   MarketplaceOfferingView,
   RegistryArtifactWithVersions,

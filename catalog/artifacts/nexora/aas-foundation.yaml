@@ -13,6 +13,5 @@ spec:
     provider: "Nexora"
     compatibility: "Python 3.12+, SQLite, REST"
     status: "preview"
-    certificationStatus: "DEVELOPMENT"
     documentation: "/docs/default/component/data-product-platform/aas/index"
     catalogEntityRef: "component:default/aas-foundation"

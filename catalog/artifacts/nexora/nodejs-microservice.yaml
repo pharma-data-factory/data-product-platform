@@ -13,5 +13,4 @@ spec:
     provider: "Nexora"
     compatibility: "Node.js 20+, Docker, GitHub"
     status: "available"
-    certificationStatus: "TESTED"
     documentation: "/create/templates/default/nodejs-microservice"

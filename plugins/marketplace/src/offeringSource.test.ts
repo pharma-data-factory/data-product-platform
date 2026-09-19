@@ -1,40 +1,59 @@
 /**
  * The Marketplace's offering source.
  *
- * Two things are load-bearing. That a registry listing becomes exactly the
- * cards the array produces — parity, which is what licenses the switch — and
- * that nothing the registry can do empties the catalogue.
+ * The registry is the only source now — no fallback, no legacy array. What
+ * matters here is that a registry listing becomes the right cards, that a
+ * card carries the certification the *version* holds rather than one baked
+ * into the manifest, and that a registry failure surfaces rather than being
+ * silently absorbed.
  */
 
 import {
-  marketplaceOfferingToManifest,
+  ARTIFACT_MANIFEST_API_VERSION,
+  MARKETPLACE_SPEC_KEY,
+  type ArtifactManifest,
   type RegistryArtifactWithVersions,
 } from '@internal/platform-common';
-import { marketplaceItems } from './data';
 import {
   loadOfferings,
   offeringViewToItem,
   offeringsFromRegistryResponse,
 } from './offeringSource';
 
-/** The registry response the twelve committed manifests produce. */
-function registryResponse(
-  options: { lifecycle?: string } = {},
-): RegistryArtifactWithVersions[] {
-  return marketplaceItems.map(item => {
-    const manifest = marketplaceOfferingToManifest(item)!;
-    return {
-      namespace: manifest.metadata.namespace,
-      name: manifest.metadata.name,
-      versions: [
-        {
-          version: manifest.metadata.version,
-          lifecycle: options.lifecycle ?? 'DRAFT',
-          manifest,
-        },
-      ],
-    };
-  });
+function manifest(overrides: Partial<ArtifactManifest> = {}): ArtifactManifest {
+  return {
+    apiVersion: ARTIFACT_MANIFEST_API_VERSION,
+    kind: 'CONNECTOR',
+    metadata: {
+      namespace: 'nexora',
+      name: 'acme-connector',
+      version: '1.0.0',
+      displayName: 'Acme Connector',
+      description: 'Reads from Acme.',
+    },
+    spec: {
+      [MARKETPLACE_SPEC_KEY]: {
+        category: 'Connectors',
+        provider: 'Nexora',
+        compatibility: 'Python 3.12+',
+        status: 'available',
+        documentation: '/docs/acme-connector',
+      },
+    },
+    ...overrides,
+  };
+}
+
+function artifact(
+  overrides: Partial<RegistryArtifactWithVersions> = {},
+): RegistryArtifactWithVersions {
+  const m = manifest();
+  return {
+    namespace: m.metadata.namespace,
+    name: m.metadata.name,
+    versions: [{ version: m.metadata.version, lifecycle: 'DRAFT', manifest: m }],
+    ...overrides,
+  };
 }
 
 const api = (
@@ -44,113 +63,37 @@ const api = (
 });
 
 describe('offerings from the registry', () => {
-  it('reproduces the legacy offerings exactly', async () => {
+  it('turns a registry listing into Marketplace items', async () => {
+    const result = await loadOfferings(api(async () => [artifact()]));
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: 'acme-connector',
+      name: 'Acme Connector',
+      category: 'Connectors',
+    });
+  });
+
+  it('carries the version certification, not one from the manifest', async () => {
     const result = await loadOfferings(
-      api(async () => registryResponse()),
+      api(async () => [
+        artifact({
+          versions: [
+            {
+              version: '1.0.0',
+              lifecycle: 'CERTIFIED',
+              certificationStatus: 'CERTIFIED',
+              manifest: manifest(),
+            },
+          ],
+        }),
+      ]),
     );
-
-    expect(result.source).toBe('registry');
-    // Including the order. The registry returns artifacts by name, so without
-    // this the catalogue would silently re-sort alphabetically the moment it
-    // became the source — a visible change, which parity does not permit.
-    expect(result.items).toEqual(marketplaceItems);
+    expect(result[0].certificationStatus).toBe('CERTIFIED');
   });
 
-  it('puts an offering the array never had after the ones it did', async () => {
-    const extra = {
-      ...marketplaceItems[0],
-      id: 'zz-new-connector',
-      name: 'ZZ New Connector',
-      category: 'Connectors' as const,
-    };
-    const response = [
-      ...registryResponse(),
-      {
-        namespace: 'nexora',
-        name: 'zz-new-connector',
-        versions: [
-          {
-            version: '1.0.0',
-            lifecycle: 'DRAFT',
-            manifest: marketplaceOfferingToManifest(extra)!,
-          },
-        ],
-      },
-    ];
-
-    const result = await loadOfferings(api(async () => response));
-
-    expect(result.items).toHaveLength(marketplaceItems.length + 1);
-    expect(result.items[result.items.length - 1].id).toBe('zz-new-connector');
-  });
-
-  it('keeps the certification the offering displays today', async () => {
-    // Parity, not endorsement. The registry's own lifecycle is DRAFT for all
-    // twelve; what the card shows is the legacy claim carried in the manifest.
-    // See NXD-019 — reconciling the two is a decision, not a mapping.
-    const result = await loadOfferings(api(async () => registryResponse()));
-    const certified = result.items
-      .filter(item => item.certificationStatus === 'CERTIFIED')
-      .map(item => item.id)
-      .sort();
-
-    expect(certified).toEqual(['aas-data-product', 'oee-data-product']);
-  });
-
-  it('prefers a RELEASED version over a draft of the same artifact', () => {
-    const manifest = marketplaceOfferingToManifest(marketplaceItems[0])!;
-    const older = {
-      ...manifest,
-      metadata: { ...manifest.metadata, version: '1.0.0' },
-    };
-    const newer = {
-      ...manifest,
-      metadata: { ...manifest.metadata, version: '2.0.0' },
-    };
-
-    const items = offeringsFromRegistryResponse([
-      {
-        namespace: 'nexora',
-        name: manifest.metadata.name,
-        versions: [
-          { version: '2.0.0', lifecycle: 'DRAFT', manifest: newer },
-          { version: '1.0.0', lifecycle: 'RELEASED', manifest: older },
-        ],
-      },
-    ]);
-
-    expect(items).toHaveLength(1);
-    expect(items[0].version).toBe('1.0.0');
-  });
-
-  it('falls back to the highest version when none is released', () => {
-    const manifest = marketplaceOfferingToManifest(marketplaceItems[0])!;
-    const items = offeringsFromRegistryResponse([
-      {
-        namespace: 'nexora',
-        name: manifest.metadata.name,
-        versions: [
-          {
-            version: '1.0.0',
-            lifecycle: 'DRAFT',
-            manifest: {
-              ...manifest,
-              metadata: { ...manifest.metadata, version: '1.0.0' },
-            },
-          },
-          {
-            version: '1.2.0',
-            lifecycle: 'DRAFT',
-            manifest: {
-              ...manifest,
-              metadata: { ...manifest.metadata, version: '1.2.0' },
-            },
-          },
-        ],
-      },
-    ]);
-
-    expect(items[0].version).toBe('1.2.0');
+  it('shows an uncertified floor when the version carries no certification', async () => {
+    const result = await loadOfferings(api(async () => [artifact()]));
+    expect(result[0].certificationStatus).toBe('DEVELOPMENT');
   });
 
   it('drops an artifact with no manifest rather than inventing a card', () => {
@@ -167,24 +110,23 @@ describe('offerings from the registry', () => {
   });
 
   it('drops an offering whose category this Marketplace cannot file', () => {
-    const manifest = marketplaceOfferingToManifest(marketplaceItems[0])!;
-    const spec = manifest.spec as Record<string, unknown>;
-    const tampered = {
-      ...manifest,
+    const tampered = manifest({
       spec: {
-        ...spec,
-        marketplace: {
-          ...(spec.marketplace as Record<string, unknown>),
+        [MARKETPLACE_SPEC_KEY]: {
           category: 'Wallcharts',
+          provider: 'Nexora',
+          compatibility: 'Python 3.12+',
+          status: 'available',
+          documentation: '/docs/acme-connector',
         },
       },
-    };
+    });
 
     expect(
       offeringsFromRegistryResponse([
         {
           namespace: 'nexora',
-          name: manifest.metadata.name,
+          name: 'acme-connector',
           versions: [
             { version: '1.0.0', lifecycle: 'DRAFT', manifest: tampered },
           ],
@@ -194,34 +136,19 @@ describe('offerings from the registry', () => {
   });
 });
 
-describe('the fallback to the legacy array', () => {
-  it('is used when the registry call fails, and says why', async () => {
-    const result = await loadOfferings(
-      api(async () => {
-        throw new Error('registry unreachable');
-      }),
-    );
-
-    expect(result.source).toBe('legacy');
-    expect(result.reason).toContain('registry unreachable');
-    expect(result.items).toEqual(marketplaceItems);
-  });
-
-  it('is used when the registry answers with nothing renderable', async () => {
-    // An empty registry and one that has not loaded yet look the same from
-    // here, and an empty Marketplace is the worse of the two mistakes.
-    const result = await loadOfferings(api(async () => []));
-
-    expect(result.source).toBe('legacy');
-    expect(result.items).toEqual(marketplaceItems);
-  });
-
-  it('never rejects, so a caller cannot be left with no offerings', async () => {
+describe('a failing or empty registry', () => {
+  it('rejects when the registry call fails, rather than substituting anything', async () => {
     await expect(
       loadOfferings(
-        api(() => Promise.reject(new Error('boom'))),
+        api(async () => {
+          throw new Error('registry unreachable');
+        }),
       ),
-    ).resolves.toMatchObject({ source: 'legacy' });
+    ).rejects.toThrow('registry unreachable');
+  });
+
+  it('resolves to an empty list when the registry has nothing renderable', async () => {
+    await expect(loadOfferings(api(async () => []))).resolves.toEqual([]);
   });
 });
 

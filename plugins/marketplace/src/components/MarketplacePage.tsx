@@ -48,7 +48,6 @@ import {
   enrichMarketplaceItems,
   filterMarketplaceItems,
   marketplaceCreateAllowed,
-  marketplaceItems,
   marketplaceOfferingKind,
 } from '../data';
 
@@ -98,7 +97,7 @@ export function MarketplacePage() {
   const isAdmin = canAdministerPlatform(role);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<MarketplaceCategory | 'All'>('All');
-  const [items, setItems] = useState<MarketplaceItem[]>(marketplaceItems);
+  const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
 
@@ -109,23 +108,11 @@ export function MarketplacePage() {
         filter: { kind: ['Component', 'API', 'Template'] },
       }),
       entitlementApi.getProducts().catch(() => undefined),
-      // The registry is the offering source; `loadOfferings` falls back to the
-      // legacy array on its own rather than rejecting, so a registry that is
-      // still starting up cannot empty the catalogue.
       loadOfferings(registryApi),
     ])
       .then(([response, productsSnapshot, offerings]) => {
         if (!active) {
           return;
-        }
-        if (offerings.source === 'legacy') {
-          // Visible to a developer, invisible to the user: the twelve cards
-          // are the same either way, and a fallback nobody notices is how a
-          // broken read path survives a release.
-          // eslint-disable-next-line no-console
-          console.warn(
-            `Marketplace is showing legacy offerings: ${offerings.reason}`,
-          );
         }
         const { products, apis, templates } = marketplaceCatalogSources(
           response.items,
@@ -136,7 +123,7 @@ export function MarketplacePage() {
             .map(product => product.productId) ?? undefined;
         setItems(
           enrichMarketplaceItems(
-            offerings.items,
+            offerings,
             products,
             apis,
             templates,
@@ -162,7 +149,7 @@ export function MarketplacePage() {
       })
       .catch(err => {
         if (active) {
-          setItems(marketplaceItems);
+          setItems([]);
           setError(err instanceof Error ? err : new Error(String(err)));
           setLoading(false);
         }

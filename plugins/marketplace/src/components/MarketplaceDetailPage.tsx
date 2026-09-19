@@ -41,7 +41,6 @@ import {
   enrichMarketplaceItem,
   goldenPathCreateHighlights,
   marketplaceCreateAllowed,
-  marketplaceItems,
   marketplaceOfferingKind,
 } from '../data';
 
@@ -52,9 +51,7 @@ export function MarketplaceDetailPage() {
   const registryApi = useApi(artifactRegistryApiRef);
   const { role } = usePlatformRole();
   const canCreate = canCreateDataProduct(role);
-  const [item, setItem] = useState<MarketplaceItem | undefined>(
-    marketplaceItems.find(entry => entry.id === id),
-  );
+  const [item, setItem] = useState<MarketplaceItem | undefined>(undefined);
   const createAllowed = item
     ? marketplaceCreateAllowed(
         item,
@@ -87,7 +84,7 @@ export function MarketplaceDetailPage() {
         // Resolved from the same source the list page uses, so a coordinate
         // that is only in the registry still has a detail page — and one that
         // has been removed from it no longer does.
-        const base = offerings.items.find(entry => entry.id === id);
+        const base = offerings.find(entry => entry.id === id);
         if (!base) {
           setItem(undefined);
           setLoading(false);
@@ -128,9 +125,7 @@ export function MarketplaceDetailPage() {
       })
       .catch(err => {
         if (active) {
-          // Catalog or entitlements failed. `loadOfferings` does not reject,
-          // so the legacy array is the only offering source left here.
-          setItem(marketplaceItems.find(entry => entry.id === id));
+          setItem(undefined);
           setError(err instanceof Error ? err : new Error(String(err)));
           setLoading(false);
         }

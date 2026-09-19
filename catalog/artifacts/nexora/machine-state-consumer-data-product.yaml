@@ -13,7 +13,6 @@ spec:
     provider: "Nexora"
     compatibility: "Python 3.12+, MQTT, Docker, Unified Namespace"
     status: "available"
-    certificationStatus: "DEVELOPMENT"
     documentation: "/create/templates/default/machine-state-consumer-data-product"
     catalogEntityRef: "component:default/sample-machine-state-consumer"
     contractApiRef: "api:default/sample-machine-state-consumer--machine-state-event"

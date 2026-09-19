@@ -13,5 +13,4 @@ spec:
     provider: "Nexora"
     compatibility: "Python 3.12+, REST, Docker"
     status: "available"
-    certificationStatus: "DEVELOPMENT"
     documentation: "/create/templates/default/rest-equipment-data-product"

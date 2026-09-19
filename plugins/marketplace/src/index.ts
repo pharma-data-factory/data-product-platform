@@ -1,7 +1,6 @@
 export { marketplacePlugin as default } from './plugin';
 export { OeeBuiltWith, CompositionTreeVisual } from './components/OeeBuiltWith';
 export {
-  marketplaceItems,
   filterMarketplaceItems,
   enrichMarketplaceItem,
   enrichMarketplaceItems,
