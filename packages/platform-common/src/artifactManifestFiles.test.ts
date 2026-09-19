@@ -23,6 +23,7 @@ import {
   validateArtifactManifest,
   type ArtifactManifest,
 } from './artifact';
+import { compositionOfArtifactManifest } from './composition';
 import {
   MARKETPLACE_CATEGORY_KINDS,
   MARKETPLACE_SPEC_KEY,
@@ -39,6 +40,19 @@ function read(file: string): unknown {
 
 const files = readdirSync(NEXORA_DIR).filter(f => f.endsWith('.yaml')).sort();
 const artifactFiles = files.filter(f => f !== PUBLISHER_FILE);
+
+/**
+ * The directory holds two sorts of Artifact since NXD-027: offerings, which
+ * the Marketplace renders as cards, and GOLDEN_PATH compositions, which it
+ * does not. Splitting on kind rather than on whether a marketplace block
+ * happens to be present matters — a typo in the `marketplace:` key would
+ * otherwise reclassify an offering as a composition and quietly drop its card
+ * past every assertion below.
+ */
+const OFFERING_KINDS = new Set(Object.values(MARKETPLACE_CATEGORY_KINDS));
+const kindOf = (file: string) => (read(file) as ArtifactManifest).kind;
+const offeringFiles = artifactFiles.filter(f => OFFERING_KINDS.has(kindOf(f)));
+const compositionFiles = artifactFiles.filter(f => kindOf(f) === 'GOLDEN_PATH');
 
 describe('artifact manifests on disk', () => {
   it('holds the offerings the Control Plane ships', () => {
@@ -68,7 +82,7 @@ describe('artifact manifests on disk', () => {
     expect(`${manifest.metadata.name}.yaml`).toBe(file);
   });
 
-  it.each(artifactFiles)(
+  it.each(offeringFiles)(
     '%s round-trips to a complete Marketplace offering',
     file => {
       // The registry is what the Marketplace reads, and these files are what
@@ -78,7 +92,7 @@ describe('artifact manifests on disk', () => {
     },
   );
 
-  it.each(artifactFiles)('%s files itself under its own kind', file => {
+  it.each(offeringFiles)('%s files itself under its own kind', file => {
     const manifest = read(file) as ArtifactManifest;
     const marketplace = manifest.spec?.[MARKETPLACE_SPEC_KEY] as {
       category?: string;
@@ -86,6 +100,22 @@ describe('artifact manifests on disk', () => {
     expect(MARKETPLACE_CATEGORY_KINDS[marketplace?.category ?? '']).toBe(
       manifest.kind,
     );
+  });
+
+  it.each(compositionFiles)('%s renders no Marketplace card', file => {
+    // A composition is content the Composer resolves, not something anyone
+    // subscribes to. If one ever produced a view, the catalogue would grow
+    // cards nobody added.
+    expect(marketplaceViewOfManifest(read(file) as ArtifactManifest)).toBeUndefined();
+  });
+
+  it.each(compositionFiles)('%s resolves to a composition', file => {
+    const composition = compositionOfArtifactManifest(read(file) as ArtifactManifest);
+    expect(composition?.spec.components.length).toBeGreaterThan(0);
+  });
+
+  it('holds at least one composition', () => {
+    expect(compositionFiles.length).toBeGreaterThan(0);
   });
 
   it('registers everything into the namespace the publisher owns', () => {
@@ -116,6 +146,10 @@ describe('artifact manifests on disk', () => {
       const manifest = read(file) as ArtifactManifest;
       expect(manifest.spec).not.toHaveProperty('lifecycle');
       expect(manifest.spec).not.toHaveProperty('certificationStatus');
+    }
+    // Only an offering has a Marketplace block to carry the claim in.
+    for (const file of offeringFiles) {
+      const manifest = read(file) as ArtifactManifest;
       expect(manifest.spec?.[MARKETPLACE_SPEC_KEY]).not.toHaveProperty(
         'certificationStatus',
       );

@@ -26,7 +26,7 @@ would duplicate the composition model. **Reuse and extend `GoldenPathComposition
 | Model | `packages/platform-common/src/composition.ts` | `GoldenPathComposition` (kind/apiVersion), `parseCompositionManifest` (YAML+JSON), `validateComposition` (semantic checks), `CompositionIssueCode` |
 | Composer logic | `packages/platform-common/src/composer.ts` | `ComposerDraft`, `ComposerPreset` (5 presets), `composerDraftToManifest`, `serializeCompositionYaml` (deterministic), `validateComposerDraft` (UX checklist), `officialGoldenPathForSelection`/`Draft` (**Golden-Path-Resolver**), `composerArchitectureFromSelection`, `groupedLibraryComponents` |
 | Frontend | `packages/app/src/modules/composer/` (`ComposePage.tsx`, `CompositionArchitectureVisual.tsx`, `index.tsx`) | Checkbox-based selection UI + layered architecture visual + YAML export |
-| Examples | `catalog/compositions/*.yaml` (8 files) | Reference manifests (`oee-data-product.yaml`, `equipment-use-log.yaml`, …) |
+| Examples | `catalog/artifacts/nexora/*.yaml` (8 files) | Reference manifests (`oee-data-product.yaml`, `equipment-use-log.yaml`, …) |
 
 The existing Composer is **list-based** (checkbox selection of Platform Components), not a
 free-form canvas. It already validates and exports a deterministic composition manifest.

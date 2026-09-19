@@ -215,8 +215,29 @@ export interface ArtifactManifest {
     sourceRef?: string;
     dependencies?: string[];
     distribution?: string[];
+    standardVersion?: string;
+    components?: ArtifactCompositionComponent[];
     [key: string]: unknown;
   };
+}
+
+/**
+ * One Platform Component a composition is built from.
+ *
+ * `ref` is a Backstage Catalog entity ref, not an Artifact ref, and that is
+ * deliberate: Platform Components are Catalog entities, so a composition
+ * points at the Catalog rather than restating it. This is why the list lives
+ * here and not in `spec.dependencies`, which pins exact Artifact versions and
+ * would reject an entity ref outright. See NXD-027.
+ *
+ * `version` is a constraint (`1.x`), not a pin, because it constrains a
+ * Catalog entity whose version the registry does not govern.
+ */
+export interface ArtifactCompositionComponent {
+  ref: string;
+  version: string;
+  /** Offered rather than required. Absent means required. */
+  optional?: boolean;
 }
 
 export const ARTIFACT_MANIFEST_API_VERSION = 'nexora.dev/v1alpha1';
@@ -287,15 +308,29 @@ export function validateArtifactManifest(input: unknown): string[] {
     if (typeof spec !== 'object' || spec === null || Array.isArray(spec)) {
       issues.push('spec must be a mapping');
     } else {
-      issues.push(...validateSpec(spec as Record<string, unknown>));
+      issues.push(
+        ...validateSpec(
+          spec as Record<string, unknown>,
+          manifest.kind as string,
+        ),
+      );
     }
   }
 
   return issues;
 }
 
-function validateSpec(spec: Record<string, unknown>): string[] {
+function validateSpec(spec: Record<string, unknown>, kind: string): string[] {
   const issues: string[] = [];
+
+  // A composition whose component list is missing or malformed resolves to an
+  // empty composition, which is a silently wrong answer rather than a loud
+  // one. The list is the entire content of this kind, so it is required.
+  if (kind === 'GOLDEN_PATH') {
+    issues.push(...validateCompositionComponents(spec.components));
+  } else if (spec.components !== undefined) {
+    issues.push(`spec.components is only meaningful for kind GOLDEN_PATH`);
+  }
 
   if (spec.dependencies !== undefined) {
     if (!isStringArray(spec.dependencies)) {
@@ -320,6 +355,44 @@ function validateSpec(spec: Record<string, unknown>): string[] {
     issues.push('spec.distribution must be a list of strings');
   }
 
+  return issues;
+}
+
+function validateCompositionComponents(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return ['spec.components must be a list for kind GOLDEN_PATH'];
+  }
+  if (value.length === 0) {
+    return ['spec.components must name at least one component'];
+  }
+
+  const issues: string[] = [];
+  const seen = new Set<string>();
+  value.forEach((item, index) => {
+    const path = `spec.components[${index}]`;
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      issues.push(`${path} must be a mapping`);
+      return;
+    }
+    const entry = item as Record<string, unknown>;
+    const ref = entry.ref;
+    if (typeof ref !== 'string' || !ref.trim()) {
+      issues.push(`${path}.ref is required`);
+    } else if (seen.has(ref)) {
+      // The same component twice is either a copy-paste slip or an attempt to
+      // say something the format cannot express. Either way the resolved list
+      // would not match the file.
+      issues.push(`${path}.ref "${ref}" is listed more than once`);
+    } else {
+      seen.add(ref);
+    }
+    if (typeof entry.version !== 'string' || !entry.version.trim()) {
+      issues.push(`${path}.version is required`);
+    }
+    if (entry.optional !== undefined && typeof entry.optional !== 'boolean') {
+      issues.push(`${path}.optional must be a boolean`);
+    }
+  });
   return issues;
 }
 

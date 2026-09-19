@@ -785,3 +785,80 @@ Use this file for durable architecture decisions.
   `plugins/marketplace/src/components/MarketplacePage.tsx`,
   `plugins/marketplace/src/components/MarketplaceDetailPage.tsx`; deletes
   `plugins/marketplace/src/registryParity.test.ts`.
+
+### NXD-027 — Compositions are Artifacts, and the component list is not a dependency
+
+- Context: P3-S1a, the first Phase 3 slice. GP-1 records that Core restates
+  six composition component lists as TypeScript constants "duplicated from
+  `catalog/compositions/*.yaml`". Auditing before implementing showed the
+  relationship was the other way around: **nothing read those YAML files at
+  runtime.** The only reference to the directory in non-test code was a
+  comment. The constants were the de-facto truth; the manifests were
+  documentation, kept in step by `compositionManifestParity.test.ts`. So the
+  work was not "stop duplicating the manifests" but "give the manifests a
+  runtime at all".
+- Decision: compositions become `GOLDEN_PATH` Artifacts under
+  `catalog/artifacts/nexora/`, and `catalog/compositions/` is deleted. The
+  registry already loads that directory, versions what it finds, serves it
+  behind the permissioned API and hands the manifest to the frontend verbatim,
+  so a composition needs no pipeline of its own. `GOLDEN_PATH` was already a
+  declared `ArtifactKind` that no manifest used.
+- The component list travels in `spec.components`, **not** `spec.dependencies`.
+  A composition's entries are Backstage Catalog entity refs
+  (`component:default/health`) with version *constraints* (`1.x`);
+  `spec.dependencies` holds Artifact refs with exact pins and would reject
+  them. Platform Components are Catalog entities and AGENTS.md says to keep
+  them there, so a composition points at the Catalog rather than restating it.
+  Making them Artifacts purely to reuse the dependency field was considered
+  and rejected: it would move six entities out of the Catalog to satisfy a
+  field name.
+- `spec.components[].optional` is new. The old format could not express
+  optionality, which is why `EQUIPMENT_USE_LOG_OPTIONAL_REFS` existed only in
+  Core with no manifest counterpart and the parity test could only assert the
+  two sets were disjoint. Both halves are now in the manifest and both are
+  checked against it.
+- `validateArtifactManifest` now requires a non-empty, well-formed
+  `spec.components` for `GOLDEN_PATH`, and rejects the key on any other kind.
+  The list is the entire content of this kind; a typo that resolved to an
+  empty composition would be a silently wrong answer rather than a loud one.
+- Alternatives considered: serve compositions from a second loader over their
+  existing `dataprod.platform/v1alpha1` format — rejected, it keeps two
+  manifest families and two code paths forever to avoid one rename. Generate
+  the Core constants from the manifests at build time — rejected; it removes
+  the hand-maintenance but leaves a generated second copy and no runtime
+  resolution, which is what Phase 3 is actually for.
+- Consequences: the registry holds 20 artifacts across 5 kinds instead of 12
+  across 4. **The Marketplace is unchanged at 12 cards** — a manifest with no
+  `spec.marketplace` block yields no view, which `artifactManifestFiles.test.ts`
+  now asserts over the real composition files rather than leaving to
+  inference. Verified live: startup logged
+  `8 registered, 12 already present, 0 publishers created, 0 failed`.
+  The Core constants are **not** deleted by this slice — they still feed
+  `composer.ts` and `oeeBuiltWithSummary`, which are GP-2/GP-3/GP-4 and out of
+  scope. `compositionManifestParity.test.ts` therefore survives, repointed at
+  the new location, and still guards the duplication until those consumers
+  read the registry.
+- Affected components: `catalog/artifacts/nexora/` (8 new manifests),
+  `packages/platform-common/src/artifact.ts`,
+  `packages/platform-common/src/composition.ts`,
+  `packages/backend/src/__testUtils__/goldenPathCompositions.ts`; deletes
+  `catalog/compositions/`.
+
+### NXD-028 — The Mode B example is renamed rather than sharing a name
+
+- Context: `catalog/compositions/oee-data-product.yaml` would have become
+  `nexora/oee-data-product` as an Artifact, which is already the coordinate of
+  the OEE **DATA_PRODUCT** manifest. The registry enforces a unique
+  `(namespace, name)` and refuses a kind change between versions, so the two
+  could not coexist and the second to load would have failed.
+- Decision: the composition is renamed `oee-data-product-uns`, after the
+  Unified Namespace that is the whole point of the Mode B example. The
+  DATA_PRODUCT keeps the plain name.
+- Alternatives considered: give compositions their own namespace — rejected,
+  it needs a second publisher and splits one publisher's content across two
+  namespaces to dodge one collision. Rename the DATA_PRODUCT — rejected, it is
+  the one of the two that is referenced outside the repository.
+- Consequences: one identifier changes. It was referenced only by a test
+  assertion and by documentation, both updated. This is the first case of the
+  registry's identity rules constraining what content may be called, which is
+  the rule working rather than a problem with it.

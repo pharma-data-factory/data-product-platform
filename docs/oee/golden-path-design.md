@@ -48,7 +48,7 @@ Cross-cutting: Health 1.x, Observability 1.x
 Optional later: Unified Namespace, AAS Foundation
 ```
 
-Composition: `catalog/compositions/oee-data-product-direct.yaml`.
+Composition: `catalog/artifacts/nexora/oee-data-product-direct.yaml`.
 
 ## Pack index
 

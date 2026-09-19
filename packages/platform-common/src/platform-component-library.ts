@@ -101,7 +101,7 @@ export interface CompositionUsage {
   kind: CompositionUsageKind;
 }
 
-/** Official OEE Golden Path Mode A. Source: catalog/compositions/oee-data-product-direct.yaml */
+/** Official OEE Golden Path Mode A. Source: catalog/artifacts/nexora/oee-data-product-direct.yaml */
 export const OEE_DIRECT_COMPOSITION_REFS = [
   'component:default/health',
   'component:default/observability',

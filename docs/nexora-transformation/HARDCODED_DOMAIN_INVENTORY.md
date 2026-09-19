@@ -41,8 +41,10 @@ TypeScript.
 ## GP-1 — Composition component lists duplicated from manifests
 
 `packages/platform-common/src/platform-component-library.ts` holds five
-constants that restate, in TypeScript, the component list of a YAML manifest
-in `catalog/compositions/`:
+constants that restate, in TypeScript, the component list of a manifest that
+now lives in `catalog/artifacts/nexora/` as a `GOLDEN_PATH` Artifact
+(NXD-027; the manifests were under `catalog/compositions/` when this entry was
+written):
 
 | Constant | Manifest |
 | --- | --- |
@@ -53,19 +55,34 @@ in `catalog/compositions/`:
 | `REST_EQUIPMENT_CONCEPTUAL_REFS` | `rest-equipment-conceptual.yaml` |
 | `EQUIPMENT_USE_LOG_REQUIRED_REFS` | `equipment-use-log.yaml` |
 
-The constant even cites its own source in a comment
-(`/** ... Source: catalog/compositions/oee-data-product-direct.yaml */`), so
-the duplication is known; nothing enforced it. The manifests are already
-parsed at runtime by `parseCompositionManifest` / `validateComposition`, so
-the parser needed to remove the duplication exists.
+The constant even cites its own source in a comment, so the duplication is
+known; nothing enforced it.
 
-**State:** the six lists agree with their manifests as of 2026-09-16, and
-`packages/backend/src/compositionManifestParity.test.ts` now fails if they
-diverge. Verified by mutation: altering a manifest fails the test.
+**Correction (2026-09-19, P3-S1a).** This entry described the constants as
+copies of the manifests. The audit before implementing found the opposite:
+**nothing read those manifests at runtime.** The only mention of the directory
+outside tests was a comment. The constants were the truth and the manifests
+were documentation. `parseCompositionManifest` existed but was called only by
+tests and by the embedded string in GP-6. The work was therefore not to stop
+copying, but to give the manifests a runtime.
 
-**Removal condition:** the Composer, Marketplace and Developer Hub read
-compositions through a resolver over the manifests instead of importing the
-constants. The parity test is then deleted along with the constants.
+**State (2026-09-19):** compositions are `GOLDEN_PATH` Artifacts in
+`catalog/artifacts/nexora/`, loaded by the registry at startup and served over
+its API — verified live (`8 registered, 12 already present, 0 failed`). The
+six constants still exist and still agree with the manifests;
+`packages/backend/src/compositionManifestParity.test.ts` is repointed at the
+new location and still fails if they diverge. `EQUIPMENT_USE_LOG_OPTIONAL_REFS`
+now has a manifest counterpart (`optional: true`) and is checked against it
+rather than only for disjointness.
+
+**Removal condition (unchanged):** the Composer, Marketplace and Developer Hub
+read compositions from the registry instead of importing the constants. That
+is blocked on GP-2/GP-3/GP-4 rather than on the manifests: the three remaining
+consumers are `composer.ts` (`sortCompositionRefs`,
+`officialGoldenPathForSelection`, `composerPresets`), `oeeBuiltWithSummary`,
+and `DeveloperHubPage.tsx`, all of which use the lists synchronously in
+browser-bundled code and must take them as input before the constants can go.
+The parity test is deleted along with them.
 
 ## GP-2 — Golden Path identity is a string literal in Core
 

@@ -41,7 +41,7 @@ manifest remains canonical.
 ## OEE — actual runtime reuse
 
 OEE Golden Path 1.0 Mode A consumes six CERTIFIED Wave 1 packages.
-Source: `catalog/compositions/oee-data-product-direct.yaml` and
+Source: `catalog/artifacts/nexora/oee-data-product-direct.yaml` and
 `templates/oee-data-product/content/app/main.py`.
 
 - Health

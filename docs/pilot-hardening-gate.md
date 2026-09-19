@@ -26,7 +26,7 @@ GxP validation, or AWS Marketplace production.
 | Legal / OSS | **READY_FOR_LEGAL_REVIEW** (counsel gates **OPEN**) |
 
 Next action: start OEE Golden Path **design** against Mode A
-(`catalog/compositions/oee-data-product-direct.yaml`). Do not scaffold
+(`catalog/artifacts/nexora/oee-data-product-direct.yaml`). Do not scaffold
 the Golden Path until the remaining conditions are scheduled.
 
 ## Docker evidence (this gate)

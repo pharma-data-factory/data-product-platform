@@ -1,0 +1,32 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: equipment-use-log
+  version: "1.0.0"
+  displayName: "Equipment Use Log (design example)"
+  description: >
+    DOCUMENTATION / DESIGN EXAMPLE ONLY. No Equipment Use Log runtime
+    exists. Developers implement the usage-session domain model and reuse
+    Wave 1 Platform Components.
+spec:
+  standardVersion: "1.0.0"
+  # REST Source (MES/order/cleaning context) and Time-Series (status/duration
+  # points) are offered, not required. Before this manifest existed the
+  # optional pair was named only in Core, because the composition format could
+  # not express the distinction. See NXD-027.
+  components:
+    - ref: "component:default/health"
+      version: "1.x"
+    - ref: "component:default/observability"
+      version: "1.x"
+    - ref: "component:default/mqtt-consumer"
+      version: "1.x"
+    - ref: "component:default/rest-api"
+      version: "1.x"
+    - ref: "component:default/rest-source"
+      version: "1.x"
+      optional: true
+    - ref: "component:default/timeseries"
+      version: "1.x"
+      optional: true

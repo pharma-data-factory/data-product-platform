@@ -100,8 +100,8 @@ example, not a requirement for every future OEE instance.
 
 Manifests:
 
-- Mode B example: `catalog/compositions/oee-data-product.yaml`
-- Mode A **Golden Path 1.0 baseline**: `catalog/compositions/oee-data-product-direct.yaml`
+- Mode B example: `catalog/artifacts/nexora/oee-data-product-uns.yaml`
+- Mode A **Golden Path 1.0 baseline**: `catalog/artifacts/nexora/oee-data-product-direct.yaml`
 
 `kind: GoldenPathComposition` is not a Backstage Catalog kind.
 

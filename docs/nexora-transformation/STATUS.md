@@ -4,8 +4,11 @@
 Phase 3 — Product Studio and AI-assisted Development (Phase 2 closed)
 
 ## Current Vertical Slice
-Nothing in flight. Phase 2 exit criteria are met (below); Phase 3 has not
-started.
+**P3-S1b — the Composer, Marketplace and Developer Hub read compositions from
+the registry, and the Core constants are deleted.** Not started. P3-S1a landed
+the content and the resolver (below); what remains is the read switch, which
+is blocked on nothing but is entangled with GP-2/GP-3/GP-4 — see GP-1 in
+[`HARDCODED_DOMAIN_INVENTORY.md`](HARDCODED_DOMAIN_INVENTORY.md).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -192,12 +195,50 @@ lost updates; the legacy Marketplace has been fully replaced — it reads the
 registry, the array is deleted, and the certification it shows is the
 registry's own rather than an inherited claim.
 
+- **P3-S1a — Compositions are Artifacts.** The eight manifests under
+  `catalog/compositions/` are now `GOLDEN_PATH` Artifacts in
+  `catalog/artifacts/nexora/`, and that directory is deleted. The registry
+  loads, versions and serves them through the machinery P2 already built — no
+  second pipeline, and `GOLDEN_PATH` was a declared kind no manifest used.
+  `compositionOfArtifactManifest` adapts a manifest to the existing
+  `GoldenPathComposition` model so validation is untouched. See
+  [`NXD-027`](DECISIONS.md).
+
+  **The audit corrected GP-1 before any code changed.** The inventory recorded
+  the Core constants as copies of the manifests; in fact nothing read those
+  manifests at runtime, so the constants were the truth and the manifests were
+  documentation. The slice was therefore about giving the manifests a runtime,
+  not about stopping a duplication.
+
+  Two things the format could not express before: `spec.components[].optional`
+  now carries the Equipment Use Log optional pair that lived only in Core, and
+  `validateArtifactManifest` requires a non-empty component list for
+  `GOLDEN_PATH` so a typo fails loudly instead of resolving to an empty
+  composition. One rename was forced by the registry's identity rules — the
+  Mode B example is `oee-data-product-uns`, because `nexora/oee-data-product`
+  is already the DATA_PRODUCT ([`NXD-028`](DECISIONS.md)).
+
+  Verified live, not only in tests: startup logged
+  `8 registered, 12 already present, 0 publishers created, 0 failed`. The
+  Marketplace is unchanged at 12 cards, because a manifest with no
+  `spec.marketplace` block yields no view — now asserted over the real
+  composition files rather than left to inference.
+
+  **The constants are not deleted.** They still feed `composer.ts`,
+  `oeeBuiltWithSummary` and `DeveloperHubPage.tsx`, which are GP-2/GP-3/GP-4
+  and out of this slice's scope. `compositionManifestParity.test.ts` survives,
+  repointed, and still guards the duplication.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-Phase 3 — Product Studio and AI-assisted Development has not started. No
-Phase 3 slice has been scoped yet.
+**P3-S1b — the read switch.** The three remaining consumers take their
+component lists from the registry instead of importing the constants; the
+constants and the parity test are then deleted. All three are browser-bundled
+and use the lists synchronously, so each needs the list as input — which is
+why GP-1 cannot close without touching GP-2/GP-3/GP-4, even though their
+domain logic stays put.
 
 Deferred, not part of Phase 2: **per-namespace permission scoping.** The eight
 registry permissions are platform-wide, so a DATA_PRODUCT_OWNER may certify in

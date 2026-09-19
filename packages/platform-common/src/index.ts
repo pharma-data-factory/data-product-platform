@@ -528,7 +528,10 @@ export type {
 export {
   GOLDEN_PATH_COMPOSITION_API_VERSION,
   GOLDEN_PATH_COMPOSITION_KIND,
+  compositionComponentRefs,
+  compositionOfArtifactManifest,
   normalizeComposition,
+  optionalCompositionComponentRefs,
   parseCompositionManifest,
   validateComposition,
 } from './composition';
@@ -584,6 +587,7 @@ export {
 export type {
   Artifact,
   ArtifactCertificationStatus,
+  ArtifactCompositionComponent,
   ArtifactCoordinate,
   ArtifactKind,
   ArtifactLifecycle,

@@ -1,0 +1,26 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: oee-data-product-direct
+  version: "1.0.0"
+  displayName: "OEE Data Product (Mode A)"
+  description: >
+    Official OEE Golden Path 1.0 Mode A composition. Required CERTIFIED
+    1.x components only. Unified Namespace and AAS Foundation are OPTIONAL
+    and are not in this manifest.
+spec:
+  standardVersion: "1.0.0"
+  components:
+    - ref: "component:default/health"
+      version: "1.x"
+    - ref: "component:default/observability"
+      version: "1.x"
+    - ref: "component:default/mqtt-consumer"
+      version: "1.x"
+    - ref: "component:default/rest-source"
+      version: "1.x"
+    - ref: "component:default/timeseries"
+      version: "1.x"
+    - ref: "component:default/rest-api"
+      version: "1.x"

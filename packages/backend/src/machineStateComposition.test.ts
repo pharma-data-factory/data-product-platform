@@ -10,6 +10,7 @@ import {
   type CatalogEntityLike,
   type PlatformComponent,
 } from '@internal/platform-common';
+import { readGoldenPathComposition } from './__testUtils__/goldenPathCompositions';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -58,9 +59,7 @@ function requireComponent(name: string): CatalogEntityLike {
 
 describe('UNS Machine State Consumer composition proof', () => {
   it('parses the version-controlled composition and validates Unified Namespace', () => {
-    const composition = parseCompositionManifest(
-      read('catalog/compositions/machine-state-consumer.yaml'),
-    );
+    const composition = readGoldenPathComposition('machine-state-consumer');
     expect(composition.apiVersion).toBe('dataprod.platform/v1alpha1');
     expect(composition.kind).toBe('GoldenPathComposition');
     expect(composition.metadata.name).toBe('machine-state-consumer');
@@ -112,9 +111,7 @@ spec:
         : component,
     );
     const result = validateComposition(
-      parseCompositionManifest(
-        read('catalog/compositions/machine-state-consumer.yaml'),
-      ),
+      readGoldenPathComposition('machine-state-consumer'),
       catalog,
     );
     expect(result.compatible).toBe(false);
