@@ -16,7 +16,8 @@
     "clean": "backstage-cli package clean"
   },
   "dependencies": {
-    "@backstage/plugin-permission-common": "^0.9.9"
+    "@backstage/plugin-permission-common": "^0.9.9",
+    "@internal/nexora-industrial-vocab": "workspace:^"
   },
   "devDependencies": {
     "@backstage/cli": "^0.36.4",

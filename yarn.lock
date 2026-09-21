@@ -5971,12 +5971,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@internal/nexora-industrial-vocab@workspace:^, @internal/nexora-industrial-vocab@workspace:packages/nexora-industrial-vocab":
+  version: 0.0.0-use.local
+  resolution: "@internal/nexora-industrial-vocab@workspace:packages/nexora-industrial-vocab"
+  dependencies:
+    "@backstage/cli": "npm:^0.36.4"
+    "@internal/platform-common": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@internal/platform-common@workspace:^, @internal/platform-common@workspace:packages/platform-common":
   version: 0.0.0-use.local
   resolution: "@internal/platform-common@workspace:packages/platform-common"
   dependencies:
     "@backstage/cli": "npm:^0.36.4"
     "@backstage/plugin-permission-common": "npm:^0.9.9"
+    "@internal/nexora-industrial-vocab": "workspace:^"
     jest: "npm:~30.2.0"
     yaml: "npm:^2.7.0"
   languageName: unknown
