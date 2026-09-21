@@ -1420,6 +1420,126 @@ export class ComposerService {
     });
   }
 
+  // ── Multi-hop Lineage DAG (W3-1) ─────────────────────────────────────────
+
+  /**
+   * Compute the full multi-hop data lineage graph for a product version.
+   *
+   * Unlike `getDataLineage` (one-hop), this method traverses the entire
+   * dependency graph up to `maxDepth` hops upstream and downstream. The
+   * result is a DAG (nodes + edges) that can be rendered as a visual diagram.
+   *
+   * Upstream: version → depends on → contract → produced by → version → ...
+   * Downstream: version → produces → contract → consumed by → version → ...
+   *
+   * Cycles are detected and cut to prevent infinite loops. The algorithm is
+   * breadth-first to keep memory bounded.
+   */
+  async getFullLineageDAG(
+    versionId: string,
+    maxDepth = 5,
+  ): Promise<{
+    nodes: Array<{ id: string; type: 'version' | 'contract'; label: string; productName?: string }>;
+    edges: Array<{ from: string; to: string; relation: 'produces' | 'consumes' }>;
+    rootVersionId: string;
+    depth: number;
+  }> {
+    const nodes = new Map<string, { id: string; type: 'version' | 'contract'; label: string; productName?: string }>();
+    const edges: Array<{ from: string; to: string; relation: 'produces' | 'consumes' }> = [];
+    const visited = new Set<string>();
+
+    // BFS queue: [versionId, currentDepth, direction]
+    const queue: Array<[string, number, 'up' | 'down' | 'both']> = [[versionId, 0, 'both']];
+    visited.add(versionId);
+
+    // Register root node
+    const rootVersion = await this.repository.getProductVersion(versionId);
+    const rootProduct = rootVersion ? await this.repository.getProduct(rootVersion.productId) : null;
+    nodes.set(versionId, {
+      id: versionId,
+      type: 'version',
+      label: `${rootProduct?.name ?? 'Unknown'} v${rootVersion?.version ?? '?'}`,
+      productName: rootProduct?.name,
+    });
+
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (!item) break;
+      const [currentVersionId, depth] = item;
+      if (depth >= maxDepth) continue;
+
+      // ── Upstream (what this version consumes) ────────────────────────────
+      const deps = await this.repository.listProductDependencies(currentVersionId);
+      for (const dep of deps) {
+        const contract = await this.repository.getDataContract(dep.contractId);
+        if (!contract) continue;
+        const contractNodeId = `contract:${contract.id}`;
+        if (!nodes.has(contractNodeId)) {
+          nodes.set(contractNodeId, { id: contractNodeId, type: 'contract', label: contract.name || contract.id });
+        }
+        edges.push({ from: currentVersionId, to: contractNodeId, relation: 'consumes' });
+
+        // Trace the contract back to its producer
+        const producerComponent = await this.repository.getProductComponent(contract.productComponentId);
+        if (!producerComponent) continue;
+        const producerVersionId = producerComponent.productVersionId;
+        if (!nodes.has(producerVersionId)) {
+          const pv = await this.repository.getProductVersion(producerVersionId);
+          const pp = pv ? await this.repository.getProduct(pv.productId) : null;
+          nodes.set(producerVersionId, {
+            id: producerVersionId, type: 'version',
+            label: `${pp?.name ?? 'Unknown'} v${pv?.version ?? '?'}`,
+            productName: pp?.name,
+          });
+          edges.push({ from: producerVersionId, to: contractNodeId, relation: 'produces' });
+          if (!visited.has(producerVersionId)) {
+            visited.add(producerVersionId);
+            queue.push([producerVersionId, depth + 1, 'up']);
+          }
+        }
+      }
+
+      // ── Downstream (who consumes this version's contracts) ───────────────
+      const components = await this.repository.listProductComponents(currentVersionId);
+      for (const comp of components) {
+        const contracts = await this.repository.listDataContracts(comp.id);
+        for (const contract of contracts) {
+          const contractNodeId = `contract:${contract.id}`;
+          if (!nodes.has(contractNodeId)) {
+            nodes.set(contractNodeId, { id: contractNodeId, type: 'contract', label: contract.name || contract.id });
+            edges.push({ from: currentVersionId, to: contractNodeId, relation: 'produces' });
+          }
+          const consumers = await this.repository.listDependenciesByContractId(contract.id);
+          for (const consumer of consumers) {
+            if (consumer.productVersionId === currentVersionId) continue;
+            const cv = await this.repository.getProductVersion(consumer.productVersionId);
+            const cp = cv ? await this.repository.getProduct(cv.productId) : null;
+            const consumerVersionId = consumer.productVersionId;
+            if (!nodes.has(consumerVersionId)) {
+              nodes.set(consumerVersionId, {
+                id: consumerVersionId, type: 'version',
+                label: `${cp?.name ?? 'Unknown'} v${cv?.version ?? '?'}`,
+                productName: cp?.name,
+              });
+            }
+            edges.push({ from: consumerVersionId, to: contractNodeId, relation: 'consumes' });
+            if (!visited.has(consumerVersionId)) {
+              visited.add(consumerVersionId);
+              queue.push([consumerVersionId, depth + 1, 'down']);
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      nodes: [...nodes.values()],
+      edges,
+      rootVersionId: versionId,
+      depth: maxDepth,
+    };
+  }
+
   // ── Revalidation Scope (W2-3) ────────────────────────────────────────────
 
   /**

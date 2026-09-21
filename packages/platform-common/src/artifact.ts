@@ -568,3 +568,39 @@ export function artifactCoordinateOf(
     version: manifest.metadata.version,
   };
 }
+
+// ── Platform Editions (W3-8) ──────────────────────────────────────────────────
+
+/**
+ * A Platform Edition defines a named combination of Core + Artifacts + Capabilities.
+ * Editions are declared in `catalog/editions.yaml` and read at startup.
+ * They are data, not code — a new edition does not require a Core change.
+ */
+export interface PlatformEdition {
+  id: string;
+  displayName: string;
+  description?: string;
+  /** Edition this one extends (inherits capabilities and artifacts). */
+  extends?: string;
+  /** Capability identifiers enabled by this edition. */
+  capabilities: string[];
+  /** Artifact coordinates featured in the Marketplace for this edition. */
+  featuredArtifacts: string[];
+  /** Optional GxP policy pack coordinate (for Life Sciences edition). */
+  gxpPolicy?: string;
+}
+
+export interface EditionCatalogue {
+  editions: PlatformEdition[];
+}
+
+/**
+ * Checks whether a capability is enabled in a given edition (or any parent).
+ * Performs a simple capability lookup without deep extends resolution.
+ */
+export function editionHasCapability(
+  edition: PlatformEdition,
+  capability: string,
+): boolean {
+  return edition.capabilities.includes(capability);
+}

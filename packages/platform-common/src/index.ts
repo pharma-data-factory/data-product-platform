@@ -581,6 +581,7 @@ export {
   isArtifactLifecycle,
   isArtifactManifest,
   isArtifactSegment,
+  editionHasCapability,
   isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
@@ -595,6 +596,8 @@ export type {
   ArtifactLifecycle,
   ArtifactManifest,
   ArtifactVersion,
+  EditionCatalogue,
+  PlatformEdition,
   Publisher,
   PublisherTrustLevel,
 } from './artifact';
@@ -686,6 +689,14 @@ export type {
   ContractCompatReport,
   JsonSchemaLike,
 } from './contract-compatibility';
+
+// Registry Federation types (W3-7 foundation)
+export type {
+  FederatedArtifact,
+  FederatedRegistry,
+  FederatedSearchResult,
+  FederationConfig,
+} from './registry-federation';
 
 export {
   NEXORA_ANNOTATION_PREFIX,

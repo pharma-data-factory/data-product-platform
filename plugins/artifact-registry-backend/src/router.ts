@@ -391,5 +391,28 @@ export async function createRouter(
     id => service.deprecateArtifactVersion(id),
   );
 
+  // ── Policy Pack Resolver (W3-6) ────────────────────────────────────────────
+  // POST /policies/resolve
+  // Body: { policies: ["namespace/name@version", ...] }
+  // Resolves POLICY_PACK artifacts and returns their obligations.
+  router.post(
+    '/policies/resolve',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        const { policies } = req.body as { policies?: string[] };
+        if (!Array.isArray(policies)) {
+          res.status(400).json({ error: 'policies must be an array of strings' });
+          return;
+        }
+        const { resolvePolicies } = await import('./policyResolver');
+        const result = await resolvePolicies(policies, service);
+        res.json(result);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   return router;
 }

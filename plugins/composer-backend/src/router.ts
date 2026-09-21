@@ -725,6 +725,16 @@ export async function createRouter(
     },
   );
 
+  // ── Multi-hop Lineage DAG (W3-1) ───────────────────────────────────────────
+  /** GET /versions/:id/lineage/dag?depth=N — full multi-hop lineage graph */
+  router.get('/versions/:id/lineage/dag', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      const depth = Math.min(parseInt(String(req.query.depth ?? '5'), 10) || 5, 10);
+      res.json(await service.getFullLineageDAG(req.params.id, depth));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
   // ── Revalidation Scope (W2-3) ──────────────────────────────────────────────
   /** GET /versions/:id/revalidation-scope — what needs retesting after baseline change? */
   router.get('/versions/:id/revalidation-scope', async (req, res) => {

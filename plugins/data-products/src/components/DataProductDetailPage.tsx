@@ -37,6 +37,7 @@ import { CertificationChip } from './CertificationChip';
 import { CompatibilityChip } from './CompatibilityChip';
 import { CiQualityGateCard } from './CiQualityGateCard';
 import { DependencyCard } from './DependencyCard';
+import { LineageDAGView } from './LineageDAGView';
 import { DiscoverCard } from './DiscoverCard';
 import { JourneyState } from './JourneyState';
 import { PlatformComplianceCard } from './PlatformComplianceCard';
@@ -361,20 +362,29 @@ export function DataProductDetailPage() {
 
             {tab === 'lineage' && (
               <Box>
-                <InfoCard title="Lineage">
-                  {(descriptor?.lineage ?? []).length === 0 ? (
-                    <Typography color="textSecondary">No lineage relations declared.</Typography>
-                  ) : (
-                    <ul>
-                      {(descriptor?.lineage ?? []).map((e, i) => (
-                        <li key={`${e.from}-${e.to}-${i}`}>
-                          <code>{e.from}</code> —[{e.relation}]→ <code>{e.to}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <InfoCard title="Data Lineage Graph">
+                  <Typography variant="body2" color="textSecondary" style={{ marginBottom: 12 }}>
+                    Visual multi-hop lineage: upstream producers and downstream consumers.
+                    Nodes are version snapshots; edges are data contract relationships.
+                  </Typography>
+                  <LineageDAGView productName={product.name} />
                 </InfoCard>
-                <div id="dependencies">
+
+                {(descriptor?.lineage ?? []).length > 0 && (
+                  <Box mt={2}>
+                    <InfoCard title="Catalog Relations">
+                      <ul>
+                        {(descriptor?.lineage ?? []).map((e, i) => (
+                          <li key={`${e.from}-${e.to}-${i}`}>
+                            <code>{e.from}</code> —[{e.relation}]→ <code>{e.to}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    </InfoCard>
+                  </Box>
+                )}
+
+                <div id="dependencies" style={{ marginTop: 16 }}>
                   <DependencyCard product={product} />
                 </div>
               </Box>

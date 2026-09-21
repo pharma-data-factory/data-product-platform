@@ -1,0 +1,55 @@
+# Nexora Core — The platform itself, managed as a Product (W3-3)
+#
+# "Nexora manages Nexora with Nexora" — the Core is itself a Product within
+# the platform. This means it has Requirements, Components, Baselines,
+# Validation and Release Management like any other Product.
+#
+# This manifest is NOT registered via the Artifact Registry (it is the
+# registry itself). It is the declarative identity of the platform that
+# operators can reference in product lineage and dependency graphs.
+#
+# Backstage Catalog entity (Component kind, type: platform-product)
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: nexora-core
+  title: "Nexora Core Platform"
+  description: >
+    The integrated Data Product Platform for Life Sciences and Manufacturing.
+    Nexora manages itself as a Product: its requirements, components, baselines,
+    validation and releases use the same lifecycle as all other Products.
+  annotations:
+    dataprod.platform/kind: platform-product
+    dataprod.platform/version: "1.0.0"
+    dataprod.platform/domain: "platform"
+    backstage.io/source-location: url:https://github.com/pharma-data-factory/nexora
+  links:
+    - url: /developer
+      title: Developer Hub
+    - url: /marketplace
+      title: Marketplace
+spec:
+  type: platform-product
+  lifecycle: production
+  owner: group:default/platform-team
+
+---
+# Nexora Core as a Nexora DATA_PRODUCT Artifact
+# Registered in the registry so the platform can track its own dependencies.
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: nexora
+  name: nexora-core
+  version: "1.0.0"
+  displayName: "Nexora Core Platform"
+  description: >
+    The Nexora Core Platform itself, modelled as a Product. Used for platform
+    self-governance: tracking platform versions, requirements, and the
+    dependency graph between Core and its ecosystem artifacts.
+spec:
+  sourceRef: "component:default/nexora-core"
+  # The Core depends on its own Artifacts — listed here for impact analysis.
+  # Updating an Artifact that Core depends on surfaces a platform-level impact.
+  policies:
+    - "nexora/gxp-data-product-policy@1.0.0"

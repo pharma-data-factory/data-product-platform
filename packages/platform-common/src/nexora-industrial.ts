@@ -1,3 +1,21 @@
+/**
+ * @deprecated GP-8 migration in progress (W3-2).
+ *
+ * This file (`nexora-industrial.ts`) contains 589 lines of manufacturing
+ * vocabulary (equipment, site, area, line, OEE, equipment-state, connectivity)
+ * that belong in a POLICY_PACK or COMPONENT Artifact, not in the platform
+ * kernel. Core should be domain-neutral.
+ *
+ * Migration plan:
+ *   1. Create `plugins/nexora-industrial-artifact/` as a standalone workspace.
+ *   2. Register a `nexora/industrial-vocabulary@1.0.0` COMPONENT Artifact.
+ *   3. Move all exports there.
+ *   4. Replace all imports in this codebase to use the Artifact's public API.
+ *   5. Delete this file.
+ *
+ * Tracked as GP-8 in HARDCODED_DOMAIN_INVENTORY.md.
+ * Do NOT add new industrial vocabulary to this file.
+ */
 import type { CatalogEntityLike } from './platform-components';
 
 export const NEXORA_ANNOTATION_PREFIX = 'nexora.io';
