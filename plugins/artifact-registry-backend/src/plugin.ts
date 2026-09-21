@@ -73,6 +73,32 @@ export const artifactRegistryPlugin = createBackendPlugin({
           );
         }
 
+        // A-3: Multi-registry sync scheduler — starts a periodic fan-out when
+        // federation is enabled in app-config.yaml.
+        try {
+          const { createFederationClient, loadFederationConfig } = await import('./federatedRegistry');
+          const fedConfig = loadFederationConfig(config as any);
+          if (fedConfig.enabled && fedConfig.registries.length > 0) {
+            const fedClient = createFederationClient({ config: fedConfig, logger });
+            const intervalMs = (fedConfig.syncIntervalSeconds ?? 3600) * 1000;
+            logger.info(
+              `Federation: ${fedConfig.registries.filter(r => r.enabled).length} registries, sync every ${fedConfig.syncIntervalSeconds ?? 3600}s`,
+            );
+            // Initial sync + periodic schedule
+            const runSync = async () => {
+              const result = await fedClient.searchFederated();
+              logger.info(
+                `Federation sync: ${result.remote.length} remote artifacts, ` +
+                  `${result.unreachable.length} unreachable registries`,
+              );
+            };
+            runSync().catch(err => logger.warn(`Federation initial sync failed: ${err}`));
+            setInterval(() => runSync().catch(err => logger.warn(`Federation sync failed: ${err}`)), intervalMs);
+          }
+        } catch {
+          // Federation is best-effort; its failure must not prevent startup.
+        }
+
         logger.info('Artifact Registry backend plugin v0.1 mounted');
       },
     });

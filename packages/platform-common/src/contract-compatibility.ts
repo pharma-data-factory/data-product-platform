@@ -200,3 +200,52 @@ export function evaluateContractCompatibility(
 
   return { status, findings };
 }
+
+// ── Schema Drift Detection (A-2) ──────────────────────────────────────────────
+
+/**
+ * A recorded schema state snapshot, captured at a point in time.
+ * Used by drift detection to compare current schema against a historical baseline.
+ */
+export interface SchemaSnapshot {
+  contractId: string;
+  capturedAt: string;          // ISO timestamp
+  schema: JsonSchemaLike;
+  version: string;
+}
+
+export interface SchemaDriftResult {
+  contractId: string;
+  baselineSnapshot: SchemaSnapshot;
+  currentSchema: JsonSchemaLike;
+  currentVersion: string;
+  hasDrift: boolean;
+  findings: ContractCompatFinding[];
+  status: ContractCompatStatus;
+}
+
+/**
+ * Detect drift between a captured schema snapshot and the current schema.
+ *
+ * Returns UNKNOWN when either schema has no structure to compare.
+ * Returns COMPATIBLE when schemas match.
+ * Returns BREAKING_CHANGE when structural changes were detected.
+ *
+ * A-2: Schema Drift Detection.
+ */
+export function detectSchemaDrift(
+  baseline: SchemaSnapshot,
+  currentSchema: JsonSchemaLike,
+  currentVersion: string,
+): SchemaDriftResult {
+  const report = evaluateContractCompatibility(baseline.schema, currentSchema);
+  return {
+    contractId: baseline.contractId,
+    baselineSnapshot: baseline,
+    currentSchema,
+    currentVersion,
+    hasDrift: report.status !== 'COMPATIBLE' && report.status !== 'UNKNOWN',
+    findings: report.findings,
+    status: report.status,
+  };
+}
