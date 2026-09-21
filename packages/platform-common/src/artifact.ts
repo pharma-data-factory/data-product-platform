@@ -282,6 +282,23 @@ export interface ArtifactManifest {
      * References to requirement IDs in the URS system.
      */
     requirements?: string[];
+    /**
+     * Policy document for POLICY_PACK kind artifacts.
+     * Typed so the Policy Pack Resolver can read obligations without casting.
+     * Consumers (nexora.yaml authors) declare obligations here; the resolver reads them.
+     */
+    policyDocument?: {
+      version?: number;
+      supportedVersions?: number[];
+      obligations?: Array<{
+        id: string;
+        title: string;
+        check: string;
+        appliesTo: string;
+        message: string;
+        note?: string;
+      }>;
+    };
     [key: string]: unknown;
   };
 }

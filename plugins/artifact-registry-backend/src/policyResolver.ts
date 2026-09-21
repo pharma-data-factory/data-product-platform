@@ -17,7 +17,7 @@
  */
 
 import type { ArtifactRegistryService } from './service';
-import { parseArtifactRef } from '@internal/platform-common';
+import { parseArtifactRef, type ArtifactManifest } from '@internal/platform-common';
 
 export interface PolicyObligation {
   /** The policy that declares this obligation. */
@@ -72,20 +72,8 @@ export async function resolvePolicies(
         continue;
       }
 
-      const manifest = version.manifest as {
-        kind?: string;
-        spec?: {
-          policyDocument?: {
-            obligations?: Array<{
-              id: string;
-              title: string;
-              check: string;
-              appliesTo?: string;
-              message: string;
-            }>;
-          };
-        };
-      };
+      // Use the typed ArtifactManifest instead of a raw cast
+      const manifest = version.manifest as ArtifactManifest;
 
       if (manifest.kind !== 'POLICY_PACK') {
         unresolved.push(`${ref} (not a POLICY_PACK artifact)`);
