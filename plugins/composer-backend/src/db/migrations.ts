@@ -270,6 +270,26 @@ export async function up(knex: Knex): Promise<void> {
       });
     }
   }
+
+  // Contract Subscriptions (P-EXT-S4): operational consumer registrations.
+  if (!(await knex.schema.hasTable('contract_subscriptions'))) {
+    await knex.schema.createTable('contract_subscriptions', table => {
+      table.string('id', 255).primary();
+      table.string('contract_id', 255).notNullable();
+      table.string('consumer_ref', 255).notNullable();
+      table.string('consumer_label', 255).notNullable();
+      table.string('compatible_versions', 100).notNullable().defaultTo('*');
+      table.string('status', 32).notNullable().defaultTo('ACTIVE');
+      table.text('purpose').nullable();
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.timestamp('updated_at').nullable();
+      table.integer('revision').defaultTo(1);
+      table.index(['contract_id']);
+      table.index(['consumer_ref']);
+      table.unique(['contract_id', 'consumer_ref']);
+    });
+  }
 }
 
 /**
@@ -357,6 +377,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('contract_subscriptions');
   await knex.schema.dropTableIfExists('product_version_dependencies');
   await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');

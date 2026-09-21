@@ -33,6 +33,7 @@ import type { AvailableComponentSummary } from './llm-client';
 import {
   CreateDataContractRequest,
   CreateProductDependencyRequest,
+  CreateSubscriptionRequest,
   CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
@@ -374,6 +375,46 @@ export async function createRouter(
     },
   );
 
+  // ── Contract Subscriptions (P-EXT-S4) ─────────────────────────────────────
+  // POST /subscriptions           — subscribe to a contract
+  // GET  /contracts/:id/subscribers — list all subscribers of a contract
+  // GET  /subscriptions?consumer=  — my subscriptions
+  // PATCH /subscriptions/:id/status — cancel / pause
+
+  router.post('/subscriptions', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      const sub = await service.subscribeToContract(req.body as CreateSubscriptionRequest, actor);
+      res.status(201).json(sub);
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.get('/contracts/:id/subscribers', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      res.json(await service.listContractSubscribers(req.params.id));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.get('/subscriptions', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const consumerRef = String(req.query.consumer ?? (credentials as any).principal?.userEntityRef ?? '').trim();
+      if (!consumerRef) { res.status(400).json({ error: 'consumer query param required' }); return; }
+      res.json(await service.listMySubscriptions(consumerRef));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.patch('/subscriptions/:id/status', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      await service.updateSubscriptionStatus(req.params.id, String(req.body?.status ?? ''), actor);
+      res.status(204).end();
+    } catch (err) { respondError(res, logger, err); }
+  });
+
   // ── Contract compatibility (Phase 4, P4-S5) ────────────────────────────────
   // GET /contracts/:id/compatibility/:nextId
   // Returns a compatibility report for replacing :id with :nextId.
@@ -636,6 +677,39 @@ export async function createRouter(
           components,
           links: relevantLinks,
         });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ── Change Impact Analysis (P-EXT-S3) ─────────────────────────────────────
+
+  /** GET /contracts/:id/impact — which product versions depend on this contract? */
+  router.get(
+    '/contracts/:id/impact',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.getContractChangeImpact(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /** GET /impact/artifact?name=<name> — which versions are affected by this artifact changing? */
+  router.get(
+    '/impact/artifact',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const name = String(req.query.name ?? '').trim();
+        if (!name) {
+          res.status(400).json({ error: 'name query parameter is required' });
+          return;
+        }
+        res.json(await service.getArtifactChangeImpact(name));
       } catch (err) {
         respondError(res, logger, err);
       }

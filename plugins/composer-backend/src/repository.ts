@@ -13,6 +13,7 @@ import {
   ProductComponent,
   DataContract,
   ProductDependency,
+  ContractSubscription,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -288,6 +289,54 @@ export class ComposerRepository implements IComposerRepository {
       description: row.description ?? undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
+      revision: row.revision,
+    };
+  }
+
+  // ── Contract Subscriptions (P-EXT-S4) ─────────────────────────────────────
+
+  async createSubscription(sub: ContractSubscription): Promise<ContractSubscription> {
+    await this.db('contract_subscriptions').insert({
+      id: sub.id, contract_id: sub.contractId, consumer_ref: sub.consumerRef,
+      consumer_label: sub.consumerLabel, compatible_versions: sub.compatibleVersions,
+      status: sub.status, purpose: sub.purpose ?? null,
+      created_by: sub.createdBy, created_at: sub.createdAt, revision: sub.revision || 1,
+    });
+    return sub;
+  }
+
+  async getSubscription(id: string): Promise<ContractSubscription | undefined> {
+    const row = await this.db('contract_subscriptions').where({ id }).first();
+    return row ? this.rowToSubscription(row) : undefined;
+  }
+
+  async findSubscription(contractId: string, consumerRef: string): Promise<ContractSubscription | undefined> {
+    const row = await this.db('contract_subscriptions')
+      .where({ contract_id: contractId, consumer_ref: consumerRef }).first();
+    return row ? this.rowToSubscription(row) : undefined;
+  }
+
+  async listSubscriptionsByContract(contractId: string): Promise<ContractSubscription[]> {
+    const rows = await this.db('contract_subscriptions').where({ contract_id: contractId }).select();
+    return rows.map((r: any) => this.rowToSubscription(r));
+  }
+
+  async listSubscriptionsByConsumer(consumerRef: string): Promise<ContractSubscription[]> {
+    const rows = await this.db('contract_subscriptions').where({ consumer_ref: consumerRef }).select();
+    return rows.map((r: any) => this.rowToSubscription(r));
+  }
+
+  async updateSubscriptionStatus(id: string, status: ContractSubscription['status']): Promise<void> {
+    await this.db('contract_subscriptions').where({ id }).update({ status, updated_at: new Date() });
+  }
+
+  private rowToSubscription(row: any): ContractSubscription {
+    return {
+      id: row.id, contractId: row.contract_id, consumerRef: row.consumer_ref,
+      consumerLabel: row.consumer_label, compatibleVersions: row.compatible_versions,
+      status: row.status as ContractSubscription['status'],
+      purpose: row.purpose ?? undefined, createdBy: row.created_by,
+      createdAt: row.created_at, updatedAt: row.updated_at ?? undefined,
       revision: row.revision,
     };
   }

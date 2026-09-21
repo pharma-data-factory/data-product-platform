@@ -648,6 +648,9 @@ export type {
   ProductComponent,
   DataContract,
   ProductDependency,
+  ContractSubscription,
+  SUBSCRIPTION_STATUSES,
+  UPGRADE_NOTIFICATION_TYPES,
   TraceabilityLink,
   ProductBaseline,
   ProductType,
@@ -662,6 +665,9 @@ export type {
   DataContractSchemaType,
   TraceabilityRelationshipType,
   QualityRule,
+  SubscriptionStatus,
+  UpgradeNotification,
+  UpgradeNotificationType,
   QualityRuleType,
 } from './product';
 

@@ -168,6 +168,51 @@ export async function createRouter(
     },
   );
 
+  /**
+   * POST /publishers/self-register
+   * Publisher Self-Registration for DEVELOPER+ (P-EXT-S2).
+   *
+   * Any Developer can claim an unclaimed namespace as a COMMUNITY publisher.
+   * The publisher starts with trustLevel='COMMUNITY' and externalPublisher=true.
+   * PLATFORM_ADMIN promotes to PARTNER after review.
+   * This enables the ecosystem flywheel: teams can publish without admin bottleneck.
+   */
+  router.post(
+    '/publishers/self-register',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        // Requires artifact.create (DEVELOPER+) — lower bar than publisherManage
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          artifactCreatePermission,
+        );
+        const body = req.body as CreatePublisherRequest;
+        // Self-registered publishers always start as COMMUNITY external publishers.
+        // PLATFORM_ADMIN can later promote to PARTNER via the standard publisher update.
+        const publisher = await service.createPublisher(
+          {
+            ...body,
+            trustLevel: 'COMMUNITY',
+            externalPublisher: true,
+            // Self-registrant is automatically a member of their own publisher.
+            memberGroups: [...(body.memberGroups ?? []), actor].filter(Boolean),
+          },
+          actor,
+        );
+        res.status(201).json({
+          ...publisher,
+          _notice:
+            'Publisher registered as COMMUNITY. Artifacts can be submitted but not published ' +
+            'until a PLATFORM_ADMIN promotes this publisher to PARTNER status.',
+        });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get(
     '/publishers',
     async (req: express.Request, res: express.Response) => {

@@ -227,6 +227,90 @@ export interface ProductDependency {
   revision: number;
 }
 
+// ── Upgrade Notification (P-EXT-S5) ──────────────────────────────────────────
+
+/**
+ * An Upgrade Notification is generated when a DataContract or Artifact that
+ * a product depends on has a new version available. It powers the
+ * "Upgrade Available" badge and the notification feed.
+ *
+ * Rather than polling for upgrades, the platform generates notifications
+ * at registration time (when a new ArtifactVersion is registered or a
+ * DataContract version is bumped). Consumers who have Subscriptions or
+ * ProductDependencies receive a notification record they can dismiss.
+ */
+export const UPGRADE_NOTIFICATION_TYPES = [
+  'CONTRACT_VERSION_BUMP',   // new version of a DataContract
+  'ARTIFACT_VERSION_BUMP',   // new version of an Artifact
+  'BREAKING_CHANGE',         // a change that breaks compatibility
+  'DEPRECATION',             // a version is being deprecated
+  'SECURITY_UPDATE',         // a security fix is available
+] as const;
+
+export type UpgradeNotificationType = (typeof UPGRADE_NOTIFICATION_TYPES)[number];
+
+export interface UpgradeNotification {
+  id: string;
+  type: UpgradeNotificationType;
+  /** The artifact or contract name that changed. */
+  subjectName: string;
+  /** The new version that is available. */
+  newVersion: string;
+  /** The version the consumer is currently using, if known. */
+  currentVersion?: string;
+  /** Human-readable summary of what changed. */
+  summary: string;
+  /** Whether the change breaks compatibility with the current version. */
+  breaking: boolean;
+  /** Consumer entity ref this notification is addressed to. */
+  consumerRef: string;
+  read: boolean;
+  createdAt: Date;
+}
+
+// ── Contract Subscription (P-EXT-S4) ─────────────────────────────────────────
+
+/**
+ * A Subscription represents a consumer's active use of a DataContract.
+ *
+ * Where ProductDependency is a *declared* design-time dependency ("version A
+ * is designed to consume contract B"), a Subscription is an *operational*
+ * runtime registration ("team X is currently consuming contract B in
+ * production"). Subscriptions power:
+ *   - Usage tracking (who is actively consuming)
+ *   - Change Impact Notifications (when contract changes, notify subscribers)
+ *   - Upgrade pressure (if B releases v2, subscribers are prompted to migrate)
+ *   - Consumer SLA (provider knows how many active consumers before deprecating)
+ *
+ * Phase-EXT-S4.
+ */
+export const SUBSCRIPTION_STATUSES = [
+  'ACTIVE',
+  'PAUSED',
+  'CANCELLED',
+] as const;
+
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+export interface ContractSubscription {
+  id: string;
+  /** The DataContract this subscription is for. */
+  contractId: string;
+  /** Consumer entity ref (e.g. "group:default/team-oee" or a product component ID). */
+  consumerRef: string;
+  /** Human label for the consuming system, e.g. "OEE Dashboard v2". */
+  consumerLabel: string;
+  /** Semver range of contract versions the consumer is compatible with. */
+  compatibleVersions: string;
+  status: SubscriptionStatus;
+  /** Why the consumer subscribed — helps the provider understand use cases. */
+  purpose?: string;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt?: Date;
+  revision: number;
+}
+
 export interface TraceabilityLink {
   id: string;
   sourceType: string;

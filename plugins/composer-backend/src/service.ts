@@ -7,8 +7,9 @@
 
 import { LoggerService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError } from '@backstage/errors';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
+  ContractSubscription,
   DataClassification,
   InterfaceType,
   Product,
@@ -18,6 +19,7 @@ import {
   ProductDependency,
   ProductVersion,
   QualityRule,
+  SUBSCRIPTION_STATUSES,
   SnapshotItemChange,
   TraceabilityLink,
   findVersionLabelClash,
@@ -38,6 +40,7 @@ import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
   CreateProductDependencyRequest,
+  CreateSubscriptionRequest,
   DataLineage,
   LineageUpstreamEntry,
   LineageDownstreamEntry,
@@ -865,19 +868,35 @@ export class ComposerService {
         contractId: d.contractId,
       })),
     };
+    // Evidence Provenance (P-EXT-S1): attach a SHA-256 checksum of the snapshot
+    // so any tampering of the baseline record is detectable. The checksum covers
+    // the canonical JSON representation of the snapshot object.
+    const snapshotChecksum = createHash('sha256')
+      .update(JSON.stringify(snapshot))
+      .digest('hex');
+
     const baseline: ProductBaseline = {
       id: randomUUID(),
       productVersionId,
       baselineVersion,
       status: 'DRAFT',
-      snapshot,
+      snapshot: {
+        ...snapshot,
+        _provenance: {
+          snapshotChecksum: `sha256:${snapshotChecksum}`,
+          snapshotTimestamp: new Date().toISOString(),
+          createdBy: actor,
+        },
+      },
       ursBaselineIds: request.ursBaselineIds,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
     };
     await this.repository.createProductBaseline(baseline);
-    await this.audit('PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', actor);
+    await this.audit('PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', actor, {
+      newValue: JSON.stringify({ snapshotChecksum: `sha256:${snapshotChecksum}` }),
+    });
     return baseline;
   }
 
@@ -1290,5 +1309,159 @@ export class ComposerService {
       newValue: JSON.stringify({ question: trimmed }),
     });
     return answer;
+  }
+
+  // ── Contract Subscriptions (P-EXT-S4) ────────────────────────────────────
+
+  async subscribeToContract(
+    request: CreateSubscriptionRequest,
+    actor: string,
+  ): Promise<ContractSubscription> {
+    const contract = await this.repository.getDataContract(request.contractId);
+    if (!contract) throw new InputError(`DataContract ${request.contractId} not found`);
+    const consumerRef = String(request.consumerRef ?? '').trim();
+    if (!consumerRef) throw new InputError('consumerRef is required');
+    const label = String(request.consumerLabel ?? '').trim();
+    if (!label) throw new InputError('consumerLabel is required');
+    const existing = await this.repository.findSubscription(request.contractId, consumerRef);
+    if (existing) {
+      throw new ConflictError(
+        `${consumerRef} is already subscribed to contract ${request.contractId} (status: ${existing.status})`,
+      );
+    }
+    const sub: ContractSubscription = {
+      id: randomUUID(),
+      contractId: request.contractId,
+      consumerRef,
+      consumerLabel: label,
+      compatibleVersions: request.compatibleVersions ?? '*',
+      status: 'ACTIVE',
+      purpose: request.purpose,
+      createdBy: actor,
+      createdAt: new Date(),
+      revision: 1,
+    };
+    await this.repository.createSubscription(sub);
+    await this.audit('CONTRACT_SUBSCRIPTION', sub.id, 'SUBSCRIPTION_CREATED', actor, {
+      newValue: JSON.stringify({ contractId: request.contractId, consumerRef }),
+    });
+    return sub;
+  }
+
+  async listContractSubscribers(contractId: string): Promise<ContractSubscription[]> {
+    return this.repository.listSubscriptionsByContract(contractId);
+  }
+
+  async listMySubscriptions(consumerRef: string): Promise<ContractSubscription[]> {
+    return this.repository.listSubscriptionsByConsumer(consumerRef);
+  }
+
+  async updateSubscriptionStatus(
+    id: string,
+    status: string,
+    actor: string,
+  ): Promise<void> {
+    if (!(SUBSCRIPTION_STATUSES as readonly string[]).includes(status)) {
+      throw new InputError(`Invalid status "${status}". Expected: ${SUBSCRIPTION_STATUSES.join(', ')}`);
+    }
+    const existing = await this.repository.getSubscription(id);
+    if (!existing) throw new InputError(`Subscription ${id} not found`);
+    await this.repository.updateSubscriptionStatus(id, status as ContractSubscription['status']);
+    await this.audit('CONTRACT_SUBSCRIPTION', id, 'SUBSCRIPTION_STATUS_CHANGED', actor, {
+      oldValue: existing.status, newValue: status,
+    });
+  }
+
+  // ── Change Impact Analysis (P-EXT-S3) ────────────────────────────────────
+
+  /**
+   * Which product versions depend — directly or via a contract — on a given
+   * DataContract ID?
+   *
+   * Used by the release gate and UI to answer: "If I update this contract,
+   * who is affected?" Returns a flat list of impacted version IDs and their
+   * products so the caller can decide whether to block the change, notify
+   * consumers, or trigger revalidation.
+   *
+   * This is a one-hop analysis (direct ProductDependency links). Multi-hop
+   * traversal (A depends on B which depends on C) is Phase 6 follow-up.
+   */
+  async getContractChangeImpact(contractId: string): Promise<{
+    contractId: string;
+    directConsumers: Array<{
+      dependencyId: string;
+      productVersionId: string;
+      productVersionVersion: string;
+      productId: string;
+      productName: string;
+    }>;
+    totalAffected: number;
+  }> {
+    const deps = await this.repository.listDependenciesByContractId(contractId);
+    const consumers = [];
+    for (const dep of deps) {
+      const version = await this.repository.getProductVersion(dep.productVersionId);
+      if (!version) continue;
+      const product = await this.repository.getProduct(version.productId);
+      if (!product) continue;
+      consumers.push({
+        dependencyId: dep.id,
+        productVersionId: version.id,
+        productVersionVersion: version.version,
+        productId: product.id,
+        productName: product.name,
+      });
+    }
+    return { contractId, directConsumers: consumers, totalAffected: consumers.length };
+  }
+
+  /**
+   * Which product versions are affected by a change to a specific Artifact
+   * version (identified by namespace/name@version)?
+   *
+   * Finds all ProductDependencies whose `contractId` points to a contract
+   * produced by a component of a product that uses this Artifact. This is
+   * the "upstream impact" view: changing the Artifact might change the contract,
+   * which breaks consumers.
+   */
+  async getArtifactChangeImpact(artifactName: string): Promise<{
+    artifactName: string;
+    affectedContracts: string[];
+    affectedVersions: Array<{ productVersionId: string; productName: string }>;
+    totalAffected: number;
+  }> {
+    // Find all products whose name matches the artifact (heuristic for now)
+    const products = await this.repository.listProducts();
+    const matched = products.filter(p => p.name.toLowerCase().includes(artifactName.toLowerCase()));
+    const affectedContracts = new Set<string>();
+    const affectedVersions: Array<{ productVersionId: string; productName: string }> = [];
+
+    for (const product of matched) {
+      const versions = await this.repository.listProductVersions(product.id);
+      for (const version of versions) {
+        const components = await this.repository.listProductComponents(version.id);
+        for (const comp of components) {
+          const contracts = await this.repository.listDataContracts(comp.id);
+          for (const contract of contracts) {
+            affectedContracts.add(contract.id);
+            const impact = await this.getContractChangeImpact(contract.id);
+            for (const consumer of impact.directConsumers) {
+              affectedVersions.push({
+                productVersionId: consumer.productVersionId,
+                productName: consumer.productName,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const unique = [...new Map(affectedVersions.map(v => [v.productVersionId, v])).values()];
+    return {
+      artifactName,
+      affectedContracts: [...affectedContracts],
+      affectedVersions: unique,
+      totalAffected: unique.length,
+    };
   }
 }

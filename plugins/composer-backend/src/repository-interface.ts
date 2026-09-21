@@ -4,6 +4,7 @@ import {
   ProductComponent,
   DataContract,
   ProductDependency,
+  ContractSubscription,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -49,6 +50,14 @@ export interface IComposerRepository {
   listProductDependencies(versionId: string): Promise<ProductDependency[]>;
   deleteProductDependency(id: string): Promise<void>;
   listDependenciesByContractId(contractId: string): Promise<ProductDependency[]>;
+
+  // Contract Subscriptions (P-EXT-S4)
+  createSubscription(sub: ContractSubscription): Promise<ContractSubscription>;
+  getSubscription(id: string): Promise<ContractSubscription | undefined>;
+  findSubscription(contractId: string, consumerRef: string): Promise<ContractSubscription | undefined>;
+  listSubscriptionsByContract(contractId: string): Promise<ContractSubscription[]>;
+  listSubscriptionsByConsumer(consumerRef: string): Promise<ContractSubscription[]>;
+  updateSubscriptionStatus(id: string, status: ContractSubscription['status']): Promise<void>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;

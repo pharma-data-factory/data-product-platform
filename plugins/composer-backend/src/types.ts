@@ -107,6 +107,16 @@ export interface DataLineage {
   downstream: LineageDownstreamEntry[];
 }
 
+// ── Contract Subscription (P-EXT-S4) ──────────────────────────────────────
+
+export interface CreateSubscriptionRequest {
+  contractId: string;
+  consumerRef: string;
+  consumerLabel: string;
+  compatibleVersions?: string;
+  purpose?: string;
+}
+
 export interface CreateProductDependencyRequest {
   /** ID of the DataContract this version depends on. */
   contractId: string;
