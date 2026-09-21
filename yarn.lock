@@ -5971,6 +5971,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@internal/nexora-industrial-vocab@workspace:packages/nexora-industrial-vocab":
+  version: 0.0.0-use.local
+  resolution: "@internal/nexora-industrial-vocab@workspace:packages/nexora-industrial-vocab"
+  dependencies:
+    "@backstage/cli": "npm:^0.36.4"
+    "@internal/platform-common": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@internal/platform-common@workspace:^, @internal/platform-common@workspace:packages/platform-common":
   version: 0.0.0-use.local
   resolution: "@internal/platform-common@workspace:packages/platform-common"
