@@ -374,6 +374,18 @@ export async function createRouter(
     },
   );
 
+  router.get(
+    '/versions/:id/lineage',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.getDataLineage(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.delete(
     '/dependencies/:id',
     async (req: express.Request, res: express.Response) => {

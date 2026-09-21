@@ -33,6 +33,9 @@ import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
   CreateProductDependencyRequest,
+  DataLineage,
+  LineageUpstreamEntry,
+  LineageDownstreamEntry,
   CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
@@ -398,6 +401,73 @@ export class ComposerService {
     }
     await this.repository.deleteProductDependency(id);
     await this.audit('PRODUCT_DEPENDENCY', id, 'PRODUCT_DEPENDENCY_REMOVED', actor);
+  }
+
+  /**
+   * One-hop data lineage for a product version.
+   *
+   * Upstream: contracts this version consumes via ProductDependency.
+   *   Traces each dependency: DataContract → ProductComponent → ProductVersion
+   *   → Product to find who produces the data.
+   *
+   * Downstream: contracts this version's components produce, and which other
+   *   versions declare a dependency on each of those contracts.
+   *
+   * Entries where a referenced entity no longer exists are silently skipped
+   * (orphaned contract, deleted version/product) rather than raising — the
+   * lineage is computed from live data and a missing hop does not make the
+   * rest of the graph wrong.
+   */
+  async getDataLineage(versionId: string): Promise<DataLineage> {
+    // ── Upstream ────────────────────────────────────────────────────────────
+    const deps = await this.repository.listProductDependencies(versionId);
+    const upstream: LineageUpstreamEntry[] = [];
+    for (const dep of deps) {
+      const contract = await this.repository.getDataContract(dep.contractId);
+      if (!contract) continue;
+      const component = await this.repository.getProductComponent(contract.productComponentId);
+      if (!component) continue;
+      const producerVersion = await this.repository.getProductVersion(component.productVersionId);
+      if (!producerVersion) continue;
+      const producerProduct = await this.repository.getProduct(producerVersion.productId);
+      if (!producerProduct) continue;
+      upstream.push({
+        dependencyId: dep.id,
+        contractId: dep.contractId,
+        contractName: contract.name,
+        producerComponentId: component.id,
+        producerVersionId: producerVersion.id,
+        producerProductId: producerProduct.id,
+        producerProductName: producerProduct.name,
+      });
+    }
+
+    // ── Downstream ──────────────────────────────────────────────────────────
+    const components = await this.repository.listProductComponents(versionId);
+    const downstream: LineageDownstreamEntry[] = [];
+    for (const comp of components) {
+      const contracts = await this.repository.listDataContracts(comp.id);
+      for (const contract of contracts) {
+        const consumers = await this.repository.listDependenciesByContractId(contract.id);
+        for (const consumer of consumers) {
+          // Skip self-references (version depending on its own contract).
+          if (consumer.productVersionId === versionId) continue;
+          const consumerVersion = await this.repository.getProductVersion(consumer.productVersionId);
+          if (!consumerVersion) continue;
+          const consumerProduct = await this.repository.getProduct(consumerVersion.productId);
+          if (!consumerProduct) continue;
+          downstream.push({
+            contractId: contract.id,
+            contractName: contract.name,
+            consumerVersionId: consumerVersion.id,
+            consumerProductId: consumerProduct.id,
+            consumerProductName: consumerProduct.name,
+          });
+        }
+      }
+    }
+
+    return { versionId, upstream, downstream };
   }
 
   async createTraceabilityLink(

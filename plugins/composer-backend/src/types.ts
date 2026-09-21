@@ -63,6 +63,48 @@ export interface CreateDataContractRequest {
   version?: string;
 }
 
+// ── Data Lineage (Phase 4, P4-S4) ─────────────────────────────────────────
+
+/**
+ * One hop upstream: a contract this version consumes, with its producing
+ * context. The producing product may be unknown if the contract no longer
+ * has a reachable component (orphaned contract).
+ */
+export interface LineageUpstreamEntry {
+  dependencyId: string;
+  contractId: string;
+  contractName: string;
+  producerComponentId: string;
+  producerVersionId: string;
+  producerProductId: string;
+  producerProductName: string;
+}
+
+/**
+ * One hop downstream: a contract this version produces, and who consumes it.
+ */
+export interface LineageDownstreamEntry {
+  contractId: string;
+  contractName: string;
+  consumerVersionId: string;
+  consumerProductId: string;
+  consumerProductName: string;
+}
+
+/**
+ * The data lineage view for one product version.
+ *
+ * Upstream = what this version consumes (via ProductDependency).
+ * Downstream = who depends on this version's contracts.
+ *
+ * This is a one-hop view — multi-hop traversal is Phase 6 (Lineage UI).
+ */
+export interface DataLineage {
+  versionId: string;
+  upstream: LineageUpstreamEntry[];
+  downstream: LineageDownstreamEntry[];
+}
+
 export interface CreateProductDependencyRequest {
   /** ID of the DataContract this version depends on. */
   contractId: string;

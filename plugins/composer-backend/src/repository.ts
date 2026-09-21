@@ -165,6 +165,11 @@ export class ComposerRepository implements IComposerRepository {
     return component;
   }
 
+  async getProductComponent(id: string): Promise<ProductComponent | undefined> {
+    const row = await this.db('product_components').where({ id }).first();
+    return row ? this.rowToProductComponent(row) : undefined;
+  }
+
   async listProductComponents(versionId: string): Promise<ProductComponent[]> {
     const rows = await this.db('product_components')
       .where({ product_version_id: versionId })
@@ -261,6 +266,14 @@ export class ComposerRepository implements IComposerRepository {
 
   async deleteProductDependency(id: string): Promise<void> {
     await this.db('product_version_dependencies').where({ id }).delete();
+  }
+
+  /** All versions that declare a dependency on a specific contract. */
+  async listDependenciesByContractId(contractId: string): Promise<ProductDependency[]> {
+    const rows = await this.db('product_version_dependencies')
+      .where({ contract_id: contractId })
+      .select();
+    return rows.map((r: any) => this.rowToProductDependency(r));
   }
 
   private rowToProductDependency(row: any): ProductDependency {

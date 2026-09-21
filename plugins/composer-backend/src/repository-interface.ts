@@ -35,6 +35,7 @@ export interface IComposerRepository {
   updateProductVersion(version: ProductVersion): Promise<void>;
 
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;
+  getProductComponent(id: string): Promise<ProductComponent | undefined>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
 
   createDataContract(contract: DataContract): Promise<DataContract>;
@@ -47,6 +48,7 @@ export interface IComposerRepository {
   findProductDependency(versionId: string, contractId: string): Promise<ProductDependency | undefined>;
   listProductDependencies(versionId: string): Promise<ProductDependency[]>;
   deleteProductDependency(id: string): Promise<void>;
+  listDependenciesByContractId(contractId: string): Promise<ProductDependency[]>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;
