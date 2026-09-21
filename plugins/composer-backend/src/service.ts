@@ -857,12 +857,18 @@ export class ComposerService {
       throw new Error(`Cannot apply draft in status ${draft.status}`);
     }
 
+    // The actor who reviewed and applied the draft becomes the product owner.
+    // This satisfies the `owner-declared` platform policy obligation, so the
+    // product is not blocked at the release gate for a missing owner. The actor
+    // can transfer ownership afterwards; dataClassification and gxpRelevance
+    // still require a deliberate manual choice before release.
     const product = await this.createProduct(
       {
         name: draft.productName,
         description: draft.description,
         productType: 'DATA_PRODUCT',
         domain: draft.domain,
+        owner: actor,
       },
       actor,
     );

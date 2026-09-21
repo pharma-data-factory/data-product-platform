@@ -118,10 +118,9 @@ describe('AI spec draft: approved URS baseline -> product', () => {
     expect(draft.suggestedComponents.length).toBeGreaterThan(0);
   });
 
-  // U1 — applySpecDraft passes productType: 'data-product', but
-  // validateProduct only accepts PRODUCT_TYPES = ['DATA_PRODUCT', 'SERVICE'].
-  // Every apply therefore throws "Unsupported productType: data-product".
-  it('applies the draft and creates the product', async () => {
+  // U1 (fixed) — applySpecDraft used to pass productType: 'data-product';
+  // validateProduct requires PRODUCT_TYPES = ['DATA_PRODUCT', 'SERVICE'].
+  it('applies the draft, creates the product, and sets the actor as owner', async () => {
     const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
 
     const product = await service.applySpecDraft(draft.id, actor);
@@ -129,6 +128,9 @@ describe('AI spec draft: approved URS baseline -> product', () => {
     expect(product.id).toBeTruthy();
     expect(product.name).toBe('Weighing Events Data Product');
     expect(product.productType).toBe('DATA_PRODUCT');
+    // The reviewer/approver becomes the product owner, satisfying the
+    // `owner-declared` platform policy obligation at apply time.
+    expect(product.owner).toBe(actor);
     expect(service.getSpecDraft(draft.id)?.status).toBe('APPLIED');
   });
 
