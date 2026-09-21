@@ -114,6 +114,11 @@ export interface ComposerServiceOptions {
    * Used by the release gate to check product-declared policy obligations (5-R1).
    */
   policyResolverClient?: PolicyResolverClient;
+  /**
+   * Shared SSE client registry. Injected by the router so upgrade notifications
+   * can push events to connected consumers without any property bag tricks.
+   */
+  sseClients?: Map<string, Set<{ write(s: string): void }>>;
 }
 
 export class ComposerService {
@@ -124,6 +129,7 @@ export class ComposerService {
   private readonly catalogLoader?: CatalogComponentLoader;
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly policyResolverClient?: PolicyResolverClient;
+  readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
   private readonly specDrafts = new Map<string, AISpecDraft>();
 
   constructor(options: ComposerServiceOptions) {
@@ -134,6 +140,7 @@ export class ComposerService {
     this.catalogLoader = options.catalogLoader;
     this.validationDecisionResolver = options.validationDecisionResolver;
     this.policyResolverClient = options.policyResolverClient;
+    this.sseClients = options.sseClients ?? new Map();
   }
 
   async createProduct(
@@ -1455,8 +1462,8 @@ export class ComposerService {
     });
 
     // 6-R2: Push via SSE to any consumers with an open /subscribe/notifications connection.
-    const sseClients = (this as any).__sseClients as Map<string, Set<{ write(s: string): void }>> | undefined;
-    if (sseClients) {
+    const sseClients = this.sseClients;
+    if (sseClients.size > 0) {
       for (const sub of active) {
         const clients = sseClients.get(sub.consumerRef);
         if (clients) {

@@ -47,7 +47,7 @@ export async function bootstrapPlatformProduct(options: {
       domain: 'platform',
       owner: NEXORA_CORE_OWNER,
       team: NEXORA_CORE_OWNER,
-      lifecycle: 'production' as const,
+      lifecycle: 'PRODUCTION' as const,
       status: 'ACTIVE' as const,
       gxpRelevance: 'INDIRECT',
       dataClassification: 'INTERNAL' as const,

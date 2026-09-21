@@ -382,11 +382,8 @@ export async function createRouter(
   // dispatchUpgradeNotifications() it sends an event on the stream.
   // No external dependency needed — standard HTTP chunked transfer.
 
-  // In-process registry of active SSE clients keyed by consumerRef.
-  const sseClients = new Map<string, Set<express.Response>>();
-
-  // Expose the registry so service can push events (set at startup).
-  (service as any).__sseClients = sseClients;
+  // SSE client registry is owned by the service (injected at construction).
+  const sseClients = service.sseClients as Map<string, Set<express.Response>>;
 
   router.get(
     '/subscribe/notifications',
