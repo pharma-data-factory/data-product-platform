@@ -3,6 +3,7 @@ import {
   ProductVersion,
   ProductComponent,
   DataContract,
+  ProductDependency,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -40,6 +41,12 @@ export interface IComposerRepository {
   getDataContract(id: string): Promise<DataContract | undefined>;
   listDataContracts(componentId: string): Promise<DataContract[]>;
   findDataContractByName(componentId: string, name: string): Promise<DataContract | undefined>;
+
+  createProductDependency(dep: ProductDependency): Promise<ProductDependency>;
+  getProductDependency(id: string): Promise<ProductDependency | undefined>;
+  findProductDependency(versionId: string, contractId: string): Promise<ProductDependency | undefined>;
+  listProductDependencies(versionId: string): Promise<ProductDependency[]>;
+  deleteProductDependency(id: string): Promise<void>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;

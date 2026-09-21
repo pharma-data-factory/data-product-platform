@@ -13,6 +13,7 @@ export type {
   ProductVersion,
   ProductComponent,
   DataContract,
+  ProductDependency,
   TraceabilityLink,
   ProductBaseline,
 } from '@internal/platform-common';
@@ -60,6 +61,13 @@ export interface CreateDataContractRequest {
   schemaRef?: string;
   contractSpec?: Record<string, unknown>;
   version?: string;
+}
+
+export interface CreateProductDependencyRequest {
+  /** ID of the DataContract this version depends on. */
+  contractId: string;
+  /** Optional human note about why this dependency exists. */
+  description?: string;
 }
 
 export interface CreateTraceabilityLinkRequest {

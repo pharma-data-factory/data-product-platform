@@ -221,6 +221,27 @@ export async function up(knex: Knex): Promise<void> {
   await assertNoDuplicateIdentities(knex);
   await createIdentityIndexes(knex);
 
+  // Phase 4 (P4-S3): ProductDependency — a version declares which DataContracts it consumes.
+  if (!(await knex.schema.hasTable('product_version_dependencies'))) {
+    await knex.schema.createTable('product_version_dependencies', table => {
+      table.string('id', 255).primary();
+      table.string('product_version_id', 255).notNullable();
+      table.string('contract_id', 255).notNullable();
+      table.text('description');
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.integer('revision').defaultTo(1);
+
+      table.index(['product_version_id']);
+      table.index(['contract_id']);
+      // A version may only declare one dependency per contract.
+      table.unique(['product_version_id', 'contract_id']);
+      table.foreign('product_version_id').references('id').inTable('product_versions');
+      // Note: no FK to data_contracts — contracts may be deleted independently.
+      // The service validates contract existence at creation time.
+    });
+  }
+
   // Phase 4 (P4-S1): DataContract identity — name and owner.
   //
   // DataContract had no name or owner before Phase 4 (NXD-010, NXD-034).
@@ -329,6 +350,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('product_version_dependencies');
   await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');
   await knex.schema.dropTableIfExists('traceability_links');

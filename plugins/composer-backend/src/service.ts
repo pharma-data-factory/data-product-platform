@@ -15,6 +15,7 @@ import {
   ProductBaseline,
   ProductBaselineDelta,
   ProductComponent,
+  ProductDependency,
   ProductVersion,
   SnapshotItemChange,
   TraceabilityLink,
@@ -31,6 +32,7 @@ import { IComposerRepository, ComposerAuditEvent } from './repository-interface'
 import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
+  CreateProductDependencyRequest,
   CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
@@ -342,6 +344,60 @@ export class ComposerService {
     await this.repository.createDataContract(contract);
     await this.audit('DATA_CONTRACT', contract.id, 'DATA_CONTRACT_CREATED', actor);
     return contract;
+  }
+
+  // ── Product Dependencies (Phase 4, P4-S3) ─────────────────────────────────
+
+  async addProductDependency(
+    versionId: string,
+    request: CreateProductDependencyRequest,
+    actor: string,
+  ): Promise<ProductDependency> {
+    const contractId = String(request.contractId ?? '').trim();
+    if (!contractId) {
+      throw new InputError('productDependency.contractId is required');
+    }
+    // Validate that the referenced contract exists.
+    const contract = await this.repository.getDataContract(contractId);
+    if (!contract) {
+      throw new InputError(
+        `DataContract ${contractId} not found. A ProductDependency must reference an existing contract.`,
+      );
+    }
+    // Uniqueness: a version may only declare one dependency per contract.
+    const existing = await this.repository.findProductDependency(versionId, contractId);
+    if (existing) {
+      throw new ConflictError(
+        `Version ${versionId} already declares a dependency on contract ${contractId}.`,
+      );
+    }
+    const dep: ProductDependency = {
+      id: randomUUID(),
+      productVersionId: versionId,
+      contractId,
+      description: request.description ? String(request.description).trim() || undefined : undefined,
+      createdBy: actor,
+      createdAt: new Date(),
+      revision: 1,
+    };
+    await this.repository.createProductDependency(dep);
+    await this.audit('PRODUCT_DEPENDENCY', dep.id, 'PRODUCT_DEPENDENCY_ADDED', actor, {
+      newValue: JSON.stringify({ versionId, contractId }),
+    });
+    return dep;
+  }
+
+  async listProductDependencies(versionId: string): Promise<ProductDependency[]> {
+    return this.repository.listProductDependencies(versionId);
+  }
+
+  async removeProductDependency(id: string, actor: string): Promise<void> {
+    const dep = await this.repository.getProductDependency(id);
+    if (!dep) {
+      throw new InputError(`ProductDependency ${id} not found`);
+    }
+    await this.repository.deleteProductDependency(id);
+    await this.audit('PRODUCT_DEPENDENCY', id, 'PRODUCT_DEPENDENCY_REMOVED', actor);
   }
 
   async createTraceabilityLink(

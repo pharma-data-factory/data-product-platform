@@ -154,6 +154,33 @@ export interface DataContract {
   revision: number;
 }
 
+/**
+ * A declared data dependency between a Product version and a DataContract.
+ *
+ * ProductDependency answers "which data contracts does this product consume?"
+ * It is the Phase 4 mechanism for expressing data exchange: the consuming
+ * product declares what it needs, and the platform can check whether the
+ * supplying contract still exists and is compatible.
+ *
+ * Modelled at the ProductVersion level (not the Product level) so that
+ * different versions can depend on different contracts, and the baseline
+ * snapshot can include the exact dependency state at freeze time.
+ *
+ * Phase 4 (P4-S3). Subscription semantics (a consumer registering to receive
+ * updates) are a later Phase 4 slice — they build on this foundation.
+ */
+export interface ProductDependency {
+  id: string;
+  productVersionId: string;
+  /** ID of the DataContract this version depends on. */
+  contractId: string;
+  /** Optional human note about why this dependency exists. */
+  description?: string;
+  createdBy: string;
+  createdAt: Date;
+  revision: number;
+}
+
 export interface TraceabilityLink {
   id: string;
   sourceType: string;

@@ -12,6 +12,7 @@ import {
   ProductVersion,
   ProductComponent,
   DataContract,
+  ProductDependency,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -220,6 +221,61 @@ export class ComposerRepository implements IComposerRepository {
       .select();
     return rows.map((r: any) => this.rowToDataContract(r));
   }
+
+  // ── Product Dependencies (Phase 4, P4-S3) ─────────────────────────────────
+
+  async createProductDependency(dep: ProductDependency): Promise<ProductDependency> {
+    await this.db('product_version_dependencies').insert({
+      id: dep.id,
+      product_version_id: dep.productVersionId,
+      contract_id: dep.contractId,
+      description: dep.description || null,
+      created_by: dep.createdBy,
+      created_at: dep.createdAt,
+      revision: dep.revision || 1,
+    });
+    return dep;
+  }
+
+  async getProductDependency(id: string): Promise<ProductDependency | undefined> {
+    const row = await this.db('product_version_dependencies').where({ id }).first();
+    return row ? this.rowToProductDependency(row) : undefined;
+  }
+
+  async findProductDependency(
+    versionId: string,
+    contractId: string,
+  ): Promise<ProductDependency | undefined> {
+    const row = await this.db('product_version_dependencies')
+      .where({ product_version_id: versionId, contract_id: contractId })
+      .first();
+    return row ? this.rowToProductDependency(row) : undefined;
+  }
+
+  async listProductDependencies(versionId: string): Promise<ProductDependency[]> {
+    const rows = await this.db('product_version_dependencies')
+      .where({ product_version_id: versionId })
+      .select();
+    return rows.map((r: any) => this.rowToProductDependency(r));
+  }
+
+  async deleteProductDependency(id: string): Promise<void> {
+    await this.db('product_version_dependencies').where({ id }).delete();
+  }
+
+  private rowToProductDependency(row: any): ProductDependency {
+    return {
+      id: row.id,
+      productVersionId: row.product_version_id,
+      contractId: row.contract_id,
+      description: row.description ?? undefined,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      revision: row.revision,
+    };
+  }
+
+  // ── Traceability Links ─────────────────────────────────────────────────────
 
   async createTraceabilityLink(
     link: TraceabilityLink,

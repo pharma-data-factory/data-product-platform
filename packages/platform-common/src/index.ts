@@ -636,6 +636,7 @@ export type {
   VersionLabelParts,
   ProductComponent,
   DataContract,
+  ProductDependency,
   TraceabilityLink,
   ProductBaseline,
   ProductType,

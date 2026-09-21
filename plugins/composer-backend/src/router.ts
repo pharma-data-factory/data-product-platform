@@ -32,6 +32,7 @@ import { ComposerService } from './service';
 import type { AvailableComponentSummary } from './llm-client';
 import {
   CreateDataContractRequest,
+  CreateProductDependencyRequest,
   CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
@@ -329,6 +330,62 @@ export async function createRouter(
           return;
         }
         res.json(contract);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // PRODUCT DEPENDENCIES (Phase 4, P4-S3)
+  // ============================================================================
+
+  router.post(
+    '/versions/:id/dependencies',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const dep = await service.addProductDependency(
+          req.params.id,
+          req.body as CreateProductDependencyRequest,
+          actor,
+        );
+        res.status(201).json(dep);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:id/dependencies',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listProductDependencies(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.delete(
+    '/dependencies/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        await service.removeProductDependency(req.params.id, actor);
+        res.status(204).end();
       } catch (err) {
         respondError(res, logger, err);
       }
