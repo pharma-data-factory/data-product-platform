@@ -32,6 +32,7 @@ import {
   composerPath,
   composerPresets,
   composerSelectionKind,
+  compositionConfigSummary,
   dependencyLabelsFor,
   documentationHref,
   formatJourneyError,
@@ -400,6 +401,10 @@ export function ComposePage() {
     .map(name => components.find(item => item.name === name))
     .filter((item): item is LibraryPlatformComponent => Boolean(item));
   const architecture = composerArchitectureFromSelection(selected);
+  const configSummary = useMemo(
+    () => compositionConfigSummary(selected),
+    [selected],
+  );
   const activePreset = presets.find(preset => preset.id === presetId);
   const optionalNames = activePreset?.optionalNames || [];
 
@@ -1149,6 +1154,30 @@ export function ComposePage() {
                   </p>
                 )}
               </div>
+              {configSummary.totalCount > 0 && (
+                <div data-testid="config-summary">
+                  <Typography variant="subtitle2" style={{ marginTop: 16 }}>
+                    Configuration checklist ({configSummary.totalCount} keys)
+                  </Typography>
+                  <p className={classes.meta}>
+                    Environment variables your Data Product must supply at
+                    runtime. Set them in your .env file or deployment secrets.
+                  </p>
+                  {configSummary.keys.map(({ key, componentTitle }) => (
+                    <p key={key} className={classes.meta}>
+                      <code>{key}</code>{' '}
+                      <span style={{ color: 'inherit', opacity: 0.6 }}>
+                        — {componentTitle}
+                      </span>
+                    </p>
+                  ))}
+                  {configSummary.notes.map(({ componentTitle, note }) => (
+                    <p key={componentTitle} className={classes.meta}>
+                      <em>{componentTitle}:</em> {note}
+                    </p>
+                  ))}
+                </div>
+              )}
               <p className={classes.meta}>
                 Client-side draft only. Catalog is not a draft store. YAML is
                 the version-controlled source of truth.

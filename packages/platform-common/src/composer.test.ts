@@ -6,6 +6,7 @@ import {
   composerPath,
   composerPresets,
   composerSelectionKind,
+  compositionConfigSummary,
   isComposerSelectable,
   officialGoldenPathForDraft,
   officialGoldenPathForSelection,
@@ -398,5 +399,50 @@ spec:
     expect(layers.find(layer => layer.id === 'sources')?.names).toEqual([
       'mqtt-consumer',
     ]);
+  });
+});
+
+describe('compositionConfigSummary', () => {
+  it('aggregates config keys across selected components in order', () => {
+    const selected = library.filter(item =>
+      ['mqtt-consumer', 'timeseries'].includes(item.name),
+    );
+    const summary = compositionConfigSummary(selected);
+
+    // mqtt-consumer has 11 keys (from libraryProfileFor); timeseries has 1.
+    // We assert structure rather than exact counts so the test survives profile edits.
+    const mqttKeys = summary.keys.filter(k => k.componentName === 'mqtt-consumer');
+    const tsKeys = summary.keys.filter(k => k.componentName === 'timeseries');
+    expect(mqttKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.length).toBeGreaterThan(0);
+    expect(summary.totalCount).toBe(mqttKeys.length + tsKeys.length);
+
+    // Keys appear in component order (mqtt before timeseries in the selection).
+    const firstMqttIndex = summary.keys.findIndex(k => k.componentName === 'mqtt-consumer');
+    const firstTsIndex = summary.keys.findIndex(k => k.componentName === 'timeseries');
+    expect(firstMqttIndex).toBeLessThan(firstTsIndex);
+
+    // Each key carries the component title and name.
+    expect(mqttKeys[0].componentTitle).toBeTruthy();
+    expect(mqttKeys[0].key).toBeTruthy();
+  });
+
+  it('returns zero keys and no notes for an empty selection', () => {
+    const summary = compositionConfigSummary([]);
+    expect(summary.totalCount).toBe(0);
+    expect(summary.keys).toHaveLength(0);
+    expect(summary.notes).toHaveLength(0);
+  });
+
+  it('includes configurationNote for components that have one', () => {
+    // health has a configurationNote ('No source credentials...' or similar).
+    const healthComp = library.find(item => item.name === 'health');
+    if (!healthComp || !healthComp.profile.configurationNote) {
+      return; // skip if profile has no note (defensive)
+    }
+    const summary = compositionConfigSummary([healthComp]);
+    expect(summary.notes).toHaveLength(1);
+    expect(summary.notes[0].note).toBe(healthComp.profile.configurationNote);
+    expect(summary.notes[0].componentTitle).toBe(healthComp.title);
   });
 });

@@ -610,6 +610,76 @@ function humanizeCompositionIssue(
   return message;
 }
 
+// ============================================================================
+// Composition development context — configuration summary (Phase 3)
+// ============================================================================
+
+/**
+ * One environment variable required by a platform component.
+ *
+ * Aggregated across all selected components by `compositionConfigSummary`
+ * to give a developer the complete configuration checklist for the
+ * composition they are building.
+ */
+export interface CompositionConfigKey {
+  /** Environment variable name, e.g. `'MQTT_HOST'`. */
+  key: string;
+  /** Display title of the component that owns this key. */
+  componentTitle: string;
+  /** Catalog name of the component, e.g. `'mqtt-consumer'`. */
+  componentName: string;
+}
+
+export interface CompositionConfigSummary {
+  /** All env vars across the selected components, in component order. */
+  keys: CompositionConfigKey[];
+  /**
+   * Components that carry a `configurationNote`, e.g. "Host identity only.
+   * No source credentials in this component."
+   */
+  notes: Array<{ componentTitle: string; note: string }>;
+  /** Total count of configuration keys, for quick display. */
+  totalCount: number;
+}
+
+/**
+ * Aggregates the configuration keys and notes from every selected component
+ * into a single composition-level summary.
+ *
+ * This is the development-context view of the composition: after the user
+ * has chosen components and validated the composition, this tells them what
+ * to put in `.env`. It is derived from `LibraryPlatformComponent.profile`
+ * fields that already exist per component; the Composer just did not expose
+ * the cross-component aggregate before Phase 3.
+ *
+ * Order is preserved: components appear in the order they were selected, and
+ * their keys appear in the order the profile declares them.
+ */
+export function compositionConfigSummary(
+  selected: LibraryPlatformComponent[],
+): CompositionConfigSummary {
+  const keys: CompositionConfigKey[] = [];
+  const notes: Array<{ componentTitle: string; note: string }> = [];
+
+  for (const comp of selected) {
+    for (const key of comp.profile.configurationKeys) {
+      keys.push({
+        key,
+        componentTitle: comp.title,
+        componentName: comp.name,
+      });
+    }
+    if (comp.profile.configurationNote) {
+      notes.push({
+        componentTitle: comp.title,
+        note: comp.profile.configurationNote,
+      });
+    }
+  }
+
+  return { keys, notes, totalCount: keys.length };
+}
+
 function uniqueIssues(issues: ComposerUxIssue[]): ComposerUxIssue[] {
   const seen = new Set<string>();
   const result: ComposerUxIssue[] = [];

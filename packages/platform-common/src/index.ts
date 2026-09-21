@@ -496,6 +496,7 @@ export {
   officialGoldenPathForDraft,
   officialGoldenPathForSelection,
   sanitizeComposerComponentQuery,
+  compositionConfigSummary,
   serializeCompositionYaml,
   slugifyCompositionName,
   sortCompositionRefs,
@@ -510,6 +511,8 @@ export type {
   ComposerSelectionKind,
   ComposerUxIssue,
   ComposerValidationView,
+  CompositionConfigKey,
+  CompositionConfigSummary,
 } from './composer';
 
 export {
