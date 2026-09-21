@@ -38,6 +38,7 @@ export interface IComposerRepository {
 
   createDataContract(contract: DataContract): Promise<DataContract>;
   listDataContracts(componentId: string): Promise<DataContract[]>;
+  findDataContractByName(componentId: string, name: string): Promise<DataContract | undefined>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;

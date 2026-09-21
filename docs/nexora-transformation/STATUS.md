@@ -1,10 +1,10 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 3 — Product Studio and AI-assisted Development (Phase 2 closed)
+Phase 4 — Data Exchange, Contracts and Lineage (Phase 3 closed)
 
 ## Current Vertical Slice
-Nothing in flight. P3-S1a and P3-S1b are both landed; GP-1 and GP-4 are closed.
+Nothing in flight. Phase 3 exit criteria met. Phase 4 started with P4-S1 (DataContract identity).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -273,6 +273,20 @@ registry's own rather than an inherited claim.
   in Core. See [`NXD-031`](DECISIONS.md).
 
   409 tests, 0 failures (tsc + lint + yarn test subset).
+
+**Phase 3 exit criteria are met:** generic Golden Path resolution, AI provider
+abstraction, product generation (AI spec + catalog loader + owner), development
+context (config summary), repository scaffolding (2 Golden Paths linked), and
+the Hardcoded Domain Inventory reduced from 8 items to 2 (GP-7 waits on Phase
+4, GP-8 waits on Phase 4/6).
+
+- **P4-S1 — DataContract identity: name, owner, uniqueness.** `DataContract`
+  gains `name: string` (required, trimmed) and `owner?: string`. DB migration
+  adds both columns as nullable (existing rows unaffected) and a unique index on
+  `(product_component_id, lower(name))`. The service enforces name presence and
+  case-insensitive uniqueness per component via `findDataContractByName`. 16
+  tests (5 new identity cases + 11 pre-existing validation cases). See
+  [`NXD-034`](DECISIONS.md).
 
 - **P3-S9 — Machine State Consumer linked to its GOLDEN_PATH composition.**
   `machine-state-consumer-data-product.yaml` gains `spec.builtFrom: "machine-state-consumer"`,

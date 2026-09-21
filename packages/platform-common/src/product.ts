@@ -125,6 +125,23 @@ export interface ProductComponent {
 export interface DataContract {
   id: string;
   productComponentId: string;
+  /**
+   * Human-readable contract name, unique (case-insensitive) per component.
+   *
+   * Required on all new contracts. Existing rows created before Phase 4 carry
+   * null here; the migration adds the column as nullable so the database does
+   * not reject them. The service rejects any new request that omits a name.
+   *
+   * Phase 4 (P4-S1) — NXD-034. Phase 4 later slices will promote contracts
+   * to a first-class namespace so they can be referenced across products.
+   */
+  name: string;
+  /**
+   * Who is responsible for this contract (e.g. a group entity ref).
+   *
+   * Optional for now. The release gate does not yet check it; that is Phase 5.
+   */
+  owner?: string;
   schemaType: DataContractSchemaType;
   schemaRef?: string;
   contractSpec?: Record<string, unknown>;

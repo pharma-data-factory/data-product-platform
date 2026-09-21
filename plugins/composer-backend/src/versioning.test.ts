@@ -287,7 +287,7 @@ describe('Phase 1: Versioning Foundation', () => {
       const { version, component } = await createFullSetup();
       await service.addDataContract(
         component.id,
-        { schemaType: 'JSON_SCHEMA', version: '1.0' },
+        { name: 'output-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
         actor,
       );
       const baseline = await service.createProductBaseline(version.id, {}, actor);
@@ -369,7 +369,7 @@ describe('Phase 1: Versioning Foundation', () => {
 
       await service.addDataContract(
         component.id,
-        { schemaType: 'JSON_SCHEMA', version: '1.0' },
+        { name: 'output-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
         actor,
       );
       await service.createTraceabilityLink(

@@ -276,6 +276,23 @@ export class ComposerService {
     request: CreateDataContractRequest,
     actor: string,
   ): Promise<DataContract> {
+    // Phase 4 (P4-S1, NXD-034): DataContract identity. A contract must have a
+    // name — it is no longer just an opaque row attached to a component.
+    const name = String(request.name ?? '').trim();
+    if (!name) {
+      throw new InputError(
+        'DataContract name is required. Provide a short, descriptive name ' +
+          'that identifies this contract within the component (e.g. "output-event-v1").',
+      );
+    }
+    const clash = await this.repository.findDataContractByName(componentId, name);
+    if (clash) {
+      throw new ConflictError(
+        `A DataContract named "${name}" already exists on component ${componentId}. ` +
+          'Contract names are case-insensitive and must be unique per component.',
+      );
+    }
+
     // Narrowing with the guard rather than casting: the cast that used to be
     // here is what let any string through as a schemaType in the first place,
     // producing stored values the type said could not exist.
@@ -303,6 +320,8 @@ export class ComposerService {
     const contract: DataContract = {
       id: randomUUID(),
       productComponentId: componentId,
+      name,
+      owner: request.owner ? String(request.owner).trim() || undefined : undefined,
       schemaType,
       schemaRef: request.schemaRef,
       contractSpec: request.contractSpec,

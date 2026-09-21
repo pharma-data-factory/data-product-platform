@@ -175,6 +175,8 @@ export class ComposerRepository implements IComposerRepository {
     await this.db('data_contracts').insert({
       id: contract.id,
       product_component_id: contract.productComponentId,
+      name: contract.name,
+      owner: contract.owner || null,
       schema_type: contract.schemaType,
       schema_ref: contract.schemaRef || null,
       contract_spec: contract.contractSpec
@@ -187,6 +189,24 @@ export class ComposerRepository implements IComposerRepository {
       revision: contract.revision || 1,
     });
     return contract;
+  }
+
+  /**
+   * Finds a contract on the same component with the same name (case-insensitive).
+   *
+   * Used by the service before insertion to produce a clear ConflictError
+   * rather than relying on a database constraint violation message, which is
+   * dialect-specific and harder to surface to clients cleanly.
+   */
+  async findDataContractByName(
+    componentId: string,
+    name: string,
+  ): Promise<DataContract | undefined> {
+    const row = await this.db('data_contracts')
+      .where({ product_component_id: componentId })
+      .whereRaw('lower(name) = lower(?)', [name])
+      .first();
+    return row ? this.rowToDataContract(row) : undefined;
   }
 
   async listDataContracts(componentId: string): Promise<DataContract[]> {
@@ -360,6 +380,8 @@ export class ComposerRepository implements IComposerRepository {
     return {
       id: row.id,
       productComponentId: row.product_component_id,
+      name: row.name ?? '',
+      owner: row.owner ?? undefined,
       schemaType: row.schema_type,
       schemaRef: row.schema_ref,
       contractSpec: row.contract_spec ? JSON.parse(row.contract_spec) : undefined,

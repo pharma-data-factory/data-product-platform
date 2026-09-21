@@ -1,13 +1,14 @@
 /**
- * DataContract input invariants.
+ * DataContract input invariants — Phase 4 identity (NXD-034).
  *
- * Scope is deliberately validation only. DataContract has no name — a row is
- * identified by a UUID and its parent component — so there is no well-defined
- * key to make unique yet. Giving it an identity, an owner and the rest of the
- * first-class field set is Phase 4 work, and doing half of it here would mean
- * two migrations on one table and a uniqueness key chosen before the model is.
+ * Phase 4 (P4-S1) added name and owner to DataContract. A contract now has a
+ * stable identity: its name is unique (case-insensitive) per component,
+ * enforced both at the service layer (this test) and in the database
+ * (unique index on (product_component_id, lower(name))).
  *
- * See docs/nexora-transformation/DECISIONS.md, NXD-010.
+ * A row is still keyed to a productComponentId. Making contracts fully
+ * first-class (own namespace, independent references across products) is the
+ * next Phase 4 slice — NXD-010 recorded what that requires.
  */
 
 import knex, { Knex } from 'knex';
@@ -63,12 +64,77 @@ describe('DataContract validation', () => {
 
   const actor = 'user:default/test-user';
 
+  // ── Phase 4 identity (P4-S1, NXD-034) ────────────────────────────────────
+
+  it('requires a name', async () => {
+    await expect(
+      service.addDataContract(componentId, { name: '', schemaType: 'JSON_SCHEMA' }, actor),
+    ).rejects.toThrow(/name is required/i);
+  });
+
+  it('rejects a blank-only name', async () => {
+    await expect(
+      service.addDataContract(componentId, { name: '  ', schemaType: 'JSON_SCHEMA' }, actor),
+    ).rejects.toThrow(/name is required/i);
+  });
+
+  it('stores the name and returns it', async () => {
+    const contract = await service.addDataContract(
+      componentId,
+      { name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
+      actor,
+    );
+    expect(contract.name).toBe('output-event-v1');
+    expect(contract.owner).toBeUndefined();
+  });
+
+  it('stores the owner when provided', async () => {
+    const contract = await service.addDataContract(
+      componentId,
+      { name: 'contract-with-owner', owner: 'group:default/data-team', schemaType: 'AVRO' },
+      actor,
+    );
+    expect(contract.owner).toBe('group:default/data-team');
+  });
+
+  it('rejects a duplicate name (exact match) on the same component', async () => {
+    await service.addDataContract(
+      componentId,
+      { name: 'duplicate-name', schemaType: 'JSON_SCHEMA' },
+      actor,
+    );
+    await expect(
+      service.addDataContract(
+        componentId,
+        { name: 'duplicate-name', schemaType: 'OPENAPI' },
+        actor,
+      ),
+    ).rejects.toThrow(/already exists/i);
+  });
+
+  it('rejects a duplicate name (case-insensitive) on the same component', async () => {
+    await service.addDataContract(
+      componentId,
+      { name: 'Case-Sensitive-Contract', schemaType: 'JSON_SCHEMA' },
+      actor,
+    );
+    await expect(
+      service.addDataContract(
+        componentId,
+        { name: 'case-sensitive-contract', schemaType: 'JSON_SCHEMA' },
+        actor,
+      ),
+    ).rejects.toThrow(/already exists/i);
+  });
+
+  // ── Schema type and version validation (pre-existing, Phase 1, NXD-010) ──
+
   it.each(['JSON_SCHEMA', 'AVRO', 'PROTOBUF', 'OPENAPI', 'ASYNCAPI'])(
     'accepts the supported schema type %s',
     async schemaType => {
       const contract = await service.addDataContract(
         componentId,
-        { schemaType },
+        { name: `schema-type-${schemaType.toLowerCase()}`, schemaType },
         actor,
       );
       expect(contract.schemaType).toBe(schemaType);
@@ -81,14 +147,14 @@ describe('DataContract validation', () => {
     // downstream had to cope with a value the type said was impossible.
     for (const schemaType of ['XSD', 'json_schema', 'JSON-SCHEMA', 'anything']) {
       await expect(
-        service.addDataContract(componentId, { schemaType }, actor),
+        service.addDataContract(componentId, { name: `bad-type-${schemaType}`, schemaType }, actor),
       ).rejects.toThrow(/schemaType/i);
     }
   });
 
   it('still requires a schema type', async () => {
     await expect(
-      service.addDataContract(componentId, { schemaType: '  ' }, actor),
+      service.addDataContract(componentId, { name: 'no-schema-type', schemaType: '  ' }, actor),
     ).rejects.toThrow(/schemaType/i);
   });
 
@@ -97,7 +163,7 @@ describe('DataContract validation', () => {
       await expect(
         service.addDataContract(
           componentId,
-          { schemaType: 'JSON_SCHEMA', version },
+          { name: `bad-version-${version || 'empty'}`, schemaType: 'JSON_SCHEMA', version },
           actor,
         ),
       ).rejects.toThrow(/version/i);
@@ -107,7 +173,7 @@ describe('DataContract validation', () => {
   it('defaults to 1.0 when no version is given', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { schemaType: 'JSON_SCHEMA' },
+      { name: 'default-version-contract', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     expect(contract.version).toBe('1.0');
@@ -116,7 +182,7 @@ describe('DataContract validation', () => {
   it('accepts a semantic version with a patch component', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { schemaType: 'AVRO', version: '2.1.3' },
+      { name: 'patch-version-contract', schemaType: 'AVRO', version: '2.1.3' },
       actor,
     );
     expect(contract.version).toBe('2.1.3');

@@ -52,6 +52,10 @@ export interface CreateProductComponentRequest {
 }
 
 export interface CreateDataContractRequest {
+  /** Required. Human-readable name, unique (case-insensitive) per component. */
+  name: string;
+  /** Optional. Who owns this contract (e.g. a group entity ref). */
+  owner?: string;
   schemaType: string;
   schemaRef?: string;
   contractSpec?: Record<string, unknown>;

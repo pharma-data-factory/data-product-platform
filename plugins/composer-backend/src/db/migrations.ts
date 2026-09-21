@@ -220,6 +220,28 @@ export async function up(knex: Knex): Promise<void> {
   // Phase 1: enforce version and baseline identity in the database.
   await assertNoDuplicateIdentities(knex);
   await createIdentityIndexes(knex);
+
+  // Phase 4 (P4-S1): DataContract identity — name and owner.
+  //
+  // DataContract had no name or owner before Phase 4 (NXD-010, NXD-034).
+  // The columns are added as nullable so the migration is safe to run against
+  // databases that already contain contract rows: existing rows keep NULL for
+  // name, and the service enforces non-null for all new contracts. The unique
+  // index only fires for non-NULL names (NULLs do not collide in unique indexes
+  // in both SQLite and PostgreSQL), so pre-existing rows are unaffected.
+  if (await knex.schema.hasTable('data_contracts')) {
+    const hasName = await knex.schema.hasColumn('data_contracts', 'name');
+    if (!hasName) {
+      await knex.schema.alterTable('data_contracts', table => {
+        table.string('name', 255).nullable();
+        table.string('owner', 255).nullable();
+      });
+      await knex.raw(
+        'create unique index if not exists data_contracts_name_unique ' +
+          'on data_contracts (product_component_id, lower(name))',
+      );
+    }
+  }
 }
 
 /**
