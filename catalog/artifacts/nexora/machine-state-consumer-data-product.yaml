@@ -8,6 +8,13 @@ metadata:
   description: "Composition / reference proof that consumes machine-state events from Unified Namespace. Not an official RELEASED Data Product Golden Path. Not OEE."
 spec:
   sourceRef: "template:default/machine-state-consumer-data-product"
+  # Links this DATA_PRODUCT to its GOLDEN_PATH composition blueprint.
+  # When the Composer detects a selection that matches the machine-state-consumer
+  # composition, it offers "Generate Data Product" scaffolding and a
+  # "Continue to Golden Path" link pointing here — without any hardcoding in Core.
+  # The mechanism is builtFromIndex in GoldenPathCompositions, built from this
+  # field at registry load time. See NXD-031.
+  builtFrom: "machine-state-consumer"
   marketplace:
     category: "Data Products"
     provider: "Nexora"
