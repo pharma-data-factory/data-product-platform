@@ -375,6 +375,48 @@ export async function createRouter(
     },
   );
 
+  // ── Subscription Push via SSE (6-R2) ──────────────────────────────────────
+  // GET /subscribe/notifications?consumer=X
+  // Server-Sent Events stream for upgrade notifications.
+  // The client opens this connection once; whenever the server calls
+  // dispatchUpgradeNotifications() it sends an event on the stream.
+  // No external dependency needed — standard HTTP chunked transfer.
+
+  // In-process registry of active SSE clients keyed by consumerRef.
+  const sseClients = new Map<string, Set<express.Response>>();
+
+  // Expose the registry so service can push events (set at startup).
+  (service as any).__sseClients = sseClients;
+
+  router.get(
+    '/subscribe/notifications',
+    async (req: express.Request, res: express.Response) => {
+      const consumerRef = String(req.query.consumer ?? '').trim();
+      if (!consumerRef) {
+        res.status(400).json({ error: 'consumer query param required' });
+        return;
+      }
+      // SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+      res.flushHeaders();
+
+      if (!sseClients.has(consumerRef)) sseClients.set(consumerRef, new Set());
+      sseClients.get(consumerRef)!.add(res);
+
+      // Heartbeat every 30s to keep the connection alive through proxies
+      const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 30_000);
+
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        sseClients.get(consumerRef)?.delete(res);
+        if (sseClients.get(consumerRef)?.size === 0) sseClients.delete(consumerRef);
+      });
+    },
+  );
+
   // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
   // POST /contracts/:id/notify   — producer dispatches upgrade to all subscribers
   // GET  /notifications          — my notifications (consumer polls)

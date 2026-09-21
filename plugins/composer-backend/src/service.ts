@@ -1384,6 +1384,26 @@ export class ComposerService {
     await this.audit('UPGRADE_NOTIFICATION', input.contractId, 'NOTIFICATIONS_DISPATCHED', input.actor, {
       newValue: JSON.stringify({ dispatched: active.length, newVersion: input.newVersion }),
     });
+
+    // 6-R2: Push via SSE to any consumers with an open /subscribe/notifications connection.
+    const sseClients = (this as any).__sseClients as Map<string, Set<{ write(s: string): void }>> | undefined;
+    if (sseClients) {
+      for (const sub of active) {
+        const clients = sseClients.get(sub.consumerRef);
+        if (clients) {
+          const payload = JSON.stringify({
+            type: input.breaking ? 'BREAKING_CHANGE' : 'CONTRACT_VERSION_BUMP',
+            contractId: input.contractId,
+            newVersion: input.newVersion,
+            summary: input.summary,
+          });
+          for (const client of clients) {
+            try { client.write(`data: ${payload}\n\n`); } catch { /* client disconnected */ }
+          }
+        }
+      }
+    }
+
     return { dispatched: active.length };
   }
 
