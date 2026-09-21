@@ -65,12 +65,51 @@ export function mountConsumeRoutes(
 ) {
   const { logger, catalog, httpAuth, permissions, baseUrls } = options;
 
+  // Phase 6 (P6-S5): in-memory usage counter. Records the last N access
+  // timestamps per product so the detail page can show recent usage activity.
+  // A durable store (database or file) is a Phase 7 extension.
+  const usageLog = new Map<string, string[]>();
+  const USAGE_LOG_MAX = 200; // max entries per product
+
+  function recordAccess(entityRef: string): void {
+    const entries = usageLog.get(entityRef) ?? [];
+    entries.push(new Date().toISOString());
+    if (entries.length > USAGE_LOG_MAX) {
+      entries.splice(0, entries.length - USAGE_LOG_MAX);
+    }
+    usageLog.set(entityRef, entries);
+  }
+
   router.get('/consume/products/:entityRef', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, dataProductViewPermission);
       const entityRef = decodeURIComponent(req.params.entityRef);
       const entity = await loadProduct(catalog, httpAuth, req, entityRef);
+      recordAccess(entityRef);
       res.json(descriptorFromEntity(entity));
+    } catch (error) {
+      respond(res, logger, error);
+    }
+  });
+
+  /**
+   * GET /consume/usage/:entityRef
+   * Returns access statistics for a data product since the service started.
+   * Phase 6 (P6-S5).
+   */
+  router.get('/consume/usage/:entityRef', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, dataProductViewPermission);
+      const entityRef = decodeURIComponent(req.params.entityRef);
+      const entries = usageLog.get(entityRef) ?? [];
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const last24h = entries.filter(ts => ts >= since).length;
+      res.json({
+        entityRef,
+        totalSinceRestart: entries.length,
+        last24h,
+        lastAccess: entries[entries.length - 1] ?? null,
+      });
     } catch (error) {
       respond(res, logger, error);
     }

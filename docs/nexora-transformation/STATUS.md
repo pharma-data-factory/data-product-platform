@@ -291,12 +291,14 @@ testable. See NXD-036, NXD-037.
 
 **Phase 5 closed.** See above.
 
-- **P6-S1..S3 — Phase 6 first slices.** See [`NXD-038`](DECISIONS.md).
-  S1: `AnalyticsProvider` model + catalog annotation + OverviewTab panel.
-  S2: Governed AI Data Analyst (`POST /api/composer/ai/analyze-product`);
-  `analyzeProduct(question, productContext)` on `ComposerLLMClient`;
-  governance-bounded system prompt prevents data fabrication.
-  S3: Safe Data Preview row cap (100 rows); `preview: true` flag in response.
+- **P6-S1..S6 — Phase 6.** See [`NXD-038`](DECISIONS.md).
+  S1: `AnalyticsProvider` model + catalog annotation `dataprod.platform/analytics-providers` + OverviewTab panel.
+  S2: Governed AI Data Analyst — `POST /api/composer/ai/analyze-product`;
+  governance-bounded system prompt prevents data fabrication or false validation claims.
+  S3: Safe Data Preview row cap (100 rows); `preview: true` flag.
+  S4: `DependencyCard` — "Used By" and "Depends On" are navigable links to product detail pages.
+  S5: Usage Recording — `GET /consume/usage/:entityRef` returns access stats; access is recorded on each product view.
+  S6: Live Quality Health — `QualityTab` shows live `DataProductHealth` checks from `nexoraDataQualityApiRef` alongside declared annotation metadata (Runtime Health vs. Data Health distinction).
 
 - **P5-S2..S5 — Phase 5 completion.**
   S2: SoD on APPROVED transition — version author cannot approve own work.
