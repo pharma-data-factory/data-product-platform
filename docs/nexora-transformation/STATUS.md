@@ -274,6 +274,18 @@ registry's own rather than an inherited claim.
 
   409 tests, 0 failures (tsc + lint + yarn test subset).
 
+- **P3-S9 — Machine State Consumer linked to its GOLDEN_PATH composition.**
+  `machine-state-consumer-data-product.yaml` gains `spec.builtFrom: "machine-state-consumer"`,
+  the second entry in `builtFromIndex`. The Composer now offers "Generate Data
+  Product" and "Continue to Golden Path" for the Machine State Consumer
+  selection without any Core change.
+
+- **P3-S8 — Composition config summary (development context).** `compositionConfigSummary(selected)`
+  aggregates all `configurationKeys` and `configurationNotes` from the selected
+  components into a cross-component checklist. `ComposePage` renders it below
+  the YAML preview. Exported as `CompositionConfigKey` / `CompositionConfigSummary`
+  from `platform-common`. 3 tests.
+
 - **P3-S7 — Catalog component loader wired into AI spec generation.** The
   `generateProductSpec` backend call now loads real Platform Component entities
   from the Catalog API via `createHttpCatalogComponentLoader`, following the
