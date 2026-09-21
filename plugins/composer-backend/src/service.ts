@@ -41,6 +41,7 @@ import {
   AISpecDraft,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
+import type { CatalogComponentLoader } from './catalog-component-loader';
 import {
   toComponentType,
   type AvailableComponentSummary,
@@ -67,6 +68,8 @@ export interface ComposerServiceOptions {
   repository: IComposerRepository;
   ursBaselineResolver?: UrsBaselineResolver;
   llmClient?: ComposerLLMClient;
+  /** Loads Platform Component entities for AI spec generation context. */
+  catalogLoader?: CatalogComponentLoader;
 }
 
 export class ComposerService {
@@ -74,6 +77,7 @@ export class ComposerService {
   private readonly repository: IComposerRepository;
   private readonly ursBaselineResolver?: UrsBaselineResolver;
   private readonly llmClient?: ComposerLLMClient;
+  private readonly catalogLoader?: CatalogComponentLoader;
   private readonly specDrafts = new Map<string, AISpecDraft>();
 
   constructor(options: ComposerServiceOptions) {
@@ -81,6 +85,7 @@ export class ComposerService {
     this.repository = options.repository;
     this.ursBaselineResolver = options.ursBaselineResolver;
     this.llmClient = options.llmClient;
+    this.catalogLoader = options.catalogLoader;
   }
 
   async createProduct(
@@ -929,11 +934,12 @@ export class ComposerService {
   }
 
   private async loadCatalogComponents(): Promise<AvailableComponentSummary[]> {
-    // Placeholder — returns empty list when catalog is unavailable.
-    // In production, this would call the Backstage Catalog API to fetch
-    // platform component entities. The suggestComponents method already
-    // receives components from the frontend, so this is a fallback for
-    // the AI spec generation path where components aren't passed in.
+    if (this.catalogLoader) {
+      return this.catalogLoader.loadPlatformComponents();
+    }
+    // Graceful fallback: catalog loader not configured in this environment
+    // (e.g. unit tests). Spec generation proceeds with an empty component list
+    // and the LLM will suggest from whatever it already knows.
     return [];
   }
 

@@ -274,6 +274,20 @@ registry's own rather than an inherited claim.
 
   409 tests, 0 failures (tsc + lint + yarn test subset).
 
+- **P3-S7 — Catalog component loader wired into AI spec generation.** The
+  `generateProductSpec` backend call now loads real Platform Component entities
+  from the Catalog API via `createHttpCatalogComponentLoader`, following the
+  same HTTP + `discovery` + `auth` pattern as the URS baseline resolver. No new
+  dependency added — uses `@backstage/plugin-catalog-node` transitively. The
+  loader is best-effort: any HTTP failure returns an empty list so spec
+  generation degrades gracefully. 4 tests cover: correct filter, HTTP error,
+  network error, and missing title fallback.
+
+- **P3-S6 — AI spec apply sets owner.** `applySpecDraft` now sets `owner:
+  actor` so the `owner-declared` platform policy obligation is met at apply
+  time. `dataClassification` and `gxpRelevance` still require deliberate manual
+  entry before release. Test updated to assert `product.owner === actor`.
+
 - **P3-S5 — GP-5 deleted.** `WAVE1_COMPONENT_TITLES` is removed from Core
   and `index.ts`. `DeveloperHubPage.tsx` declares a local `OEE_COMPONENT_TITLES`
   constant — the app layer may know which product it displays. `builtWithSummary`

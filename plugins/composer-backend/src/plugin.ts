@@ -16,6 +16,7 @@ import { createRouter } from './router';
 import { ComposerService } from './service';
 import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
+import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import {
   AnthropicComposerLLMClient,
   ComposerLLMClient,
@@ -97,9 +98,16 @@ export const composerPlugin = createBackendPlugin({
       async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config }) {
         const repository = await ComposerRepository.create(database);
         const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
+        const catalogLoader = createHttpCatalogComponentLoader({ discovery, auth });
         const llmClient = createLLMClient(config, logger);
         const llmEnabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
-        const service = new ComposerService({ logger, repository, ursBaselineResolver, llmClient });
+        const service = new ComposerService({
+          logger,
+          repository,
+          ursBaselineResolver,
+          llmClient,
+          catalogLoader,
+        });
 
         httpRouter.use(
           await createRouter({ logger, httpAuth, permissions, service, llmEnabled }),
