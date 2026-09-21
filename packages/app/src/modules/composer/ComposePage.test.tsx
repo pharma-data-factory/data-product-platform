@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
+import { artifactRegistryApiEntry } from '../__testUtils__/artifactRegistry';
 import { configApiRef, discoveryApiRef, identityApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
@@ -123,6 +124,8 @@ async function renderCompose(path = '/compose', groups = ['data-product-develope
           <TestApiProvider
             apis={[
               [configApiRef, mockApis.config()],
+            artifactRegistryApiEntry,
+              artifactRegistryApiEntry,
               [catalogApiRef, { getEntities: async () => ({ items: catalogItems }) }],
               [
                 discoveryApiRef,
@@ -236,7 +239,10 @@ describe('Composition Builder', () => {
 
   it('loads the OEE reference from the canonical composition and offers the Golden Path', async () => {
     await renderCompose();
-    fireEvent.click(await screen.findByTestId('preset-oee-reference'));
+    // Preset id is the composition name ('oee-data-product-direct'), not a
+    // domain literal — GP-2 closed. The link still targets the DATA_PRODUCT
+    // ('oee-data-product') via the builtFromIndex reverse lookup.
+    fireEvent.click(await screen.findByTestId('preset-oee-data-product-direct'));
     await waitFor(() => {
       expect(screen.getByTestId('certification-summary')).toHaveTextContent(
         '6 CERTIFIED',

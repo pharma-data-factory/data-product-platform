@@ -1,8 +1,15 @@
+import { InputError } from '@backstage/errors';
+import {
+  VALIDATION_DECISION_STATUSES,
+} from '@internal/platform-common';
 import type {
   ApprovedURSReference,
   CreateValidationContextRequest,
+  CreateValidationDecisionRequest,
   ValidationContext,
   ValidationContextRequirement,
+  ValidationDecision,
+  ValidationDecisionStatus,
 } from '@internal/platform-common';
 import { createHash, randomUUID } from 'crypto';
 import { NotFoundError } from '@backstage/errors';
@@ -15,6 +22,7 @@ import {
   parseFindings,
   parseIqProtocol,
   parseOqProtocol,
+  parsePqProtocol,
   parseRequirements,
   parseRisks,
   parseTraceability,
@@ -112,6 +120,10 @@ export class ValidationExpertService {
     if (type === 'OQ') {
       return parseOqProtocol(this.options.validationRoot);
     }
+    if (type === 'PQ') {
+      // Phase 5 (P5-S4): PQ is optional. Returns [] when no PQ protocol file exists.
+      return parsePqProtocol(this.options.validationRoot);
+    }
     return parseUatProtocol(this.options.validationRoot);
   }
 
@@ -205,7 +217,7 @@ export class ValidationExpertService {
     }
 
     const protocolRequirementIdsByTestId = new Map<string, string[]>();
-    for (const type of ['IQ', 'OQ', 'UAT'] as ProtocolType[]) {
+    for (const type of ['IQ', 'OQ', 'UAT', 'PQ'] as ProtocolType[]) {
       for (const test of this.getProtocol(type)) {
         protocolRequirementIdsByTestId.set(test.id, test.requirementIds ?? []);
       }
@@ -618,6 +630,77 @@ export class ValidationExpertService {
       await this.options.repository.saveRun(run);
     }
     return (await this.options.repository.getRun(runId))!;
+  }
+
+  // ── Validation Decision (Phase 5, P5-S1) ───────────────────────────────────
+
+  /**
+   * Record the independent expert's verdict on a ValidationContext.
+   *
+   * **Segregation of Duties:** `actor` must not be the same person who created
+   * the ValidationContext. An expert cannot approve their own validation package.
+   *
+   * **Permission:** `validation.approve` — PLATFORM_ADMIN only.
+   *
+   * Only one decision is allowed per context. A context that already has a
+   * decision is closed and cannot be re-decided (conflicts with audit integrity).
+   */
+  async createValidationDecision(
+    contextId: string,
+    request: CreateValidationDecisionRequest,
+    actor: string,
+  ): Promise<ValidationDecision> {
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+
+    // Segregation of Duties: decider must differ from context creator.
+    if (context.createdBy && actor === context.createdBy) {
+      throw new InputError(
+        `Segregation of Duties violation: the same person cannot create and ` +
+          `approve a validation context. Actor "${actor}" created this context.`,
+      );
+    }
+
+    // One decision per context.
+    const existing = await this.options.repository.getDecisionByContextId(contextId);
+    if (existing) {
+      throw new InputError(
+        `ValidationContext ${contextId} already has a decision (${existing.status}). ` +
+          `A context cannot be re-decided once a decision has been recorded.`,
+      );
+    }
+
+    const status = String(request.status ?? '').trim().toUpperCase();
+    if (!(VALIDATION_DECISION_STATUSES as readonly string[]).includes(status)) {
+      throw new InputError(
+        `Invalid decision status "${request.status}". ` +
+          `Expected one of: ${VALIDATION_DECISION_STATUSES.join(', ')}`,
+      );
+    }
+
+    const justification = String(request.justification ?? '').trim();
+    if (!justification) {
+      throw new InputError('A justification is required for every Validation Decision.');
+    }
+
+    const decision: ValidationDecision = {
+      id: randomUUID(),
+      contextId,
+      status: status as ValidationDecisionStatus,
+      justification,
+      conditions: request.conditions ? String(request.conditions).trim() || undefined : undefined,
+      decidedBy: actor,
+      decidedAt: new Date().toISOString(),
+    };
+
+    await this.options.repository.addDecision(decision);
+    return decision;
+  }
+
+  async getValidationDecision(contextId: string): Promise<ValidationDecision | undefined> {
+    return this.options.repository.getDecisionByContextId(contextId);
   }
 }
 

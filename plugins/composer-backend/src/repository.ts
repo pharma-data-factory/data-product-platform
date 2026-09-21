@@ -12,6 +12,9 @@ import {
   ProductVersion,
   ProductComponent,
   DataContract,
+  ProductDependency,
+  ContractSubscription,
+  UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -52,6 +55,7 @@ export class ComposerRepository implements IComposerRepository {
       consumers: product.consumers ? JSON.stringify(product.consumers) : null,
       slo: product.slo ? JSON.stringify(product.slo) : null,
       cost_info: product.costInfo ? JSON.stringify(product.costInfo) : null,
+      declared_policies: product.declaredPolicies ? JSON.stringify(product.declaredPolicies) : null,
       created_by: product.createdBy,
       created_at: product.createdAt,
       revision: product.revision || 1,
@@ -95,6 +99,7 @@ export class ComposerRepository implements IComposerRepository {
       consumers: product.consumers ? JSON.stringify(product.consumers) : null,
       slo: product.slo ? JSON.stringify(product.slo) : null,
       cost_info: product.costInfo ? JSON.stringify(product.costInfo) : null,
+      declared_policies: product.declaredPolicies ? JSON.stringify(product.declaredPolicies) : null,
       updated_by: product.updatedBy || null,
       updated_at: product.updatedAt || new Date(),
       revision: (product.revision || 1) + 1,
@@ -164,6 +169,11 @@ export class ComposerRepository implements IComposerRepository {
     return component;
   }
 
+  async getProductComponent(id: string): Promise<ProductComponent | undefined> {
+    const row = await this.db('product_components').where({ id }).first();
+    return row ? this.rowToProductComponent(row) : undefined;
+  }
+
   async listProductComponents(versionId: string): Promise<ProductComponent[]> {
     const rows = await this.db('product_components')
       .where({ product_version_id: versionId })
@@ -175,6 +185,8 @@ export class ComposerRepository implements IComposerRepository {
     await this.db('data_contracts').insert({
       id: contract.id,
       product_component_id: contract.productComponentId,
+      name: contract.name,
+      owner: contract.owner || null,
       schema_type: contract.schemaType,
       schema_ref: contract.schemaRef || null,
       contract_spec: contract.contractSpec
@@ -182,11 +194,38 @@ export class ComposerRepository implements IComposerRepository {
         : null,
       status: contract.status,
       version: contract.version,
+      quality_rules:
+        contract.qualityRules && contract.qualityRules.length > 0
+          ? JSON.stringify(contract.qualityRules)
+          : null,
       created_by: contract.createdBy,
       created_at: contract.createdAt,
       revision: contract.revision || 1,
     });
     return contract;
+  }
+
+  /**
+   * Finds a contract on the same component with the same name (case-insensitive).
+   *
+   * Used by the service before insertion to produce a clear ConflictError
+   * rather than relying on a database constraint violation message, which is
+   * dialect-specific and harder to surface to clients cleanly.
+   */
+  async findDataContractByName(
+    componentId: string,
+    name: string,
+  ): Promise<DataContract | undefined> {
+    const row = await this.db('data_contracts')
+      .where({ product_component_id: componentId })
+      .whereRaw('lower(name) = lower(?)', [name])
+      .first();
+    return row ? this.rowToDataContract(row) : undefined;
+  }
+
+  async getDataContract(id: string): Promise<DataContract | undefined> {
+    const row = await this.db('data_contracts').where({ id }).first();
+    return row ? this.rowToDataContract(row) : undefined;
   }
 
   async listDataContracts(componentId: string): Promise<DataContract[]> {
@@ -195,6 +234,145 @@ export class ComposerRepository implements IComposerRepository {
       .select();
     return rows.map((r: any) => this.rowToDataContract(r));
   }
+
+  // ── Product Dependencies (Phase 4, P4-S3) ─────────────────────────────────
+
+  async createProductDependency(dep: ProductDependency): Promise<ProductDependency> {
+    await this.db('product_version_dependencies').insert({
+      id: dep.id,
+      product_version_id: dep.productVersionId,
+      contract_id: dep.contractId,
+      description: dep.description || null,
+      created_by: dep.createdBy,
+      created_at: dep.createdAt,
+      revision: dep.revision || 1,
+    });
+    return dep;
+  }
+
+  async getProductDependency(id: string): Promise<ProductDependency | undefined> {
+    const row = await this.db('product_version_dependencies').where({ id }).first();
+    return row ? this.rowToProductDependency(row) : undefined;
+  }
+
+  async findProductDependency(
+    versionId: string,
+    contractId: string,
+  ): Promise<ProductDependency | undefined> {
+    const row = await this.db('product_version_dependencies')
+      .where({ product_version_id: versionId, contract_id: contractId })
+      .first();
+    return row ? this.rowToProductDependency(row) : undefined;
+  }
+
+  async listProductDependencies(versionId: string): Promise<ProductDependency[]> {
+    const rows = await this.db('product_version_dependencies')
+      .where({ product_version_id: versionId })
+      .select();
+    return rows.map((r: any) => this.rowToProductDependency(r));
+  }
+
+  async deleteProductDependency(id: string): Promise<void> {
+    await this.db('product_version_dependencies').where({ id }).delete();
+  }
+
+  /** All versions that declare a dependency on a specific contract. */
+  async listDependenciesByContractId(contractId: string): Promise<ProductDependency[]> {
+    const rows = await this.db('product_version_dependencies')
+      .where({ contract_id: contractId })
+      .select();
+    return rows.map((r: any) => this.rowToProductDependency(r));
+  }
+
+  private rowToProductDependency(row: any): ProductDependency {
+    return {
+      id: row.id,
+      productVersionId: row.product_version_id,
+      contractId: row.contract_id,
+      description: row.description ?? undefined,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      revision: row.revision,
+    };
+  }
+
+  // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
+
+  async createUpgradeNotification(n: UpgradeNotification): Promise<UpgradeNotification> {
+    await this.db('upgrade_notifications').insert({
+      id: n.id, type: n.type, subject_name: n.subjectName,
+      new_version: n.newVersion, current_version: n.currentVersion ?? null,
+      summary: n.summary, breaking: n.breaking ? 1 : 0,
+      consumer_ref: n.consumerRef, read: 0, created_at: n.createdAt,
+    });
+    return n;
+  }
+
+  async listUpgradeNotifications(consumerRef: string, unreadOnly = false): Promise<UpgradeNotification[]> {
+    let q = this.db('upgrade_notifications').where({ consumer_ref: consumerRef });
+    if (unreadOnly) q = q.where({ read: 0 });
+    const rows = await q.orderBy('created_at', 'desc').select();
+    return rows.map((r: any) => ({
+      id: r.id, type: r.type, subjectName: r.subject_name,
+      newVersion: r.new_version, currentVersion: r.current_version ?? undefined,
+      summary: r.summary, breaking: Boolean(r.breaking),
+      consumerRef: r.consumer_ref, read: Boolean(r.read), createdAt: r.created_at,
+    }));
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await this.db('upgrade_notifications').where({ id }).update({ read: 1 });
+  }
+
+  // ── Contract Subscriptions (P-EXT-S4) ─────────────────────────────────────
+
+  async createSubscription(sub: ContractSubscription): Promise<ContractSubscription> {
+    await this.db('contract_subscriptions').insert({
+      id: sub.id, contract_id: sub.contractId, consumer_ref: sub.consumerRef,
+      consumer_label: sub.consumerLabel, compatible_versions: sub.compatibleVersions,
+      status: sub.status, purpose: sub.purpose ?? null,
+      created_by: sub.createdBy, created_at: sub.createdAt, revision: sub.revision || 1,
+    });
+    return sub;
+  }
+
+  async getSubscription(id: string): Promise<ContractSubscription | undefined> {
+    const row = await this.db('contract_subscriptions').where({ id }).first();
+    return row ? this.rowToSubscription(row) : undefined;
+  }
+
+  async findSubscription(contractId: string, consumerRef: string): Promise<ContractSubscription | undefined> {
+    const row = await this.db('contract_subscriptions')
+      .where({ contract_id: contractId, consumer_ref: consumerRef }).first();
+    return row ? this.rowToSubscription(row) : undefined;
+  }
+
+  async listSubscriptionsByContract(contractId: string): Promise<ContractSubscription[]> {
+    const rows = await this.db('contract_subscriptions').where({ contract_id: contractId }).select();
+    return rows.map((r: any) => this.rowToSubscription(r));
+  }
+
+  async listSubscriptionsByConsumer(consumerRef: string): Promise<ContractSubscription[]> {
+    const rows = await this.db('contract_subscriptions').where({ consumer_ref: consumerRef }).select();
+    return rows.map((r: any) => this.rowToSubscription(r));
+  }
+
+  async updateSubscriptionStatus(id: string, status: ContractSubscription['status']): Promise<void> {
+    await this.db('contract_subscriptions').where({ id }).update({ status, updated_at: new Date() });
+  }
+
+  private rowToSubscription(row: any): ContractSubscription {
+    return {
+      id: row.id, contractId: row.contract_id, consumerRef: row.consumer_ref,
+      consumerLabel: row.consumer_label, compatibleVersions: row.compatible_versions,
+      status: row.status as ContractSubscription['status'],
+      purpose: row.purpose ?? undefined, createdBy: row.created_by,
+      createdAt: row.created_at, updatedAt: row.updated_at ?? undefined,
+      revision: row.revision,
+    };
+  }
+
+  // ── Traceability Links ─────────────────────────────────────────────────────
 
   async createTraceabilityLink(
     link: TraceabilityLink,
@@ -308,6 +486,7 @@ export class ComposerRepository implements IComposerRepository {
       consumers: row.consumers ? JSON.parse(row.consumers) : undefined,
       slo: row.slo ? JSON.parse(row.slo) : undefined,
       costInfo: row.cost_info ? JSON.parse(row.cost_info) : undefined,
+      declaredPolicies: row.declared_policies ? JSON.parse(row.declared_policies) : undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedBy: row.updated_by,
@@ -360,11 +539,14 @@ export class ComposerRepository implements IComposerRepository {
     return {
       id: row.id,
       productComponentId: row.product_component_id,
+      name: row.name ?? '',
+      owner: row.owner ?? undefined,
       schemaType: row.schema_type,
       schemaRef: row.schema_ref,
       contractSpec: row.contract_spec ? JSON.parse(row.contract_spec) : undefined,
       status: row.status,
       version: row.version,
+      qualityRules: row.quality_rules ? JSON.parse(row.quality_rules) : [],
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedBy: row.updated_by,

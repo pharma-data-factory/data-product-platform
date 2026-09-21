@@ -99,10 +99,19 @@ export const URS_STATUS_LABELS: Readonly<Record<URSStatus, string>> = {
   [URSStatus.RETIRED]: 'Retired',
 };
 
+/**
+ * Semantic tone of a status. Deliberately a name, not a colour: this is the
+ * domain layer, and it must not depend on the UI palette — the dependency runs
+ * the other way. The presentation layer maps these onto NEXORA_TONE, so a
+ * single palette change reaches every surface and the light/dark switch keeps
+ * working.
+ */
+export type StatusTone = 'neutral' | 'active' | 'success' | 'danger';
+
 /** How a status should read at a glance. */
 export interface StatusAppearance {
   label: string;
-  color: string;
+  tone: StatusTone;
   /**
    * Struck through for states that were once effective and no longer are, so
    * a superseded record is visibly not the one to act on.
@@ -110,17 +119,17 @@ export interface StatusAppearance {
   strikeThrough: boolean;
 }
 
-const STATUS_COLORS: Readonly<Record<URSStatus, string>> = {
-  [URSStatus.DRAFT]: '#9e9e9e',
-  [URSStatus.IN_REVIEW]: '#1976d2',
-  [URSStatus.REVIEWED]: '#00897b',
-  [URSStatus.IN_APPROVAL]: '#7b1fa2',
-  [URSStatus.APPROVED]: '#2e7d32',
-  [URSStatus.BASELINED]: '#2e7d32',
-  [URSStatus.SUPERSEDED]: '#9e9e9e',
-  [URSStatus.OBSOLETE]: '#9e9e9e',
-  [URSStatus.REJECTED]: '#c62828',
-  [URSStatus.RETIRED]: '#9e9e9e',
+const STATUS_TONES: Readonly<Record<URSStatus, StatusTone>> = {
+  [URSStatus.DRAFT]: 'neutral',
+  [URSStatus.IN_REVIEW]: 'active',
+  [URSStatus.REVIEWED]: 'success',
+  [URSStatus.IN_APPROVAL]: 'active',
+  [URSStatus.APPROVED]: 'success',
+  [URSStatus.BASELINED]: 'success',
+  [URSStatus.SUPERSEDED]: 'neutral',
+  [URSStatus.OBSOLETE]: 'neutral',
+  [URSStatus.REJECTED]: 'danger',
+  [URSStatus.RETIRED]: 'neutral',
 };
 
 /** States that were effective once and have been closed out. */
@@ -139,12 +148,12 @@ const STRUCK_THROUGH: readonly URSStatus[] = [
 export function ursStatusAppearance(status: string): StatusAppearance {
   const known = status as URSStatus;
   if (!(known in URS_STATUS_LABELS)) {
-    return { label: status, color: '#9e9e9e', strikeThrough: false };
+    return { label: status, tone: 'neutral', strikeThrough: false };
   }
 
   return {
     label: URS_STATUS_LABELS[known],
-    color: STATUS_COLORS[known],
+    tone: STATUS_TONES[known],
     strikeThrough: STRUCK_THROUGH.includes(known),
   };
 }

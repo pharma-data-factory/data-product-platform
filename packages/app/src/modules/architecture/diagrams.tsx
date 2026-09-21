@@ -1,6 +1,12 @@
 import { type ReactNode } from 'react';
 import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
 import {
+  NEXORA_ACCENT,
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_SECTION,
+} from '@internal/plugin-nexora-common';
+import {
   CATALOG_RELATIONSHIPS,
   DEVELOPER_FLOW_STEPS,
   EXAMPLE_DATA_PRODUCTS,
@@ -23,15 +29,15 @@ type NodeTone =
   | 'break';
 
 const TONE: Record<NodeTone, { bg: string; border: string; color: string }> = {
-  core: { bg: '#F8FAFC', border: C.border, color: PHARMA_NAVY },
+  core: { bg: NEXORA_GREY[50], border: C.border, color: PHARMA_NAVY },
   interface: { bg: 'rgba(0,194,217,0.08)', border: 'rgba(0,194,217,0.35)', color: PHARMA_NAVY },
-  factory: { bg: PHARMA_NAVY, border: PHARMA_NAVY, color: '#F8FAFC' },
-  kernel: { bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.28)', color: '#E2E8F0' },
-  product: { bg: '#FFFFFF', border: 'rgba(0,194,217,0.45)', color: PHARMA_NAVY },
-  consumer: { bg: '#EEF2F6', border: C.border, color: PHARMA_NAVY },
-  step: { bg: '#FFFFFF', border: C.border, color: PHARMA_NAVY },
+  factory: { bg: PHARMA_NAVY, border: PHARMA_NAVY, color: NEXORA_GREY[50] },
+  kernel: { bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.28)', color: NEXORA_GREY[200] },
+  product: { bg: NEXORA_CARD, border: 'rgba(0,194,217,0.45)', color: PHARMA_NAVY },
+  consumer: { bg: NEXORA_SECTION, border: C.border, color: PHARMA_NAVY },
+  step: { bg: NEXORA_CARD, border: C.border, color: PHARMA_NAVY },
   ok: { bg: 'rgba(0,194,217,0.10)', border: PHARMA_TEAL, color: PHARMA_NAVY },
-  break: { bg: '#FEF2F2', border: '#FECACA', color: '#7F1D1D' },
+  break: { bg: NEXORA_ACCENT.dangerSurface, border: NEXORA_ACCENT.dangerBorder, color: '#7F1D1D' },
 };
 
 export function ArchitectureDiagramStyles() {
@@ -453,7 +459,7 @@ export function BackstageFoundationDiagram() {
             <Node label="Search" tone="kernel" />
             <Node label="Identity & RBAC" tone="kernel" />
           </div>
-          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#94A3B8' }}>
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: NEXORA_GREY[400] }}>
             Everything sits on this. We extend Backstage — we do not fork it.
           </p>
         </div>

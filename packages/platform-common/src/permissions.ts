@@ -264,6 +264,66 @@ export const productManagePermission = createPermission({
   attributes: { action: 'update' },
 });
 
+/** Artifact Registry — read Artifacts, their versions, and publishers. */
+export const artifactReadPermission = createPermission({
+  name: 'artifact.read',
+  attributes: { action: 'read' },
+});
+
+/** Artifact Registry — register a new ArtifactVersion from a manifest. */
+export const artifactCreatePermission = createPermission({
+  name: 'artifact.create',
+  attributes: { action: 'create' },
+});
+
+/** Artifact Registry — hand a DRAFT version over for testing (DRAFT → TESTING). */
+export const artifactSubmitPermission = createPermission({
+  name: 'artifact.submit',
+  attributes: { action: 'update' },
+});
+
+/**
+ * Artifact Registry — record the outcome of reviewing a version under test.
+ *
+ * Deliberately not a lifecycle transition: it sets certificationStatus to
+ * TESTED and leaves `lifecycle` at TESTING, the same way validation.review
+ * records an outcome without moving a status field. Certifying is the act
+ * that advances the lifecycle, and it requires this review to have happened.
+ */
+export const artifactReviewPermission = createPermission({
+  name: 'artifact.review',
+  attributes: { action: 'update' },
+});
+
+/** Artifact Registry — certify a reviewed version (TESTING → CERTIFIED). */
+export const artifactCertifyPermission = createPermission({
+  name: 'artifact.certify',
+  attributes: { action: 'update' },
+});
+
+/** Artifact Registry — make a certified version available (CERTIFIED → RELEASED). */
+export const artifactPublishPermission = createPermission({
+  name: 'artifact.publish',
+  attributes: { action: 'update' },
+});
+
+/** Artifact Registry — withdraw a released version (RELEASED → DEPRECATED). */
+export const artifactDeprecatePermission = createPermission({
+  name: 'artifact.deprecate',
+  attributes: { action: 'update' },
+});
+
+/**
+ * Artifact Registry — claim a namespace for a publisher.
+ *
+ * Admin-weight: a namespace is owned by exactly one publisher, so granting it
+ * decides who may be accountable for Artifacts, not merely what they contain.
+ */
+export const publisherManagePermission = createPermission({
+  name: 'publisher.manage',
+  attributes: { action: 'update' },
+});
+
 export const platformPermissions = [
   marketplaceViewPermission,
   marketplaceAdminPermission,
@@ -310,6 +370,14 @@ export const platformPermissions = [
   productReadPermission,
   productCreatePermission,
   productManagePermission,
+  artifactReadPermission,
+  artifactCreatePermission,
+  artifactSubmitPermission,
+  artifactReviewPermission,
+  artifactCertifyPermission,
+  artifactPublishPermission,
+  artifactDeprecatePermission,
+  publisherManagePermission,
 ];
 
 export const VIEWER_PERMISSION_NAMES = new Set([
@@ -329,6 +397,7 @@ export const VIEWER_PERMISSION_NAMES = new Set([
   'modelCompany.read',
   'urs.read',
   'product.read',
+  'artifact.read',
 ]);
 
 export const DEVELOPER_PERMISSION_NAMES = new Set([
@@ -349,6 +418,11 @@ export const DEVELOPER_PERMISSION_NAMES = new Set([
   'modelCompany.control',
   'urs.create',
   'product.create',
+  'artifact.create',
+  'artifact.submit',
+  // Reviewing records a test outcome; certifying on the strength of it is an
+  // owner's call, so the two sit in different tiers on purpose.
+  'artifact.review',
 ]);
 
 export const OWNER_PERMISSION_NAMES = new Set([
@@ -366,6 +440,9 @@ export const OWNER_PERMISSION_NAMES = new Set([
   'urs.sign',
   'urs.changerequest.manage',
   'product.manage',
+  'artifact.certify',
+  'artifact.publish',
+  'artifact.deprecate',
 ]);
 
 export const ADMIN_PERMISSION_NAMES = new Set([
@@ -387,7 +464,11 @@ export const ADMIN_PERMISSION_NAMES = new Set([
   'urs.admin',
   'business-capability.manage',
   'platform.user.manage',
-  // validation.approve, risk.accept, baseline.modify intentionally omitted
+  'publisher.manage',
+  // Phase 5 (P5-S1): validation.approve granted to PLATFORM_ADMIN only.
+  // Segregation of Duties is enforced in the service (decider ≠ context creator).
+  // risk.accept and baseline.modify remain reserved.
+  'validation.approve',
 ]);
 
 export const BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES = new Set([

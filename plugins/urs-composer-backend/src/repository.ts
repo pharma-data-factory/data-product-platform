@@ -37,6 +37,7 @@ import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import {
   SEED_REQUIREMENT_SETS,
   acceptanceIntentFromSeed,
+  genesisVersionOf,
 } from './data/seedRequirementSets';
 
 const DEFAULT_BUSINESS_ROLES = [
@@ -174,6 +175,15 @@ export class URSRepository implements IURSRepository {
         createdBy: 'system',
       }));
       this.requirements.set(setId, reqs);
+
+      // Seeding writes to the store directly and so bypasses createRequirement,
+      // which is what normally opens version 0.1. Without that version a seeded
+      // requirement cannot be baselined, signed or revised, so the genesis
+      // version is created here too.
+      for (const requirement of reqs) {
+        const version = genesisVersionOf(requirement, now);
+        this.requirementVersions.set(version.id, version);
+      }
     }
   }
 
@@ -506,6 +516,17 @@ export class URSRepository implements IURSRepository {
     const total = allBaselines.length;
     const items = allBaselines.slice(offset, offset + limit);
     return { items, total };
+  }
+
+  async listApprovedBaselines(limit: number): Promise<Baseline[]> {
+    return Array.from(this.baselines.values())
+      .filter(b => b.status === URSStatus.APPROVED)
+      .sort(
+        (a, b) =>
+          (b.approvedAt?.getTime() ?? b.createdAt.getTime()) -
+          (a.approvedAt?.getTime() ?? a.createdAt.getTime()),
+      )
+      .slice(0, limit);
   }
 
   async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {

@@ -19,7 +19,16 @@
  */
 
 import type { RequirementClassification } from '@internal/platform-common';
-import { GxPRelevance, RequirementPriority, SolutionType } from '../types';
+import {
+  GxPRelevance,
+  RequirementPriority,
+  RequirementVersion,
+  SolutionType,
+  URSRequirement,
+  URSStatus,
+} from '../types';
+import { firstVersion, versionOrdinal } from '../domain/versioning';
+import { hashOf } from '../domain/signature-service';
 
 /**
  * A single acceptance criterion for a seeded requirement. Mirrors the wizard's
@@ -79,6 +88,57 @@ export function acceptanceIntentFromSeed(
     return undefined;
   }
   return JSON.stringify(criteria);
+}
+
+/**
+ * Version 0.1 for a seeded requirement.
+ *
+ * Seeding writes to the store directly, so it never passes through
+ * createRequirement and its seedInitialRequirementVersion. A requirement
+ * without a version cannot be baselined, signed or revised, which left every
+ * seeded set unbaselinable: Create Baseline failed with "Requirement
+ * version(s) not found".
+ *
+ * Both seeders — the in-memory repository and the Postgres seed — build the
+ * genesis version from here so the two cannot drift apart.
+ *
+ * The id is derived from the requirement rather than random, so re-seeding a
+ * fresh install of the same version of this data yields the same ids.
+ *
+ * The version is DRAFT, never APPROVED: VERSION_TRANSITIONS reserves APPROVED
+ * for versions carrying a valid QA signature (spec invariant 6), and a seeded
+ * approval would be a signature nobody gave.
+ */
+export function genesisVersionOf(
+  requirement: URSRequirement,
+  now: Date,
+): RequirementVersion {
+  const first = firstVersion();
+  const version: RequirementVersion = {
+    id: `${requirement.id}-v${first.label}`,
+    requirementId: requirement.requirementId,
+    version: first.label,
+    versionLabel: first.label,
+    major: first.major,
+    minor: first.minor,
+    versionNumber: versionOrdinal(first),
+    title: requirement.title,
+    statement: requirement.statement,
+    rationale: requirement.rationale,
+    category: requirement.category,
+    priority: requirement.priority,
+    acceptanceIntent: requirement.acceptanceIntent,
+    classification: requirement.classification,
+    gxpRelevance: requirement.gxpRelevance,
+    source: requirement.source,
+    owner: requirement.owner,
+    status: URSStatus.DRAFT,
+    createdBy: 'system',
+    createdAt: now,
+    revision: 1,
+  };
+  version.contentHash = hashOf(version);
+  return version;
 }
 
 export const WD_REQUIREMENT_SET: SeedRequirementSet = {

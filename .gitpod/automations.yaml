@@ -1,0 +1,64 @@
+# Ona / Gitpod tasks and services.
+#
+# Apply once per environment:
+#   ona environment config apply -s .gitpod/automations.yaml
+#
+# Two ways to run this platform, both covered here:
+#   development  — yarn dev server on Ona (the service below)
+#   production   — the container image via docker-compose.production.yml,
+#                  the same compose file the Portainer stack uses
+#
+# Exposing ports is deliberately a manual task, never automatic. Nothing should
+# become reachable from outside the environment as a side effect of starting it.
+
+services:
+  control-plane-dev:
+    name: Nexora Control Plane (dev)
+    description: |
+      Backstage dev server. Frontend on 3000, backend on 7007, container-local
+      by default. Run the expose-ports task to reach it through the gateway.
+    commands:
+      start: |
+        scripts/ona-dev.sh start
+      ready: |
+        scripts/ona-dev.sh ready
+    triggeredBy:
+      - postDevcontainerStart
+
+tasks:
+  expose-ports:
+    name: Expose dev ports through the Ona gateway
+    description: |
+      Opens 3000 and 7007 at creator_only, writes the forwarded https URLs to
+      .runtime/app-config.ona.yaml, then restarts the dev service so it binds
+      0.0.0.0 and uses those URLs. Without this the browser outside the
+      container cannot resolve localhost:7007.
+    command: |
+      scripts/ona-dev.sh expose
+      ona environment service stop control-plane-dev || true
+      ona environment service start control-plane-dev
+    triggeredBy:
+      - manual
+
+  production-smoke:
+    name: Production smoke (Docker)
+    description: |
+      Builds the Control Plane image and starts it with Postgres via
+      docker-compose.production.yml — the production path, not the dev server.
+      Requires the docker-in-docker devcontainer feature.
+      Credentials are throwaway: sign-in and publishing need real ones.
+    command: |
+      yarn prod:env
+      yarn docker:prod:build
+      yarn docker:prod:up
+      echo "Control Plane on http://localhost:7007 — logs: yarn docker:prod:logs"
+    triggeredBy:
+      - manual
+
+  production-down:
+    name: Production smoke down
+    description: Stops the production compose stack. Volumes are kept.
+    command: |
+      yarn docker:prod:down
+    triggeredBy:
+      - manual

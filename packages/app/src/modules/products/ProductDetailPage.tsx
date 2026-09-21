@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NEXORA_CARD, NEXORA_GREY, NEXORA_SECURITY_FG, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { useParams } from 'react-router-dom';
 import {
   Content,
@@ -129,12 +130,14 @@ export function ProductDetailPage() {
     }
   };
 
+  // Version lifecycle, drawn from the shared semantic ramp so it matches the
+  // status colours used everywhere else and follows the theme.
   const STATUS_COLORS: Record<string, string> = {
-    DRAFT: '#9e9e9e',
-    APPROVED: '#2196f3',
-    RELEASE_CANDIDATE: '#ff9800',
-    RELEASED: '#4caf50',
-    SUPERSEDED: '#f44336',
+    DRAFT: NEXORA_TONE.neutral.text,
+    APPROVED: NEXORA_TONE.active.bg,
+    RELEASE_CANDIDATE: NEXORA_SECURITY_FG,
+    RELEASED: NEXORA_TONE.success.bg,
+    SUPERSEDED: NEXORA_TONE.danger.bg,
   };
 
   const selectedVersion = versions.find(v => v.id === selectedVersionId);
@@ -257,8 +260,8 @@ export function ProductDetailPage() {
                     <Chip
                       label={selectedVersion.status}
                       style={{
-                        backgroundColor: STATUS_COLORS[selectedVersion.status] ?? '#9e9e9e',
-                        color: '#fff',
+                        backgroundColor: STATUS_COLORS[selectedVersion.status] ?? NEXORA_TONE.neutral.text,
+                        color: NEXORA_CARD,
                         fontWeight: 600,
                       }}
                     />
@@ -306,8 +309,8 @@ export function ProductDetailPage() {
                       {gateResult && (
                         gateResult.passed ? (
                           <Box style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <CheckCircleIcon style={{ color: '#4caf50' }} />
-                            <Typography style={{ color: '#4caf50', fontWeight: 600 }}>
+                            <CheckCircleIcon style={{ color: NEXORA_TONE.success.text }} />
+                            <Typography style={{ color: NEXORA_TONE.success.text, fontWeight: 600 }}>
                               All checks passed — ready to release
                             </Typography>
                           </Box>
@@ -315,7 +318,7 @@ export function ProductDetailPage() {
                           <List dense>
                             {gateResult.blockers.map((b, i) => (
                               <ListItem key={i}>
-                                <ErrorIcon style={{ color: '#f44336', marginRight: 8 }} fontSize="small" />
+                                <ErrorIcon style={{ color: NEXORA_TONE.danger.text, marginRight: 8 }} fontSize="small" />
                                 <ListItemText
                                   primary={b.code}
                                   secondary={b.message}
@@ -398,7 +401,7 @@ export function ProductDetailPage() {
                     <section
                       key={component.id}
                       style={{
-                        border: '1px solid #E2E8F0',
+                        border: `1px solid ${NEXORA_GREY[200]}`,
                         borderRadius: 12,
                         padding: 12,
                         marginBottom: 8,
@@ -406,7 +409,7 @@ export function ProductDetailPage() {
                     >
                       <Typography variant="subtitle1">
                         {component.name}{' '}
-                        <span style={{ color: '#64748B' }}>
+                        <span style={{ color: NEXORA_GREY[500] }}>
                           {component.componentType}
                         </span>
                       </Typography>

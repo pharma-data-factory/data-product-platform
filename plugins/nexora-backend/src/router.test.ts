@@ -1,23 +1,19 @@
 import express from 'express';
-import { AddressInfo } from 'net';
 import { ConfigReader } from '@backstage/config';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { listenOnFetchablePort } from '@internal/backend-test-utils';
 import { createRouter } from './router';
 
 async function get(app: express.Express, urlPath: string) {
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', () => resolve()));
+  const server = await listenOnFetchablePort(app);
   try {
-    const { port } = server.address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${port}${urlPath}`);
+    const response = await fetch(`${server.url}${urlPath}`);
     return {
       status: response.status,
       body: await response.json(),
     };
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close(error => (error ? reject(error) : resolve())),
-    );
+    await server.close();
   }
 }
 

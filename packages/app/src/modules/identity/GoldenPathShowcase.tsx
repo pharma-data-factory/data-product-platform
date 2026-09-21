@@ -8,6 +8,9 @@ import {
 import { C, PHARMA_NAVY, PHARMA_TEAL, PHARMA_TEAL_DARK } from './landingTokens';
 import { GoldenPathVisual, GoldenPathVisualStyles } from './GoldenPathVisual';
 import { useLandingI18n } from './landingI18n';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const MARKETPLACE_HREF: Record<string, string> = {
   'mqtt-temperature': '/marketplace/mqtt-temperature-data-product',
@@ -48,7 +51,7 @@ function lossStatusStyle(status: LossFeatureStatus) {
   }
   return {
     background: 'rgba(71,85,105,0.10)',
-    color: '#475569',
+    color: NEXORA_GREY[600],
     border: '1px solid rgba(71,85,105,0.22)',
   };
 }

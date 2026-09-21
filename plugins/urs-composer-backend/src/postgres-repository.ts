@@ -594,6 +594,15 @@ export class PostgresURSRepository implements IURSRepository {
     return { items: await this.withItems(results), total };
   }
 
+  async listApprovedBaselines(limit: number): Promise<Baseline[]> {
+    const results = await this.db('baselines')
+      .where({ status: URSStatus.APPROVED })
+      .orderBy('approved_at', 'desc')
+      .limit(limit)
+      .select();
+    return this.withItems(results);
+  }
+
   async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {
     const result = await this.db('baselines')
       .where({ requirement_set_id: requirementSetId, status: URSStatus.APPROVED })

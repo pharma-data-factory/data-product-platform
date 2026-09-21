@@ -62,8 +62,21 @@ export async function createTestDatabase(
   const admin: Knex = knex({ client: 'pg', connection: settings });
   try {
     await admin.raw('select 1');
-  } catch {
+  } catch (error) {
     await admin.destroy().catch(() => {});
+
+    // CI provisions PostgreSQL as a service container, so an unreachable
+    // database there is a broken pipeline, not a developer convenience. These
+    // suites carry the GxP invariants and the persistence proofs; letting them
+    // skip in CI is how they went unrun — and unnoticed — for so long.
+    if (process.env.CI) {
+      throw new Error(
+        `PostgreSQL is required in CI but was unreachable at ` +
+          `${settings.host}:${settings.port} (database "${settings.database}", ` +
+          `user "${settings.user}"): ${(error as Error).message}`,
+      );
+    }
+
     const unavailable = knex({ client: 'pg', connection: settings });
     return {
       db: unavailable,

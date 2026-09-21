@@ -686,6 +686,77 @@ export interface RejectApprovalStepRequest {
 }
 
 /**
+ * Catalog annotation a scaffolded product carries to name the URS baseline it
+ * was built against. "unbound" when the author deliberately created it without
+ * one — written explicitly so an unbound product is findable rather than just
+ * missing an annotation.
+ */
+export const URS_BASELINE_ANNOTATION = 'dataprod.platform/urs-baseline';
+
+/** A catalog entity that declares it was built on a URS baseline. */
+export interface ImpactedProduct {
+  entityRef: string;
+  name: string;
+  title?: string;
+  owner?: string;
+}
+
+/**
+ * What changing this requirement set would affect.
+ *
+ * `changedSinceRelease` is derived from the versions in force versus the ones
+ * the released baseline pinned, so it cannot disagree with the data.
+ */
+export interface RequirementSetImpact {
+  releasedBaselineId?: string;
+  releasedBaselineVersion?: string;
+  releasedAt?: Date;
+  /** Logical requirement ids that moved on since the release. */
+  changedSinceRelease: string[];
+  products: ImpactedProduct[];
+}
+
+/**
+ * An approved baseline as the URS baseline picker shows it.
+ *
+ * Carries the requirement set's identity, because nobody recognises a baseline
+ * by its UUID — and a picker nobody can read is a picker nobody uses.
+ */
+export interface ApprovedBaselineOption {
+  baselineId: string;
+  baselineVersion: string;
+  /** Internal id of the requirement set. */
+  requirementSetId: string;
+  /** Stable, human key of the set, e.g. URS-WD. */
+  requirementSetKey: string;
+  solutionName?: string;
+  gxpRelevance?: GxPRelevance;
+  requirementCount: number;
+  approvedAt: Date;
+}
+
+/** Move a requirement version one step along its lifecycle. */
+export interface AdvanceVersionRequest {
+  /** IN_REVIEW, REVIEWED, IN_APPROVAL or REJECTED. Never APPROVED. */
+  status: URSStatus;
+  /** Required when rejecting. */
+  reason?: string;
+}
+
+/**
+ * A version a bulk advance left where it was, and why.
+ *
+ * Reported rather than thrown: a set part-way through its review is a normal
+ * state, and one version that cannot move must not roll back the others.
+ */
+export interface SkippedVersion {
+  versionId: string;
+  requirementId: string;
+  status: URSStatus;
+  reason: string;
+}
+
+/**
  * ============================================================================
  * CHANGE SET — Delta between two URS Baselines
  * ============================================================================

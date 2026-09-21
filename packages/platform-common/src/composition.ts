@@ -1,4 +1,9 @@
 import {
+  isArtifactManifest,
+  type ArtifactCompositionUsageKind,
+  type ArtifactManifest,
+} from './artifact';
+import {
   PlatformComponent,
   findPlatformComponent,
   isDeprecatedPlatformComponent,
@@ -14,6 +19,8 @@ export const GOLDEN_PATH_COMPOSITION_KIND = 'GoldenPathComposition';
 export interface GoldenPathCompositionComponent {
   ref: string;
   version: string;
+  /** Offered rather than required. Absent means required. */
+  optional?: boolean;
 }
 
 export interface GoldenPathComposition {
@@ -97,10 +104,130 @@ export function normalizeComposition(raw: unknown): GoldenPathComposition {
             `Composition spec.components[${index}].version is required`,
           );
         }
-        return { ref, version };
+        return {
+          ref,
+          version,
+          ...(entry.optional === true ? { optional: true } : {}),
+        };
       }),
     },
   };
+}
+
+/**
+ * The composition a GOLDEN_PATH Artifact manifest describes, or nothing.
+ *
+ * Compositions used to be a manifest family of their own under
+ * `catalog/compositions/`, read by no runtime code while Core restated every
+ * component list as a TypeScript constant. They are Artifacts now, so the
+ * registry loads, versions and serves them like everything else and there is
+ * one copy. See NXD-027.
+ *
+ * The result is a `GoldenPathComposition` rather than a new type so that
+ * `validateComposition` and everything downstream of it keep working against
+ * the shape they already know. This is the adapter, not a second model.
+ */
+export function compositionOfArtifactManifest(
+  manifest: ArtifactManifest,
+): GoldenPathComposition | undefined {
+  if (manifest.kind !== 'GOLDEN_PATH' || !isArtifactManifest(manifest)) {
+    return undefined;
+  }
+  const components = manifest.spec?.components;
+  if (!components) {
+    return undefined;
+  }
+  return {
+    apiVersion: GOLDEN_PATH_COMPOSITION_API_VERSION,
+    kind: GOLDEN_PATH_COMPOSITION_KIND,
+    metadata: {
+      name: manifest.metadata.name,
+      title: manifest.metadata.displayName,
+      description: manifest.metadata.description,
+    },
+    spec: {
+      standardVersion: manifest.spec?.standardVersion || '1.0.0',
+      components: components.map(entry => ({
+        ref: entry.ref,
+        version: entry.version,
+        ...(entry.optional ? { optional: true } : {}),
+      })),
+    },
+  };
+}
+
+/**
+ * The component refs of a composition, in manifest order.
+ *
+ * Order is part of the answer: it is how the composition was written down, and
+ * consumers render it. Optional components are excluded by default because the
+ * required set is what "the composition" means to a caller asking what it must
+ * have.
+ */
+export function compositionComponentRefs(
+  composition: GoldenPathComposition,
+  options: { includeOptional?: boolean } = {},
+): string[] {
+  return composition.spec.components
+    .filter(entry => options.includeOptional || !entry.optional)
+    .map(entry => entry.ref);
+}
+
+/** The refs a composition offers but does not require, in manifest order. */
+export function optionalCompositionComponentRefs(
+  composition: GoldenPathComposition,
+): string[] {
+  return composition.spec.components
+    .filter(entry => entry.optional)
+    .map(entry => entry.ref);
+}
+
+export type CompositionUsageKind = ArtifactCompositionUsageKind;
+
+/**
+ * One line in a Platform Component's "used by" list.
+ *
+ * Derived from the GOLDEN_PATH manifests rather than written down: this was
+ * `LIBRARY_COMPOSITION_USAGE` in Core, six entries restating six manifests.
+ */
+export interface CompositionUsage {
+  compositionName: string;
+  consumerLabel: string;
+  componentRefs: readonly string[];
+  kind: CompositionUsageKind;
+}
+
+/**
+ * The usage table the component library renders, from the manifests.
+ *
+ * A manifest with no `spec.usage` is not listed — that is how the two example
+ * compositions stay out of every component's consumer list, as they always
+ * have. Only required components count: an optional one is offered by the
+ * Composer, not used by the composition.
+ *
+ * Sorted by composition name so the answer does not depend on the order the
+ * registry happened to return, following NXD-026.
+ */
+export function compositionUsageFromManifests(
+  manifests: readonly ArtifactManifest[],
+): CompositionUsage[] {
+  const usage: CompositionUsage[] = [];
+  for (const manifest of manifests) {
+    const composition = compositionOfArtifactManifest(manifest);
+    const declared = manifest.spec?.usage;
+    if (!composition || !declared) {
+      continue;
+    }
+    usage.push({
+      compositionName: composition.metadata.name,
+      consumerLabel: declared.label,
+      componentRefs: compositionComponentRefs(composition),
+      kind: declared.kind,
+    });
+  }
+  return usage.sort((left, right) =>
+    left.compositionName.localeCompare(right.compositionName),
+  );
 }
 
 export function validateComposition(

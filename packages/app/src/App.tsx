@@ -2,6 +2,10 @@ import { createApp } from '@backstage/frontend-defaults';
 import catalogPlugin from '@backstage/plugin-catalog/alpha';
 import apiDocsPlugin from '@backstage/plugin-api-docs/alpha';
 import githubActionsPlugin from '@backstage-community/plugin-github-actions/alpha';
+// Provides /settings, including the Appearance section that switches between
+// the nexora-light and nexora-dark themes registered in modules/theme.
+// Without it both themes are registered but unreachable from the UI.
+import userSettingsModule from '@backstage/plugin-app-module-user-settings';
 import dataProductsPlugin from '@internal/plugin-data-products';
 import marketplacePlugin from '@internal/plugin-marketplace';
 import { nexoraCommonPlugin } from '@internal/plugin-nexora-common';
@@ -28,6 +32,7 @@ import { adminModule } from './modules/admin';
 import { searchModule } from './modules/search';
 import { identityModule } from './modules/identity';
 import { createModule } from './modules/create';
+import { scaffolderFieldsModule } from './modules/scaffolder';
 import { entitlementsModule } from './modules/entitlements';
 import { navModule } from './modules/nav';
 import { themeModule } from './modules/theme';
@@ -38,6 +43,7 @@ export default createApp({
     apiDocsPlugin,
     githubActionsPlugin,
     themeModule,
+    userSettingsModule,
     identityModule,
     architectureModule,
     legalModule,
@@ -54,6 +60,7 @@ export default createApp({
     validateModule,
     adminModule,
     createModule,
+    scaffolderFieldsModule,
     entitlementsModule,
     navModule,
     dataProductsPlugin,

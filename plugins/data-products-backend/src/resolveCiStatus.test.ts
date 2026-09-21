@@ -119,7 +119,8 @@ describe('resolveCiStatus', () => {
         getLatestRun: async () => ({ ok: true, value: undefined }),
       }),
     });
-    expect(status).toEqual({ status: 'UNKNOWN', message: 'Not available' });
+    expect(status.status).toBe('UNKNOWN');
+    expect(status.message).toMatch(/no workflow run/i);
   });
 
   it('returns UNKNOWN when GitHub is unavailable', async () => {
@@ -130,10 +131,24 @@ describe('resolveCiStatus', () => {
       }),
     });
     expect(status.status).toBe('UNKNOWN');
-    expect(status.message).toBe('Not available');
+    expect(status.message).toMatch(/could not be reached/i);
   });
 
-  it('returns UNKNOWN when the repository is inaccessible', async () => {
+  it('returns UNKNOWN when no CI workflow exists', async () => {
+    const status = await ciStatusForEntity({
+      entity: productEntity(),
+      github: githubClient({
+        getLatestRun: async () => ({ ok: false, reason: 'not-found' }),
+      }),
+    });
+    expect(status.status).toBe('UNKNOWN');
+    expect(status.message).toMatch(/no ci workflow/i);
+  });
+
+  // The pilot-exit gate turns on this case: when the GitHub App lacks
+  // Actions: Read-only, GitHub answers 403 and the gate reads UNKNOWN. The
+  // operator must be able to tell that apart from "CI simply has not run".
+  it('names the missing Actions permission when GitHub denies access', async () => {
     const status = await ciStatusForEntity({
       entity: productEntity(),
       github: githubClient({
@@ -141,6 +156,21 @@ describe('resolveCiStatus', () => {
       }),
     });
     expect(status.status).toBe('UNKNOWN');
+    expect(status.message).toContain('Actions: Read-only');
+  });
+
+  it('distinguishes every failure cause by message', async () => {
+    const messages = await Promise.all(
+      (['inaccessible', 'not-found', 'unavailable'] as const).map(reason =>
+        ciStatusForEntity({
+          entity: productEntity(),
+          github: githubClient({
+            getLatestRun: async () => ({ ok: false, reason }),
+          }),
+        }).then(status => status.message),
+      ),
+    );
+    expect(new Set(messages).size).toBe(3);
   });
 
   it('returns UNKNOWN when Catalog has no GitHub repository', async () => {

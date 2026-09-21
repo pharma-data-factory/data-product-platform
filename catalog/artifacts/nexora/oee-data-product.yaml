@@ -1,0 +1,21 @@
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: nexora
+  name: oee-data-product
+  version: "1.0.0"
+  displayName: "OEE Data Product"
+  description: "Overall Equipment Effectiveness for one equipment and time window. Availability × Performance × Quality from MES production context (REST) and machine events (MQTT). Published as oee-result 1.0.0. Technical CERTIFIED only; not GxP validated."
+spec:
+  sourceRef: "template:default/oee-data-product"
+  # The composition this product is built from. Replaces an `item.id ===
+  # 'oee-data-product'` literal in the Marketplace detail page: the "Built
+  # with" panel now appears because the manifest names a composition, not
+  # because the UI recognises a product. See NXD-029.
+  builtFrom: "oee-data-product-direct"
+  marketplace:
+    category: "Data Products"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, MQTT, REST, Docker, Wave 1 components"
+    status: "available"
+    documentation: "/create/templates/default/oee-data-product"

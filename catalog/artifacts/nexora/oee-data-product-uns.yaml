@@ -1,0 +1,28 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: oee-data-product-uns
+  version: "1.0.0"
+  displayName: "Packaging OEE (UNS optional Mode B example)"
+  description: >
+    Mode B example only. Unified Namespace is OPTIONAL and remains DEVELOPMENT.
+    Do not treat this as the OEE MVP composition. See oee-data-product-direct.
+    No OEE calculations are implemented.
+spec:
+  standardVersion: "1.0.0"
+  components:
+    - ref: "component:default/rest-source"
+      version: "1.x"
+    - ref: "component:default/mqtt-consumer"
+      version: "1.x"
+    - ref: "component:default/unified-namespace"
+      version: "1.x"
+    - ref: "component:default/timeseries"
+      version: "1.x"
+    - ref: "component:default/rest-api"
+      version: "1.x"
+    - ref: "component:default/health"
+      version: "1.x"
+    - ref: "component:default/observability"
+      version: "1.x"

@@ -126,3 +126,29 @@ export async function rejectSpecDraft(baseUrl: string, id: string): Promise<void
     throw new Error(`Failed to reject spec draft (${response.status}): ${text}`);
   }
 }
+
+/**
+ * Ask the Governed AI Data Analyst a question about a data product.
+ *
+ * The `productContext` is the product descriptor — the LLM answers from
+ * that context only, never from raw data rows. Phase 6 (P6-S2).
+ */
+export async function analyzeDataProduct(
+  baseUrl: string,
+  question: string,
+  productContext: Record<string, unknown>,
+): Promise<string> {
+  const response = await fetch(`${baseUrl}/composer/ai/analyze-product`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, productContext }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => 'unknown error');
+    throw new Error(`AI analysis failed (${response.status}): ${text}`);
+  }
+
+  const data = (await response.json()) as { answer: string };
+  return data.answer;
+}

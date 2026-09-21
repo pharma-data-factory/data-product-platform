@@ -3,14 +3,20 @@ import path from 'path';
 import yaml from 'yaml';
 import {
   isPlatformComponentEntity,
-  OEE_DIRECT_COMPOSITION_REFS,
-  parseCompositionManifest,
-  parseEquipmentUseLogExample,
+  compositionUsageFromManifests,
   RUNTIME_PACKAGE_SOURCE_PATHS,
   toRelatedPlatformComponents,
   usageLabelsForComponent,
   validateComposition,
 } from '@internal/platform-common';
+import {
+  artifactManifestsOnDisk,
+  readGoldenPathComposition,
+} from './__testUtils__/goldenPathCompositions';
+
+// The usage table is derived from the manifests now, not restated in Core.
+// See NXD-029.
+const USAGE = compositionUsageFromManifests(artifactManifestsOnDisk());
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -150,15 +156,11 @@ describe('Platform Component library', () => {
 
   it('validates composition manifests without a custom Catalog kind', () => {
     const catalog = toRelatedPlatformComponents(loadPlatformComponentCatalog());
-    const oee = parseCompositionManifest(
-      read('catalog/compositions/oee-data-product.yaml'),
-    );
+    const oee = readGoldenPathComposition('oee-data-product-uns');
     expect(oee.kind).toBe('GoldenPathComposition');
     expect(validateComposition(oee, catalog).compatible).toBe(true);
 
-    const oeeDirect = parseCompositionManifest(
-      read('catalog/compositions/oee-data-product-direct.yaml'),
-    );
+    const oeeDirect = readGoldenPathComposition('oee-data-product-direct');
     expect(oeeDirect.spec.components.map(item => item.ref)).not.toContain(
       'component:default/unified-namespace',
     );
@@ -170,26 +172,18 @@ describe('Platform Component library', () => {
       true,
     );
 
-    const rag = parseCompositionManifest(
-      read('catalog/compositions/rag-foundation.yaml'),
-    );
+    const rag = readGoldenPathComposition('rag-foundation');
     expect(validateComposition(rag, catalog).issues.map(issue => issue.code)).toContain(
       'UNSUPPORTED_COMPONENT',
     );
 
-    const mqtt = parseCompositionManifest(
-      read('catalog/compositions/mqtt-temperature-conceptual.yaml'),
-    );
+    const mqtt = readGoldenPathComposition('mqtt-temperature-conceptual');
     expect(validateComposition(mqtt, catalog).compatible).toBe(true);
 
-    const metrics = parseCompositionManifest(
-      read('catalog/compositions/machine-metrics-reference.yaml'),
-    );
+    const metrics = readGoldenPathComposition('machine-metrics-reference');
     expect(validateComposition(metrics, catalog).compatible).toBe(true);
 
-    const machineState = parseCompositionManifest(
-      read('catalog/compositions/machine-state-consumer.yaml'),
-    );
+    const machineState = readGoldenPathComposition('machine-state-consumer');
     expect(validateComposition(machineState, catalog).compatible).toBe(true);
     expect(machineState.spec.components).toEqual([
       { ref: 'component:default/unified-namespace', version: '1.x' },
@@ -235,22 +229,18 @@ describe('Platform Component library', () => {
   });
 
   it('locks library usage to disk compositions and real runtime packages', () => {
-    const oeeDirect = parseCompositionManifest(
-      read('catalog/compositions/oee-data-product-direct.yaml'),
-    );
-    expect(oeeDirect.spec.components.map(item => item.ref)).toEqual([
-      ...OEE_DIRECT_COMPOSITION_REFS,
-    ]);
-    expect(usageLabelsForComponent('rest-source', 'runtime')).toContain(
+    const oeeDirect = readGoldenPathComposition('oee-data-product-direct');
+    expect(oeeDirect.spec.components).not.toHaveLength(0);
+    expect(usageLabelsForComponent('rest-source', 'runtime', USAGE)).toContain(
       'OEE Data Product',
     );
-    expect(usageLabelsForComponent('rest-source', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('rest-source', 'runtime', USAGE)).not.toContain(
       'REST Equipment',
     );
-    expect(usageLabelsForComponent('mqtt-consumer', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'runtime', USAGE)).not.toContain(
       'MQTT Temperature',
     );
-    expect(usageLabelsForComponent('mqtt-consumer', 'conceptual')).toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'conceptual', USAGE)).toContain(
       'MQTT Temperature',
     );
     for (const [name, relative] of Object.entries(RUNTIME_PACKAGE_SOURCE_PATHS)) {
@@ -268,22 +258,27 @@ describe('Platform Component library', () => {
       fs.existsSync(path.join(ROOT, 'platform-components/data/postgres/pyproject.toml')),
     ).toBe(false);
     const catalog = toRelatedPlatformComponents(loadPlatformComponentCatalog());
-    expect(validateComposition(parseEquipmentUseLogExample(), catalog).compatible).toBe(
-      true,
-    );
-    const equipmentUseLog = parseCompositionManifest(
-      read('catalog/compositions/equipment-use-log.yaml'),
-    );
-    expect(equipmentUseLog.spec.components.map(item => item.ref)).toEqual(
-      parseEquipmentUseLogExample().spec.components.map(item => item.ref),
-    );
-    expect(usageLabelsForComponent('mqtt-consumer', 'design')).toContain(
+    // GP-6 removed: the embedded EQUIPMENT_USE_LOG_COMPOSITION_YAML is gone;
+    // the manifest on disk is the single source of truth.
+    const equipmentUseLog = readGoldenPathComposition('equipment-use-log');
+    expect(validateComposition(equipmentUseLog, catalog).compatible).toBe(true);
+    expect(
+      equipmentUseLog.spec.components
+        .filter(item => !item.optional)
+        .map(item => item.ref),
+    ).toEqual([
+      'component:default/health',
+      'component:default/observability',
+      'component:default/mqtt-consumer',
+      'component:default/rest-api',
+    ]);
+    expect(usageLabelsForComponent('mqtt-consumer', 'design', USAGE)).toContain(
       'Equipment Use Log (design example)',
     );
-    expect(usageLabelsForComponent('mqtt-consumer', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'runtime', USAGE)).not.toContain(
       'Equipment Use Log (design example)',
     );
-    expect(usageLabelsForComponent('rest-source', 'design')).not.toContain(
+    expect(usageLabelsForComponent('rest-source', 'design', USAGE)).not.toContain(
       'Equipment Use Log (design example)',
     );
     expect(read('docs/platform-components/using.md')).not.toContain(

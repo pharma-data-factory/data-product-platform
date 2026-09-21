@@ -57,6 +57,10 @@ ENV NODE_OPTIONS="--no-node-snapshot"
 COPY --chown=node:node yarn.lock package.json packages/backend/dist/skeleton.tar.gz ./
 RUN tar xzf skeleton.tar.gz && rm skeleton.tar.gz
 
+# Copy the postinstall script before yarn install so `yarn workspaces focus`
+# can run the root workspace's postinstall without failing on a missing file.
+COPY --chown=node:node scripts/link-internal-packages.js ./scripts/link-internal-packages.js
+
 RUN --mount=type=cache,target=/home/node/.cache/yarn,sharing=locked,uid=1000,gid=1000 \
     yarn workspaces focus --all --production && rm -rf "$(yarn cache clean)"
 
@@ -67,6 +71,7 @@ COPY --chown=node:node platform-components ./platform-components
 COPY --chown=node:node uns ./uns
 COPY --chown=node:node docs ./docs
 COPY --chown=node:node mkdocs.yml ./
+COPY --chown=node:node model-company ./model-company
 
 # Then copy the rest of the backend bundle, along with any other files we might want.
 COPY --chown=node:node packages/backend/dist/bundle.tar.gz app-config*.yaml ./

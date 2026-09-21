@@ -105,6 +105,7 @@ describe('REST Equipment Data Product Golden Path', () => {
       'name',
       'description',
       'owner',
+      'ursBaselineId',
       'domain',
       'repoUrl',
     ]);
@@ -126,13 +127,20 @@ describe('REST Equipment Data Product Golden Path', () => {
       'requestUserCredentials',
     );
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
-      ['fetch:template', 'publish:github', 'catalog:register'],
+      [
+        'fetch:template',
+        'nexora:urs:verify-baseline',
+        'publish:github',
+        'catalog:register',
+      ],
     );
-    expect(entity.spec.steps[1].input.repoUrl).toBe(
+    const stepById = (id: string) =>
+      entity.spec.steps.find((step: { id: string }) => step.id === id);
+    expect(stepById('publish').input.repoUrl).toBe(
       'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
     );
-    expect(entity.spec.steps[1].input.token).toBeUndefined();
-    expect(entity.spec.steps[0].input.values.destination).toEqual({
+    expect(stepById('publish').input.token).toBeUndefined();
+    expect(stepById('fetch-base').input.values.destination).toEqual({
       host: 'github.com',
       owner: 'pharma-data-factory',
       repo: '${{ parameters.name }}',

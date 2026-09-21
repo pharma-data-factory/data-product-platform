@@ -19,7 +19,7 @@ import {
   usePlatformRole,
 } from '@internal/plugin-data-products';
 import {
-  OeeBuiltWithSummary,
+  BuiltWithSummary,
   canCreateDataProduct,
   currentRelease,
   distributionStatusLines,
@@ -27,19 +27,21 @@ import {
   goldenPathDocumentationHref,
   isOfficialGoldenPath,
   isUnauthorizedError,
-  oeeBuiltWithSummary,
+  builtWithSummary,
   releasesForTemplate,
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { marketplaceCatalogSources } from '../catalog';
 import { OeeBuiltWith } from './OeeBuiltWith';
+import { useGoldenPathCompositions } from '../useGoldenPathCompositions';
+import { artifactRegistryApiRef } from '../artifactRegistryApi';
 import { entitlementApiRef } from '../entitlementApi';
+import { loadOfferings } from '../offeringSource';
 import {
   MarketplaceItem,
   enrichMarketplaceItem,
   goldenPathCreateHighlights,
   marketplaceCreateAllowed,
-  marketplaceItems,
   marketplaceOfferingKind,
 } from '../data';
 
@@ -47,29 +49,30 @@ export function MarketplaceDetailPage() {
   const { id } = useParams();
   const catalogApi = useApi(catalogApiRef);
   const entitlementApi = useApi(entitlementApiRef);
+  const registryApi = useApi(artifactRegistryApiRef);
   const { role } = usePlatformRole();
   const canCreate = canCreateDataProduct(role);
-  const [item, setItem] = useState<MarketplaceItem | undefined>(
-    marketplaceItems.find(entry => entry.id === id),
-  );
+  const [item, setItem] = useState<MarketplaceItem | undefined>(undefined);
   const createAllowed = item
     ? marketplaceCreateAllowed(
         item,
         role,
-        item.commercialStatus === 'ENTITLED' || item.commercialStatus === undefined,
+        item.commercialStatus === 'ENTITLED' ||
+          item.commercialStatus === undefined,
       )
     : false;
-  const release = item && isOfficialGoldenPath(item.id) ? currentRelease(item.id) : undefined;
-  const history = item && isOfficialGoldenPath(item.id) ? releasesForTemplate(item.id) : [];
+  const release =
+    item && isOfficialGoldenPath(item.id) ? currentRelease(item.id) : undefined;
+  const history =
+    item && isOfficialGoldenPath(item.id) ? releasesForTemplate(item.id) : [];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
-  const [builtWith, setBuiltWith] = useState<OeeBuiltWithSummary>();
+  const [builtWith, setBuiltWith] = useState<BuiltWithSummary>();
+  const { compositions, loading: compositionsLoading } =
+    useGoldenPathCompositions();
 
   useEffect(() => {
-    const base = marketplaceItems.find(entry => entry.id === id);
-    if (!base) {
-      setItem(undefined);
-      setLoading(false);
+    if (compositionsLoading) {
       return undefined;
     }
     let active = true;
@@ -78,16 +81,40 @@ export function MarketplaceDetailPage() {
         filter: { kind: ['Component', 'API', 'Template'] },
       }),
       entitlementApi.getProducts().catch(() => undefined),
+      loadOfferings(registryApi),
     ])
-      .then(([response, productsSnapshot]) => {
+      .then(([response, productsSnapshot, offerings]) => {
         if (!active) {
+          return;
+        }
+        // Resolved from the same source the list page uses, so a coordinate
+        // that is only in the registry still has a detail page — and one that
+        // has been removed from it no longer does.
+        const base = offerings.find(entry => entry.id === id);
+        if (!base) {
+          setItem(undefined);
+          setLoading(false);
           return;
         }
         const { products, apis, templates } = marketplaceCatalogSources(
           response.items,
         );
+        // The panel is driven by the composition the manifest names, not by
+        // the UI recognising a product id. An offering with no `builtFrom`
+        // simply has no panel. See NXD-029.
+        const composition = base.builtFrom
+          ? compositions.byName.get(base.builtFrom)
+          : undefined;
         setBuiltWith(
-          oeeBuiltWithSummary(toRelatedPlatformComponents(response.items)),
+          composition
+            ? builtWithSummary(
+                toRelatedPlatformComponents(response.items),
+                composition.spec.components
+                  .filter(entry => !entry.optional)
+                  .map(entry => entry.ref),
+                composition.metadata.title ?? composition.metadata.name,
+              )
+            : undefined,
         );
         const entitledIds = productsSnapshot?.products
           .filter(product => product.entitled)
@@ -118,7 +145,7 @@ export function MarketplaceDetailPage() {
       })
       .catch(err => {
         if (active) {
-          setItem(base);
+          setItem(undefined);
           setError(err instanceof Error ? err : new Error(String(err)));
           setLoading(false);
         }
@@ -126,7 +153,7 @@ export function MarketplaceDetailPage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, entitlementApi, id]);
+  }, [catalogApi, entitlementApi, registryApi, id, compositions, compositionsLoading]);
 
   return (
     <Page themeId="tool">
@@ -146,7 +173,11 @@ export function MarketplaceDetailPage() {
         )}
         {error && (
           <JourneyState
-            title={isUnauthorizedError(error) ? 'Unauthorized' : 'Catalog unavailable'}
+            title={
+              isUnauthorizedError(error)
+                ? 'Unauthorized'
+                : 'Catalog unavailable'
+            }
             message={formatJourneyError(error)}
           />
         )}
@@ -160,24 +191,55 @@ export function MarketplaceDetailPage() {
                     Offering: marketplaceOfferingKind(item) || item.category,
                     Category: item.category,
                     Version: item.version,
-                    'Release status': item.releaseStatus || 'Not an official Golden Path release',
+                    'Release status':
+                      item.releaseStatus ||
+                      'Not an official Golden Path release',
                     Certification: item.certificationStatus,
+                    // What this path was built to satisfy. A consumer reads it
+                    // before installing, which is the point: the requirements
+                    // travel with the template, so this answers "what is it
+                    // held to?" without access to the URS Composer it came
+                    // from. Not a validation or GxP claim.
+                    Requirements: item.ursSatisfies
+                      ? `Satisfies ${item.ursSatisfies}${
+                          item.ursRequirementCount
+                            ? ` · ${item.ursRequirementCount} requirements`
+                            : ''
+                        }`
+                      : 'No requirement set declared',
                     Owner: 'Assigned during create',
                     Domain:
-                      item.id.includes('temperature') || item.id.includes('equipment')
+                      item.id.includes('temperature') ||
+                      item.id.includes('equipment')
                         ? 'manufacturing'
                         : 'unassigned',
                     'GitHub Repository': 'Created in pharma-data-factory',
                     Contract: item.contractName || 'Not registered',
-                    'Contract version': item.contractVersion || 'Not registered',
-                    Provider: item.provider,
+                    'Contract version':
+                      item.contractVersion || 'Not registered',
+                    Provider: item.externalPublisher
+                      ? `${item.provider} (${item.publisherTrustLevel === 'PARTNER' ? '✓ Nexora Partner' : '⚠ Community — not Nexora-certified'})`
+                      : item.provider,
                     Status: item.status,
                     Commercial: item.commercialStatus || 'Not a commercial SKU',
                     Availability: item.commercialCopy || '—',
                   }}
                 />
+                {item.externalPublisher && item.publisherTrustLevel === 'COMMUNITY' && (
+                  <Typography variant="body2" color="error" style={{ marginTop: 12 }}>
+                    ⚠ Community publisher — this artifact has not been reviewed or certified
+                    by Nexora. Use it at your own risk. Contact the publisher directly for
+                    support. Partners go through a formal certification process.
+                  </Typography>
+                )}
+                {item.externalPublisher && item.publisherTrustLevel === 'PARTNER' && (
+                  <Typography variant="body2" style={{ marginTop: 12 }}>
+                    ✓ This artifact is published by a Nexora-certified Partner and has
+                    passed the partner onboarding review.
+                  </Typography>
+                )}
               </InfoCard>
-              {item.id === 'oee-data-product' && builtWith && (
+              {builtWith && (
                 <InfoCard title="Built with">
                   <OeeBuiltWith summary={builtWith} />
                 </InfoCard>
@@ -195,8 +257,8 @@ export function MarketplaceDetailPage() {
                     }}
                   />
                   <Typography variant="body2" style={{ marginTop: 12 }}>
-                    CERTIFIED is technical conformance. RELEASED is approval
-                    for consumption. Neither is GxP validation.
+                    CERTIFIED is technical conformance. RELEASED is approval for
+                    consumption. Neither is GxP validation.
                   </Typography>
                 </InfoCard>
               )}
@@ -216,8 +278,8 @@ export function MarketplaceDetailPage() {
                   ))}
                   <Typography variant="body2" style={{ marginTop: 12 }}>
                     Marketplace Create uses Internal and Template Edition only.
-                    Platform Edition is PLANNED. SaaS is FUTURE. Distribution
-                    is not entitlement.
+                    Platform Edition is PLANNED. SaaS is FUTURE. Distribution is
+                    not entitlement.
                   </Typography>
                 </InfoCard>
               )}
@@ -247,9 +309,13 @@ export function MarketplaceDetailPage() {
                     {release.changelog.fixes.join('; ') || 'None'}
                   </Typography>
                   <Typography variant="subtitle2">Migration notes</Typography>
-                  <Typography variant="body2">{release.changelog.migration}</Typography>
+                  <Typography variant="body2">
+                    {release.changelog.migration}
+                  </Typography>
                   <Typography variant="body2" style={{ marginTop: 12 }}>
-                    <Link to={`/releases/${item.id}`}>Open Release Catalog</Link>
+                    <Link to={`/releases/${item.id}`}>
+                      Open Release Catalog
+                    </Link>
                   </Typography>
                 </InfoCard>
               )}
@@ -268,7 +334,9 @@ export function MarketplaceDetailPage() {
                 <CertificationChip status={item.certificationStatus} />
                 {goldenPathCreateHighlights(item).length > 0 && (
                   <div style={{ marginTop: 16 }}>
-                    <Typography variant="subtitle2">Before you create</Typography>
+                    <Typography variant="subtitle2">
+                      Before you create
+                    </Typography>
                     {goldenPathCreateHighlights(item).map(label => (
                       <Typography key={label} variant="body2">
                         {label}
@@ -277,8 +345,8 @@ export function MarketplaceDetailPage() {
                   </div>
                 )}
                 <Typography variant="body2" style={{ marginTop: 12 }}>
-                  Technical platform certification only. This is not GxP
-                  or regulatory validation.
+                  Technical platform certification only. This is not GxP or
+                  regulatory validation.
                 </Typography>
                 {item.contractName && (
                   <Typography variant="body2" style={{ marginTop: 12 }}>
@@ -319,11 +387,11 @@ export function MarketplaceDetailPage() {
                   canCreate &&
                   !createAllowed &&
                   item.commercialStatus !== 'NOT_ENTITLED' && (
-                  <JourneyState
-                    title="Not released"
-                    message="Create uses an approved RELEASED Golden Path version. Platform Admin can access non-released templates for internal development. Retired releases are not offered for new creation."
-                  />
-                )}
+                    <JourneyState
+                      title="Not released"
+                      message="Create uses an approved RELEASED Golden Path version. Platform Admin can access non-released templates for internal development. Retired releases are not offered for new creation."
+                    />
+                  )}
                 {item.templateReference && !canCreate && (
                   <JourneyState
                     title="Unauthorized"

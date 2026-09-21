@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
+import { artifactRegistryApiEntry } from '../__testUtils__/artifactRegistry';
 import { configApiRef, identityApiRef } from '@backstage/core-plugin-api';
 import { UnifiedThemeProvider } from '@backstage/theme';
 import { DeveloperHubPage } from './DeveloperHubPage';
@@ -16,6 +17,8 @@ async function renderHub(groups: string[], user = 'developer') {
           <TestApiProvider
             apis={[
               [configApiRef, mockApis.config()],
+            artifactRegistryApiEntry,
+              artifactRegistryApiEntry,
               [
                 identityApiRef,
                 {

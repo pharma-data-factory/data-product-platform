@@ -12,6 +12,7 @@ import {
   NotFoundError,
 } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
+import { findVersionLabelClash } from '@internal/platform-common';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
   RequirementSet,
@@ -39,6 +40,11 @@ import {
   ChangeRequest,
   ChangeRequestStatus,
   ImpactAssessment,
+  SkippedVersion,
+  ApprovedBaselineOption,
+  RequirementSetImpact,
+  ImpactedProduct,
+  URS_BASELINE_ANNOTATION,
 } from './types';
 import { SignaturePinReAuth } from './domain/reauth';
 import { computeReviewScopes } from './domain/baseline';
@@ -55,11 +61,13 @@ import {
 import { IURSRepository } from './repository-interface';
 import {
   firstVersion,
+  nextBaselineVersion,
   nextDraft,
   parseLabel,
   versionOrdinal,
   type VersionNumber,
 } from './domain/versioning';
+import { assertTransition } from './domain/transitions';
 import type { LLMClient, GeneratedRequirement } from './llm-client';
 
 export interface URSServiceOptions {
@@ -74,6 +82,13 @@ export interface URSServiceOptions {
  * Generated keys carry a timestamp segment and are not held to this pattern.
  */
 const STABLE_REQUIREMENT_SET_KEY = /^URS-[A-Z0-9]{2,12}$/;
+
+/**
+ * How far back to read a set's baselines when proposing the next version or
+ * checking a label for collisions. A set accumulating more baselines than this
+ * is not a case the numbering scheme is meant to serve.
+ */
+const MAX_BASELINE_HISTORY = 200;
 
 /**
  * URS Composer Service
@@ -1709,6 +1724,52 @@ export class URSService {
     );
   }
 
+  /**
+   * The version of each requirement in a set that is currently in force —
+   * the set a baseline would pin.
+   *
+   * A baseline pins requirement VERSIONS, but a caller reading the set sees
+   * REQUIREMENTS. Resolving one to the other is a domain rule, so it lives
+   * here rather than in the UI: sending requirement ids to createBaseline is
+   * what produced "Requirement version(s) not found".
+   *
+   * In force means the highest version that has not reached a terminal state.
+   * SUPERSEDED, OBSOLETE and REJECTED are end states — pinning one would
+   * snapshot a version the set has already moved past.
+   *
+   * A requirement with no live version is omitted rather than reported as an
+   * error; the caller decides whether that is fatal. Every requirement created
+   * through the API has version 0.1 from seedInitialRequirementVersion, so in
+   * practice this only omits requirements whose every version was retired.
+   */
+  async getCurrentVersions(
+    requirementSetId: string,
+  ): Promise<RequirementVersion[]> {
+    const requirements = await this.repository.getRequirements(requirementSetId);
+    const terminal = new Set<URSStatus>([
+      URSStatus.SUPERSEDED,
+      URSStatus.OBSOLETE,
+      URSStatus.REJECTED,
+    ]);
+
+    const current: RequirementVersion[] = [];
+    for (const requirement of requirements) {
+      const versions = await this.repository.getRequirementVersions(
+        requirement.requirementId,
+      );
+
+      const live = versions
+        .filter(v => !terminal.has(v.status))
+        .sort((a, b) => b.versionNumber - a.versionNumber);
+
+      if (live.length) {
+        current.push(live[0]);
+      }
+    }
+
+    return current;
+  }
+
   // ============================================================================
   // P1A: BASELINES
   // ============================================================================
@@ -1722,6 +1783,8 @@ export class URSService {
     baselineVersion: string,
     actor: string,
   ): Promise<Baseline> {
+    await this.assertBaselineVersionAvailable(requirementSetId, baselineVersion);
+
     const pinned = await this.loadPinnedVersions(
       requirementSetId,
       requirementVersionIds,
@@ -1758,6 +1821,189 @@ export class URSService {
     });
 
     return baseline;
+  }
+
+  /**
+   * What a change to this requirement set would affect.
+   *
+   * Answers the two questions an author has before revising a requirement:
+   * has this set moved on since its last release, and who is building on that
+   * release?
+   *
+   * Products are found through the catalog annotation a scaffolded product
+   * carries (dataprod.platform/urs-baseline), not through a table in this
+   * plugin. A product may be created by the scaffolder, by the composer or by
+   * hand; the catalog is the one place all of them appear, and the annotation
+   * is indexed, so this stays a filtered query rather than a scan.
+   *
+   * Drift is derived, never stored: comparing the versions in force against
+   * the ones the released baseline pinned cannot go stale, whereas a flag can.
+   */
+  async getRequirementSetImpact(
+    requirementSetId: string,
+    credentials?: BackstageCredentials,
+  ): Promise<RequirementSetImpact> {
+    const released =
+      await this.repository.getCurrentApprovedBaseline(requirementSetId);
+
+    const currentVersions = await this.getCurrentVersions(requirementSetId);
+    const pinned = new Set(released?.requirementVersionIds ?? []);
+
+    // A requirement whose version in force is not the pinned one has moved on
+    // since the release. Without a release everything counts as unreleased
+    // work rather than as drift.
+    const changedSinceRelease = released
+      ? currentVersions.filter(v => !pinned.has(v.id)).map(v => v.requirementId)
+      : [];
+
+    return {
+      releasedBaselineId: released?.id,
+      releasedBaselineVersion: released?.baselineVersion,
+      releasedAt: released?.approvedAt,
+      changedSinceRelease,
+      products: released
+        ? await this.productsBuiltOn(released.id, credentials)
+        : [],
+    };
+  }
+
+  /**
+   * Catalog entities that declare they were built on a given URS baseline.
+   *
+   * Returns an empty list rather than failing when the catalog is unreachable:
+   * impact is informational, and an author must still be able to read the set.
+   */
+  private async productsBuiltOn(
+    baselineId: string,
+    credentials?: BackstageCredentials,
+  ): Promise<ImpactedProduct[]> {
+    if (!this.catalog || !credentials) {
+      return [];
+    }
+
+    try {
+      const response = await this.catalog.getEntities(
+        {
+          filter: {
+            [`metadata.annotations.${URS_BASELINE_ANNOTATION}`]: baselineId,
+          },
+          fields: ['kind', 'metadata.name', 'metadata.title', 'spec.owner'],
+        },
+        { credentials },
+      );
+
+      return response.items.map(entity => ({
+        entityRef: `${entity.kind.toLowerCase()}:default/${entity.metadata.name}`,
+        name: entity.metadata.name,
+        title: entity.metadata.title,
+        owner: (entity.spec as { owner?: string } | undefined)?.owner,
+      }));
+    } catch (error) {
+      this.logger.warn(
+        `Could not resolve products built on baseline ${baselineId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Approved baselines a product can be built against, with enough of their
+   * requirement set to be recognisable.
+   *
+   * A picker offering bare UUIDs would not be used, and an unused picker means
+   * the binding gets typed wrong or skipped. So this returns the set key and
+   * solution name alongside the id — what a reader actually identifies a
+   * baseline by.
+   */
+  async listApprovedBaselineOptions(
+    limit: number = MAX_BASELINE_HISTORY,
+  ): Promise<ApprovedBaselineOption[]> {
+    const baselines = await this.repository.listApprovedBaselines(limit);
+
+    // Sets are looked up once each, not once per baseline: a set with several
+    // approved baselines is the normal case after a few revisions.
+    const setIds = [...new Set(baselines.map(b => b.requirementSetId))];
+    const sets = new Map(
+      await Promise.all(
+        setIds.map(
+          async id =>
+            [id, await this.repository.getRequirementSet(id)] as const,
+        ),
+      ),
+    );
+
+    return baselines.map(baseline => {
+      const set = sets.get(baseline.requirementSetId);
+      return {
+        baselineId: baseline.id,
+        baselineVersion: baseline.baselineVersion,
+        requirementSetId: baseline.requirementSetId,
+        requirementSetKey: set?.requirementSetId ?? baseline.requirementSetId,
+        solutionName: set?.solutionName,
+        gxpRelevance: set?.gxpRelevance,
+        requirementCount: baseline.requirementVersionIds?.length ?? 0,
+        approvedAt: baseline.approvedAt ?? baseline.createdAt,
+      };
+    });
+  }
+
+  /**
+   * The baseline version to propose for the next baseline of a set.
+   *
+   * A suggestion, not a constraint: the caller may submit a different label,
+   * because a baseline identifier often has to line up with a document number
+   * in an external QMS. Only duplicates are refused.
+   */
+  async getNextBaselineVersion(requirementSetId: string): Promise<string> {
+    const existing = await this.repository.listBaselines(
+      requirementSetId,
+      MAX_BASELINE_HISTORY,
+      0,
+    );
+    return nextBaselineVersion(existing.items.map(b => b.baselineVersion));
+  }
+
+  /**
+   * Refuse a baseline version already used by this set.
+   *
+   * Postgres enforces this with a unique index on
+   * (requirement_set_id, baseline_version), but the in-memory repository has
+   * no such constraint, so development and production disagreed: the same
+   * label could be reused locally and not in production. Checking here makes
+   * both behave alike and turns a raw database error — which the generic
+   * handler reports as a 500 — into a 409 that names the collision.
+   */
+  private async assertBaselineVersionAvailable(
+    requirementSetId: string,
+    baselineVersion: string,
+  ): Promise<void> {
+    const label = baselineVersion?.trim();
+    if (!label) {
+      throw new InputError('A baseline version label is required.');
+    }
+
+    const existing = await this.repository.listBaselines(
+      requirementSetId,
+      MAX_BASELINE_HISTORY,
+      0,
+    );
+    const clashLabel = findVersionLabelClash(
+      existing.items.map(b => b.baselineVersion),
+      label,
+    );
+    const clash =
+      clashLabel === undefined
+        ? undefined
+        : existing.items.find(b => b.baselineVersion === clashLabel);
+
+    if (clash) {
+      throw new ConflictError(
+        `Baseline version ${label} already exists for this requirement set ` +
+          `(${clash.id}, ${clash.status}). Choose a different label.`,
+      );
+    }
   }
 
   /**
@@ -1814,7 +2060,7 @@ export class URSService {
   ): Promise<RequirementVersion[] | null> {
     const baselines = await this.repository.listBaselines(
       requirementSetId,
-      200,
+      MAX_BASELINE_HISTORY,
       0,
     );
     if (!baselines.items.length) {
@@ -1862,6 +2108,127 @@ export class URSService {
    * The baseline is the record of what was released; dropping a requirement
    * out from under it would leave that record pointing at nothing.
    */
+  /**
+   * Statuses a caller may drive a requirement version into.
+   *
+   * APPROVED is deliberately absent: it is reached only by a valid QA
+   * signature through signRequirementVersion (spec invariant 6). Allowing it
+   * here would make the released state settable without a signatory, which is
+   * the one thing the signature is for.
+   */
+  private static readonly DRIVABLE_VERSION_STATUSES: readonly URSStatus[] = [
+    URSStatus.IN_REVIEW,
+    URSStatus.REVIEWED,
+    URSStatus.IN_APPROVAL,
+    URSStatus.REJECTED,
+  ];
+
+  /**
+   * Move a requirement version one step along its lifecycle.
+   *
+   * DRAFT -> IN_REVIEW -> REVIEWED -> IN_APPROVAL, then a QA signature
+   * releases it. Nothing drove these transitions before: the statuses and the
+   * transition map existed, the signature endpoint required IN_APPROVAL, but
+   * no service method or route could get a version out of DRAFT. A version
+   * could therefore never be approved, and since a baseline may only be
+   * released once every pinned version is approved, no baseline holding
+   * requirements could ever be released.
+   *
+   * Legality is decided by VERSION_TRANSITIONS, so this method adds no rules
+   * of its own — it is the missing driver, not a second rulebook.
+   */
+  async advanceRequirementVersion(
+    versionId: string,
+    target: URSStatus,
+    actor: string,
+    reason?: string,
+  ): Promise<RequirementVersion> {
+    if (target === URSStatus.APPROVED) {
+      throw new InputError(
+        'A version reaches APPROVED only through a QA signature. ' +
+          'Use POST /requirement-versions/:id/signatures.',
+      );
+    }
+    if (!URSService.DRIVABLE_VERSION_STATUSES.includes(target)) {
+      throw new InputError(
+        `${target} is not a status a requirement version can be moved to. ` +
+          `Allowed: ${URSService.DRIVABLE_VERSION_STATUSES.join(', ')}.`,
+      );
+    }
+    if (target === URSStatus.REJECTED && !reason?.trim()) {
+      throw new InputError('A reason is required to reject a version.');
+    }
+
+    return this.repository.withTransaction(async repo => {
+      const version = await repo.getRequirementVersion(versionId);
+      if (!version) {
+        throw new NotFoundError(`Requirement version ${versionId} not found`);
+      }
+
+      // Asserted before writing so the caller gets a message naming both
+      // statuses rather than a failure from inside the repository.
+      assertTransition('version', version.status, target, versionId);
+
+      const advanced = { ...version, status: target };
+      await repo.updateRequirementVersion(advanced);
+
+      await repo.createAuditEvent({
+        id: this.generateUUID(),
+        entityType: 'REQUIREMENT_VERSION',
+        entityId: versionId,
+        entityVersion: version.versionLabel ?? version.version,
+        eventType: target === URSStatus.REJECTED ? 'REJECTED' : 'STATUS_CHANGED',
+        oldValue: { status: version.status },
+        newValue: { status: target },
+        actor,
+        timestamp: new Date(),
+        reason,
+      });
+
+      return advanced;
+    });
+  }
+
+  /**
+   * Move every open version of a requirement set one step along together.
+   *
+   * A set carries as many versions as it has requirements, and they advance
+   * as a body towards a baseline. Driving them one at a time would be ten
+   * requests and thirty clicks for the seeded W&D set, which is how a review
+   * step comes to be skipped.
+   *
+   * Versions that cannot legally make the move are reported rather than
+   * failing the whole call: a set part-way through its review is a normal
+   * state, not an error.
+   */
+  async advanceRequirementSetVersions(
+    requirementSetId: string,
+    target: URSStatus,
+    actor: string,
+  ): Promise<{ advanced: RequirementVersion[]; skipped: SkippedVersion[] }> {
+    const current = await this.getCurrentVersions(requirementSetId);
+
+    const advanced: RequirementVersion[] = [];
+    const skipped: SkippedVersion[] = [];
+
+    for (const version of current) {
+      try {
+        advanced.push(
+          await this.advanceRequirementVersion(version.id, target, actor),
+        );
+      } catch (error) {
+        skipped.push({
+          versionId: version.id,
+          requirementId: version.requirementId,
+          status: version.status,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return { advanced, skipped };
+  }
+
   async obsoleteRequirementVersion(
     versionId: string,
     reason: string,

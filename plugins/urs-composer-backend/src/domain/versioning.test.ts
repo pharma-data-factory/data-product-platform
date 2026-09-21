@@ -3,6 +3,7 @@ import {
   compareVersions,
   firstVersion,
   formatLabel,
+  nextBaselineVersion,
   nextDraft,
   parseLabel,
   releaseOf,
@@ -99,5 +100,30 @@ describe('compareVersions', () => {
     expect(
       compareVersions({ major: 1, minor: 10 }, { major: 1, minor: 9 }),
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('nextBaselineVersion', () => {
+  test('starts at 1.0 for a set with no baselines', () => {
+    expect(nextBaselineVersion([])).toBe('1.0');
+  });
+
+  test('counts up in majors', () => {
+    expect(nextBaselineVersion(['1.0'])).toBe('2.0');
+    expect(nextBaselineVersion(['1.0', '2.0'])).toBe('3.0');
+  });
+
+  test('takes the highest major, not the last entry', () => {
+    // listBaselines promises no ordering, so reading the last element would
+    // propose a label that already exists.
+    expect(nextBaselineVersion(['3.0', '1.0', '2.0'])).toBe('4.0');
+  });
+
+  test('ignores labels it cannot parse rather than failing', () => {
+    // Baseline labels were accepted as free text before, and may legitimately
+    // carry an external document number. One odd label must not block the
+    // next proposal.
+    expect(nextBaselineVersion(['1.0', 'QMS-REV-C'])).toBe('2.0');
+    expect(nextBaselineVersion(['QMS-REV-C'])).toBe('1.0');
   });
 });

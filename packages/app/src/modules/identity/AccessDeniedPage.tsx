@@ -2,6 +2,9 @@ import { Button } from '@material-ui/core';
 import { BrandMark } from '../nav/BrandMark';
 import { BRAND_WORDMARK, C, PHARMA_NAVY, PHARMA_TEAL, PLATFORM_POSITIONING } from '../theme/tokens';
 import { ACCESS_DENIED_MESSAGE } from './authErrors';
+import {
+  NEXORA_CARD,
+} from '@internal/plugin-nexora-common';
 
 export interface AccessDeniedPageProps {
   githubLogin?: string;
@@ -115,7 +118,7 @@ export function AccessDeniedPage({
               onClick={onSignOut}
               style={{
                 background: PHARMA_NAVY,
-                color: '#FFFFFF',
+                color: NEXORA_CARD,
                 textTransform: 'none',
                 fontWeight: 600,
                 fontSize: 15,

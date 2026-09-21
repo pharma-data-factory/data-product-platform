@@ -10,6 +10,7 @@ import {
   type CatalogEntityLike,
   type PlatformComponent,
 } from '@internal/platform-common';
+import { readGoldenPathComposition } from './__testUtils__/goldenPathCompositions';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -58,9 +59,7 @@ function requireComponent(name: string): CatalogEntityLike {
 
 describe('UNS Machine State Consumer composition proof', () => {
   it('parses the version-controlled composition and validates Unified Namespace', () => {
-    const composition = parseCompositionManifest(
-      read('catalog/compositions/machine-state-consumer.yaml'),
-    );
+    const composition = readGoldenPathComposition('machine-state-consumer');
     expect(composition.apiVersion).toBe('dataprod.platform/v1alpha1');
     expect(composition.kind).toBe('GoldenPathComposition');
     expect(composition.metadata.name).toBe('machine-state-consumer');
@@ -112,9 +111,7 @@ spec:
         : component,
     );
     const result = validateComposition(
-      parseCompositionManifest(
-        read('catalog/compositions/machine-state-consumer.yaml'),
-      ),
+      readGoldenPathComposition('machine-state-consumer'),
       catalog,
     );
     expect(result.compatible).toBe(false);
@@ -175,13 +172,13 @@ spec:
     ).toBe(
       '/catalog-graph?rootEntityRefs=component%3Adefault%2Fsample-machine-state-consumer',
     );
-    expect(
-      (consumer.metadata.links ?? []).some(
-        link =>
-          link.url ===
-          '/catalog-graph?rootEntityRefs=component:default/sample-machine-state-consumer',
-      ),
-    ).toBe(true);
+    // Entity links must be absolute URLs. A relative shortcut here made the
+    // Backstage catalog reject the whole entity, so the Catalog Graph is
+    // reached through its entity-page tab instead (see the helper assertions
+    // above, which cover the in-app navigation path).
+    for (const link of consumer.metadata.links ?? []) {
+      expect(() => new URL(link.url)).not.toThrow();
+    }
   });
 
   it('does not treat the composition proof as an official Golden Path', () => {

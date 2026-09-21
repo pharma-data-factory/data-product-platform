@@ -6,6 +6,19 @@ import {
 } from '@internal/plugin-data-products';
 import { MarketplaceCatalogApi, MarketplaceCatalogTemplate } from './data';
 
+/**
+ * A count is only worth showing when it is a count. An annotation carrying
+ * anything else is dropped rather than rendered as NaN, which would read as a
+ * defect in the requirements rather than in the annotation.
+ */
+function parseRequirementCount(raw?: string): number | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 export function marketplaceCatalogSources(entities: Entity[]): {
   products: DataProduct[];
   apis: MarketplaceCatalogApi[];
@@ -42,6 +55,16 @@ export function marketplaceCatalogSources(entities: Entity[]): {
             entity.metadata.annotations?.[
               'dataprod.platform/dataProductSdkVersion'
             ],
+          // What the path is held to. A template that declares no requirement
+          // set is not an error — most do not yet — so both fields stay
+          // optional and the view says "not declared" rather than nothing.
+          ursSatisfies:
+            entity.metadata.annotations?.['dataprod.platform/urs-satisfies'],
+          ursRequirementCount: parseRequirementCount(
+            entity.metadata.annotations?.[
+              'dataprod.platform/urs-requirement-count'
+            ],
+          ),
         };
       }),
   };

@@ -1,0 +1,33 @@
+// The Dev Container format allows you to configure your environment. At the heart of it
+// is a Docker image or Dockerfile which controls the tools available in your environment.
+//
+// See https://aka.ms/devcontainer.json for more information.
+{
+	"name": "Ona",
+	"image": "eu.repository.roche.com/cde-gitpod-docker-prd-l/ona-base:2.0"
+	// Use "build":
+	// instead of the image to use a Dockerfile to build an image.
+	// "build": {
+    //     "context": ".",
+    //     "dockerfile": "Dockerfile"
+    // }
+	// Features add additional features to your environment. See https://containers.dev/features
+	// Beware: features are not supported on all platforms and may have unintended side-effects.
+	//
+	// Node 22 matches the "22 || 24" engines range in package.json. Yarn 4.13.0
+	// comes from the packageManager field via corepack, which ships with Node.
+	// Without this the repo cannot be built or tested inside the container.
+	//
+	// docker-in-docker is needed for the production path: building
+	// packages/backend/Dockerfile and running docker-compose.production.yml,
+	// which is the same compose file the Portainer stack uses.
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "22"
+		},
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"moby": false
+		}
+	},
+	"postCreateCommand": "corepack enable"
+}

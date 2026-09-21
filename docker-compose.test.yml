@@ -1,0 +1,42 @@
+# PostgreSQL for the test suite.
+#
+# The URS and Validation suites carry the GxP invariants, the persistence
+# proofs and the URS -> Validation integration. They skip themselves when no
+# database answers, so without this container `yarn test` reports green while
+# 62 tests never ran. CI provisions the same image, credentials and port as a
+# service container (.github/workflows/ci.yml) and fails the build instead of
+# skipping when it is unreachable.
+#
+# Defaults must stay in sync with connectionSettings() in
+# plugins/urs-composer-backend/src/__testUtils__/testDatabase.ts. Override with
+# TEST_DB_HOST / TEST_DB_PORT / TEST_DB_USER / TEST_DB_PASSWORD / TEST_DB_NAME.
+#
+#   docker compose -f docker-compose.test.yml up -d
+#   yarn test
+#   docker compose -f docker-compose.test.yml down -v
+#
+# Each suite creates its own schema, so the suites cannot destroy each other's
+# tables. There is no volume: the data is disposable by design.
+
+name: nexora-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: urs_test
+      POSTGRES_PASSWORD: test_pass123
+      POSTGRES_DB: urs_composer_test
+    ports:
+      - "5435:5432"
+    healthcheck:
+      # pg_isready answers during initdb's temporary server too, so this waits
+      # for the named database to actually exist before reporting healthy.
+      test:
+        [
+          "CMD-SHELL",
+          "psql -U urs_test -d urs_composer_test -c 'select 1' >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20

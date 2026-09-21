@@ -1,4 +1,6 @@
 export type {
+  AnalyticsProvider,
+  AnalyticsProviderType,
   ConsumeContext,
   ConsumptionErrorCode,
   DataProductContracts,
@@ -15,7 +17,7 @@ export type {
   StreamProtocol,
   ValidationStatusView,
 } from './types';
-export { ConsumptionError } from './types';
+export { ANALYTICS_PROVIDER_TYPES, ConsumptionError } from './types';
 export { descriptorFromEntity, isDataProductComponent } from './descriptor';
 export {
   DataProductConsumptionClient,

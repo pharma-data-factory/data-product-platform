@@ -37,8 +37,10 @@ import {
   filterChipSx,
   outlineButtonSx,
 } from '@internal/plugin-nexora-common';
+import { artifactRegistryApiRef } from '../artifactRegistryApi';
 import { marketplaceCatalogSources } from '../catalog';
 import { entitlementApiRef } from '../entitlementApi';
+import { loadOfferings } from '../offeringSource';
 import {
   MARKETPLACE_CATEGORIES,
   MarketplaceCategory,
@@ -46,7 +48,6 @@ import {
   enrichMarketplaceItems,
   filterMarketplaceItems,
   marketplaceCreateAllowed,
-  marketplaceItems,
   marketplaceOfferingKind,
 } from '../data';
 
@@ -91,11 +92,12 @@ export function MarketplacePage() {
   const navigate = useNavigate();
   const catalogApi = useApi(catalogApiRef);
   const entitlementApi = useApi(entitlementApiRef);
+  const registryApi = useApi(artifactRegistryApiRef);
   const { role } = usePlatformRole();
   const isAdmin = canAdministerPlatform(role);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<MarketplaceCategory | 'All'>('All');
-  const [items, setItems] = useState<MarketplaceItem[]>(marketplaceItems);
+  const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
 
@@ -106,8 +108,9 @@ export function MarketplacePage() {
         filter: { kind: ['Component', 'API', 'Template'] },
       }),
       entitlementApi.getProducts().catch(() => undefined),
+      loadOfferings(registryApi),
     ])
-      .then(([response, productsSnapshot]) => {
+      .then(([response, productsSnapshot, offerings]) => {
         if (!active) {
           return;
         }
@@ -120,7 +123,7 @@ export function MarketplacePage() {
             .map(product => product.productId) ?? undefined;
         setItems(
           enrichMarketplaceItems(
-            marketplaceItems,
+            offerings,
             products,
             apis,
             templates,
@@ -146,7 +149,7 @@ export function MarketplacePage() {
       })
       .catch(err => {
         if (active) {
-          setItems(marketplaceItems);
+          setItems([]);
           setError(err instanceof Error ? err : new Error(String(err)));
           setLoading(false);
         }
@@ -154,7 +157,7 @@ export function MarketplacePage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, entitlementApi]);
+  }, [catalogApi, entitlementApi, registryApi]);
 
   const visible = useMemo(
     () => filterMarketplaceItems(items, query, category),
@@ -241,6 +244,7 @@ export function MarketplacePage() {
                     <TableCell>Name</TableCell>
                     <TableCell>Category</TableCell>
                     <TableCell>Version</TableCell>
+                    <TableCell>Publisher</TableCell>
                     <TableCell>Quality</TableCell>
                     <TableCell>Certification</TableCell>
                     <TableCell>Create</TableCell>
@@ -266,6 +270,13 @@ export function MarketplacePage() {
                       </TableCell>
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.version}</TableCell>
+                      <TableCell>
+                        {item.externalPublisher
+                          ? item.publisherTrustLevel === 'PARTNER'
+                            ? '✓ Partner'
+                            : '⚠ Community'
+                          : item.provider}
+                      </TableCell>
                       <TableCell>
                         {item.qualityStatus ? (
                           <QualityChip status={item.qualityStatus} />

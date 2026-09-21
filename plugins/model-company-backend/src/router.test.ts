@@ -1,11 +1,14 @@
 import fs from 'fs';
-import http from 'http';
 import os from 'os';
 import path from 'path';
 import express from 'express';
 import { AuthenticationError } from '@backstage/errors';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import type { LoggerService } from '@backstage/backend-plugin-api';
+import {
+  listenOnFetchablePort,
+  type ListeningServer,
+} from '@internal/backend-test-utils';
 import { createRouter } from './router';
 import { ModelCompanyService } from './service';
 import { FileSimulationStore } from './store';
@@ -43,7 +46,7 @@ const permissiveAuthz = {
 
 describe('model-company public demo surface', () => {
   let tmp: string;
-  let server: http.Server;
+  let server: ListeningServer;
   let baseUrl: string;
 
   beforeAll(async () => {
@@ -68,18 +71,12 @@ describe('model-company public demo surface', () => {
       }),
     );
 
-    server = await new Promise<http.Server>(resolve => {
-      const s = app.listen(0, () => resolve(s));
-    });
-    const address = server.address();
-    if (!address || typeof address === 'string') {
-      throw new Error('Failed to bind test server');
-    }
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    server = await listenOnFetchablePort(app);
+    baseUrl = server.url;
   });
 
   afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await server.close();
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 

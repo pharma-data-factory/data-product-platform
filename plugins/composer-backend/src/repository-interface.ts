@@ -3,6 +3,9 @@ import {
   ProductVersion,
   ProductComponent,
   DataContract,
+  ProductDependency,
+  ContractSubscription,
+  UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -34,10 +37,33 @@ export interface IComposerRepository {
   updateProductVersion(version: ProductVersion): Promise<void>;
 
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;
+  getProductComponent(id: string): Promise<ProductComponent | undefined>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
 
   createDataContract(contract: DataContract): Promise<DataContract>;
+  getDataContract(id: string): Promise<DataContract | undefined>;
   listDataContracts(componentId: string): Promise<DataContract[]>;
+  findDataContractByName(componentId: string, name: string): Promise<DataContract | undefined>;
+
+  createProductDependency(dep: ProductDependency): Promise<ProductDependency>;
+  getProductDependency(id: string): Promise<ProductDependency | undefined>;
+  findProductDependency(versionId: string, contractId: string): Promise<ProductDependency | undefined>;
+  listProductDependencies(versionId: string): Promise<ProductDependency[]>;
+  deleteProductDependency(id: string): Promise<void>;
+  listDependenciesByContractId(contractId: string): Promise<ProductDependency[]>;
+
+  // Upgrade Notifications (W2-1)
+  createUpgradeNotification(n: UpgradeNotification): Promise<UpgradeNotification>;
+  listUpgradeNotifications(consumerRef: string, unreadOnly?: boolean): Promise<UpgradeNotification[]>;
+  markNotificationRead(id: string): Promise<void>;
+
+  // Contract Subscriptions (P-EXT-S4)
+  createSubscription(sub: ContractSubscription): Promise<ContractSubscription>;
+  getSubscription(id: string): Promise<ContractSubscription | undefined>;
+  findSubscription(contractId: string, consumerRef: string): Promise<ContractSubscription | undefined>;
+  listSubscriptionsByContract(contractId: string): Promise<ContractSubscription[]>;
+  listSubscriptionsByConsumer(consumerRef: string): Promise<ContractSubscription[]>;
+  updateSubscriptionStatus(id: string, status: ContractSubscription['status']): Promise<void>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;

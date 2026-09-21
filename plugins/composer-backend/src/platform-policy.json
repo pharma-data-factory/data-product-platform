@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "supportedVersions": [
+    1
+  ],
+  "obligations": [
+    {
+      "id": "owner-declared",
+      "title": "A released product has a named owner",
+      "appliesTo": "all",
+      "check": "product-owner-set",
+      "message": "No owner is recorded. A released product needs someone answerable for it."
+    },
+    {
+      "id": "data-classification-declared",
+      "title": "A released product states how its data is classified",
+      "appliesTo": "all",
+      "check": "data-classification-set",
+      "message": "No data classification is recorded. Consumers and access controls have no basis to decide how this data may be handled."
+    },
+    {
+      "id": "gxp-relevance-declared",
+      "title": "A released product states whether it is GxP relevant",
+      "appliesTo": "all",
+      "check": "gxp-relevance-set",
+      "message": "GxP relevance is not recorded. Whether a product falls under GxP is a decision that must be made deliberately, not left unanswered."
+    },
+    {
+      "id": "gxp-criticality-declared",
+      "title": "A GxP-relevant product states its criticality",
+      "appliesTo": "gxp",
+      "check": "criticality-set",
+      "message": "This product is GxP relevant but records no criticality, so the depth of validation it needs cannot be derived."
+    }
+  ]
+}

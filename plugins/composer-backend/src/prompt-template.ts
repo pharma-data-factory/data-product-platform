@@ -1,3 +1,4 @@
+import { COMPONENT_TYPES } from '@internal/platform-common';
 import type { AvailableComponentSummary } from './llm-client';
 
 export function buildSystemPrompt(): string {
@@ -69,6 +70,7 @@ export function buildProductSpecSystemPrompt(): string {
     '- Use exact component names as they appear in the list',
     '- Every suggested component MUST reference at least one URS requirement ID (traceability)',
     '- Assign priority: "required" (directly satisfies a MUST-have URS), "recommended" (best practice for SHOULD-have), "optional" (nice-to-have)',
+    `- Classify every component with a componentType from this list exactly: ${COMPONENT_TYPES.join(', ')}`,
     '- Consider ISA-88 batch control model: map requirements to recipe layers (General → Site → Master → Control)',
     '- Consider GxP compliance: audit, governance, and observability components are required for regulated environments',
     '- Suggest data contracts that define input/output interfaces between components',
@@ -80,7 +82,7 @@ export function buildProductSpecSystemPrompt(): string {
     '  "description": "What this product does and why",',
     '  "domain": "manufacturing|quality|lab|supply-chain|...",',
     '  "components": [',
-    '    { "name": "exact-component-name", "reason": "...", "priority": "required|recommended|optional", "traceabilityRefs": ["req-id-1"] }',
+    '    { "name": "exact-component-name", "reason": "...", "componentType": "PROCESSING", "priority": "required|recommended|optional", "traceabilityRefs": ["req-id-1"] }',
     '  ],',
     '  "contracts": [',
     '    { "name": "contract-name", "type": "input|output|internal", "description": "...", "traceabilityRefs": ["req-id-1"] }',
@@ -117,4 +119,51 @@ export function buildProductSpecUserPrompt(context: ProductSpecContext): string 
   parts.push('\nRespond with a JSON object matching the specified output format.');
 
   return parts.join('\n');
+}
+
+// ============================================================================
+// Governed AI Data Analyst prompts (Phase 6, P6-S2)
+// ============================================================================
+
+/**
+ * System prompt for the Governed AI Data Analyst.
+ *
+ * Governance constraints:
+ * - Only answer based on the provided product descriptor (no external knowledge)
+ * - Never fabricate quality metrics or validation status
+ * - Always acknowledge when information is NOT_AVAILABLE
+ * - Never claim the product is validated when it isn't
+ */
+export function buildProductAnalystSystemPrompt(): string {
+  return [
+    'You are a Governed AI Data Analyst for the Nexora manufacturing data platform.',
+    '',
+    'Your role is to answer questions about a specific data product using ONLY the',
+    'information provided in the product descriptor below. You do not have access to',
+    'the actual data — only the product metadata.',
+    '',
+    'Governance rules:',
+    '- Never fabricate quality metrics, validation status, or data values',
+    '- Always use NOT_AVAILABLE as the answer when a field shows that value',
+    '- Never claim a product is GxP validated unless validation.status === VALIDATED',
+    '- Be concise but complete; cite which field or annotation you are reading from',
+    '- If the question cannot be answered from the descriptor, say so clearly',
+    '',
+    'End every response with: "Source: product descriptor (governance-bounded)."',
+  ].join('\n');
+}
+
+export function buildProductAnalystUserPrompt(
+  question: string,
+  productContext: Record<string, unknown>,
+): string {
+  const context = JSON.stringify(productContext, null, 2);
+  return [
+    'Product Descriptor:',
+    '```json',
+    context,
+    '```',
+    '',
+    `Question: ${question}`,
+  ].join('\n');
 }

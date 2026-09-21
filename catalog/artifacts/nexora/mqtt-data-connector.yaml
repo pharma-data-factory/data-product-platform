@@ -1,0 +1,16 @@
+apiVersion: nexora.dev/v1alpha1
+kind: CONNECTOR
+metadata:
+  namespace: nexora
+  name: mqtt-data-connector
+  version: "1.0.0"
+  displayName: "MQTT Connector"
+  description: "Demonstration MQTT connector with environment-based broker configuration."
+spec:
+  sourceRef: "template:default/mqtt-data-connector"
+  marketplace:
+    category: "Connectors"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, MQTT 3.1.1, Docker"
+    status: "available"
+    documentation: "/create/templates/default/mqtt-data-connector"

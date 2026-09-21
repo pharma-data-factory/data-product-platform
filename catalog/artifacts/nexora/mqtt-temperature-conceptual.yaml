@@ -1,0 +1,24 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: mqtt-temperature-conceptual
+  version: "1.0.0"
+  displayName: "MQTT Temperature (conceptual)"
+  description: >
+    Documents which Platform Components the existing MQTT Temperature Golden
+    Path uses conceptually. The runtime is not refactored.
+spec:
+  standardVersion: "1.0.0"
+  usage:
+    kind: conceptual
+    label: "MQTT Temperature"
+  components:
+    - ref: "component:default/mqtt-consumer"
+      version: "1.x"
+    - ref: "component:default/rest-api"
+      version: "1.x"
+    - ref: "component:default/health"
+      version: "1.x"
+    - ref: "component:default/observability"
+      version: "1.x"

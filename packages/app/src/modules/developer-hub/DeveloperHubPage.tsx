@@ -10,10 +10,8 @@ import {
   FIRST_DAY_STEPS,
   HUB_GOLDEN_PATHS,
   LAST_REVIEWED,
-  OEE_DIRECT_COMPOSITION_REFS,
   PlatformRole,
   SEARCH_PATH,
-  WAVE1_COMPONENT_TITLES,
   canExecuteScaffolder,
   componentNameFromRef,
   developerHubActionsForRole,
@@ -27,15 +25,42 @@ import {
   DOCUMENTATION_PERSONAS,
   documentationPageById,
 } from '@internal/platform-common';
+
+/**
+ * Display titles for the Platform Components shown in the "Built with" panel
+ * of the OEE Golden Path card.
+ *
+ * These titles match each component's Catalog entity `metadata.title`. They
+ * live here rather than in Core (GP-5) because display labels for a specific
+ * domain composition are app-layer knowledge, not platform kernel knowledge.
+ * Core names no product; only this page does.
+ */
+const OEE_COMPONENT_TITLES: Record<string, string> = {
+  health: 'Health',
+  observability: 'Observability',
+  'mqtt-consumer': 'MQTT Consumer',
+  'rest-source': 'REST Source',
+  timeseries: 'Time-Series Storage',
+  'rest-api': 'REST API',
+};
+import {
+  compositionRefs,
+  useGoldenPathCompositions,
+} from '@internal/plugin-marketplace';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
 import { ArchitectureStackVisual } from './ArchitectureStackVisual';
+import {
+  NEXORA_CARD,
+  NEXORA_CYAN_DARK,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '32px 28px',
   },
@@ -57,7 +82,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   heroCopy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 16,
     lineHeight: 1.7,
     marginTop: 12,
@@ -74,7 +99,7 @@ const useStyles = makeStyles({
     background: PHARMA_TEAL,
     border: `1px solid ${PHARMA_TEAL}`,
     borderRadius: 10,
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 13,
@@ -83,8 +108,8 @@ const useStyles = makeStyles({
     textDecoration: 'none',
     textTransform: 'none',
     '&:hover': {
-      background: '#0098AB',
-      borderColor: '#0098AB',
+      background: NEXORA_CYAN_DARK,
+      borderColor: NEXORA_CYAN_DARK,
       textDecoration: 'none',
     },
   },
@@ -93,7 +118,7 @@ const useStyles = makeStyles({
     background: 'transparent',
     border: '1px solid rgba(255,255,255,0.28)',
     borderRadius: 10,
-    color: '#F8FAFC !important',
+    color: `${NEXORA_GREY[50]} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 13,
@@ -176,7 +201,7 @@ const useStyles = makeStyles({
     marginTop: 8,
   },
   kind: {
-    background: '#F1F5F9',
+    background: NEXORA_GREY[100],
     border: `1px solid ${C.border}`,
     borderRadius: 999,
     color: `${C.text} !important`,
@@ -186,7 +211,7 @@ const useStyles = makeStyles({
     textDecoration: 'none',
     textTransform: 'none',
     '&:hover': {
-      background: '#E2E8F0',
+      background: NEXORA_GREY[200],
       textDecoration: 'none',
     },
   },
@@ -246,6 +271,10 @@ export function DeveloperHubPage() {
     });
   }, [identityApi]);
 
+  // The "Built with" chips come from the composition the OEE Golden Path is
+  // built from, read out of the registry rather than a constant. See NXD-029.
+  const { compositions } = useGoldenPathCompositions();
+  const oeeRefs = compositionRefs(compositions, 'oee-data-product-direct');
   const canCreate = canExecuteScaffolder(role);
   const actions = developerHubActionsForRole(role);
   const recent = documentationIndexPages();
@@ -574,11 +603,11 @@ export function DeveloperHubPage() {
                         {path.name}
                         <span className={classes.badge}>{path.statusLabel}</span>
                       </Typography>
-                      {path.id === 'oee-data-product' && (
+                      {path.id === 'oee-data-product' && oeeRefs.length > 0 && (
                         <div className={classes.builtWith} aria-label="OEE Built With">
                           <Typography variant="body2">Built with</Typography>
                           <div className={classes.chips}>
-                            {OEE_DIRECT_COMPOSITION_REFS.map(ref => {
+                            {oeeRefs.map(ref => {
                               const name = componentNameFromRef(ref);
                               return (
                                 <Link
@@ -586,15 +615,14 @@ export function DeveloperHubPage() {
                                   className={classes.chip}
                                   to={platformComponentPath(name)}
                                 >
-                                  {WAVE1_COMPONENT_TITLES[name] || name}
+                                  {OEE_COMPONENT_TITLES[name] || name}
                                 </Link>
                               );
                             })}
                           </div>
                           <Typography variant="body2" className={classes.muted}>
-                            {OEE_DIRECT_COMPOSITION_REFS.length} reusable
-                            components · {OEE_DIRECT_COMPOSITION_REFS.length}{' '}
-                            technically CERTIFIED
+                            {oeeRefs.length} reusable components ·{' '}
+                            {oeeRefs.length} technically CERTIFIED
                           </Typography>
                           <Typography variant="body2" style={{ marginTop: 8 }}>
                             <Link to={documentationHref('oee-composition')}>

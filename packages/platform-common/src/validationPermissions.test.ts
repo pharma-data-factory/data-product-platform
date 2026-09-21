@@ -46,15 +46,21 @@ describe('validation expert permissions', () => {
     );
   });
 
-  it('allows platform admin to administer plugin but never auto-approve', () => {
-    expect(decidePermission(validationAdminPermission, 'PLATFORM_ADMIN')).toBe(
-      'allow',
-    );
+  it('allows platform admin to administer and approve validation contexts (Phase 5, P5-S1)', () => {
+    expect(decidePermission(validationAdminPermission, 'PLATFORM_ADMIN')).toBe('allow');
     expect(canAdministerValidation('PLATFORM_ADMIN')).toBe(true);
-    expect(decidePermission(validationApprovePermission, 'PLATFORM_ADMIN')).toBe(
-      'deny',
-    );
+    // validation.approve is now granted to PLATFORM_ADMIN (P5-S1).
+    // Segregation of Duties is enforced at the service layer (decider ≠ creator),
+    // not by denying the permission itself.
+    expect(decidePermission(validationApprovePermission, 'PLATFORM_ADMIN')).toBe('allow');
+    // risk.accept and baseline.modify remain reserved.
     expect(decidePermission(riskAcceptPermission, 'PLATFORM_ADMIN')).toBe('deny');
     expect(decidePermission(baselineModifyPermission, 'PLATFORM_ADMIN')).toBe('deny');
+  });
+
+  it('still denies validation.approve to every non-admin role', () => {
+    for (const role of ['VIEWER', 'DEVELOPER', 'DATA_PRODUCT_OWNER', 'BUSINESS_CAPABILITY_LEAD'] as const) {
+      expect(decidePermission(validationApprovePermission, role)).toBe('deny');
+    }
   });
 });

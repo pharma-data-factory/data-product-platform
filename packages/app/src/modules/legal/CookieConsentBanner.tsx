@@ -8,6 +8,9 @@ import {
 import { PHARMA_TEAL } from '../identity/landingTokens';
 import { LEGAL_PATHS } from './constants';
 import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
+import {
   DEFAULT_CONSENT,
   hasAcceptedConsent,
   OPEN_COOKIE_SETTINGS_EVENT,
@@ -20,10 +23,10 @@ import {
 let activeOwnerId: string | null = null;
 
 const ACCENT = '#22C55E';
-const PANEL = '#0F172A';
-const CARD = '#1E293B';
-const MUTED = '#94A3B8';
-const TEXT = '#F8FAFC';
+const PANEL = NEXORA_GREY[900];
+const CARD = NEXORA_GREY[800];
+const MUTED = NEXORA_GREY[400];
+const TEXT = NEXORA_GREY[50];
 
 function CookieGlyph() {
   return (

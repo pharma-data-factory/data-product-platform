@@ -1,0 +1,16 @@
+apiVersion: nexora.dev/v1alpha1
+kind: TEMPLATE
+metadata:
+  namespace: nexora
+  name: nodejs-microservice
+  version: "1.0.0"
+  displayName: "Node.js Microservice"
+  description: "TypeScript Express microservice with Vitest, ESLint, Docker, and GitHub Actions."
+spec:
+  sourceRef: "template:default/nodejs-microservice"
+  marketplace:
+    category: "Templates"
+    provider: "Nexora"
+    compatibility: "Node.js 20+, Docker, GitHub"
+    status: "available"
+    documentation: "/create/templates/default/nodejs-microservice"

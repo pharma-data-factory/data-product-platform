@@ -1,10 +1,13 @@
 import { Entity, parseEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
 import type {
+  AnalyticsProvider,
+  AnalyticsProviderType,
   DataProductDescriptor,
   DataProductInterface,
   PresentationCapability,
   ValidationStatusView,
 } from './types';
+import { ANALYTICS_PROVIDER_TYPES } from './types';
 
 const P = 'dataprod.platform';
 
@@ -151,6 +154,7 @@ export function descriptorFromEntity(entity: Entity): DataProductDescriptor {
         relation: 'dependsOn',
       })),
     ],
+    analyticsProviders: parseAnalyticsProviders(ann(entity, 'analytics-providers')),
     repository: entity.metadata.annotations?.['github.com/project-slug']
       ? `https://github.com/${entity.metadata.annotations['github.com/project-slug']}`
       : entity.metadata.links?.find(l => l.title === 'Repository')?.url,
@@ -158,6 +162,36 @@ export function descriptorFromEntity(entity: Entity): DataProductDescriptor {
     catalogClass: ann(entity, 'catalog-class'),
     templateName: ann(entity, 'template'),
   };
+}
+
+/**
+ * Parses the `dataprod.platform/analytics-providers` annotation.
+ *
+ * The annotation is a JSON array of `AnalyticsProvider` objects. Unknown
+ * `type` values are coerced to `'Custom'` so a typo does not produce an
+ * invalid record. Missing or unparseable values return an empty array.
+ *
+ * Phase 6 (P6-S1).
+ */
+function parseAnalyticsProviders(value?: string): AnalyticsProvider[] {
+  if (!value?.trim()) return [];
+  try {
+    const raw = JSON.parse(value) as unknown[];
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+      .map(item => ({
+        name: String(item.name ?? ''),
+        type: (ANALYTICS_PROVIDER_TYPES as readonly string[]).includes(String(item.type))
+          ? (String(item.type) as AnalyticsProviderType)
+          : 'Custom',
+        url: item.url ? String(item.url) : undefined,
+        description: item.description ? String(item.description) : undefined,
+      }))
+      .filter(p => p.name.length > 0);
+  } catch {
+    return [];
+  }
 }
 
 export function isDataProductComponent(entity: Entity): boolean {

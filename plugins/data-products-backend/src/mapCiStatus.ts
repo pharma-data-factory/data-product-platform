@@ -22,6 +22,9 @@ const STAGE_MATCHERS: Array<{ match: string; stage: QualityStage }> = [
   { match: 'quality test', stage: 'Data Quality' },
   { match: 'compatibility', stage: 'Compatibility' },
   { match: 'docker build', stage: 'Docker Build' },
+  // Deliberately the two-word match, not 'security': a step such as
+  // "Security policy check" must not be reported as the CVE scan.
+  { match: 'security scan', stage: 'Security Scan' },
   { match: 'lint', stage: 'Lint' },
 ];
 

@@ -25,7 +25,7 @@ OEE Golden Path **design** may start only if every item is true:
 - Health stable (CERTIFIED 1.0.0)
 - Observability stable (CERTIFIED 1.0.0)
 - Machine Metrics composition proof passes
-- Mode A composition `catalog/compositions/oee-data-product-direct.yaml` validates
+- Mode A composition `catalog/artifacts/nexora/oee-data-product-direct.yaml` validates
 - No blocking P0 security issue exists (hard-coded secrets, unbounded retry,
   or credentials in logs)
 - Storage decision recorded: SQLITE_ACCEPTABLE_FOR_OEE_PILOT

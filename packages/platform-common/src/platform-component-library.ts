@@ -5,7 +5,10 @@ import {
   findPlatformComponent,
   normalizeEntityRef,
 } from './platform-components';
-import { parseCompositionManifest } from './composition';
+import {
+  type CompositionUsage,
+  type CompositionUsageKind,
+} from './composition';
 
 /**
  * Catalog names that have a reusable Python runtime package in this
@@ -92,151 +95,62 @@ export type LibraryCompatibilityFilter =
 
 export type RuntimeAvailability = 'runtime' | 'catalog-only';
 
-export type CompositionUsageKind = 'runtime' | 'conceptual' | 'design';
 
-export interface CompositionUsage {
-  compositionName: string;
-  consumerLabel: string;
-  componentRefs: readonly string[];
-  kind: CompositionUsageKind;
-}
 
-/** Official OEE Golden Path Mode A. Source: catalog/compositions/oee-data-product-direct.yaml */
-export const OEE_DIRECT_COMPOSITION_REFS = [
-  'component:default/health',
-  'component:default/observability',
-  'component:default/mqtt-consumer',
-  'component:default/rest-source',
-  'component:default/timeseries',
-  'component:default/rest-api',
+// ── Configuration Schema (W2-2) ───────────────────────────────────────────────
+
+/** Supported data types for a configuration key. */
+export const CONFIG_KEY_TYPES = [
+  'string',
+  'number',
+  'boolean',
+  'url',
+  'secret',   // value is a credential — never log, never display in UI
 ] as const;
 
-export const WAVE1_COMPONENT_TITLES: Record<string, string> = {
-  health: 'Health',
-  observability: 'Observability',
-  'mqtt-consumer': 'MQTT Consumer',
-  'rest-source': 'REST Source',
-  timeseries: 'Time-Series Storage',
-  'rest-api': 'REST API',
-};
-
-export const MACHINE_METRICS_COMPOSITION_REFS = [
-  'component:default/mqtt-consumer',
-  'component:default/health',
-  'component:default/observability',
-  'component:default/timeseries',
-  'component:default/rest-api',
-] as const;
-
-export const MACHINE_STATE_COMPOSITION_REFS = [
-  'component:default/unified-namespace',
-] as const;
-
-export const MQTT_TEMPERATURE_CONCEPTUAL_REFS = [
-  'component:default/mqtt-consumer',
-  'component:default/rest-api',
-  'component:default/health',
-  'component:default/observability',
-] as const;
-
-export const REST_EQUIPMENT_CONCEPTUAL_REFS = [
-  'component:default/rest-source',
-  'component:default/rest-api',
-  'component:default/health',
-  'component:default/observability',
-] as const;
+export type ConfigKeyType = (typeof CONFIG_KEY_TYPES)[number];
 
 /**
- * Equipment Use Log design composition. Derived from the use case and
- * actual Wave 1 capabilities. Not a copy of OEE Mode A.
+ * A formally typed configuration key for a Platform Component.
  *
- * REQUIRED: MQTT events in, REST API out, Health + Observability because
- * both integration components declare those dependsOn relations.
- * OPTIONAL: REST Source (MES/order/cleaning context) and Time-Series
- * (status/duration points). Session records stay domain-owned.
+ * Replaces the plain `string[]` in `configurationKeys` with a structured
+ * schema entry that drives:
+ *   - Documentation generation (type, required, default, description)
+ *   - AI suggestions (the Governed AI Analyst knows what to ask for)
+ *   - Validation (service can warn when required keys are missing)
+ *   - Secret detection (type='secret' prevents UI display/logging)
+ *
+ * W2-2 — Configuration Schema.
  */
-export const EQUIPMENT_USE_LOG_REQUIRED_REFS = [
-  'component:default/health',
-  'component:default/observability',
-  'component:default/mqtt-consumer',
-  'component:default/rest-api',
-] as const;
-
-export const EQUIPMENT_USE_LOG_OPTIONAL_REFS = [
-  'component:default/rest-source',
-  'component:default/timeseries',
-] as const;
-
-export const LIBRARY_COMPOSITION_USAGE: readonly CompositionUsage[] = [
-  {
-    compositionName: 'oee-data-product-direct',
-    consumerLabel: 'OEE Data Product',
-    componentRefs: OEE_DIRECT_COMPOSITION_REFS,
-    kind: 'runtime',
-  },
-  {
-    compositionName: 'machine-metrics-reference',
-    consumerLabel: 'Machine Metrics Reference',
-    componentRefs: MACHINE_METRICS_COMPOSITION_REFS,
-    kind: 'runtime',
-  },
-  {
-    compositionName: 'machine-state-consumer',
-    consumerLabel: 'Machine State Consumer',
-    componentRefs: MACHINE_STATE_COMPOSITION_REFS,
-    kind: 'runtime',
-  },
-  {
-    compositionName: 'mqtt-temperature-conceptual',
-    consumerLabel: 'MQTT Temperature',
-    componentRefs: MQTT_TEMPERATURE_CONCEPTUAL_REFS,
-    kind: 'conceptual',
-  },
-  {
-    compositionName: 'rest-equipment-conceptual',
-    consumerLabel: 'REST Equipment',
-    componentRefs: REST_EQUIPMENT_CONCEPTUAL_REFS,
-    kind: 'conceptual',
-  },
-  {
-    compositionName: 'equipment-use-log',
-    consumerLabel: 'Equipment Use Log (design example)',
-    componentRefs: EQUIPMENT_USE_LOG_REQUIRED_REFS,
-    kind: 'design',
-  },
-];
-
-export const EQUIPMENT_USE_LOG_COMPOSITION_YAML = `apiVersion: dataprod.platform/v1alpha1
-kind: GoldenPathComposition
-
-metadata:
-  name: equipment-use-log
-  title: Equipment Use Log (design example)
-  description: >
-    DOCUMENTATION / DESIGN EXAMPLE ONLY. No Equipment Use Log runtime
-    exists. Developers implement the usage-session domain model and reuse
-    Wave 1 Platform Components. REST Source and Time-Series Storage are
-    OPTIONAL and are not in this required composition.
-
-spec:
-  standardVersion: 1.0.0
-  components:
-    - ref: component:default/health
-      version: "1.x"
-    - ref: component:default/observability
-      version: "1.x"
-    - ref: component:default/mqtt-consumer
-      version: "1.x"
-    - ref: component:default/rest-api
-      version: "1.x"
-`;
+export interface ConfigKeySchema {
+  /** Environment variable name, e.g. 'MQTT_HOST'. */
+  key: string;
+  /** Human description of what this variable controls. */
+  description?: string;
+  type: ConfigKeyType;
+  /** Whether the component cannot start without this key. */
+  required: boolean;
+  /** Example or default value (never a real secret). */
+  defaultValue?: string;
+  /** Example value for documentation. */
+  example?: string;
+}
 
 export interface ComponentLibraryProfile {
   purpose: string;
   useWhen: string[];
   doNotUseWhen: string[];
+  /**
+   * Legacy flat list of env var names (kept for backward compatibility).
+   * @deprecated Prefer `configurationSchema` for new components.
+   */
   configurationKeys: string[];
   configurationNote?: string;
+  /**
+   * Formally typed configuration schema (W2-2).
+   * When present, this supersedes `configurationKeys` for display and AI.
+   */
+  configurationSchema?: ConfigKeySchema[];
   importExample?: string;
   importProvenance?: string;
   documentationPageId: string;
@@ -259,7 +173,7 @@ export interface LibraryComponentFilters {
   compatibility?: LibraryCompatibilityFilter;
 }
 
-export interface OeeBuiltWithItem {
+export interface BuiltWithItem {
   name: string;
   title: string;
   version: string;
@@ -267,9 +181,9 @@ export interface OeeBuiltWithItem {
   entityRef: string;
 }
 
-export interface OeeBuiltWithSummary {
+export interface BuiltWithSummary {
   productLabel: string;
-  items: OeeBuiltWithItem[];
+  items: BuiltWithItem[];
   reusableCount: number;
   certifiedCount: number;
 }
@@ -291,6 +205,7 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
     configurationKeys: [],
     configurationNote:
       'No environment secrets. Service name and version are supplied by the host application.',
+    configurationSchema: [],  // health component has no configuration keys
     importExample: 'from pdf_health import HealthCheckResult',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
     documentationPageId: 'platform-component-health',
@@ -308,6 +223,10 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'credential-like fields must be logged — this component masks them instead',
     ],
     configurationKeys: ['LOG_LEVEL'],
+    configurationSchema: [
+      { key: 'LOG_LEVEL', type: 'string', required: false, defaultValue: 'INFO',
+        description: 'Logging level: DEBUG | INFO | WARNING | ERROR', example: 'INFO' },
+    ],
     importExample: 'from pdf_observability import Observability',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
     documentationPageId: 'platform-component-observability',
@@ -326,6 +245,10 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
     ],
     configurationKeys: ['SERVICE_NAME', 'SERVICE_VERSION'],
     configurationNote: 'Host identity only. No source credentials in this component.',
+    configurationSchema: [
+      { key: 'SERVICE_NAME', type: 'string', required: true, description: 'Human-readable service name used in logs and health payloads', example: 'oee-data-product' },
+      { key: 'SERVICE_VERSION', type: 'string', required: true, description: 'Semantic version of the service', example: '1.0.0' },
+    ],
     importExample: 'from pdf_rest_api import create_rest_app',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
     documentationPageId: 'platform-component-rest-api',
@@ -351,6 +274,14 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'SOURCE_API_RETRIES',
       'SOURCE_API_AUTH_HEADER',
       'SOURCE_API_AUTH_SCHEME',
+    ],
+    configurationSchema: [
+      { key: 'SOURCE_API_URL', type: 'url', required: true, description: 'Base URL of the REST source system', example: 'https://mes.example.com/api/v1' },
+      { key: 'SOURCE_API_TOKEN', type: 'secret', required: false, description: 'Bearer token for source authentication — store in .env, never commit' },
+      { key: 'SOURCE_API_TIMEOUT', type: 'number', required: false, defaultValue: '30', description: 'Request timeout in seconds' },
+      { key: 'SOURCE_API_RETRIES', type: 'number', required: false, defaultValue: '3', description: 'Maximum retry attempts on transient failures' },
+      { key: 'SOURCE_API_AUTH_HEADER', type: 'string', required: false, defaultValue: 'Authorization', description: 'Name of the auth header' },
+      { key: 'SOURCE_API_AUTH_SCHEME', type: 'string', required: false, defaultValue: 'Bearer', description: 'Auth scheme prefix' },
     ],
     importExample:
       'from pdf_rest_source import RestSource, RestSourceSettings',
@@ -383,6 +314,19 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'MQTT_RECONNECT_MIN_DELAY',
       'MQTT_RECONNECT_MAX_DELAY',
     ],
+    configurationSchema: [
+      { key: 'MQTT_HOST', type: 'string', required: true, description: 'MQTT broker hostname', example: 'mqtt.example.com' },
+      { key: 'MQTT_PORT', type: 'number', required: false, defaultValue: '1883', description: 'MQTT broker port (1883 plain, 8883 TLS)' },
+      { key: 'MQTT_USERNAME', type: 'string', required: false, description: 'MQTT broker username' },
+      { key: 'MQTT_PASSWORD', type: 'secret', required: false, description: 'MQTT broker password — never commit' },
+      { key: 'MQTT_TOPIC', type: 'string', required: true, description: 'MQTT topic pattern to subscribe to', example: 'pharma/oee/+/+' },
+      { key: 'MQTT_CLIENT_ID', type: 'string', required: false, description: 'MQTT client ID; unique per broker session' },
+      { key: 'MQTT_KEEPALIVE', type: 'number', required: false, defaultValue: '60', description: 'Keepalive interval in seconds' },
+      { key: 'MQTT_TLS_ENABLED', type: 'boolean', required: false, defaultValue: 'false', description: 'Enable TLS for broker connection' },
+      { key: 'MQTT_TLS_CA_CERTS', type: 'string', required: false, description: 'Path to CA certificate file when TLS is enabled' },
+      { key: 'MQTT_RECONNECT_MIN_DELAY', type: 'number', required: false, defaultValue: '1', description: 'Min reconnect delay in seconds' },
+      { key: 'MQTT_RECONNECT_MAX_DELAY', type: 'number', required: false, defaultValue: '30', description: 'Max reconnect delay in seconds' },
+    ],
     importExample:
       'from pdf_mqtt_consumer import MqttConsumer, MqttConsumerSettings',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
@@ -401,6 +345,9 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'you need an OEE result schema — that belongs in domain logic',
     ],
     configurationKeys: ['TIMESERIES_SQLITE_PATH'],
+    configurationSchema: [
+      { key: 'TIMESERIES_SQLITE_PATH', type: 'string', required: false, defaultValue: '/data/timeseries.db', description: 'Path for the SQLite timeseries database file; mount a volume in production' },
+    ],
     importExample:
       'from pdf_timeseries import SqliteTimeSeriesStore, TimeSeriesSettings',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
@@ -419,6 +366,10 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'you need time-series storage or Unified Namespace semantics from this package',
     ],
     configurationKeys: ['AAS_SQLITE_PATH', 'AAS_SEED'],
+    configurationSchema: [
+      { key: 'AAS_SQLITE_PATH', type: 'string', required: false, defaultValue: '/data/aas.db', description: 'Path for the AAS SQLite repository; mount a volume in production' },
+      { key: 'AAS_SEED', type: 'string', required: false, description: 'Path to a JSON seed file to pre-populate the AAS repository on first start' },
+    ],
     importExample:
       'from pdf_aas.repository import SqliteAasRepository\nfrom pdf_aas.main import create_app',
     importProvenance:
@@ -445,6 +396,15 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'UNS_ROOT_TOPIC',
       'UNS_MQTT_ENABLED',
       'UNS_TOPIC_FIELDS',
+    ],
+    configurationSchema: [
+      { key: 'UNS_MQTT_HOST', type: 'string', required: true, description: 'Unified Namespace MQTT broker hostname', example: 'uns.plant.example.com' },
+      { key: 'UNS_MQTT_PORT', type: 'number', required: false, defaultValue: '1883', description: 'Unified Namespace MQTT broker port' },
+      { key: 'UNS_MQTT_USERNAME', type: 'string', required: false, description: 'UNS MQTT broker username' },
+      { key: 'UNS_MQTT_PASSWORD', type: 'secret', required: false, description: 'UNS MQTT broker password — never commit' },
+      { key: 'UNS_ROOT_TOPIC', type: 'string', required: false, defaultValue: 'pharma', description: 'Root UNS topic namespace', example: 'pharma/basel/line-4' },
+      { key: 'UNS_MQTT_ENABLED', type: 'boolean', required: false, defaultValue: 'true', description: 'Enable UNS MQTT subscription; set false to use HTTP-only mode' },
+      { key: 'UNS_TOPIC_FIELDS', type: 'string', required: false, description: 'Comma-separated list of UNS envelope fields to extract', example: 'site,area,line,equipment' },
     ],
     importExample:
       'import httpx\n\nresponse = httpx.get("http://localhost:8080/api/v1/events", timeout=10.0)',
@@ -487,9 +447,10 @@ export function componentNameFromRef(ref: string): string {
 export function usageLabelsForComponent(
   name: string,
   kind: CompositionUsageKind,
+  compositionUsage: readonly CompositionUsage[],
 ): string[] {
   const labels: string[] = [];
-  for (const usage of LIBRARY_COMPOSITION_USAGE) {
+  for (const usage of compositionUsage) {
     if (usage.kind !== kind) {
       continue;
     }
@@ -538,13 +499,26 @@ export function libraryProfileFor(
 
 export function toLibraryComponents(
   components: PlatformComponent[],
+  compositionUsage: readonly CompositionUsage[],
 ): LibraryPlatformComponent[] {
   return components.map(component => ({
     ...component,
     runtimeAvailability: runtimeAvailabilityFor(component.name),
-    runtimeUsedBy: usageLabelsForComponent(component.name, 'runtime'),
-    conceptualUsedBy: usageLabelsForComponent(component.name, 'conceptual'),
-    designUsedBy: usageLabelsForComponent(component.name, 'design'),
+    runtimeUsedBy: usageLabelsForComponent(
+      component.name,
+      'runtime',
+      compositionUsage,
+    ),
+    conceptualUsedBy: usageLabelsForComponent(
+      component.name,
+      'conceptual',
+      compositionUsage,
+    ),
+    designUsedBy: usageLabelsForComponent(
+      component.name,
+      'design',
+      compositionUsage,
+    ),
     profile: libraryProfileFor(component),
   }));
 }
@@ -593,22 +567,32 @@ export function filterLibraryComponents(
   });
 }
 
-export function oeeBuiltWithSummary(
+/**
+ * What a composition is built from, resolved against the Catalog.
+ *
+ * This was `oeeBuiltWithSummary`, which named one Golden Path in Core and read
+ * its component list from a constant beside it — GP-4 in the hard-coded domain
+ * inventory. The refs and the label are inputs now, so Core describes the shape
+ * of a "built with" panel without knowing which product is being described.
+ */
+export function builtWithSummary(
   catalog: PlatformComponent[],
-): OeeBuiltWithSummary {
-  const items: OeeBuiltWithItem[] = OEE_DIRECT_COMPOSITION_REFS.map(ref => {
+  componentRefs: readonly string[],
+  productLabel: string,
+): BuiltWithSummary {
+  const items: BuiltWithItem[] = componentRefs.map(ref => {
     const match = findPlatformComponent(catalog, ref);
     const name = componentNameFromRef(ref);
     return {
       name,
-      title: match?.title || WAVE1_COMPONENT_TITLES[name] || name,
+      title: match?.title || name,
       version: match?.version || '1.x',
       certificationStatus: match?.certificationStatus || 'DEVELOPMENT',
       entityRef: match?.entityRef || ref,
     };
   });
   return {
-    productLabel: 'OEE Golden Path',
+    productLabel,
     items,
     reusableCount: items.length,
     certifiedCount: items.filter(item => item.certificationStatus === 'CERTIFIED')
@@ -620,6 +604,3 @@ export function compositionSnippetFor(name: string): string {
   return `- ref: component:default/${name}\n  version: "1.x"`;
 }
 
-export function parseEquipmentUseLogExample() {
-  return parseCompositionManifest(EQUIPMENT_USE_LOG_COMPOSITION_YAML);
-}

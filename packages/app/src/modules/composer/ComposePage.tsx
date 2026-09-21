@@ -32,6 +32,7 @@ import {
   composerPath,
   composerPresets,
   composerSelectionKind,
+  compositionConfigSummary,
   dependencyLabelsFor,
   documentationHref,
   formatJourneyError,
@@ -46,10 +47,16 @@ import {
   toRelatedPlatformComponents,
   validateComposerDraft,
 } from '@internal/platform-common';
+import { useGoldenPathCompositions } from '@internal/plugin-marketplace';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import { CompositionArchitectureVisual } from './CompositionArchitectureVisual';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
 import {
   suggestComponents,
   SuggestedComponent,
@@ -63,7 +70,7 @@ const useStyles = makeStyles(theme => ({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
@@ -90,14 +97,14 @@ const useStyles = makeStyles(theme => ({
     marginTop: 10,
   },
   copy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 15,
     lineHeight: 1.65,
     marginTop: 10,
     maxWidth: 720,
   },
   note: {
-    color: '#94A3B8',
+    color: NEXORA_GREY[400],
     fontSize: 13,
     marginTop: 12,
   },
@@ -142,7 +149,7 @@ const useStyles = makeStyles(theme => ({
     padding: 12,
   },
   disabledCard: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     opacity: 0.72,
   },
   developmentCard: {
@@ -163,7 +170,7 @@ const useStyles = makeStyles(theme => ({
     background: PHARMA_NAVY,
     border: 0,
     borderRadius: 10,
-    color: '#FFFFFF',
+    color: NEXORA_CARD,
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 600,
@@ -186,7 +193,7 @@ const useStyles = makeStyles(theme => ({
   pre: {
     background: PHARMA_NAVY,
     borderRadius: 12,
-    color: '#E2E8F0',
+    color: NEXORA_GREY[200],
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     lineHeight: 1.55,
@@ -195,7 +202,7 @@ const useStyles = makeStyles(theme => ({
     whiteSpace: 'pre-wrap',
   },
   banner: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px solid ${C.border}`,
     borderRadius: 10,
     color: C.text,
@@ -204,7 +211,7 @@ const useStyles = makeStyles(theme => ({
     padding: '10px 14px',
   },
   error: {
-    color: '#9A3412',
+    color: NEXORA_TONE.warning.fg,
     fontSize: 14,
     margin: '6px 0',
   },
@@ -217,7 +224,7 @@ const useStyles = makeStyles(theme => ({
     color: PHARMA_TEAL,
   },
   aiSection: {
-    border: '2px dashed #CBD5E1',
+    border: `2px dashed ${NEXORA_GREY[300]}`,
     borderRadius: 12,
     marginBottom: 20,
     padding: 16,
@@ -226,7 +233,7 @@ const useStyles = makeStyles(theme => ({
     background: PHARMA_NAVY,
     border: 0,
     borderRadius: 10,
-    color: '#FFFFFF',
+    color: NEXORA_CARD,
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
@@ -292,8 +299,36 @@ export function ComposePage() {
   const [specLoading, setSpecLoading] = useState(false);
   const [specError, setSpecError] = useState<string | undefined>();
   const [specApplying, setSpecApplying] = useState(false);
+  // Presets, the canonical component order and the Golden Path check all read
+  // their component lists from the compositions in the registry. See NXD-029,
+  // NXD-031. GP-2 and GP-3 are closed: presets derive from the 'official' and
+  // 'examples' maps; the Golden Path check matches against all official
+  // compositions rather than OEE alone.
+  const { compositions, loading: compositionsLoading } =
+    useGoldenPathCompositions();
+  const presets = useMemo(
+    () => composerPresets(compositions.official, compositions.examples),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [compositions],
+  );
+  // Map of composition name → required refs, used to detect which official
+  // Golden Path the user's selection matches.
+  const officialRefsMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const [name, comp] of compositions.official) {
+      m.set(
+        name,
+        comp.spec.components.filter(c => !c.optional).map(c => c.ref),
+      );
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compositions]);
 
   useEffect(() => {
+    if (compositionsLoading) {
+      return undefined;
+    }
     let active = true;
     catalogApi
       .getEntities({ filter: { kind: ['Component', 'API'] } })
@@ -303,6 +338,7 @@ export function ComposePage() {
         }
         const library = toLibraryComponents(
           toRelatedPlatformComponents(response.items),
+          compositions.usage,
         );
         setComponents(library);
         const applied = applyComposerQuery(params.get('component'), library);
@@ -324,7 +360,7 @@ export function ComposePage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, params]);
+  }, [catalogApi, params, compositions.usage, compositionsLoading]);
 
   const catalog = components;
   const groups = useMemo(() => groupedLibraryComponents(components), [components]);
@@ -332,14 +368,44 @@ export function ComposePage() {
     () => validateComposerDraft(draft, catalog, components),
     [catalog, components, draft],
   );
-  const manifest = useMemo(() => composerDraftToManifest(draft), [draft]);
-  const yaml = useMemo(() => serializeCompositionYaml(manifest), [manifest]);
-  const goldenPath = officialGoldenPathForDraft(draft);
+  // Composition name that matches the current selection (e.g.
+  // 'oee-data-product-direct'), or undefined for a custom composition.
+  const goldenPath = officialGoldenPathForDraft(draft, officialRefsMap);
+  // The DATA_PRODUCT whose spec.builtFrom points to the matched composition.
+  // Used for the Marketplace link and scaffold template — those target the
+  // DATA_PRODUCT, not the GOLDEN_PATH composition blueprint.
+  const productTarget = goldenPath
+    ? (compositions.builtFromIndex.get(goldenPath) ?? goldenPath)
+    : undefined;
+  // Preferred component order comes from whichever official composition
+  // matched; falls back to declaration order for custom compositions.
+  const preferredRefs = useMemo(() => {
+    if (!goldenPath) {
+      return [];
+    }
+    const comp = compositions.official.get(goldenPath);
+    return comp?.spec.components.filter(c => !c.optional).map(c => c.ref) ?? [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goldenPath, compositions]);
+  const manifest = useMemo(
+    () => composerDraftToManifest(draft, preferredRefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, preferredRefs],
+  );
+  const yaml = useMemo(
+    () => serializeCompositionYaml(manifest, preferredRefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [manifest, preferredRefs],
+  );
   const selected = draft.selectedNames
     .map(name => components.find(item => item.name === name))
     .filter((item): item is LibraryPlatformComponent => Boolean(item));
   const architecture = composerArchitectureFromSelection(selected);
-  const activePreset = composerPresets().find(preset => preset.id === presetId);
+  const configSummary = useMemo(
+    () => compositionConfigSummary(selected),
+    [selected],
+  );
+  const activePreset = presets.find(preset => preset.id === presetId);
   const optionalNames = activePreset?.optionalNames || [];
 
   const toggle = (name: string, allowed: boolean) => {
@@ -360,21 +426,20 @@ export function ComposePage() {
     if (!canEdit) {
       return;
     }
-    const preset = composerPresets().find(item => item.id === id);
+    const preset = presets.find(item => item.id === id);
     if (!preset) {
       return;
     }
-    let nextName: string | undefined;
-    let nextDescription: string | undefined;
-    if (preset.kind === 'design-example') {
-      nextName = 'equipment-use-log';
-      nextDescription =
-        'DESIGN EXAMPLE ONLY. Not a Golden Path. Not AVAILABLE. Not CERTIFIED. The developer still owns usage sessions, duration, reason codes, and operator/equipment relationships.';
-    } else if (preset.kind === 'oee-reference') {
-      nextName = 'oee-data-product-direct';
-      nextDescription =
-        'Reference composition loaded from OEE Mode A. Loading this example does not alter OEE.';
-    }
+    // Official and example presets name themselves after the composition; the
+    // description comes from the manifest rather than a hardcoded string.
+    const nextName =
+      preset.kind === 'official' || preset.kind === 'example'
+        ? preset.id
+        : undefined;
+    const nextDescription =
+      preset.kind === 'official' || preset.kind === 'example'
+        ? preset.description
+        : undefined;
     setDraft(current => ({
       ...current,
       name: nextName || current.name,
@@ -384,8 +449,8 @@ export function ComposePage() {
       ),
     }));
     setNotice(
-      preset.kind === 'design-example'
-        ? 'Equipment Use Log is a DESIGN EXAMPLE. It is not a Golden Path.'
+      preset.kind === 'example'
+        ? `${preset.title} is a DESIGN EXAMPLE. It is not a Golden Path.`
         : undefined,
     );
     setPresetId(preset.id);
@@ -401,7 +466,7 @@ export function ComposePage() {
   };
 
   const generate = async () => {
-    if (!canEdit || !goldenPath || !validation.validated) {
+    if (!canEdit || !productTarget || !validation.validated) {
       return;
     }
     setGenerating(true);
@@ -409,7 +474,7 @@ export function ComposePage() {
     try {
       const name = slugifyCompositionName(draft.name);
       const response = await scaffolderApi.scaffold({
-        templateRef: `template:default/${goldenPath}`,
+        templateRef: `template:default/${productTarget}`,
         values: {
           name,
           description: draft.description.trim() || draft.name,
@@ -579,7 +644,7 @@ export function ComposePage() {
             <div className={classes.panel}>
               <Typography variant="subtitle2">Presets</Typography>
               <div className={classes.actions}>
-                {composerPresets().map(preset => (
+                {presets.map(preset => (
                   <button
                     key={preset.id}
                     type="button"
@@ -588,20 +653,18 @@ export function ComposePage() {
                     onClick={() => applyPreset(preset.id)}
                     data-testid={`preset-${preset.id}`}
                   >
-                    {preset.kind === 'oee-reference'
-                      ? 'Load OEE as Example'
-                      : preset.title}
+                    {preset.title}
                   </button>
                 ))}
               </div>
-              {activePreset?.kind === 'oee-reference' && (
+              {activePreset?.kind === 'official' && (
                 <p className={classes.meta}>
-                  REFERENCE COMPOSITION — OEE 1.0 · {selected.length} /{' '}
+                  REFERENCE COMPOSITION — {activePreset.title} · {selected.length} /{' '}
                   {selected.filter(item => item.certificationStatus === 'CERTIFIED').length}{' '}
-                  technically CERTIFIED. Loading this example does not alter OEE.
+                  technically CERTIFIED. Loading this does not alter the official composition.
                 </p>
               )}
-              {activePreset?.kind === 'design-example' && (
+              {activePreset?.kind === 'example' && (
                 <div data-testid="equipment-use-log-example">
                   <p className={classes.meta}>
                     DESIGN EXAMPLE — not AVAILABLE, not CERTIFIED, not a Golden
@@ -985,7 +1048,7 @@ export function ComposePage() {
                 <div className={classes.banner}>
                   <strong>What will you build?</strong>
                   <p className={classes.meta}>
-                    {activePreset?.kind === 'design-example'
+                    {activePreset?.kind === 'example'
                       ? 'Platform provides MQTT ingest, REST API, health and observability. REST Source and Time-Series are optional. You provide EquipmentUseEvent, UsageSession, production-order/cleaning/maintenance references, and business rules. No runtime is generated from this page.'
                       : 'Platform provides integration, storage, API, health and observability. You provide domain models, business rules, domain contracts and application-specific logic.'}
                   </p>
@@ -1062,7 +1125,7 @@ export function ComposePage() {
                 >
                   Download Composition
                 </a>
-                {goldenPath ? (
+                {productTarget ? (
                   <>
                     <button
                       type="button"
@@ -1075,7 +1138,7 @@ export function ComposePage() {
                     </button>
                     <Link
                       className={classes.ghost}
-                      to={`/marketplace/${goldenPath}`}
+                      to={`/marketplace/${productTarget}`}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -1091,6 +1154,30 @@ export function ComposePage() {
                   </p>
                 )}
               </div>
+              {configSummary.totalCount > 0 && (
+                <div data-testid="config-summary">
+                  <Typography variant="subtitle2" style={{ marginTop: 16 }}>
+                    Configuration checklist ({configSummary.totalCount} keys)
+                  </Typography>
+                  <p className={classes.meta}>
+                    Environment variables your Data Product must supply at
+                    runtime. Set them in your .env file or deployment secrets.
+                  </p>
+                  {configSummary.keys.map(({ key, componentTitle }) => (
+                    <p key={key} className={classes.meta}>
+                      <code>{key}</code>{' '}
+                      <span style={{ color: 'inherit', opacity: 0.6 }}>
+                        — {componentTitle}
+                      </span>
+                    </p>
+                  ))}
+                  {configSummary.notes.map(({ componentTitle, note }) => (
+                    <p key={componentTitle} className={classes.meta}>
+                      <em>{componentTitle}:</em> {note}
+                    </p>
+                  ))}
+                </div>
+              )}
               <p className={classes.meta}>
                 Client-side draft only. Catalog is not a draft store. YAML is
                 the version-controlled source of truth.

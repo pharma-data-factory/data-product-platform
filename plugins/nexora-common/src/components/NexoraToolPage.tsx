@@ -1,6 +1,10 @@
 import { ReactNode } from 'react';
 import { makeStyles } from '@material-ui/core/styles';
 import {
+  NEXORA_CYAN,
+  NEXORA_GREY,
+} from '../tokens';
+import {
   NEXORA_BORDER,
   NEXORA_CARD,
   NEXORA_CYAN_LIGHT,
@@ -23,7 +27,7 @@ const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${NEXORA_NAVY_DARK} 0%, ${NEXORA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
@@ -51,7 +55,7 @@ const useStyles = makeStyles({
     marginTop: 10,
   },
   copy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 15,
     lineHeight: 1.65,
     marginBottom: 0,
@@ -59,7 +63,7 @@ const useStyles = makeStyles({
     maxWidth: 720,
   },
   secondary: {
-    color: '#94A3B8',
+    color: NEXORA_GREY[400],
     fontSize: 14,
     lineHeight: 1.6,
     marginBottom: 0,
@@ -97,7 +101,7 @@ const useStyles = makeStyles({
     minWidth: 720,
     width: '100%',
     '& th': {
-      background: '#F8FAFC',
+      background: NEXORA_GREY[50],
       borderBottom: `1px solid ${NEXORA_BORDER}`,
       color: NEXORA_MUTED,
       fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
@@ -122,7 +126,7 @@ const useStyles = makeStyles({
     fontWeight: 600,
     textDecoration: 'none',
     '&:hover': {
-      color: '#00C2D9',
+      color: NEXORA_CYAN,
     },
   },
   summaryCard: {

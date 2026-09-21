@@ -1,4 +1,7 @@
 import {
+  NEXORA_NAVY_DARK,
+} from '@internal/plugin-nexora-common';
+import {
   ARCHITECTURE_OVERVIEW_IMAGE_ALT,
   ARCHITECTURE_OVERVIEW_IMAGE_SRC,
 } from './constants';
@@ -22,7 +25,7 @@ export function ArchitectureOverviewImage({
         height: 'auto',
         aspectRatio: '1376 / 768',
         objectFit: 'contain',
-        background: '#05101C',
+        background: NEXORA_NAVY_DARK,
       }}
     />
   );

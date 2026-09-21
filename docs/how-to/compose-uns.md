@@ -23,7 +23,7 @@ flowchart TB
 
 1. Select or create Unified Namespace (`component:default/unified-namespace`).
 2. Identify Topic Contract `machine-state-event` `1.0.0`.
-3. Declare composition in `catalog/compositions/machine-state-consumer.yaml`.
+3. Declare composition in `catalog/artifacts/nexora/machine-state-consumer.yaml`.
 4. Validate composition (Catalog type `platform-component`, version `1.x`).
 5. Generate the Machine State Consumer from Create.
 6. Run locally with `MQTT_HOST` empty.

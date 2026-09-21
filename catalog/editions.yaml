@@ -1,0 +1,80 @@
+# Nexora Platform Editions (W3-8)
+#
+# An Edition is Nexora Core plus a defined set of Artifacts and Capabilities.
+# This file is the authoritative edition catalogue. It drives:
+#   - What artifacts are pre-loaded on first install
+#   - What capabilities are enabled by default
+#   - What the Marketplace shows as "featured" for each edition
+#
+# Adding a new edition does NOT require changing Core.
+# Core reads this file at startup; it is data, not code.
+
+apiVersion: nexora.dev/v1alpha1
+kind: EditionCatalogue
+metadata:
+  name: nexora-editions
+  version: "1.0.0"
+
+editions:
+  - id: nexora-core
+    displayName: "Nexora Core"
+    description: >
+      The minimal platform: Artifact Marketplace, Product Registry,
+      Composition Engine and Governance. No domain-specific artifacts.
+    capabilities:
+      - artifact-marketplace
+      - product-registry
+      - composition-engine
+      - governance-basic
+    featuredArtifacts: []
+
+  - id: nexora-life-sciences
+    displayName: "Nexora Life Sciences"
+    description: >
+      Nexora Core plus URS Composer, Pharma Validation Manager, GxP Policy Pack
+      and Life Science Golden Paths. Designed for CSV-relevant systems in
+      pharmaceutical manufacturing and laboratory environments.
+    extends: nexora-core
+    capabilities:
+      - urs-composer
+      - pharma-validation
+      - gxp-policy-pack
+      - life-science-golden-paths
+    featuredArtifacts:
+      - "nexora/oee-data-product@1.0.0"
+      - "nexora/machine-state-consumer@1.0.0"
+      - "nexora/mqtt-temperature-data-product@1.0.0"
+      - "nexora/rest-equipment-data-product@1.0.0"
+    gxpPolicy: "nexora/gxp-data-product-policy@1.0.0"
+
+  - id: nexora-manufacturing
+    displayName: "Nexora Manufacturing"
+    description: >
+      Nexora Core plus MQTT, OPC UA, AAS Foundation, UNS and OEE Golden Paths.
+      Designed for operational technology integration and equipment data products
+      in discrete and process manufacturing.
+    extends: nexora-core
+    capabilities:
+      - mqtt-integration
+      - opc-ua-integration
+      - aas-foundation
+      - unified-namespace
+      - oee-golden-paths
+    featuredArtifacts:
+      - "nexora/mqtt-data-connector@1.0.0"
+      - "nexora/aas-foundation@1.0.0"
+      - "nexora/unified-namespace@1.0.0"
+      - "nexora/oee-data-product@1.0.0"
+
+  - id: nexora-enterprise
+    displayName: "Nexora Enterprise"
+    description: >
+      Full platform with Life Sciences, Manufacturing, external publisher support,
+      commercial marketplace and multi-organisation governance.
+    extends: nexora-life-sciences
+    capabilities:
+      - external-publishers
+      - commercial-marketplace
+      - multi-org-governance
+      - partner-certification
+    featuredArtifacts: []  # inherits from nexora-life-sciences

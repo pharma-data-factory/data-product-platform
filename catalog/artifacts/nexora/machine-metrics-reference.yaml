@@ -1,0 +1,24 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: machine-metrics-reference
+  version: "1.0.0"
+  displayName: "Machine Metrics Reference"
+  description: Reference composition proof. Generic machine metrics. Not OEE.
+spec:
+  standardVersion: "1.0.0"
+  usage:
+    kind: runtime
+    label: "Machine Metrics Reference"
+  components:
+    - ref: "component:default/mqtt-consumer"
+      version: "1.x"
+    - ref: "component:default/health"
+      version: "1.x"
+    - ref: "component:default/observability"
+      version: "1.x"
+    - ref: "component:default/timeseries"
+      version: "1.x"
+    - ref: "component:default/rest-api"
+      version: "1.x"

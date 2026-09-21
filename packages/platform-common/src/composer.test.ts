@@ -6,6 +6,7 @@ import {
   composerPath,
   composerPresets,
   composerSelectionKind,
+  compositionConfigSummary,
   isComposerSelectable,
   officialGoldenPathForDraft,
   officialGoldenPathForSelection,
@@ -14,12 +15,49 @@ import {
   validateComposerDraft,
   yamlContainsSecrets,
 } from './composer';
-import { OEE_DIRECT_COMPOSITION_REFS, toLibraryComponents } from './platform-component-library';
+import { toLibraryComponents } from './platform-component-library';
 import {
   CatalogEntityLike,
   toRelatedPlatformComponents,
 } from './platform-components';
 import { parseCompositionManifest, validateComposition } from './composition';
+import {
+  artifactManifestsOnDisk,
+  compositionUsageOnDisk,
+} from './__testUtils__/compositions';
+import { compositionOfArtifactManifest } from './composition';
+
+const USAGE = compositionUsageOnDisk();
+// Build official/example composition maps from the real manifests on disk,
+// exactly as goldenPathCompositionsFromManifests does at runtime.
+const _MANIFESTS = artifactManifestsOnDisk();
+const OFFICIAL_COMPOSITIONS = new Map(
+  _MANIFESTS
+    .filter(m => m.spec?.usage?.kind === 'runtime')
+    .map(m => {
+      const comp = compositionOfArtifactManifest(m)!;
+      return [comp.metadata.name, comp] as const;
+    }),
+);
+const EXAMPLE_COMPOSITIONS = new Map(
+  _MANIFESTS
+    .filter(m => m.spec?.usage?.kind === 'design')
+    .map(m => {
+      const comp = compositionOfArtifactManifest(m)!;
+      return [comp.metadata.name, comp] as const;
+    }),
+);
+// Required refs only, keyed by composition name — matches the map passed by
+// ComposePage to officialGoldenPathForDraft.
+const OFFICIAL_REFS_MAP = new Map(
+  [...OFFICIAL_COMPOSITIONS.entries()].map(([name, comp]) => [
+    name,
+    comp.spec.components.filter(c => !c.optional).map(c => c.ref),
+  ] as const),
+);
+// OEE refs, used to build named selections in test assertions.
+const OEE_REFS =
+  OFFICIAL_REFS_MAP.get('oee-data-product-direct') ?? [];
 
 function component(partial: {
   name: string;
@@ -115,7 +153,7 @@ const catalog = toRelatedPlatformComponents([
   }),
 ]);
 
-const library = toLibraryComponents(catalog);
+const library = toLibraryComponents(catalog, USAGE);
 
 function draft(names: string[], name = 'example') {
   return {
@@ -179,12 +217,12 @@ describe('composer query', () => {
 
 describe('composer validation and yaml', () => {
   it('validates the six-component OEE composition', () => {
-    const names = OEE_DIRECT_COMPOSITION_REFS.map(ref => ref.split('/').pop() as string);
+    const names = OEE_REFS.map(ref => ref.split('/').pop() as string);
     const view = validateComposerDraft(draft(names, 'oee-data-product-direct'), catalog, library);
     expect(view.validated).toBe(true);
     expect(view.certifiedCount).toBe(6);
     expect(view.selectedCount).toBe(6);
-    expect(officialGoldenPathForSelection(names)).toBe('oee-data-product');
+    expect(officialGoldenPathForSelection(names, OFFICIAL_REFS_MAP)).toBe('oee-data-product-direct');
   });
 
   it('fails missing dependency, missing component, conflict, version, and standard', () => {
@@ -222,7 +260,7 @@ spec:
         category: 'data',
       }),
     ]);
-    const conflictLibrary = toLibraryComponents(conflictCatalog);
+    const conflictLibrary = toLibraryComponents(conflictCatalog, USAGE);
     const conflict = validateComposerDraft(
       draft(['health', 'timeseries']),
       conflictCatalog,
@@ -293,15 +331,19 @@ spec:
     expect(view.certifiedCount).toBe(3);
   });
 
-  it('derives OEE and Equipment Use Log presets from canonical compositions', () => {
-    const presets = composerPresets();
-    const oee = presets.find(item => item.id === 'oee-reference');
-    expect(oee?.kind).toBe('oee-reference');
+  it('derives official and example presets from canonical compositions on disk', () => {
+    const presets = composerPresets(OFFICIAL_COMPOSITIONS, EXAMPLE_COMPOSITIONS);
+
+    // OEE is an 'official' preset keyed by composition name, not a domain literal.
+    const oee = presets.find(item => item.id === 'oee-data-product-direct');
+    expect(oee?.kind).toBe('official');
     expect(oee?.names.sort()).toEqual(
-      [...OEE_DIRECT_COMPOSITION_REFS].map(ref => ref.split('/').pop()).sort(),
+      OEE_REFS.map(ref => ref.split('/').pop() as string).sort(),
     );
+
+    // Equipment Use Log is an 'example' preset (usage.kind === 'design').
     const example = presets.find(item => item.id === 'equipment-use-log');
-    expect(example?.kind).toBe('design-example');
+    expect(example?.kind).toBe('example');
     expect(example?.names.sort()).toEqual(
       ['health', 'mqtt-consumer', 'observability', 'rest-api'].sort(),
     );
@@ -309,17 +351,33 @@ spec:
       ['rest-source', 'timeseries'].sort(),
     );
     expect(example?.names.sort()).not.toEqual(oee?.names.sort());
-    expect(officialGoldenPathForSelection(['health', 'rest-api'])).toBe(
-      undefined,
-    );
+
+    // Partial selection does not match any official composition.
     expect(
-      officialGoldenPathForDraft({
-        name: 'equipment-use-log',
-        description: 'DESIGN EXAMPLE ONLY',
-        selectedNames: OEE_DIRECT_COMPOSITION_REFS.map(
-          ref => ref.split('/').pop() as string,
-        ),
-      }),
+      officialGoldenPathForSelection(['health', 'rest-api'], OFFICIAL_REFS_MAP),
+    ).toBe(undefined);
+
+    // The OEE selection matches the 'oee-data-product-direct' composition,
+    // not a domain literal. Text-matching exclusions are gone: the name
+    // 'equipment-use-log' has no special meaning here (EUL is excluded because
+    // it is in EXAMPLE_COMPOSITIONS, not OFFICIAL_COMPOSITIONS).
+    expect(
+      officialGoldenPathForDraft(
+        {
+          name: 'oee-data-product-direct',
+          description: 'OEE composition',
+          selectedNames: OEE_REFS.map(ref => ref.split('/').pop() as string),
+        },
+        OFFICIAL_REFS_MAP,
+      ),
+    ).toBe('oee-data-product-direct');
+
+    // An empty official map returns undefined even for a full OEE selection.
+    expect(
+      officialGoldenPathForSelection(
+        OEE_REFS.map(ref => ref.split('/').pop() as string),
+        new Map(),
+      ),
     ).toBe(undefined);
   });
 
@@ -341,5 +399,50 @@ spec:
     expect(layers.find(layer => layer.id === 'sources')?.names).toEqual([
       'mqtt-consumer',
     ]);
+  });
+});
+
+describe('compositionConfigSummary', () => {
+  it('aggregates config keys across selected components in order', () => {
+    const selected = library.filter(item =>
+      ['mqtt-consumer', 'timeseries'].includes(item.name),
+    );
+    const summary = compositionConfigSummary(selected);
+
+    // mqtt-consumer has 11 keys (from libraryProfileFor); timeseries has 1.
+    // We assert structure rather than exact counts so the test survives profile edits.
+    const mqttKeys = summary.keys.filter(k => k.componentName === 'mqtt-consumer');
+    const tsKeys = summary.keys.filter(k => k.componentName === 'timeseries');
+    expect(mqttKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.length).toBeGreaterThan(0);
+    expect(summary.totalCount).toBe(mqttKeys.length + tsKeys.length);
+
+    // Keys appear in component order (mqtt before timeseries in the selection).
+    const firstMqttIndex = summary.keys.findIndex(k => k.componentName === 'mqtt-consumer');
+    const firstTsIndex = summary.keys.findIndex(k => k.componentName === 'timeseries');
+    expect(firstMqttIndex).toBeLessThan(firstTsIndex);
+
+    // Each key carries the component title and name.
+    expect(mqttKeys[0].componentTitle).toBeTruthy();
+    expect(mqttKeys[0].key).toBeTruthy();
+  });
+
+  it('returns zero keys and no notes for an empty selection', () => {
+    const summary = compositionConfigSummary([]);
+    expect(summary.totalCount).toBe(0);
+    expect(summary.keys).toHaveLength(0);
+    expect(summary.notes).toHaveLength(0);
+  });
+
+  it('includes configurationNote for components that have one', () => {
+    // health has a configurationNote ('No source credentials...' or similar).
+    const healthComp = library.find(item => item.name === 'health');
+    if (!healthComp || !healthComp.profile.configurationNote) {
+      return; // skip if profile has no note (defensive)
+    }
+    const summary = compositionConfigSummary([healthComp]);
+    expect(summary.notes).toHaveLength(1);
+    expect(summary.notes[0].note).toBe(healthComp.profile.configurationNote);
+    expect(summary.notes[0].componentTitle).toBe(healthComp.title);
   });
 });

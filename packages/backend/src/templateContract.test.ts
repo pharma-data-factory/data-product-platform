@@ -160,13 +160,44 @@ describe('template registration and generation contract', () => {
       expect(entity.kind).toBe('Template');
       expect(entity.metadata.name).toBe(template.id);
       expect(entity.metadata.title).toBe(template.title);
-      expect(entity.spec.steps.map((step: { id: string }) => step.id)).toEqual([
-        'fetch-base',
-        'publish',
-        'register',
-      ]);
-      expect(entity.spec.steps[1].action).toBe('publish:github');
-      expect(entity.spec.steps[2].action).toBe('catalog:register');
+
+      const stepIds = entity.spec.steps.map((step: { id: string }) => step.id);
+      const actionById = new Map<string, string>(
+        entity.spec.steps.map((step: { id: string; action: string }) => [
+          step.id,
+          step.action,
+        ]),
+      );
+
+      // Every template fetches its base content first and ends by publishing
+      // the repository and registering the result in the Catalog.
+      expect(stepIds[0]).toBe('fetch-base');
+      expect(actionById.get('fetch-base')).toBe('fetch:template');
+      expect(stepIds.slice(-2)).toEqual(['publish', 'register']);
+      expect(actionById.get('publish')).toBe('publish:github');
+      expect(actionById.get('register')).toBe('catalog:register');
+
+      // A template that asks the author for an approved URS baseline must also
+      // verify that baseline before it publishes anything. The two always ship
+      // together; a parameter without the gate would let an unapproved
+      // baseline reach a generated Product repository.
+      const asksForUrsBaseline = entity.spec.parameters.some(
+        (group: { properties?: Record<string, unknown> }) =>
+          Boolean(group.properties?.ursBaselineId),
+      );
+      expect({
+        asksForUrsBaseline,
+        verifyAction: actionById.get('verify-urs'),
+        verifiesBeforePublish:
+          stepIds.includes('verify-urs') &&
+          stepIds.indexOf('verify-urs') < stepIds.indexOf('publish'),
+      }).toEqual({
+        asksForUrsBaseline,
+        verifyAction: asksForUrsBaseline
+          ? 'nexora:urs:verify-baseline'
+          : undefined,
+        verifiesBeforePublish: asksForUrsBaseline,
+      });
     }
   });
 

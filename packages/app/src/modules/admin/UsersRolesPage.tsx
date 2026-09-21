@@ -24,6 +24,7 @@ import {
   ROLE_LABELS,
 } from '@internal/platform-common';
 import type { PlatformRole } from '@internal/platform-common';
+import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 
 const USER_KIND = 'User';
 const BLOCKED = '__blocked__';
@@ -214,7 +215,7 @@ export function UsersRolesPage() {
             <>
               <section
                 style={{
-                  border: '1px solid #E2E8F0',
+                  border: `1px solid ${NEXORA_GREY[200]}`,
                   borderRadius: 12,
                   padding: 20,
                   marginBottom: 32,
@@ -289,7 +290,7 @@ export function UsersRolesPage() {
                     <section
                       key={user.metadata.uid ?? user.metadata.name}
                       style={{
-                        border: '1px solid #E2E8F0',
+                        border: `1px solid ${NEXORA_GREY[200]}`,
                         borderRadius: 12,
                         padding: 16,
                         marginBottom: 12,
@@ -359,15 +360,15 @@ export function UsersRolesPage() {
                       display: 'flex',
                       gap: 16,
                       padding: '8px 0',
-                      borderBottom: '1px solid #F1F5F9',
+                      borderBottom: `1px solid ${NEXORA_GREY[100]}`,
                       fontSize: 13,
                     }}
                   >
-                    <span style={{ color: '#64748B' }}>
+                    <span style={{ color: NEXORA_GREY[500] }}>
                       {new Date(entry.timestamp).toLocaleString()}
                     </span>
                     <span style={{ fontWeight: 600 }}>{entry.actor}</span>
-                    <span style={{ color: '#0D9488' }}>{entry.provider}</span>
+                    <span style={{ color: NEXORA_TONE.success.text }}>{entry.provider}</span>
                   </div>
                 ))
               )}
@@ -388,7 +389,21 @@ export function UsersRolesPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteTarget(null)} disabled={saving}>Cancel</Button>
-          <Button color="secondary" variant="contained" onClick={executeDelete} disabled={saving}>
+          {/*
+            Destructive and irreversible, so it carries the danger tone. It
+            used to be color="secondary", which this theme renders in brand
+            cyan — the same colour that signals "in progress" elsewhere, and
+            unreadable under white text at 2.16:1.
+          */}
+          <Button
+            variant="contained"
+            onClick={executeDelete}
+            disabled={saving}
+            style={{
+              backgroundColor: NEXORA_TONE.danger.bg,
+              color: NEXORA_TONE.danger.fg,
+            }}
+          >
             {saving ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>

@@ -1,0 +1,25 @@
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: nexora
+  name: machine-state-consumer-data-product
+  version: "1.0.0"
+  displayName: "Machine State Consumer Data Product"
+  description: "Composition / reference proof that consumes machine-state events from Unified Namespace. Not an official RELEASED Data Product Golden Path. Not OEE."
+spec:
+  sourceRef: "template:default/machine-state-consumer-data-product"
+  # Links this DATA_PRODUCT to its GOLDEN_PATH composition blueprint.
+  # When the Composer detects a selection that matches the machine-state-consumer
+  # composition, it offers "Generate Data Product" scaffolding and a
+  # "Continue to Golden Path" link pointing here — without any hardcoding in Core.
+  # The mechanism is builtFromIndex in GoldenPathCompositions, built from this
+  # field at registry load time. See NXD-031.
+  builtFrom: "machine-state-consumer"
+  marketplace:
+    category: "Data Products"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, MQTT, Docker, Unified Namespace"
+    status: "available"
+    documentation: "/create/templates/default/machine-state-consumer-data-product"
+    catalogEntityRef: "component:default/sample-machine-state-consumer"
+    contractApiRef: "api:default/sample-machine-state-consumer--machine-state-event"

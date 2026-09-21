@@ -45,7 +45,9 @@ import {
   CreateBaselineRequest,
   ApproveApprovalStepRequest,
   RejectApprovalStepRequest,
+  AdvanceVersionRequest,
   SignatureMeaning,
+  URSStatus,
 } from './types';
 
 export interface RouterOptions {
@@ -504,6 +506,81 @@ export async function createRouter(
         await authorize(permissions, httpAuth, req, ursReadPermission);
         const requirements = await service.getRequirements(req.params.setId);
         res.json(requirements);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirement-sets/:setId/current-versions
+   * The requirement version currently in force for each requirement in the
+   * set — the versions a baseline would pin. Lets a caller build a
+   * createBaseline request without resolving requirement ids itself.
+   */
+  router.get(
+    '/requirement-sets/:setId/current-versions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const versions = await service.getCurrentVersions(req.params.setId);
+        res.json(versions);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /requirement-sets/:setId/impact
+   * What changing this set would affect: how far it has drifted from its
+   * released baseline, and which products were built on that baseline.
+   */
+  router.get('/requirement-sets/:setId/impact', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      res.json(
+        await service.getRequirementSetImpact(req.params.setId, credentials),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /baselines/approved
+   * Approved baselines across all requirement sets — what a product may be
+   * built against. Scoped queries live under /requirement-sets/:id/baselines;
+   * this one answers the question asked before a set has been chosen.
+   */
+  router.get('/baselines/approved', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, ursReadPermission);
+      const limit = Math.min(
+        parseInt(req.query.limit as string, 10) || 100,
+        200,
+      );
+      res.json({ items: await service.listApprovedBaselineOptions(limit) });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * GET /requirement-sets/:setId/next-baseline-version
+   * The baseline version to propose for the next baseline. A suggestion the
+   * caller may override — only duplicates are refused on create.
+   */
+  router.get(
+    '/requirement-sets/:setId/next-baseline-version',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, ursReadPermission);
+        const baselineVersion = await service.getNextBaselineVersion(
+          req.params.setId,
+        );
+        res.json({ baselineVersion });
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -1085,6 +1162,74 @@ export async function createRouter(
    * Retire a released version. Refused with 409 while a released baseline
    * still pins it (invariant 16).
    */
+  /**
+   * POST /requirement-versions/:id/transition
+   * Move one version along its lifecycle:
+   * DRAFT -> IN_REVIEW -> REVIEWED -> IN_APPROVAL, or reject it.
+   *
+   * APPROVED is not reachable here — a version is released by a QA signature,
+   * never by setting its status.
+   */
+  router.post('/requirement-versions/:id/transition', async (req, res) => {
+    try {
+      const data = req.body as AdvanceVersionRequest;
+      if (!requireBody(res, data, 'status')) {
+        return;
+      }
+      // Rejecting is an approval act; moving a version through review is
+      // authoring work. They are not the same authority.
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        data.status === URSStatus.REJECTED
+          ? ursApprovePermission
+          : ursManagePermission,
+      );
+      res.json(
+        await service.advanceRequirementVersion(
+          req.params.id,
+          data.status,
+          actor,
+          data.reason,
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /requirement-sets/:setId/versions/transition
+   * Move every open version of a set along together. Versions that cannot
+   * legally make the move are reported in `skipped`, not treated as failure.
+   */
+  router.post('/requirement-sets/:setId/versions/transition', async (req, res) => {
+    try {
+      const data = req.body as AdvanceVersionRequest;
+      if (!requireBody(res, data, 'status')) {
+        return;
+      }
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        data.status === URSStatus.REJECTED
+          ? ursApprovePermission
+          : ursManagePermission,
+      );
+      res.json(
+        await service.advanceRequirementSetVersions(
+          req.params.setId,
+          data.status,
+          actor,
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
   router.post('/requirement-versions/:id/obsolete', async (req, res) => {
     try {
       const actor = await authorize(

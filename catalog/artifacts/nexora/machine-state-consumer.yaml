@@ -1,0 +1,20 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: machine-state-consumer
+  version: "1.0.0"
+  displayName: "Machine State Consumer"
+  description: >
+    Composition proof that a Data Product can depend on Unified Namespace.
+    REST API and Observability Platform Components are not composed here
+    because they are Catalog placeholders, not reusable runtimes.
+    This is not an OEE implementation.
+spec:
+  standardVersion: "1.0.0"
+  usage:
+    kind: runtime
+    label: "Machine State Consumer"
+  components:
+    - ref: "component:default/unified-namespace"
+      version: "1.x"

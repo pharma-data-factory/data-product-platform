@@ -1,0 +1,17 @@
+apiVersion: nexora.dev/v1alpha1
+kind: COMPONENT
+metadata:
+  namespace: nexora
+  name: aas-foundation
+  version: "1.0.0"
+  displayName: "Asset Administration Shell"
+  description: "AAS Foundation prototype for asset and sensor semantics. Platform component, not a Data Product. Control Plane persistence is in-memory."
+spec:
+  sourceRef: "template:default/aas-asset"
+  marketplace:
+    category: "Platform Components"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, SQLite, REST"
+    status: "preview"
+    documentation: "/docs/default/component/data-product-platform/aas/index"
+    catalogEntityRef: "component:default/aas-foundation"

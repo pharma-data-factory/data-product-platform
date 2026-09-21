@@ -1,22 +1,28 @@
 import {
   CATALOG_ONLY_COMPONENT_NAMES,
-  EQUIPMENT_USE_LOG_COMPOSITION_YAML,
-  MACHINE_METRICS_COMPOSITION_REFS,
-  MQTT_TEMPERATURE_CONCEPTUAL_REFS,
-  OEE_DIRECT_COMPOSITION_REFS,
-  REST_EQUIPMENT_CONCEPTUAL_REFS,
   RUNTIME_PACKAGE_COMPONENT_NAMES,
   compositionSnippetFor,
   filterLibraryComponents,
   hasRuntimePackage,
   libraryProfileFor,
-  oeeBuiltWithSummary,
-  parseEquipmentUseLogExample,
+  builtWithSummary,
   toLibraryComponents,
   usageLabelsForComponent,
 } from './platform-component-library';
 import { CatalogEntityLike, toRelatedPlatformComponents } from './platform-components';
 import { validateComposition } from './composition';
+import {
+  compositionOnDisk,
+  compositionRefsOnDisk,
+  compositionUsageOnDisk,
+  optionalCompositionRefsOnDisk,
+} from './__testUtils__/compositions';
+
+const USAGE = compositionUsageOnDisk();
+const OEE_REFS = compositionRefsOnDisk('oee-data-product-direct');
+const MACHINE_METRICS_REFS = compositionRefsOnDisk('machine-metrics-reference');
+const MQTT_CONCEPTUAL_REFS = compositionRefsOnDisk('mqtt-temperature-conceptual');
+const REST_EQUIPMENT_REFS = compositionRefsOnDisk('rest-equipment-conceptual');
 
 function component(partial: {
   name: string;
@@ -118,7 +124,7 @@ const catalog = toRelatedPlatformComponents([
   },
 ]);
 
-const library = toLibraryComponents(catalog);
+const library = toLibraryComponents(catalog, USAGE);
 
 describe('platform component library honesty', () => {
   it('treats Wave 1 packages as runtime and Kafka/Postgres as catalog-only', () => {
@@ -162,24 +168,24 @@ describe('platform component library honesty', () => {
       'Equipment Use Log (design example)',
     );
     expect(restSource?.designUsedBy).toEqual([]);
-    expect(usageLabelsForComponent('rest-source', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('rest-source', 'runtime', USAGE)).not.toContain(
       'REST Equipment',
     );
-    expect(MQTT_TEMPERATURE_CONCEPTUAL_REFS).toContain(
+    expect(MQTT_CONCEPTUAL_REFS).toContain(
       'component:default/mqtt-consumer',
     );
-    expect(REST_EQUIPMENT_CONCEPTUAL_REFS).toContain(
+    expect(REST_EQUIPMENT_REFS).toContain(
       'component:default/rest-source',
     );
   });
 
   it('builds OEE Built With from the six Mode A refs as CERTIFIED', () => {
-    expect(OEE_DIRECT_COMPOSITION_REFS).toHaveLength(6);
-    const summary = oeeBuiltWithSummary(catalog);
+    expect(OEE_REFS).toHaveLength(6);
+    const summary = builtWithSummary(catalog, OEE_REFS, 'OEE Golden Path');
     expect(summary.reusableCount).toBe(6);
     expect(summary.certifiedCount).toBe(6);
     expect(summary.items.map(item => item.name).sort()).toEqual(
-      [...OEE_DIRECT_COMPOSITION_REFS]
+      [...OEE_REFS]
         .map(ref => ref.split('/').pop())
         .sort(),
     );
@@ -191,7 +197,7 @@ describe('platform component library honesty', () => {
       'REST Source',
       'Time-Series Storage',
     ]);
-    expect(MACHINE_METRICS_COMPOSITION_REFS).not.toContain(
+    expect(MACHINE_METRICS_REFS).not.toContain(
       'component:default/rest-source',
     );
   });
@@ -249,17 +255,24 @@ describe('platform component library honesty', () => {
   });
 
   it('validates the Equipment Use Log design example against the real schema', () => {
-    const composition = parseEquipmentUseLogExample();
+    // The composition now lives in catalog/artifacts/nexora/equipment-use-log.yaml.
+    // EQUIPMENT_USE_LOG_COMPOSITION_YAML and parseEquipmentUseLogExample were
+    // deleted (GP-6) — the manifest is the single source of truth.
+    const composition = compositionOnDisk('equipment-use-log');
     expect(composition.metadata.name).toBe('equipment-use-log');
-    expect(EQUIPMENT_USE_LOG_COMPOSITION_YAML).toContain('kind: GoldenPathComposition');
     expect(validateComposition(composition, catalog).compatible).toBe(true);
-    expect(composition.spec.components.map(item => item.ref)).toEqual([
+    const required = compositionRefsOnDisk('equipment-use-log');
+    const optional = optionalCompositionRefsOnDisk('equipment-use-log');
+    expect(required).toEqual([
       'component:default/health',
       'component:default/observability',
       'component:default/mqtt-consumer',
       'component:default/rest-api',
     ]);
-    expect(EQUIPMENT_USE_LOG_COMPOSITION_YAML).not.toContain('rest-source');
-    expect(EQUIPMENT_USE_LOG_COMPOSITION_YAML).not.toContain('timeseries');
+    // REST Source and Time-Series are offered as optional, not required.
+    expect(required).not.toContain('component:default/rest-source');
+    expect(required).not.toContain('component:default/timeseries');
+    expect(optional).toContain('component:default/rest-source');
+    expect(optional).toContain('component:default/timeseries');
   });
 });

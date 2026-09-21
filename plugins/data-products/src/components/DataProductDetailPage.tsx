@@ -11,6 +11,7 @@ import {
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
+import { nexoraDataQualityApiRef } from '@internal/plugin-nexora-common';
 import { Box, Button, Tab, Tabs, Typography } from '@material-ui/core';
 import {
   documentationHref,
@@ -36,6 +37,7 @@ import { CertificationChip } from './CertificationChip';
 import { CompatibilityChip } from './CompatibilityChip';
 import { CiQualityGateCard } from './CiQualityGateCard';
 import { DependencyCard } from './DependencyCard';
+import { LineageDAGView } from './LineageDAGView';
 import { DiscoverCard } from './DiscoverCard';
 import { JourneyState } from './JourneyState';
 import { PlatformComplianceCard } from './PlatformComplianceCard';
@@ -351,46 +353,38 @@ export function DataProductDetailPage() {
             )}
 
             {tab === 'quality' && (
-              <Box>
-                <InfoCard title="Quality">
-                  <StructuredMetadataTable
-                    metadata={{
-                      'Freshness target (s)':
-                        descriptor?.quality.freshnessTargetSeconds ?? 'NOT_AVAILABLE',
-                      'Completeness target':
-                        descriptor?.quality.completenessTarget ?? 'NOT_AVAILABLE',
-                      'Live freshness': descriptor?.quality.freshnessSeconds ?? 'NOT_AVAILABLE',
-                      'Live completeness': descriptor?.quality.completeness ?? 'NOT_AVAILABLE',
-                      'Last update': descriptor?.quality.lastUpdate ?? 'NOT_AVAILABLE',
-                      Status: descriptor?.quality.status ?? 'NOT_AVAILABLE',
-                      Checks: (descriptor?.quality.checks ?? []).join(', ') || 'NOT_AVAILABLE',
-                    }}
-                  />
-                  <Typography variant="body2" style={{ marginTop: 12 }}>
-                    Live quality metrics are NOT fabricated. Values show NOT_AVAILABLE until
-                    measured by the product.
-                  </Typography>
-                </InfoCard>
-                <QualityAndContractCard product={product} />
-              </Box>
+              <QualityTab
+                product={product}
+                descriptor={descriptor}
+                entityRef={entityRef}
+              />
             )}
 
             {tab === 'lineage' && (
               <Box>
-                <InfoCard title="Lineage">
-                  {(descriptor?.lineage ?? []).length === 0 ? (
-                    <Typography color="textSecondary">No lineage relations declared.</Typography>
-                  ) : (
-                    <ul>
-                      {(descriptor?.lineage ?? []).map((e, i) => (
-                        <li key={`${e.from}-${e.to}-${i}`}>
-                          <code>{e.from}</code> —[{e.relation}]→ <code>{e.to}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <InfoCard title="Data Lineage Graph">
+                  <Typography variant="body2" color="textSecondary" style={{ marginBottom: 12 }}>
+                    Visual multi-hop lineage: upstream producers and downstream consumers.
+                    Nodes are version snapshots; edges are data contract relationships.
+                  </Typography>
+                  <LineageDAGView productName={product.name} />
                 </InfoCard>
-                <div id="dependencies">
+
+                {(descriptor?.lineage ?? []).length > 0 && (
+                  <Box mt={2}>
+                    <InfoCard title="Catalog Relations">
+                      <ul>
+                        {(descriptor?.lineage ?? []).map((e, i) => (
+                          <li key={`${e.from}-${e.to}-${i}`}>
+                            <code>{e.from}</code> —[{e.relation}]→ <code>{e.to}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    </InfoCard>
+                  </Box>
+                )}
+
+                <div id="dependencies" style={{ marginTop: 16 }}>
                   <DependencyCard product={product} />
                 </div>
               </Box>
@@ -461,6 +455,100 @@ export function DataProductDetailPage() {
         )}
       </Content>
     </Page>
+  );
+}
+
+/**
+ * Quality tab — shows both annotation-based quality metadata and live health
+ * checks from the Nexora Data Quality provider.
+ *
+ * Runtime Health vs. Data Health (Phase 6, P6-S6):
+ * - Annotation metadata = declared targets + status set by the product owner
+ * - Live health checks = measured at runtime by the product itself
+ *
+ * Live checks are best-effort: if the provider is unavailable the section is
+ * hidden rather than showing a misleading empty state.
+ */
+function QualityTab({
+  product,
+  descriptor,
+  entityRef,
+}: {
+  product: DataProduct;
+  descriptor: ReturnType<typeof useDataProduct>['data'];
+  entityRef?: string;
+}) {
+  const qualityApi = useApi(nexoraDataQualityApiRef);
+  const [liveHealth, setLiveHealth] = useState<Record<string, string>>({});
+  const [liveLoading, setLiveLoading] = useState(false);
+
+  useEffect(() => {
+    if (!entityRef) return;
+    let active = true;
+    setLiveLoading(true);
+    qualityApi
+      .getQuality(entityRef)
+      .then(result => {
+        if (!active || !result.value) return;
+        const health = result.value;
+        const checks: Record<string, string> = {};
+        for (const [key, check] of Object.entries(health)) {
+          if (check && typeof check === 'object' && 'state' in check) {
+            checks[key] = `${(check as { state: string }).state}${(check as { message?: string }).message ? ` — ${(check as { message: string }).message}` : ''}`;
+          }
+        }
+        setLiveHealth(checks);
+        setLiveLoading(false);
+      })
+      .catch(() => {
+        if (active) setLiveLoading(false);
+      });
+    return () => { active = false; };
+  }, [qualityApi, entityRef]);
+
+  return (
+    <Box>
+      <InfoCard title="Declared Quality">
+        <StructuredMetadataTable
+          metadata={{
+            'Freshness target (s)':
+              descriptor?.quality.freshnessTargetSeconds ?? 'NOT_AVAILABLE',
+            'Completeness target':
+              descriptor?.quality.completenessTarget ?? 'NOT_AVAILABLE',
+            'Live freshness': descriptor?.quality.freshnessSeconds ?? 'NOT_AVAILABLE',
+            'Live completeness': descriptor?.quality.completeness ?? 'NOT_AVAILABLE',
+            'Last update': descriptor?.quality.lastUpdate ?? 'NOT_AVAILABLE',
+            Status: descriptor?.quality.status ?? 'NOT_AVAILABLE',
+            Checks: (descriptor?.quality.checks ?? []).join(', ') || 'NOT_AVAILABLE',
+          }}
+        />
+        <Typography variant="body2" style={{ marginTop: 12 }}>
+          Declared quality targets. Values show NOT_AVAILABLE until measured by the product.
+        </Typography>
+      </InfoCard>
+
+      {(liveLoading || Object.keys(liveHealth).length > 0) && (
+        <Box mt={2}>
+          <InfoCard title="Live Health Checks">
+            {liveLoading ? (
+              <Progress />
+            ) : (
+              <>
+                <StructuredMetadataTable metadata={liveHealth} />
+                <Typography variant="body2" color="textSecondary" style={{ marginTop: 8 }}>
+                  Runtime health checks measured by the deployed product.
+                  HEALTHY/WARNING/ERROR/UNKNOWN — not GxP validation.
+                </Typography>
+              </>
+            )}
+          </InfoCard>
+        </Box>
+      )}
+
+      <Box mt={2}>
+        <QualityAndContractCard product={product} />
+      </Box>
+    </Box>
   );
 }
 
@@ -559,6 +647,33 @@ function OverviewTab({
                 </Link>
               </Typography>
             )}
+          </InfoCard>
+        </Box>
+      )}
+
+      {(descriptor?.analyticsProviders ?? []).length > 0 && (
+        <Box mt={2}>
+          <InfoCard title="Analytics Providers">
+            <Typography variant="body2" style={{ marginBottom: 8 }}>
+              BI tools and dashboards that consume this data product.
+            </Typography>
+            <StructuredMetadataTable
+              metadata={Object.fromEntries(
+                (descriptor?.analyticsProviders ?? []).map(p => [
+                  p.name,
+                  [
+                    p.type,
+                    p.url ? `→ ${p.url}` : '',
+                    p.description ?? '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · '),
+                ]),
+              )}
+            />
+            <Typography variant="body2" color="textSecondary" style={{ marginTop: 8 }}>
+              Declared via <code>dataprod.platform/analytics-providers</code> annotation.
+            </Typography>
           </InfoCard>
         </Box>
       )}

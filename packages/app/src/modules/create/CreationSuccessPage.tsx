@@ -3,6 +3,10 @@ import { Button, Typography } from '@material-ui/core';
 import { BrandMark } from '../nav/BrandMark';
 import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import { CreationSuccessAction } from './creationSuccess';
+import {
+  NEXORA_CARD,
+  NEXORA_TONE,
+} from '@internal/plugin-nexora-common';
 
 export function CreationSuccessPage({
   productName,
@@ -91,7 +95,7 @@ export function CreationSuccessPage({
                   index === 0
                     ? `linear-gradient(135deg, ${PHARMA_NAVY}, ${PHARMA_TEAL})`
                     : 'transparent',
-                color: index === 0 ? '#fff' : C.text,
+                color: index === 0 ? NEXORA_CARD : C.text,
                 border: index === 0 ? 0 : `1px solid ${C.border}`,
                 borderRadius: 12,
                 fontWeight: 600,
@@ -155,7 +159,7 @@ export function CreationFailurePage({
             fontSize: 12,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: '#c62828',
+            color: NEXORA_TONE.danger.bg,
             fontWeight: 600,
           }}
         >

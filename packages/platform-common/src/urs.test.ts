@@ -20,15 +20,27 @@ describe('Status presentation', () => {
     expect(ursStatusAppearance(URSStatus.APPROVED).label).toBe('Released');
   });
 
-  test('states follow the colours the specification names', () => {
-    const colorOf = (s: URSStatus) => ursStatusAppearance(s).color;
+  test('states carry a semantic tone, not a hardcoded colour', () => {
+    // The domain names the meaning; the presentation layer owns the palette.
+    // Returning a hex here would put brand colours in the domain layer and
+    // would not follow the light/dark theme.
+    const toneOf = (s: URSStatus) => ursStatusAppearance(s).tone;
 
-    expect(colorOf(URSStatus.DRAFT)).toBe('#9e9e9e');
-    expect(colorOf(URSStatus.IN_REVIEW)).toBe('#1976d2');
-    expect(colorOf(URSStatus.REVIEWED)).toBe('#00897b');
-    expect(colorOf(URSStatus.IN_APPROVAL)).toBe('#7b1fa2');
-    expect(colorOf(URSStatus.APPROVED)).toBe('#2e7d32');
-    expect(colorOf(URSStatus.REJECTED)).toBe('#c62828');
+    expect(toneOf(URSStatus.DRAFT)).toBe('neutral');
+    expect(toneOf(URSStatus.IN_REVIEW)).toBe('active');
+    expect(toneOf(URSStatus.IN_APPROVAL)).toBe('active');
+    expect(toneOf(URSStatus.REVIEWED)).toBe('success');
+    expect(toneOf(URSStatus.APPROVED)).toBe('success');
+    expect(toneOf(URSStatus.BASELINED)).toBe('success');
+    expect(toneOf(URSStatus.REJECTED)).toBe('danger');
+  });
+
+  test('every status has a tone, including closed-out ones', () => {
+    for (const status of Object.values(URSStatus)) {
+      expect(ursStatusAppearance(status).tone).toBeDefined();
+    }
+    // An unknown value must degrade to neutral rather than render blank.
+    expect(ursStatusAppearance('NOT_A_STATUS').tone).toBe('neutral');
   });
 
   test('closed-out states are struck through, live ones are not', () => {
@@ -53,7 +65,7 @@ describe('Status presentation', () => {
   test('an unrecognised status still shows its own name', () => {
     expect(ursStatusAppearance('SOMETHING_NEW')).toEqual({
       label: 'SOMETHING_NEW',
-      color: '#9e9e9e',
+      tone: 'neutral',
       strikeThrough: false,
     });
   });

@@ -11,6 +11,9 @@ import { Button, MenuItem, TextField, Typography } from '@material-ui/core';
 import { PRODUCT_TYPES } from '@internal/platform-common';
 import type { Product } from '@internal/platform-common';
 import { useComposerClient } from './api';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 export function ProductsPage() {
   const client = useComposerClient();
@@ -76,7 +79,7 @@ export function ProductsPage() {
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 0' }}>
           <section
             style={{
-              border: '1px solid #E2E8F0',
+              border: `1px solid ${NEXORA_GREY[200]}`,
               borderRadius: 12,
               padding: 20,
               marginBottom: 32,
@@ -144,7 +147,7 @@ export function ProductsPage() {
               <section
                 key={product.id}
                 style={{
-                  border: '1px solid #E2E8F0',
+                  border: `1px solid ${NEXORA_GREY[200]}`,
                   borderRadius: 12,
                   padding: 16,
                   marginBottom: 12,

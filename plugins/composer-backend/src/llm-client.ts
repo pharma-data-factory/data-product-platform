@@ -1,3 +1,4 @@
+import { isComponentType, type ComponentType } from '@internal/platform-common';
 import {
   buildProductSpecSystemPrompt,
   buildProductSpecUserPrompt,
@@ -46,6 +47,18 @@ export interface ComposerLLMClient {
     components: AISuggestedComponent[];
     contracts: AISuggestedContract[];
   }>;
+  /**
+   * Answer a governance-bounded question about a data product.
+   *
+   * The context is the product descriptor (title, domain, owner, quality,
+   * contracts, lineage, validation status, analytics providers). The LLM
+   * may only answer based on that context — no raw data access.
+   * Phase 6 (P6-S2).
+   */
+  analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string>;
 }
 
 export interface OpenAILLMClientOptions {
@@ -153,7 +166,155 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
 
     return parseProductSpecResponse(raw);
   }
+
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string> {
+    const systemPrompt = buildProductAnalystSystemPrompt();
+    const userPrompt = buildProductAnalystUserPrompt(question, productContext);
+    const response = await this.fetchApi(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        temperature: 0.4,
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`LLM API error (${response.status}): ${text}`);
+    }
+    const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
+    const raw = data.choices?.[0]?.message?.content;
+    if (!raw) throw new Error('LLM returned empty response');
+    return raw;
+  }
 }
+
+// ============================================================================
+// Anthropic (Claude) client
+// ============================================================================
+
+export interface AnthropicLLMClientOptions {
+  apiKey: string;
+  model: string;
+  /** Max tokens per response. Defaults to 4096 — sufficient for JSON outputs. */
+  maxTokens?: number;
+  fetchApi: typeof fetch;
+}
+
+/**
+ * Calls the Anthropic Messages API via raw `fetch`.
+ *
+ * No `@anthropic-ai/sdk` dependency: the request shape is simple enough, and
+ * adding a dependency requires approval under the transformation's working
+ * method. Uses the same `parseAndValidateResponse` / `parseProductSpecResponse`
+ * helpers as `OpenAIComposerLLMClient` — the extracted text is identical in
+ * structure regardless of which provider produced it.
+ *
+ * Default model: `claude-haiku-4-5`. Haiku is fast and economical for
+ * structured JSON output; the model can be overridden via `composer.ai.model`.
+ * Operators who want higher reasoning quality can set `composer.ai.model` to
+ * `claude-opus-5` or `claude-sonnet-5` without touching code.
+ *
+ * Response parsing: the Anthropic content array may contain `thinking` blocks
+ * (on Opus 5, thinking is on by default). `callAnthropicApi` finds the first
+ * `text` block, so thinking blocks are silently skipped.
+ */
+export class AnthropicComposerLLMClient implements ComposerLLMClient {
+  private readonly apiKey: string;
+  private readonly model: string;
+  private readonly maxTokens: number;
+  private readonly fetchApi: typeof fetch;
+
+  constructor(options: AnthropicLLMClientOptions) {
+    this.apiKey = options.apiKey;
+    this.model = options.model;
+    this.maxTokens = options.maxTokens ?? 4096;
+    this.fetchApi = options.fetchApi;
+  }
+
+  private async callAnthropicApi(
+    system: string,
+    userContent: string,
+  ): Promise<string> {
+    const response = await this.fetchApi(
+      'https://api.anthropic.com/v1/messages',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: this.maxTokens,
+          system,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`Anthropic API error (${response.status}): ${text}`);
+    }
+
+    const data = (await response.json()) as {
+      content: Array<{ type: string; text?: string }>;
+    };
+
+    // Content may include thinking blocks (Opus 5); find the first text block.
+    const textBlock = data.content?.find(b => b.type === 'text');
+    if (!textBlock?.text) {
+      throw new Error('Anthropic API returned empty text response');
+    }
+
+    return textBlock.text;
+  }
+
+  async suggestComponents(
+    context: ComponentSuggestionContext,
+    systemPrompt: string,
+  ): Promise<SuggestedComponent[]> {
+    const userPrompt = buildUserPrompt(context);
+    const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
+    return parseAndValidateResponse(raw);
+  }
+
+  async generateProductSpec(
+    context: ProductSpecContext,
+  ): Promise<{
+    productName: string;
+    description: string;
+    domain: string;
+    components: AISuggestedComponent[];
+    contracts: AISuggestedContract[];
+  }> {
+    const systemPrompt = buildProductSpecSystemPrompt();
+    const userPrompt = buildProductSpecUserPrompt(context);
+    const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
+    return parseProductSpecResponse(raw);
+  }
+
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string> {
+    const raw = await this.callAnthropicApi(
+      buildProductAnalystSystemPrompt(),
+      buildProductAnalystUserPrompt(question, productContext),
+    );
+    return raw;
+  }
+}
+
+// ============================================================================
+// Mock client (testing / disabled state)
+// ============================================================================
 
 export class MockComposerLLMClient implements ComposerLLMClient {
   async suggestComponents(
@@ -188,6 +349,11 @@ export class MockComposerLLMClient implements ComposerLLMClient {
       .map((c, i) => ({
         name: c.name,
         reason: `Addresses ${c.purpose} for ${context.businessNeed}`,
+        // This deterministic stub does not classify. The catalog category
+        // ('data', 'integration', …) is a different vocabulary from
+        // COMPONENT_TYPES, so it cannot be mapped; classification comes from
+        // the model on the real generateProductSpec path.
+        componentType: 'PROCESSING',
         priority: (['required', 'recommended', 'optional', 'recommended'] as const)[i],
         traceabilityRefs: reqIds.slice(i, i + 2),
       }));
@@ -214,6 +380,15 @@ export class MockComposerLLMClient implements ComposerLLMClient {
       components,
       contracts,
     };
+  }
+
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string> {
+    const ctx = productContext as Record<string, unknown>;
+    const title = String(ctx.title ?? ctx.name ?? 'Data Product');
+    return `[Mock] "${title}" — ${question} (AI analyst disabled; configure composer.ai to enable).`;
   }
 }
 
@@ -280,6 +455,18 @@ function parseAndValidateResponse(raw: string): SuggestedComponent[] {
   return results;
 }
 
+/**
+ * The model is asked to pick a componentType from COMPONENT_TYPES, but it is
+ * not bound to do so. Anything outside the vocabulary — or a draft generated
+ * before the field existed — becomes PROCESSING, the neutral default, so an
+ * invalid value never reaches the database.
+ */
+export function toComponentType(value: unknown): ComponentType {
+  return typeof value === 'string' && isComponentType(value)
+    ? value
+    : 'PROCESSING';
+}
+
 function parseProductSpecResponse(raw: string): {
   productName: string;
   description: string;
@@ -321,7 +508,13 @@ function parseProductSpecResponse(raw: string): {
             (r): r is string => typeof r === 'string',
           )
         : [];
-      components.push({ name: c.name, reason: c.reason, priority, traceabilityRefs });
+      components.push({
+        name: c.name,
+        reason: c.reason,
+        componentType: toComponentType(c.componentType),
+        priority,
+        traceabilityRefs,
+      });
     }
   }
 

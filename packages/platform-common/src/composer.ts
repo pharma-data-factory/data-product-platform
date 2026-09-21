@@ -7,10 +7,7 @@ import {
 } from './composition';
 import {
   LibraryPlatformComponent,
-  EQUIPMENT_USE_LOG_OPTIONAL_REFS,
-  OEE_DIRECT_COMPOSITION_REFS,
   componentNameFromRef,
-  parseEquipmentUseLogExample,
 } from './platform-component-library';
 import {
   PlatformComponent,
@@ -61,7 +58,12 @@ export interface ComposerPreset {
   description: string;
   names: string[];
   optionalNames?: string[];
-  kind: 'baseline' | 'oee-reference' | 'design-example';
+  /**
+   * `'baseline'` — generic platform pattern (static, not from a manifest).
+   * `'official'` — a GOLDEN_PATH composition with usage.kind === 'runtime'.
+   * `'example'`  — a GOLDEN_PATH composition with usage.kind === 'design'.
+   */
+  kind: 'baseline' | 'official' | 'example';
 }
 
 export interface ComposerDraft {
@@ -192,11 +194,23 @@ export function slugifyCompositionName(value: string): string {
   return slug || 'composition';
 }
 
-export function sortCompositionRefs(refs: readonly string[]): string[] {
-  const preferred = [...OEE_DIRECT_COMPOSITION_REFS];
+/**
+ * Canonical display order for a set of component refs.
+ *
+ * `preferredOrder` is the official Golden Path's own component order, which
+ * reads as a layering rather than an alphabet. It used to be a constant in
+ * Core; it comes from the composition in the registry now. Anything not in it
+ * sorts alphabetically after. An empty order means alphabetical throughout,
+ * which is correct wherever the result is not displayed.
+ */
+export function sortCompositionRefs(
+  refs: readonly string[],
+  preferredOrder: readonly string[] = [],
+): string[] {
+  const preferred = [...preferredOrder];
   return [...refs].sort((left, right) => {
-    const leftIndex = preferred.indexOf(left as (typeof preferred)[number]);
-    const rightIndex = preferred.indexOf(right as (typeof preferred)[number]);
+    const leftIndex = preferred.indexOf(left);
+    const rightIndex = preferred.indexOf(right);
     if (leftIndex >= 0 && rightIndex >= 0) {
       return leftIndex - rightIndex;
     }
@@ -212,6 +226,7 @@ export function sortCompositionRefs(refs: readonly string[]): string[] {
 
 export function composerDraftToManifest(
   draft: ComposerDraft,
+  preferredOrder: readonly string[] = [],
 ): GoldenPathComposition {
   const extras = [
     draft.description.trim(),
@@ -220,6 +235,7 @@ export function composerDraftToManifest(
   ].filter(Boolean);
   const refs = sortCompositionRefs(
     draft.selectedNames.map(name => `component:default/${name}`),
+    preferredOrder,
   );
   return {
     apiVersion: GOLDEN_PATH_COMPOSITION_API_VERSION,
@@ -258,6 +274,7 @@ function yamlBlock(value: string, indent: string): string {
 
 export function serializeCompositionYaml(
   composition: GoldenPathComposition,
+  preferredOrder: readonly string[] = [],
 ): string {
   const description = composition.metadata.description
     ? `  description: ${yamlBlock(composition.metadata.description, '    ')}\n`
@@ -267,6 +284,7 @@ export function serializeCompositionYaml(
     : '';
   const components = sortCompositionRefs(
     composition.spec.components.map(item => item.ref),
+    preferredOrder,
   )
     .map(ref => {
       const version =
@@ -293,39 +311,69 @@ export function yamlContainsSecrets(yaml: string): boolean {
   return /(password|token|secret|api[_-]?key)/i.test(yaml);
 }
 
+/**
+ * Which official GOLDEN_PATH composition the draft's component selection
+ * matches, if any.
+ *
+ * `officialCompositions` is a map of composition name → required refs (refs
+ * with `optional: true` excluded), derived from the GOLDEN_PATH manifests in
+ * the registry whose `spec.usage.kind === 'runtime'`. Design examples and
+ * conceptual compositions are excluded by the caller, not here.
+ *
+ * Returns the composition name (e.g. `'oee-data-product-direct'`) rather than
+ * a domain-specific literal, so that a second Golden Path can be recognised
+ * without touching Core. GP-2 closed.
+ */
 export function officialGoldenPathForDraft(
   draft: Pick<ComposerDraft, 'name' | 'description' | 'selectedNames'>,
-): 'oee-data-product' | undefined {
-  const slug = slugifyCompositionName(draft.name);
-  const text = `${draft.name} ${draft.description}`.toLowerCase();
-  if (slug === 'equipment-use-log' || text.includes('design example')) {
-    return undefined;
-  }
-  return officialGoldenPathForSelection(draft.selectedNames);
+  officialCompositions: ReadonlyMap<string, readonly string[]>,
+): string | undefined {
+  return officialGoldenPathForSelection(draft.selectedNames, officialCompositions);
 }
 
+/**
+ * Which official GOLDEN_PATH composition the given component selection matches.
+ *
+ * Iterates over `officialCompositions` (name → required refs of runtime
+ * compositions) and returns the name of the first one whose required component
+ * set is equal to `selectedNames` as a set. Returns `undefined` when no
+ * composition matches or the map is empty.
+ */
 export function officialGoldenPathForSelection(
   selectedNames: readonly string[],
-): 'oee-data-product' | undefined {
+  officialCompositions: ReadonlyMap<string, readonly string[]>,
+): string | undefined {
   const selected = new Set(selectedNames);
-  const oee = new Set(OEE_DIRECT_COMPOSITION_REFS.map(componentNameFromRef));
-  if (selected.size !== oee.size) {
-    return undefined;
-  }
-  for (const name of oee) {
-    if (!selected.has(name)) {
-      return undefined;
+  for (const [name, refs] of officialCompositions) {
+    const required = new Set(refs.map(componentNameFromRef));
+    if (
+      required.size === selected.size &&
+      [...required].every(n => selected.has(n))
+    ) {
+      return name;
     }
   }
-  return 'oee-data-product';
+  return undefined;
 }
 
-export function composerPresets(): ComposerPreset[] {
-  const oeeNames = OEE_DIRECT_COMPOSITION_REFS.map(componentNameFromRef);
-  const equipment = parseEquipmentUseLogExample().spec.components.map(item =>
-    componentNameFromRef(item.ref),
-  );
-  return [
+/**
+ * Compose the Composer's preset list from registered Golden Path compositions.
+ *
+ * Three static baseline presets (generic platform patterns, not domain
+ * specific) are always present. Beyond those, every `officialCompositions`
+ * entry becomes a preset with kind `'official'`, and every `exampleCompositions`
+ * entry becomes a preset with kind `'example'`. Both maps come from the
+ * GOLDEN_PATH manifests in the registry — GP-3 closed.
+ *
+ * The caller derives the maps from the registry's own manifests:
+ * `officialCompositions` holds those with `spec.usage.kind === 'runtime'`,
+ * `exampleCompositions` holds those with `spec.usage.kind === 'design'`.
+ */
+export function composerPresets(
+  officialCompositions: ReadonlyMap<string, GoldenPathComposition>,
+  exampleCompositions: ReadonlyMap<string, GoldenPathComposition>,
+): ComposerPreset[] {
+  const baselinePresets: ComposerPreset[] = [
     {
       id: 'api-data-product',
       title: 'API Data Product',
@@ -354,21 +402,32 @@ export function composerPresets(): ComposerPreset[] {
       ],
       kind: 'baseline',
     },
-    {
-      id: 'oee-reference',
-      title: 'OEE 1.0',
-      description: 'Reference composition derived from OEE Mode A.',
-      names: oeeNames,
-      kind: 'oee-reference',
-    },
-    {
-      id: 'equipment-use-log',
-      title: 'Equipment Use Log',
-      description: 'DESIGN EXAMPLE ONLY. Not a Golden Path.',
-      names: equipment,
-      optionalNames: EQUIPMENT_USE_LOG_OPTIONAL_REFS.map(componentNameFromRef),
-      kind: 'design-example',
-    },
+  ];
+
+  const fromComposition = (
+    comp: GoldenPathComposition,
+    kind: 'official' | 'example',
+  ): ComposerPreset => ({
+    id: comp.metadata.name,
+    title: comp.metadata.title || comp.metadata.name,
+    description: comp.metadata.description || '',
+    names: comp.spec.components
+      .filter(c => !c.optional)
+      .map(c => componentNameFromRef(c.ref)),
+    optionalNames: comp.spec.components
+      .filter(c => c.optional)
+      .map(c => componentNameFromRef(c.ref)),
+    kind,
+  });
+
+  return [
+    ...baselinePresets,
+    ...[...officialCompositions.values()].map(comp =>
+      fromComposition(comp, 'official'),
+    ),
+    ...[...exampleCompositions.values()].map(comp =>
+      fromComposition(comp, 'example'),
+    ),
   ];
 }
 
@@ -549,6 +608,99 @@ function humanizeCompositionIssue(
     return message.replace(missing[1], title);
   }
   return message;
+}
+
+// ============================================================================
+// Composition development context — configuration summary (Phase 3)
+// ============================================================================
+
+/**
+ * One environment variable required by a platform component.
+ *
+ * Aggregated across all selected components by `compositionConfigSummary`
+ * to give a developer the complete configuration checklist for the
+ * composition they are building.
+ */
+export interface CompositionConfigKey {
+  /** Environment variable name, e.g. `'MQTT_HOST'`. */
+  key: string;
+  /** Display title of the component that owns this key. */
+  componentTitle: string;
+  /** Catalog name of the component, e.g. `'mqtt-consumer'`. */
+  componentName: string;
+  /** From ConfigKeySchema when available (W2-2). */
+  type?: string;
+  required?: boolean;
+  description?: string;
+  example?: string;
+  secret?: boolean;
+}
+
+export interface CompositionConfigSummary {
+  /** All env vars across the selected components, in component order. */
+  keys: CompositionConfigKey[];
+  /**
+   * Components that carry a `configurationNote`, e.g. "Host identity only.
+   * No source credentials in this component."
+   */
+  notes: Array<{ componentTitle: string; note: string }>;
+  /** Total count of configuration keys, for quick display. */
+  totalCount: number;
+}
+
+/**
+ * Aggregates the configuration keys and notes from every selected component
+ * into a single composition-level summary.
+ *
+ * This is the development-context view of the composition: after the user
+ * has chosen components and validated the composition, this tells them what
+ * to put in `.env`. It is derived from `LibraryPlatformComponent.profile`
+ * fields that already exist per component; the Composer just did not expose
+ * the cross-component aggregate before Phase 3.
+ *
+ * Order is preserved: components appear in the order they were selected, and
+ * their keys appear in the order the profile declares them.
+ */
+export function compositionConfigSummary(
+  selected: LibraryPlatformComponent[],
+): CompositionConfigSummary {
+  const keys: CompositionConfigKey[] = [];
+  const notes: Array<{ componentTitle: string; note: string }> = [];
+
+  for (const comp of selected) {
+    // Prefer configurationSchema (W2-2) over legacy configurationKeys.
+    if (comp.profile.configurationSchema && comp.profile.configurationSchema.length > 0) {
+      for (const schema of comp.profile.configurationSchema) {
+        keys.push({
+          key: schema.key,
+          componentTitle: comp.title,
+          componentName: comp.name,
+          type: schema.type,
+          required: schema.required,
+          description: schema.description,
+          example: schema.example,
+          secret: schema.type === 'secret',
+        });
+      }
+    } else {
+      // Legacy flat list fallback.
+      for (const key of comp.profile.configurationKeys) {
+        keys.push({
+          key,
+          componentTitle: comp.title,
+          componentName: comp.name,
+        });
+      }
+    }
+    if (comp.profile.configurationNote) {
+      notes.push({
+        componentTitle: comp.title,
+        note: comp.profile.configurationNote,
+      });
+    }
+  }
+
+  return { keys, notes, totalCount: keys.length };
 }
 
 function uniqueIssues(issues: ComposerUxIssue[]): ComposerUxIssue[] {

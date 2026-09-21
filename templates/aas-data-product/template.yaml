@@ -57,6 +57,15 @@ spec:
               kind:
                 - Group
                 - User
+        ursBaselineId:
+          title: URS Baseline
+          type: string
+          description: >-
+            Approved URS baseline this data product is built against. Leave empty
+            to create the product without one — it can then be built and tested,
+            but the release gate will refuse to release it until it references an
+            approved baseline.
+          ui:field: UrsBaselinePicker
         assetSource:
           title: Asset Source
           type: string
@@ -120,6 +129,21 @@ spec:
             repo: ${{ parameters.name }}
           templateName: aas-data-product
           templateVersion: 1.0.0
+          # Always emitted, so an unbound product is explicit in the catalog and
+          # can be found rather than merely missing an annotation.
+          ursBaselineId: ${{ parameters.ursBaselineId or 'unbound' }}
+          # Pinned at creation: a later policy version makes this product
+          # visibly outdated instead of silently non-compliant.
+          policyVersion: '1'
+    # Before anything is published: a URS claim that does not hold must not
+    # reach the catalog. Fails the task unless the baseline is APPROVED.
+    # "unbound" passes — creating without a URS is allowed, releasing is not.
+    - id: verify-urs
+      name: Verify URS baseline
+      action: nexora:urs:verify-baseline
+      input:
+        ursBaselineId: ${{ parameters.ursBaselineId or 'unbound' }}
+
     - id: publish
       name: Publish to GitHub
       action: publish:github

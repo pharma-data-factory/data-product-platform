@@ -1,14 +1,17 @@
 import { Chip } from '@material-ui/core';
+import { NEXORA_TONE, NexoraToneName } from '@internal/plugin-nexora-common';
 import { CompatibilityStatus } from '../compatibility';
 
-const STYLES: Record<
-  CompatibilityStatus,
-  { backgroundColor: string; color: string }
-> = {
-  COMPATIBLE: { backgroundColor: '#0D9488', color: '#FFFFFF' },
-  BREAKING_CHANGE: { backgroundColor: '#B91C1C', color: '#FFFFFF' },
-  UNKNOWN: { backgroundColor: '#E2E8F0', color: '#334155' },
+const TONES: Record<CompatibilityStatus, NexoraToneName> = {
+  COMPATIBLE: 'success',
+  BREAKING_CHANGE: 'danger',
+  UNKNOWN: 'neutral',
 };
+
+function styleFor(status: CompatibilityStatus) {
+  const tone = NEXORA_TONE[TONES[status]];
+  return { backgroundColor: tone.bg, color: tone.fg };
+}
 
 export function CompatibilityChip({
   status,
@@ -19,7 +22,7 @@ export function CompatibilityChip({
     <Chip
       size="small"
       label={status}
-      style={STYLES[status]}
+      style={styleFor(status)}
       title="Contract compatibility for active consumers. Not GxP validation."
     />
   );

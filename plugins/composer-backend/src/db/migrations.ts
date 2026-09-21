@@ -216,9 +216,198 @@ export async function up(knex: Knex): Promise<void> {
       table.foreign('product_version_id').references('id').inTable('product_versions');
     });
   }
+
+  // Phase 1: enforce version and baseline identity in the database.
+  await assertNoDuplicateIdentities(knex);
+  await createIdentityIndexes(knex);
+
+  // Phase 4 (P4-S3): ProductDependency — a version declares which DataContracts it consumes.
+  if (!(await knex.schema.hasTable('product_version_dependencies'))) {
+    await knex.schema.createTable('product_version_dependencies', table => {
+      table.string('id', 255).primary();
+      table.string('product_version_id', 255).notNullable();
+      table.string('contract_id', 255).notNullable();
+      table.text('description');
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.integer('revision').defaultTo(1);
+
+      table.index(['product_version_id']);
+      table.index(['contract_id']);
+      // A version may only declare one dependency per contract.
+      table.unique(['product_version_id', 'contract_id']);
+      table.foreign('product_version_id').references('id').inTable('product_versions');
+      // Note: no FK to data_contracts — contracts may be deleted independently.
+      // The service validates contract existence at creation time.
+    });
+  }
+
+  // Phase 4 (P4-S1): DataContract identity — name and owner.
+  //
+  // DataContract had no name or owner before Phase 4 (NXD-010, NXD-034).
+  // The columns are added as nullable so the migration is safe to run against
+  // databases that already contain contract rows: existing rows keep NULL for
+  // name, and the service enforces non-null for all new contracts. The unique
+  // index only fires for non-NULL names (NULLs do not collide in unique indexes
+  // in both SQLite and PostgreSQL), so pre-existing rows are unaffected.
+  if (await knex.schema.hasTable('data_contracts')) {
+    const hasName = await knex.schema.hasColumn('data_contracts', 'name');
+    if (!hasName) {
+      await knex.schema.alterTable('data_contracts', table => {
+        table.string('name', 255).nullable();
+        table.string('owner', 255).nullable();
+      });
+      await knex.raw(
+        'create unique index if not exists data_contracts_name_unique ' +
+          'on data_contracts (product_component_id, lower(name))',
+      );
+    }
+    // Phase 4 (P4-S6): Data Quality contracts — declarative quality rules.
+    const hasQualityRules = await knex.schema.hasColumn('data_contracts', 'quality_rules');
+    if (!hasQualityRules) {
+      await knex.schema.alterTable('data_contracts', table => {
+        table.text('quality_rules').nullable();
+      });
+    }
+  }
+
+  // Upgrade Notifications (W2-1): records generated when a contract version bumps.
+  if (!(await knex.schema.hasTable('upgrade_notifications'))) {
+    await knex.schema.createTable('upgrade_notifications', table => {
+      table.string('id', 255).primary();
+      table.string('type', 64).notNullable();           // UPGRADE_NOTIFICATION_TYPES
+      table.string('subject_name', 255).notNullable();  // contract or artifact name
+      table.string('new_version', 100).notNullable();
+      table.string('current_version', 100).nullable();
+      table.text('summary').notNullable();
+      table.boolean('breaking').notNullable().defaultTo(false);
+      table.string('consumer_ref', 255).notNullable();
+      table.boolean('read').notNullable().defaultTo(false);
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.index(['consumer_ref']);
+      table.index(['read']);
+    });
+  }
+
+  // 5-R1: Product-level policy declarations.
+  if (await knex.schema.hasTable('products')) {
+    const hasPolicies = await knex.schema.hasColumn('products', 'declared_policies');
+    if (!hasPolicies) {
+      await knex.schema.alterTable('products', table => {
+        table.text('declared_policies').nullable(); // JSON array of policy coordinates
+      });
+    }
+  }
+
+  // Contract Subscriptions (P-EXT-S4): operational consumer registrations.
+  if (!(await knex.schema.hasTable('contract_subscriptions'))) {
+    await knex.schema.createTable('contract_subscriptions', table => {
+      table.string('id', 255).primary();
+      table.string('contract_id', 255).notNullable();
+      table.string('consumer_ref', 255).notNullable();
+      table.string('consumer_label', 255).notNullable();
+      table.string('compatible_versions', 100).notNullable().defaultTo('*');
+      table.string('status', 32).notNullable().defaultTo('ACTIVE');
+      table.text('purpose').nullable();
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.timestamp('updated_at').nullable();
+      table.integer('revision').defaultTo(1);
+      table.index(['contract_id']);
+      table.index(['consumer_ref']);
+      table.unique(['contract_id', 'consumer_ref']);
+    });
+  }
+}
+
+/**
+ * Rows that would violate the identity indexes added below.
+ *
+ * The service has refused duplicates since NXD-006/NXD-007, but data written
+ * before that could already contain them, and a duplicate baseline label means
+ * the candidate a ValidationContext binds to was ambiguous. Deciding which of
+ * two colliding baselines keeps the label is a records decision, not something
+ * a migration should make: relabelling would rewrite a GxP-relevant identifier
+ * that an external QMS or an existing ValidationContext may reference.
+ *
+ * So this reports and stops. Deployment is blocked until someone resolves the
+ * collision deliberately, which is the correct outcome — the data was already
+ * ambiguous, the constraint only makes that visible.
+ */
+async function assertNoDuplicateIdentities(knex: Knex): Promise<void> {
+  const problems: string[] = [];
+
+  if (await knex.schema.hasTable('product_versions')) {
+    const rows = await knex('product_versions')
+      .select('product_id', 'version_number')
+      .select(knex.raw('count(*) as occurrences'))
+      .groupBy('product_id', 'version_number')
+      .havingRaw('count(*) > 1');
+    for (const row of rows as any[]) {
+      problems.push(
+        `  product_versions: product_id=${row.product_id} ` +
+          `version_number=${row.version_number} (${row.occurrences} rows)`,
+      );
+    }
+  }
+
+  if (await knex.schema.hasTable('product_baselines')) {
+    const rows = await knex('product_baselines')
+      .select('product_version_id')
+      .select(knex.raw('lower(baseline_version) as label'))
+      .select(knex.raw('count(*) as occurrences'))
+      .groupBy('product_version_id', knex.raw('lower(baseline_version)'))
+      .havingRaw('count(*) > 1');
+    for (const row of rows as any[]) {
+      problems.push(
+        `  product_baselines: product_version_id=${row.product_version_id} ` +
+          `baseline_version=${row.label} (${row.occurrences} rows)`,
+      );
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      'Composer migration stopped: the database already contains rows that ' +
+        'would violate the version/baseline identity constraints.\n' +
+        `${problems.join('\n')}\n` +
+        'These rows are ambiguous and must be resolved deliberately — the ' +
+        'migration will not relabel a controlled identifier on your behalf. ' +
+        'Decide which row keeps the label, correct the others, then redeploy.',
+    );
+  }
+}
+
+/**
+ * Unique indexes backing the identity rules the service enforces.
+ *
+ * The baseline index is on `lower(baseline_version)` so the database agrees
+ * with the service, which treats "Rev-A" and "rev-a" as one label. Expression
+ * indexes with `IF NOT EXISTS` are supported by both dialects in use here
+ * (PostgreSQL in production, SQLite in tests), so one statement covers both.
+ *
+ * These close the race the service check cannot: two concurrent creates can
+ * both pass an application-level uniqueness check.
+ */
+async function createIdentityIndexes(knex: Knex): Promise<void> {
+  if (await knex.schema.hasTable('product_versions')) {
+    await knex.raw(
+      'create unique index if not exists product_versions_ordinal_unique ' +
+        'on product_versions (product_id, version_number)',
+    );
+  }
+  if (await knex.schema.hasTable('product_baselines')) {
+    await knex.raw(
+      'create unique index if not exists product_baselines_label_unique ' +
+        'on product_baselines (product_version_id, lower(baseline_version))',
+    );
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('upgrade_notifications');
+  await knex.schema.dropTableIfExists('contract_subscriptions');
+  await knex.schema.dropTableIfExists('product_version_dependencies');
   await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');
   await knex.schema.dropTableIfExists('traceability_links');

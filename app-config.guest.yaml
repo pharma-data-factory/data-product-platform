@@ -1,0 +1,34 @@
+# Guest sign-in — LOCAL DEVELOPMENT ONLY.
+#
+# Opt-in. Loaded only when AUTH_GUEST_ENABLED=true is set in .env; without it
+# the login offers GitHub only. Enabling it is a deliberate act, not a default,
+# because a Guest identity is not an approved platform user.
+#
+#   scripts/ona-dev.sh start        # appends this file when the flag is set
+#
+# Guest is a VIEWER: read the catalog, browse the marketplace, view and consume
+# data products. It deliberately cannot scaffold, create catalog entities or
+# create data products. To exercise the Create journey locally, set
+# AUTH_GUEST_ROLE=developer, which additionally loads
+# app-config.guest-developer.yaml.
+#
+# Never load this file in the production image. app-config.production.yaml sets
+# auth.environment: production, and the sign-in page refuses to show Guest
+# there regardless of this file, but do not rely on that as the only control.
+#
+# The token-based guest below must match catalog/users.seed.yaml. Do not set
+# dangerouslyAllowOutsideDevelopment. The legacy frontend guest identity has no
+# token and causes catalog 401s when permission.enabled is true.
+auth:
+  providers:
+    guest:
+      # Frontend must see this key for the Guest sign-in button to appear.
+      # @visibility frontend
+      userEntityRef: user:default/guest
+      # platform-viewers maps to the VIEWER role via GROUP_TO_ROLE in
+      # packages/platform-common/src/roles.ts. The 'guests' group is not a
+      # platform group and grants nothing on its own.
+      ownershipEntityRefs:
+        - user:default/guest
+        - group:default/guests
+        - group:default/platform-viewers

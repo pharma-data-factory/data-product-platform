@@ -21,6 +21,12 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: ${{ values.templateName }}
     dataprod.platform/templateVersion: ${{ values.templateVersion }}
+    # The approved URS baseline this product was built against, or "unbound".
+    # The release gate refuses to release an unbound product; this annotation is
+    # what makes "which products depend on this URS?" a catalog query.
+    dataprod.platform/urs-baseline: ${{ values.ursBaselineId }}
+    # Platform policy version this product was built against.
+    dataprod.platform/policy-version: ${{ values.policyVersion }}
     dataprod.platform/source-systems: mqtt
     dataprod.platform/interfaces: REST
     dataprod.platform/protocol: MQTT

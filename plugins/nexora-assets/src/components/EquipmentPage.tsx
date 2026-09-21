@@ -14,6 +14,7 @@ import {
 } from '@internal/platform-common';
 import {
   NEXORA_BORDER,
+  NEXORA_GREY,
   NEXORA_MUTED,
   NEXORA_NAVY,
   NEXORA_TEXT,
@@ -63,7 +64,7 @@ const useStyles = makeStyles(theme => ({
     gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
   },
   equipmentCard: {
-    background: '#F8FAFC',
+    background: NEXORA_GREY[50],
     border: `1px solid ${NEXORA_BORDER}`,
     borderRadius: 12,
     padding: '12px 14px',

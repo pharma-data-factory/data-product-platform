@@ -2,8 +2,8 @@ import express from 'express';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { AddressInfo } from 'net';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { listenOnFetchablePort } from '@internal/backend-test-utils';
 
 import { FileReleaseOverlay } from './releaseCatalog';
 import { createRouter } from './router';
@@ -36,11 +36,9 @@ describe('Golden Path release router', () => {
     });
     const server = express();
     server.use(router);
-    const listener = server.listen(0, '127.0.0.1');
-    await new Promise<void>(resolve => listener.once('listening', () => resolve()));
+    const listener = await listenOnFetchablePort(server);
     try {
-      const { port } = listener.address() as AddressInfo;
-      const response = await fetch(`http://127.0.0.1:${port}/releases`);
+      const response = await fetch(`${listener.url}/releases`);
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.releases.map((item: { template: string }) => item.template)).toEqual(
@@ -51,9 +49,7 @@ describe('Golden Path release router', () => {
       );
       expect(body.disclaimer).toMatch(/not GxP/i);
     } finally {
-      await new Promise<void>((resolve, reject) =>
-        listener.close(error => (error ? reject(error) : resolve())),
-      );
+      await listener.close();
     }
   });
 
@@ -78,11 +74,9 @@ describe('Golden Path release router', () => {
       });
       const server = express();
       server.use(router);
-      const listener = server.listen(0, '127.0.0.1');
-      await new Promise<void>(resolve => listener.once('listening', () => resolve()));
+      const listener = await listenOnFetchablePort(server);
       try {
-        const { port } = listener.address() as AddressInfo;
-        return await fetch(`http://127.0.0.1:${port}/releases/transition`, {
+        return await fetch(`${listener.url}/releases/transition`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -92,9 +86,7 @@ describe('Golden Path release router', () => {
           }),
         });
       } finally {
-        await new Promise<void>((resolve, reject) =>
-          listener.close(error => (error ? reject(error) : resolve())),
-        );
+        await listener.close();
       }
     }
 

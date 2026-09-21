@@ -1,0 +1,16 @@
+apiVersion: nexora.dev/v1alpha1
+kind: TEMPLATE
+metadata:
+  namespace: nexora
+  name: python-microservice
+  version: "1.0.0"
+  displayName: "Python Microservice"
+  description: "General service template (FastAPI). Not an official Data Product Golden Path."
+spec:
+  sourceRef: "template:default/python-microservice"
+  marketplace:
+    category: "Templates"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, Docker, GitHub"
+    status: "available"
+    documentation: "/create/templates/default/python-microservice"

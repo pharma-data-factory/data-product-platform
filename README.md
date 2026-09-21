@@ -63,6 +63,68 @@ those databases directly.
 
 ---
 
+## Architecture
+
+### Backstage is the kernel, not the product
+
+The Control Plane runs on Backstage 1.53.0. Backstage contributes the plugin
+runtime, the software catalog, the scaffolder engine, TechDocs, search and
+the permission framework. Everything that makes this Nexora — the Data
+Product model, Golden Paths, certification, entitlements, URS Composer and
+Validation Expert — is Nexora-owned code in `packages/` and `plugins/`.
+
+No `@backstage/*` package is patched and `node_modules` is never modified.
+Backstage is extended through its public extension points, which keeps
+upgrades tractable.
+
+### Layers
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  packages/app          Frontend — landing page, Control Plane │
+│  plugins/*             Feature plugins (frontend + backend)   │
+├──────────────────────────────────────────────────────────────┤
+│  packages/backend      Backstage backend host, plugin wiring  │
+│  packages/platform-common   Domain model, shared by both      │
+├──────────────────────────────────────────────────────────────┤
+│  Backstage 1.53.0      Catalog · Scaffolder · TechDocs ·      │
+│                        Search · Permissions · Auth            │
+└──────────────────────────────────────────────────────────────┘
+```
+
+`packages/platform-common` is the lowest Nexora layer: the Data Product
+model, roles and permissions, URS types, release and compatibility rules. It
+is framework-agnostic and must not depend on UI packages — the dependency
+runs the other way. Domain code therefore names a *meaning* (a status tone,
+a role) and the presentation layer decides how it looks.
+
+### Catalog-native by design
+
+Data Products, Platform Components, APIs and Templates are ordinary Backstage
+catalog entities annotated with `dataprod.platform/*`. Relationships use
+native `dependsOn`, `providesApis` and `consumesApis` rather than a parallel
+graph, so Catalog Graph, search and TechDocs work without custom code.
+
+### Generated products are independent
+
+A generated Data Product is a standalone repository with its own source,
+tests, Dockerfile, CI workflow and contract. It does not import Nexora code
+at runtime and does not call back to the Control Plane. The Control Plane
+scaffolds and catalogs it; the product then runs on its own.
+
+### Authorization
+
+Requests are decided in the backend permission policy, never only in the UI.
+Group membership maps to a platform role, and the role maps to a permission
+set: `ownershipEntityRefs` → `GROUP_TO_ROLE` → `permissionsForRole` →
+`decidePermission` (`packages/platform-common/src/policy.ts`). A user outside
+every platform group has no access, which is the fail-closed default.
+
+Details: [docs/architecture.md](docs/architecture.md),
+[docs/identity-and-rbac.md](docs/identity-and-rbac.md).
+
+---
+
 ## Official Golden Paths
 
 | Golden Path | Catalog name | Technical status | Commercial availability |
@@ -139,7 +201,8 @@ Full template notes: [docs/templates.md](docs/templates.md).
 
 ## Runtime and Control Plane parameters
 
-Copy `.env.example` to `.env`. Never commit `.env`.
+Write `.env` by hand — see [Environment file](#environment-file) for why
+copying the example breaks startup. Never commit `.env`.
 
 | Variable group | Purpose |
 | --- | --- |
@@ -198,29 +261,130 @@ List prices are not published.
 
 ## Getting started
 
-Prerequisites: Node.js 22 or 24, Yarn 4 (Corepack), Docker Compose for the
-primary path. GitHub credentials only if you want Create to publish
-repositories.
+**Prerequisites.** Node.js 22 or 24, Yarn 4 via Corepack, Docker Compose for
+the container path. The devcontainer provides both; rebuild it after pulling
+`.devcontainer/devcontainer.json`.
 
 ```bash
 corepack enable
-copy .env.example .env
 yarn install
 yarn tsc
 yarn start
 ```
 
-Open http://localhost:3000. Sign in with GitHub when `AUTH_GITHUB_*` is
-set, or **Continue as Guest** for local development only. Guest is not
-available in production.
+Frontend on **3000**, backend on **7007**. `yarn start` reads `.env` through
+`node --env-file`, so the file must exist.
 
-`yarn start` loads `.env`, frontend **3000**, backend **7007**. Do not
-start only `yarn workspace backend start` without `.env`.
+### Environment file
+
+Write `.env` by hand. Do not copy `.env.example`, which lists every supported
+variable with an empty value for reference.
+
+> Backstage omits a config key whose `${VAR}` is **unset**, but rejects it
+> with `got empty-string, wanted string` when the variable is set and empty.
+> A variable you do not have must be absent, not empty.
+
+Copying the example therefore sets `GITHUB_TOKEN=`, `COMPOSER_AI_KEY=` and
+others to empty strings, and catalog, scaffolder, techdocs and data-products
+all fail to start. The minimum that works:
+
+```bash
+printf 'BACKEND_SECRET=dev-local-auth-key\n' > .env
+```
+
+`.env` is read once at process start; changes require a restart. Backend
+source changes reload automatically.
+
+### Sign-in
+
+GitHub login is the default and requires an OAuth App — see
+[GitHub setup](#github-setup).
+
+Guest sign-in is opt-in and local-only:
+
+| Variable | Effect |
+| --- | --- |
+| `AUTH_GUEST_ENABLED=true` | Shows **Continue as Guest** |
+| `AUTH_GUEST_ROLE=viewer` | Read-only (default) |
+| `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding and create |
+
+Guest resolves to **VIEWER**: catalog, marketplace and data-product read
+access, no scaffolding, no create. Raising it to `developer` is a deliberate
+local escalation. Guest is unavailable in production, where
+`auth.environment: production` applies.
+
+### GitHub setup
+
+Two distinct GitHub applications serve two different purposes.
+
+| | Purpose | Client ID | Variables |
+| --- | --- | --- | --- |
+| OAuth App | Portal login | `Ov23…` | `AUTH_GITHUB_*` |
+| GitHub App | Publishing generated repositories | `Iv23…` | `GITHUB_APP_*`, `GITHUB_CLIENT_*`, `GITHUB_PRIVATE_KEY` |
+
+**OAuth App.** GitHub → Settings → Developer settings → OAuth Apps → New
+OAuth App.
+
+| Field | Value |
+| --- | --- |
+| Homepage URL | Base URL, e.g. `http://localhost:3000` |
+| Authorization callback URL | Backend base URL + `/api/auth/github/handler/frame` |
+
+The callback must match exactly, including the path, or GitHub returns
+`redirect_uri_mismatch`. Behind a gateway it is the forwarded 7007 URL rather
+than localhost; `scripts/ona-dev.sh expose` prints the value to use. Generate
+a client secret, set `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET` and
+`AUTH_GITHUB_CALLBACK_URL`, then restart.
+
+A backend log line `Skipping github auth provider` means the client ID is
+missing; `/api/auth/github/start` then returns 404.
+
+Sign-in maps the GitHub login to the Catalog user of the same name in
+`catalog/users.seed.yaml`, which determines the role. An unknown login
+authenticates but receives no platform group and reaches the access-denied
+page.
+
+**GitHub App.** Required only for Create to publish. A GitHub App creates
+repositories in an organization, never on a personal account. Permissions and
+installation: [GitHub configuration](docs/github-setup.md).
+
+Without either application the portal still runs; only sign-in and publishing
+are unavailable.
+
+### Remote gateways (Ona, Gitpod, Codespaces)
+
+Serving the frontend and backend on two forwarded hostnames does not work:
+the browser treats the API host as cross-origin, withholds the gateway
+session cookie, and the gateway returns 401 without CORS headers. Use a
+single origin, as the production image does.
+
+```bash
+scripts/ona-dev.sh expose    # opens 7007, writes the forwarded URLs
+yarn workspace app build     # the backend serves this bundle
+scripts/ona-dev.sh serve     # single origin on 7007
+```
+
+`scripts/ona-dev.sh start` retains the two-port dev server with hot reload
+for work inside the container. In `serve` mode a frontend change requires a
+rebuild. `.gitpod/automations.yaml` defines both; apply it once with
+`ona environment config apply -s .gitpod/automations.yaml`.
+
+### Contributing changes
+
+Pushing requires a token with **Contents: Read and write** for this
+repository. A fine-grained token must also list the repository under
+*Repository access*; "Public repositories (read-only)" cannot push even when
+the account is a repository admin, and the resulting 403 resembles an
+organization permission problem.
+
+```bash
+gh api repos/<owner>/<repo> --jq .permissions
+```
+
 
 ### Docker
 
 ```bash
-copy .env.example .env
 docker compose up --build
 ```
 
@@ -232,11 +396,28 @@ Do not deploy the root `Dockerfile` as production. Production image:
 `packages/backend/Dockerfile`. Hosted: [Portainer](docs/deployment/portainer.md).
 Production smoke checklist: [Docker production](docs/deployment/docker-production.md).
 
-```powershell
-.\scripts\build-production-image.ps1
-.\scripts\prepare-production-local-env.ps1
+The production path does **not** use `.env` — that is a development
+mechanism. It reads a Compose environment file instead, and the same
+`docker-compose.production.yml` backs the Portainer stack.
+
+```bash
+yarn prod:env            # writes deploy/production.local.env, any platform
+yarn docker:prod:build
 yarn docker:prod:up
+yarn docker:prod:logs
 ```
+
+`yarn prod:env` generates a throwaway RSA key so Octokit can parse
+`GITHUB_APP_*` at boot; sign-in and publishing still need real credentials.
+Windows users can run `.\scripts\prepare-production-local-env.ps1` and
+`yarn docker:prod:build:win` instead.
+
+Required variables are listed in `deploy/portainer.env.example`. The
+empty-value rule from above applies here too: do not carry
+`GITHUB_TOKEN=`, `GHE_TOKEN=`, `COMPOSER_AI_API_KEY=` or `URS_AI_API_KEY=`
+into a production environment file. `POSTGRES_HOST` and `POSTGRES_PORT` are
+supplied by Compose and belong in the file only when running the image
+against an external database.
 
 ### Configuration files
 
@@ -244,6 +425,8 @@ yarn docker:prod:up
 | --- | --- |
 | `app-config.yaml` | Default local configuration |
 | `app-config.local.yaml` | Safe local overrides, no secrets |
+| `app-config.guest.yaml` | Opt-in Guest sign-in, loaded when `AUTH_GUEST_ENABLED=true` |
+| `app-config.guest-developer.yaml` | Raises the local Guest to DEVELOPER |
 | `app-config.github.yaml` | Opt-in GitHub App for repository publishing |
 | `app-config.docker.yaml` | Compose / container paths and PostgreSQL |
 | `app-config.production.yaml` | Production-like PostgreSQL, GitHub login, no Guest |
@@ -262,6 +445,25 @@ yarn test:all --watchAll=false
 Platform workflow: `.github/workflows/ci.yml`. Generated repositories
 run lint, unit tests, contract/quality tests, Docker build, and a
 security scan.
+
+### Colours come from tokens
+
+`plugins/nexora-common/src/tokens.ts` is the single source of colour for the
+Control Plane **and** the public landing page. Two tests enforce it and will
+fail a PR that bypasses them:
+
+- `tokens.contrast.test.ts` checks every semantic tone against WCAG 2.1 AA
+  (4.5:1). It asserts the property, not the hex values, so changing a colour
+  is allowed — making it unreadable is not.
+- `colourTokens.test.ts` keeps already-migrated files free of raw hex and
+  `rgba()`. Add a path to its list as you migrate one.
+
+Use `NEXORA_TONE` for anything that carries meaning (success, danger,
+active, …) and `NEXORA_GREY` for neutrals. Brand cyan and brand orange are
+fills for dark text, not text colours — their readable counterparts are
+`NEXORA_CYAN_FG` and `NEXORA_SECURITY_FG`. A raw literal cannot follow the
+light/dark switch under User Settings, which is the practical reason for the
+rule.
 
 ---
 

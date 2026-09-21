@@ -20,6 +20,9 @@ import {
 } from '@material-ui/core';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import type { BusinessCapability } from '../api/types';
+import {
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const DOMAINS = ['make', 'quality', 'supply', 'analytics'];
 
@@ -154,7 +157,7 @@ export function BusinessCapabilitiesPage() {
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 0' }}>
           <section
             style={{
-              border: '1px solid #E2E8F0',
+              border: `1px solid ${NEXORA_GREY[200]}`,
               borderRadius: 12,
               padding: 20,
               marginBottom: 32,
@@ -225,7 +228,7 @@ export function BusinessCapabilitiesPage() {
                 <section
                   key={capability.id}
                   style={{
-                    border: '1px solid #E2E8F0',
+                    border: `1px solid ${NEXORA_GREY[200]}`,
                     borderRadius: 12,
                     padding: 16,
                     marginBottom: 12,

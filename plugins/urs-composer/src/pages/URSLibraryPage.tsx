@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState, type FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
+import { StatusBadge } from '@internal/plugin-nexora-common';
 import {
   Header,
   Page,
@@ -19,7 +20,6 @@ import {
   Button,
   TextField,
   Box,
-  Chip,
   FormControl,
   InputLabel,
   Select,
@@ -237,7 +237,7 @@ export const URSLibraryPage: FC = () => {
     {
       title: 'Status',
       field: 'status',
-      render: row => <Chip size="small" label={row.status} />,
+      render: row => <StatusBadge kind="urs" state={row.status} />,
       customSort: (a, b) => {
         const orderA = STATUS_ORDER[a.status] ?? 99;
         const orderB = STATUS_ORDER[b.status] ?? 99;

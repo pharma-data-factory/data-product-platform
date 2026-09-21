@@ -15,11 +15,17 @@ describe('Guest development fallback', () => {
     const users = read('catalog/users.seed.yaml');
 
     expect(appConfig).toContain('environment: development');
-    expect(appConfig).toContain('userEntityRef: user:default/guest');
-    expect(appConfig).toContain('group:default/guests');
-    expect(appConfig).toContain('group:default/data-product-developers');
-    expect(appConfig).not.toContain('group:default/platform-admins');
-    expect(appConfig).not.toContain('dangerouslyAllowOutsideDevelopment: true');
+    // Guest is opt-in and lives in its own config, loaded only when
+    // AUTH_GUEST_ENABLED=true. The default login offers GitHub only.
+    expect(appConfig).not.toMatch(/^\s+guest:/m);
+    expect(appConfig).not.toContain('userEntityRef: user:default/guest');
+
+    const guestConfig = read('app-config.guest.yaml');
+    expect(guestConfig).toContain('userEntityRef: user:default/guest');
+    expect(guestConfig).toContain('group:default/guests');
+    expect(guestConfig).toContain('group:default/platform-viewers');
+    expect(guestConfig).not.toContain('group:default/platform-admins');
+    expect(guestConfig).not.toContain('dangerouslyAllowOutsideDevelopment: true');
 
     expect(production).toContain('environment: production');
     expect(production).not.toMatch(/providers:\s*[\s\S]*guest:/);
@@ -134,8 +140,9 @@ describe('user and group mapping', () => {
     expect(byName.admin.spec.memberOf).toContain('platform-admins');
     expect(byName.schmeckm.spec.memberOf).toContain('platform-admins');
     expect(byName.guest.spec.memberOf).toEqual(
-      expect.arrayContaining(['guests', 'data-product-developers']),
+      expect.arrayContaining(['guests', 'platform-viewers']),
     );
+    expect(byName.guest.spec.memberOf).not.toContain('data-product-developers');
     expect(byName.guest.spec.memberOf).not.toContain('platform-admins');
 
     expect(githubUserEntityName(byName.admin)).toBe('admin');

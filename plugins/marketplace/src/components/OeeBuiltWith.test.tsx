@@ -4,9 +4,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
 import { configApiRef } from '@backstage/core-plugin-api';
 import { OeeBuiltWith } from './OeeBuiltWith';
-import { OeeBuiltWithSummary } from '@internal/platform-common';
+import { BuiltWithSummary } from '@internal/platform-common';
 
-const summary: OeeBuiltWithSummary = {
+const summary: BuiltWithSummary = {
   productLabel: 'OEE Golden Path',
   reusableCount: 6,
   certifiedCount: 6,

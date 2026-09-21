@@ -1,0 +1,27 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: rag-foundation
+  version: "1.0.0"
+  displayName: "RAG Foundation (planned)"
+  description: >
+    Planned intelligence composition. Not implemented. Validation against the
+    Catalog is expected to fail until the components are supported.
+spec:
+  standardVersion: "1.0.0"
+  components:
+    - ref: "component:default/document-loader"
+      version: "0.0.0"
+    - ref: "component:default/chunker"
+      version: "0.0.0"
+    - ref: "component:default/embeddings"
+      version: "0.0.0"
+    - ref: "component:default/vector-store"
+      version: "0.0.0"
+    - ref: "component:default/retriever"
+      version: "0.0.0"
+    - ref: "component:default/llm-gateway"
+      version: "0.0.0"
+    - ref: "component:default/rag"
+      version: "0.0.0"

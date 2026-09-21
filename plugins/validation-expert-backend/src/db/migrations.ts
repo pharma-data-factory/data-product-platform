@@ -93,4 +93,21 @@ export async function up(knex: Knex): Promise<void> {
       table.integer('counter_value').notNullable().defaultTo(0);
     });
   }
+
+  // Phase 5 (P5-S1): Validation Decision — the terminal step.
+  // One decision per ValidationContext (unique on context_id).
+  // Inserting a second decision on the same context is refused by the unique
+  // index; the service also checks this explicitly to produce a clear error.
+  if (!(await knex.schema.hasTable('validation_decisions'))) {
+    await knex.schema.createTable('validation_decisions', table => {
+      table.string('id', 255).primary();
+      table.string('context_id', 255).notNullable().unique();
+      table.string('status', 32).notNullable(); // APPROVED | CONDITIONAL | REJECTED
+      table.text('justification').notNullable();
+      table.text('conditions').nullable();
+      table.string('decided_by', 255).notNullable();
+      table.string('decided_at', 64).notNullable();
+      table.foreign('context_id').references('id').inTable('validation_contexts');
+    });
+  }
 }

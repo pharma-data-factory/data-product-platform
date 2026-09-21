@@ -1,0 +1,17 @@
+apiVersion: nexora.dev/v1alpha1
+kind: COMPONENT
+metadata:
+  namespace: nexora
+  name: unified-namespace
+  version: "1.0.0"
+  displayName: "Unified Namespace"
+  description: "Reusable MQTT Unified Namespace. Platform component, not a Data Product."
+spec:
+  sourceRef: "template:default/unified-namespace"
+  marketplace:
+    category: "Platform Components"
+    provider: "Nexora"
+    compatibility: "Python 3.12+, MQTT 3.1.1, Docker"
+    status: "available"
+    documentation: "/create/templates/default/unified-namespace"
+    catalogEntityRef: "component:default/unified-namespace"

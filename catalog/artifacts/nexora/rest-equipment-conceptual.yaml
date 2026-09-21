@@ -1,0 +1,24 @@
+apiVersion: nexora.dev/v1alpha1
+kind: GOLDEN_PATH
+metadata:
+  namespace: nexora
+  name: rest-equipment-conceptual
+  version: "1.0.0"
+  displayName: "REST Equipment (conceptual)"
+  description: >
+    Documents which Platform Components the existing REST Equipment Golden
+    Path uses conceptually. The runtime is not refactored.
+spec:
+  standardVersion: "1.0.0"
+  usage:
+    kind: conceptual
+    label: "REST Equipment"
+  components:
+    - ref: "component:default/rest-source"
+      version: "1.x"
+    - ref: "component:default/rest-api"
+      version: "1.x"
+    - ref: "component:default/health"
+      version: "1.x"
+    - ref: "component:default/observability"
+      version: "1.x"

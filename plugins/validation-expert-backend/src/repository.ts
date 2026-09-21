@@ -10,6 +10,7 @@ import type {
   ValidationRun,
   ValidationTestExecution,
 } from './types';
+import type { ValidationDecision } from '@internal/platform-common';
 
 /**
  * Persistence contract for Validation Expert runtime evidence.
@@ -40,6 +41,10 @@ export interface ValidationRunRepository {
     baselineId: string,
   ): Promise<ValidationContext | undefined>;
   addContext(context: ValidationContext): Promise<void>;
+
+  // Phase 5 (P5-S1): Validation Decisions
+  addDecision(decision: ValidationDecision): Promise<void>;
+  getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined>;
 }
 
 interface StoreShape {
@@ -178,6 +183,19 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
       },
     });
   }
+
+  private decisions: ValidationDecision[] = [];
+
+  async addDecision(decision: ValidationDecision): Promise<void> {
+    if (this.decisions.some(d => d.contextId === decision.contextId)) {
+      throw new Error(`Decision already exists for context ${decision.contextId}`);
+    }
+    this.decisions.push({ ...decision });
+  }
+
+  async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
+    return this.decisions.find(d => d.contextId === contextId);
+  }
 }
 
 export class FileValidationRunRepository implements ValidationRunRepository {
@@ -275,6 +293,15 @@ export class FileValidationRunRepository implements ValidationRunRepository {
   async addContext(context: ValidationContext): Promise<void> {
     await this.memory.addContext(context);
     this.persist();
+  }
+
+  async addDecision(decision: ValidationDecision): Promise<void> {
+    await this.memory.addDecision(decision);
+    this.persist();
+  }
+
+  async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
+    return this.memory.getDecisionByContextId(contextId);
   }
 }
 

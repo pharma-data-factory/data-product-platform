@@ -115,6 +115,7 @@ describe('Machine State Consumer Data Product', () => {
       'name',
       'description',
       'owner',
+      'ursBaselineId',
       'domain',
       'unsComponent',
       'topicPattern',
@@ -132,7 +133,12 @@ describe('Machine State Consumer Data Product', () => {
     expect(entity.spec.parameters[0].description).toMatch(/Unified Namespace/);
     expect(entity.spec.parameters[0].description).not.toMatch(/OEE calculation/i);
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
-      ['fetch:template', 'publish:github', 'catalog:register'],
+      [
+        'fetch:template',
+        'nexora:urs:verify-baseline',
+        'publish:github',
+        'catalog:register',
+      ],
     );
   });
 
@@ -163,8 +169,16 @@ describe('Machine State Consumer Data Product', () => {
       component.metadata.annotations['dataprod.platform/depends-on'],
     ).toBeUndefined();
     expect(component.metadata.links.map((link: { title: string }) => link.title)).toContain(
-      'Catalog Graph',
+      'Documentation',
     );
+    // A production Catalog rejects relative links[].url. The Catalog Graph is
+    // reachable from the entity page itself, so generated repositories carry
+    // absolute links only — same as the official Golden Path templates.
+    for (const doc of docs.filter(Boolean)) {
+      for (const link of doc.metadata?.links ?? []) {
+        expect(link.url).toMatch(/^https?:\/\//);
+      }
+    }
     expect(api.spec.type).toBe('contract');
     expect(api.metadata.annotations['dataprod.platform/contract']).toBe(
       'machine-state-event',

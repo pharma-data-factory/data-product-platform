@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
 import {
-  parseCompositionManifest,
   toRelatedPlatformComponents,
   validateComposition,
 } from '@internal/platform-common';
+import { readGoldenPathComposition } from './__testUtils__/goldenPathCompositions';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -51,9 +51,7 @@ describe('OEE Golden Path Design 1.0', () => {
 
   it('validates Mode A composition with 1.x ranges and no UNS or AAS', () => {
     const catalog = toRelatedPlatformComponents(loadPlatformComponentCatalog());
-    const composition = parseCompositionManifest(
-      read('catalog/compositions/oee-data-product-direct.yaml'),
-    );
+    const composition = readGoldenPathComposition('oee-data-product-direct');
     const refs = composition.spec.components.map(item => item.ref);
     expect(refs).toEqual(
       expect.arrayContaining([

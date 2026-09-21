@@ -6,6 +6,7 @@
   "backstage": {
     "role": "frontend"
   },
+  "configSchema": "config.d.ts",
   "scripts": {
     "start": "node --env-file=../../.env ../../node_modules/@backstage/cli/bin/backstage-cli package start",
     "build": "backstage-cli package build",
@@ -87,5 +88,12 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "jest": {
+    "id": "backstage_cli_app",
+    "moduleNameMapper": {
+      "\\.(css|less|scss|sss|styl)$": "jest-css-modules",
+      "^@backstage/plugin-app-module-user-settings$": "<rootDir>/../../../node_modules/@backstage/plugin-app-module-user-settings/dist/index.esm.js"
+    }
+  }
 }

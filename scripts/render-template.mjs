@@ -22,6 +22,10 @@ const values = {
   dependsOn: '',
   defaultTopic: 'dataprod/events',
   mqttTopic: 'pharma/temperature/+',
+  // template.yaml defaults this to 'unbound' when the author picks no baseline.
+  // Mirrored here so a dry run renders what the scaffolder would actually write.
+  ursBaselineId: 'unbound',
+  policyVersion: '1',
   templateVersion: '1.0.0',
   templateName: {
     'python-service': 'python-microservice',

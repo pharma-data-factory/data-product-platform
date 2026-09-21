@@ -2,12 +2,16 @@ import { Content, Link, Page } from '@backstage/core-components';
 import { Box, Grid, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
     background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
     borderRadius: 16,
-    color: '#F8FAFC',
+    color: NEXORA_GREY[50],
     marginBottom: 28,
     padding: '32px 28px',
   },
@@ -29,7 +33,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   copy: {
-    color: '#CBD5E1',
+    color: NEXORA_GREY[300],
     fontSize: 16,
     lineHeight: 1.7,
     marginBottom: 0,
@@ -40,7 +44,7 @@ const useStyles = makeStyles({
     background: PHARMA_TEAL,
     border: `1px solid ${PHARMA_TEAL}`,
     borderRadius: 10,
-    color: '#FFFFFF !important',
+    color: `${NEXORA_CARD} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 13,

@@ -15,6 +15,18 @@ import {
   PHARMA_TEAL_LIGHT,
   PHARMA_TEXT,
 } from './tokens';
+import {
+  NEXORA_CARD,
+  NEXORA_CYAN,
+  NEXORA_CYAN_PALE,
+  NEXORA_DARK,
+  NEXORA_GREY,
+  NEXORA_NAVY,
+  NEXORA_NAVY_LINE,
+  NEXORA_NAVY_SOFT,
+  NEXORA_ON_NAVY,
+  withAlpha,
+} from '@internal/plugin-nexora-common';
 
 export {
   BRAND_NAME,
@@ -34,47 +46,47 @@ const pageThemes = {
   home: genPageTheme({
     colors: [PHARMA_NAVY, PHARMA_TEAL],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   app: genPageTheme({
-    colors: [PHARMA_NAVY, '#1E3A5F'],
+    colors: [PHARMA_NAVY, NEXORA_NAVY_SOFT],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   documentation: genPageTheme({
     colors: [PHARMA_NAVY, PHARMA_TEAL],
     shape: shapes.round,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   tool: genPageTheme({
-    colors: [PHARMA_NAVY, '#1E3A5F'],
+    colors: [PHARMA_NAVY, NEXORA_NAVY_SOFT],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   service: genPageTheme({
     colors: [PHARMA_NAVY, PHARMA_TEAL],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   website: genPageTheme({
     colors: [PHARMA_NAVY, PHARMA_TEAL],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   library: genPageTheme({
-    colors: ['#1E3A5F', PHARMA_TEAL],
+    colors: [NEXORA_NAVY_SOFT, PHARMA_TEAL],
     shape: shapes.round,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   other: genPageTheme({
-    colors: [PHARMA_NAVY, '#1E3A5F'],
+    colors: [PHARMA_NAVY, NEXORA_NAVY_SOFT],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
   apis: genPageTheme({
     colors: [PHARMA_NAVY, PHARMA_TEAL],
     shape: shapes.wave,
-    options: { fontColor: '#FFFFFF' },
+    options: { fontColor: NEXORA_CARD },
   }),
 };
 
@@ -91,14 +103,14 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
     primary: {
       main: PHARMA_NAVY,
       dark: PHARMA_NAVY_DARK,
-      light: '#1E3A5F',
-      contrastText: '#FFFFFF',
+      light: NEXORA_NAVY_SOFT,
+      contrastText: NEXORA_CARD,
     },
     secondary: {
       main: PHARMA_TEAL,
       dark: PHARMA_TEAL_DARK,
       light: PHARMA_TEAL_LIGHT,
-      contrastText: '#FFFFFF',
+      contrastText: NEXORA_CARD,
     },
     text: {
       primary: PHARMA_TEXT,
@@ -108,10 +120,10 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
       ...palettes.light.navigation,
       background: PHARMA_NAVY,
       indicator: PHARMA_TEAL,
-      color: '#C5D0DC',
-      selectedColor: '#FFFFFF',
+      color: NEXORA_ON_NAVY,
+      selectedColor: NEXORA_CARD,
       navItem: {
-        hoverBackground: '#163154',
+        hoverBackground: NEXORA_NAVY_LINE,
       },
       submenu: {
         background: PHARMA_NAVY_DARK,
@@ -120,8 +132,8 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
     status: {
       ...palettes.light.status,
       ok: PHARMA_TEAL,
-      running: '#1E3A5F',
-      pending: '#64748B',
+      running: NEXORA_NAVY_SOFT,
+      pending: NEXORA_GREY[500],
     },
     link: PHARMA_TEAL,
     linkHover: PHARMA_TEAL_DARK,
@@ -142,7 +154,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
         },
         containedPrimary: {
           backgroundColor: PHARMA_NAVY,
-          color: '#FFFFFF',
+          color: NEXORA_CARD,
           fontWeight: 600,
           textTransform: 'none',
           '&:hover': {
@@ -163,7 +175,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
           color: PHARMA_NAVY,
           textTransform: 'none',
           '&:hover': {
-            backgroundColor: 'rgba(0, 194, 217, 0.08)',
+            backgroundColor: withAlpha(NEXORA_CYAN, 0.08),
             borderColor: PHARMA_TEAL,
           },
         },
@@ -182,7 +194,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
         },
         colorPrimary: {
           backgroundColor: PHARMA_NAVY,
-          color: '#FFFFFF',
+          color: NEXORA_CARD,
         },
         outlined: {
           borderColor: C.border,
@@ -195,7 +207,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
         root: {
           backgroundColor: PHARMA_PAPER,
           border: `1px solid ${C.border}`,
-          boxShadow: '0 1px 2px rgba(11, 31, 58, 0.06)',
+          boxShadow: `0 1px 2px ${withAlpha(NEXORA_NAVY, 0.06)}`,
         },
       },
     },
@@ -228,8 +240,8 @@ export const pharmaDataFactoryDarkTheme = createUnifiedTheme({
     type: 'dark',
     mode: 'dark',
     background: {
-      default: '#071521',
-      paper: '#0B1F3A',
+      default: NEXORA_DARK.base,
+      paper: NEXORA_DARK.paper,
     },
     primary: {
       main: PHARMA_TEAL,
@@ -240,31 +252,31 @@ export const pharmaDataFactoryDarkTheme = createUnifiedTheme({
     secondary: {
       main: PHARMA_TEAL_LIGHT,
       dark: PHARMA_TEAL,
-      light: '#A5F3FC',
+      light: NEXORA_CYAN_PALE,
       contrastText: PHARMA_NAVY_DARK,
     },
     text: {
-      primary: '#F8FAFC',
-      secondary: '#94A3B8',
+      primary: NEXORA_GREY[50],
+      secondary: NEXORA_GREY[400],
     },
     navigation: {
       ...palettes.dark.navigation,
       background: PHARMA_NAVY_DARK,
       indicator: PHARMA_TEAL,
-      color: '#94A3B8',
-      selectedColor: '#FFFFFF',
+      color: NEXORA_GREY[400],
+      selectedColor: NEXORA_CARD,
       navItem: {
-        hoverBackground: '#0F2744',
+        hoverBackground: NEXORA_DARK.hover,
       },
       submenu: {
-        background: '#030B14',
+        background: NEXORA_DARK.submenu,
       },
     },
     status: {
       ...palettes.dark.status,
       ok: PHARMA_TEAL,
       running: PHARMA_TEAL_LIGHT,
-      pending: '#64748B',
+      pending: NEXORA_GREY[500],
     },
     link: PHARMA_TEAL_LIGHT,
     linkHover: PHARMA_TEAL,
@@ -303,7 +315,7 @@ export const pharmaDataFactoryDarkTheme = createUnifiedTheme({
           color: PHARMA_TEAL_LIGHT,
           textTransform: 'none',
           '&:hover': {
-            backgroundColor: 'rgba(0, 194, 217, 0.14)',
+            backgroundColor: withAlpha(NEXORA_CYAN, 0.14),
           },
         },
         textPrimary: {
@@ -328,9 +340,9 @@ export const pharmaDataFactoryDarkTheme = createUnifiedTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          backgroundColor: '#0B1F3A',
-          border: '1px solid rgba(148, 163, 184, 0.18)',
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.35)',
+          backgroundColor: NEXORA_DARK.paper,
+          border: `1px solid ${withAlpha(NEXORA_GREY[400], 0.18)}`,
+          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.35)', // neutral drop shadow, not a palette colour
         },
       },
     },

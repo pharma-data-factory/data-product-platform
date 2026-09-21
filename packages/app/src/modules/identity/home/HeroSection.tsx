@@ -3,6 +3,9 @@ import ArrowForwardIcon from '@material-ui/icons/ArrowForward';
 import { useLandingI18n } from '../landingI18n';
 import { HeroArchitecture } from './HeroArchitecture';
 import { NX } from './icons';
+import {
+  NEXORA_ACCENT,
+} from '@internal/plugin-nexora-common';
 
 export function HeroContent({ error }: Readonly<{ error?: string }>) {
   const { t } = useLandingI18n();
@@ -46,7 +49,7 @@ export function HeroContent({ error }: Readonly<{ error?: string }>) {
         </a>
       </div>
       {error ? (
-        <p role="alert" style={{ color: '#FECACA', marginTop: 16 }}>
+        <p role="alert" style={{ color: NEXORA_ACCENT.dangerBorder, marginTop: 16 }}>
           {error}
         </p>
       ) : null}

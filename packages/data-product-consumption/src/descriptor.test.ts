@@ -61,4 +61,49 @@ describe('descriptorFromEntity', () => {
     );
     expect(d.validation.status).toBe('NOT_VALIDATED');
   });
+
+  // Phase 6 (P6-S1): Analytics Providers
+  it('parses analytics providers from JSON annotation', () => {
+    const providers = [
+      { name: 'OEE Dashboard', type: 'PowerBI', url: 'https://powerbi.example.com/oee' },
+      { name: 'Process Notebook', type: 'Jupyter', description: 'Daily batch analysis' },
+    ];
+    const d = descriptorFromEntity(
+      entity({
+        metadata: {
+          name: 'analytics-product',
+          annotations: {
+            'dataprod.platform/analytics-providers': JSON.stringify(providers),
+          },
+        },
+      }),
+    );
+    expect(d.analyticsProviders).toHaveLength(2);
+    expect(d.analyticsProviders[0].name).toBe('OEE Dashboard');
+    expect(d.analyticsProviders[0].type).toBe('PowerBI');
+    expect(d.analyticsProviders[0].url).toBe('https://powerbi.example.com/oee');
+    expect(d.analyticsProviders[1].type).toBe('Jupyter');
+    expect(d.analyticsProviders[1].description).toBe('Daily batch analysis');
+  });
+
+  it('coerces unknown analytics provider type to Custom', () => {
+    const d = descriptorFromEntity(
+      entity({
+        metadata: {
+          name: 'x',
+          annotations: {
+            'dataprod.platform/analytics-providers': JSON.stringify([
+              { name: 'Unknown Tool', type: 'NotARealTool' },
+            ]),
+          },
+        },
+      }),
+    );
+    expect(d.analyticsProviders[0].type).toBe('Custom');
+  });
+
+  it('returns empty analyticsProviders when annotation is absent', () => {
+    const d = descriptorFromEntity(entity({ metadata: { name: 'x' } }));
+    expect(d.analyticsProviders).toEqual([]);
+  });
 });

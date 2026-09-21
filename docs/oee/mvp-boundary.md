@@ -66,7 +66,7 @@ Pin ranges, not unversioned names:
 | Time-Series Storage | 1.x |
 | REST API | 1.x |
 
-Validated manifest: `catalog/compositions/oee-data-product-direct.yaml`.
+Validated manifest: `catalog/artifacts/nexora/oee-data-product-direct.yaml`.
 
 Optional, not in the MVP 1.0 manifest:
 

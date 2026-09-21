@@ -79,6 +79,70 @@ describe('mapFailedStages', () => {
     ).toEqual(['Unit Tests']);
   });
 
+  it('reports a failed Security scan, the seventh Golden Path stage', () => {
+    expect(
+      mapFailedStages([
+        {
+          name: 'quality-gate',
+          conclusion: 'failure',
+          steps: [
+            { name: 'Lint', conclusion: 'success' },
+            { name: 'Unit tests', conclusion: 'success' },
+            { name: 'Contract tests', conclusion: 'success' },
+            { name: 'Data quality tests', conclusion: 'success' },
+            { name: 'Compatibility tests', conclusion: 'success' },
+            { name: 'Docker build', conclusion: 'success' },
+            { name: 'Security scan', conclusion: 'failure' },
+          ],
+        },
+      ]),
+    ).toEqual(['Security Scan']);
+  });
+
+  it('matches the Security Scan job name and the Bandit step wording', () => {
+    expect(
+      mapFailedStages([
+        { name: 'Security Scan', conclusion: 'failure', steps: [] },
+      ]),
+    ).toEqual(['Security Scan']);
+    expect(
+      mapFailedStages([
+        {
+          name: 'security',
+          conclusion: 'failure',
+          steps: [{ name: 'Run Bandit security scan', conclusion: 'failure' }],
+        },
+      ]),
+    ).toEqual(['Security Scan']);
+  });
+
+  it('does not report unrelated security steps as the CVE scan', () => {
+    expect(
+      mapFailedStages([
+        {
+          name: 'quality-gate',
+          conclusion: 'failure',
+          steps: [{ name: 'Security policy check', conclusion: 'failure' }],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('returns stages in quality-gate order', () => {
+    expect(
+      mapFailedStages([
+        {
+          name: 'quality-gate',
+          conclusion: 'failure',
+          steps: [
+            { name: 'Security scan', conclusion: 'failure' },
+            { name: 'Lint', conclusion: 'failure' },
+          ],
+        },
+      ]),
+    ).toEqual(['Lint', 'Security Scan']);
+  });
+
   it('keeps quality-gate job names from mapping to Data Quality', () => {
     expect(
       mapFailedStages([

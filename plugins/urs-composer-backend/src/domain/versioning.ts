@@ -15,6 +15,7 @@
  */
 
 import { InputError } from '@backstage/errors';
+import { nextMajorVersionLabel } from '@internal/platform-common';
 
 export interface VersionNumber {
   major: number;
@@ -103,3 +104,22 @@ export function versionOrdinal(v: VersionNumber): number {
 export function compareVersions(a: VersionNumber, b: VersionNumber): number {
   return versionOrdinal(a) - versionOrdinal(b);
 }
+
+/**
+ * The baseline version to propose next for a requirement set.
+ *
+ * Baselines are whole releases of a set, so they count up in majors: the first
+ * is 1.0, the next 2.0. Unlike a requirement version this is only a
+ * SUGGESTION — a baseline identifier often has to match a document number in
+ * an external QMS, so the caller may override it. What the server does not
+ * allow is a duplicate; see assertBaselineVersionAvailable.
+ *
+ * Existing labels are parsed leniently because earlier baselines were accepted
+ * as free text: anything without a leading number is ignored rather than
+ * throwing, so one odd historical label cannot block the next proposal.
+ *
+ * The Product Composer asks the same question of Product versions and Product
+ * baselines, so the implementation is shared. This name is kept because it is
+ * the vocabulary the URS domain speaks.
+ */
+export const nextBaselineVersion = nextMajorVersionLabel;

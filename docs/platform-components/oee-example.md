@@ -59,8 +59,8 @@ Do **not** implement in this phase:
 OEE domain logic remains a future Golden Path. Health and Observability
 are included so that future OEE inherits Wave 1 operations components.
 
-Manifests: `catalog/compositions/oee-data-product.yaml` (Mode B example)
-and `catalog/compositions/oee-data-product-direct.yaml` (Mode A).
+Manifests: `catalog/artifacts/nexora/oee-data-product-uns.yaml` (Mode B example)
+and `catalog/artifacts/nexora/oee-data-product-direct.yaml` (Mode A).
 
 Catalog placeholder `example-oee-data-product` `dependsOn` those
 components so Catalog Graph can show native relations. Used By is

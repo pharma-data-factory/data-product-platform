@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
+import { artifactRegistryApiEntry } from '../__testUtils__/artifactRegistry';
 import { configApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { UnifiedThemeProvider } from '@backstage/theme';
@@ -189,6 +190,8 @@ async function renderRegistry() {
           <TestApiProvider
             apis={[
               [configApiRef, mockApis.config()],
+            artifactRegistryApiEntry,
+              artifactRegistryApiEntry,
               [catalogApiRef, catalogApi],
             ]}
           >
@@ -361,6 +364,8 @@ describe('Platform Component detail', () => {
             <TestApiProvider
               apis={[
                 [configApiRef, mockApis.config()],
+            artifactRegistryApiEntry,
+              artifactRegistryApiEntry,
                 [catalogApiRef, catalogApi],
               ]}
             >
@@ -408,6 +413,8 @@ describe('Platform Component detail', () => {
             <TestApiProvider
               apis={[
                 [configApiRef, mockApis.config()],
+            artifactRegistryApiEntry,
+              artifactRegistryApiEntry,
                 [catalogApiRef, catalogApi],
               ]}
             >

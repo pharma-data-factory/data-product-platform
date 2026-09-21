@@ -1,5 +1,9 @@
 import { makeStyles } from '@material-ui/core/styles';
 import {
+  NEXORA_CARD,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
+import {
   PHARMA_NAVY,
   PHARMA_NAVY_DARK,
   PHARMA_TEAL,
@@ -17,7 +21,7 @@ const useStyles = makeStyles({
     width: '100%',
   },
   caption: {
-    color: '#475569',
+    color: NEXORA_GREY[600],
     fontSize: 14,
     lineHeight: 1.55,
     margin: '12px 0 0',
@@ -45,7 +49,7 @@ function chip(x: number, y: number, width: number, label: string) {
         x={x + width / 2}
         y={y + 17}
         textAnchor="middle"
-        fill="#E2E8F0"
+        fill={NEXORA_GREY[200]}
         fontFamily="Space Grotesk, Inter, sans-serif"
         fontSize={11.5}
         fontWeight={600}
@@ -125,7 +129,7 @@ export function ArchitectureStackVisual() {
           x="360"
           y="74"
           textAnchor="middle"
-          fill="#FFFFFF"
+          fill={NEXORA_CARD}
           fontFamily={DISPLAY_FONT}
           fontSize="14"
           fontWeight={700}
@@ -170,7 +174,7 @@ export function ArchitectureStackVisual() {
         <text
           x="112"
           y="184"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="Inter, Segoe UI, sans-serif"
           fontSize="11"
         >
@@ -211,7 +215,7 @@ export function ArchitectureStackVisual() {
         <text
           x="56"
           y="342"
-          fill="#94A3B8"
+          fill={NEXORA_GREY[400]}
           fontFamily="Inter, Segoe UI, sans-serif"
           fontSize="11"
         >

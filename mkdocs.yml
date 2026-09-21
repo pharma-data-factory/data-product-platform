@@ -7,6 +7,7 @@ nav:
       - Pilot readiness: pilot-readiness.md
       - Pilot hardening gate: pilot-hardening-gate.md
       - Pilot exit gate: pilot-exit-gate.md
+      - Pilot exit execution protocol: pilot-exit-execution-protocol.md
       - MVP 1.0 baseline: mvp-1.0-baseline.md
       - Status model: status-model.md
       - Developer journey evidence: developer/mvp-journey-evidence.md
@@ -39,6 +40,7 @@ nav:
       - Cold Chain via UNS: uns/cold-chain-example.md
       - Identity: architecture/identity.md
       - Deployment models: architecture/deployment-models.md
+      - E2E platform consolidation: e2e-platform-consolidation.md
       - Engineering notes: architecture.md
   - Engineering:
       - Standard: engineering/standard.md

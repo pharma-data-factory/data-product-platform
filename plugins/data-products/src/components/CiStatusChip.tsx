@@ -1,21 +1,26 @@
 import { Chip } from '@material-ui/core';
+import { NEXORA_TONE, NexoraToneName } from '@internal/plugin-nexora-common';
 import { ciStatusRepresentation, PlatformCiStatus } from '../ciStatus';
 
-const STYLES: Record<PlatformCiStatus, { backgroundColor: string; color: string }> =
-  {
-    PASSED: { backgroundColor: '#2e7d32', color: '#fff' },
-    FAILED: { backgroundColor: '#c62828', color: '#fff' },
-    RUNNING: { backgroundColor: '#1565c0', color: '#fff' },
-    CANCELLED: { backgroundColor: '#616161', color: '#fff' },
-    UNKNOWN: { backgroundColor: '#9e9e9e', color: '#fff' },
-  };
+const TONES: Record<PlatformCiStatus, NexoraToneName> = {
+  PASSED: 'success',
+  FAILED: 'danger',
+  RUNNING: 'active',
+  CANCELLED: 'neutral',
+  UNKNOWN: 'neutral',
+};
+
+function styleFor(status: PlatformCiStatus) {
+  const tone = NEXORA_TONE[TONES[status]];
+  return { backgroundColor: tone.bg, color: tone.fg };
+}
 
 export function CiStatusChip({ status }: { status: PlatformCiStatus }) {
   return (
     <Chip
       size="small"
       label={ciStatusRepresentation(status)}
-      style={STYLES[status]}
+      style={styleFor(status)}
       title="Latest GitHub Actions quality-gate result. Not GxP or regulatory validation."
     />
   );

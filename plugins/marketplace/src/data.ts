@@ -51,6 +51,9 @@ export interface MarketplaceCatalogTemplate {
   templateVersion?: string;
   dataProductStandardVersion?: string;
   dataProductSdkVersion?: string;
+  /** Requirement set key the Golden Path declares it satisfies, e.g. URS-EPM. */
+  ursSatisfies?: string;
+  ursRequirementCount?: number;
 }
 
 export interface MarketplaceItem {
@@ -65,6 +68,8 @@ export interface MarketplaceItem {
   certificationStatus: CertificationStatus;
   documentation: string;
   templateReference?: string;
+  /** Composition this offering is built from, if its manifest names one. */
+  builtFrom?: string;
   catalogEntityRef?: string;
   contractApiRef?: string;
   contractName?: string;
@@ -78,181 +83,16 @@ export interface MarketplaceItem {
   releaseDate?: string;
   commercialStatus?: CommercialCardStatus;
   commercialCopy?: string;
+  ursSatisfies?: string;
+  ursRequirementCount?: number;
+  /**
+   * Trust tier of the publisher who registered this artifact.
+   * `'INTERNAL'` when the publisher predates Phase 7. Phase 7 (P7-S4).
+   */
+  publisherTrustLevel: string;
+  /** True when the publisher is outside the Nexora organisation. Phase 7 (P7-S4). */
+  externalPublisher: boolean;
 }
-
-export const marketplaceItems: MarketplaceItem[] = [
-  {
-    id: 'python-microservice',
-    name: 'Python Microservice',
-    category: 'Templates',
-    version: '1.0.0',
-    description:
-      'General service template (FastAPI). Not an official Data Product Golden Path.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, Docker, GitHub',
-    status: 'available',
-    certificationStatus: 'TESTED',
-    documentation: '/create/templates/default/python-microservice',
-    templateReference: 'template:default/python-microservice',
-  },
-  {
-    id: 'nodejs-microservice',
-    name: 'Node.js Microservice',
-    category: 'Templates',
-    version: '1.0.0',
-    description:
-      'TypeScript Express microservice with Vitest, ESLint, Docker, and GitHub Actions.',
-    provider: 'Nexora',
-    compatibility: 'Node.js 20+, Docker, GitHub',
-    status: 'available',
-    certificationStatus: 'TESTED',
-    documentation: '/create/templates/default/nodejs-microservice',
-    templateReference: 'template:default/nodejs-microservice',
-  },
-  {
-    id: 'mqtt-data-connector',
-    name: 'MQTT Connector',
-    category: 'Connectors',
-    version: '1.0.0',
-    description:
-      'Demonstration MQTT connector with environment-based broker configuration.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, MQTT 3.1.1, Docker',
-    status: 'available',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/create/templates/default/mqtt-data-connector',
-    templateReference: 'template:default/mqtt-data-connector',
-  },
-  {
-    id: 'mqtt-temperature-data-product',
-    name: 'MQTT Temperature Data Product',
-    category: 'Data Products',
-    version: '1.0.0',
-    description:
-      'MQTT temperature data product with a versioned temperature-event contract.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, MQTT 3.1.1, Docker',
-    status: 'available',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/create/templates/default/mqtt-temperature-data-product',
-    templateReference: 'template:default/mqtt-temperature-data-product',
-  },
-  {
-    id: 'rest-equipment-data-product',
-    name: 'REST Equipment Data Product',
-    category: 'Data Products',
-    version: '1.0.0',
-    description:
-      'REST equipment data product with a versioned equipment-event contract.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, REST, Docker',
-    status: 'available',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/create/templates/default/rest-equipment-data-product',
-    templateReference: 'template:default/rest-equipment-data-product',
-  },
-  {
-    id: 'unified-namespace',
-    name: 'Unified Namespace',
-    category: 'Platform Components',
-    version: '1.0.0',
-    description:
-      'Reusable MQTT Unified Namespace. Platform component, not a Data Product.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, MQTT 3.1.1, Docker',
-    status: 'available',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/create/templates/default/unified-namespace',
-    templateReference: 'template:default/unified-namespace',
-    catalogEntityRef: 'component:default/unified-namespace',
-  },
-  {
-    id: 'aas-foundation',
-    name: 'Asset Administration Shell',
-    category: 'Platform Components',
-    version: '1.0.0',
-    description:
-      'AAS Foundation prototype for asset and sensor semantics. Platform component, not a Data Product. Control Plane persistence is in-memory.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, SQLite, REST',
-    status: 'preview',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/docs/default/component/data-product-platform/aas/index',
-    templateReference: 'template:default/aas-asset',
-    catalogEntityRef: 'component:default/aas-foundation',
-  },
-  {
-    id: 'machine-state-consumer-data-product',
-    name: 'Machine State Consumer Data Product',
-    category: 'Data Products',
-    version: '1.0.0',
-    description:
-      'Composition / reference proof that consumes machine-state events from Unified Namespace. Not an official RELEASED Data Product Golden Path. Not OEE.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, MQTT, Docker, Unified Namespace',
-    status: 'available',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/create/templates/default/machine-state-consumer-data-product',
-    templateReference: 'template:default/machine-state-consumer-data-product',
-    catalogEntityRef: 'component:default/sample-machine-state-consumer',
-    contractApiRef:
-      'api:default/sample-machine-state-consumer--machine-state-event',
-  },
-  {
-    id: 'aas-data-product',
-    name: 'AAS Asset Administration Shell Data Product',
-    category: 'Data Products',
-    version: '1.0.0',
-    description:
-      'Asset Administration Shell (IEC 63278 / IDTA-01001 v3.0) for asset registry, multi-source ingestion (MQTT/REST), and semantic asset management. Technical CERTIFIED; asset-event-v1.0.0 data contract.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, MQTT, REST, Docker, BaSyx SDK',
-    status: 'available',
-    certificationStatus: 'CERTIFIED',
-    documentation: '/create/templates/default/aas-data-product',
-    templateReference: 'template:default/aas-data-product',
-  },
-  {
-    id: 'oee-data-product',
-    name: 'OEE Data Product',
-    category: 'Data Products',
-    version: '1.0.0',
-    description:
-      'Overall Equipment Effectiveness for one equipment and time window. Availability × Performance × Quality from MES production context (REST) and machine events (MQTT). Published as oee-result 1.0.0. Technical CERTIFIED only; not GxP validated.',
-    provider: 'Nexora',
-    compatibility: 'Python 3.12+, MQTT, REST, Docker, Wave 1 components',
-    status: 'available',
-    certificationStatus: 'CERTIFIED',
-    documentation: '/create/templates/default/oee-data-product',
-    templateReference: 'template:default/oee-data-product',
-  },
-  {
-    id: 'rest-api-connector',
-    name: 'REST API Connector',
-    category: 'Connectors',
-    version: '0.1.0',
-    description:
-      'Reusable REST ingest building block: poll a governed HTTP source, validate a contract, and feed Data Products. Template not generated in this release; REST Equipment already proves the pattern.',
-    provider: 'Nexora',
-    compatibility: 'HTTP APIs',
-    status: 'preview',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/docs/marketplace',
-  },
-  {
-    id: 'snowflake-connector',
-    name: 'Snowflake Connector',
-    category: 'Connectors',
-    version: '0.1.0',
-    description:
-      'Warehouse product: certified plant contracts (temperature, equipment, OEE) would land in Snowflake as versioned tables. No live Snowflake connectivity and no Create template in this release.',
-    provider: 'Nexora',
-    compatibility: 'Future release',
-    status: 'preview',
-    certificationStatus: 'DEVELOPMENT',
-    documentation: '/docs/marketplace',
-  },
-];
 
 function refersTo(ref: string, product: DataProduct): boolean {
   return (
@@ -273,14 +113,14 @@ export function enrichMarketplaceItem(
     ? products.find(entry => refersTo(item.catalogEntityRef ?? '', entry))
     : products.find(entry => entry.templateName === item.id);
   const apiName = item.contractApiRef?.split('/').pop();
-  const api = apiName
-    ? apis.find(entry => entry.name === apiName)
-    : undefined;
+  const api = apiName ? apis.find(entry => entry.name === apiName) : undefined;
   const templateName = item.templateReference?.split('/').pop();
   const template = templateName
     ? templates.find(entry => entry.name === templateName)
     : undefined;
-  const release = isOfficialGoldenPath(item.id) ? currentRelease(item.id) : undefined;
+  const release = isOfficialGoldenPath(item.id)
+    ? currentRelease(item.id)
+    : undefined;
   const commercial = marketplaceCommercialState(
     item,
     entitledProductIds
@@ -317,10 +157,17 @@ export function enrichMarketplaceItem(
       product?.dataProductSdkVersion ??
       template?.dataProductSdkVersion,
     releaseStatus: release?.status,
-    distribution: release ? visibleDistribution(release.distribution) : undefined,
+    distribution: release
+      ? visibleDistribution(release.distribution)
+      : undefined,
     releaseDate: release?.release.date,
     commercialStatus: commercial.commercialStatus,
     commercialCopy: commercial.commercialCopy,
+    // Taken from the Template entity only. Unlike version or certification
+    // there is no release-registry fallback: the requirements a path satisfies
+    // are stated by the path itself or not at all.
+    ursSatisfies: template?.ursSatisfies,
+    ursRequirementCount: template?.ursRequirementCount,
   };
 }
 

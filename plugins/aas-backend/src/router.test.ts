@@ -1,22 +1,9 @@
 import express from 'express';
-import { AddressInfo } from 'net';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { listenOnFetchablePort as listen } from '@internal/backend-test-utils';
 import { aasManagePermission, aasReadPermission } from '@internal/platform-common';
 import { defaultSeedPath, MemoryAasRepository } from './repository';
 import { createAasRouter } from './router';
-
-async function listen(app: express.Express) {
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', () => resolve()));
-  const { port } = server.address() as AddressInfo;
-  return {
-    url: `http://127.0.0.1:${port}`,
-    close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close(error => (error ? reject(error) : resolve())),
-      ),
-  };
-}
 
 async function appFor(result: (typeof AuthorizeResult)['ALLOW'] | (typeof AuthorizeResult)['DENY']) {
   const repository = new MemoryAasRepository(defaultSeedPath());

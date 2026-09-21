@@ -1,6 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from './landingTokens';
 import { useLandingI18n } from './landingI18n';
+import {
+  NEXORA_ACCENT,
+  NEXORA_GREY,
+} from '@internal/plugin-nexora-common';
 
 const STROKE = {
   fill: 'none' as const,
@@ -60,7 +64,7 @@ function Caption({
       x={x}
       y={y}
       textAnchor="middle"
-      fill="#B6C3D2"
+      fill={NEXORA_ACCENT.onNavyMuted}
       fontSize="10"
       fontFamily="'JetBrains Mono', ui-monospace, monospace"
       letterSpacing="0.08em"
@@ -137,7 +141,7 @@ function OeeScene({ from, via, to }: Readonly<{ from: string; via: string; to: s
           {from}
         </text>
       </g>
-      <text x="80" y="64" textAnchor="middle" fill="#94A3B8" fontSize="16">
+      <text x="80" y="64" textAnchor="middle" fill={NEXORA_GREY[400]} fontSize="16">
         ×
       </text>
       <g className="gpv-bar-b">
@@ -146,7 +150,7 @@ function OeeScene({ from, via, to }: Readonly<{ from: string; via: string; to: s
           {via}
         </text>
       </g>
-      <text x="152" y="64" textAnchor="middle" fill="#94A3B8" fontSize="16">
+      <text x="152" y="64" textAnchor="middle" fill={NEXORA_GREY[400]} fontSize="16">
         ×
       </text>
       <g className="gpv-bar-c">
@@ -170,7 +174,7 @@ function OeeScene({ from, via, to }: Readonly<{ from: string; via: string; to: s
           strokeLinecap="round"
           strokeDasharray="70 100"
         />
-        <text x="268" y="62" textAnchor="middle" fill="#F8FAFC" fontSize="11" fontWeight="600">
+        <text x="268" y="62" textAnchor="middle" fill={NEXORA_GREY[50]} fontSize="11" fontWeight="600">
           OEE
         </text>
       </g>

@@ -66,6 +66,14 @@ export {
   productReadPermission,
   productCreatePermission,
   productManagePermission,
+  artifactReadPermission,
+  artifactCreatePermission,
+  artifactSubmitPermission,
+  artifactReviewPermission,
+  artifactCertifyPermission,
+  artifactPublishPermission,
+  artifactDeprecatePermission,
+  publisherManagePermission,
   platformPermissions,
   VIEWER_PERMISSION_NAMES,
   DEVELOPER_PERMISSION_NAMES,
@@ -130,11 +138,15 @@ export {
 export type { RequirementContent } from './content-hash';
 
 // URS Composer → Validation Expert integration contract
+export { VALIDATION_DECISION_STATUSES } from './validation-integration';
 export type {
   ApprovedURSReference,
   ValidationContext,
   CreateValidationContextRequest,
   ValidationContextRequirement,
+  ValidationDecision,
+  ValidationDecisionStatus,
+  CreateValidationDecisionRequest,
 } from './validation-integration';
 
 export { quickActionsForRole } from './dashboard';
@@ -441,45 +453,35 @@ export type {
 
 export {
   CATALOG_ONLY_COMPONENT_NAMES,
-  EQUIPMENT_USE_LOG_COMPOSITION_YAML,
-  EQUIPMENT_USE_LOG_OPTIONAL_REFS,
-  EQUIPMENT_USE_LOG_REQUIRED_REFS,
+  CONFIG_KEY_TYPES,
   LIBRARY_COMPATIBILITY_FILTERS,
-  LIBRARY_COMPOSITION_USAGE,
   LIBRARY_RUNTIME_FILTERS,
   LIBRARY_STATUS_FILTERS,
-  MACHINE_METRICS_COMPOSITION_REFS,
-  MACHINE_STATE_COMPOSITION_REFS,
-  MQTT_TEMPERATURE_CONCEPTUAL_REFS,
-  OEE_DIRECT_COMPOSITION_REFS,
   PLATFORM_COMPONENT_CATEGORY_LABELS,
-  REST_EQUIPMENT_CONCEPTUAL_REFS,
   RUNTIME_PACKAGE_COMPONENT_NAMES,
   RUNTIME_PACKAGE_SOURCE_PATHS,
-  WAVE1_COMPONENT_TITLES,
   compositionSnippetFor,
   componentNameFromRef,
   filterLibraryComponents,
   hasRuntimePackage,
   libraryProfileFor,
   matchesStandard1x,
-  oeeBuiltWithSummary,
-  parseEquipmentUseLogExample,
+  builtWithSummary,
   runtimeAvailabilityFor,
   toLibraryComponents,
   usageLabelsForComponent,
 } from './platform-component-library';
 export type {
   ComponentLibraryProfile,
-  CompositionUsage,
-  CompositionUsageKind,
+  ConfigKeySchema,
+  ConfigKeyType,
   LibraryCompatibilityFilter,
   LibraryComponentFilters,
   LibraryPlatformComponent,
   LibraryRuntimeFilter,
   LibraryStatusFilter,
-  OeeBuiltWithItem,
-  OeeBuiltWithSummary,
+  BuiltWithItem,
+  BuiltWithSummary,
   RuntimeAvailability,
 } from './platform-component-library';
 
@@ -501,6 +503,7 @@ export {
   officialGoldenPathForDraft,
   officialGoldenPathForSelection,
   sanitizeComposerComponentQuery,
+  compositionConfigSummary,
   serializeCompositionYaml,
   slugifyCompositionName,
   sortCompositionRefs,
@@ -515,12 +518,18 @@ export type {
   ComposerSelectionKind,
   ComposerUxIssue,
   ComposerValidationView,
+  CompositionConfigKey,
+  CompositionConfigSummary,
 } from './composer';
 
 export {
   GOLDEN_PATH_COMPOSITION_API_VERSION,
   GOLDEN_PATH_COMPOSITION_KIND,
+  compositionComponentRefs,
+  compositionUsageFromManifests,
+  compositionOfArtifactManifest,
   normalizeComposition,
+  optionalCompositionComponentRefs,
   parseCompositionManifest,
   validateComposition,
 } from './composition';
@@ -528,6 +537,8 @@ export type {
   CompositionIssue,
   CompositionIssueCode,
   CompositionValidationResult,
+  CompositionUsage,
+  CompositionUsageKind,
   GoldenPathComposition,
   GoldenPathCompositionComponent,
 } from './composition';
@@ -560,6 +571,55 @@ export type {
 } from './classification';
 
 export {
+  ARTIFACT_KINDS,
+  ARTIFACT_LIFECYCLE_STATES,
+  ARTIFACT_MANIFEST_API_VERSION,
+  ARTIFACT_SEGMENT_MAX_LENGTH,
+  artifactCoordinateOf,
+  formatArtifactRef,
+  isArtifactKind,
+  isArtifactLifecycle,
+  isArtifactManifest,
+  isArtifactSegment,
+  editionHasCapability,
+  isPublisherTrustLevel,
+  parseArtifactRef,
+  validateArtifactManifest,
+  PUBLISHER_TRUST_LEVELS,
+} from './artifact';
+export type {
+  Artifact,
+  ArtifactCertificationStatus,
+  ArtifactCompositionComponent,
+  ArtifactCoordinate,
+  ArtifactKind,
+  ArtifactLifecycle,
+  ArtifactManifest,
+  ArtifactVersion,
+  EditionCatalogue,
+  PlatformEdition,
+  Publisher,
+  PublisherTrustLevel,
+} from './artifact';
+
+export {
+  MARKETPLACE_CATEGORY_KINDS,
+  MARKETPLACE_OFFERING_STATUSES,
+  MARKETPLACE_SPEC_KEY,
+  UNCERTIFIED_STATUS,
+  manifestsFromRegistry,
+  marketplaceOfferingsFromRegistry,
+  marketplaceViewOfManifest,
+  representativeVersion,
+} from './marketplace-artifact';
+export type {
+  MarketplaceManifestView,
+  MarketplaceOfferingStatus,
+  MarketplaceOfferingView,
+  RegistryArtifactWithVersions,
+} from './marketplace-artifact';
+
+export {
   PRODUCT_TYPES,
   PRODUCT_LIFECYCLES,
   PRODUCT_STATUSES,
@@ -570,16 +630,33 @@ export {
   PRODUCT_BASELINE_STATUSES,
   isProductType,
   isProductVersionStatus,
+  isDataContractSchemaType,
   isDataContractStatus,
   isProductBaselineStatus,
+  findVersionLabelClash,
+  isVersionLabel,
+  nextMajorVersionLabel,
+  parseVersionLabel,
+  validateBaselineLabel,
+  validateDataContractSchemaType,
   validateProduct,
+  validateVersionLabel,
   validateTraceabilityLink,
+} from './product';
+export {
+  QUALITY_RULE_TYPES,
+  isQualityRuleType,
 } from './product';
 export type {
   Product,
   ProductVersion,
+  VersionLabelParts,
   ProductComponent,
   DataContract,
+  ProductDependency,
+  ContractSubscription,
+  SUBSCRIPTION_STATUSES,
+  UPGRADE_NOTIFICATION_TYPES,
   TraceabilityLink,
   ProductBaseline,
   ProductType,
@@ -593,7 +670,33 @@ export type {
   DataContractStatus,
   DataContractSchemaType,
   TraceabilityRelationshipType,
+  QualityRule,
+  SubscriptionStatus,
+  UpgradeNotification,
+  UpgradeNotificationType,
+  QualityRuleType,
 } from './product';
+
+export {
+  CONTRACT_COMPAT_STATUSES,
+  compareJsonSchemas,
+  evaluateContractCompatibility,
+  parseSemver as parseContractSemver,
+} from './contract-compatibility';
+export type {
+  ContractCompatStatus,
+  ContractCompatFinding,
+  ContractCompatReport,
+  JsonSchemaLike,
+} from './contract-compatibility';
+
+// Registry Federation types (W3-7 foundation)
+export type {
+  FederatedArtifact,
+  FederatedRegistry,
+  FederatedSearchResult,
+  FederationConfig,
+} from './registry-federation';
 
 export {
   NEXORA_ANNOTATION_PREFIX,

@@ -38,7 +38,7 @@ flowchart TB
   LLM[LLM Gateway] --> GR
 ```
 
-Composition example: `catalog/compositions/rag-foundation.yaml`.
+Composition example: `catalog/artifacts/nexora/rag-foundation.yaml`.
 Validation currently reports these components as unsupported (PLANNED).
 
 When implemented, they will follow the same Platform Component Standard

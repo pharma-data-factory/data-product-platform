@@ -10,6 +10,7 @@ import express from 'express';
 import Router from 'express-promise-router';
 import {
   AuthenticationError,
+  ConflictError,
   InputError,
   NotAllowedError,
 } from '@backstage/errors';
@@ -31,6 +32,8 @@ import { ComposerService } from './service';
 import type { AvailableComponentSummary } from './llm-client';
 import {
   CreateDataContractRequest,
+  CreateProductDependencyRequest,
+  CreateSubscriptionRequest,
   CreateProductBaselineRequest,
   CreateProductComponentRequest,
   CreateProductRequest,
@@ -87,6 +90,12 @@ function respondError(
   }
   if (error instanceof InputError) {
     res.status(400).json({ error: String(error) });
+    return;
+  }
+  // A duplicate version label is the caller asking for something that already
+  // exists, not a server fault. Without this it fell through to a 500.
+  if (error instanceof ConflictError) {
+    res.status(409).json({ error: String(error) });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -293,6 +302,246 @@ export async function createRouter(
           actor,
         );
         res.status(201).json(contract);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/components/:id/contracts',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listDataContracts(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/contracts/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const contract = await service.getDataContract(req.params.id);
+        if (!contract) {
+          res.status(404).json({ error: `DataContract ${req.params.id} not found` });
+          return;
+        }
+        res.json(contract);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // PRODUCT DEPENDENCIES (Phase 4, P4-S3)
+  // ============================================================================
+
+  router.post(
+    '/versions/:id/dependencies',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const dep = await service.addProductDependency(
+          req.params.id,
+          req.body as CreateProductDependencyRequest,
+          actor,
+        );
+        res.status(201).json(dep);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:id/dependencies',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listProductDependencies(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ── Subscription Push via SSE (6-R2) ──────────────────────────────────────
+  // GET /subscribe/notifications?consumer=X
+  // Server-Sent Events stream for upgrade notifications.
+  // The client opens this connection once; whenever the server calls
+  // dispatchUpgradeNotifications() it sends an event on the stream.
+  // No external dependency needed — standard HTTP chunked transfer.
+
+  // In-process registry of active SSE clients keyed by consumerRef.
+  const sseClients = new Map<string, Set<express.Response>>();
+
+  // Expose the registry so service can push events (set at startup).
+  (service as any).__sseClients = sseClients;
+
+  router.get(
+    '/subscribe/notifications',
+    async (req: express.Request, res: express.Response) => {
+      const consumerRef = String(req.query.consumer ?? '').trim();
+      if (!consumerRef) {
+        res.status(400).json({ error: 'consumer query param required' });
+        return;
+      }
+      // SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+      res.flushHeaders();
+
+      if (!sseClients.has(consumerRef)) sseClients.set(consumerRef, new Set());
+      sseClients.get(consumerRef)!.add(res);
+
+      // Heartbeat every 30s to keep the connection alive through proxies
+      const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 30_000);
+
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        sseClients.get(consumerRef)?.delete(res);
+        if (sseClients.get(consumerRef)?.size === 0) sseClients.delete(consumerRef);
+      });
+    },
+  );
+
+  // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
+  // POST /contracts/:id/notify   — producer dispatches upgrade to all subscribers
+  // GET  /notifications          — my notifications (consumer polls)
+  // PATCH /notifications/:id/read — mark read
+
+  router.post('/contracts/:id/notify', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      const { newVersion, summary, breaking } = req.body as {
+        newVersion?: string; summary?: string; breaking?: boolean;
+      };
+      if (!newVersion?.trim()) { res.status(400).json({ error: 'newVersion required' }); return; }
+      const result = await service.dispatchUpgradeNotifications({
+        contractId: req.params.id,
+        newVersion: newVersion.trim(),
+        summary: String(summary ?? `New version ${newVersion} available`),
+        breaking: Boolean(breaking),
+        actor,
+      });
+      res.json(result);
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.get('/notifications', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const consumerRef = String(req.query.consumer ?? (credentials as any).principal?.userEntityRef ?? '').trim();
+      const unreadOnly = String(req.query.unread ?? 'false') === 'true';
+      if (!consumerRef) { res.status(400).json({ error: 'consumer required' }); return; }
+      res.json(await service.listMyUpgradeNotifications(consumerRef, unreadOnly));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.patch('/notifications/:id/read', async (req, res) => {
+    try {
+      await httpAuth.credentials(req, { allow: ['user'] });
+      await service.markUpgradeNotificationRead(req.params.id);
+      res.status(204).end();
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  // ── Contract Subscriptions (P-EXT-S4) ─────────────────────────────────────
+  // POST /subscriptions           — subscribe to a contract
+  // GET  /contracts/:id/subscribers — list all subscribers of a contract
+  // GET  /subscriptions?consumer=  — my subscriptions
+  // PATCH /subscriptions/:id/status — cancel / pause
+
+  router.post('/subscriptions', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      const sub = await service.subscribeToContract(req.body as CreateSubscriptionRequest, actor);
+      res.status(201).json(sub);
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.get('/contracts/:id/subscribers', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      res.json(await service.listContractSubscribers(req.params.id));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.get('/subscriptions', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const consumerRef = String(req.query.consumer ?? (credentials as any).principal?.userEntityRef ?? '').trim();
+      if (!consumerRef) { res.status(400).json({ error: 'consumer query param required' }); return; }
+      res.json(await service.listMySubscriptions(consumerRef));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.patch('/subscriptions/:id/status', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      await service.updateSubscriptionStatus(req.params.id, String(req.body?.status ?? ''), actor);
+      res.status(204).end();
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  // ── Contract compatibility (Phase 4, P4-S5) ────────────────────────────────
+  // GET /contracts/:id/compatibility/:nextId
+  // Returns a compatibility report for replacing :id with :nextId.
+  router.get(
+    '/contracts/:id/compatibility/:nextId',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const report = await service.checkContractCompatibility(
+          req.params.id,
+          req.params.nextId,
+        );
+        res.json(report);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:id/lineage',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.getDataLineage(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.delete(
+    '/dependencies/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        await service.removeProductDependency(req.params.id, actor);
+        res.status(204).end();
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -518,6 +767,63 @@ export async function createRouter(
     },
   );
 
+  // ── Multi-hop Lineage DAG (W3-1) ───────────────────────────────────────────
+  /** GET /versions/:id/lineage/dag?depth=N — full multi-hop lineage graph */
+  router.get('/versions/:id/lineage/dag', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      const depth = Math.min(parseInt(String(req.query.depth ?? '5'), 10) || 5, 10);
+      res.json(await service.getFullLineageDAG(req.params.id, depth));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  // ── Revalidation Scope (W2-3) ──────────────────────────────────────────────
+  /** GET /versions/:id/revalidation-scope — what needs retesting after baseline change? */
+  router.get('/versions/:id/revalidation-scope', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      const scope = await service.getRevalidationScope(req.params.id);
+      if (!scope) {
+        res.status(404).json({ error: 'No approved baseline found for this version' });
+        return;
+      }
+      res.json(scope);
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  // ── Change Impact Analysis (P-EXT-S3) ─────────────────────────────────────
+
+  /** GET /contracts/:id/impact — which product versions depend on this contract? */
+  router.get(
+    '/contracts/:id/impact',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.getContractChangeImpact(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /** GET /impact/artifact?name=<name> — which versions are affected by this artifact changing? */
+  router.get(
+    '/impact/artifact',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const name = String(req.query.name ?? '').trim();
+        if (!name) {
+          res.status(400).json({ error: 'name query parameter is required' });
+          return;
+        }
+        res.json(await service.getArtifactChangeImpact(name));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/ai/suggest-components',
     async (req: express.Request, res: express.Response) => {
@@ -640,6 +946,41 @@ export async function createRouter(
         await service.rejectSpecDraft(req.params.id, actor);
         res.status(204).end();
       } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ── Governed AI Data Analyst (Phase 6, P6-S2) ──────────────────────────────
+  // POST /ai/analyze-product
+  // Answers a governance-bounded question about a data product using only
+  // the product descriptor passed by the caller. Requires DEVELOPER or above.
+  router.post(
+    '/ai/analyze-product',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+        const actor = (credentials as { principal?: { userEntityRef?: string } }).principal
+          ?.userEntityRef ?? 'unknown';
+        const { question, productContext } = req.body as {
+          question?: string;
+          productContext?: Record<string, unknown>;
+        };
+        if (!question?.trim()) {
+          res.status(400).json({ error: 'question is required' });
+          return;
+        }
+        if (!productContext || typeof productContext !== 'object') {
+          res.status(400).json({ error: 'productContext is required' });
+          return;
+        }
+        const answer = await service.analyzeProduct(question, productContext, actor);
+        res.json({ answer });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not enabled')) {
+          res.status(501).json({ error: err.message });
+          return;
+        }
         respondError(res, logger, err);
       }
     },
