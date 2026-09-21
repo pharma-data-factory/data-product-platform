@@ -205,6 +205,7 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
     configurationKeys: [],
     configurationNote:
       'No environment secrets. Service name and version are supplied by the host application.',
+    configurationSchema: [],  // health component has no configuration keys
     importExample: 'from pdf_health import HealthCheckResult',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
     documentationPageId: 'platform-component-health',
@@ -222,6 +223,10 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'credential-like fields must be logged — this component masks them instead',
     ],
     configurationKeys: ['LOG_LEVEL'],
+    configurationSchema: [
+      { key: 'LOG_LEVEL', type: 'string', required: false, defaultValue: 'INFO',
+        description: 'Logging level: DEBUG | INFO | WARNING | ERROR', example: 'INFO' },
+    ],
     importExample: 'from pdf_observability import Observability',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
     documentationPageId: 'platform-component-observability',
@@ -240,6 +245,10 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
     ],
     configurationKeys: ['SERVICE_NAME', 'SERVICE_VERSION'],
     configurationNote: 'Host identity only. No source credentials in this component.',
+    configurationSchema: [
+      { key: 'SERVICE_NAME', type: 'string', required: true, description: 'Human-readable service name used in logs and health payloads', example: 'oee-data-product' },
+      { key: 'SERVICE_VERSION', type: 'string', required: true, description: 'Semantic version of the service', example: '1.0.0' },
+    ],
     importExample: 'from pdf_rest_api import create_rest_app',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
     documentationPageId: 'platform-component-rest-api',
@@ -265,6 +274,14 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'SOURCE_API_RETRIES',
       'SOURCE_API_AUTH_HEADER',
       'SOURCE_API_AUTH_SCHEME',
+    ],
+    configurationSchema: [
+      { key: 'SOURCE_API_URL', type: 'url', required: true, description: 'Base URL of the REST source system', example: 'https://mes.example.com/api/v1' },
+      { key: 'SOURCE_API_TOKEN', type: 'secret', required: false, description: 'Bearer token for source authentication — store in .env, never commit' },
+      { key: 'SOURCE_API_TIMEOUT', type: 'number', required: false, defaultValue: '30', description: 'Request timeout in seconds' },
+      { key: 'SOURCE_API_RETRIES', type: 'number', required: false, defaultValue: '3', description: 'Maximum retry attempts on transient failures' },
+      { key: 'SOURCE_API_AUTH_HEADER', type: 'string', required: false, defaultValue: 'Authorization', description: 'Name of the auth header' },
+      { key: 'SOURCE_API_AUTH_SCHEME', type: 'string', required: false, defaultValue: 'Bearer', description: 'Auth scheme prefix' },
     ],
     importExample:
       'from pdf_rest_source import RestSource, RestSourceSettings',
@@ -297,6 +314,19 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'MQTT_RECONNECT_MIN_DELAY',
       'MQTT_RECONNECT_MAX_DELAY',
     ],
+    configurationSchema: [
+      { key: 'MQTT_HOST', type: 'string', required: true, description: 'MQTT broker hostname', example: 'mqtt.example.com' },
+      { key: 'MQTT_PORT', type: 'number', required: false, defaultValue: '1883', description: 'MQTT broker port (1883 plain, 8883 TLS)' },
+      { key: 'MQTT_USERNAME', type: 'string', required: false, description: 'MQTT broker username' },
+      { key: 'MQTT_PASSWORD', type: 'secret', required: false, description: 'MQTT broker password — never commit' },
+      { key: 'MQTT_TOPIC', type: 'string', required: true, description: 'MQTT topic pattern to subscribe to', example: 'pharma/oee/+/+' },
+      { key: 'MQTT_CLIENT_ID', type: 'string', required: false, description: 'MQTT client ID; unique per broker session' },
+      { key: 'MQTT_KEEPALIVE', type: 'number', required: false, defaultValue: '60', description: 'Keepalive interval in seconds' },
+      { key: 'MQTT_TLS_ENABLED', type: 'boolean', required: false, defaultValue: 'false', description: 'Enable TLS for broker connection' },
+      { key: 'MQTT_TLS_CA_CERTS', type: 'string', required: false, description: 'Path to CA certificate file when TLS is enabled' },
+      { key: 'MQTT_RECONNECT_MIN_DELAY', type: 'number', required: false, defaultValue: '1', description: 'Min reconnect delay in seconds' },
+      { key: 'MQTT_RECONNECT_MAX_DELAY', type: 'number', required: false, defaultValue: '30', description: 'Max reconnect delay in seconds' },
+    ],
     importExample:
       'from pdf_mqtt_consumer import MqttConsumer, MqttConsumerSettings',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
@@ -315,6 +345,9 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'you need an OEE result schema — that belongs in domain logic',
     ],
     configurationKeys: ['TIMESERIES_SQLITE_PATH'],
+    configurationSchema: [
+      { key: 'TIMESERIES_SQLITE_PATH', type: 'string', required: false, defaultValue: '/data/timeseries.db', description: 'Path for the SQLite timeseries database file; mount a volume in production' },
+    ],
     importExample:
       'from pdf_timeseries import SqliteTimeSeriesStore, TimeSeriesSettings',
     importProvenance: 'templates/oee-data-product/content/app/main.py',
@@ -333,6 +366,10 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'you need time-series storage or Unified Namespace semantics from this package',
     ],
     configurationKeys: ['AAS_SQLITE_PATH', 'AAS_SEED'],
+    configurationSchema: [
+      { key: 'AAS_SQLITE_PATH', type: 'string', required: false, defaultValue: '/data/aas.db', description: 'Path for the AAS SQLite repository; mount a volume in production' },
+      { key: 'AAS_SEED', type: 'string', required: false, description: 'Path to a JSON seed file to pre-populate the AAS repository on first start' },
+    ],
     importExample:
       'from pdf_aas.repository import SqliteAasRepository\nfrom pdf_aas.main import create_app',
     importProvenance:
@@ -359,6 +396,15 @@ const PROFILES: Record<string, ComponentLibraryProfile> = {
       'UNS_ROOT_TOPIC',
       'UNS_MQTT_ENABLED',
       'UNS_TOPIC_FIELDS',
+    ],
+    configurationSchema: [
+      { key: 'UNS_MQTT_HOST', type: 'string', required: true, description: 'Unified Namespace MQTT broker hostname', example: 'uns.plant.example.com' },
+      { key: 'UNS_MQTT_PORT', type: 'number', required: false, defaultValue: '1883', description: 'Unified Namespace MQTT broker port' },
+      { key: 'UNS_MQTT_USERNAME', type: 'string', required: false, description: 'UNS MQTT broker username' },
+      { key: 'UNS_MQTT_PASSWORD', type: 'secret', required: false, description: 'UNS MQTT broker password — never commit' },
+      { key: 'UNS_ROOT_TOPIC', type: 'string', required: false, defaultValue: 'pharma', description: 'Root UNS topic namespace', example: 'pharma/basel/line-4' },
+      { key: 'UNS_MQTT_ENABLED', type: 'boolean', required: false, defaultValue: 'true', description: 'Enable UNS MQTT subscription; set false to use HTTP-only mode' },
+      { key: 'UNS_TOPIC_FIELDS', type: 'string', required: false, description: 'Comma-separated list of UNS envelope fields to extract', example: 'site,area,line,equipment' },
     ],
     importExample:
       'import httpx\n\nresponse = httpx.get("http://localhost:8080/api/v1/events", timeout=10.0)',
