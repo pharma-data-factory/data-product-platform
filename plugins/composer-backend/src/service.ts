@@ -271,6 +271,14 @@ export class ComposerService {
     return this.repository.listProductComponents(versionId);
   }
 
+  async getDataContract(id: string): Promise<DataContract | undefined> {
+    return this.repository.getDataContract(id);
+  }
+
+  async listDataContracts(componentId: string): Promise<DataContract[]> {
+    return this.repository.listDataContracts(componentId);
+  }
+
   async addDataContract(
     componentId: string,
     request: CreateDataContractRequest,

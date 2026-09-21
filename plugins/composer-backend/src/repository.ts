@@ -209,6 +209,11 @@ export class ComposerRepository implements IComposerRepository {
     return row ? this.rowToDataContract(row) : undefined;
   }
 
+  async getDataContract(id: string): Promise<DataContract | undefined> {
+    const row = await this.db('data_contracts').where({ id }).first();
+    return row ? this.rowToDataContract(row) : undefined;
+  }
+
   async listDataContracts(componentId: string): Promise<DataContract[]> {
     const rows = await this.db('data_contracts')
       .where({ product_component_id: componentId })

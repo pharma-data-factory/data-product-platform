@@ -306,6 +306,35 @@ export async function createRouter(
     },
   );
 
+  router.get(
+    '/components/:id/contracts',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.listDataContracts(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/contracts/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const contract = await service.getDataContract(req.params.id);
+        if (!contract) {
+          res.status(404).json({ error: `DataContract ${req.params.id} not found` });
+          return;
+        }
+        res.json(contract);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   // ============================================================================
   // TRACEABILITY LINKS
   // ============================================================================

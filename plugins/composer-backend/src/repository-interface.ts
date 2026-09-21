@@ -37,6 +37,7 @@ export interface IComposerRepository {
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
 
   createDataContract(contract: DataContract): Promise<DataContract>;
+  getDataContract(id: string): Promise<DataContract | undefined>;
   listDataContracts(componentId: string): Promise<DataContract[]>;
   findDataContractByName(componentId: string, name: string): Promise<DataContract | undefined>;
 
