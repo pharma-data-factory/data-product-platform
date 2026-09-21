@@ -17,11 +17,25 @@ import { ComposerService } from './service';
 import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import {
+  AnthropicComposerLLMClient,
   ComposerLLMClient,
-  OpenAIComposerLLMClient,
   MockComposerLLMClient,
+  OpenAIComposerLLMClient,
 } from './llm-client';
 
+/**
+ * Instantiates the LLM client based on `composer.ai` config.
+ *
+ * Supported providers (composer.ai.provider):
+ *   `openai`     — OpenAI-compatible chat-completions API (default).
+ *                  Use composer.ai.baseUrl to point at a local proxy or
+ *                  compatible API.
+ *   `anthropic`  — Anthropic Messages API (Claude). Default model:
+ *                  `claude-haiku-4-5`. Override with composer.ai.model.
+ *
+ * AI is disabled (MockComposerLLMClient) when composer.ai.enabled is false
+ * or no API key is configured.
+ */
 function createLLMClient(config: Config, logger: any): ComposerLLMClient {
   const enabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
 
@@ -38,13 +52,26 @@ function createLLMClient(config: Config, logger: any): ComposerLLMClient {
     return new MockComposerLLMClient();
   }
 
+  const provider =
+    config.getOptionalString('composer.ai.provider') ?? 'openai';
+
+  if (provider === 'anthropic') {
+    const model =
+      config.getOptionalString('composer.ai.model') ?? 'claude-haiku-4-5';
+    logger.info(`Composer AI enabled: provider=anthropic, model=${model}`);
+    return new AnthropicComposerLLMClient({
+      apiKey,
+      model,
+      fetchApi: globalThis.fetch.bind(globalThis),
+    });
+  }
+
+  // Default: OpenAI-compatible
   const baseUrl =
     config.getOptionalString('composer.ai.baseUrl') ?? 'https://api.openai.com';
   const model =
     config.getOptionalString('composer.ai.model') ?? 'gpt-4o-mini';
-
   logger.info(`Composer AI enabled: provider=openai, model=${model}`);
-
   return new OpenAIComposerLLMClient({
     baseUrl,
     apiKey,

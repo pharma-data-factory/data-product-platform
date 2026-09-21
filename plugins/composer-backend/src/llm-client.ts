@@ -156,6 +156,118 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
   }
 }
 
+// ============================================================================
+// Anthropic (Claude) client
+// ============================================================================
+
+export interface AnthropicLLMClientOptions {
+  apiKey: string;
+  model: string;
+  /** Max tokens per response. Defaults to 4096 — sufficient for JSON outputs. */
+  maxTokens?: number;
+  fetchApi: typeof fetch;
+}
+
+/**
+ * Calls the Anthropic Messages API via raw `fetch`.
+ *
+ * No `@anthropic-ai/sdk` dependency: the request shape is simple enough, and
+ * adding a dependency requires approval under the transformation's working
+ * method. Uses the same `parseAndValidateResponse` / `parseProductSpecResponse`
+ * helpers as `OpenAIComposerLLMClient` — the extracted text is identical in
+ * structure regardless of which provider produced it.
+ *
+ * Default model: `claude-haiku-4-5`. Haiku is fast and economical for
+ * structured JSON output; the model can be overridden via `composer.ai.model`.
+ * Operators who want higher reasoning quality can set `composer.ai.model` to
+ * `claude-opus-5` or `claude-sonnet-5` without touching code.
+ *
+ * Response parsing: the Anthropic content array may contain `thinking` blocks
+ * (on Opus 5, thinking is on by default). `callAnthropicApi` finds the first
+ * `text` block, so thinking blocks are silently skipped.
+ */
+export class AnthropicComposerLLMClient implements ComposerLLMClient {
+  private readonly apiKey: string;
+  private readonly model: string;
+  private readonly maxTokens: number;
+  private readonly fetchApi: typeof fetch;
+
+  constructor(options: AnthropicLLMClientOptions) {
+    this.apiKey = options.apiKey;
+    this.model = options.model;
+    this.maxTokens = options.maxTokens ?? 4096;
+    this.fetchApi = options.fetchApi;
+  }
+
+  private async callAnthropicApi(
+    system: string,
+    userContent: string,
+  ): Promise<string> {
+    const response = await this.fetchApi(
+      'https://api.anthropic.com/v1/messages',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: this.maxTokens,
+          system,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`Anthropic API error (${response.status}): ${text}`);
+    }
+
+    const data = (await response.json()) as {
+      content: Array<{ type: string; text?: string }>;
+    };
+
+    // Content may include thinking blocks (Opus 5); find the first text block.
+    const textBlock = data.content?.find(b => b.type === 'text');
+    if (!textBlock?.text) {
+      throw new Error('Anthropic API returned empty text response');
+    }
+
+    return textBlock.text;
+  }
+
+  async suggestComponents(
+    context: ComponentSuggestionContext,
+    systemPrompt: string,
+  ): Promise<SuggestedComponent[]> {
+    const userPrompt = buildUserPrompt(context);
+    const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
+    return parseAndValidateResponse(raw);
+  }
+
+  async generateProductSpec(
+    context: ProductSpecContext,
+  ): Promise<{
+    productName: string;
+    description: string;
+    domain: string;
+    components: AISuggestedComponent[];
+    contracts: AISuggestedContract[];
+  }> {
+    const systemPrompt = buildProductSpecSystemPrompt();
+    const userPrompt = buildProductSpecUserPrompt(context);
+    const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
+    return parseProductSpecResponse(raw);
+  }
+}
+
+// ============================================================================
+// Mock client (testing / disabled state)
+// ============================================================================
+
 export class MockComposerLLMClient implements ComposerLLMClient {
   async suggestComponents(
     context: ComponentSuggestionContext,

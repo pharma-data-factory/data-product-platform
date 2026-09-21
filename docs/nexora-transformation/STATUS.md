@@ -274,6 +274,17 @@ registry's own rather than an inherited claim.
 
   409 tests, 0 failures (tsc + lint + yarn test subset).
 
+- **P3-S4 — AI provider abstraction: Anthropic client added.** The Composer
+  backend can now use Claude in addition to OpenAI. `AnthropicComposerLLMClient`
+  implements `ComposerLLMClient` via raw `fetch` against
+  `https://api.anthropic.com/v1/messages` (no new SDK dependency). A new config
+  key `composer.ai.provider` (`'openai'` default, `'anthropic'`) selects the
+  provider; `composer.ai.model` overrides the per-provider default
+  (`gpt-4o-mini` / `claude-haiku-4-5`). Thinking blocks (Opus 5) are silently
+  skipped when extracting the text response. Six tests cover: correct headers,
+  JSON parsing, thinking-block skip, API error, missing text block, and
+  non-JSON content. Phase 3 AI provider abstraction goal partially met.
+
 - **P3-S3 — GP-6 deleted.** `EQUIPMENT_USE_LOG_COMPOSITION_YAML` and
   `parseEquipmentUseLogExample()` had no production consumers after P3-S2; both
   are deleted from `platform-component-library.ts` and `index.ts`. The two
