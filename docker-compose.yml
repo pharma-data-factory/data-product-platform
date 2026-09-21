@@ -43,6 +43,11 @@ x-backend-env: &backend-env
   AUTH_GUEST_ROLE: developer
   NODE_ENV: production
   NODE_OPTIONS: "--no-node-snapshot"
+  # Stub-Werte damit app-config.production.yaml nicht beim Startup crasht.
+  # GitHub-Auth ist in lokalen Docker-Deployments deaktiviert — Nutzer verwenden Guest.
+  # Für echte GitHub-Auth diese Werte mit echten Credentials überschreiben.
+  AUTH_GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:-local-docker-no-github}
+  AUTH_GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:-local-docker-no-github}
 
 services:
 
@@ -71,6 +76,13 @@ services:
     image: nexora:latest
     ports:
       - "7007:7007"
+    # Lokaler Betrieb ohne GitHub-Credentials.
+    # app-config.docker-local.yaml ersetzt GitHub Auth durch Guest-only.
+    command: >
+      node packages/backend
+      --config app-config.yaml
+      --config app-config.production.yaml
+      --config app-config.docker-local.yaml
     environment:
       <<: *backend-env
     volumes:
@@ -96,6 +108,11 @@ services:
     profiles: [split]
     ports:
       - "7007:7007"
+    command: >
+      node packages/backend
+      --config app-config.yaml
+      --config app-config.production.yaml
+      --config app-config.docker-local.yaml
     environment:
       <<: *backend-env
       APP_BASE_URL: http://localhost:3000   # Split: Frontend auf 3000

@@ -1,0 +1,21 @@
+# Docker-Local Override — ersetzt GitHub Auth durch Guest-only.
+#
+# Verwendung:
+#   docker compose (via docker-compose.yml command-Override)
+#
+# NICHT für Production verwenden. Kein GitHub, kein Audit-Logging.
+
+auth:
+  environment: development
+  providers:
+    guest:
+      userEntityRef: user:default/guest
+      ownershipEntityRefs:
+        - user:default/guest
+        - group:default/guests
+        - group:default/platform-viewers
+        - group:default/platform-developers
+        - group:default/data-product-developers
+
+# Kein GitHub-Integration (verhindert den startup-Fehler)
+integrations: {}

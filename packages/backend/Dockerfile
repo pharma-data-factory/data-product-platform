@@ -71,6 +71,7 @@ COPY --chown=node:node platform-components ./platform-components
 COPY --chown=node:node uns ./uns
 COPY --chown=node:node docs ./docs
 COPY --chown=node:node mkdocs.yml ./
+COPY --chown=node:node model-company ./model-company
 
 # Then copy the rest of the backend bundle, along with any other files we might want.
 COPY --chown=node:node packages/backend/dist/bundle.tar.gz app-config*.yaml ./
