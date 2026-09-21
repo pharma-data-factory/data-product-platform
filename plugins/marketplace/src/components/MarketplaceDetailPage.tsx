@@ -217,12 +217,27 @@ export function MarketplaceDetailPage() {
                     Contract: item.contractName || 'Not registered',
                     'Contract version':
                       item.contractVersion || 'Not registered',
-                    Provider: item.provider,
+                    Provider: item.externalPublisher
+                      ? `${item.provider} (${item.publisherTrustLevel === 'PARTNER' ? '✓ Nexora Partner' : '⚠ Community — not Nexora-certified'})`
+                      : item.provider,
                     Status: item.status,
                     Commercial: item.commercialStatus || 'Not a commercial SKU',
                     Availability: item.commercialCopy || '—',
                   }}
                 />
+                {item.externalPublisher && item.publisherTrustLevel === 'COMMUNITY' && (
+                  <Typography variant="body2" color="error" style={{ marginTop: 12 }}>
+                    ⚠ Community publisher — this artifact has not been reviewed or certified
+                    by Nexora. Use it at your own risk. Contact the publisher directly for
+                    support. Partners go through a formal certification process.
+                  </Typography>
+                )}
+                {item.externalPublisher && item.publisherTrustLevel === 'PARTNER' && (
+                  <Typography variant="body2" style={{ marginTop: 12 }}>
+                    ✓ This artifact is published by a Nexora-certified Partner and has
+                    passed the partner onboarding review.
+                  </Typography>
+                )}
               </InfoCard>
               {builtWith && (
                 <InfoCard title="Built with">

@@ -293,11 +293,15 @@ testable. See NXD-036, NXD-037.
 
 **Phase 6 closed.**
 
-- **P7-S1..S4 — Phase 7.** See [`NXD-039`](DECISIONS.md), [`NXD-040`](DECISIONS.md).
+**Phase 7 exit criteria met:** external publishers, vendor Artifacts, publisher trust/certification,
+per-namespace scoping (partial), entitlements verdrahtet, commercial marketplace trust badges.
+
+- **P7-S1..S5 — Phase 7.** See [`NXD-039`](DECISIONS.md), [`NXD-040`](DECISIONS.md).
   S1: Publisher `trustLevel` (INTERNAL/PARTNER/COMMUNITY) + `externalPublisher` flag + DB migration.
   S2: Per-namespace permission scoping — `certify`/`publish` check actor in `publisher.memberGroups`. Partial NXD-014 closure.
   S3: `MarketplaceOfferingView` + `listArtifactsWithVersions` carry publisher trust data.
-  S4: `MarketplaceItem.publisherTrustLevel/externalPublisher`; Marketplace table shows "Publisher" column with `✓ Partner` / `⚠ Community` trust badges for external publishers.
+  S4: `MarketplaceItem.publisherTrustLevel/externalPublisher`; Marketplace table shows "Publisher" column with `✓ Partner` / `⚠ Community` trust badges.
+  S5: Marketplace detail page shows trust disclaimer for Community publishers and certification note for Partners. Entitlements fully integrated (PENDING_ACCESS, NOT_ENTITLED, ENTITLED flows already existed; trust context added).
 
 - **P6-S1..S6 — Phase 6.** See [`NXD-038`](DECISIONS.md).
   S1: `AnalyticsProvider` model + catalog annotation `dataprod.platform/analytics-providers` + OverviewTab panel.
