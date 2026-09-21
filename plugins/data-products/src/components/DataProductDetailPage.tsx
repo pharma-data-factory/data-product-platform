@@ -562,6 +562,33 @@ function OverviewTab({
           </InfoCard>
         </Box>
       )}
+
+      {(descriptor?.analyticsProviders ?? []).length > 0 && (
+        <Box mt={2}>
+          <InfoCard title="Analytics Providers">
+            <Typography variant="body2" style={{ marginBottom: 8 }}>
+              BI tools and dashboards that consume this data product.
+            </Typography>
+            <StructuredMetadataTable
+              metadata={Object.fromEntries(
+                (descriptor?.analyticsProviders ?? []).map(p => [
+                  p.name,
+                  [
+                    p.type,
+                    p.url ? `→ ${p.url}` : '',
+                    p.description ?? '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · '),
+                ]),
+              )}
+            />
+            <Typography variant="body2" color="textSecondary" style={{ marginTop: 8 }}>
+              Declared via <code>dataprod.platform/analytics-providers</code> annotation.
+            </Typography>
+          </InfoCard>
+        </Box>
+      )}
     </Box>
   );
 }

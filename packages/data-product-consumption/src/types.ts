@@ -89,6 +89,36 @@ export interface DataProductLineageEdge {
   relation: string;
 }
 
+// ── Analytics Providers (Phase 6, P6-S1) ─────────────────────────────────────
+
+export const ANALYTICS_PROVIDER_TYPES = [
+  'PowerBI',
+  'Tableau',
+  'Looker',
+  'Metabase',
+  'Jupyter',
+  'Grafana',
+  'Custom',
+] as const;
+
+export type AnalyticsProviderType = (typeof ANALYTICS_PROVIDER_TYPES)[number];
+
+/**
+ * A BI tool or analytics environment that consumes this data product.
+ *
+ * Declared in the catalog entity as a JSON annotation
+ * `dataprod.platform/analytics-providers` — an array of objects with at least
+ * `name` and `type`. Phase 6 (P6-S1).
+ */
+export interface AnalyticsProvider {
+  /** Human-readable name, e.g. "OEE Dashboard". */
+  name: string;
+  type: AnalyticsProviderType;
+  /** Direct URL to the dashboard or notebook, if known. */
+  url?: string;
+  description?: string;
+}
+
 export interface DataProductDescriptor {
   entityRef: string;
   name: string;
@@ -105,6 +135,11 @@ export interface DataProductDescriptor {
   presentation: DataProductPresentation;
   validation: DataProductValidationMeta;
   lineage: DataProductLineageEdge[];
+  /**
+   * Analytics tools and dashboards that consume this product. Phase 6 (P6-S1).
+   * Empty when none are declared.
+   */
+  analyticsProviders: AnalyticsProvider[];
   repository?: string;
   documentation?: string;
   catalogClass?: string;
