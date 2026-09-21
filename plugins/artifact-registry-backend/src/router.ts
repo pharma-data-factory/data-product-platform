@@ -44,6 +44,8 @@ export interface RouterOptions {
   httpAuth: HttpAuthService;
   permissions?: PermissionsService;
   service: ArtifactRegistryService;
+  /** Backstage config for federation (optional — federation disabled when absent). */
+  config?: { getOptionalConfig?(key: string): unknown };
 }
 
 async function authorize(
@@ -108,7 +110,7 @@ function respondError(
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, service } = options;
+  const { logger, httpAuth, permissions, service, config } = options;
   const router = Router();
   router.use(express.json());
 
@@ -295,11 +297,41 @@ export async function createRouter(
         };
         // Opt-in rather than always embedded: a caller that only needs the
         // artifact list should not pay for every version's manifest.
-        res.json(
-          req.query.includeVersions === 'true'
-            ? await service.listArtifactsWithVersions(filter)
-            : await service.listArtifacts(filter),
-        );
+        const local = req.query.includeVersions === 'true'
+          ? await service.listArtifactsWithVersions(filter)
+          : await service.listArtifacts(filter);
+
+        // Federation: merge remote artifacts when requested (7-R2 / A-3).
+        if (req.query.includeFederated === 'true') {
+          try {
+            const { createFederationClient, loadFederationConfig } = await import('./federatedRegistry');
+            const fedConfig = loadFederationConfig(config as any);
+            if (fedConfig.enabled) {
+              const fedClient = createFederationClient({ config: fedConfig, logger });
+              const fedResult = await fedClient.searchFederated({ kind: filter.kind, namespace: filter.namespace });
+              // Build a merged list: local coordinates take precedence
+              const localCoords = new Set((local as Array<{ namespace: string; name: string }>)
+                .map(a => `${a.namespace}/${a.name}`));
+              const remoteOnly = fedResult.remote.filter(
+                r => !localCoords.has(`${r.namespace}/${r.name}`),
+              );
+              const merged = [
+                ...local,
+                ...remoteOnly.map(r => ({
+                  namespace: r.namespace,
+                  name: r.name,
+                  publisherTrustLevel: r.trustLevel,
+                  externalPublisher: true,
+                  versions: [{ version: r.version, lifecycle: r.lifecycle, certificationStatus: r.certificationStatus }],
+                })),
+              ];
+              res.json(merged);
+              return;
+            }
+          } catch { /* federation unavailable — fall through to local only */ }
+        }
+
+        res.json(local);
       } catch (err) {
         respondError(res, logger, err);
       }

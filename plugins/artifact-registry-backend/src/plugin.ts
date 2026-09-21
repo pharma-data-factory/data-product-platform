@@ -44,7 +44,7 @@ export const artifactRegistryPlugin = createBackendPlugin({
         const service = new ArtifactRegistryService(repository);
 
         httpRouter.use(
-          await createRouter({ logger, httpAuth, permissions, service }),
+          await createRouter({ logger, httpAuth, permissions, service, config }),
         );
         httpRouter.addAuthPolicy({
           path: '/health',
