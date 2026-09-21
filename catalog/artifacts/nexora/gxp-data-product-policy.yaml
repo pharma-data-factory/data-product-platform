@@ -1,0 +1,115 @@
+apiVersion: nexora.dev/v1alpha1
+kind: POLICY_PACK
+metadata:
+  namespace: nexora
+  name: gxp-data-product-policy
+  version: "1.0.0"
+  displayName: "GxP Data Product Policy Pack"
+  description: >
+    Obligations that every GxP-relevant Data Product must satisfy before release.
+    Derived from regulatory expectations for Computer System Validation (CSV)
+    in pharmaceutical manufacturing: FDA 21 CFR Part 11, EU Annex 11,
+    ISPE GAMP 5, and the Nexora platform governance standard.
+
+    Products declare compliance with this policy by adding
+    'nexora/gxp-data-product-policy@1.0.0' to their spec.policies list.
+    The Release Gate resolves this pack and checks each obligation.
+
+    Note: Satisfying these obligations is a necessary but not sufficient
+    condition for GxP validation. Formal IQ/OQ/UAT validation,
+    Validation Decision and URS baseline binding are also required.
+  tags:
+    - gxp
+    - csv
+    - pharma
+    - governance
+
+spec:
+  # Distribution: which Nexora editions pre-load this policy pack.
+  distribution:
+    - life-sciences
+
+  policyDocument:
+    version: 1
+    supportedVersions: [1]
+    obligations:
+
+      # ── Product Identity ───────────────────────────────────────────────────
+
+      - id: owner-declared
+        title: "A released product has a named owner"
+        appliesTo: all
+        check: product-owner-set
+        message: >
+          No owner is recorded. A released product needs a named person or group
+          answerable for it. Set the owner field before releasing.
+
+      - id: data-classification-declared
+        title: "A released product states how its data is classified"
+        appliesTo: all
+        check: data-classification-set
+        message: >
+          No data classification is recorded. Consumers and access controls have
+          no basis to decide how this data may be handled. Classify the data
+          (PUBLIC / INTERNAL / CONFIDENTIAL / RESTRICTED) before releasing.
+
+      - id: gxp-relevance-declared
+        title: "A released product states whether it is GxP relevant"
+        appliesTo: all
+        check: gxp-relevance-set
+        message: >
+          GxP relevance is not recorded. Whether a product falls under GxP is a
+          deliberate decision, not a default. Record DIRECT, INDIRECT, or NONE
+          before releasing.
+
+      - id: gxp-criticality-declared
+        title: "A GxP-relevant product states its criticality"
+        appliesTo: gxp
+        check: criticality-set
+        message: >
+          This product is GxP relevant but records no criticality rating.
+          Without a criticality level the depth of validation required cannot be
+          determined. Record HIGH, MEDIUM, or LOW before releasing.
+
+      # ── Validation Evidence ────────────────────────────────────────────────
+
+      - id: urs-baseline-bound
+        title: "A GxP-relevant product is bound to an approved URS baseline"
+        appliesTo: gxp
+        check: urs-baseline-bound
+        message: >
+          No approved URS baseline is referenced by this product's baseline.
+          A GxP-relevant product must demonstrate which requirements it
+          implements. Bind the product to an approved URS baseline.
+
+      - id: validation-decision-approved
+        title: "A GxP-relevant product has an APPROVED Validation Decision"
+        appliesTo: gxp
+        check: validation-decision-approved
+        message: >
+          No APPROVED ValidationDecision exists for this product's URS baseline.
+          An independent expert (PLATFORM_ADMIN) must review the IQ/OQ/UAT
+          evidence and record an APPROVED decision before the product can be
+          released.
+
+      # ── Data Handling ──────────────────────────────────────────────────────
+
+      - id: output-contracts-declared
+        title: "A GxP-relevant product declares its output data contracts"
+        appliesTo: gxp
+        check: output-contracts-declared
+        message: >
+          No output data contracts are registered for this product's components.
+          Consumers must know what data the product provides and in what schema.
+          Declare at least one output DataContract before releasing.
+
+      # ── Quality ────────────────────────────────────────────────────────────
+
+      - id: quality-checks-declared
+        title: "A GxP-relevant product declares at least one quality check"
+        appliesTo: gxp
+        check: quality-checks-declared
+        message: >
+          No quality checks are declared in the product's data contracts.
+          A GxP-relevant product must state how data quality is verified
+          (completeness, uniqueness, etc.). Add QualityRules to contracts.
