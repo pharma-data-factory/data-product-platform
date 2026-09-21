@@ -115,6 +115,33 @@ export class ArtifactRegistryService {
     return this.repository.getPublisherByNamespace(namespace);
   }
 
+  /**
+   * Promote a COMMUNITY publisher to PARTNER or update trust level.
+   * Only PLATFORM_ADMIN may call this (enforced at the router layer).
+   * 7-R3: Publisher PARTNER promotion workflow.
+   */
+  async promotePublisher(
+    id: string,
+    trustLevel: Publisher['trustLevel'],
+    memberGroups?: string[],
+  ): Promise<Publisher> {
+    const publisher = await this.repository.getPublisher(id);
+    if (!publisher) {
+      throw new NotFoundError(`Publisher ${id} not found`);
+    }
+    if (!isPublisherTrustLevel(trustLevel)) {
+      throw new InputError(
+        `Invalid trustLevel "${trustLevel}". Expected: ${PUBLISHER_TRUST_LEVELS.join(', ')}`,
+      );
+    }
+    const updated = await this.repository.updatePublisher(id, {
+      trustLevel,
+      memberGroups,
+    });
+    if (!updated) throw new NotFoundError(`Publisher ${id} not found after update`);
+    return updated;
+  }
+
   // -- registration --------------------------------------------------------
 
   /**

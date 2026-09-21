@@ -213,6 +213,37 @@ export async function createRouter(
     },
   );
 
+  /**
+   * PATCH /publishers/:id/promote — promote a publisher's trust level.
+   * Only PLATFORM_ADMIN (publisherManagePermission) may do this.
+   * Body: { trustLevel: 'PARTNER' | 'INTERNAL' | 'COMMUNITY', memberGroups?: string[] }
+   * 7-R3: Publisher PARTNER promotion workflow.
+   */
+  router.patch(
+    '/publishers/:id/promote',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, publisherManagePermission);
+        const { trustLevel, memberGroups } = req.body as {
+          trustLevel?: string;
+          memberGroups?: string[];
+        };
+        if (!trustLevel) {
+          res.status(400).json({ error: 'trustLevel is required' });
+          return;
+        }
+        const updated = await service.promotePublisher(
+          req.params.id,
+          trustLevel as any,
+          memberGroups,
+        );
+        res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get(
     '/publishers',
     async (req: express.Request, res: express.Response) => {

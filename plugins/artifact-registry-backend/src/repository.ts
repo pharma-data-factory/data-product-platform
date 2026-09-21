@@ -91,6 +91,19 @@ export class ArtifactRegistryRepository {
     return rows.map((row: any) => this.toPublisher(row));
   }
 
+  /** 7-R3: Update publisher trust level and optional member groups. */
+  async updatePublisher(
+    id: string,
+    updates: { trustLevel?: Publisher['trustLevel']; memberGroups?: string[] },
+  ): Promise<Publisher | undefined> {
+    const patch: Record<string, unknown> = {};
+    if (updates.trustLevel !== undefined) patch.trust_level = updates.trustLevel;
+    if (updates.memberGroups !== undefined) patch.member_groups = JSON.stringify(updates.memberGroups);
+    if (Object.keys(patch).length === 0) return this.getPublisher(id);
+    await this.db('publishers').where({ id }).update(patch);
+    return this.getPublisher(id);
+  }
+
   // -- artifacts -----------------------------------------------------------
 
   async createArtifact(artifact: Artifact): Promise<Artifact> {
