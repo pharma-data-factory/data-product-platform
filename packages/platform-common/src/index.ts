@@ -455,7 +455,6 @@ export {
   PLATFORM_COMPONENT_CATEGORY_LABELS,
   RUNTIME_PACKAGE_COMPONENT_NAMES,
   RUNTIME_PACKAGE_SOURCE_PATHS,
-  WAVE1_COMPONENT_TITLES,
   compositionSnippetFor,
   componentNameFromRef,
   filterLibraryComponents,

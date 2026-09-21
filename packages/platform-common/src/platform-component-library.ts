@@ -95,14 +95,6 @@ export type LibraryCompatibilityFilter =
 
 export type RuntimeAvailability = 'runtime' | 'catalog-only';
 
-export const WAVE1_COMPONENT_TITLES: Record<string, string> = {
-  health: 'Health',
-  observability: 'Observability',
-  'mqtt-consumer': 'MQTT Consumer',
-  'rest-source': 'REST Source',
-  timeseries: 'Time-Series Storage',
-  'rest-api': 'REST API',
-};
 
 
 export interface ComponentLibraryProfile {
@@ -499,7 +491,7 @@ export function builtWithSummary(
     const name = componentNameFromRef(ref);
     return {
       name,
-      title: match?.title || WAVE1_COMPONENT_TITLES[name] || name,
+      title: match?.title || name,
       version: match?.version || '1.x',
       certificationStatus: match?.certificationStatus || 'DEVELOPMENT',
       entityRef: match?.entityRef || ref,

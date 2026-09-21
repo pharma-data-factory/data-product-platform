@@ -274,6 +274,12 @@ registry's own rather than an inherited claim.
 
   409 tests, 0 failures (tsc + lint + yarn test subset).
 
+- **P3-S5 — GP-5 deleted.** `WAVE1_COMPONENT_TITLES` is removed from Core
+  and `index.ts`. `DeveloperHubPage.tsx` declares a local `OEE_COMPONENT_TITLES`
+  constant — the app layer may know which product it displays. `builtWithSummary`
+  loses the middle fallback and uses `match?.title || name`. See
+  [`NXD-033`](DECISIONS.md).
+
 - **P3-S4 — AI provider abstraction: Anthropic client added.** The Composer
   backend can now use Claude in addition to OpenAI. `AnthropicComposerLLMClient`
   implements `ComposerLLMClient` via raw `fetch` against

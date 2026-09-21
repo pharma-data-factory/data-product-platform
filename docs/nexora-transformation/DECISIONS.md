@@ -958,3 +958,9 @@ Use this file for durable architecture decisions.
 - Context: `EQUIPMENT_USE_LOG_COMPOSITION_YAML` was a template literal copy of `catalog/compositions/equipment-use-log.yaml` (now `catalog/artifacts/nexora/equipment-use-log.yaml`). `parseEquipmentUseLogExample()` parsed it back into a `GoldenPathComposition`. After P3-S2 removed the last production import in `composer.ts`, no production code consumed either export.
 - Decision: delete both. Two tests that validated the embedded copy now read from the disk manifest via `compositionOnDisk()` (platform-common) and `readGoldenPathComposition()` (backend). The parity guard (embedded vs disk) is redundant now that the disk manifest is the only copy.
 - Consequences: the test suite still asserts that the EUL manifest on disk is a valid composition and has the expected component set — the guarantee is preserved, the duplication is not.
+
+### NXD-033 — Delete WAVE1_COMPONENT_TITLES from Core; move to app layer (GP-5)
+
+- Context: `WAVE1_COMPONENT_TITLES` was a `Record<string, string>` in `platform-common/platform-component-library.ts` mapping the six OEE Wave 1 component slugs to display titles. Core named a specific product's components by display name, which is domain knowledge.
+- Decision: delete from Core and `index.ts`. `DeveloperHubPage.tsx` declares an equivalent local constant `OEE_COMPONENT_TITLES` — the app layer is allowed to know which product it is displaying. `builtWithSummary` loses the middle fallback and uses `match?.title || name`; when the catalog entity is present its own `metadata.title` is used, which is correct.
+- Consequences: if a Catalog entity for a Wave 1 component has no title, the slug appears as-is (e.g. `mqtt-consumer`). In practice all six entities carry titles in the catalog, so no visible change.

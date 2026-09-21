@@ -12,7 +12,6 @@ import {
   LAST_REVIEWED,
   PlatformRole,
   SEARCH_PATH,
-  WAVE1_COMPONENT_TITLES,
   canExecuteScaffolder,
   componentNameFromRef,
   developerHubActionsForRole,
@@ -26,6 +25,24 @@ import {
   DOCUMENTATION_PERSONAS,
   documentationPageById,
 } from '@internal/platform-common';
+
+/**
+ * Display titles for the Platform Components shown in the "Built with" panel
+ * of the OEE Golden Path card.
+ *
+ * These titles match each component's Catalog entity `metadata.title`. They
+ * live here rather than in Core (GP-5) because display labels for a specific
+ * domain composition are app-layer knowledge, not platform kernel knowledge.
+ * Core names no product; only this page does.
+ */
+const OEE_COMPONENT_TITLES: Record<string, string> = {
+  health: 'Health',
+  observability: 'Observability',
+  'mqtt-consumer': 'MQTT Consumer',
+  'rest-source': 'REST Source',
+  timeseries: 'Time-Series Storage',
+  'rest-api': 'REST API',
+};
 import {
   compositionRefs,
   useGoldenPathCompositions,
@@ -598,7 +615,7 @@ export function DeveloperHubPage() {
                                   className={classes.chip}
                                   to={platformComponentPath(name)}
                                 >
-                                  {WAVE1_COMPONENT_TITLES[name] || name}
+                                  {OEE_COMPONENT_TITLES[name] || name}
                                 </Link>
                               );
                             })}

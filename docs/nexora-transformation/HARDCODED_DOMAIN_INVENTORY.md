@@ -24,7 +24,7 @@ proven — see the migration architecture in `TARGET_ARCHITECTURE.md`.
 | ~~GP-2~~ | ~~`officialGoldenPathForDraft/Selection` return the literal `'oee-data-product'`~~ | — | **REMOVED 2026-09-21 (NXD-031)** |
 | ~~GP-3~~ | ~~`composerPresets()` ships OEE and Equipment Use Log as built-ins~~ | — | **REMOVED 2026-09-21 (NXD-031)** |
 | ~~GP-4~~ | ~~`oeeBuiltWithSummary()` — an OEE-specific Core API~~ | — | **REMOVED 2026-09-19 (NXD-029)** |
-| GP-5 | `WAVE1_COMPONENT_TITLES` — display names for a fixed component set | `platform-component-library.ts` | Low |
+| ~~GP-5~~ | ~~`WAVE1_COMPONENT_TITLES` — display names for a fixed component set~~ | — | **REMOVED 2026-09-21 (NXD-033)** |
 | ~~GP-6~~ | ~~`EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string~~ | — | **REMOVED 2026-09-21 (NXD-032)** |
 | GP-7 | `RUNTIME_PACKAGE_*` / `CATALOG_ONLY_COMPONENT_NAMES` — fixed component registry | `platform-component-library.ts` | Medium |
 | GP-8 | Industrial semantics as a Core vocabulary — equipment, site, area, line, OEE and equipment-state API annotations | `nexora-industrial.ts` | **High** |
