@@ -46,6 +46,11 @@ import {
   toRelatedPlatformComponents,
   validateComposerDraft,
 } from '@internal/platform-common';
+import {
+  compositionRefs,
+  optionalCompositionRefs,
+  useGoldenPathCompositions,
+} from '@internal/plugin-marketplace';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import { CompositionArchitectureVisual } from './CompositionArchitectureVisual';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
@@ -297,8 +302,25 @@ export function ComposePage() {
   const [specLoading, setSpecLoading] = useState(false);
   const [specError, setSpecError] = useState<string | undefined>();
   const [specApplying, setSpecApplying] = useState(false);
+  // Presets, the canonical component order and the Golden Path check all read
+  // their component lists from the compositions in the registry. See NXD-029.
+  const { compositions, loading: compositionsLoading } =
+    useGoldenPathCompositions();
+  const goldenPathRefs = compositionRefs(compositions, 'oee-data-product-direct');
+  const designExampleOptionalRefs = optionalCompositionRefs(
+    compositions,
+    'equipment-use-log',
+  );
+  const presets = useMemo(
+    () => composerPresets(goldenPathRefs, designExampleOptionalRefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [compositions],
+  );
 
   useEffect(() => {
+    if (compositionsLoading) {
+      return undefined;
+    }
     let active = true;
     catalogApi
       .getEntities({ filter: { kind: ['Component', 'API'] } })
@@ -308,6 +330,7 @@ export function ComposePage() {
         }
         const library = toLibraryComponents(
           toRelatedPlatformComponents(response.items),
+          compositions.usage,
         );
         setComponents(library);
         const applied = applyComposerQuery(params.get('component'), library);
@@ -329,7 +352,7 @@ export function ComposePage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, params]);
+  }, [catalogApi, params, compositions.usage, compositionsLoading]);
 
   const catalog = components;
   const groups = useMemo(() => groupedLibraryComponents(components), [components]);
@@ -337,14 +360,22 @@ export function ComposePage() {
     () => validateComposerDraft(draft, catalog, components),
     [catalog, components, draft],
   );
-  const manifest = useMemo(() => composerDraftToManifest(draft), [draft]);
-  const yaml = useMemo(() => serializeCompositionYaml(manifest), [manifest]);
-  const goldenPath = officialGoldenPathForDraft(draft);
+  const manifest = useMemo(
+    () => composerDraftToManifest(draft, goldenPathRefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, compositions],
+  );
+  const yaml = useMemo(
+    () => serializeCompositionYaml(manifest, goldenPathRefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [manifest, compositions],
+  );
+  const goldenPath = officialGoldenPathForDraft(draft, goldenPathRefs);
   const selected = draft.selectedNames
     .map(name => components.find(item => item.name === name))
     .filter((item): item is LibraryPlatformComponent => Boolean(item));
   const architecture = composerArchitectureFromSelection(selected);
-  const activePreset = composerPresets().find(preset => preset.id === presetId);
+  const activePreset = presets.find(preset => preset.id === presetId);
   const optionalNames = activePreset?.optionalNames || [];
 
   const toggle = (name: string, allowed: boolean) => {
@@ -365,7 +396,7 @@ export function ComposePage() {
     if (!canEdit) {
       return;
     }
-    const preset = composerPresets().find(item => item.id === id);
+    const preset = presets.find(item => item.id === id);
     if (!preset) {
       return;
     }
@@ -584,7 +615,7 @@ export function ComposePage() {
             <div className={classes.panel}>
               <Typography variant="subtitle2">Presets</Typography>
               <div className={classes.actions}>
-                {composerPresets().map(preset => (
+                {presets.map(preset => (
                   <button
                     key={preset.id}
                     type="button"

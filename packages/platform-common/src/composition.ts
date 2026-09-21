@@ -1,4 +1,8 @@
-import { isArtifactManifest, type ArtifactManifest } from './artifact';
+import {
+  isArtifactManifest,
+  type ArtifactCompositionUsageKind,
+  type ArtifactManifest,
+} from './artifact';
 import {
   PlatformComponent,
   findPlatformComponent,
@@ -176,6 +180,54 @@ export function optionalCompositionComponentRefs(
   return composition.spec.components
     .filter(entry => entry.optional)
     .map(entry => entry.ref);
+}
+
+export type CompositionUsageKind = ArtifactCompositionUsageKind;
+
+/**
+ * One line in a Platform Component's "used by" list.
+ *
+ * Derived from the GOLDEN_PATH manifests rather than written down: this was
+ * `LIBRARY_COMPOSITION_USAGE` in Core, six entries restating six manifests.
+ */
+export interface CompositionUsage {
+  compositionName: string;
+  consumerLabel: string;
+  componentRefs: readonly string[];
+  kind: CompositionUsageKind;
+}
+
+/**
+ * The usage table the component library renders, from the manifests.
+ *
+ * A manifest with no `spec.usage` is not listed — that is how the two example
+ * compositions stay out of every component's consumer list, as they always
+ * have. Only required components count: an optional one is offered by the
+ * Composer, not used by the composition.
+ *
+ * Sorted by composition name so the answer does not depend on the order the
+ * registry happened to return, following NXD-026.
+ */
+export function compositionUsageFromManifests(
+  manifests: readonly ArtifactManifest[],
+): CompositionUsage[] {
+  const usage: CompositionUsage[] = [];
+  for (const manifest of manifests) {
+    const composition = compositionOfArtifactManifest(manifest);
+    const declared = manifest.spec?.usage;
+    if (!composition || !declared) {
+      continue;
+    }
+    usage.push({
+      compositionName: composition.metadata.name,
+      consumerLabel: declared.label,
+      componentRefs: compositionComponentRefs(composition),
+      kind: declared.kind,
+    });
+  }
+  return usage.sort((left, right) =>
+    left.compositionName.localeCompare(right.compositionName),
+  );
 }
 
 export function validateComposition(

@@ -10,7 +10,6 @@ import {
   FIRST_DAY_STEPS,
   HUB_GOLDEN_PATHS,
   LAST_REVIEWED,
-  OEE_DIRECT_COMPOSITION_REFS,
   PlatformRole,
   SEARCH_PATH,
   WAVE1_COMPONENT_TITLES,
@@ -27,6 +26,10 @@ import {
   DOCUMENTATION_PERSONAS,
   documentationPageById,
 } from '@internal/platform-common';
+import {
+  compositionRefs,
+  useGoldenPathCompositions,
+} from '@internal/plugin-marketplace';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
 import { ArchitectureStackVisual } from './ArchitectureStackVisual';
@@ -251,6 +254,10 @@ export function DeveloperHubPage() {
     });
   }, [identityApi]);
 
+  // The "Built with" chips come from the composition the OEE Golden Path is
+  // built from, read out of the registry rather than a constant. See NXD-029.
+  const { compositions } = useGoldenPathCompositions();
+  const oeeRefs = compositionRefs(compositions, 'oee-data-product-direct');
   const canCreate = canExecuteScaffolder(role);
   const actions = developerHubActionsForRole(role);
   const recent = documentationIndexPages();
@@ -579,11 +586,11 @@ export function DeveloperHubPage() {
                         {path.name}
                         <span className={classes.badge}>{path.statusLabel}</span>
                       </Typography>
-                      {path.id === 'oee-data-product' && (
+                      {path.id === 'oee-data-product' && oeeRefs.length > 0 && (
                         <div className={classes.builtWith} aria-label="OEE Built With">
                           <Typography variant="body2">Built with</Typography>
                           <div className={classes.chips}>
-                            {OEE_DIRECT_COMPOSITION_REFS.map(ref => {
+                            {oeeRefs.map(ref => {
                               const name = componentNameFromRef(ref);
                               return (
                                 <Link
@@ -597,9 +604,8 @@ export function DeveloperHubPage() {
                             })}
                           </div>
                           <Typography variant="body2" className={classes.muted}>
-                            {OEE_DIRECT_COMPOSITION_REFS.length} reusable
-                            components · {OEE_DIRECT_COMPOSITION_REFS.length}{' '}
-                            technically CERTIFIED
+                            {oeeRefs.length} reusable components ·{' '}
+                            {oeeRefs.length} technically CERTIFIED
                           </Typography>
                           <Typography variant="body2" style={{ marginTop: 8 }}>
                             <Link to={documentationHref('oee-composition')}>

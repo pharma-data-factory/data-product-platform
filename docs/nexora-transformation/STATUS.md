@@ -4,11 +4,7 @@
 Phase 3 — Product Studio and AI-assisted Development (Phase 2 closed)
 
 ## Current Vertical Slice
-**P3-S1b — the Composer, Marketplace and Developer Hub read compositions from
-the registry, and the Core constants are deleted.** Not started. P3-S1a landed
-the content and the resolver (below); what remains is the read switch, which
-is blocked on nothing but is entangled with GP-2/GP-3/GP-4 — see GP-1 in
-[`HARDCODED_DOMAIN_INVENTORY.md`](HARDCODED_DOMAIN_INVENTORY.md).
+Nothing in flight. P3-S1a and P3-S1b are both landed; GP-1 and GP-4 are closed.
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -229,16 +225,52 @@ registry's own rather than an inherited claim.
   and out of this slice's scope. `compositionManifestParity.test.ts` survives,
   repointed, and still guards the duplication.
 
+- **P3-S1b — the consumers read the registry; the constants are gone.** The
+  five pages that imported composition lists from Core —`ComposePage`,
+  `PlatformComponentsPage`, `PlatformComponentDetailPage`,
+  `MarketplaceDetailPage`, `DeveloperHubPage` — now take them from
+  `useGoldenPathCompositions`, one loader beside the registry client. The six
+  `*_COMPOSITION_REFS` constants, `LIBRARY_COMPOSITION_USAGE` and 97 lines with
+  them are deleted, and `compositionManifestParity.test.ts` too: it existed to
+  hold the constants and the files in step, and there is nothing left to hold.
+  See [`NXD-029`](DECISIONS.md).
+
+  **GP-1 and GP-4 are closed.** `oeeBuiltWithSummary(catalog)` became
+  `builtWithSummary(catalog, componentRefs, productLabel)`, so Core describes
+  the shape of a "built with" panel without naming the product. Two manifest
+  fields made it possible: `spec.usage` carries the consumer label and kind the
+  Core table held, and `spec.builtFrom` on the OEE DATA_PRODUCT names the
+  composition it is built from — which removed the
+  `item.id === 'oee-data-product'` literal that gated the panel.
+
+  One visible change, asserted rather than discovered: "used by" labels are now
+  ordered by composition name, so `mqtt-consumer` reads "Machine Metrics
+  Reference, OEE Data Product" instead of the reverse. The old order was the
+  order the table happened to be written in.
+
+  Verified live against a fresh registry: `20 registered, 0 already present,
+  1 publishers created, 0 failed`, 8 GOLDEN_PATH artifacts, `usage` stored on
+  exactly the six that declare it, `builtFrom` resolved, all 20 versions DRAFT.
+
+  **Running it found something the tests could not**
+  ([`NXD-030`](DECISIONS.md)): editing a manifest without bumping its version
+  does not reach a registry that already holds that coordinate. The loader
+  logged `8 registered, 12 already present` and kept serving the old manifests;
+  the new fields appeared only after the registry database was dropped. That is
+  the immutability rule working, not a defect — but it is now a recorded
+  operational constraint rather than something to rediscover.
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-**P3-S1b — the read switch.** The three remaining consumers take their
-component lists from the registry instead of importing the constants; the
-constants and the parity test are then deleted. All three are browser-bundled
-and use the lists synchronously, so each needs the list as input — which is
-why GP-1 cannot close without touching GP-2/GP-3/GP-4, even though their
-domain logic stays put.
+No slice scoped. The remaining Phase 3 drift is GP-2 and GP-3 (`composer.ts`
+still returns the literal `'oee-data-product'` and ships OEE presets) and GP-8
+(`nexora-industrial.ts`, 589 lines of manufacturing vocabulary in Core, larger
+than the rest of the inventory combined). Phase 3's own plan also contains
+dependency and compatibility resolution, configuration schemas, Product
+generation, Development Context and AI provider abstraction — none of which
+exists.
 
 Deferred, not part of Phase 2: **per-namespace permission scoping.** The eight
 registry permissions are platform-wide, so a DATA_PRODUCT_OWNER may certify in

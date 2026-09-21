@@ -2,7 +2,7 @@ import { DataProduct } from '@internal/plugin-data-products';
 import {
   MARKETPLACE_CATEGORY_KINDS,
   goldenPathDocumentationHref,
-  oeeBuiltWithSummary,
+  builtWithSummary,
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { marketplaceCatalogSources } from './catalog';
@@ -725,7 +725,18 @@ describe('marketplace data', () => {
         spec: { type: 'platform-component' },
       },
     ]);
-    const built = oeeBuiltWithSummary(catalog);
+    const built = builtWithSummary(
+      catalog,
+      [
+        'component:default/health',
+        'component:default/observability',
+        'component:default/mqtt-consumer',
+        'component:default/rest-source',
+        'component:default/timeseries',
+        'component:default/rest-api',
+      ],
+      'OEE Golden Path',
+    );
     expect(built.reusableCount).toBe(6);
     expect(built.certifiedCount).toBe(6);
     expect(built.items.map(item => item.title)).toEqual(

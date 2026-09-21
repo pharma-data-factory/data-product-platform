@@ -9,7 +9,7 @@ import {
   NEXORA_TONE,
 } from '@internal/plugin-nexora-common';
 import {
-  OeeBuiltWithSummary,
+  BuiltWithSummary,
   documentationHref,
   platformComponentPath,
 } from '@internal/platform-common';
@@ -193,7 +193,7 @@ export function CompositionTreeVisual(props: {
   );
 }
 
-export function OeeBuiltWith(props: { summary: OeeBuiltWithSummary }) {
+export function OeeBuiltWith(props: { summary: BuiltWithSummary }) {
   const classes = useStyles();
   const { summary } = props;
 

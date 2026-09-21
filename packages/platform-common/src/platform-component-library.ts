@@ -5,7 +5,11 @@ import {
   findPlatformComponent,
   normalizeEntityRef,
 } from './platform-components';
-import { parseCompositionManifest } from './composition';
+import {
+  parseCompositionManifest,
+  type CompositionUsage,
+  type CompositionUsageKind,
+} from './composition';
 
 /**
  * Catalog names that have a reusable Python runtime package in this
@@ -92,25 +96,6 @@ export type LibraryCompatibilityFilter =
 
 export type RuntimeAvailability = 'runtime' | 'catalog-only';
 
-export type CompositionUsageKind = 'runtime' | 'conceptual' | 'design';
-
-export interface CompositionUsage {
-  compositionName: string;
-  consumerLabel: string;
-  componentRefs: readonly string[];
-  kind: CompositionUsageKind;
-}
-
-/** Official OEE Golden Path Mode A. Source: catalog/artifacts/nexora/oee-data-product-direct.yaml */
-export const OEE_DIRECT_COMPOSITION_REFS = [
-  'component:default/health',
-  'component:default/observability',
-  'component:default/mqtt-consumer',
-  'component:default/rest-source',
-  'component:default/timeseries',
-  'component:default/rest-api',
-] as const;
-
 export const WAVE1_COMPONENT_TITLES: Record<string, string> = {
   health: 'Health',
   observability: 'Observability',
@@ -119,92 +104,6 @@ export const WAVE1_COMPONENT_TITLES: Record<string, string> = {
   timeseries: 'Time-Series Storage',
   'rest-api': 'REST API',
 };
-
-export const MACHINE_METRICS_COMPOSITION_REFS = [
-  'component:default/mqtt-consumer',
-  'component:default/health',
-  'component:default/observability',
-  'component:default/timeseries',
-  'component:default/rest-api',
-] as const;
-
-export const MACHINE_STATE_COMPOSITION_REFS = [
-  'component:default/unified-namespace',
-] as const;
-
-export const MQTT_TEMPERATURE_CONCEPTUAL_REFS = [
-  'component:default/mqtt-consumer',
-  'component:default/rest-api',
-  'component:default/health',
-  'component:default/observability',
-] as const;
-
-export const REST_EQUIPMENT_CONCEPTUAL_REFS = [
-  'component:default/rest-source',
-  'component:default/rest-api',
-  'component:default/health',
-  'component:default/observability',
-] as const;
-
-/**
- * Equipment Use Log design composition. Derived from the use case and
- * actual Wave 1 capabilities. Not a copy of OEE Mode A.
- *
- * REQUIRED: MQTT events in, REST API out, Health + Observability because
- * both integration components declare those dependsOn relations.
- * OPTIONAL: REST Source (MES/order/cleaning context) and Time-Series
- * (status/duration points). Session records stay domain-owned.
- */
-export const EQUIPMENT_USE_LOG_REQUIRED_REFS = [
-  'component:default/health',
-  'component:default/observability',
-  'component:default/mqtt-consumer',
-  'component:default/rest-api',
-] as const;
-
-export const EQUIPMENT_USE_LOG_OPTIONAL_REFS = [
-  'component:default/rest-source',
-  'component:default/timeseries',
-] as const;
-
-export const LIBRARY_COMPOSITION_USAGE: readonly CompositionUsage[] = [
-  {
-    compositionName: 'oee-data-product-direct',
-    consumerLabel: 'OEE Data Product',
-    componentRefs: OEE_DIRECT_COMPOSITION_REFS,
-    kind: 'runtime',
-  },
-  {
-    compositionName: 'machine-metrics-reference',
-    consumerLabel: 'Machine Metrics Reference',
-    componentRefs: MACHINE_METRICS_COMPOSITION_REFS,
-    kind: 'runtime',
-  },
-  {
-    compositionName: 'machine-state-consumer',
-    consumerLabel: 'Machine State Consumer',
-    componentRefs: MACHINE_STATE_COMPOSITION_REFS,
-    kind: 'runtime',
-  },
-  {
-    compositionName: 'mqtt-temperature-conceptual',
-    consumerLabel: 'MQTT Temperature',
-    componentRefs: MQTT_TEMPERATURE_CONCEPTUAL_REFS,
-    kind: 'conceptual',
-  },
-  {
-    compositionName: 'rest-equipment-conceptual',
-    consumerLabel: 'REST Equipment',
-    componentRefs: REST_EQUIPMENT_CONCEPTUAL_REFS,
-    kind: 'conceptual',
-  },
-  {
-    compositionName: 'equipment-use-log',
-    consumerLabel: 'Equipment Use Log (design example)',
-    componentRefs: EQUIPMENT_USE_LOG_REQUIRED_REFS,
-    kind: 'design',
-  },
-];
 
 export const EQUIPMENT_USE_LOG_COMPOSITION_YAML = `apiVersion: dataprod.platform/v1alpha1
 kind: GoldenPathComposition
@@ -259,7 +158,7 @@ export interface LibraryComponentFilters {
   compatibility?: LibraryCompatibilityFilter;
 }
 
-export interface OeeBuiltWithItem {
+export interface BuiltWithItem {
   name: string;
   title: string;
   version: string;
@@ -267,9 +166,9 @@ export interface OeeBuiltWithItem {
   entityRef: string;
 }
 
-export interface OeeBuiltWithSummary {
+export interface BuiltWithSummary {
   productLabel: string;
-  items: OeeBuiltWithItem[];
+  items: BuiltWithItem[];
   reusableCount: number;
   certifiedCount: number;
 }
@@ -487,9 +386,10 @@ export function componentNameFromRef(ref: string): string {
 export function usageLabelsForComponent(
   name: string,
   kind: CompositionUsageKind,
+  compositionUsage: readonly CompositionUsage[],
 ): string[] {
   const labels: string[] = [];
-  for (const usage of LIBRARY_COMPOSITION_USAGE) {
+  for (const usage of compositionUsage) {
     if (usage.kind !== kind) {
       continue;
     }
@@ -538,13 +438,26 @@ export function libraryProfileFor(
 
 export function toLibraryComponents(
   components: PlatformComponent[],
+  compositionUsage: readonly CompositionUsage[],
 ): LibraryPlatformComponent[] {
   return components.map(component => ({
     ...component,
     runtimeAvailability: runtimeAvailabilityFor(component.name),
-    runtimeUsedBy: usageLabelsForComponent(component.name, 'runtime'),
-    conceptualUsedBy: usageLabelsForComponent(component.name, 'conceptual'),
-    designUsedBy: usageLabelsForComponent(component.name, 'design'),
+    runtimeUsedBy: usageLabelsForComponent(
+      component.name,
+      'runtime',
+      compositionUsage,
+    ),
+    conceptualUsedBy: usageLabelsForComponent(
+      component.name,
+      'conceptual',
+      compositionUsage,
+    ),
+    designUsedBy: usageLabelsForComponent(
+      component.name,
+      'design',
+      compositionUsage,
+    ),
     profile: libraryProfileFor(component),
   }));
 }
@@ -593,10 +506,20 @@ export function filterLibraryComponents(
   });
 }
 
-export function oeeBuiltWithSummary(
+/**
+ * What a composition is built from, resolved against the Catalog.
+ *
+ * This was `oeeBuiltWithSummary`, which named one Golden Path in Core and read
+ * its component list from a constant beside it — GP-4 in the hard-coded domain
+ * inventory. The refs and the label are inputs now, so Core describes the shape
+ * of a "built with" panel without knowing which product is being described.
+ */
+export function builtWithSummary(
   catalog: PlatformComponent[],
-): OeeBuiltWithSummary {
-  const items: OeeBuiltWithItem[] = OEE_DIRECT_COMPOSITION_REFS.map(ref => {
+  componentRefs: readonly string[],
+  productLabel: string,
+): BuiltWithSummary {
+  const items: BuiltWithItem[] = componentRefs.map(ref => {
     const match = findPlatformComponent(catalog, ref);
     const name = componentNameFromRef(ref);
     return {
@@ -608,7 +531,7 @@ export function oeeBuiltWithSummary(
     };
   });
   return {
-    productLabel: 'OEE Golden Path',
+    productLabel,
     items,
     reusableCount: items.length,
     certifiedCount: items.filter(item => item.certificationStatus === 'CERTIFIED')

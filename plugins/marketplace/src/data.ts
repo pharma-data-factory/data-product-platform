@@ -68,6 +68,8 @@ export interface MarketplaceItem {
   certificationStatus: CertificationStatus;
   documentation: string;
   templateReference?: string;
+  /** Composition this offering is built from, if its manifest names one. */
+  builtFrom?: string;
   catalogEntityRef?: string;
   contractApiRef?: string;
   contractName?: string;

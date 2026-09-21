@@ -7,8 +7,6 @@ import {
 } from './composition';
 import {
   LibraryPlatformComponent,
-  EQUIPMENT_USE_LOG_OPTIONAL_REFS,
-  OEE_DIRECT_COMPOSITION_REFS,
   componentNameFromRef,
   parseEquipmentUseLogExample,
 } from './platform-component-library';
@@ -192,11 +190,23 @@ export function slugifyCompositionName(value: string): string {
   return slug || 'composition';
 }
 
-export function sortCompositionRefs(refs: readonly string[]): string[] {
-  const preferred = [...OEE_DIRECT_COMPOSITION_REFS];
+/**
+ * Canonical display order for a set of component refs.
+ *
+ * `preferredOrder` is the official Golden Path's own component order, which
+ * reads as a layering rather than an alphabet. It used to be a constant in
+ * Core; it comes from the composition in the registry now. Anything not in it
+ * sorts alphabetically after. An empty order means alphabetical throughout,
+ * which is correct wherever the result is not displayed.
+ */
+export function sortCompositionRefs(
+  refs: readonly string[],
+  preferredOrder: readonly string[] = [],
+): string[] {
+  const preferred = [...preferredOrder];
   return [...refs].sort((left, right) => {
-    const leftIndex = preferred.indexOf(left as (typeof preferred)[number]);
-    const rightIndex = preferred.indexOf(right as (typeof preferred)[number]);
+    const leftIndex = preferred.indexOf(left);
+    const rightIndex = preferred.indexOf(right);
     if (leftIndex >= 0 && rightIndex >= 0) {
       return leftIndex - rightIndex;
     }
@@ -212,6 +222,7 @@ export function sortCompositionRefs(refs: readonly string[]): string[] {
 
 export function composerDraftToManifest(
   draft: ComposerDraft,
+  preferredOrder: readonly string[] = [],
 ): GoldenPathComposition {
   const extras = [
     draft.description.trim(),
@@ -220,6 +231,7 @@ export function composerDraftToManifest(
   ].filter(Boolean);
   const refs = sortCompositionRefs(
     draft.selectedNames.map(name => `component:default/${name}`),
+    preferredOrder,
   );
   return {
     apiVersion: GOLDEN_PATH_COMPOSITION_API_VERSION,
@@ -258,6 +270,7 @@ function yamlBlock(value: string, indent: string): string {
 
 export function serializeCompositionYaml(
   composition: GoldenPathComposition,
+  preferredOrder: readonly string[] = [],
 ): string {
   const description = composition.metadata.description
     ? `  description: ${yamlBlock(composition.metadata.description, '    ')}\n`
@@ -267,6 +280,7 @@ export function serializeCompositionYaml(
     : '';
   const components = sortCompositionRefs(
     composition.spec.components.map(item => item.ref),
+    preferredOrder,
   )
     .map(ref => {
       const version =
@@ -295,20 +309,33 @@ export function yamlContainsSecrets(yaml: string): boolean {
 
 export function officialGoldenPathForDraft(
   draft: Pick<ComposerDraft, 'name' | 'description' | 'selectedNames'>,
+  goldenPathRefs: readonly string[],
 ): 'oee-data-product' | undefined {
   const slug = slugifyCompositionName(draft.name);
   const text = `${draft.name} ${draft.description}`.toLowerCase();
   if (slug === 'equipment-use-log' || text.includes('design example')) {
     return undefined;
   }
-  return officialGoldenPathForSelection(draft.selectedNames);
+  return officialGoldenPathForSelection(draft.selectedNames, goldenPathRefs);
 }
 
+/**
+ * Whether a selection is exactly the official Golden Path's component set.
+ *
+ * `goldenPathRefs` is the composition's own list, from the registry. The
+ * returned template id is still a literal here — that is GP-2, and untouched:
+ * this change is about where the component list comes from, not about what the
+ * Golden Path is called.
+ */
 export function officialGoldenPathForSelection(
   selectedNames: readonly string[],
+  goldenPathRefs: readonly string[],
 ): 'oee-data-product' | undefined {
+  if (goldenPathRefs.length === 0) {
+    return undefined;
+  }
   const selected = new Set(selectedNames);
-  const oee = new Set(OEE_DIRECT_COMPOSITION_REFS.map(componentNameFromRef));
+  const oee = new Set(goldenPathRefs.map(componentNameFromRef));
   if (selected.size !== oee.size) {
     return undefined;
   }
@@ -320,8 +347,11 @@ export function officialGoldenPathForSelection(
   return 'oee-data-product';
 }
 
-export function composerPresets(): ComposerPreset[] {
-  const oeeNames = OEE_DIRECT_COMPOSITION_REFS.map(componentNameFromRef);
+export function composerPresets(
+  goldenPathRefs: readonly string[],
+  designExampleOptionalRefs: readonly string[],
+): ComposerPreset[] {
+  const oeeNames = goldenPathRefs.map(componentNameFromRef);
   const equipment = parseEquipmentUseLogExample().spec.components.map(item =>
     componentNameFromRef(item.ref),
   );
@@ -366,7 +396,7 @@ export function composerPresets(): ComposerPreset[] {
       title: 'Equipment Use Log',
       description: 'DESIGN EXAMPLE ONLY. Not a Golden Path.',
       names: equipment,
-      optionalNames: EQUIPMENT_USE_LOG_OPTIONAL_REFS.map(componentNameFromRef),
+      optionalNames: designExampleOptionalRefs.map(componentNameFromRef),
       kind: 'design-example',
     },
   ];

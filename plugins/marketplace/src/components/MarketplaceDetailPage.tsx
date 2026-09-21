@@ -19,7 +19,7 @@ import {
   usePlatformRole,
 } from '@internal/plugin-data-products';
 import {
-  OeeBuiltWithSummary,
+  BuiltWithSummary,
   canCreateDataProduct,
   currentRelease,
   distributionStatusLines,
@@ -27,12 +27,13 @@ import {
   goldenPathDocumentationHref,
   isOfficialGoldenPath,
   isUnauthorizedError,
-  oeeBuiltWithSummary,
+  builtWithSummary,
   releasesForTemplate,
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { marketplaceCatalogSources } from '../catalog';
 import { OeeBuiltWith } from './OeeBuiltWith';
+import { useGoldenPathCompositions } from '../useGoldenPathCompositions';
 import { artifactRegistryApiRef } from '../artifactRegistryApi';
 import { entitlementApiRef } from '../entitlementApi';
 import { loadOfferings } from '../offeringSource';
@@ -66,9 +67,14 @@ export function MarketplaceDetailPage() {
     item && isOfficialGoldenPath(item.id) ? releasesForTemplate(item.id) : [];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
-  const [builtWith, setBuiltWith] = useState<OeeBuiltWithSummary>();
+  const [builtWith, setBuiltWith] = useState<BuiltWithSummary>();
+  const { compositions, loading: compositionsLoading } =
+    useGoldenPathCompositions();
 
   useEffect(() => {
+    if (compositionsLoading) {
+      return undefined;
+    }
     let active = true;
     Promise.all([
       catalogApi.getEntities({
@@ -93,8 +99,22 @@ export function MarketplaceDetailPage() {
         const { products, apis, templates } = marketplaceCatalogSources(
           response.items,
         );
+        // The panel is driven by the composition the manifest names, not by
+        // the UI recognising a product id. An offering with no `builtFrom`
+        // simply has no panel. See NXD-029.
+        const composition = base.builtFrom
+          ? compositions.byName.get(base.builtFrom)
+          : undefined;
         setBuiltWith(
-          oeeBuiltWithSummary(toRelatedPlatformComponents(response.items)),
+          composition
+            ? builtWithSummary(
+                toRelatedPlatformComponents(response.items),
+                composition.spec.components
+                  .filter(entry => !entry.optional)
+                  .map(entry => entry.ref),
+                composition.metadata.title ?? composition.metadata.name,
+              )
+            : undefined,
         );
         const entitledIds = productsSnapshot?.products
           .filter(product => product.entitled)
@@ -133,7 +153,7 @@ export function MarketplaceDetailPage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, entitlementApi, registryApi, id]);
+  }, [catalogApi, entitlementApi, registryApi, id, compositions, compositionsLoading]);
 
   return (
     <Page themeId="tool">
@@ -204,7 +224,7 @@ export function MarketplaceDetailPage() {
                   }}
                 />
               </InfoCard>
-              {item.id === 'oee-data-product' && builtWith && (
+              {builtWith && (
                 <InfoCard title="Built with">
                   <OeeBuiltWith summary={builtWith} />
                 </InfoCard>

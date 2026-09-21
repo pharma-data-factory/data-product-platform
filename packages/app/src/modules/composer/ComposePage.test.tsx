@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
+import { artifactRegistryApiEntry } from '../__testUtils__/artifactRegistry';
 import { configApiRef, discoveryApiRef, identityApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
@@ -123,6 +124,8 @@ async function renderCompose(path = '/compose', groups = ['data-product-develope
           <TestApiProvider
             apis={[
               [configApiRef, mockApis.config()],
+            artifactRegistryApiEntry,
+              artifactRegistryApiEntry,
               [catalogApiRef, { getEntities: async () => ({ items: catalogItems }) }],
               [
                 discoveryApiRef,

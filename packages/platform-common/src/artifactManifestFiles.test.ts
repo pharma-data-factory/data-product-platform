@@ -23,7 +23,11 @@ import {
   validateArtifactManifest,
   type ArtifactManifest,
 } from './artifact';
-import { compositionOfArtifactManifest } from './composition';
+import {
+  compositionOfArtifactManifest,
+  compositionUsageFromManifests,
+} from './composition';
+import { usageLabelsForComponent } from './platform-component-library';
 import {
   MARKETPLACE_CATEGORY_KINDS,
   MARKETPLACE_SPEC_KEY,
@@ -116,6 +120,57 @@ describe('artifact manifests on disk', () => {
 
   it('holds at least one composition', () => {
     expect(compositionFiles.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the usage table derived from the manifests', () => {
+  // This replaces `compositionManifestParity.test.ts`. That suite existed to
+  // keep six TypeScript constants in step with six files; the constants are
+  // gone (NXD-029), so what is worth guarding now is the derivation itself —
+  // that the files still produce the table the component library renders.
+  const usage = compositionUsageFromManifests(
+    artifactFiles.map(file => read(file) as ArtifactManifest),
+  );
+
+  it('lists every composition that declares a usage, and no others', () => {
+    expect(
+      usage.map(entry => [entry.compositionName, entry.kind, entry.consumerLabel]),
+    ).toEqual([
+      ['equipment-use-log', 'design', 'Equipment Use Log (design example)'],
+      ['machine-metrics-reference', 'runtime', 'Machine Metrics Reference'],
+      ['machine-state-consumer', 'runtime', 'Machine State Consumer'],
+      ['mqtt-temperature-conceptual', 'conceptual', 'MQTT Temperature'],
+      ['oee-data-product-direct', 'runtime', 'OEE Data Product'],
+      ['rest-equipment-conceptual', 'conceptual', 'REST Equipment'],
+    ]);
+  });
+
+  it('leaves the example compositions out of every consumer list', () => {
+    // `oee-data-product-uns` and `rag-foundation` declare no usage, which is
+    // how they stayed out of the table when it was hand-written in Core.
+    const named = usage.map(entry => entry.compositionName);
+    expect(named).not.toContain('oee-data-product-uns');
+    expect(named).not.toContain('rag-foundation');
+  });
+
+  it('counts only required components as used', () => {
+    const design = usage.find(
+      entry => entry.compositionName === 'equipment-use-log',
+    );
+    // REST Source and Time-Series are `optional: true` in the manifest, so the
+    // design example does not appear in their "used by" line.
+    expect(design?.componentRefs).not.toContain('component:default/rest-source');
+    expect(design?.componentRefs).not.toContain('component:default/timeseries');
+    expect(design?.componentRefs).toContain('component:default/mqtt-consumer');
+  });
+
+  it('orders labels by composition name', () => {
+    // The hand-written table listed OEE first because it was written first.
+    // Sorting by name makes the answer independent of the registry's response
+    // order, at the cost of a visible reordering — see NXD-029.
+    expect(
+      usageLabelsForComponent('mqtt-consumer', 'runtime', usage),
+    ).toEqual(['Machine Metrics Reference', 'OEE Data Product']);
   });
 
   it('registers everything into the namespace the publisher owns', () => {

@@ -106,6 +106,8 @@ export interface MarketplaceManifestView {
   status: string;
   documentation: string;
   templateReference?: string;
+  /** Name of the composition this offering is built from, if it names one. */
+  builtFrom?: string;
   catalogEntityRef?: string;
   contractApiRef?: string;
 }
@@ -185,6 +187,7 @@ export function marketplaceViewOfManifest(
   }
 
   const sourceRef = manifest.spec?.sourceRef;
+  const builtFrom = manifest.spec?.builtFrom;
 
   return {
     id: manifest.metadata.name,
@@ -197,6 +200,9 @@ export function marketplaceViewOfManifest(
     status,
     documentation,
     ...(sourceRef === undefined ? {} : { templateReference: sourceRef }),
+    ...(typeof builtFrom === 'string' && builtFrom
+      ? { builtFrom }
+      : {}),
     ...(optional('catalogEntityRef') === undefined
       ? {}
       : { catalogEntityRef: optional('catalogEntityRef') }),
@@ -277,6 +283,28 @@ function compareVersionLabels(left: string, right: string): number {
  * the join between what the content says about itself and what the registry has
  * decided about it.
  */
+/**
+ * The manifest of each artifact's representative version.
+ *
+ * The registry serves manifests verbatim, so a consumer that wants something
+ * other than a Marketplace card — a composition, say — reads the same response
+ * and picks what it needs. Artifacts whose representative version carries no
+ * manifest are skipped rather than represented by a blank.
+ */
+export function manifestsFromRegistry(
+  artifacts: readonly RegistryArtifactWithVersions[],
+): ArtifactManifest[] {
+  const manifests: ArtifactManifest[] = [];
+  for (const artifact of artifacts) {
+    const version = representativeVersion(artifact.versions ?? []);
+    if (!version?.manifest) {
+      continue;
+    }
+    manifests.push(version.manifest as ArtifactManifest);
+  }
+  return manifests;
+}
+
 export function marketplaceOfferingsFromRegistry(
   artifacts: readonly RegistryArtifactWithVersions[],
 ): MarketplaceOfferingView[] {

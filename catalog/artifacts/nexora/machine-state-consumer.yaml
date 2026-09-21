@@ -12,6 +12,9 @@ metadata:
     This is not an OEE implementation.
 spec:
   standardVersion: "1.0.0"
+  usage:
+    kind: runtime
+    label: "Machine State Consumer"
   components:
     - ref: "component:default/unified-namespace"
       version: "1.x"

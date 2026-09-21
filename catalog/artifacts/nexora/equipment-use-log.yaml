@@ -11,6 +11,9 @@ metadata:
     Wave 1 Platform Components.
 spec:
   standardVersion: "1.0.0"
+  usage:
+    kind: design
+    label: "Equipment Use Log (design example)"
   # REST Source (MES/order/cleaning context) and Time-Series (status/duration
   # points) are offered, not required. Before this manifest existed the
   # optional pair was named only in Core, because the composition format could

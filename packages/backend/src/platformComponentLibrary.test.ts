@@ -3,14 +3,21 @@ import path from 'path';
 import yaml from 'yaml';
 import {
   isPlatformComponentEntity,
-  OEE_DIRECT_COMPOSITION_REFS,
+  compositionUsageFromManifests,
   parseEquipmentUseLogExample,
   RUNTIME_PACKAGE_SOURCE_PATHS,
   toRelatedPlatformComponents,
   usageLabelsForComponent,
   validateComposition,
 } from '@internal/platform-common';
-import { readGoldenPathComposition } from './__testUtils__/goldenPathCompositions';
+import {
+  artifactManifestsOnDisk,
+  readGoldenPathComposition,
+} from './__testUtils__/goldenPathCompositions';
+
+// The usage table is derived from the manifests now, not restated in Core.
+// See NXD-029.
+const USAGE = compositionUsageFromManifests(artifactManifestsOnDisk());
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -224,19 +231,17 @@ describe('Platform Component library', () => {
 
   it('locks library usage to disk compositions and real runtime packages', () => {
     const oeeDirect = readGoldenPathComposition('oee-data-product-direct');
-    expect(oeeDirect.spec.components.map(item => item.ref)).toEqual([
-      ...OEE_DIRECT_COMPOSITION_REFS,
-    ]);
-    expect(usageLabelsForComponent('rest-source', 'runtime')).toContain(
+    expect(oeeDirect.spec.components).not.toHaveLength(0);
+    expect(usageLabelsForComponent('rest-source', 'runtime', USAGE)).toContain(
       'OEE Data Product',
     );
-    expect(usageLabelsForComponent('rest-source', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('rest-source', 'runtime', USAGE)).not.toContain(
       'REST Equipment',
     );
-    expect(usageLabelsForComponent('mqtt-consumer', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'runtime', USAGE)).not.toContain(
       'MQTT Temperature',
     );
-    expect(usageLabelsForComponent('mqtt-consumer', 'conceptual')).toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'conceptual', USAGE)).toContain(
       'MQTT Temperature',
     );
     for (const [name, relative] of Object.entries(RUNTIME_PACKAGE_SOURCE_PATHS)) {
@@ -266,13 +271,13 @@ describe('Platform Component library', () => {
         .filter(item => !item.optional)
         .map(item => item.ref),
     ).toEqual(parseEquipmentUseLogExample().spec.components.map(item => item.ref));
-    expect(usageLabelsForComponent('mqtt-consumer', 'design')).toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'design', USAGE)).toContain(
       'Equipment Use Log (design example)',
     );
-    expect(usageLabelsForComponent('mqtt-consumer', 'runtime')).not.toContain(
+    expect(usageLabelsForComponent('mqtt-consumer', 'runtime', USAGE)).not.toContain(
       'Equipment Use Log (design example)',
     );
-    expect(usageLabelsForComponent('rest-source', 'design')).not.toContain(
+    expect(usageLabelsForComponent('rest-source', 'design', USAGE)).not.toContain(
       'Equipment Use Log (design example)',
     );
     expect(read('docs/platform-components/using.md')).not.toContain(

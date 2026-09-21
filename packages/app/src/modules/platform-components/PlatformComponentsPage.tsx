@@ -24,6 +24,7 @@ import {
   toLibraryComponents,
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
+import { useGoldenPathCompositions } from '@internal/plugin-marketplace';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import {
   NEXORA_GREY,
@@ -255,8 +256,18 @@ export function PlatformComponentsPage() {
     useState<LibraryCompatibilityFilter>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
+  // The "used by" lists come from the GOLDEN_PATH compositions in the registry
+  // rather than from constants in Core. See NXD-029.
+  const {
+    compositions,
+    loading: compositionsLoading,
+    error: compositionsError,
+  } = useGoldenPathCompositions();
 
   useEffect(() => {
+    if (compositionsLoading) {
+      return undefined;
+    }
     let active = true;
     catalogApi
       .getEntities({ filter: { kind: ['Component', 'API'] } })
@@ -265,7 +276,10 @@ export function PlatformComponentsPage() {
           return;
         }
         setComponents(
-          toLibraryComponents(toRelatedPlatformComponents(response.items)),
+          toLibraryComponents(
+            toRelatedPlatformComponents(response.items),
+            compositions.usage,
+          ),
         );
         setLoading(false);
       })
@@ -278,7 +292,7 @@ export function PlatformComponentsPage() {
     return () => {
       active = false;
     };
-  }, [catalogApi]);
+  }, [catalogApi, compositions, compositionsLoading]);
 
   const rows = useMemo(
     () =>
@@ -327,12 +341,12 @@ export function PlatformComponentsPage() {
               Composition
             </Link>
           </Typography>
-          {loading && <Progress />}
-          {error && (
+          {(loading || compositionsLoading) && <Progress />}
+          {(error || compositionsError) && (
             <Typography variant="body2">
-              {isUnauthorizedError(error)
+              {isUnauthorizedError(error || compositionsError!)
                 ? 'Unauthorized'
-                : formatJourneyError(error)}
+                : formatJourneyError(error || compositionsError!)}
             </Typography>
           )}
           <TextField

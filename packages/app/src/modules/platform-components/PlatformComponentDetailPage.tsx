@@ -26,6 +26,7 @@ import {
   toLibraryComponents,
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
+import { useGoldenPathCompositions } from '@internal/plugin-marketplace';
 import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import {
   NEXORA_CARD,
@@ -115,9 +116,16 @@ export function PlatformComponentDetailPage() {
   const [component, setComponent] = useState<LibraryPlatformComponent>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
+  // "Used by" is derived from the GOLDEN_PATH compositions in the registry.
+  // See NXD-029.
+  const {
+    compositions,
+    loading: compositionsLoading,
+    error: compositionsError,
+  } = useGoldenPathCompositions();
 
   useEffect(() => {
-    if (!name) {
+    if (!name || compositionsLoading) {
       return undefined;
     }
     let active = true;
@@ -126,6 +134,7 @@ export function PlatformComponentDetailPage() {
       .then(response => {
         const match = toLibraryComponents(
           toRelatedPlatformComponents(response.items),
+          compositions.usage,
         ).find(item => item.name === name);
         if (!match) {
           throw new Error(`Platform Component ${name} was not found`);
@@ -145,9 +154,10 @@ export function PlatformComponentDetailPage() {
     return () => {
       active = false;
     };
-  }, [catalogApi, name]);
+  }, [catalogApi, name, compositions, compositionsLoading]);
 
-  const unauthorized = error ? isUnauthorizedError(error) : false;
+  const failure = error || compositionsError;
+  const unauthorized = failure ? isUnauthorizedError(failure) : false;
   const docsHref = component
     ? component.documentation ||
       documentationHref(component.profile.documentationPageId)
@@ -163,10 +173,10 @@ export function PlatformComponentDetailPage() {
         typeLink={PLATFORM_COMPONENT_REGISTRY_PATH}
       />
       <Content>
-        {loading && <Progress />}
-        {!loading && error && (
+        {(loading || compositionsLoading) && <Progress />}
+        {!loading && !compositionsLoading && failure && (
           <Typography variant="body2">
-            {unauthorized ? 'Unauthorized' : formatJourneyError(error)}
+            {unauthorized ? 'Unauthorized' : formatJourneyError(failure)}
           </Typography>
         )}
         {component && (

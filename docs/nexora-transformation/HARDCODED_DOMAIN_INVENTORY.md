@@ -20,10 +20,10 @@ proven — see the migration architecture in `TARGET_ARCHITECTURE.md`.
 
 | ID | Item | Location | Severity |
 | --- | --- | --- | --- |
-| GP-1 | Composition component lists duplicated from manifests | `platform-component-library.ts` | Medium — now guarded |
+| ~~GP-1~~ | ~~Composition component lists duplicated from manifests~~ | — | **REMOVED 2026-09-19 (NXD-029)** |
 | GP-2 | `officialGoldenPathForDraft/Selection` return the literal `'oee-data-product'` | `composer.ts` | **High** |
 | GP-3 | `composerPresets()` ships OEE and Equipment Use Log as built-ins | `composer.ts` | **High** |
-| GP-4 | `oeeBuiltWithSummary()` — an OEE-specific Core API | `platform-component-library.ts` | **High** |
+| ~~GP-4~~ | ~~`oeeBuiltWithSummary()` — an OEE-specific Core API~~ | — | **REMOVED 2026-09-19 (NXD-029)** |
 | GP-5 | `WAVE1_COMPONENT_TITLES` — display names for a fixed component set | `platform-component-library.ts` | Low |
 | GP-6 | `EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string | `platform-component-library.ts` | Medium |
 | GP-7 | `RUNTIME_PACKAGE_*` / `CATALOG_ONLY_COMPONENT_NAMES` — fixed component registry | `platform-component-library.ts` | Medium |
@@ -38,7 +38,7 @@ TypeScript.
 
 ---
 
-## GP-1 — Composition component lists duplicated from manifests
+## ~~GP-1~~ — Composition component lists duplicated from manifests — **REMOVED**
 
 `packages/platform-common/src/platform-component-library.ts` holds five
 constants that restate, in TypeScript, the component list of a manifest that
@@ -66,23 +66,22 @@ were documentation. `parseCompositionManifest` existed but was called only by
 tests and by the embedded string in GP-6. The work was therefore not to stop
 copying, but to give the manifests a runtime.
 
-**State (2026-09-19):** compositions are `GOLDEN_PATH` Artifacts in
-`catalog/artifacts/nexora/`, loaded by the registry at startup and served over
-its API — verified live (`8 registered, 12 already present, 0 failed`). The
-six constants still exist and still agree with the manifests;
-`packages/backend/src/compositionManifestParity.test.ts` is repointed at the
-new location and still fails if they diverge. `EQUIPMENT_USE_LOG_OPTIONAL_REFS`
-now has a manifest counterpart (`optional: true`) and is checked against it
-rather than only for disjointness.
+**Closed 2026-09-19 (P3-S1b, NXD-029).** Compositions are `GOLDEN_PATH`
+Artifacts in `catalog/artifacts/nexora/`, loaded by the registry at startup and
+served over its API. All six constants, the `LIBRARY_COMPOSITION_USAGE` table
+and 97 lines with them are deleted; `compositionManifestParity.test.ts` is
+deleted too, because there is nothing left to hold in step. The five consumers
+— `ComposePage`, `PlatformComponentsPage`, `PlatformComponentDetailPage`,
+`MarketplaceDetailPage` and `DeveloperHubPage` — take their lists from
+`useGoldenPathCompositions`, and the Core functions take them as parameters.
 
-**Removal condition (unchanged):** the Composer, Marketplace and Developer Hub
-read compositions from the registry instead of importing the constants. That
-is blocked on GP-2/GP-3/GP-4 rather than on the manifests: the three remaining
-consumers are `composer.ts` (`sortCompositionRefs`,
-`officialGoldenPathForSelection`, `composerPresets`), `oeeBuiltWithSummary`,
-and `DeveloperHubPage.tsx`, all of which use the lists synchronously in
-browser-bundled code and must take them as input before the constants can go.
-The parity test is deleted along with them.
+Two things the manifests had to learn along the way: `spec.components[].optional`
+(so `EQUIPMENT_USE_LOG_OPTIONAL_REFS` had somewhere to live) and `spec.usage`
+(so the consumer label and kind did). Verified live against a fresh registry:
+`20 registered, 0 already present, 1 publishers created, 0 failed`.
+
+One visible change: "used by" labels are ordered by composition name rather
+than by the order the old table happened to be written in.
 
 ## GP-2 — Golden Path identity is a string literal in Core
 
@@ -125,7 +124,7 @@ from OEE Mode A"), and `equipment-use-log` ("DESIGN EXAMPLE ONLY"). The
 **Removal condition:** presets are resolved from registered Artifacts /
 Golden Path manifests; `kind` becomes a neutral classification.
 
-## GP-4 — `oeeBuiltWithSummary()` is an OEE-specific Core API
+## ~~GP-4~~ — `oeeBuiltWithSummary()` is an OEE-specific Core API — **REMOVED**
 
 `oeeBuiltWithSummary()` maps `OEE_DIRECT_COMPOSITION_REFS` into a display
 summary with a hard-coded `productLabel: 'OEE Golden Path'`, alongside the
@@ -135,8 +134,13 @@ named function in the shared platform package.
 **Consumers:** `plugins/marketplace/src/components/MarketplaceDetailPage.tsx`
 (via `OeeBuiltWith.tsx`).
 
-**Removal condition:** one `builtWithSummary(compositionName)` that works for
-any composition; the Marketplace passes the Artifact it is rendering.
+**Closed 2026-09-19 (P3-S1b, NXD-029).** `builtWithSummary(catalog,
+componentRefs, productLabel)` works for any composition, and the Marketplace
+passes the one its manifest names through the new `spec.builtFrom` field —
+which also removed the `item.id === 'oee-data-product'` literal that gated the
+panel. The presentational component in the Marketplace plugin is still called
+`OeeBuiltWith`; that is a plugin-local name, not the Core API this entry
+recorded.
 
 ## GP-5 — `WAVE1_COMPONENT_TITLES`
 

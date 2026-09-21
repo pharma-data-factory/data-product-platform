@@ -14,12 +14,21 @@ import {
   validateComposerDraft,
   yamlContainsSecrets,
 } from './composer';
-import { OEE_DIRECT_COMPOSITION_REFS, toLibraryComponents } from './platform-component-library';
+import { toLibraryComponents } from './platform-component-library';
 import {
   CatalogEntityLike,
   toRelatedPlatformComponents,
 } from './platform-components';
 import { parseCompositionManifest, validateComposition } from './composition';
+import {
+  compositionRefsOnDisk,
+  compositionUsageOnDisk,
+  optionalCompositionRefsOnDisk,
+} from './__testUtils__/compositions';
+
+const USAGE = compositionUsageOnDisk();
+const OEE_REFS = compositionRefsOnDisk('oee-data-product-direct');
+const DESIGN_OPTIONAL_REFS = optionalCompositionRefsOnDisk('equipment-use-log');
 
 function component(partial: {
   name: string;
@@ -115,7 +124,7 @@ const catalog = toRelatedPlatformComponents([
   }),
 ]);
 
-const library = toLibraryComponents(catalog);
+const library = toLibraryComponents(catalog, USAGE);
 
 function draft(names: string[], name = 'example') {
   return {
@@ -179,12 +188,12 @@ describe('composer query', () => {
 
 describe('composer validation and yaml', () => {
   it('validates the six-component OEE composition', () => {
-    const names = OEE_DIRECT_COMPOSITION_REFS.map(ref => ref.split('/').pop() as string);
+    const names = OEE_REFS.map(ref => ref.split('/').pop() as string);
     const view = validateComposerDraft(draft(names, 'oee-data-product-direct'), catalog, library);
     expect(view.validated).toBe(true);
     expect(view.certifiedCount).toBe(6);
     expect(view.selectedCount).toBe(6);
-    expect(officialGoldenPathForSelection(names)).toBe('oee-data-product');
+    expect(officialGoldenPathForSelection(names, OEE_REFS)).toBe('oee-data-product');
   });
 
   it('fails missing dependency, missing component, conflict, version, and standard', () => {
@@ -222,7 +231,7 @@ spec:
         category: 'data',
       }),
     ]);
-    const conflictLibrary = toLibraryComponents(conflictCatalog);
+    const conflictLibrary = toLibraryComponents(conflictCatalog, USAGE);
     const conflict = validateComposerDraft(
       draft(['health', 'timeseries']),
       conflictCatalog,
@@ -294,11 +303,11 @@ spec:
   });
 
   it('derives OEE and Equipment Use Log presets from canonical compositions', () => {
-    const presets = composerPresets();
+    const presets = composerPresets(OEE_REFS, DESIGN_OPTIONAL_REFS);
     const oee = presets.find(item => item.id === 'oee-reference');
     expect(oee?.kind).toBe('oee-reference');
     expect(oee?.names.sort()).toEqual(
-      [...OEE_DIRECT_COMPOSITION_REFS].map(ref => ref.split('/').pop()).sort(),
+      [...OEE_REFS].map(ref => ref.split('/').pop()).sort(),
     );
     const example = presets.find(item => item.id === 'equipment-use-log');
     expect(example?.kind).toBe('design-example');
@@ -309,17 +318,15 @@ spec:
       ['rest-source', 'timeseries'].sort(),
     );
     expect(example?.names.sort()).not.toEqual(oee?.names.sort());
-    expect(officialGoldenPathForSelection(['health', 'rest-api'])).toBe(
+    expect(officialGoldenPathForSelection(['health', 'rest-api'], OEE_REFS)).toBe(
       undefined,
     );
     expect(
       officialGoldenPathForDraft({
         name: 'equipment-use-log',
         description: 'DESIGN EXAMPLE ONLY',
-        selectedNames: OEE_DIRECT_COMPOSITION_REFS.map(
-          ref => ref.split('/').pop() as string,
-        ),
-      }),
+        selectedNames: OEE_REFS.map(ref => ref.split('/').pop() as string),
+      }, OEE_REFS),
     ).toBe(undefined);
   });
 

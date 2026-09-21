@@ -1,5 +1,15 @@
 export { marketplacePlugin as default } from './plugin';
 export { OeeBuiltWith, CompositionTreeVisual } from './components/OeeBuiltWith';
+export { artifactRegistryApiRef } from './artifactRegistryApi';
+export type { ArtifactRegistryApi } from './artifactRegistryApi';
+export {
+  EMPTY_COMPOSITIONS,
+  compositionRefs,
+  goldenPathCompositionsFromManifests,
+  optionalCompositionRefs,
+  useGoldenPathCompositions,
+} from './useGoldenPathCompositions';
+export type { GoldenPathCompositions } from './useGoldenPathCompositions';
 export {
   filterMarketplaceItems,
   enrichMarketplaceItem,

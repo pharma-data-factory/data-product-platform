@@ -44,3 +44,17 @@ export function readCompositionRefs(name: string): string[] {
     .spec.components.filter(entry => !entry.optional)
     .map(entry => entry.ref);
 }
+
+/** Every artifact manifest on disk, for tests that derive across all of them. */
+export function artifactManifestsOnDisk(): ArtifactManifest[] {
+  return fs
+    .readdirSync(ARTIFACT_DIR)
+    .filter(file => file.endsWith('.yaml') && file !== 'publisher.yaml')
+    .sort()
+    .map(
+      file =>
+        parseYaml(
+          fs.readFileSync(path.join(ARTIFACT_DIR, file), 'utf8'),
+        ) as ArtifactManifest,
+    );
+}

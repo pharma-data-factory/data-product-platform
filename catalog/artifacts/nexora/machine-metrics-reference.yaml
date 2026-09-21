@@ -8,6 +8,9 @@ metadata:
   description: Reference composition proof. Generic machine metrics. Not OEE.
 spec:
   standardVersion: "1.0.0"
+  usage:
+    kind: runtime
+    label: "Machine Metrics Reference"
   components:
     - ref: "component:default/mqtt-consumer"
       version: "1.x"

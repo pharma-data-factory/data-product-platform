@@ -862,3 +862,86 @@ Use this file for durable architecture decisions.
   assertion and by documentation, both updated. This is the first case of the
   registry's identity rules constraining what content may be called, which is
   the rule working rather than a problem with it.
+
+### NXD-029 — The composition lists leave Core; consumers read the registry
+
+- Context: P3-S1b, the read switch that closes GP-1. P3-S1a gave the manifests
+  a runtime but nothing read them: Core still held six `*_COMPOSITION_REFS`
+  constants and a `LIBRARY_COMPOSITION_USAGE` table restating them, and five
+  pages imported those.
+- Decision: the lists are inputs, not imports. `usageLabelsForComponent`,
+  `toLibraryComponents`, `composerPresets`, `officialGoldenPathForSelection`,
+  `officialGoldenPathForDraft`, `sortCompositionRefs`, `composerDraftToManifest`
+  and `serializeCompositionYaml` all take the component lists from their
+  caller. 97 lines of constants are deleted, and
+  `compositionManifestParity.test.ts` with them — it existed to hold the
+  constants and the files in step, and there is nothing left to hold.
+- `useGoldenPathCompositions` in the Marketplace plugin is the one loader. It
+  lives beside the registry client because five pages across two workspaces
+  need it and `packages/app` is a composition layer. Failure is surfaced rather
+  than swallowed: a page that cannot reach the registry shows an error instead
+  of an empty "used by" list, which would read as "nothing uses this component"
+  — a wrong answer dressed as a real one. Same rule as NXD-026.
+- Two new manifest fields, both replacing something Core knew and a file did
+  not. `spec.usage` (`kind` + `label`) carries what
+  `LIBRARY_COMPOSITION_USAGE` held; the label is stated rather than derived
+  from `displayName` because the two genuinely differ and the rule would have
+  exceptions in it ("MQTT Temperature (conceptual)" is listed as "MQTT
+  Temperature", but "Equipment Use Log (design example)" keeps its
+  parenthetical). `spec.builtFrom` on the OEE **DATA_PRODUCT** names the
+  composition it is built from, replacing an `item.id === 'oee-data-product'`
+  literal in the Marketplace detail page: the "Built with" panel now appears
+  because a manifest names a composition, not because the UI recognises a
+  product.
+- GP-4 closes as a consequence. `oeeBuiltWithSummary(catalog)` is
+  `builtWithSummary(catalog, componentRefs, productLabel)` — Core describes the
+  shape of a "built with" panel without naming which product it describes. The
+  presentational component in the Marketplace plugin is still called
+  `OeeBuiltWith`; that is a plugin-local name, not the Core API GP-4 records.
+- **Visible change: "used by" labels reorder.** The hand-written table listed
+  OEE first because it was written first. The derived table sorts by
+  composition name so the answer does not depend on the order the registry
+  returns, so `mqtt-consumer` now reads "Machine Metrics Reference, OEE Data
+  Product" rather than the reverse. Asserted explicitly rather than left to
+  discovery. Alternatives considered: sort by label — same reordering, less
+  obvious rule; preserve the old order — it would have to be restated
+  somewhere, which is the thing being removed.
+- Alternatives considered: fetch compositions inside each page — rejected, five
+  copies of the same extraction. Keep a Core default so signatures stay
+  unchanged — rejected, a default would be the constant under another name.
+- Consequences: `sortCompositionRefs` and the two functions that call it take
+  the preferred order optionally, defaulting to alphabetical. That default is
+  only reached from `validateComposerDraft`, where order does not affect the
+  result; the displayed manifest and YAML are passed the real order from
+  ComposePage. GP-1 and GP-4 are removed from the inventory. GP-2 and GP-3 are
+  untouched: `officialGoldenPathForSelection` still returns the literal
+  `'oee-data-product'`, and the preset ids are still Core's.
+- Affected components: `packages/platform-common/src/{artifact,composition,
+  composer,platform-component-library,marketplace-artifact}.ts`,
+  `plugins/marketplace/src/useGoldenPathCompositions.ts`, five pages; deletes
+  `packages/backend/src/compositionManifestParity.test.ts`.
+
+### NXD-030 — A registered version is immutable, so editing a manifest in place does not propagate
+
+- Context: found while verifying P3-S1b live. Adding `spec.usage` to six
+  composition manifests changed no behaviour on the running instance — the
+  loader logged `8 registered, 12 already present` and kept serving the
+  manifests it had stored at `1.0.0`. The new fields only appeared after the
+  registry database was dropped and reloaded (`20 registered, 0 already
+  present, 0 failed`).
+- Decision: this is the loader behaving correctly, not a defect. A registered
+  ArtifactVersion is immutable content; a loader that silently rewrote stored
+  manifests would make "version 1.0.0" mean whatever was last on disk, which a
+  validated Product cannot rest on. Editing a manifest in place is therefore a
+  development-time act, and reaching a running registry requires a version
+  bump.
+- Not fixed here, and deliberately: bumping the seven changed manifests to
+  1.1.0 purely to defeat a stale dev database would put a version number on
+  content for no product reason, and would change the version the OEE card
+  displays. The platform has no installation whose registry must survive this
+  change.
+- Consequences: recorded as a known operational constraint rather than left to
+  be rediscovered. Anyone editing a manifest on a running instance must bump
+  `metadata.version` or reset the registry. A future slice that lets producers
+  edit content will need the version bump to be part of the act, not an extra
+  step someone can forget.

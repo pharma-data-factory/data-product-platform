@@ -10,6 +10,9 @@ metadata:
     Path uses conceptually. The runtime is not refactored.
 spec:
   standardVersion: "1.0.0"
+  usage:
+    kind: conceptual
+    label: "REST Equipment"
   components:
     - ref: "component:default/rest-source"
       version: "1.x"

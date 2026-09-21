@@ -213,12 +213,43 @@ export interface ArtifactManifest {
   };
   spec?: {
     sourceRef?: string;
+    /** The GOLDEN_PATH composition this artifact is built from. */
+    builtFrom?: string;
     dependencies?: string[];
     distribution?: string[];
     standardVersion?: string;
     components?: ArtifactCompositionComponent[];
+    usage?: ArtifactCompositionUsage;
     [key: string]: unknown;
   };
+}
+
+/** How a composition presents itself where components list their consumers. */
+export const ARTIFACT_COMPOSITION_USAGE_KINDS = [
+  'runtime',
+  'conceptual',
+  'design',
+] as const;
+
+export type ArtifactCompositionUsageKind =
+  (typeof ARTIFACT_COMPOSITION_USAGE_KINDS)[number];
+
+/**
+ * What a component's "used by" line says about this composition.
+ *
+ * `label` is stated rather than derived from `displayName`: the two genuinely
+ * differ — a composition titled "MQTT Temperature (conceptual)" is listed as
+ * "MQTT Temperature", while "Equipment Use Log (design example)" keeps its
+ * parenthetical. Deriving one from the other would be a rule with exceptions
+ * in it. Before this field the pair lived only in Core, as
+ * `LIBRARY_COMPOSITION_USAGE`.
+ *
+ * Absent means the composition is not listed at all, which is how the two
+ * example compositions behave.
+ */
+export interface ArtifactCompositionUsage {
+  kind: ArtifactCompositionUsageKind;
+  label: string;
 }
 
 /**
@@ -328,8 +359,14 @@ function validateSpec(spec: Record<string, unknown>, kind: string): string[] {
   // one. The list is the entire content of this kind, so it is required.
   if (kind === 'GOLDEN_PATH') {
     issues.push(...validateCompositionComponents(spec.components));
-  } else if (spec.components !== undefined) {
-    issues.push(`spec.components is only meaningful for kind GOLDEN_PATH`);
+    issues.push(...validateCompositionUsage(spec.usage));
+  } else {
+    if (spec.components !== undefined) {
+      issues.push(`spec.components is only meaningful for kind GOLDEN_PATH`);
+    }
+    if (spec.usage !== undefined) {
+      issues.push(`spec.usage is only meaningful for kind GOLDEN_PATH`);
+    }
   }
 
   if (spec.dependencies !== undefined) {
@@ -393,6 +430,34 @@ function validateCompositionComponents(value: unknown): string[] {
       issues.push(`${path}.optional must be a boolean`);
     }
   });
+  return issues;
+}
+
+function validateCompositionUsage(value: unknown): string[] {
+  // Absent is meaningful: the composition is simply not listed as a consumer.
+  if (value === undefined) {
+    return [];
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return ['spec.usage must be a mapping'];
+  }
+  const usage = value as Record<string, unknown>;
+  const issues: string[] = [];
+  if (
+    typeof usage.kind !== 'string' ||
+    !(ARTIFACT_COMPOSITION_USAGE_KINDS as readonly string[]).includes(
+      usage.kind,
+    )
+  ) {
+    issues.push(
+      `spec.usage.kind must be one of ${ARTIFACT_COMPOSITION_USAGE_KINDS.join(
+        ', ',
+      )}`,
+    );
+  }
+  if (typeof usage.label !== 'string' || !usage.label.trim()) {
+    issues.push('spec.usage.label is required');
+  }
   return issues;
 }
 

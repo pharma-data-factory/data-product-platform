@@ -11,6 +11,9 @@ metadata:
     and are not in this manifest.
 spec:
   standardVersion: "1.0.0"
+  usage:
+    kind: runtime
+    label: "OEE Data Product"
   components:
     - ref: "component:default/health"
       version: "1.x"
