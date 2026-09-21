@@ -52,6 +52,25 @@ import {
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type { CatalogComponentLoader } from './catalog-component-loader';
+
+/**
+ * Cross-plugin resolver: checks whether a ValidationContext for a given URS
+ * baseline has an APPROVED ValidationDecision.
+ *
+ * The composer-backend never reads validation-expert tables directly. It
+ * resolves through the validation-expert public API, following the same
+ * pattern as the URS baseline resolver. In tests this is backed by a stub.
+ *
+ * Phase 5 (P5-S1).
+ */
+export interface ValidationDecisionResolver {
+  /**
+   * Returns true when the ValidationContext for `baselineId` has an APPROVED
+   * ValidationDecision. Returns false when no context or no decision exists,
+   * or when the decision status is CONDITIONAL or REJECTED.
+   */
+  hasApprovedDecision(baselineId: string): Promise<boolean>;
+}
 import {
   toComponentType,
   type AvailableComponentSummary,
@@ -80,6 +99,11 @@ export interface ComposerServiceOptions {
   llmClient?: ComposerLLMClient;
   /** Loads Platform Component entities for AI spec generation context. */
   catalogLoader?: CatalogComponentLoader;
+  /**
+   * Checks whether a ValidationDecision exists and is APPROVED for a URS
+   * baseline. Used by the release gate. Phase 5 (P5-S1).
+   */
+  validationDecisionResolver?: ValidationDecisionResolver;
 }
 
 export class ComposerService {
@@ -88,6 +112,7 @@ export class ComposerService {
   private readonly ursBaselineResolver?: UrsBaselineResolver;
   private readonly llmClient?: ComposerLLMClient;
   private readonly catalogLoader?: CatalogComponentLoader;
+  private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly specDrafts = new Map<string, AISpecDraft>();
 
   constructor(options: ComposerServiceOptions) {
@@ -96,6 +121,7 @@ export class ComposerService {
     this.ursBaselineResolver = options.ursBaselineResolver;
     this.llmClient = options.llmClient;
     this.catalogLoader = options.catalogLoader;
+    this.validationDecisionResolver = options.validationDecisionResolver;
   }
 
   async createProduct(
@@ -686,6 +712,35 @@ export class ComposerService {
           blockers.push({
             code: 'NO_APPROVED_URS_BASELINE',
             message: `URS baseline ${ursId} is not approved: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+      }
+    }
+
+    // Phase 5 (P5-S1): A GxP-relevant product must have an APPROVED
+    // ValidationDecision for every URS baseline it references. A product
+    // that is not GxP relevant (or has no URS binding) is not checked here —
+    // the URS binding check above already handles the "no baseline" case.
+    if (
+      this.validationDecisionResolver &&
+      product &&
+      ursBaselineIds.length > 0
+    ) {
+      for (const ursId of ursBaselineIds) {
+        try {
+          const approved = await this.validationDecisionResolver.hasApprovedDecision(ursId);
+          if (!approved) {
+            blockers.push({
+              code: 'NO_APPROVED_VALIDATION_DECISION',
+              message:
+                `URS baseline ${ursId} has no APPROVED ValidationDecision. ` +
+                'An independent expert must validate the package before it can be released.',
+            });
+          }
+        } catch (err) {
+          blockers.push({
+            code: 'VALIDATION_DECISION_CHECK_FAILED',
+            message: `Could not verify ValidationDecision for URS baseline ${ursId}: ${err instanceof Error ? err.message : String(err)}`,
           });
         }
       }

@@ -1,10 +1,10 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 4 — Data Exchange, Contracts and Lineage (Phase 3 closed)
+Phase 5 — Continuous Verification and Pharma Validation (Phase 4 closed)
 
 ## Current Vertical Slice
-Nothing in flight. Phase 3 exit criteria met. Phase 4 started with P4-S1 (DataContract identity).
+Nothing in flight. P5-S1 (Validation Decision + SoD + Release Gate) landed.
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -279,6 +279,22 @@ abstraction, product generation (AI spec + catalog loader + owner), development
 context (config summary), repository scaffolding (2 Golden Paths linked), and
 the Hardcoded Domain Inventory reduced from 8 items to 2 (GP-7 waits on Phase
 4, GP-8 waits on Phase 4/6).
+
+**Phase 4 exit criteria are met:** DataContract is first-class (name, owner,
+uniqueness); ProductDependency exists; initial lineage graph computable; contract
+compatibility evaluation in platform-common; Data Quality contracts in the model.
+
+- **P5-S1 — Validation Decision step, SoD, release gate integration.**
+  `ValidationDecision { id, contextId, status, justification, conditions, decidedBy, decidedAt }`
+  is the terminal step of the validation lifecycle. `validation.approve` is
+  enabled for `PLATFORM_ADMIN` only. Service enforces Segregation of Duties
+  (decider ≠ context creator) and one-decision-per-context invariant.
+  Routes: `POST /contexts/:id/decision`, `GET /contexts/:id/decision`.
+  `ValidationDecisionResolver` interface is injected into `ComposerService`;
+  `checkReleaseGate` adds `NO_APPROVED_VALIDATION_DECISION` blocker when the
+  resolver reports no APPROVED decision. 11 tests (9 decision invariants + 2
+  release gate). `risk.accept` and `baseline.modify` remain reserved.
+  See [`NXD-036`](DECISIONS.md).
 
 - **P4-S6 — Data Quality contracts: declarative quality rules in DataContract.**
   `QualityRule` and `QualityRuleType` are added to `platform-common/src/product.ts`.

@@ -11,6 +11,7 @@ import { AuthorizeResult, BasicPermission } from '@backstage/plugin-permission-c
 import {
   requirementReadPermission,
   traceabilityReadPermission,
+  validationApprovePermission,
   validationReadPermission,
   validationReviewPermission,
   validationRunStartPermission,
@@ -366,6 +367,59 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
       res.json(await service.getContextCoverage(req.params.id));
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  // ── Validation Decision (Phase 5, P5-S1) ─────────────────────────────────
+
+  /**
+   * POST /contexts/:id/decision
+   * Record the independent expert's verdict on a ValidationContext.
+   *
+   * Requires `validation.approve` (PLATFORM_ADMIN only). The service enforces
+   * Segregation of Duties: the actor must not be the same person who created
+   * the context.
+   *
+   * Body: { status: 'APPROVED' | 'CONDITIONAL' | 'REJECTED', justification, conditions? }
+   */
+  router.post('/contexts/:id/decision', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationApprovePermission,
+      );
+      const actor =
+        (credentials as { principal?: { userEntityRef?: string } }).principal
+          ?.userEntityRef ?? 'unknown';
+      const decision = await service.createValidationDecision(
+        req.params.id,
+        req.body,
+        actor,
+      );
+      res.status(201).json(decision);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * GET /contexts/:id/decision
+   * Read the ValidationDecision for a context (if any).
+   * Returns 404 when no decision has been recorded yet.
+   */
+  router.get('/contexts/:id/decision', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationReadPermission);
+      const decision = await service.getValidationDecision(req.params.id);
+      if (!decision) {
+        res.status(404).json({ error: `No decision recorded for context ${req.params.id}` });
+        return;
+      }
+      res.json(decision);
     } catch (error) {
       respondError(res, logger, error);
     }

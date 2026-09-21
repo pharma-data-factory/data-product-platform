@@ -465,7 +465,10 @@ export const ADMIN_PERMISSION_NAMES = new Set([
   'business-capability.manage',
   'platform.user.manage',
   'publisher.manage',
-  // validation.approve, risk.accept, baseline.modify intentionally omitted
+  // Phase 5 (P5-S1): validation.approve granted to PLATFORM_ADMIN only.
+  // Segregation of Duties is enforced in the service (decider ≠ context creator).
+  // risk.accept and baseline.modify remain reserved.
+  'validation.approve',
 ]);
 
 export const BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES = new Set([

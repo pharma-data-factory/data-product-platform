@@ -50,9 +50,9 @@ export function decidePermission(
   resourceRef?: string,
   ownershipEntityRefs?: readonly string[],
 ): PolicyDecisionName {
-  // Reserved Validation Expert controls — never auto-granted in v0.1.
+  // Phase 5 (P5-S1): validation.approve is now granted to PLATFORM_ADMIN.
+  // risk.accept and baseline.modify remain reserved (Phase 5 later slices).
   if (
-    permission.name === 'validation.approve' ||
     permission.name === 'risk.accept' ||
     permission.name === 'baseline.modify'
   ) {

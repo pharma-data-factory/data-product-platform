@@ -9,6 +9,7 @@ import knex, { Knex } from 'knex';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
+import type { ValidationDecisionResolver } from './service';
 
 const mockLogger: any = {
   debug: jest.fn(),
@@ -520,6 +521,82 @@ describe('Phase 1: Versioning Foundation', () => {
         'NO_APPROVED_URS_BASELINE',
       );
       expect(mockResolver.resolveApprovedBaseline).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Phase 5 (P5-S1): Validation Decision in the Release Gate ──────────────
+
+  describe('Validation Decision gate', () => {
+    let serviceWithDecisionResolver: ComposerService;
+    let mockUrsResolver: UrsBaselineResolver;
+    let mockDecisionResolver: ValidationDecisionResolver;
+    const repository2 = (() => {
+      let r: any;
+      return { get: async () => r, set: (v: any) => { r = v; } };
+    })();
+
+    beforeAll(async () => {
+      const repo = await ComposerRepository.create({ getClient: () => db });
+      mockUrsResolver = {
+        resolveApprovedBaseline: jest.fn(async () => ({
+          id: 'urs-vd-001', status: 'APPROVED', baselineVersion: '1.0',
+        })),
+        resolveBaselineContext: jest.fn(),
+      };
+      mockDecisionResolver = {
+        hasApprovedDecision: jest.fn(async () => false),
+      };
+      serviceWithDecisionResolver = new ComposerService({
+        logger: mockLogger,
+        repository: repo,
+        ursBaselineResolver: mockUrsResolver,
+        validationDecisionResolver: mockDecisionResolver,
+      });
+    });
+
+    async function createSetup() {
+      const product = await serviceWithDecisionResolver.createProduct(
+        {
+          name: `VD Product ${Date.now()}`,
+          productType: 'DATA_PRODUCT',
+          owner: 'group:default/platform-team',
+          dataClassification: 'INTERNAL',
+          gxpRelevance: 'NONE',
+        },
+        actor,
+      );
+      const version = await serviceWithDecisionResolver.createProductVersion(product.id, {}, actor);
+      const component = await serviceWithDecisionResolver.addProductComponent(
+        version.id, { componentType: 'SOURCE', name: 'S' }, actor,
+      );
+      await serviceWithDecisionResolver.createTraceabilityLink(
+        { sourceType: 'URS', sourceId: 'urs-x', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        actor,
+      );
+      const baseline = await serviceWithDecisionResolver.createProductBaseline(
+        version.id, { ursBaselineIds: ['urs-vd-001'] }, actor,
+      );
+      await serviceWithDecisionResolver.approveProductBaseline(baseline.id, actor);
+      await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      return { version };
+    }
+
+    it('blocks release when no APPROVED ValidationDecision exists', async () => {
+      (mockDecisionResolver.hasApprovedDecision as jest.Mock).mockResolvedValueOnce(false);
+      (mockUrsResolver.resolveApprovedBaseline as jest.Mock).mockResolvedValueOnce({ id: 'urs-vd-001', status: 'APPROVED', baselineVersion: '1.0' });
+      const { version } = await createSetup();
+      const result = await serviceWithDecisionResolver.checkReleaseGate(version.id);
+      expect(result.passed).toBe(false);
+      expect(result.blockers.map(b => b.code)).toContain('NO_APPROVED_VALIDATION_DECISION');
+    });
+
+    it('passes release when an APPROVED ValidationDecision exists', async () => {
+      (mockDecisionResolver.hasApprovedDecision as jest.Mock).mockResolvedValueOnce(true);
+      (mockUrsResolver.resolveApprovedBaseline as jest.Mock).mockResolvedValueOnce({ id: 'urs-vd-001', status: 'APPROVED', baselineVersion: '1.0' });
+      const { version } = await createSetup();
+      const result = await serviceWithDecisionResolver.checkReleaseGate(version.id);
+      expect(result.blockers.map(b => b.code)).not.toContain('NO_APPROVED_VALIDATION_DECISION');
     });
   });
 });

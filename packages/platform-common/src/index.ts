@@ -138,11 +138,15 @@ export {
 export type { RequirementContent } from './content-hash';
 
 // URS Composer → Validation Expert integration contract
+export { VALIDATION_DECISION_STATUSES } from './validation-integration';
 export type {
   ApprovedURSReference,
   ValidationContext,
   CreateValidationContextRequest,
   ValidationContextRequirement,
+  ValidationDecision,
+  ValidationDecisionStatus,
+  CreateValidationDecisionRequest,
 } from './validation-integration';
 
 export { quickActionsForRole } from './dashboard';

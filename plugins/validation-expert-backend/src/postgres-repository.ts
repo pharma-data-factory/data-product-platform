@@ -16,6 +16,7 @@ import type {
   ValidationRun,
   ValidationTestExecution,
 } from './types';
+import type { ValidationDecision } from '@internal/platform-common';
 
 function parseJson<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) {
@@ -305,5 +306,33 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       created_at: context.createdAt,
       created_by: context.createdBy,
     });
+  }
+
+  async addDecision(decision: ValidationDecision): Promise<void> {
+    await this.db('validation_decisions').insert({
+      id: decision.id,
+      context_id: decision.contextId,
+      status: decision.status,
+      justification: decision.justification,
+      conditions: decision.conditions ?? null,
+      decided_by: decision.decidedBy,
+      decided_at: decision.decidedAt,
+    });
+  }
+
+  async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
+    const row = await this.db('validation_decisions')
+      .where({ context_id: contextId })
+      .first();
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      contextId: row.context_id,
+      status: row.status,
+      justification: row.justification,
+      conditions: row.conditions ?? undefined,
+      decidedBy: row.decided_by,
+      decidedAt: row.decided_at,
+    };
   }
 }
