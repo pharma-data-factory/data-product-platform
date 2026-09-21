@@ -1,56 +1,126 @@
-# Local Control Plane Compose. This is NOT the production image.
-# NODE_ENV=development; CMD is `yarn start` with app-config.docker.yaml
-# (Guest forbidden, samples excluded). Pilot/production must build
-# packages/backend/Dockerfile after `yarn build:backend`.
-# See docs/operations/pilot-runbook.md.
+# Nexora Data Product Platform — Docker Compose
+#
+# Zwei Modi:
+#
+#   1. Single-Container (Standard, empfohlen):
+#        docker compose up nexora
+#      Backend (7007) dient auch das gebaute Frontend.
+#      Kein CORS-Problem, genau wie die Production-Image-Pipeline.
+#
+#   2. Split-Modus (Frontend + Backend getrennt):
+#        docker compose --profile split up
+#      Frontend nginx auf Port 3000, Backend auf Port 7007.
+#      nginx leitet /api/* und /.backstage/* an den Backend-Container weiter.
+#
+# Voraussetzungen:
+#   yarn install --immutable
+#   yarn tsc
+#   yarn build:backend      # erzeugt packages/backend/dist/bundle.tar.gz
+#   yarn workspace app build  # nur für Split-Modus (erzeugt packages/app/dist/)
+#   docker compose build
+#
+# Umgebungsvariablen (.env oder Shell):
+#   BACKEND_SECRET        Zufälliger String, min. 24 Zeichen
+#   POSTGRES_PASSWORD     Passwort für die Datenbank
+#
+# Zugriff:
+#   Single:  http://localhost:7007
+#   Split:   http://localhost:3000 (Frontend) + http://localhost:7007 (Backend-API)
+
+name: nexora
+
+# ── Shared Umgebung ────────────────────────────────────────────────────────────
+x-backend-env: &backend-env
+  APP_BASE_URL: http://localhost:7007       # Single-Modus
+  BACKEND_BASE_URL: http://localhost:7007
+  BACKEND_SECRET: ${BACKEND_SECRET:-nexora-dev-secret-change-in-production}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+  POSTGRES_USER: nexora
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexora_dev_pass}
+  POSTGRES_DATABASE: nexora
+  AUTH_GUEST_ENABLED: "true"
+  AUTH_GUEST_ROLE: developer
+  NODE_ENV: production
+  NODE_OPTIONS: "--no-node-snapshot"
 
 services:
-  postgres:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-dpp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dpp}
-      POSTGRES_DB: ${POSTGRES_DATABASE:-pharma_data_factory}
+      POSTGRES_USER: nexora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexora_dev_pass}
+      POSTGRES_DB: nexora
+    volumes:
+      - nexora_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexora -d nexora"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dpp} -d ${POSTGRES_DATABASE:-pharma_data_factory}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
-  control-plane:
-    image: pharma-data-factory
+  # ── Single-Container-Modus: Backend dient auch Frontend ─────────────────────
+  nexora:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: packages/backend/Dockerfile
+    image: nexora:latest
     ports:
-      - "3000:3000"
       - "7007:7007"
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-dpp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dpp}
-      POSTGRES_DATABASE: ${POSTGRES_DATABASE:-pharma_data_factory}
-      AUTH_GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:-}
-      AUTH_GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:-}
-      AUTH_GITHUB_CALLBACK_URL: ${AUTH_GITHUB_CALLBACK_URL:-http://localhost:7007/api/auth/github/handler/frame}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY:-}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
-      CREATE_AUTHORIZATION_AUDIT_PATH: ${CREATE_AUTHORIZATION_AUDIT_PATH:-/app/.runtime/create-authorization-audit.jsonl}
+      <<: *backend-env
     volumes:
-      - create_authorization_audit:/app/.runtime
+      - nexora_runtime:/app/.runtime
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Split-Modus: Backend (nur API) ──────────────────────────────────────────
+  # Aktivierung: docker compose --profile split up
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    image: nexora:latest
+    profiles: [split]
+    ports:
+      - "7007:7007"
+    environment:
+      <<: *backend-env
+      APP_BASE_URL: http://localhost:3000   # Split: Frontend auf 3000
+    volumes:
+      - nexora_runtime:/app/.runtime
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Split-Modus: Frontend (nginx) ───────────────────────────────────────────
+  # Stellt packages/app/dist/ aus; leitet /api/* und /.backstage/* an Backend.
+  # Voraussetzung: yarn workspace app build
+  frontend:
+    image: nginx:alpine
+    profiles: [split]
+    ports:
+      - "3000:80"
+    volumes:
+      - ./packages/app/dist:/usr/share/nginx/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
-  create_authorization_audit:
+  nexora_db:
+  nexora_runtime:
