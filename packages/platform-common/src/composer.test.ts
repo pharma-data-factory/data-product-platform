@@ -21,14 +21,42 @@ import {
 } from './platform-components';
 import { parseCompositionManifest, validateComposition } from './composition';
 import {
-  compositionRefsOnDisk,
+  artifactManifestsOnDisk,
   compositionUsageOnDisk,
-  optionalCompositionRefsOnDisk,
 } from './__testUtils__/compositions';
+import { compositionOfArtifactManifest } from './composition';
 
 const USAGE = compositionUsageOnDisk();
-const OEE_REFS = compositionRefsOnDisk('oee-data-product-direct');
-const DESIGN_OPTIONAL_REFS = optionalCompositionRefsOnDisk('equipment-use-log');
+// Build official/example composition maps from the real manifests on disk,
+// exactly as goldenPathCompositionsFromManifests does at runtime.
+const _MANIFESTS = artifactManifestsOnDisk();
+const OFFICIAL_COMPOSITIONS = new Map(
+  _MANIFESTS
+    .filter(m => m.spec?.usage?.kind === 'runtime')
+    .map(m => {
+      const comp = compositionOfArtifactManifest(m)!;
+      return [comp.metadata.name, comp] as const;
+    }),
+);
+const EXAMPLE_COMPOSITIONS = new Map(
+  _MANIFESTS
+    .filter(m => m.spec?.usage?.kind === 'design')
+    .map(m => {
+      const comp = compositionOfArtifactManifest(m)!;
+      return [comp.metadata.name, comp] as const;
+    }),
+);
+// Required refs only, keyed by composition name — matches the map passed by
+// ComposePage to officialGoldenPathForDraft.
+const OFFICIAL_REFS_MAP = new Map(
+  [...OFFICIAL_COMPOSITIONS.entries()].map(([name, comp]) => [
+    name,
+    comp.spec.components.filter(c => !c.optional).map(c => c.ref),
+  ] as const),
+);
+// OEE refs, used to build named selections in test assertions.
+const OEE_REFS =
+  OFFICIAL_REFS_MAP.get('oee-data-product-direct') ?? [];
 
 function component(partial: {
   name: string;
@@ -193,7 +221,7 @@ describe('composer validation and yaml', () => {
     expect(view.validated).toBe(true);
     expect(view.certifiedCount).toBe(6);
     expect(view.selectedCount).toBe(6);
-    expect(officialGoldenPathForSelection(names, OEE_REFS)).toBe('oee-data-product');
+    expect(officialGoldenPathForSelection(names, OFFICIAL_REFS_MAP)).toBe('oee-data-product-direct');
   });
 
   it('fails missing dependency, missing component, conflict, version, and standard', () => {
@@ -302,15 +330,19 @@ spec:
     expect(view.certifiedCount).toBe(3);
   });
 
-  it('derives OEE and Equipment Use Log presets from canonical compositions', () => {
-    const presets = composerPresets(OEE_REFS, DESIGN_OPTIONAL_REFS);
-    const oee = presets.find(item => item.id === 'oee-reference');
-    expect(oee?.kind).toBe('oee-reference');
+  it('derives official and example presets from canonical compositions on disk', () => {
+    const presets = composerPresets(OFFICIAL_COMPOSITIONS, EXAMPLE_COMPOSITIONS);
+
+    // OEE is an 'official' preset keyed by composition name, not a domain literal.
+    const oee = presets.find(item => item.id === 'oee-data-product-direct');
+    expect(oee?.kind).toBe('official');
     expect(oee?.names.sort()).toEqual(
-      [...OEE_REFS].map(ref => ref.split('/').pop()).sort(),
+      OEE_REFS.map(ref => ref.split('/').pop() as string).sort(),
     );
+
+    // Equipment Use Log is an 'example' preset (usage.kind === 'design').
     const example = presets.find(item => item.id === 'equipment-use-log');
-    expect(example?.kind).toBe('design-example');
+    expect(example?.kind).toBe('example');
     expect(example?.names.sort()).toEqual(
       ['health', 'mqtt-consumer', 'observability', 'rest-api'].sort(),
     );
@@ -318,15 +350,33 @@ spec:
       ['rest-source', 'timeseries'].sort(),
     );
     expect(example?.names.sort()).not.toEqual(oee?.names.sort());
-    expect(officialGoldenPathForSelection(['health', 'rest-api'], OEE_REFS)).toBe(
-      undefined,
-    );
+
+    // Partial selection does not match any official composition.
     expect(
-      officialGoldenPathForDraft({
-        name: 'equipment-use-log',
-        description: 'DESIGN EXAMPLE ONLY',
-        selectedNames: OEE_REFS.map(ref => ref.split('/').pop() as string),
-      }, OEE_REFS),
+      officialGoldenPathForSelection(['health', 'rest-api'], OFFICIAL_REFS_MAP),
+    ).toBe(undefined);
+
+    // The OEE selection matches the 'oee-data-product-direct' composition,
+    // not a domain literal. Text-matching exclusions are gone: the name
+    // 'equipment-use-log' has no special meaning here (EUL is excluded because
+    // it is in EXAMPLE_COMPOSITIONS, not OFFICIAL_COMPOSITIONS).
+    expect(
+      officialGoldenPathForDraft(
+        {
+          name: 'oee-data-product-direct',
+          description: 'OEE composition',
+          selectedNames: OEE_REFS.map(ref => ref.split('/').pop() as string),
+        },
+        OFFICIAL_REFS_MAP,
+      ),
+    ).toBe('oee-data-product-direct');
+
+    // An empty official map returns undefined even for a full OEE selection.
+    expect(
+      officialGoldenPathForSelection(
+        OEE_REFS.map(ref => ref.split('/').pop() as string),
+        new Map(),
+      ),
     ).toBe(undefined);
   });
 

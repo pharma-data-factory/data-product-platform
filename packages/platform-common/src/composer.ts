@@ -8,7 +8,6 @@ import {
 import {
   LibraryPlatformComponent,
   componentNameFromRef,
-  parseEquipmentUseLogExample,
 } from './platform-component-library';
 import {
   PlatformComponent,
@@ -59,7 +58,12 @@ export interface ComposerPreset {
   description: string;
   names: string[];
   optionalNames?: string[];
-  kind: 'baseline' | 'oee-reference' | 'design-example';
+  /**
+   * `'baseline'` — generic platform pattern (static, not from a manifest).
+   * `'official'` — a GOLDEN_PATH composition with usage.kind === 'runtime'.
+   * `'example'`  — a GOLDEN_PATH composition with usage.kind === 'design'.
+   */
+  kind: 'baseline' | 'official' | 'example';
 }
 
 export interface ComposerDraft {
@@ -307,55 +311,69 @@ export function yamlContainsSecrets(yaml: string): boolean {
   return /(password|token|secret|api[_-]?key)/i.test(yaml);
 }
 
+/**
+ * Which official GOLDEN_PATH composition the draft's component selection
+ * matches, if any.
+ *
+ * `officialCompositions` is a map of composition name → required refs (refs
+ * with `optional: true` excluded), derived from the GOLDEN_PATH manifests in
+ * the registry whose `spec.usage.kind === 'runtime'`. Design examples and
+ * conceptual compositions are excluded by the caller, not here.
+ *
+ * Returns the composition name (e.g. `'oee-data-product-direct'`) rather than
+ * a domain-specific literal, so that a second Golden Path can be recognised
+ * without touching Core. GP-2 closed.
+ */
 export function officialGoldenPathForDraft(
   draft: Pick<ComposerDraft, 'name' | 'description' | 'selectedNames'>,
-  goldenPathRefs: readonly string[],
-): 'oee-data-product' | undefined {
-  const slug = slugifyCompositionName(draft.name);
-  const text = `${draft.name} ${draft.description}`.toLowerCase();
-  if (slug === 'equipment-use-log' || text.includes('design example')) {
-    return undefined;
-  }
-  return officialGoldenPathForSelection(draft.selectedNames, goldenPathRefs);
+  officialCompositions: ReadonlyMap<string, readonly string[]>,
+): string | undefined {
+  return officialGoldenPathForSelection(draft.selectedNames, officialCompositions);
 }
 
 /**
- * Whether a selection is exactly the official Golden Path's component set.
+ * Which official GOLDEN_PATH composition the given component selection matches.
  *
- * `goldenPathRefs` is the composition's own list, from the registry. The
- * returned template id is still a literal here — that is GP-2, and untouched:
- * this change is about where the component list comes from, not about what the
- * Golden Path is called.
+ * Iterates over `officialCompositions` (name → required refs of runtime
+ * compositions) and returns the name of the first one whose required component
+ * set is equal to `selectedNames` as a set. Returns `undefined` when no
+ * composition matches or the map is empty.
  */
 export function officialGoldenPathForSelection(
   selectedNames: readonly string[],
-  goldenPathRefs: readonly string[],
-): 'oee-data-product' | undefined {
-  if (goldenPathRefs.length === 0) {
-    return undefined;
-  }
+  officialCompositions: ReadonlyMap<string, readonly string[]>,
+): string | undefined {
   const selected = new Set(selectedNames);
-  const oee = new Set(goldenPathRefs.map(componentNameFromRef));
-  if (selected.size !== oee.size) {
-    return undefined;
-  }
-  for (const name of oee) {
-    if (!selected.has(name)) {
-      return undefined;
+  for (const [name, refs] of officialCompositions) {
+    const required = new Set(refs.map(componentNameFromRef));
+    if (
+      required.size === selected.size &&
+      [...required].every(n => selected.has(n))
+    ) {
+      return name;
     }
   }
-  return 'oee-data-product';
+  return undefined;
 }
 
+/**
+ * Compose the Composer's preset list from registered Golden Path compositions.
+ *
+ * Three static baseline presets (generic platform patterns, not domain
+ * specific) are always present. Beyond those, every `officialCompositions`
+ * entry becomes a preset with kind `'official'`, and every `exampleCompositions`
+ * entry becomes a preset with kind `'example'`. Both maps come from the
+ * GOLDEN_PATH manifests in the registry — GP-3 closed.
+ *
+ * The caller derives the maps from the registry's own manifests:
+ * `officialCompositions` holds those with `spec.usage.kind === 'runtime'`,
+ * `exampleCompositions` holds those with `spec.usage.kind === 'design'`.
+ */
 export function composerPresets(
-  goldenPathRefs: readonly string[],
-  designExampleOptionalRefs: readonly string[],
+  officialCompositions: ReadonlyMap<string, GoldenPathComposition>,
+  exampleCompositions: ReadonlyMap<string, GoldenPathComposition>,
 ): ComposerPreset[] {
-  const oeeNames = goldenPathRefs.map(componentNameFromRef);
-  const equipment = parseEquipmentUseLogExample().spec.components.map(item =>
-    componentNameFromRef(item.ref),
-  );
-  return [
+  const baselinePresets: ComposerPreset[] = [
     {
       id: 'api-data-product',
       title: 'API Data Product',
@@ -384,21 +402,32 @@ export function composerPresets(
       ],
       kind: 'baseline',
     },
-    {
-      id: 'oee-reference',
-      title: 'OEE 1.0',
-      description: 'Reference composition derived from OEE Mode A.',
-      names: oeeNames,
-      kind: 'oee-reference',
-    },
-    {
-      id: 'equipment-use-log',
-      title: 'Equipment Use Log',
-      description: 'DESIGN EXAMPLE ONLY. Not a Golden Path.',
-      names: equipment,
-      optionalNames: designExampleOptionalRefs.map(componentNameFromRef),
-      kind: 'design-example',
-    },
+  ];
+
+  const fromComposition = (
+    comp: GoldenPathComposition,
+    kind: 'official' | 'example',
+  ): ComposerPreset => ({
+    id: comp.metadata.name,
+    title: comp.metadata.title || comp.metadata.name,
+    description: comp.metadata.description || '',
+    names: comp.spec.components
+      .filter(c => !c.optional)
+      .map(c => componentNameFromRef(c.ref)),
+    optionalNames: comp.spec.components
+      .filter(c => c.optional)
+      .map(c => componentNameFromRef(c.ref)),
+    kind,
+  });
+
+  return [
+    ...baselinePresets,
+    ...[...officialCompositions.values()].map(comp =>
+      fromComposition(comp, 'official'),
+    ),
+    ...[...exampleCompositions.values()].map(comp =>
+      fromComposition(comp, 'example'),
+    ),
   ];
 }
 

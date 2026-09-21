@@ -260,17 +260,29 @@ registry's own rather than an inherited claim.
   the immutability rule working, not a defect — but it is now a recorded
   operational constraint rather than something to rediscover.
 
+- **P3-S2 — Golden Path identity and presets are manifest-driven.** GP-2 and
+  GP-3 are closed. `officialGoldenPathForSelection` and `officialGoldenPathForDraft`
+  now accept `ReadonlyMap<string, readonly string[]>` of all `runtime` GOLDEN_PATH
+  compositions from the registry and return the composition name (`string | undefined`),
+  not the literal `'oee-data-product'`. `ComposerPreset.kind` is now
+  `'baseline' | 'official' | 'example'`; `composerPresets` derives one preset
+  per composition from `officialCompositions` and `exampleCompositions` maps.
+  `GoldenPathCompositions` gains `official`, `examples` and `builtFromIndex`
+  (composition name → DATA_PRODUCT name via `spec.builtFrom`) so the Composer
+  can still navigate to `/marketplace/oee-data-product` without hardcoding it
+  in Core. See [`NXD-031`](DECISIONS.md).
+
+  409 tests, 0 failures (tsc + lint + yarn test subset).
+
 ## In Progress
 Nothing in flight.
 
 ## Next
-No slice scoped. The remaining Phase 3 drift is GP-2 and GP-3 (`composer.ts`
-still returns the literal `'oee-data-product'` and ships OEE presets) and GP-8
-(`nexora-industrial.ts`, 589 lines of manufacturing vocabulary in Core, larger
-than the rest of the inventory combined). Phase 3's own plan also contains
-dependency and compatibility resolution, configuration schemas, Product
-generation, Development Context and AI provider abstraction — none of which
-exists.
+No slice scoped. The remaining Phase 3 Golden Path drift is GP-8 (`nexora-industrial.ts`,
+589 lines, 62 exports of manufacturing vocabulary in Core, larger than the rest
+of the inventory combined). Phase 3's own plan also contains dependency and
+compatibility resolution, configuration schemas, Product generation, Development
+Context and AI provider abstraction — none of which exists.
 
 Deferred, not part of Phase 2: **per-namespace permission scoping.** The eight
 registry permissions are platform-wide, so a DATA_PRODUCT_OWNER may certify in

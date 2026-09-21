@@ -945,3 +945,10 @@ Use this file for durable architecture decisions.
   `metadata.version` or reset the registry. A future slice that lets producers
   edit content will need the version bump to be part of the act, not an extra
   step someone can forget.
+
+### NXD-031 — Golden Path identity resolves from all registered compositions; presets are manifest-driven (GP-2, GP-3)
+
+- Context: `officialGoldenPathForSelection` returned the literal `'oee-data-product'` after set-comparing the selection against a single composition's refs. `composerPresets` embedded `'oee-reference'` and `'design-example'` in Core's `ComposerPreset.kind`. Both hardcodes meant a second Golden Path required editing Core and widening a union type.
+- Decision: `officialGoldenPathForSelection` and `officialGoldenPathForDraft` now accept `ReadonlyMap<string, readonly string[]>` (composition name → required refs from manifests whose `spec.usage.kind === 'runtime'`) and return `string | undefined` — the composition name, not a domain literal. `ComposerPreset.kind` is now `'baseline' | 'official' | 'example'`. `composerPresets` derives one preset per entry in the maps it receives. The Composer navigates to the DATA_PRODUCT Marketplace page and scaffold template via `GoldenPathCompositions.builtFromIndex` (composition name → DATA_PRODUCT name, built from `spec.builtFrom` on DATA_PRODUCT manifests).
+- Alternatives considered: returning the DATA_PRODUCT name directly — rejected because the function would need to know about the builtFrom mapping, mixing two concerns; keeping the old API and extending it with an overload — rejected because the text-matching exclusions were wrong in the first place and the old return type would remain.
+- Consequences: adding a new official Golden Path now requires only a manifest with `spec.usage.kind: runtime`; Core is untouched. The corresponding DATA_PRODUCT must carry `spec.builtFrom` pointing at the composition if the Composer should offer a Marketplace link and scaffold button for it.

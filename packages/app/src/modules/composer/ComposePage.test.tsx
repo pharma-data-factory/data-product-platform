@@ -239,7 +239,10 @@ describe('Composition Builder', () => {
 
   it('loads the OEE reference from the canonical composition and offers the Golden Path', async () => {
     await renderCompose();
-    fireEvent.click(await screen.findByTestId('preset-oee-reference'));
+    // Preset id is the composition name ('oee-data-product-direct'), not a
+    // domain literal — GP-2 closed. The link still targets the DATA_PRODUCT
+    // ('oee-data-product') via the builtFromIndex reverse lookup.
+    fireEvent.click(await screen.findByTestId('preset-oee-data-product-direct'));
     await waitFor(() => {
       expect(screen.getByTestId('certification-summary')).toHaveTextContent(
         '6 CERTIFIED',

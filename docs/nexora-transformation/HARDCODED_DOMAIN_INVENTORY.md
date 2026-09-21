@@ -21,8 +21,8 @@ proven — see the migration architecture in `TARGET_ARCHITECTURE.md`.
 | ID | Item | Location | Severity |
 | --- | --- | --- | --- |
 | ~~GP-1~~ | ~~Composition component lists duplicated from manifests~~ | — | **REMOVED 2026-09-19 (NXD-029)** |
-| GP-2 | `officialGoldenPathForDraft/Selection` return the literal `'oee-data-product'` | `composer.ts` | **High** |
-| GP-3 | `composerPresets()` ships OEE and Equipment Use Log as built-ins | `composer.ts` | **High** |
+| ~~GP-2~~ | ~~`officialGoldenPathForDraft/Selection` return the literal `'oee-data-product'`~~ | — | **REMOVED 2026-09-21 (NXD-031)** |
+| ~~GP-3~~ | ~~`composerPresets()` ships OEE and Equipment Use Log as built-ins~~ | — | **REMOVED 2026-09-21 (NXD-031)** |
 | ~~GP-4~~ | ~~`oeeBuiltWithSummary()` — an OEE-specific Core API~~ | — | **REMOVED 2026-09-19 (NXD-029)** |
 | GP-5 | `WAVE1_COMPONENT_TITLES` — display names for a fixed component set | `platform-component-library.ts` | Low |
 | GP-6 | `EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string | `platform-component-library.ts` | Medium |
@@ -83,46 +83,32 @@ Two things the manifests had to learn along the way: `spec.components[].optional
 One visible change: "used by" labels are ordered by composition name rather
 than by the order the old table happened to be written in.
 
-## GP-2 — Golden Path identity is a string literal in Core
+## ~~GP-2~~ — Golden Path identity is a string literal in Core — **REMOVED**
 
-`packages/platform-common/src/composer.ts`:
+**Closed 2026-09-21 (P3-S2, NXD-031).** `officialGoldenPathForSelection` and
+`officialGoldenPathForDraft` now accept `ReadonlyMap<string, readonly string[]>`
+(composition name → required refs of all `runtime` GOLDEN_PATH manifests) and
+return `string | undefined` — the composition name, not a domain literal.
+Text-matching exclusions (equipment-use-log slug, "design example" text) are
+gone; the `design` / `conceptual` manifests are simply not in the map.
 
-```ts
-export function officialGoldenPathForSelection(
-  selectedNames: readonly string[],
-): 'oee-data-product' | undefined
-```
+A second Golden Path can be recognised without touching Core: add a manifest
+with `spec.usage.kind: runtime`, and `goldenPathCompositionsFromManifests` puts
+it in `GoldenPathCompositions.official` where the Composer finds it.
 
-The **return type itself** is the literal `'oee-data-product'`. The function
-set-compares the user's selection against `OEE_DIRECT_COMPOSITION_REFS` and
-returns that one identifier. `officialGoldenPathForDraft` wraps it and adds
-two more special cases by string matching: a slug of `equipment-use-log` and a
-description containing `design example` are excluded.
+The `builtFromIndex` reverse lookup (composition name → DATA_PRODUCT name via
+`spec.builtFrom`) lets the Composer still navigate to the DATA_PRODUCT's
+Marketplace page and scaffold its template, rather than the composition
+blueprint.
 
-This is the sharpest violation in the inventory: a second Golden Path cannot
-be recognised without editing Core and widening a union type, and the
-exclusion rules are keyed on human-readable text.
+## ~~GP-3~~ — `composerPresets()` ships domain presets as built-ins — **REMOVED**
 
-**Consumers:** `packages/app/src/modules/composer/ComposePage.tsx`.
-
-**Removal condition:** recognition resolves a selection against all registered
-Golden Path manifests and returns whichever one matches, or none. The
-`design-example` / `equipment-use-log` exclusions become a declared property
-of the manifest (for example a `kind` or `officialGoldenPath: false` field),
-not a text match.
-
-## GP-3 — `composerPresets()` ships domain presets as built-ins
-
-`composerPresets()` returns three hard-coded presets: a generic
-`api-data-product` baseline, `oee-reference` ("Reference composition derived
-from OEE Mode A"), and `equipment-use-log` ("DESIGN EXAMPLE ONLY"). The
-`ComposerPreset.kind` union — `'baseline' | 'oee-reference' | 'design-example'`
-— names a specific domain product in a Core type.
-
-**Consumers:** `packages/app/src/modules/composer/ComposePage.tsx`.
-
-**Removal condition:** presets are resolved from registered Artifacts /
-Golden Path manifests; `kind` becomes a neutral classification.
+**Closed 2026-09-21 (P3-S2, NXD-031).** `composerPresets()` now accepts
+`ReadonlyMap<string, GoldenPathComposition>` for official (`runtime`) and
+example (`design`) compositions and derives one preset per entry. The
+`ComposerPreset.kind` union is now neutral: `'baseline' | 'official' | 'example'`
+— no domain product name in Core. The three generic baseline presets remain
+static (they are platform knowledge, not domain knowledge).
 
 ## ~~GP-4~~ — `oeeBuiltWithSummary()` is an OEE-specific Core API — **REMOVED**
 

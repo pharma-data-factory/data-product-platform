@@ -56,6 +56,37 @@ function composition(
 const required = (ref: string) => ({ ref, version: '1.x' });
 const optional = (ref: string) => ({ ref, version: '1.x', optional: true });
 
+/**
+ * A DATA_PRODUCT artifact fixture.
+ *
+ * Used to populate `builtFromIndex` in `goldenPathCompositionsFromManifests`:
+ * a DATA_PRODUCT whose `spec.builtFrom` names a GOLDEN_PATH composition causes
+ * the Composer to offer the corresponding Marketplace page and scaffolder
+ * template for that composition's selection. GP-2.
+ */
+function dataProduct(
+  name: string,
+  displayName: string,
+  builtFrom?: string,
+) {
+  return {
+    namespace: 'nexora',
+    name,
+    versions: [
+      {
+        version: '1.0.0',
+        lifecycle: 'DRAFT',
+        manifest: {
+          apiVersion: 'nexora.dev/v1alpha1',
+          kind: 'DATA_PRODUCT',
+          metadata: { namespace: 'nexora', name, version: '1.0.0', displayName },
+          ...(builtFrom ? { spec: { builtFrom } } : {}),
+        },
+      },
+    ],
+  };
+}
+
 export const TEST_COMPOSITIONS = [
   composition(
     'equipment-use-log',
@@ -125,8 +156,16 @@ export const TEST_COMPOSITIONS = [
   ),
 ];
 
+/** DATA_PRODUCT artifacts that carry `spec.builtFrom`, populating builtFromIndex. */
+export const TEST_DATA_PRODUCTS = [
+  dataProduct('oee-data-product', 'OEE Data Product', 'oee-data-product-direct'),
+];
+
 export const artifactRegistryApiMock: ArtifactRegistryApi = {
-  listArtifactsWithVersions: async () => TEST_COMPOSITIONS,
+  listArtifactsWithVersions: async () => [
+    ...TEST_COMPOSITIONS,
+    ...TEST_DATA_PRODUCTS,
+  ],
 };
 
 /** Drop-in entry for a `TestApiProvider` `apis` array. */

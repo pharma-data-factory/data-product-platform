@@ -33,24 +33,69 @@ export interface GoldenPathCompositions {
   byName: Map<string, GoldenPathComposition>;
   /** The "used by" table the component library renders. */
   usage: CompositionUsage[];
+  /**
+   * GOLDEN_PATH compositions whose `spec.usage.kind === 'runtime'`, by name.
+   * These are the compositions the Composer recognises as official Golden Paths
+   * and can scaffold from. GP-2 / GP-3.
+   */
+  official: Map<string, GoldenPathComposition>;
+  /**
+   * GOLDEN_PATH compositions whose `spec.usage.kind === 'design'`, by name.
+   * These appear as design-example presets in the Composer. GP-3.
+   */
+  examples: Map<string, GoldenPathComposition>;
+  /**
+   * Reverse index: composition name → DATA_PRODUCT artifact name.
+   * Built from `spec.builtFrom` on DATA_PRODUCT manifests. Used by the Composer
+   * to find the scaffolder template and Marketplace page that correspond to the
+   * GOLDEN_PATH composition the user has selected. GP-2.
+   */
+  builtFromIndex: Map<string, string>;
 }
 
 export const EMPTY_COMPOSITIONS: GoldenPathCompositions = {
   byName: new Map(),
   usage: [],
+  official: new Map(),
+  examples: new Map(),
+  builtFromIndex: new Map(),
 };
 
 export function goldenPathCompositionsFromManifests(
   manifests: readonly ArtifactManifest[],
 ): GoldenPathCompositions {
   const byName = new Map<string, GoldenPathComposition>();
+  const official = new Map<string, GoldenPathComposition>();
+  const examples = new Map<string, GoldenPathComposition>();
+  const builtFromIndex = new Map<string, string>();
+
   for (const manifest of manifests) {
+    // Reverse-index DATA_PRODUCT → GOLDEN_PATH via spec.builtFrom.
+    if (manifest.spec?.builtFrom) {
+      builtFromIndex.set(manifest.spec.builtFrom, manifest.metadata.name);
+    }
+
     const composition = compositionOfArtifactManifest(manifest);
-    if (composition) {
-      byName.set(composition.metadata.name, composition);
+    if (!composition) {
+      continue;
+    }
+    byName.set(composition.metadata.name, composition);
+
+    const usageKind = manifest.spec?.usage?.kind;
+    if (usageKind === 'runtime') {
+      official.set(composition.metadata.name, composition);
+    } else if (usageKind === 'design') {
+      examples.set(composition.metadata.name, composition);
     }
   }
-  return { byName, usage: compositionUsageFromManifests(manifests) };
+
+  return {
+    byName,
+    usage: compositionUsageFromManifests(manifests),
+    official,
+    examples,
+    builtFromIndex,
+  };
 }
 
 /** The component refs of one composition, or an empty list if absent. */

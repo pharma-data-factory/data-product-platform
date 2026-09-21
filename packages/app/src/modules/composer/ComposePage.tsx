@@ -46,11 +46,7 @@ import {
   toRelatedPlatformComponents,
   validateComposerDraft,
 } from '@internal/platform-common';
-import {
-  compositionRefs,
-  optionalCompositionRefs,
-  useGoldenPathCompositions,
-} from '@internal/plugin-marketplace';
+import { useGoldenPathCompositions } from '@internal/plugin-marketplace';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import { CompositionArchitectureVisual } from './CompositionArchitectureVisual';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
@@ -303,19 +299,30 @@ export function ComposePage() {
   const [specError, setSpecError] = useState<string | undefined>();
   const [specApplying, setSpecApplying] = useState(false);
   // Presets, the canonical component order and the Golden Path check all read
-  // their component lists from the compositions in the registry. See NXD-029.
+  // their component lists from the compositions in the registry. See NXD-029,
+  // NXD-031. GP-2 and GP-3 are closed: presets derive from the 'official' and
+  // 'examples' maps; the Golden Path check matches against all official
+  // compositions rather than OEE alone.
   const { compositions, loading: compositionsLoading } =
     useGoldenPathCompositions();
-  const goldenPathRefs = compositionRefs(compositions, 'oee-data-product-direct');
-  const designExampleOptionalRefs = optionalCompositionRefs(
-    compositions,
-    'equipment-use-log',
-  );
   const presets = useMemo(
-    () => composerPresets(goldenPathRefs, designExampleOptionalRefs),
+    () => composerPresets(compositions.official, compositions.examples),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [compositions],
   );
+  // Map of composition name → required refs, used to detect which official
+  // Golden Path the user's selection matches.
+  const officialRefsMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const [name, comp] of compositions.official) {
+      m.set(
+        name,
+        comp.spec.components.filter(c => !c.optional).map(c => c.ref),
+      );
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compositions]);
 
   useEffect(() => {
     if (compositionsLoading) {
@@ -360,17 +367,35 @@ export function ComposePage() {
     () => validateComposerDraft(draft, catalog, components),
     [catalog, components, draft],
   );
-  const manifest = useMemo(
-    () => composerDraftToManifest(draft, goldenPathRefs),
+  // Composition name that matches the current selection (e.g.
+  // 'oee-data-product-direct'), or undefined for a custom composition.
+  const goldenPath = officialGoldenPathForDraft(draft, officialRefsMap);
+  // The DATA_PRODUCT whose spec.builtFrom points to the matched composition.
+  // Used for the Marketplace link and scaffold template — those target the
+  // DATA_PRODUCT, not the GOLDEN_PATH composition blueprint.
+  const productTarget = goldenPath
+    ? (compositions.builtFromIndex.get(goldenPath) ?? goldenPath)
+    : undefined;
+  // Preferred component order comes from whichever official composition
+  // matched; falls back to declaration order for custom compositions.
+  const preferredRefs = useMemo(() => {
+    if (!goldenPath) {
+      return [];
+    }
+    const comp = compositions.official.get(goldenPath);
+    return comp?.spec.components.filter(c => !c.optional).map(c => c.ref) ?? [];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, compositions],
+  }, [goldenPath, compositions]);
+  const manifest = useMemo(
+    () => composerDraftToManifest(draft, preferredRefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, preferredRefs],
   );
   const yaml = useMemo(
-    () => serializeCompositionYaml(manifest, goldenPathRefs),
+    () => serializeCompositionYaml(manifest, preferredRefs),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [manifest, compositions],
+    [manifest, preferredRefs],
   );
-  const goldenPath = officialGoldenPathForDraft(draft, goldenPathRefs);
   const selected = draft.selectedNames
     .map(name => components.find(item => item.name === name))
     .filter((item): item is LibraryPlatformComponent => Boolean(item));
@@ -400,17 +425,16 @@ export function ComposePage() {
     if (!preset) {
       return;
     }
-    let nextName: string | undefined;
-    let nextDescription: string | undefined;
-    if (preset.kind === 'design-example') {
-      nextName = 'equipment-use-log';
-      nextDescription =
-        'DESIGN EXAMPLE ONLY. Not a Golden Path. Not AVAILABLE. Not CERTIFIED. The developer still owns usage sessions, duration, reason codes, and operator/equipment relationships.';
-    } else if (preset.kind === 'oee-reference') {
-      nextName = 'oee-data-product-direct';
-      nextDescription =
-        'Reference composition loaded from OEE Mode A. Loading this example does not alter OEE.';
-    }
+    // Official and example presets name themselves after the composition; the
+    // description comes from the manifest rather than a hardcoded string.
+    const nextName =
+      preset.kind === 'official' || preset.kind === 'example'
+        ? preset.id
+        : undefined;
+    const nextDescription =
+      preset.kind === 'official' || preset.kind === 'example'
+        ? preset.description
+        : undefined;
     setDraft(current => ({
       ...current,
       name: nextName || current.name,
@@ -420,8 +444,8 @@ export function ComposePage() {
       ),
     }));
     setNotice(
-      preset.kind === 'design-example'
-        ? 'Equipment Use Log is a DESIGN EXAMPLE. It is not a Golden Path.'
+      preset.kind === 'example'
+        ? `${preset.title} is a DESIGN EXAMPLE. It is not a Golden Path.`
         : undefined,
     );
     setPresetId(preset.id);
@@ -437,7 +461,7 @@ export function ComposePage() {
   };
 
   const generate = async () => {
-    if (!canEdit || !goldenPath || !validation.validated) {
+    if (!canEdit || !productTarget || !validation.validated) {
       return;
     }
     setGenerating(true);
@@ -445,7 +469,7 @@ export function ComposePage() {
     try {
       const name = slugifyCompositionName(draft.name);
       const response = await scaffolderApi.scaffold({
-        templateRef: `template:default/${goldenPath}`,
+        templateRef: `template:default/${productTarget}`,
         values: {
           name,
           description: draft.description.trim() || draft.name,
@@ -624,20 +648,18 @@ export function ComposePage() {
                     onClick={() => applyPreset(preset.id)}
                     data-testid={`preset-${preset.id}`}
                   >
-                    {preset.kind === 'oee-reference'
-                      ? 'Load OEE as Example'
-                      : preset.title}
+                    {preset.title}
                   </button>
                 ))}
               </div>
-              {activePreset?.kind === 'oee-reference' && (
+              {activePreset?.kind === 'official' && (
                 <p className={classes.meta}>
-                  REFERENCE COMPOSITION — OEE 1.0 · {selected.length} /{' '}
+                  REFERENCE COMPOSITION — {activePreset.title} · {selected.length} /{' '}
                   {selected.filter(item => item.certificationStatus === 'CERTIFIED').length}{' '}
-                  technically CERTIFIED. Loading this example does not alter OEE.
+                  technically CERTIFIED. Loading this does not alter the official composition.
                 </p>
               )}
-              {activePreset?.kind === 'design-example' && (
+              {activePreset?.kind === 'example' && (
                 <div data-testid="equipment-use-log-example">
                   <p className={classes.meta}>
                     DESIGN EXAMPLE — not AVAILABLE, not CERTIFIED, not a Golden
@@ -1021,7 +1043,7 @@ export function ComposePage() {
                 <div className={classes.banner}>
                   <strong>What will you build?</strong>
                   <p className={classes.meta}>
-                    {activePreset?.kind === 'design-example'
+                    {activePreset?.kind === 'example'
                       ? 'Platform provides MQTT ingest, REST API, health and observability. REST Source and Time-Series are optional. You provide EquipmentUseEvent, UsageSession, production-order/cleaning/maintenance references, and business rules. No runtime is generated from this page.'
                       : 'Platform provides integration, storage, API, health and observability. You provide domain models, business rules, domain contracts and application-specific logic.'}
                   </p>
@@ -1098,7 +1120,7 @@ export function ComposePage() {
                 >
                   Download Composition
                 </a>
-                {goldenPath ? (
+                {productTarget ? (
                   <>
                     <button
                       type="button"
@@ -1111,7 +1133,7 @@ export function ComposePage() {
                     </button>
                     <Link
                       className={classes.ghost}
-                      to={`/marketplace/${goldenPath}`}
+                      to={`/marketplace/${productTarget}`}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
