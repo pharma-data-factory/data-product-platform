@@ -1387,6 +1387,36 @@ export class ComposerService {
     return answer;
   }
 
+  // ── Schema Snapshots (A-2) ────────────────────────────────────────────────
+
+  async captureSchemaSnapshot(contractId: string, actor: string): Promise<{ id: string; driftResult?: object }> {
+    const contract = await this.repository.getDataContract(contractId);
+    if (!contract) throw new InputError(`DataContract ${contractId} not found`);
+    const schema = (contract.contractSpec ?? {}) as object;
+    const id = randomUUID();
+    await this.repository.createSchemaSnapshot({
+      id, contractId, version: contract.version, schema,
+      capturedAt: new Date().toISOString(), capturedBy: actor,
+    });
+    // Compare against previous snapshot if any
+    const history = await this.repository.listSchemaSnapshots(contractId);
+    const previous = history.find(s => s.id !== id);
+    if (previous) {
+      const { detectSchemaDrift } = await import('@internal/platform-common');
+      const drift = detectSchemaDrift(
+        { contractId, capturedAt: previous.capturedAt, schema: previous.schema as any, version: previous.version },
+        schema as any,
+        contract.version,
+      );
+      return { id, driftResult: drift };
+    }
+    return { id };
+  }
+
+  async listSchemaSnapshots(contractId: string) {
+    return this.repository.listSchemaSnapshots(contractId);
+  }
+
   // ── Upgrade Notifications (W2-1) ─────────────────────────────────────────
 
   /**

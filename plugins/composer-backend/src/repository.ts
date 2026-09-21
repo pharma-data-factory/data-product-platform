@@ -296,6 +296,23 @@ export class ComposerRepository implements IComposerRepository {
     };
   }
 
+  // ── Schema Snapshots (A-2) ────────────────────────────────────────────────
+
+  async createSchemaSnapshot(snap: { id: string; contractId: string; version: string; schema: object; capturedAt: string; capturedBy: string }): Promise<void> {
+    await this.db('schema_snapshots').insert({
+      id: snap.id, contract_id: snap.contractId, version: snap.version,
+      schema: JSON.stringify(snap.schema), captured_at: snap.capturedAt, captured_by: snap.capturedBy,
+    });
+  }
+
+  async listSchemaSnapshots(contractId: string): Promise<Array<{ id: string; contractId: string; version: string; schema: object; capturedAt: string; capturedBy: string }>> {
+    const rows = await this.db('schema_snapshots').where({ contract_id: contractId }).orderBy('captured_at', 'desc').select();
+    return rows.map((r: any) => ({
+      id: r.id, contractId: r.contract_id, version: r.version,
+      schema: JSON.parse(r.schema), capturedAt: r.captured_at, capturedBy: r.captured_by,
+    }));
+  }
+
   // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
 
   async createUpgradeNotification(n: UpgradeNotification): Promise<UpgradeNotification> {

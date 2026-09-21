@@ -417,6 +417,22 @@ export async function createRouter(
     },
   );
 
+  // ── Schema Snapshots (A-2) ────────────────────────────────────────────────
+  router.post('/contracts/:id/snapshot', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      const result = await service.captureSchemaSnapshot(req.params.id, actor);
+      res.status(201).json(result);
+    } catch (err) { respondError(res, logger, err); }
+  });
+  router.get('/contracts/:id/snapshots', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      res.json(await service.listSchemaSnapshots(req.params.id));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
   // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
   // POST /contracts/:id/notify   — producer dispatches upgrade to all subscribers
   // GET  /notifications          — my notifications (consumer polls)

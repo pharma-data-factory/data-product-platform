@@ -289,6 +289,20 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // A-2: Schema snapshots for drift detection.
+  if (!(await knex.schema.hasTable('schema_snapshots'))) {
+    await knex.schema.createTable('schema_snapshots', table => {
+      table.string('id', 255).primary();
+      table.string('contract_id', 255).notNullable();
+      table.string('version', 100).notNullable();
+      table.text('schema').notNullable();         // JSON: JsonSchemaLike
+      table.string('captured_at', 64).notNullable();
+      table.string('captured_by', 255).notNullable();
+      table.index(['contract_id']);
+      table.index(['captured_at']);
+    });
+  }
+
   // 5-R1: Product-level policy declarations.
   if (await knex.schema.hasTable('products')) {
     const hasPolicies = await knex.schema.hasColumn('products', 'declared_policies');
@@ -405,6 +419,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('schema_snapshots');
   await knex.schema.dropTableIfExists('upgrade_notifications');
   await knex.schema.dropTableIfExists('contract_subscriptions');
   await knex.schema.dropTableIfExists('product_version_dependencies');

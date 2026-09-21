@@ -52,6 +52,10 @@ export interface IComposerRepository {
   deleteProductDependency(id: string): Promise<void>;
   listDependenciesByContractId(contractId: string): Promise<ProductDependency[]>;
 
+  // Schema Snapshots (A-2)
+  createSchemaSnapshot(snapshot: { id: string; contractId: string; version: string; schema: object; capturedAt: string; capturedBy: string }): Promise<void>;
+  listSchemaSnapshots(contractId: string): Promise<Array<{ id: string; contractId: string; version: string; schema: object; capturedAt: string; capturedBy: string }>>;
+
   // Upgrade Notifications (W2-1)
   createUpgradeNotification(n: UpgradeNotification): Promise<UpgradeNotification>;
   listUpgradeNotifications(consumerRef: string, unreadOnly?: boolean): Promise<UpgradeNotification[]>;
