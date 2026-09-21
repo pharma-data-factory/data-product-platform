@@ -244,6 +244,7 @@ export function MarketplacePage() {
                     <TableCell>Name</TableCell>
                     <TableCell>Category</TableCell>
                     <TableCell>Version</TableCell>
+                    <TableCell>Publisher</TableCell>
                     <TableCell>Quality</TableCell>
                     <TableCell>Certification</TableCell>
                     <TableCell>Create</TableCell>
@@ -269,6 +270,13 @@ export function MarketplacePage() {
                       </TableCell>
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.version}</TableCell>
+                      <TableCell>
+                        {item.externalPublisher
+                          ? item.publisherTrustLevel === 'PARTNER'
+                            ? '✓ Partner'
+                            : '⚠ Community'
+                          : item.provider}
+                      </TableCell>
                       <TableCell>
                         {item.qualityStatus ? (
                           <QualityChip status={item.qualityStatus} />

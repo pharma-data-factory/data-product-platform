@@ -85,6 +85,13 @@ export interface MarketplaceItem {
   commercialCopy?: string;
   ursSatisfies?: string;
   ursRequirementCount?: number;
+  /**
+   * Trust tier of the publisher who registered this artifact.
+   * `'INTERNAL'` when the publisher predates Phase 7. Phase 7 (P7-S4).
+   */
+  publisherTrustLevel: string;
+  /** True when the publisher is outside the Nexora organisation. Phase 7 (P7-S4). */
+  externalPublisher: boolean;
 }
 
 function refersTo(ref: string, product: DataProduct): boolean {

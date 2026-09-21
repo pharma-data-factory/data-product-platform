@@ -45,6 +45,9 @@ export function offeringViewToItem(
     status: view.status as MarketplaceItem['status'],
     certificationStatus:
       view.certificationStatus as MarketplaceItem['certificationStatus'],
+    // Phase 7 (P7-S4): publisher trust propagated from the registry.
+    publisherTrustLevel: view.publisherTrustLevel ?? 'INTERNAL',
+    externalPublisher: view.externalPublisher ?? false,
   };
 }
 
