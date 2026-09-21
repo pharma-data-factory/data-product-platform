@@ -653,6 +653,19 @@ export type {
 } from './product';
 
 export {
+  CONTRACT_COMPAT_STATUSES,
+  compareJsonSchemas,
+  evaluateContractCompatibility,
+  parseSemver as parseContractSemver,
+} from './contract-compatibility';
+export type {
+  ContractCompatStatus,
+  ContractCompatFinding,
+  ContractCompatReport,
+  JsonSchemaLike,
+} from './contract-compatibility';
+
+export {
   NEXORA_ANNOTATION_PREFIX,
   NEXORA_ANNOTATIONS,
   EQUIPMENT_COMPONENT_TYPE,

@@ -27,6 +27,9 @@ import {
   validateProduct,
   validateVersionLabel,
   validateTraceabilityLink,
+  evaluateContractCompatibility,
+  type ContractCompatReport,
+  type JsonSchemaLike,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { evaluatePlatformPolicy } from './platform-policy';
@@ -418,6 +421,35 @@ export class ComposerService {
    * lineage is computed from live data and a missing hop does not make the
    * rest of the graph wrong.
    */
+  /**
+   * Checks whether updating from one contract to another is compatible.
+   *
+   * Compares the `contractSpec` of both contracts using the platform's JSON
+   * Schema compatibility rules (`evaluateContractCompatibility`). Returns
+   * UNKNOWN if either contract lacks a spec or the spec is empty.
+   *
+   * Both contracts must exist. The order matters: previousId is the current
+   * deployed version, nextId is the proposed replacement.
+   */
+  async checkContractCompatibility(
+    previousId: string,
+    nextId: string,
+  ): Promise<ContractCompatReport & { previousContractId: string; nextContractId: string }> {
+    const previous = await this.repository.getDataContract(previousId);
+    if (!previous) {
+      throw new InputError(`DataContract ${previousId} not found`);
+    }
+    const next = await this.repository.getDataContract(nextId);
+    if (!next) {
+      throw new InputError(`DataContract ${nextId} not found`);
+    }
+    const report = evaluateContractCompatibility(
+      (previous.contractSpec ?? {}) as JsonSchemaLike,
+      (next.contractSpec ?? {}) as JsonSchemaLike,
+    );
+    return { ...report, previousContractId: previousId, nextContractId: nextId };
+  }
+
   async getDataLineage(versionId: string): Promise<DataLineage> {
     // ── Upstream ────────────────────────────────────────────────────────────
     const deps = await this.repository.listProductDependencies(versionId);

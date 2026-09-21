@@ -374,6 +374,25 @@ export async function createRouter(
     },
   );
 
+  // ── Contract compatibility (Phase 4, P4-S5) ────────────────────────────────
+  // GET /contracts/:id/compatibility/:nextId
+  // Returns a compatibility report for replacing :id with :nextId.
+  router.get(
+    '/contracts/:id/compatibility/:nextId',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const report = await service.checkContractCompatibility(
+          req.params.id,
+          req.params.nextId,
+        );
+        res.json(report);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get(
     '/versions/:id/lineage',
     async (req: express.Request, res: express.Response) => {
