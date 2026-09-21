@@ -19,6 +19,7 @@ import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
 import { createHttpPolicyResolverClient } from './policy-resolver-client';
+import { bootstrapPlatformProduct } from './platformProductBootstrap';
 import {
   AnthropicComposerLLMClient,
   ComposerLLMClient,
@@ -122,6 +123,9 @@ export const composerPlugin = createBackendPlugin({
           path: '/health',
           allow: 'unauthenticated',
         });
+
+        // 7-R5: Register Nexora Core as a PLATFORM_PRODUCT on first startup.
+        bootstrapPlatformProduct({ repository, logger }).catch(() => {/* non-fatal */});
 
         logger.info('Composer backend plugin v0.1 mounted');
       },

@@ -12,7 +12,16 @@ import {
   InterfaceType,
 } from './classification';
 
-export const PRODUCT_TYPES = ['DATA_PRODUCT', 'SERVICE'] as const;
+export const PRODUCT_TYPES = [
+  'DATA_PRODUCT',
+  'SERVICE',
+  /**
+   * The platform itself, managed as a Product (7-R5 / "Nexora manages Nexora").
+   * PLATFORM_PRODUCT follows the same lifecycle as all other Products:
+   * Requirements → Baselines → Validation → Release Gate.
+   */
+  'PLATFORM_PRODUCT',
+] as const;
 
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 
