@@ -630,6 +630,10 @@ export {
   validateVersionLabel,
   validateTraceabilityLink,
 } from './product';
+export {
+  QUALITY_RULE_TYPES,
+  isQualityRuleType,
+} from './product';
 export type {
   Product,
   ProductVersion,
@@ -650,6 +654,8 @@ export type {
   DataContractStatus,
   DataContractSchemaType,
   TraceabilityRelationshipType,
+  QualityRule,
+  QualityRuleType,
 } from './product';
 
 export {

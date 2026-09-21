@@ -122,6 +122,47 @@ export interface ProductComponent {
   revision: number;
 }
 
+/**
+ * A declared quality assertion that must pass before the contract is
+ * considered satisfied.
+ *
+ * The _declaration_ lives here; the _execution_ happens at runtime in the
+ * deployed data product (Python SDK `dataprod.quality.run_check`,
+ * `dataprod.quality.unique_field_check`). The rule vocabulary maps directly
+ * to the check types the SDK implements so that declarations and executions
+ * stay in step. Phase 4 (P4-S6).
+ */
+export const QUALITY_RULE_TYPES = [
+  'completeness',  // no nulls / missing values in the named field
+  'uniqueness',    // no duplicate values in the named field
+  'range',         // numeric value within [min, max]
+  'regex',         // string value matches a regular expression
+] as const;
+
+export type QualityRuleType = (typeof QUALITY_RULE_TYPES)[number];
+
+export function isQualityRuleType(value: string): value is QualityRuleType {
+  return (QUALITY_RULE_TYPES as readonly string[]).includes(value);
+}
+
+export interface QualityRule {
+  /** Short identifier, unique within the contract. */
+  name: string;
+  /** What kind of check to run. */
+  rule: QualityRuleType;
+  /** The field (property name) this rule applies to. */
+  field: string;
+  /**
+   * Rule-specific parameters.
+   * - range: `{ min?: number; max?: number }`
+   * - regex: `{ pattern: string }`
+   * - completeness / uniqueness: unused
+   */
+  params?: Record<string, unknown>;
+  /** Whether a failure here blocks the contract from being satisfied. */
+  mandatory: boolean;
+}
+
 export interface DataContract {
   id: string;
   productComponentId: string;
@@ -147,6 +188,11 @@ export interface DataContract {
   contractSpec?: Record<string, unknown>;
   status: DataContractStatus;
   version: string;
+  /**
+   * Declared quality rules — see `QualityRule`. Phase 4 (P4-S6).
+   * Empty array when no quality obligations have been declared.
+   */
+  qualityRules: QualityRule[];
   createdBy: string;
   createdAt: Date;
   updatedBy?: string;

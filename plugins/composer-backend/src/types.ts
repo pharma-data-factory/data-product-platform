@@ -6,7 +6,7 @@
  * here for convenience.
  */
 
-import type { ComponentType } from '@internal/platform-common';
+import type { ComponentType, QualityRule } from '@internal/platform-common';
 
 export type {
   Product,
@@ -61,6 +61,8 @@ export interface CreateDataContractRequest {
   schemaRef?: string;
   contractSpec?: Record<string, unknown>;
   version?: string;
+  /** Declarative quality rules for this contract. Phase 4 (P4-S6). */
+  qualityRules?: QualityRule[];
 }
 
 // ── Data Lineage (Phase 4, P4-S4) ─────────────────────────────────────────

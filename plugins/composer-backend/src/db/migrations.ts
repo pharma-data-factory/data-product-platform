@@ -262,6 +262,13 @@ export async function up(knex: Knex): Promise<void> {
           'on data_contracts (product_component_id, lower(name))',
       );
     }
+    // Phase 4 (P4-S6): Data Quality contracts — declarative quality rules.
+    const hasQualityRules = await knex.schema.hasColumn('data_contracts', 'quality_rules');
+    if (!hasQualityRules) {
+      await knex.schema.alterTable('data_contracts', table => {
+        table.text('quality_rules').nullable();
+      });
+    }
   }
 }
 

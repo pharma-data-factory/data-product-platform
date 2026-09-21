@@ -17,9 +17,11 @@ import {
   ProductComponent,
   ProductDependency,
   ProductVersion,
+  QualityRule,
   SnapshotItemChange,
   TraceabilityLink,
   findVersionLabelClash,
+  isQualityRuleType,
   nextMajorVersionLabel,
   isDataContractSchemaType,
   validateBaselineLabel,
@@ -333,6 +335,29 @@ export class ComposerService {
       throw new InputError(versionIssues.join('; '));
     }
 
+    // Phase 4 (P4-S6): validate quality rules.
+    const qualityRules: QualityRule[] = [];
+    for (const rule of request.qualityRules ?? []) {
+      if (!rule.name || !String(rule.name).trim()) {
+        throw new InputError('Each qualityRule must have a non-empty name');
+      }
+      if (!isQualityRuleType(rule.rule)) {
+        throw new InputError(
+          `Unknown quality rule type "${rule.rule}". Supported: ${['completeness', 'uniqueness', 'range', 'regex'].join(', ')}`,
+        );
+      }
+      if (!rule.field || !String(rule.field).trim()) {
+        throw new InputError(`Quality rule "${rule.name}" must specify a field`);
+      }
+      qualityRules.push({
+        name: String(rule.name).trim(),
+        rule: rule.rule,
+        field: String(rule.field).trim(),
+        params: rule.params,
+        mandatory: rule.mandatory !== false,
+      });
+    }
+
     const contract: DataContract = {
       id: randomUUID(),
       productComponentId: componentId,
@@ -343,6 +368,7 @@ export class ComposerService {
       contractSpec: request.contractSpec,
       status: 'DRAFT',
       version,
+      qualityRules,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,

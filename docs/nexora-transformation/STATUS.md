@@ -280,6 +280,25 @@ context (config summary), repository scaffolding (2 Golden Paths linked), and
 the Hardcoded Domain Inventory reduced from 8 items to 2 (GP-7 waits on Phase
 4, GP-8 waits on Phase 4/6).
 
+- **P4-S6 — Data Quality contracts: declarative quality rules in DataContract.**
+  `QualityRule` and `QualityRuleType` are added to `platform-common/src/product.ts`.
+  Supported rule types: `completeness`, `uniqueness`, `range`, `regex` — matching
+  the Python SDK's `run_check` / `unique_field_check` vocabulary.
+  `DataContract.qualityRules: QualityRule[]` is stored as JSON in a new
+  `quality_rules` column (nullable migration, safe on existing DBs). The service
+  validates rule names, types and fields at creation time. 4 new tests.
+
+- **P4-S5 — Contract compatibility in platform-common + API endpoint.**
+
+- **P4-S4 — Initial data lineage graph.** `GET /versions/:id/lineage` returns
+  one-hop upstream (what this version consumes) and downstream (who consumes this
+  version's contracts), traced through ProductDependency + DataContract →
+  ProductComponent → ProductVersion → Product. 3 tests.
+
+- **P4-S3 — ProductDependency domain model and API.**
+
+- **P4-S2 — Contract GET endpoints.**
+
 - **P4-S1 — DataContract identity: name, owner, uniqueness.** `DataContract`
   gains `name: string` (required, trimmed) and `owner?: string`. DB migration
   adds both columns as nullable (existing rows unaffected) and a unique index on

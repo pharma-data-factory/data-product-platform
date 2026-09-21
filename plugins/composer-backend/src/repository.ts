@@ -190,6 +190,10 @@ export class ComposerRepository implements IComposerRepository {
         : null,
       status: contract.status,
       version: contract.version,
+      quality_rules:
+        contract.qualityRules && contract.qualityRules.length > 0
+          ? JSON.stringify(contract.qualityRules)
+          : null,
       created_by: contract.createdBy,
       created_at: contract.createdAt,
       revision: contract.revision || 1,
@@ -461,6 +465,7 @@ export class ComposerRepository implements IComposerRepository {
       contractSpec: row.contract_spec ? JSON.parse(row.contract_spec) : undefined,
       status: row.status,
       version: row.version,
+      qualityRules: row.quality_rules ? JSON.parse(row.quality_rules) : [],
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedBy: row.updated_by,

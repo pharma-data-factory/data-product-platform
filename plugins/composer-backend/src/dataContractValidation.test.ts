@@ -187,4 +187,69 @@ describe('DataContract validation', () => {
     );
     expect(contract.version).toBe('2.1.3');
   });
+
+  // ── Quality rules (Phase 4, P4-S6) ────────────────────────────────────────
+
+  it('stores quality rules and returns them', async () => {
+    const contract = await service.addDataContract(
+      componentId,
+      {
+        name: 'contract-with-quality',
+        schemaType: 'JSON_SCHEMA',
+        qualityRules: [
+          { name: 'no-null-ids', rule: 'completeness', field: 'id', mandatory: true },
+          { name: 'unique-keys', rule: 'uniqueness', field: 'key', mandatory: true },
+          { name: 'count-range', rule: 'range', field: 'count',
+            params: { min: 0, max: 1000 }, mandatory: false },
+        ],
+      },
+      actor,
+    );
+    expect(contract.qualityRules).toHaveLength(3);
+    expect(contract.qualityRules[0].name).toBe('no-null-ids');
+    expect(contract.qualityRules[0].rule).toBe('completeness');
+    expect(contract.qualityRules[2].params).toEqual({ min: 0, max: 1000 });
+    expect(contract.qualityRules[2].mandatory).toBe(false);
+  });
+
+  it('defaults to empty qualityRules when none are provided', async () => {
+    const contract = await service.addDataContract(
+      componentId,
+      { name: 'no-quality-rules', schemaType: 'JSON_SCHEMA' },
+      actor,
+    );
+    expect(contract.qualityRules).toEqual([]);
+  });
+
+  it('rejects a quality rule with an unknown rule type', async () => {
+    await expect(
+      service.addDataContract(
+        componentId,
+        {
+          name: 'bad-rule-type',
+          schemaType: 'JSON_SCHEMA',
+          qualityRules: [
+            { name: 'bad', rule: 'not-a-real-rule' as any, field: 'x', mandatory: true },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toThrow(/Unknown quality rule type/i);
+  });
+
+  it('rejects a quality rule with a missing field', async () => {
+    await expect(
+      service.addDataContract(
+        componentId,
+        {
+          name: 'missing-field-rule',
+          schemaType: 'JSON_SCHEMA',
+          qualityRules: [
+            { name: 'bad', rule: 'completeness', field: '', mandatory: true },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toThrow(/field/i);
+  });
 });
