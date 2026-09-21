@@ -118,8 +118,18 @@ export function mountConsumeRoutes(
           } else {
             rows = [body as Record<string, unknown>];
           }
-          const columns = Object.keys(rows[0] ?? {}).map(id => ({ id }));
-          res.json({ source: 'upstream', columns, rows, total: rows.length });
+          // Phase 6 (P6-S3): safe preview — cap at 100 rows. Consumers should
+          // use their own data pipeline for bulk access, not the Control Plane.
+          const PREVIEW_LIMIT = 100;
+          const capped = rows.slice(0, PREVIEW_LIMIT);
+          const columns = Object.keys(capped[0] ?? {}).map(id => ({ id }));
+          res.json({
+            source: 'upstream',
+            columns,
+            rows: capped,
+            total: rows.length,
+            preview: rows.length > PREVIEW_LIMIT,
+          });
           return;
         } catch (cause) {
           logger.warn(`Upstream query failed for ${entityRef}: ${String(cause)}`);

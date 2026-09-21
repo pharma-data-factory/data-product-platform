@@ -47,6 +47,18 @@ export interface ComposerLLMClient {
     components: AISuggestedComponent[];
     contracts: AISuggestedContract[];
   }>;
+  /**
+   * Answer a governance-bounded question about a data product.
+   *
+   * The context is the product descriptor (title, domain, owner, quality,
+   * contracts, lineage, validation status, analytics providers). The LLM
+   * may only answer based on that context — no raw data access.
+   * Phase 6 (P6-S2).
+   */
+  analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string>;
 }
 
 export interface OpenAILLMClientOptions {
@@ -153,6 +165,31 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
     }
 
     return parseProductSpecResponse(raw);
+  }
+
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string> {
+    const systemPrompt = buildProductAnalystSystemPrompt();
+    const userPrompt = buildProductAnalystUserPrompt(question, productContext);
+    const response = await this.fetchApi(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        temperature: 0.4,
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`LLM API error (${response.status}): ${text}`);
+    }
+    const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
+    const raw = data.choices?.[0]?.message?.content;
+    if (!raw) throw new Error('LLM returned empty response');
+    return raw;
   }
 }
 
@@ -262,6 +299,17 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
     const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
     return parseProductSpecResponse(raw);
   }
+
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string> {
+    const raw = await this.callAnthropicApi(
+      buildProductAnalystSystemPrompt(),
+      buildProductAnalystUserPrompt(question, productContext),
+    );
+    return raw;
+  }
 }
 
 // ============================================================================
@@ -332,6 +380,15 @@ export class MockComposerLLMClient implements ComposerLLMClient {
       components,
       contracts,
     };
+  }
+
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string> {
+    const ctx = productContext as Record<string, unknown>;
+    const title = String(ctx.title ?? ctx.name ?? 'Data Product');
+    return `[Mock] "${title}" — ${question} (AI analyst disabled; configure composer.ai to enable).`;
   }
 }
 

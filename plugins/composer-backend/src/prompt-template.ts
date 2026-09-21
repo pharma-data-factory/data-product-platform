@@ -120,3 +120,50 @@ export function buildProductSpecUserPrompt(context: ProductSpecContext): string 
 
   return parts.join('\n');
 }
+
+// ============================================================================
+// Governed AI Data Analyst prompts (Phase 6, P6-S2)
+// ============================================================================
+
+/**
+ * System prompt for the Governed AI Data Analyst.
+ *
+ * Governance constraints:
+ * - Only answer based on the provided product descriptor (no external knowledge)
+ * - Never fabricate quality metrics or validation status
+ * - Always acknowledge when information is NOT_AVAILABLE
+ * - Never claim the product is validated when it isn't
+ */
+export function buildProductAnalystSystemPrompt(): string {
+  return [
+    'You are a Governed AI Data Analyst for the Nexora manufacturing data platform.',
+    '',
+    'Your role is to answer questions about a specific data product using ONLY the',
+    'information provided in the product descriptor below. You do not have access to',
+    'the actual data — only the product metadata.',
+    '',
+    'Governance rules:',
+    '- Never fabricate quality metrics, validation status, or data values',
+    '- Always use NOT_AVAILABLE as the answer when a field shows that value',
+    '- Never claim a product is GxP validated unless validation.status === VALIDATED',
+    '- Be concise but complete; cite which field or annotation you are reading from',
+    '- If the question cannot be answered from the descriptor, say so clearly',
+    '',
+    'End every response with: "Source: product descriptor (governance-bounded)."',
+  ].join('\n');
+}
+
+export function buildProductAnalystUserPrompt(
+  question: string,
+  productContext: Record<string, unknown>,
+): string {
+  const context = JSON.stringify(productContext, null, 2);
+  return [
+    'Product Descriptor:',
+    '```json',
+    context,
+    '```',
+    '',
+    `Question: ${question}`,
+  ].join('\n');
+}

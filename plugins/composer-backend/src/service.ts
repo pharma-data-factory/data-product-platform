@@ -1262,4 +1262,33 @@ export class ComposerService {
     };
     await this.repository.createAuditEvent(event);
   }
+
+  /**
+   * Answer a governance-bounded question about a data product.
+   *
+   * The caller passes the product descriptor as `productContext` — the LLM
+   * sees only what the platform knows, not raw data rows. This is the
+   * "governed" boundary: the AI cannot leak or fabricate production data
+   * because it never receives any.
+   *
+   * Phase 6 (P6-S2).
+   */
+  async analyzeProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+    actor: string,
+  ): Promise<string> {
+    if (!this.llmClient) {
+      throw new Error('AI product analysis is not enabled');
+    }
+    const trimmed = question.trim();
+    if (!trimmed) {
+      throw new InputError('question is required');
+    }
+    const answer = await this.llmClient.analyzeProduct(trimmed, productContext);
+    await this.audit('AI_ANALYST', String(productContext.entityRef ?? 'unknown'), 'PRODUCT_ANALYZED', actor, {
+      newValue: JSON.stringify({ question: trimmed }),
+    });
+    return answer;
+  }
 }

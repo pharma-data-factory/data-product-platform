@@ -769,5 +769,40 @@ export async function createRouter(
     },
   );
 
+  // ── Governed AI Data Analyst (Phase 6, P6-S2) ──────────────────────────────
+  // POST /ai/analyze-product
+  // Answers a governance-bounded question about a data product using only
+  // the product descriptor passed by the caller. Requires DEVELOPER or above.
+  router.post(
+    '/ai/analyze-product',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+        const actor = (credentials as { principal?: { userEntityRef?: string } }).principal
+          ?.userEntityRef ?? 'unknown';
+        const { question, productContext } = req.body as {
+          question?: string;
+          productContext?: Record<string, unknown>;
+        };
+        if (!question?.trim()) {
+          res.status(400).json({ error: 'question is required' });
+          return;
+        }
+        if (!productContext || typeof productContext !== 'object') {
+          res.status(400).json({ error: 'productContext is required' });
+          return;
+        }
+        const answer = await service.analyzeProduct(question, productContext, actor);
+        res.json({ answer });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not enabled')) {
+          res.status(501).json({ error: err.message });
+          return;
+        }
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   return router;
 }

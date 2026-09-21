@@ -1,7 +1,7 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 5 — Continuous Verification and Pharma Validation (**CLOSED**)
+Phase 6 — Consumer Experience, Analytics and Operations
 
 ## Current Vertical Slice
 Nothing in flight. Phase 5 exit criteria met (P5-S1..S5).
@@ -288,6 +288,15 @@ compatibility evaluation in platform-common; Data Quality contracts in the model
 → IQ/OQ/UAT/optional PQ → evidence → findings/retest → independent review →
 Validation Decision → Release Gate. All links in the chain are implemented and
 testable. See NXD-036, NXD-037.
+
+**Phase 5 closed.** See above.
+
+- **P6-S1..S3 — Phase 6 first slices.** See [`NXD-038`](DECISIONS.md).
+  S1: `AnalyticsProvider` model + catalog annotation + OverviewTab panel.
+  S2: Governed AI Data Analyst (`POST /api/composer/ai/analyze-product`);
+  `analyzeProduct(question, productContext)` on `ComposerLLMClient`;
+  governance-bounded system prompt prevents data fabrication.
+  S3: Safe Data Preview row cap (100 rows); `preview: true` flag in response.
 
 - **P5-S2..S5 — Phase 5 completion.**
   S2: SoD on APPROVED transition — version author cannot approve own work.
