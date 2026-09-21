@@ -1006,3 +1006,10 @@ Use this file for durable architecture decisions.
 ### NXD-040 — Vendor Artifact trust display in Marketplace (P7-S4)
 
 - `MarketplaceItem` gains `publisherTrustLevel: string` and `externalPublisher: boolean`. `offeringViewToItem` maps these from `MarketplaceOfferingView` (which in turn receives them from `listArtifactsWithVersions` → publisher lookup). `MarketplacePage` renders a "Publisher" column: internal publishers show `item.provider`; external publishers show `✓ Partner` (PARTNER trust) or `⚠ Community` (COMMUNITY trust). The Marketplace table now exposes trust visually without requiring a separate publisher-detail screen.
+
+### NXD-041 — Wave 2 Core Features: Notifications, Config Schema, Revalidation, Policies (W2-1..4)
+
+- W2-1: Upgrade Notifications dispatch. `upgrade_notifications` DB table. `dispatchUpgradeNotifications(contractId, newVersion, summary, breaking)` creates one notification per active subscriber. Routes: `POST /contracts/:id/notify`, `GET /notifications?consumer=`, `PATCH /notifications/:id/read`. Producers announce upgrades; consumers poll for notifications.
+- W2-2: Configuration Schema. `ConfigKeySchema { key, description, type, required, defaultValue, example }` with `ConfigKeyType = 'string'|'number'|'boolean'|'url'|'secret'`. `ComponentLibraryProfile.configurationSchema?` supersedes legacy `configurationKeys[]`. `compositionConfigSummary` uses schema when available, falls back to flat list. Type `secret` prevents logging/display.
+- W2-3: Revalidation Scope. `GET /versions/:id/revalidation-scope` diffs the current approved baseline against the previous one. Returns `addedComponents`, `removedComponents`, `addedContracts`, `removedContracts`, `hasChanges`, and a `recommendation` string. Validators use this to scope IQ/OQ/UAT without full re-testing.
+- W2-4: Policy references in Artifact Manifest. `spec.policies?: string[]` accepts exact-version Policy Pack coordinates (e.g. `nexora/gxp-data-product-policy@1.0.0`). `spec.requirements?: string[]` references URS requirement IDs. `validateArtifactManifest` validates both fields including the coordinate format for policies.

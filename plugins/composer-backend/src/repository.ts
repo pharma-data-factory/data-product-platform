@@ -14,6 +14,7 @@ import {
   DataContract,
   ProductDependency,
   ContractSubscription,
+  UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -291,6 +292,34 @@ export class ComposerRepository implements IComposerRepository {
       createdAt: row.created_at,
       revision: row.revision,
     };
+  }
+
+  // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
+
+  async createUpgradeNotification(n: UpgradeNotification): Promise<UpgradeNotification> {
+    await this.db('upgrade_notifications').insert({
+      id: n.id, type: n.type, subject_name: n.subjectName,
+      new_version: n.newVersion, current_version: n.currentVersion ?? null,
+      summary: n.summary, breaking: n.breaking ? 1 : 0,
+      consumer_ref: n.consumerRef, read: 0, created_at: n.createdAt,
+    });
+    return n;
+  }
+
+  async listUpgradeNotifications(consumerRef: string, unreadOnly = false): Promise<UpgradeNotification[]> {
+    let q = this.db('upgrade_notifications').where({ consumer_ref: consumerRef });
+    if (unreadOnly) q = q.where({ read: 0 });
+    const rows = await q.orderBy('created_at', 'desc').select();
+    return rows.map((r: any) => ({
+      id: r.id, type: r.type, subjectName: r.subject_name,
+      newVersion: r.new_version, currentVersion: r.current_version ?? undefined,
+      summary: r.summary, breaking: Boolean(r.breaking),
+      consumerRef: r.consumer_ref, read: Boolean(r.read), createdAt: r.created_at,
+    }));
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await this.db('upgrade_notifications').where({ id }).update({ read: 1 });
   }
 
   // ── Contract Subscriptions (P-EXT-S4) ─────────────────────────────────────

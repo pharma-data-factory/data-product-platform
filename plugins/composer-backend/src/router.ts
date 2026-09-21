@@ -375,6 +375,48 @@ export async function createRouter(
     },
   );
 
+  // ── Upgrade Notifications (W2-1) ──────────────────────────────────────────
+  // POST /contracts/:id/notify   — producer dispatches upgrade to all subscribers
+  // GET  /notifications          — my notifications (consumer polls)
+  // PATCH /notifications/:id/read — mark read
+
+  router.post('/contracts/:id/notify', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const actor = (credentials as any).principal?.userEntityRef ?? 'unknown';
+      const { newVersion, summary, breaking } = req.body as {
+        newVersion?: string; summary?: string; breaking?: boolean;
+      };
+      if (!newVersion?.trim()) { res.status(400).json({ error: 'newVersion required' }); return; }
+      const result = await service.dispatchUpgradeNotifications({
+        contractId: req.params.id,
+        newVersion: newVersion.trim(),
+        summary: String(summary ?? `New version ${newVersion} available`),
+        breaking: Boolean(breaking),
+        actor,
+      });
+      res.json(result);
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.get('/notifications', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const consumerRef = String(req.query.consumer ?? (credentials as any).principal?.userEntityRef ?? '').trim();
+      const unreadOnly = String(req.query.unread ?? 'false') === 'true';
+      if (!consumerRef) { res.status(400).json({ error: 'consumer required' }); return; }
+      res.json(await service.listMyUpgradeNotifications(consumerRef, unreadOnly));
+    } catch (err) { respondError(res, logger, err); }
+  });
+
+  router.patch('/notifications/:id/read', async (req, res) => {
+    try {
+      await httpAuth.credentials(req, { allow: ['user'] });
+      await service.markUpgradeNotificationRead(req.params.id);
+      res.status(204).end();
+    } catch (err) { respondError(res, logger, err); }
+  });
+
   // ── Contract Subscriptions (P-EXT-S4) ─────────────────────────────────────
   // POST /subscriptions           — subscribe to a contract
   // GET  /contracts/:id/subscribers — list all subscribers of a contract
@@ -682,6 +724,20 @@ export async function createRouter(
       }
     },
   );
+
+  // ── Revalidation Scope (W2-3) ──────────────────────────────────────────────
+  /** GET /versions/:id/revalidation-scope — what needs retesting after baseline change? */
+  router.get('/versions/:id/revalidation-scope', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      const scope = await service.getRevalidationScope(req.params.id);
+      if (!scope) {
+        res.status(404).json({ error: 'No approved baseline found for this version' });
+        return;
+      }
+      res.json(scope);
+    } catch (err) { respondError(res, logger, err); }
+  });
 
   // ── Change Impact Analysis (P-EXT-S3) ─────────────────────────────────────
 

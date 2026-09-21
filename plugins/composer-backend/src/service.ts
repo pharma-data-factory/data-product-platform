@@ -11,6 +11,7 @@ import { createHash, randomUUID } from 'crypto';
 import {
   ContractSubscription,
   DataClassification,
+  UpgradeNotification,
   InterfaceType,
   Product,
   ProductBaseline,
@@ -1311,6 +1312,53 @@ export class ComposerService {
     return answer;
   }
 
+  // ── Upgrade Notifications (W2-1) ─────────────────────────────────────────
+
+  /**
+   * Dispatch upgrade notifications to all active subscribers of a contract.
+   * Called when the producer releases a new version of a contract.
+   * Creates one notification record per subscriber.
+   */
+  async dispatchUpgradeNotifications(input: {
+    contractId: string;
+    newVersion: string;
+    summary: string;
+    breaking: boolean;
+    actor: string;
+  }): Promise<{ dispatched: number }> {
+    const contract = await this.repository.getDataContract(input.contractId);
+    if (!contract) throw new InputError(`DataContract ${input.contractId} not found`);
+    const subscribers = await this.repository.listSubscriptionsByContract(input.contractId);
+    const active = subscribers.filter(s => s.status === 'ACTIVE');
+    for (const sub of active) {
+      const notif: UpgradeNotification = {
+        id: randomUUID(),
+        type: input.breaking ? 'BREAKING_CHANGE' : 'CONTRACT_VERSION_BUMP',
+        subjectName: contract.name || contract.id,
+        newVersion: input.newVersion,
+        currentVersion: sub.compatibleVersions,
+        summary: input.summary,
+        breaking: input.breaking,
+        consumerRef: sub.consumerRef,
+        read: false,
+        createdAt: new Date(),
+      };
+      await this.repository.createUpgradeNotification(notif);
+    }
+    await this.audit('UPGRADE_NOTIFICATION', input.contractId, 'NOTIFICATIONS_DISPATCHED', input.actor, {
+      newValue: JSON.stringify({ dispatched: active.length, newVersion: input.newVersion }),
+    });
+    return { dispatched: active.length };
+  }
+
+  async listMyUpgradeNotifications(consumerRef: string, unreadOnly: boolean): Promise<UpgradeNotification[]> {
+    return this.repository.listUpgradeNotifications(consumerRef, unreadOnly);
+  }
+
+  async markUpgradeNotificationRead(id: string): Promise<void> {
+    return this.repository.markNotificationRead(id);
+  }
+
   // ── Contract Subscriptions (P-EXT-S4) ────────────────────────────────────
 
   async subscribeToContract(
@@ -1370,6 +1418,76 @@ export class ComposerService {
     await this.audit('CONTRACT_SUBSCRIPTION', id, 'SUBSCRIPTION_STATUS_CHANGED', actor, {
       oldValue: existing.status, newValue: status,
     });
+  }
+
+  // ── Revalidation Scope (W2-3) ────────────────────────────────────────────
+
+  /**
+   * What needs to be re-tested after a product baseline changes?
+   *
+   * Compares the current (latest) approved baseline with the previous one
+   * and returns the delta: added/removed components and contracts. Validators
+   * use this to scope IQ/OQ/UAT without full re-testing.
+   *
+   * Returns `null` when fewer than two approved baselines exist — there is
+   * nothing to diff.
+   */
+  async getRevalidationScope(productVersionId: string): Promise<{
+    productVersionId: string;
+    currentBaselineId: string;
+    previousBaselineId: string | null;
+    addedComponents: string[];
+    removedComponents: string[];
+    addedContracts: string[];
+    removedContracts: string[];
+    hasChanges: boolean;
+    recommendation: string;
+  } | null> {
+    const baselines = await this.repository.listProductBaselines(productVersionId);
+    const approved = baselines.filter(b => b.status === 'APPROVED')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    if (approved.length === 0) return null;
+
+    const current = approved[0];
+    const previous = approved[1] ?? null;
+
+    const currentSnap = (current.snapshot ?? {}) as Record<string, unknown>;
+    const previousSnap = previous ? ((previous.snapshot ?? {}) as Record<string, unknown>) : null;
+
+    const currentComponents = ((currentSnap.components ?? []) as Array<{ name: string }>).map(c => c.name);
+    const previousComponents = previousSnap
+      ? ((previousSnap.components ?? []) as Array<{ name: string }>).map(c => c.name)
+      : [];
+    const currentContracts = ((currentSnap.contracts ?? []) as Array<{ id: string }>).map(c => c.id);
+    const previousContracts = previousSnap
+      ? ((previousSnap.contracts ?? []) as Array<{ id: string }>).map(c => c.id)
+      : [];
+
+    const addedComponents = currentComponents.filter(c => !previousComponents.includes(c));
+    const removedComponents = previousComponents.filter(c => !currentComponents.includes(c));
+    const addedContracts = currentContracts.filter(c => !previousContracts.includes(c));
+    const removedContracts = previousContracts.filter(c => !currentContracts.includes(c));
+    const hasChanges = addedComponents.length > 0 || removedComponents.length > 0 ||
+      addedContracts.length > 0 || removedContracts.length > 0;
+
+    const recommendation = hasChanges
+      ? `Full IQ and targeted OQ/UAT for changed components: ${[...addedComponents, ...removedComponents].join(', ') || 'none'}.`
+      : previous
+      ? 'No structural changes since last baseline. Regression test only.'
+      : 'First approved baseline — full IQ/OQ/UAT required.';
+
+    return {
+      productVersionId,
+      currentBaselineId: current.id,
+      previousBaselineId: previous?.id ?? null,
+      addedComponents,
+      removedComponents,
+      addedContracts,
+      removedContracts,
+      hasChanges,
+      recommendation,
+    };
   }
 
   // ── Change Impact Analysis (P-EXT-S3) ────────────────────────────────────

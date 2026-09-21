@@ -6,7 +6,7 @@
  * here for convenience.
  */
 
-import type { ComponentType, QualityRule } from '@internal/platform-common';
+import type { ComponentType, QualityRule, UpgradeNotification } from '@internal/platform-common';
 
 export type {
   Product,
@@ -14,6 +14,8 @@ export type {
   ProductComponent,
   DataContract,
   ProductDependency,
+  ContractSubscription,
+  UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
 } from '@internal/platform-common';

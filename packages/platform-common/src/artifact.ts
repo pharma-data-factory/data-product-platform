@@ -264,6 +264,24 @@ export interface ArtifactManifest {
     standardVersion?: string;
     components?: ArtifactCompositionComponent[];
     usage?: ArtifactCompositionUsage;
+    /**
+     * Policy Pack references that apply to this Artifact (W2-4).
+     *
+     * A `policy` entry is a coordinate (`namespace/name@version`) pointing at
+     * a POLICY_PACK Artifact. The platform resolves these at certification time
+     * to determine which policies a Product must satisfy before release.
+     *
+     * Example:
+     *   policies:
+     *     - "nexora/gxp-data-product-policy@1.0.0"
+     *     - "nexora/gdpr-data-handling-policy@2.1.0"
+     */
+    policies?: string[];
+    /**
+     * Requirements that this Artifact implements or satisfies (W2-4).
+     * References to requirement IDs in the URS system.
+     */
+    requirements?: string[];
     [key: string]: unknown;
   };
 }
@@ -434,6 +452,27 @@ function validateSpec(spec: Record<string, unknown>, kind: string): string[] {
 
   if (spec.distribution !== undefined && !isStringArray(spec.distribution)) {
     issues.push('spec.distribution must be a list of strings');
+  }
+
+  // W2-4: validate spec.policies and spec.requirements
+  if (spec.policies !== undefined) {
+    if (!isStringArray(spec.policies)) {
+      issues.push('spec.policies must be a list of strings');
+    } else {
+      for (const policy of spec.policies) {
+        // A policy reference is namespace/name@version — same format as a dependency.
+        const coord = parseArtifactRef(policy);
+        if (!coord || !coord.version || coord.version === 'latest' || coord.version === '*') {
+          issues.push(
+            `spec.policies entry "${policy}" must be namespace/name@exact-version`,
+          );
+        }
+      }
+    }
+  }
+
+  if (spec.requirements !== undefined && !isStringArray(spec.requirements)) {
+    issues.push('spec.requirements must be a list of strings (requirement IDs)');
   }
 
   return issues;

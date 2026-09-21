@@ -453,6 +453,7 @@ export type {
 
 export {
   CATALOG_ONLY_COMPONENT_NAMES,
+  CONFIG_KEY_TYPES,
   LIBRARY_COMPATIBILITY_FILTERS,
   LIBRARY_RUNTIME_FILTERS,
   LIBRARY_STATUS_FILTERS,
@@ -472,6 +473,8 @@ export {
 } from './platform-component-library';
 export type {
   ComponentLibraryProfile,
+  ConfigKeySchema,
+  ConfigKeyType,
   LibraryCompatibilityFilter,
   LibraryComponentFilters,
   LibraryPlatformComponent,

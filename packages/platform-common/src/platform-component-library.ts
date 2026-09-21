@@ -97,12 +97,60 @@ export type RuntimeAvailability = 'runtime' | 'catalog-only';
 
 
 
+// ── Configuration Schema (W2-2) ───────────────────────────────────────────────
+
+/** Supported data types for a configuration key. */
+export const CONFIG_KEY_TYPES = [
+  'string',
+  'number',
+  'boolean',
+  'url',
+  'secret',   // value is a credential — never log, never display in UI
+] as const;
+
+export type ConfigKeyType = (typeof CONFIG_KEY_TYPES)[number];
+
+/**
+ * A formally typed configuration key for a Platform Component.
+ *
+ * Replaces the plain `string[]` in `configurationKeys` with a structured
+ * schema entry that drives:
+ *   - Documentation generation (type, required, default, description)
+ *   - AI suggestions (the Governed AI Analyst knows what to ask for)
+ *   - Validation (service can warn when required keys are missing)
+ *   - Secret detection (type='secret' prevents UI display/logging)
+ *
+ * W2-2 — Configuration Schema.
+ */
+export interface ConfigKeySchema {
+  /** Environment variable name, e.g. 'MQTT_HOST'. */
+  key: string;
+  /** Human description of what this variable controls. */
+  description?: string;
+  type: ConfigKeyType;
+  /** Whether the component cannot start without this key. */
+  required: boolean;
+  /** Example or default value (never a real secret). */
+  defaultValue?: string;
+  /** Example value for documentation. */
+  example?: string;
+}
+
 export interface ComponentLibraryProfile {
   purpose: string;
   useWhen: string[];
   doNotUseWhen: string[];
+  /**
+   * Legacy flat list of env var names (kept for backward compatibility).
+   * @deprecated Prefer `configurationSchema` for new components.
+   */
   configurationKeys: string[];
   configurationNote?: string;
+  /**
+   * Formally typed configuration schema (W2-2).
+   * When present, this supersedes `configurationKeys` for display and AI.
+   */
+  configurationSchema?: ConfigKeySchema[];
   importExample?: string;
   importProvenance?: string;
   documentationPageId: string;

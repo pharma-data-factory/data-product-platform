@@ -271,6 +271,24 @@ export async function up(knex: Knex): Promise<void> {
     }
   }
 
+  // Upgrade Notifications (W2-1): records generated when a contract version bumps.
+  if (!(await knex.schema.hasTable('upgrade_notifications'))) {
+    await knex.schema.createTable('upgrade_notifications', table => {
+      table.string('id', 255).primary();
+      table.string('type', 64).notNullable();           // UPGRADE_NOTIFICATION_TYPES
+      table.string('subject_name', 255).notNullable();  // contract or artifact name
+      table.string('new_version', 100).notNullable();
+      table.string('current_version', 100).nullable();
+      table.text('summary').notNullable();
+      table.boolean('breaking').notNullable().defaultTo(false);
+      table.string('consumer_ref', 255).notNullable();
+      table.boolean('read').notNullable().defaultTo(false);
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.index(['consumer_ref']);
+      table.index(['read']);
+    });
+  }
+
   // Contract Subscriptions (P-EXT-S4): operational consumer registrations.
   if (!(await knex.schema.hasTable('contract_subscriptions'))) {
     await knex.schema.createTable('contract_subscriptions', table => {
@@ -377,6 +395,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('upgrade_notifications');
   await knex.schema.dropTableIfExists('contract_subscriptions');
   await knex.schema.dropTableIfExists('product_version_dependencies');
   await knex.schema.dropTableIfExists('product_baselines');

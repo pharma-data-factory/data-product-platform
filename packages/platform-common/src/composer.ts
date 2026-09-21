@@ -628,6 +628,12 @@ export interface CompositionConfigKey {
   componentTitle: string;
   /** Catalog name of the component, e.g. `'mqtt-consumer'`. */
   componentName: string;
+  /** From ConfigKeySchema when available (W2-2). */
+  type?: string;
+  required?: boolean;
+  description?: string;
+  example?: string;
+  secret?: boolean;
 }
 
 export interface CompositionConfigSummary {
@@ -662,12 +668,29 @@ export function compositionConfigSummary(
   const notes: Array<{ componentTitle: string; note: string }> = [];
 
   for (const comp of selected) {
-    for (const key of comp.profile.configurationKeys) {
-      keys.push({
-        key,
-        componentTitle: comp.title,
-        componentName: comp.name,
-      });
+    // Prefer configurationSchema (W2-2) over legacy configurationKeys.
+    if (comp.profile.configurationSchema && comp.profile.configurationSchema.length > 0) {
+      for (const schema of comp.profile.configurationSchema) {
+        keys.push({
+          key: schema.key,
+          componentTitle: comp.title,
+          componentName: comp.name,
+          type: schema.type,
+          required: schema.required,
+          description: schema.description,
+          example: schema.example,
+          secret: schema.type === 'secret',
+        });
+      }
+    } else {
+      // Legacy flat list fallback.
+      for (const key of comp.profile.configurationKeys) {
+        keys.push({
+          key,
+          componentTitle: comp.title,
+          componentName: comp.name,
+        });
+      }
     }
     if (comp.profile.configurationNote) {
       notes.push({

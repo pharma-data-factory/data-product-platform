@@ -5,6 +5,7 @@ import {
   DataContract,
   ProductDependency,
   ContractSubscription,
+  UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
 } from './types';
@@ -50,6 +51,11 @@ export interface IComposerRepository {
   listProductDependencies(versionId: string): Promise<ProductDependency[]>;
   deleteProductDependency(id: string): Promise<void>;
   listDependenciesByContractId(contractId: string): Promise<ProductDependency[]>;
+
+  // Upgrade Notifications (W2-1)
+  createUpgradeNotification(n: UpgradeNotification): Promise<UpgradeNotification>;
+  listUpgradeNotifications(consumerRef: string, unreadOnly?: boolean): Promise<UpgradeNotification[]>;
+  markNotificationRead(id: string): Promise<void>;
 
   // Contract Subscriptions (P-EXT-S4)
   createSubscription(sub: ContractSubscription): Promise<ContractSubscription>;
