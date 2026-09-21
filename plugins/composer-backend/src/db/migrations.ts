@@ -289,6 +289,16 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // 5-R1: Product-level policy declarations.
+  if (await knex.schema.hasTable('products')) {
+    const hasPolicies = await knex.schema.hasColumn('products', 'declared_policies');
+    if (!hasPolicies) {
+      await knex.schema.alterTable('products', table => {
+        table.text('declared_policies').nullable(); // JSON array of policy coordinates
+      });
+    }
+  }
+
   // Contract Subscriptions (P-EXT-S4): operational consumer registrations.
   if (!(await knex.schema.hasTable('contract_subscriptions'))) {
     await knex.schema.createTable('contract_subscriptions', table => {

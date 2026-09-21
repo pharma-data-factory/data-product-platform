@@ -56,6 +56,7 @@ import {
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type { CatalogComponentLoader } from './catalog-component-loader';
+import type { PolicyResolverClient } from './policy-resolver-client';
 
 /**
  * Cross-plugin resolver: checks whether a ValidationContext for a given URS
@@ -108,6 +109,11 @@ export interface ComposerServiceOptions {
    * baseline. Used by the release gate. Phase 5 (P5-S1).
    */
   validationDecisionResolver?: ValidationDecisionResolver;
+  /**
+   * Resolves Policy Pack coordinates against the Artifact Registry.
+   * Used by the release gate to check product-declared policy obligations (5-R1).
+   */
+  policyResolverClient?: PolicyResolverClient;
 }
 
 export class ComposerService {
@@ -117,6 +123,7 @@ export class ComposerService {
   private readonly llmClient?: ComposerLLMClient;
   private readonly catalogLoader?: CatalogComponentLoader;
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
+  private readonly policyResolverClient?: PolicyResolverClient;
   private readonly specDrafts = new Map<string, AISpecDraft>();
 
   constructor(options: ComposerServiceOptions) {
@@ -126,6 +133,7 @@ export class ComposerService {
     this.llmClient = options.llmClient;
     this.catalogLoader = options.catalogLoader;
     this.validationDecisionResolver = options.validationDecisionResolver;
+    this.policyResolverClient = options.policyResolverClient;
   }
 
   async createProduct(
@@ -702,6 +710,34 @@ export class ComposerService {
           code: 'POLICY_OBLIGATION_UNMET',
           message: `${finding.title}: ${finding.message}`,
         });
+      }
+    }
+
+    // 5-R1: Check product-declared Policy Pack obligations.
+    // A product with declaredPolicies must satisfy all obligations from those
+    // POLICY_PACK Artifacts before it can be released.
+    if (this.policyResolverClient && product && (product.declaredPolicies ?? []).length > 0) {
+      const resolution = await this.policyResolverClient.resolvePolicies(
+        product.declaredPolicies ?? [],
+      );
+      if (resolution) {
+        for (const unresolved of resolution.unresolved) {
+          blockers.push({
+            code: 'POLICY_PACK_UNRESOLVABLE',
+            message: `Policy Pack "${unresolved}" could not be found in the registry. Register it before releasing.`,
+          });
+        }
+        // For now, all obligations are surfaced as blockers.
+        // Future: evaluate obligation.check against the product's actual data.
+        for (const obl of resolution.obligations) {
+          if (obl.appliesTo === 'all' ||
+              (obl.appliesTo === 'gxp' && product.gxpRelevance && product.gxpRelevance !== 'NONE')) {
+            blockers.push({
+              code: 'POLICY_OBLIGATION_UNMET',
+              message: `[${obl.policyRef}] ${obl.title}: ${obl.message}`,
+            });
+          }
+        }
       }
     }
 

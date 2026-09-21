@@ -26,6 +26,8 @@ export interface CreateProductRequest {
   businessPurpose?: string;
   productType: string;
   domain?: string;
+  /** Policy Pack coordinates: namespace/name@version. Validated at release gate (5-R1). */
+  declaredPolicies?: string[];
   subdomain?: string;
   owner?: string;
   team?: string;

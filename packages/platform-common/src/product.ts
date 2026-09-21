@@ -79,6 +79,13 @@ export interface Product {
   consumers?: string[];
   slo?: Record<string, unknown>;
   costInfo?: Record<string, unknown>;
+  /**
+   * Policy Pack coordinates this product must satisfy before release.
+   * Each entry is `namespace/name@version` pointing at a POLICY_PACK Artifact.
+   * The release gate resolves these and adds `POLICY_OBLIGATION_UNMET` blockers.
+   * 5-R1 / Phase 5 release gate integration.
+   */
+  declaredPolicies?: string[];
   createdBy: string;
   createdAt: Date;
   updatedBy?: string;

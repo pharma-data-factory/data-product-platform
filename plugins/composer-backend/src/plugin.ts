@@ -18,6 +18,7 @@ import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
+import { createHttpPolicyResolverClient } from './policy-resolver-client';
 import {
   AnthropicComposerLLMClient,
   ComposerLLMClient,
@@ -101,6 +102,7 @@ export const composerPlugin = createBackendPlugin({
         const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
         const catalogLoader = createHttpCatalogComponentLoader({ discovery, auth });
         const validationDecisionResolver = createHttpValidationDecisionResolver({ discovery, auth });
+        const policyResolverClient = createHttpPolicyResolverClient({ discovery, auth });
         const llmClient = createLLMClient(config, logger);
         const llmEnabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
         const service = new ComposerService({
@@ -110,6 +112,7 @@ export const composerPlugin = createBackendPlugin({
           llmClient,
           catalogLoader,
           validationDecisionResolver,
+          policyResolverClient,
         });
 
         httpRouter.use(
