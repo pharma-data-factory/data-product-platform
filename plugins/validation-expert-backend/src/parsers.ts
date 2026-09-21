@@ -362,6 +362,11 @@ export function parseUatProtocol(root: string): ProtocolTest[] {
   return parseProtocolFile(root, 'execution/UAT/UAT-Protocol.md', 'UAT');
 }
 
+/** Phase 5 (P5-S4): PQ is optional — returns empty list when no PQ file exists. */
+export function parsePqProtocol(root: string): ProtocolTest[] {
+  return parseProtocolFile(root, 'execution/PQ/PQ-Protocol.md', 'PQ');
+}
+
 export function parseFindings(root: string): ValidationFinding[] {
   const dir = path.join(root, 'execution', 'findings');
   if (!exists(dir)) {

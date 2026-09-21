@@ -1,10 +1,10 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 5 — Continuous Verification and Pharma Validation (Phase 4 closed)
+Phase 5 — Continuous Verification and Pharma Validation (**CLOSED**)
 
 ## Current Vertical Slice
-Nothing in flight. P5-S1 (Validation Decision + SoD + Release Gate) landed.
+Nothing in flight. Phase 5 exit criteria met (P5-S1..S5).
 
 ## Completed
 - Strategy and architecture guardrails defined.
@@ -283,6 +283,21 @@ the Hardcoded Domain Inventory reduced from 8 items to 2 (GP-7 waits on Phase
 **Phase 4 exit criteria are met:** DataContract is first-class (name, owner,
 uniqueness); ProductDependency exists; initial lineage graph computable; contract
 compatibility evaluation in platform-common; Data Quality contracts in the model.
+
+**Phase 5 exit criteria are met:** CI evidence → ProductBaseline → ValidationContext
+→ IQ/OQ/UAT/optional PQ → evidence → findings/retest → independent review →
+Validation Decision → Release Gate. All links in the chain are implemented and
+testable. See NXD-036, NXD-037.
+
+- **P5-S2..S5 — Phase 5 completion.**
+  S2: SoD on APPROVED transition — version author cannot approve own work.
+  S3: HTTP `ValidationDecisionResolver` wired in `plugin.ts`; the release gate
+  check is now exercised in production, not just in tests.
+  S4: `ProtocolType` gains `'PQ'` (optional); `parsePqProtocol` returns `[]`
+  when no PQ protocol file exists.
+  S5: `ProductBaseline.snapshot` now includes `releaseCommitSha`,
+  `artifactDigest`, contract `name`, and declared `dependencies` (contractIds
+  at baseline time). See [`NXD-037`](DECISIONS.md).
 
 - **P5-S1 — Validation Decision step, SoD, release gate integration.**
   `ValidationDecision { id, contextId, status, justification, conditions, decidedBy, decidedAt }`

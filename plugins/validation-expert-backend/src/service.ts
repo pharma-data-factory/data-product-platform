@@ -22,6 +22,7 @@ import {
   parseFindings,
   parseIqProtocol,
   parseOqProtocol,
+  parsePqProtocol,
   parseRequirements,
   parseRisks,
   parseTraceability,
@@ -119,6 +120,10 @@ export class ValidationExpertService {
     if (type === 'OQ') {
       return parseOqProtocol(this.options.validationRoot);
     }
+    if (type === 'PQ') {
+      // Phase 5 (P5-S4): PQ is optional. Returns [] when no PQ protocol file exists.
+      return parsePqProtocol(this.options.validationRoot);
+    }
     return parseUatProtocol(this.options.validationRoot);
   }
 
@@ -212,7 +217,7 @@ export class ValidationExpertService {
     }
 
     const protocolRequirementIdsByTestId = new Map<string, string[]>();
-    for (const type of ['IQ', 'OQ', 'UAT'] as ProtocolType[]) {
+    for (const type of ['IQ', 'OQ', 'UAT', 'PQ'] as ProtocolType[]) {
       for (const test of this.getProtocol(type)) {
         protocolRequirementIdsByTestId.set(test.id, test.requirementIds ?? []);
       }

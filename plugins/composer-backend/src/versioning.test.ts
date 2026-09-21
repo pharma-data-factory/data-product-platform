@@ -43,6 +43,8 @@ describe('Phase 1: Versioning Foundation', () => {
   });
 
   const actor = 'user:default/test-user';
+  // Phase 5 (P5-S2): the approver must differ from the creator.
+  const approver = 'user:default/approver-user';
 
   async function createFullSetup() {
     const product = await service.createProduct(
@@ -71,16 +73,25 @@ describe('Phase 1: Versioning Foundation', () => {
   }
 
   describe('Status Transitions', () => {
-    it('allows valid transition DRAFT → APPROVED', async () => {
+    it('allows valid transition DRAFT → APPROVED (SoD: approver ≠ creator)', async () => {
       const { version } = await createFullSetup();
+      // P5-S2: approver must differ from the version creator (actor).
       const result = await service.transitionProductVersionStatus(
         version.id,
         { targetStatus: 'APPROVED' },
-        actor,
+        approver,
       );
       expect(result.status).toBe('APPROVED');
-      expect(result.approvedBy).toBe(actor);
+      expect(result.approvedBy).toBe(approver);
       expect(result.approvedAt).toBeDefined();
+    });
+
+    it('rejects APPROVED transition when actor is the version creator (SoD)', async () => {
+      const { version } = await createFullSetup();
+      // The version was created by `actor`; the same actor cannot approve it.
+      await expect(
+        service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor),
+      ).rejects.toThrow(/Segregation of Duties/i);
     });
 
     it('allows valid transition APPROVED → RELEASE_CANDIDATE', async () => {
@@ -88,7 +99,7 @@ describe('Phase 1: Versioning Foundation', () => {
       await service.transitionProductVersionStatus(
         version.id,
         { targetStatus: 'APPROVED' },
-        actor,
+        approver,
       );
       const result = await service.transitionProductVersionStatus(
         version.id,
@@ -111,7 +122,7 @@ describe('Phase 1: Versioning Foundation', () => {
 
     it('rejects invalid transition APPROVED → SUPERSEDED', async () => {
       const { version } = await createFullSetup();
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await expect(
         service.transitionProductVersionStatus(
           version.id,
@@ -126,7 +137,7 @@ describe('Phase 1: Versioning Foundation', () => {
       await service.transitionProductVersionStatus(
         version.id,
         { targetStatus: 'APPROVED' },
-        actor,
+        approver,
       );
       const trail = await service.getEntityAuditTrail('PRODUCT_VERSION', version.id);
       const transitionEvent = trail.find(e => e.eventType === 'STATUS_TRANSITION');
@@ -150,7 +161,7 @@ describe('Phase 1: Versioning Foundation', () => {
         actor,
       );
       const version = await service.createProductVersion(product.id, {}, actor);
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(false);
@@ -159,7 +170,7 @@ describe('Phase 1: Versioning Foundation', () => {
 
     it('fails with INCOMPLETE_TRACEABILITY when component has no link', async () => {
       const { version } = await createFullSetup();
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(false);
@@ -178,7 +189,7 @@ describe('Phase 1: Versioning Foundation', () => {
         },
         actor,
       );
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(false);
@@ -205,7 +216,7 @@ describe('Phase 1: Versioning Foundation', () => {
         actor,
       );
       await service.approveProductBaseline(baseline.id, actor);
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(true);
@@ -246,7 +257,7 @@ describe('Phase 1: Versioning Foundation', () => {
         actor,
       );
       await service.approveProductBaseline(baseline.id, actor);
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
       const result = await service.checkReleaseGate(version.id);
@@ -273,7 +284,7 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const baseline = await service.createProductBaseline(version.id, {}, actor);
       await service.approveProductBaseline(baseline.id, actor);
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
       const result = await service.checkReleaseGate(version.id);
@@ -393,7 +404,7 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       await service.approveProductBaseline(baseline.id, actor);
 
-      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
       const gate = await service.checkReleaseGate(version.id);
@@ -467,7 +478,7 @@ describe('Phase 1: Versioning Foundation', () => {
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockRejectedValueOnce(
         new Error('URS baseline urs-baseline-1 is DRAFT; expected APPROVED'),
       );
-      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await serviceWithResolver.checkReleaseGate(version.id);
       expect(result.passed).toBe(false);
@@ -491,7 +502,7 @@ describe('Phase 1: Versioning Foundation', () => {
         status: 'APPROVED',
         baselineVersion: '1.0',
       });
-      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await serviceWithResolver.checkReleaseGate(version.id);
       expect(result.passed).toBe(true);
@@ -510,7 +521,7 @@ describe('Phase 1: Versioning Foundation', () => {
       );
       const baseline = await serviceWithResolver.createProductBaseline(version.id, {}, actor);
       await serviceWithResolver.approveProductBaseline(baseline.id, actor);
-      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
       const result = await serviceWithResolver.checkReleaseGate(version.id);
@@ -577,7 +588,7 @@ describe('Phase 1: Versioning Foundation', () => {
         version.id, { ursBaselineIds: ['urs-vd-001'] }, actor,
       );
       await serviceWithDecisionResolver.approveProductBaseline(baseline.id, actor);
-      await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, actor);
+      await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       return { version };
     }

@@ -148,8 +148,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       await authorize(permissions, httpAuth, req, validationReadPermission);
       const type = req.params.type.toUpperCase() as ProtocolType;
-      if (!['IQ', 'OQ', 'UAT'].includes(type)) {
-        throw new InputError('type must be IQ, OQ, or UAT');
+      if (!['IQ', 'OQ', 'UAT', 'PQ'].includes(type)) {
+        throw new InputError('type must be IQ, OQ, UAT, or PQ');
       }
       const tests = service.getProtocol(type);
       res.json({
@@ -202,8 +202,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       const type = String(req.body?.type ?? '').toUpperCase() as ProtocolType;
       const candidate = String(req.body?.candidate ?? '').trim();
       const contextId = String(req.body?.contextId ?? '').trim() || undefined;
-      if (!['IQ', 'OQ', 'UAT'].includes(type)) {
-        throw new InputError('type must be IQ, OQ, or UAT');
+      if (!['IQ', 'OQ', 'UAT', 'PQ'].includes(type)) {
+        throw new InputError('type must be IQ, OQ, UAT, or PQ');
       }
       if (!candidate) {
         throw new InputError('candidate is required');

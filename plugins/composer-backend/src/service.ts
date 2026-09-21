@@ -609,6 +609,19 @@ export class ComposerService {
         );
       }
     }
+
+    // Phase 5 (P5-S2): Segregation of Duties on APPROVED transition.
+    // The person who approves a version must not be the same person who
+    // created it. Approval by the author of a version is self-approval and
+    // is not admissible in a GxP context.
+    if (request.targetStatus === 'APPROVED' && actor === version.createdBy) {
+      throw new InputError(
+        `Segregation of Duties violation: the author of a product version ` +
+          `cannot approve it. Actor "${actor}" created version ${versionId}. ` +
+          `A different person must perform the approval.`,
+      );
+    }
+
     const oldStatus = version.status;
     const updated: ProductVersion = {
       ...version,
@@ -814,8 +827,19 @@ export class ComposerService {
         components.some(c => c.id === l.sourceId) ||
         components.some(c => c.id === l.targetId),
     );
-    const snapshot = {
-      version: { id: version.id, version: version.version },
+    // Phase 5 (P5-S5): include Artifact provenance in the baseline snapshot.
+    // When the version already has a commit SHA or artifact digest (from a
+    // previous release candidate build), they are captured here. Pre-release
+    // baselines have no digest yet — the field is absent rather than null so
+    // callers can distinguish "not yet built" from "explicitly unknown".
+    const dependencies = await this.repository.listProductDependencies(version.id);
+    const snapshot: Record<string, unknown> = {
+      version: {
+        id: version.id,
+        version: version.version,
+        ...(version.releaseCommitSha ? { releaseCommitSha: version.releaseCommitSha } : {}),
+        ...(version.artifactDigest ? { artifactDigest: version.artifactDigest } : {}),
+      },
       components: components.map(c => ({
         id: c.id,
         name: c.name,
@@ -825,6 +849,7 @@ export class ComposerService {
         id: c.id,
         schemaType: c.schemaType,
         version: c.version,
+        ...(c.name ? { name: c.name } : {}),
       })),
       traceabilityLinks: links.map(l => ({
         id: l.id,
@@ -832,6 +857,12 @@ export class ComposerService {
         targetType: l.targetType,
         targetId: l.targetId,
         relationshipType: l.relationshipType,
+      })),
+      // Declared data dependencies at baseline time (Phase 4, P4-S3).
+      // Enables revalidation scope diff: what contracts does this version consume?
+      dependencies: dependencies.map(d => ({
+        id: d.id,
+        contractId: d.contractId,
       })),
     };
     const baseline: ProductBaseline = {

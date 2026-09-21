@@ -3,7 +3,15 @@ import type {
   ValidationContext,
 } from '@internal/platform-common';
 
-export type ProtocolType = 'IQ' | 'OQ' | 'UAT';
+/**
+ * Validation protocol types.
+ *
+ * IQ/OQ/UAT are the standard GxP qualification protocols.
+ * PQ (Performance Qualification) is optional — not every product needs it,
+ * and the ImplementationPlan listed it as "optional PQ". Phase 5 (P5-S4)
+ * adds it so validators are not forced to misclassify PQ runs as UAT.
+ */
+export type ProtocolType = 'IQ' | 'OQ' | 'UAT' | 'PQ';
 export type ExecutionType =
   | 'AUTOMATED_API'
   | 'AUTOMATED_PLATFORM'
