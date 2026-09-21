@@ -63,6 +63,8 @@ export class ArtifactRegistryRepository {
       display_name: publisher.displayName,
       description: publisher.description ?? null,
       member_groups: toJson(publisher.memberGroups),
+      trust_level: publisher.trustLevel,
+      external_publisher: publisher.externalPublisher ? 1 : 0,
       created_by: publisher.createdBy,
       created_at: publisher.createdAt,
       revision: publisher.revision,
@@ -232,6 +234,10 @@ export class ArtifactRegistryRepository {
       displayName: row.display_name,
       description: row.description ?? undefined,
       memberGroups: fromJson<string[]>(row.member_groups, []),
+      // Phase 7 (P7-S1): trust level and external flag. Default to INTERNAL/false
+      // for rows created before Phase 7 (NULL in the DB → Nexora-operated).
+      trustLevel: (row.trust_level as Publisher['trustLevel']) ?? 'INTERNAL',
+      externalPublisher: Boolean(row.external_publisher),
       createdBy: row.created_by,
       createdAt: toDate(row.created_at),
       updatedBy: row.updated_by ?? undefined,

@@ -7,12 +7,14 @@
  */
 
 import { randomUUID } from 'crypto';
-import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
+import { ConflictError, InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import {
   formatArtifactRef,
   isArtifactSegment,
+  isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
+  PUBLISHER_TRUST_LEVELS,
   type Artifact,
   type ArtifactCertificationStatus,
   type ArtifactCoordinate,
@@ -29,6 +31,15 @@ export interface CreatePublisherRequest {
   displayName: string;
   description?: string;
   memberGroups?: string[];
+  /**
+   * Trust level. Defaults to `'INTERNAL'` for programmatic creation (e.g.
+   * the manifest loader). Self-registered external publishers start as
+   * `'COMMUNITY'`; PLATFORM_ADMIN can promote to `'PARTNER'`.
+   * Phase 7 (P7-S1).
+   */
+  trustLevel?: string;
+  /** Whether this publisher is outside the Nexora organisation. Phase 7 (P7-S1). */
+  externalPublisher?: boolean;
 }
 
 export interface RegisterArtifactVersionResult {
@@ -68,12 +79,25 @@ export class ArtifactRegistryService {
       );
     }
 
+    // Phase 7 (P7-S1): validate and default trust level.
+    let trustLevel: Publisher['trustLevel'] = 'INTERNAL';
+    if (request.trustLevel) {
+      if (!isPublisherTrustLevel(request.trustLevel)) {
+        throw new InputError(
+          `Invalid trustLevel "${request.trustLevel}". Expected one of: ${PUBLISHER_TRUST_LEVELS.join(', ')}`,
+        );
+      }
+      trustLevel = request.trustLevel;
+    }
+
     const publisher: Publisher = {
       id: randomUUID(),
       namespace,
       displayName: request.displayName.trim(),
       description: request.description,
       memberGroups: request.memberGroups ?? [],
+      trustLevel,
+      externalPublisher: request.externalPublisher ?? false,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -237,13 +261,20 @@ export class ArtifactRegistryService {
   async listArtifactsWithVersions(filter?: {
     kind?: Artifact['kind'];
     namespace?: string;
-  }): Promise<(Artifact & { versions: ArtifactVersion[] })[]> {
+  }): Promise<(Artifact & { versions: ArtifactVersion[]; publisherTrustLevel: string; externalPublisher: boolean })[]> {
     const artifacts = await this.repository.listArtifacts(filter);
     return Promise.all(
-      artifacts.map(async artifact => ({
-        ...artifact,
-        versions: await this.repository.listArtifactVersions(artifact.id),
-      })),
+      artifacts.map(async artifact => {
+        const publisher = await this.repository.getPublisherByNamespace(artifact.namespace);
+        return {
+          ...artifact,
+          versions: await this.repository.listArtifactVersions(artifact.id),
+          // Phase 7 (P7-S3): include publisher trust so the Marketplace can show
+          // trust badges and disclaimers without an extra per-artifact round-trip.
+          publisherTrustLevel: publisher?.trustLevel ?? 'INTERNAL',
+          externalPublisher: publisher?.externalPublisher ?? false,
+        };
+      }),
     );
   }
 
@@ -324,7 +355,7 @@ export class ArtifactRegistryService {
    * never backed by an uncertified record — the same rule
    * `validateGoldenPathRelease` enforces on releases.
    */
-  async certifyArtifactVersion(id: string): Promise<ArtifactVersion> {
+  async certifyArtifactVersion(id: string, actor?: string): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'TESTING', 'certified');
     if (version.certificationStatus !== 'TESTED') {
@@ -333,6 +364,7 @@ export class ArtifactRegistryService {
           `${version.certificationStatus ?? 'unset'}, must be TESTED (review it first)`,
       );
     }
+    if (actor) await this.assertPublisherMembership(version, actor, 'certify');
     return this.applyTransition(version, {
       lifecycle: 'CERTIFIED',
       certificationStatus: 'CERTIFIED',
@@ -340,9 +372,10 @@ export class ArtifactRegistryService {
   }
 
   /** Makes a certified version available to consumers. */
-  async publishArtifactVersion(id: string): Promise<ArtifactVersion> {
+  async publishArtifactVersion(id: string, actor?: string): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'CERTIFIED', 'published');
+    if (actor) await this.assertPublisherMembership(version, actor, 'publish');
     return this.applyTransition(version, { lifecycle: 'RELEASED' });
   }
 
@@ -351,6 +384,41 @@ export class ArtifactRegistryService {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'RELEASED', 'deprecated');
     return this.applyTransition(version, { lifecycle: 'DEPRECATED' });
+  }
+
+  /**
+   * Checks that `actor` is a member of the publisher that owns the namespace
+   * the artifact lives in.
+   *
+   * If `publisher.memberGroups` is empty, the check passes — the publisher has
+   * not restricted who may act. If it is non-empty, the actor's entity ref must
+   * appear in the list. This is the per-namespace scoping that NXD-014 deferred
+   * until Phase 7. Phase 7 (P7-S2).
+   *
+   * Note: memberGroups entries are direct entity refs (user or group). A full
+   * implementation would resolve group memberships via the Catalog; this
+   * inline check covers the common case where specific users or groups are
+   * named. The STATUS.md entry on NXD-014 records what a full ResourcePermission
+   * implementation would require.
+   */
+  private async assertPublisherMembership(
+    version: ArtifactVersion,
+    actor: string,
+    action: string,
+  ): Promise<void> {
+    const artifact = await this.repository.getArtifact(version.artifactId);
+    if (!artifact) return; // should not happen — version implies artifact exists
+    const publisher = await this.repository.getPublisherByNamespace(artifact.namespace);
+    if (!publisher || publisher.memberGroups.length === 0) {
+      return; // no restriction declared — any authorised actor may proceed
+    }
+    if (!publisher.memberGroups.includes(actor)) {
+      throw new NotAllowedError(
+        `Actor "${actor}" is not a member of publisher "${publisher.namespace}" ` +
+          `and cannot ${action} artifacts in that namespace. ` +
+          `Publisher members: ${publisher.memberGroups.join(', ')}`,
+      );
+    }
   }
 
   private async requireArtifactVersion(id: string): Promise<ArtifactVersion> {

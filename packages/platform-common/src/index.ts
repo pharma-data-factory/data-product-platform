@@ -578,8 +578,10 @@ export {
   isArtifactLifecycle,
   isArtifactManifest,
   isArtifactSegment,
+  isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
+  PUBLISHER_TRUST_LEVELS,
 } from './artifact';
 export type {
   Artifact,
@@ -591,6 +593,7 @@ export type {
   ArtifactManifest,
   ArtifactVersion,
   Publisher,
+  PublisherTrustLevel,
 } from './artifact';
 
 export {

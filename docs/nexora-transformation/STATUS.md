@@ -1,7 +1,7 @@
 # Nexora Transformation Status
 
 ## Current Phase
-Phase 6 — Consumer Experience, Analytics and Operations
+Phase 7 — Ecosystem, Scale and Commercialization
 
 ## Current Vertical Slice
 Nothing in flight. Phase 5 exit criteria met (P5-S1..S5).
@@ -290,6 +290,13 @@ Validation Decision → Release Gate. All links in the chain are implemented and
 testable. See NXD-036, NXD-037.
 
 **Phase 5 closed.** See above.
+
+**Phase 6 closed.**
+
+- **P7-S1..S3 — Phase 7 first slices.** See [`NXD-039`](DECISIONS.md).
+  S1: Publisher `trustLevel` (INTERNAL/PARTNER/COMMUNITY) + `externalPublisher` flag.
+  S2: Per-namespace permission scoping — `certify`/`publish` check actor membership in `publisher.memberGroups`. Partial NXD-014 closure.
+  S3: `MarketplaceOfferingView` carries `publisherTrustLevel` + `externalPublisher`; `listArtifactsWithVersions` enriches all artifacts with publisher trust data.
 
 - **P6-S1..S6 — Phase 6.** See [`NXD-038`](DECISIONS.md).
   S1: `AnalyticsProvider` model + catalog annotation `dataprod.platform/analytics-providers` + OverviewTab panel.

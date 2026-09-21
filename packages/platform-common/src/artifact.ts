@@ -128,6 +128,36 @@ export function parseArtifactRef(
 // ENTITIES
 // ============================================================================
 
+// ── Publisher Trust (Phase 7, P7-S1) ─────────────────────────────────────────
+
+/**
+ * Trust tier for a Publisher namespace.
+ *
+ * `INTERNAL`  — a Nexora-operated namespace (e.g. `nexora`). Artifacts are
+ *               maintained by the platform team and carry the highest trust.
+ *               Platform guardrails treat these as first-party.
+ *
+ * `PARTNER`   — a certified external publisher that has passed a formal review.
+ *               Displayed with a "Partner" badge; eligible for the commercial
+ *               marketplace. Onboarding requires PLATFORM_ADMIN approval.
+ *
+ * `COMMUNITY` — an external publisher that has not yet been certified. Artifacts
+ *               are displayed with a disclaimer. Not eligible for commercial
+ *               marketplace or certification workflows until the publisher is
+ *               promoted to PARTNER.
+ */
+export const PUBLISHER_TRUST_LEVELS = [
+  'INTERNAL',
+  'PARTNER',
+  'COMMUNITY',
+] as const;
+
+export type PublisherTrustLevel = (typeof PUBLISHER_TRUST_LEVELS)[number];
+
+export function isPublisherTrustLevel(value: string): value is PublisherTrustLevel {
+  return (PUBLISHER_TRUST_LEVELS as readonly string[]).includes(value);
+}
+
 /**
  * An organisation or team that may publish Artifacts into a namespace.
  *
@@ -135,6 +165,8 @@ export function parseArtifactRef(
  * the organisation's capability and the Artifact's lifecycle state. This type
  * records who the publisher is; it does not decide authorisation — that stays
  * with the Backstage permission framework.
+ *
+ * Phase 7 (P7-S1): `trustLevel` and `externalPublisher` added.
  */
 export interface Publisher {
   id: string;
@@ -144,6 +176,18 @@ export interface Publisher {
   description?: string;
   /** Catalog group refs whose members may act for this publisher. */
   memberGroups: string[];
+  /**
+   * Trust tier. Defaults to `'INTERNAL'` for Nexora-managed namespaces.
+   * External publishers created via self-service start as `'COMMUNITY'`.
+   * Phase 7 (P7-S1).
+   */
+  trustLevel: PublisherTrustLevel;
+  /**
+   * True when this publisher is outside the Nexora organisation.
+   * Drives Marketplace display (disclaimer, Partner badge) and permission
+   * scoping. Phase 7 (P7-S1).
+   */
+  externalPublisher: boolean;
   createdBy: string;
   createdAt: Date;
   updatedBy?: string;

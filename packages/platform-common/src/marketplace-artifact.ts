@@ -117,9 +117,19 @@ export interface MarketplaceManifestView {
  *
  * The two halves have different authorities, which is the whole point of
  * keeping them in separate types until they are joined here.
+ *
+ * Phase 7 (P7-S3): `publisherTrustLevel` and `externalPublisher` added so the
+ * Marketplace UI can display trust badges and disclaimers for vendor artifacts.
  */
 export interface MarketplaceOfferingView extends MarketplaceManifestView {
   certificationStatus: string;
+  /**
+   * Trust tier of the publisher who registered this artifact.
+   * `'INTERNAL'` when the publisher row predates Phase 7 (safe default).
+   */
+  publisherTrustLevel: string;
+  /** True when the publisher is outside the Nexora organisation. */
+  externalPublisher: boolean;
 }
 
 // ============================================================================
@@ -220,6 +230,13 @@ export function marketplaceViewOfManifest(
 export interface RegistryArtifactWithVersions {
   namespace: string;
   name: string;
+  /**
+   * Phase 7 (P7-S3): publisher trust information, when the registry includes it.
+   * Absent on responses from registries that predate Phase 7 — the Marketplace
+   * defaults to `'INTERNAL'` / `false` in that case.
+   */
+  publisherTrustLevel?: string;
+  externalPublisher?: boolean;
   versions: {
     version: string;
     lifecycle: string;
@@ -319,6 +336,10 @@ export function marketplaceOfferingsFromRegistry(
       offerings.push({
         ...view,
         certificationStatus: version.certificationStatus ?? UNCERTIFIED_STATUS,
+        // Phase 7 (P7-S3): propagate publisher trust to the Marketplace so UI
+        // can show trust badges and disclaimers for vendor artifacts.
+        publisherTrustLevel: artifact.publisherTrustLevel ?? 'INTERNAL',
+        externalPublisher: artifact.externalPublisher ?? false,
       });
     }
   }

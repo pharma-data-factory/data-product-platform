@@ -82,6 +82,7 @@ export async function up(knex: Knex): Promise<void> {
   }
 
   await createCaseInsensitiveIndexes(knex);
+  await addPublisherTrustColumns(knex);
 }
 
 /**
@@ -90,6 +91,25 @@ export async function up(knex: Knex): Promise<void> {
  * database enforce the same rule. Expression indexes with `IF NOT EXISTS` work
  * in both dialects in use (PostgreSQL in production, SQLite in tests).
  */
+/**
+ * Phase 7 (P7-S1): Publisher trust level and external publisher flag.
+ *
+ * Both columns are nullable so the migration is safe on existing DBs.
+ * The repository defaults to 'INTERNAL' / false when the columns are NULL,
+ * so pre-existing `nexora` publisher rows behave correctly without a data
+ * migration.
+ */
+async function addPublisherTrustColumns(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('publishers'))) return;
+  const hasTrust = await knex.schema.hasColumn('publishers', 'trust_level');
+  if (!hasTrust) {
+    await knex.schema.alterTable('publishers', table => {
+      table.string('trust_level', 32).nullable(); // INTERNAL | PARTNER | COMMUNITY
+      table.boolean('external_publisher').nullable();
+    });
+  }
+}
+
 async function createCaseInsensitiveIndexes(knex: Knex): Promise<void> {
   await knex.raw(
     'create unique index if not exists publishers_namespace_ci_unique ' +

@@ -316,15 +316,29 @@ export async function createRouter(
     artifactReviewPermission,
     id => service.reviewArtifactVersion(id),
   );
-  transitionRoute(
+  // Phase 7 (P7-S2): certify and publish pass the actor so the service can
+  // enforce per-namespace membership when publisher.memberGroups is set.
+  router.post(
     '/artifact-versions/:id/certify',
-    artifactCertifyPermission,
-    id => service.certifyArtifactVersion(id),
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, artifactCertifyPermission);
+        res.json(await service.certifyArtifactVersion(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
   );
-  transitionRoute(
+  router.post(
     '/artifact-versions/:id/publish',
-    artifactPublishPermission,
-    id => service.publishArtifactVersion(id),
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, artifactPublishPermission);
+        res.json(await service.publishArtifactVersion(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
   );
   transitionRoute(
     '/artifact-versions/:id/deprecate',
