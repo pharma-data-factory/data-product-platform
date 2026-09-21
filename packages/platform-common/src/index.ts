@@ -449,7 +449,6 @@ export type {
 
 export {
   CATALOG_ONLY_COMPONENT_NAMES,
-  EQUIPMENT_USE_LOG_COMPOSITION_YAML,
   LIBRARY_COMPATIBILITY_FILTERS,
   LIBRARY_RUNTIME_FILTERS,
   LIBRARY_STATUS_FILTERS,
@@ -464,7 +463,6 @@ export {
   libraryProfileFor,
   matchesStandard1x,
   builtWithSummary,
-  parseEquipmentUseLogExample,
   runtimeAvailabilityFor,
   toLibraryComponents,
   usageLabelsForComponent,

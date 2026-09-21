@@ -25,7 +25,7 @@ proven — see the migration architecture in `TARGET_ARCHITECTURE.md`.
 | ~~GP-3~~ | ~~`composerPresets()` ships OEE and Equipment Use Log as built-ins~~ | — | **REMOVED 2026-09-21 (NXD-031)** |
 | ~~GP-4~~ | ~~`oeeBuiltWithSummary()` — an OEE-specific Core API~~ | — | **REMOVED 2026-09-19 (NXD-029)** |
 | GP-5 | `WAVE1_COMPONENT_TITLES` — display names for a fixed component set | `platform-component-library.ts` | Low |
-| GP-6 | `EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string | `platform-component-library.ts` | Medium |
+| ~~GP-6~~ | ~~`EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string~~ | — | **REMOVED 2026-09-21 (NXD-032)** |
 | GP-7 | `RUNTIME_PACKAGE_*` / `CATALOG_ONLY_COMPONENT_NAMES` — fixed component registry | `platform-component-library.ts` | Medium |
 | GP-8 | Industrial semantics as a Core vocabulary — equipment, site, area, line, OEE and equipment-state API annotations | `nexora-industrial.ts` | **High** |
 
@@ -135,14 +135,14 @@ Presentation metadata that belongs on the component/Artifact manifest.
 Low severity, but it means a new component renders with no title until Core is
 edited. **Consumers:** `DeveloperHubPage.tsx`.
 
-## GP-6 — `EQUIPMENT_USE_LOG_COMPOSITION_YAML`
+## ~~GP-6~~ — `EQUIPMENT_USE_LOG_COMPOSITION_YAML` — **REMOVED**
 
-A full composition manifest embedded in Core as a template literal, parsed
-back by `parseEquipmentUseLogExample()`. The equivalent file already exists at
-`catalog/compositions/equipment-use-log.yaml`. A string copy of a file that is
-in the repository cannot be kept in step by review alone.
-
-**Removal condition:** read the manifest, or serve it as an Artifact.
+**Closed 2026-09-21 (P3-S3, NXD-032).** The embedded template literal and
+`parseEquipmentUseLogExample()` had no production consumers after P3-S2
+removed the last import in `composer.ts`. Both are deleted. The two tests that
+referenced them now read from `catalog/artifacts/nexora/equipment-use-log.yaml`
+via `compositionOnDisk()` / `readGoldenPathComposition()` — the same source the
+registry uses at runtime.
 
 ## GP-7 — Fixed Platform Component registry
 

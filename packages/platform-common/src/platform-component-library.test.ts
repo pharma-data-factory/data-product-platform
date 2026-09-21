@@ -1,21 +1,21 @@
 import {
   CATALOG_ONLY_COMPONENT_NAMES,
-  EQUIPMENT_USE_LOG_COMPOSITION_YAML,
   RUNTIME_PACKAGE_COMPONENT_NAMES,
   compositionSnippetFor,
   filterLibraryComponents,
   hasRuntimePackage,
   libraryProfileFor,
   builtWithSummary,
-  parseEquipmentUseLogExample,
   toLibraryComponents,
   usageLabelsForComponent,
 } from './platform-component-library';
 import { CatalogEntityLike, toRelatedPlatformComponents } from './platform-components';
 import { validateComposition } from './composition';
 import {
+  compositionOnDisk,
   compositionRefsOnDisk,
   compositionUsageOnDisk,
+  optionalCompositionRefsOnDisk,
 } from './__testUtils__/compositions';
 
 const USAGE = compositionUsageOnDisk();
@@ -255,17 +255,24 @@ describe('platform component library honesty', () => {
   });
 
   it('validates the Equipment Use Log design example against the real schema', () => {
-    const composition = parseEquipmentUseLogExample();
+    // The composition now lives in catalog/artifacts/nexora/equipment-use-log.yaml.
+    // EQUIPMENT_USE_LOG_COMPOSITION_YAML and parseEquipmentUseLogExample were
+    // deleted (GP-6) — the manifest is the single source of truth.
+    const composition = compositionOnDisk('equipment-use-log');
     expect(composition.metadata.name).toBe('equipment-use-log');
-    expect(EQUIPMENT_USE_LOG_COMPOSITION_YAML).toContain('kind: GoldenPathComposition');
     expect(validateComposition(composition, catalog).compatible).toBe(true);
-    expect(composition.spec.components.map(item => item.ref)).toEqual([
+    const required = compositionRefsOnDisk('equipment-use-log');
+    const optional = optionalCompositionRefsOnDisk('equipment-use-log');
+    expect(required).toEqual([
       'component:default/health',
       'component:default/observability',
       'component:default/mqtt-consumer',
       'component:default/rest-api',
     ]);
-    expect(EQUIPMENT_USE_LOG_COMPOSITION_YAML).not.toContain('rest-source');
-    expect(EQUIPMENT_USE_LOG_COMPOSITION_YAML).not.toContain('timeseries');
+    // REST Source and Time-Series are offered as optional, not required.
+    expect(required).not.toContain('component:default/rest-source');
+    expect(required).not.toContain('component:default/timeseries');
+    expect(optional).toContain('component:default/rest-source');
+    expect(optional).toContain('component:default/timeseries');
   });
 });

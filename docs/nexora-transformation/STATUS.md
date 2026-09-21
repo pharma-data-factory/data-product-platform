@@ -274,6 +274,12 @@ registry's own rather than an inherited claim.
 
   409 tests, 0 failures (tsc + lint + yarn test subset).
 
+- **P3-S3 — GP-6 deleted.** `EQUIPMENT_USE_LOG_COMPOSITION_YAML` and
+  `parseEquipmentUseLogExample()` had no production consumers after P3-S2; both
+  are deleted from `platform-component-library.ts` and `index.ts`. The two
+  tests that used them now read from the disk manifest via `compositionOnDisk()`
+  and `readGoldenPathComposition()`. See [`NXD-032`](DECISIONS.md).
+
 ## In Progress
 Nothing in flight.
 

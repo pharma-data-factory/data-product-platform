@@ -6,7 +6,6 @@ import {
   normalizeEntityRef,
 } from './platform-components';
 import {
-  parseCompositionManifest,
   type CompositionUsage,
   type CompositionUsageKind,
 } from './composition';
@@ -105,30 +104,6 @@ export const WAVE1_COMPONENT_TITLES: Record<string, string> = {
   'rest-api': 'REST API',
 };
 
-export const EQUIPMENT_USE_LOG_COMPOSITION_YAML = `apiVersion: dataprod.platform/v1alpha1
-kind: GoldenPathComposition
-
-metadata:
-  name: equipment-use-log
-  title: Equipment Use Log (design example)
-  description: >
-    DOCUMENTATION / DESIGN EXAMPLE ONLY. No Equipment Use Log runtime
-    exists. Developers implement the usage-session domain model and reuse
-    Wave 1 Platform Components. REST Source and Time-Series Storage are
-    OPTIONAL and are not in this required composition.
-
-spec:
-  standardVersion: 1.0.0
-  components:
-    - ref: component:default/health
-      version: "1.x"
-    - ref: component:default/observability
-      version: "1.x"
-    - ref: component:default/mqtt-consumer
-      version: "1.x"
-    - ref: component:default/rest-api
-      version: "1.x"
-`;
 
 export interface ComponentLibraryProfile {
   purpose: string;
@@ -543,6 +518,3 @@ export function compositionSnippetFor(name: string): string {
   return `- ref: component:default/${name}\n  version: "1.x"`;
 }
 
-export function parseEquipmentUseLogExample() {
-  return parseCompositionManifest(EQUIPMENT_USE_LOG_COMPOSITION_YAML);
-}

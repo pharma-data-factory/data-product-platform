@@ -4,7 +4,6 @@ import yaml from 'yaml';
 import {
   isPlatformComponentEntity,
   compositionUsageFromManifests,
-  parseEquipmentUseLogExample,
   RUNTIME_PACKAGE_SOURCE_PATHS,
   toRelatedPlatformComponents,
   usageLabelsForComponent,
@@ -259,18 +258,20 @@ describe('Platform Component library', () => {
       fs.existsSync(path.join(ROOT, 'platform-components/data/postgres/pyproject.toml')),
     ).toBe(false);
     const catalog = toRelatedPlatformComponents(loadPlatformComponentCatalog());
-    expect(validateComposition(parseEquipmentUseLogExample(), catalog).compatible).toBe(
-      true,
-    );
+    // GP-6 removed: the embedded EQUIPMENT_USE_LOG_COMPOSITION_YAML is gone;
+    // the manifest on disk is the single source of truth.
     const equipmentUseLog = readGoldenPathComposition('equipment-use-log');
-    // The embedded example (GP-6) states the required components only; the
-    // manifest carries the optional pair as well, so the comparison is against
-    // the required half.
+    expect(validateComposition(equipmentUseLog, catalog).compatible).toBe(true);
     expect(
       equipmentUseLog.spec.components
         .filter(item => !item.optional)
         .map(item => item.ref),
-    ).toEqual(parseEquipmentUseLogExample().spec.components.map(item => item.ref));
+    ).toEqual([
+      'component:default/health',
+      'component:default/observability',
+      'component:default/mqtt-consumer',
+      'component:default/rest-api',
+    ]);
     expect(usageLabelsForComponent('mqtt-consumer', 'design', USAGE)).toContain(
       'Equipment Use Log (design example)',
     );
