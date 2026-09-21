@@ -727,11 +727,50 @@ export class ComposerService {
             message: `Policy Pack "${unresolved}" could not be found in the registry. Register it before releasing.`,
           });
         }
-        // For now, all obligations are surfaced as blockers.
-        // Future: evaluate obligation.check against the product's actual data.
+        // Evaluate each obligation's `check` identifier against the product's
+        // actual data. Unknown check IDs fail loudly (same rule as platform-policy.ts).
+        const isGxp = product.gxpRelevance && product.gxpRelevance !== 'NONE';
+        const components = await this.repository.listProductComponents(versionId);
+        const contractList: DataContract[] = [];
+        for (const comp of components) {
+          contractList.push(...(await this.repository.listDataContracts(comp.id)));
+        }
+        const deps = await this.repository.listProductDependencies(versionId);
+
+        const policyChecks: Record<string, () => boolean> = {
+          'product-owner-set': () => Boolean(product.owner?.trim()),
+          'data-classification-set': () => Boolean(product.dataClassification),
+          'gxp-relevance-set': () => Boolean(product.gxpRelevance),
+          'criticality-set': () => Boolean(product.criticality),
+          'urs-baseline-bound': () => Boolean(approvedBaseline?.ursBaselineIds?.length),
+          'validation-decision-approved': () => false, // evaluated separately by validationDecisionResolver
+          'output-contracts-declared': () => contractList.length > 0,
+          'quality-checks-declared': () => contractList.some(c => (c.qualityRules ?? []).length > 0),
+          'product-dependencies-declared': () => deps.length > 0,
+        };
+
         for (const obl of resolution.obligations) {
-          if (obl.appliesTo === 'all' ||
-              (obl.appliesTo === 'gxp' && product.gxpRelevance && product.gxpRelevance !== 'NONE')) {
+          const appliesToThis =
+            obl.appliesTo === 'all' ||
+            (obl.appliesTo === 'gxp' && isGxp) ||
+            (obl.appliesTo === 'commercial' && Boolean(product.declaredPolicies?.length));
+
+          if (!appliesToThis) continue;
+
+          const checkFn = policyChecks[obl.check];
+          if (!checkFn) {
+            // Unknown check — fail loudly per policy principle
+            blockers.push({
+              code: 'POLICY_OBLIGATION_UNMET',
+              message: `[${obl.policyRef}] Unknown policy check "${obl.check}" — update the platform or the policy pack.`,
+            });
+            continue;
+          }
+
+          // Skip validation-decision-approved here: handled by validationDecisionResolver above
+          if (obl.check === 'validation-decision-approved') continue;
+
+          if (!checkFn()) {
             blockers.push({
               code: 'POLICY_OBLIGATION_UNMET',
               message: `[${obl.policyRef}] ${obl.title}: ${obl.message}`,
