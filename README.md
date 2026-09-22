@@ -384,12 +384,21 @@ gh api repos/<owner>/<repo> --jq .permissions
 
 ### Docker
 
+See **[START.md](START.md)** for all four ways to run the platform and which
+one to pick. The short version:
+
 ```bash
-docker compose up --build
+yarn build:backend            # required — the image copies the bundle, it does not build it
+docker compose up --build nexora
 ```
 
-Compose starts PostgreSQL and the Control Plane. UI:
-http://localhost:3000 — backend: http://localhost:7007.
+Compose starts PostgreSQL and the Control Plane on one origin:
+http://localhost:7007, where the backend also serves the built frontend. The
+split 3000/7007 layout is `--profile split` and is not the default.
+
+`yarn build:backend` is not optional: `packages/backend/Dockerfile` copies
+`packages/backend/dist/skeleton.tar.gz` and `bundle.tar.gz` into the image.
+Without it the build fails on a missing file.
 
 Local `yarn start` without Docker uses SQLite from `app-config.yaml`.
 Do not deploy the root `Dockerfile` as production. Production image:
