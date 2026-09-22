@@ -67,8 +67,14 @@ catalog:
       target: ./catalog/org.yaml
       rules:
         - allow: [Group]
+    # Users are stored in the users-backend database, not in a file. This
+    # target is a projection the plugin rewrites from the database at startup
+    # and after every change — never the source of truth, and safe to lose.
+    # catalog/users.seed.yaml is first-install content only, read once into an
+    # empty table; pointing the catalog at it would let a restart undo a role
+    # change.
     - type: file
-      target: ./catalog/users.seed.yaml
+      target: ./catalog/runtime/platform-users.yaml
       rules:
         - allow: [User]
     - type: file

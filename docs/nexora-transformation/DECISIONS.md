@@ -1269,3 +1269,65 @@ Attribution was verified rather than assumed. `audit_events` is append-only,
 version, `updateRequirementSet` writes `updatedBy: actor`, and the persistence
 guard refuses `memory` mode when `auth.environment` is production — a rule that
 exists because production once ran the audit trail in process memory.
+
+### NXD-051 — Users, roles and the audit trail live in the database; seeds are first-install only
+
+User records were kept in `catalog/users.seed.yaml`, rewritten in place by the
+users-backend, with the audit trail appended to JSONL files beside it. Both
+paths resolved against `process.cwd()`, which is `packages/backend` for the dev
+server and `/app` in the image. In a container the plugin therefore wrote
+`/catalog/users.seed.yaml` while the catalog read
+`/app/catalog/users.seed.yaml` — **a role assignment had no effect** — and
+neither path was on a persistent volume, so every role change and every audit
+record **died with the container**.
+
+Records now live in `platform_users`, `user_audit_events` and
+`user_sign_in_events`, owned by the users-backend through
+`coreServices.database`. `knex@^3.0.0` was added to the package; it is the same
+version three sibling plugins already declare and was already in the lockfile,
+so no new dependency entered the repository.
+
+**The seed runs once, against an empty table** — the pattern
+`urs-composer-backend` established and proves in `wd-seed-persistence.test.ts`.
+A restart does not rewrite a role an administrator changed, which is the whole
+point. Content that *should* be re-read on every start — components, templates,
+Golden Paths — stays a catalog file location, because it is versioned in git
+and is not edited at runtime.
+
+**Demo accounts are refused in production.** The committed file carries
+`viewer`, `developer`, `owner`, `admin` and four `urs-*` reviewers, two of them
+holding `platform-admins`. Seeding those into a real deployment would create
+administrators nobody asked for, and because the seed never runs again they
+would stay. Under `auth.environment: production` the seed installs only
+`users.bootstrapAdmin`, and says loudly if that is unset.
+
+**The catalog reads a projection, not the store.** `catalog/runtime/platform-users.yaml`
+is rewritten from the database at startup and after every change. A Catalog
+entity provider would be tidier, but an entity provider is registered through
+`catalogProcessingExtensionPoint`, and an extension point may only be consumed
+by a module *of that plugin* — a `createBackendModule({ pluginId: 'catalog' })`
+would then receive the catalog's `coreServices.database`, not this plugin's, so
+the provider and the router would read different databases. The projection
+keeps the property that matters: the file is written *from* the database,
+never into it, and losing it costs nothing.
+
+**EMU logins are accepted.** The login pattern allowed only `[a-z0-9-]`, so
+`schmeckm_roche` — a GitHub Enterprise Managed User, where the organisation
+shortcode is appended with an underscore — could not be created at all. Since
+the entity name must equal the GitHub login for
+`usernameMatchingUserEntityName` to resolve it, and this endpoint is the only
+supported way to create one, an EMU account could not be given any role.
+
+**The audit records what changed, not a copy of the entity**: `entity` already
+holds the name, and `oldValue`/`newValue` carry `memberOf`, which is what a GMP
+reviewer asks about. Both sides are stored, because "who granted this role" is
+only answerable if the trail says what it was before. Removing a user leaves
+their audit records standing.
+
+Two mistakes made and corrected while building this, both worth recording. A
+`seq` column was first declared inside the `createTable` block — a column added
+there never reaches a database whose table already exists, and the read failed
+with `no such column: seq` against a database created one start earlier. The
+replacement attempt failed too: SQLite cannot add an autoincrement column to an
+existing table. Ordering is now `(timestamp, id)` — deterministic without a
+migration the dev database cannot perform.

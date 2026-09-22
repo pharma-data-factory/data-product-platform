@@ -20,6 +20,7 @@ import {
   canManagePlatformUsers,
   resolvePlatformRole,
   PLATFORM_GROUPS,
+  URS_DOMAIN_GROUPS,
   GROUP_TO_ROLE,
   ROLE_LABELS,
 } from '@internal/platform-common';
@@ -132,6 +133,37 @@ export function UsersRolesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin]);
+
+  /**
+   * Adds or removes one URS domain group, leaving every other membership
+   * untouched.
+   *
+   * A second axis, not a second tier. The platform tier says what someone is;
+   * a `urs-*` group says what they may do with requirements — see NXD-050. The
+   * two are granted and revoked independently, and the audit trail records
+   * each separately, which is what ALCOA attribution needs. Until now these
+   * groups could be held but not assigned here: the page only offered
+   * PLATFORM_GROUPS and silently preserved the rest.
+   */
+  const setUrsRole = async (user: Entity, group: string, member: boolean) => {
+    const current = userMemberOf(user);
+    const next = member
+      ? [...current.filter(g => g !== group), group]
+      : current.filter(g => g !== group);
+    setSaving(true);
+    setNotice(null);
+    try {
+      await apiCall('PUT', `/${user.metadata.name}`, { memberOf: next });
+      await load();
+      setNotice(
+        `${member ? 'Granted' : 'Revoked'} ${group} for ${user.metadata.name}`,
+      );
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const setUserRole = async (user: Entity, value: string) => {
     const nonPlatform = userMemberOf(user).filter(
@@ -330,6 +362,33 @@ export function UsersRolesPage() {
                               </MenuItem>
                             ))}
                             <MenuItem value={BLOCKED}>Blocked (no access)</MenuItem>
+                          </TextField>
+                          <TextField
+                            select
+                            SelectProps={{ multiple: true }}
+                            label="URS roles"
+                            helperText="Author / review rights, independent of the tier"
+                            value={userMemberOf(user).filter(g =>
+                              (URS_DOMAIN_GROUPS as readonly string[]).includes(g),
+                            )}
+                            onChange={e => {
+                              const selected = e.target.value as unknown as string[];
+                              const held = userMemberOf(user).filter(g =>
+                                (URS_DOMAIN_GROUPS as readonly string[]).includes(g),
+                              );
+                              const added = selected.find(g => !held.includes(g));
+                              const removed = held.find(g => !selected.includes(g));
+                              if (added) setUrsRole(user, added, true);
+                              else if (removed) setUrsRole(user, removed, false);
+                            }}
+                            disabled={saving}
+                            style={{ minWidth: 260 }}
+                          >
+                            {URS_DOMAIN_GROUPS.map(group => (
+                              <MenuItem key={group} value={group}>
+                                {group}
+                              </MenuItem>
+                            ))}
                           </TextField>
                           <Button
                             variant="outlined"

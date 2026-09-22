@@ -1,25 +1,24 @@
 /**
  * users-backend router tests.
  *
- * This router is the platform's user and role administration surface: it
- * writes the catalog user seed, appends the audit trail and triggers a catalog
- * refresh. It had no tests at all, which is why the authorization behaviour
- * below was never pinned down.
+ * This router is the platform's user and role administration surface. It used
+ * to rewrite catalog/users.seed.yaml and append JSONL audit files, resolving
+ * both relative to process.cwd() — which is `packages/backend` for the dev
+ * server but `/app` in a container, so the file it wrote was not the file the
+ * catalog read, and neither survived a container replacement.
  *
- * The router resolves both the seed file and the audit files relative to
- * process.cwd(), and the audit paths are not configurable. The tests therefore
- * point cwd at a throwaway directory that mirrors the repository layout, so a
- * run never touches the real catalog/.
+ * Records now live in the database, so these tests run against an in-memory
+ * SQLite instance through the real repository and migrations rather than
+ * against a throwaway directory.
  */
 
 import express from 'express';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import knex, { Knex } from 'knex';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { listenOnFetchablePort } from '@internal/backend-test-utils';
 
 import { createRouter } from './router';
+import { UsersRepository } from './repository';
 
 const ADMIN = 'user:default/platform-admin';
 
@@ -51,13 +50,12 @@ async function call(
 }
 
 describe('users-backend router', () => {
-  let tmpRoot: string;
-  let seedFile: string;
-  let auditFile: string;
-  let signinFile: string;
+  let db: Knex;
+  let repository: UsersRepository;
   let decision: AuthorizeResult;
 
-  const catalog = { refreshEntity: jest.fn() };
+  const refresh = jest.fn();
+  const projection = { publish: refresh } as never;
   const httpAuth = {
     credentials: jest.fn(async () => ({
       $$type: '@backstage/BackstageCredentials',
@@ -68,25 +66,20 @@ describe('users-backend router', () => {
     authorize: jest.fn(async () => [{ result: decision }]),
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     decision = AuthorizeResult.ALLOW;
-
-    // Mirror the repo layout so the router's "../../catalog/..." paths stay
-    // inside the throwaway directory.
-    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'users-backend-'));
-    const cwd = path.join(tmpRoot, 'packages', 'backend');
-    fs.mkdirSync(cwd, { recursive: true });
-    jest.spyOn(process, 'cwd').mockReturnValue(cwd);
-
-    seedFile = path.join(tmpRoot, 'catalog', 'users.seed.yaml');
-    auditFile = path.join(tmpRoot, 'catalog', 'runtime', 'users-audit.jsonl');
-    signinFile = path.join(tmpRoot, 'catalog', 'runtime', 'signin-audit.jsonl');
+    db = knex({
+      client: 'better-sqlite3',
+      connection: { filename: ':memory:' },
+      useNullAsDefault: true,
+    });
+    await db.raw('select 1');
+    repository = await UsersRepository.create({ getClient: () => db });
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  afterEach(async () => {
+    await db?.destroy();
   });
 
   async function app() {
@@ -100,21 +93,14 @@ describe('users-backend router', () => {
       } as never,
       httpAuth: httpAuth as never,
       permissions: permissions as never,
-      catalog: catalog as never,
-      config: { getOptionalString: () => undefined } as never,
+      repository,
+      projection,
     });
     return express().use(router);
   }
 
-  function auditRecords() {
-    if (!fs.existsSync(auditFile)) {
-      return [];
-    }
-    return fs
-      .readFileSync(auditFile, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .map(line => JSON.parse(line));
+  async function auditRecords() {
+    return repository.listAudit();
   }
 
   describe('health', () => {
@@ -149,9 +135,9 @@ describe('users-backend router', () => {
 
       await call(await app(), 'POST', '/', { login: 'mallory' });
 
-      expect(fs.existsSync(seedFile)).toBe(false);
-      expect(auditRecords()).toHaveLength(0);
-      expect(catalog.refreshEntity).not.toHaveBeenCalled();
+      expect(await repository.listUsers()).toHaveLength(0);
+      expect(await auditRecords()).toHaveLength(0);
+      expect(refresh).not.toHaveBeenCalled();
     });
   });
 
@@ -180,11 +166,11 @@ describe('users-backend router', () => {
       expect(listed.body).toHaveLength(1);
       expect(listed.body[0].metadata.name).toBe('ada');
 
-      const audit = auditRecords();
+      const audit: any[] = await auditRecords();
       expect(audit).toHaveLength(1);
       expect(audit[0]).toMatchObject({ actor: ADMIN, action: 'CREATED', entity: 'ada' });
 
-      expect(catalog.refreshEntity).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
     });
 
     it('normalises the login to lower case', async () => {
@@ -196,12 +182,24 @@ describe('users-backend router', () => {
     it.each([
       ['empty', ''],
       ['leading dash', '-ada'],
-      ['underscore', 'ada_lovelace'],
       ['slash', 'ada/lovelace'],
+      ['space', 'ada lovelace'],
     ])('rejects an invalid login (%s)', async (_label, login) => {
       const res = await call(await app(), 'POST', '/', { login });
       expect(res.status).toBe(400);
-      expect(fs.existsSync(seedFile)).toBe(false);
+      expect(await repository.listUsers()).toHaveLength(0);
+    });
+
+    it('accepts an Enterprise Managed User login', async () => {
+      // Underscores used to be rejected here. GitHub EMU accounts carry the
+      // organisation shortcode as `name_org`, and the entity name must equal
+      // the login for usernameMatchingUserEntityName to resolve it — so the
+      // old rule made it impossible to give an EMU account any role at all.
+      const res = await call(await app(), 'POST', '/', {
+        login: 'schmeckm_roche',
+      });
+      expect(res.status).toBe(201);
+      expect(res.body.metadata.name).toBe('schmeckm_roche');
     });
 
     it('rejects a duplicate login', async () => {
@@ -210,7 +208,7 @@ describe('users-backend router', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('already exists');
-      expect(auditRecords()).toHaveLength(1);
+      expect(await auditRecords()).toHaveLength(1);
     });
 
     it('defaults memberOf to empty when it is not an array', async () => {
@@ -237,10 +235,19 @@ describe('users-backend router', () => {
       expect(res.status).toBe(200);
       expect(res.body.spec.memberOf).toEqual(['group:default/platform-admins']);
 
-      const audit = auditRecords();
+      const audit: any[] = await auditRecords();
       expect(audit).toHaveLength(2);
-      expect(audit[1]).toMatchObject({ actor: ADMIN, action: 'UPDATED', entity: 'ada' });
-      expect(audit[1].oldValue.spec.memberOf).toEqual(['group:default/viewers']);
+      // Found by action, not by position: two records written in the same
+      // millisecond order by id, which is deterministic but not chronological.
+      const updated = audit.find(a => a.action === 'UPDATED');
+      expect(updated).toMatchObject({ actor: ADMIN, entity: 'ada' });
+      // The trail records what changed, not a copy of the whole entity:
+      // the name is already in `entity`, and memberOf is the thing a GMP
+      // reviewer asks about.
+      expect(updated.oldValue.memberOf).toEqual(['group:default/viewers']);
+      expect(updated.newValue.memberOf).toEqual([
+        'group:default/platform-admins',
+      ]);
     });
 
     it('rejects an unknown user', async () => {
@@ -262,9 +269,11 @@ describe('users-backend router', () => {
       const listed = await call(await app(), 'GET', '/');
       expect(listed.body).toEqual([]);
 
-      const audit = auditRecords();
-      expect(audit[1]).toMatchObject({ actor: ADMIN, action: 'REMOVED', entity: 'ada' });
-      expect(audit[1].oldValue.metadata.name).toBe('ada');
+      const audit: any[] = await auditRecords();
+      const removed = audit.find(a => a.action === 'REMOVED');
+      expect(removed).toMatchObject({ actor: ADMIN, entity: 'ada' });
+      // The audit record outlives the account on purpose.
+      expect(removed.oldValue.memberOf).toBeDefined();
     });
 
     it('rejects an unknown user', async () => {
@@ -303,11 +312,7 @@ describe('users-backend router', () => {
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ recorded: true });
 
-      const recorded = fs
-        .readFileSync(signinFile, 'utf8')
-        .split('\n')
-        .filter(Boolean)
-        .map(line => JSON.parse(line));
+      const recorded = await repository.listSignIns();
       expect(recorded).toHaveLength(1);
       expect(recorded[0]).toMatchObject({ actor: ADMIN, provider: 'github' });
     });

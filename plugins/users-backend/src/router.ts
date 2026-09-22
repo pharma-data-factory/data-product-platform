@@ -1,115 +1,36 @@
 import express from 'express';
 import Router from 'express-promise-router';
-import fs from 'fs';
-import path from 'path';
-import YAML from 'yaml';
 import { InputError, NotAllowedError } from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
   PermissionsService,
-  RootConfigService,
   type BackstageCredentials,
 } from '@backstage/backend-plugin-api';
-import {
-  CatalogService,
-  locationSpecToMetadataName,
-} from '@backstage/plugin-catalog-node';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import type { Entity } from '@backstage/catalog-model';
 import { platformUserManagePermission } from '@internal/platform-common';
-
-const LOCATION_TYPE = 'file';
-const LOCATION_TARGET = '../../catalog/users.seed.yaml';
+import type { PlatformUserRecord, UsersRepository } from './repository';
+import { toUserEntity } from './entityProvider';
+import type { CatalogUserProjection } from './entityProvider';
 
 interface RouterOptions {
   logger: LoggerService;
   httpAuth: HttpAuthService;
   permissions: PermissionsService;
-  catalog: CatalogService;
-  config: RootConfigService;
+  repository: UsersRepository;
+  projection: CatalogUserProjection;
 }
 
-interface AuditRecord {
-  timestamp: string;
-  actor: string;
-  action: 'CREATED' | 'UPDATED' | 'REMOVED';
-  entity: string;
-  oldValue?: unknown;
-  newValue?: unknown;
-}
-
-function usersFile(config: RootConfigService): string {
-  const relative =
-    config.getOptionalString('users.runtimeFile') ?? LOCATION_TARGET;
-  return path.resolve(process.cwd(), relative);
-}
-
-function auditFile(): string {
-  return path.resolve(process.cwd(), '../../catalog/runtime/users-audit.jsonl');
-}
-
-function readUsers(file: string): Entity[] {
-  if (!fs.existsSync(file)) {
-    return [];
-  }
-  try {
-    return YAML.parseAllDocuments(fs.readFileSync(file, 'utf8'))
-      .filter(doc => Boolean(doc) && !doc.errors?.length)
-      .map(doc => doc.toJS())
-      .filter(
-        (value): value is Entity =>
-          value !== null && typeof value === 'object' && !Array.isArray(value),
-      );
-  } catch {
-    return [];
-  }
-}
-
-function writeUsers(file: string, users: Entity[]): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const content = users.map(user => YAML.stringify(user)).join('---\n');
-  fs.writeFileSync(file, content ? `${content}\n` : '', 'utf8');
-}
-
-function appendAudit(file: string, record: AuditRecord): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8');
-}
-
-interface SignInRecord {
-  timestamp: string;
-  actor: string;
-  provider: string;
-}
-
-function signinFile(): string {
-  return path.resolve(process.cwd(), '../../catalog/runtime/signin-audit.jsonl');
-}
-
-function appendSignIn(file: string, record: SignInRecord): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8');
-}
-
-function userEntity(input: {
-  login: string;
-  displayName?: string;
-  memberOf: string[];
-}): Entity {
-  return {
-    apiVersion: 'backstage.io/v1alpha1',
-    kind: 'User',
-    metadata: {
-      name: input.login,
-      annotations: { 'github.com/user-login': input.login },
-    },
-    spec: {
-      profile: { displayName: input.displayName || input.login },
-      memberOf: input.memberOf,
-    },
-  };
-}
+/**
+ * GitHub login grammar.
+ *
+ * Underscores and dots are allowed because GitHub Enterprise Managed Users
+ * carry the organisation shortcode as `name_org` — `schmeckm_roche`. Without
+ * them an EMU account cannot be given a role at all: the entity name must
+ * equal the GitHub login for `usernameMatchingUserEntityName` to resolve it,
+ * and this endpoint is the only supported way to create one.
+ */
+const LOGIN_PATTERN = /^[a-z0-9]([a-z0-9._-]{0,62})$/;
 
 async function authorize(
   permissions: PermissionsService,
@@ -125,166 +46,126 @@ async function authorize(
     throw new NotAllowedError();
   }
   const principal = credentials.principal as { userEntityRef?: string };
-  return {
-    actor: principal.userEntityRef ?? 'unknown',
-    credentials,
-  };
+  return { actor: principal.userEntityRef ?? 'unknown', credentials };
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, catalog, config } = options;
+  const { logger, httpAuth, permissions, repository, projection } = options;
   const router = Router();
   router.use(express.json());
 
-  const locationRef = `location:default/${locationSpecToMetadataName({
-    type: LOCATION_TYPE,
-    target: LOCATION_TARGET,
-  })}`;
-
-  const refresh = async (credentials: BackstageCredentials) => {
-    await catalog.refreshEntity(locationRef, { credentials });
-  };
+  // The catalog is told to re-read after every write, so a role change is
+  // visible on the next request rather than at the next refresh cycle.
+  const republish = () => projection.publish();
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
+  // Returns Catalog entities, not rows: the admin UI reads users from the
+  // catalog and this endpoint alongside it, and two shapes for one concept
+  // would be a trap.
   router.get('/', async (req, res) => {
     await authorize(permissions, httpAuth, req);
-    res.json(readUsers(usersFile(config)));
+    const users = await repository.listUsers();
+    res.json(users.map(toUserEntity));
   });
 
   router.post('/', async (req, res) => {
-    const { actor, credentials } = await authorize(permissions, httpAuth, req);
+    const { actor } = await authorize(permissions, httpAuth, req);
     const login = (req.body?.login ?? '').toString().trim().toLowerCase();
-    if (!login || !/^[a-z0-9]([a-z0-9-]{0,62})$/.test(login)) {
-      throw new InputError('A valid GitHub login is required');
+    if (!login || !LOGIN_PATTERN.test(login)) {
+      throw new InputError(
+        'A valid GitHub login is required: lowercase letters or digits, then ' +
+          'letters, digits, -, _ or .',
+      );
     }
-    const memberOf = Array.isArray(req.body?.memberOf) ? req.body.memberOf : [];
-    const file = usersFile(config);
-    const users = readUsers(file);
-    if (users.some(u => u.metadata.name === login)) {
+    if (await repository.getUser(login)) {
       throw new InputError(`User ${login} already exists`);
     }
-    const entity = userEntity({
-      login,
-      displayName: req.body?.displayName,
+    const memberOf = Array.isArray(req.body?.memberOf) ? req.body.memberOf : [];
+    const created = await repository.createUser({
+      name: login,
+      displayName: (req.body?.displayName || login).toString(),
       memberOf,
+      actor,
     });
-    users.push(entity);
-    writeUsers(file, users);
-    appendAudit(auditFile(), {
-      timestamp: new Date().toISOString(),
+    await repository.appendAudit({
       actor,
       action: 'CREATED',
       entity: login,
-      newValue: entity,
+      newValue: { memberOf: created.memberOf },
     });
-    await refresh(credentials);
-    res.status(201).json(entity);
+    await republish();
+    res.status(201).json(toUserEntity(created));
   });
 
   router.put('/:name', async (req, res) => {
-    const { actor, credentials } = await authorize(permissions, httpAuth, req);
+    const { actor } = await authorize(permissions, httpAuth, req);
     const name = req.params.name;
-    const memberOf = Array.isArray(req.body?.memberOf) ? req.body.memberOf : [];
-    const file = usersFile(config);
-    const users = readUsers(file);
-    const existing = users.find(u => u.metadata.name === name);
+    const existing = await repository.getUser(name);
     if (!existing) {
       throw new InputError(`User ${name} not found`);
     }
-    const updated: Entity = {
-      ...existing,
-      spec: { ...(existing.spec as object), memberOf },
-    };
-    writeUsers(
-      file,
-      users.map(u => (u.metadata.name === name ? updated : u)),
-    );
-    appendAudit(auditFile(), {
-      timestamp: new Date().toISOString(),
+    const memberOf = Array.isArray(req.body?.memberOf) ? req.body.memberOf : [];
+    const updated = await repository.setMemberOf(name, memberOf, actor);
+    // Both sides recorded: "who granted this role" is only answerable if the
+    // trail says what it was before.
+    await repository.appendAudit({
       actor,
       action: 'UPDATED',
       entity: name,
-      oldValue: existing,
-      newValue: updated,
+      oldValue: { memberOf: existing.memberOf },
+      newValue: { memberOf: updated.memberOf },
     });
-    await refresh(credentials);
-    res.json(updated);
+    await republish();
+    res.json(toUserEntity(updated));
   });
 
   router.delete('/:name', async (req, res) => {
-    const { actor, credentials } = await authorize(permissions, httpAuth, req);
+    const { actor } = await authorize(permissions, httpAuth, req);
     const name = req.params.name;
-    const file = usersFile(config);
-    const users = readUsers(file);
-    const existing = users.find(u => u.metadata.name === name);
+    const existing = await repository.getUser(name);
     if (!existing) {
       throw new InputError(`User ${name} not found`);
     }
-    writeUsers(
-      file,
-      users.filter(u => u.metadata.name !== name),
-    );
-    appendAudit(auditFile(), {
-      timestamp: new Date().toISOString(),
+    await repository.deleteUser(name);
+    // The audit record outlives the account on purpose.
+    await repository.appendAudit({
       actor,
       action: 'REMOVED',
       entity: name,
-      oldValue: existing,
+      oldValue: { memberOf: existing.memberOf },
     });
-    await refresh(credentials);
+    await republish();
     res.json({ removed: name });
   });
 
   router.get('/audit', async (req, res) => {
     await authorize(permissions, httpAuth, req);
-    const file = auditFile();
-    if (!fs.existsSync(file)) {
-      res.json([]);
-      return;
-    }
-    const lines = fs
-      .readFileSync(file, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .map(line => JSON.parse(line) as AuditRecord);
-    res.json(lines);
+    res.json(await repository.listAudit());
   });
 
-  // Sign-in audit — any authenticated user records their own sign-in.
   router.post('/signins', async (req, res) => {
-    const auth = await httpAuth.credentials(req, { allow: ['user'] });
-    const principal = auth.principal as { userEntityRef?: string };
-    const actor = principal.userEntityRef ?? 'unknown';
-    const provider = String(req.body?.provider ?? 'unknown');
-    appendSignIn(signinFile(), {
-      timestamp: new Date().toISOString(),
-      actor,
-      provider,
-    });
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+    const principal = credentials.principal as { userEntityRef?: string };
+    const provider_ = (req.body?.provider ?? 'unknown').toString();
+    await repository.appendSignIn(
+      principal.userEntityRef ?? 'unknown',
+      provider_,
+    );
     res.status(201).json({ recorded: true });
   });
 
-  // Sign-in audit — admin-only read.
   router.get('/signins', async (req, res) => {
     await authorize(permissions, httpAuth, req);
-    const file = signinFile();
-    if (!fs.existsSync(file)) {
-      res.json([]);
-      return;
-    }
-    const lines = fs
-      .readFileSync(file, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .map(line => JSON.parse(line) as SignInRecord);
-    res.json(lines);
+    res.json(await repository.listSignIns());
   });
 
+  // Without this the default Express handler answers HTML, and a client that
+  // expects JSON gets a parse error instead of a status it can act on.
   router.use(
     (
       error: Error,
@@ -307,3 +188,5 @@ export async function createRouter(
 
   return router;
 }
+
+export type { PlatformUserRecord };
