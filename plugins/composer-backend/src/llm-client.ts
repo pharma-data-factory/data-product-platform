@@ -1,5 +1,7 @@
 import { isComponentType, type ComponentType } from '@internal/platform-common';
 import {
+  buildProductAnalystSystemPrompt,
+  buildProductAnalystUserPrompt,
   buildProductSpecSystemPrompt,
   buildProductSpecUserPrompt,
   type ProductSpecContext,

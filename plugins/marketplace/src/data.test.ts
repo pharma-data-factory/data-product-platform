@@ -50,7 +50,9 @@ const catalogProduct: DataProduct = {
  * see `offeringSource.ts` — so this is test data only, and it is not sorted,
  * filtered, or shipped to a consumer.
  */
-const items: MarketplaceItem[] = [
+const baseItems: Array<
+  Omit<MarketplaceItem, 'publisherTrustLevel' | 'externalPublisher'>
+> = [
   {
     id: 'python-microservice',
     name: 'Python Microservice',
@@ -224,6 +226,17 @@ const items: MarketplaceItem[] = [
     documentation: '/docs/marketplace',
   },
 ];
+
+/**
+ * Every fixture above reproduces a pre-Phase-7 offering, so all of them carry
+ * the publisher defaults `P7-S4` defines for that case: an INTERNAL trust tier
+ * and no external publisher. Applied here rather than repeated twelve times.
+ */
+const items: MarketplaceItem[] = baseItems.map(item => ({
+  ...item,
+  publisherTrustLevel: 'INTERNAL',
+  externalPublisher: false,
+}));
 
 describe('marketplace data', () => {
   it('includes the required MVP entries and categories', () => {

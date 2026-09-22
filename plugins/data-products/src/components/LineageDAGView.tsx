@@ -38,6 +38,24 @@ interface GraphEdge {
   to: string;
 }
 
+/** Which of the three visual roles a node plays in the graph. */
+type NodeRole = 'root' | 'contract' | 'consumer';
+
+function nodeRole(node: Pick<GraphNode, 'isRoot' | 'isContract'>): NodeRole {
+  if (node.isRoot) return 'root';
+  if (node.isContract) return 'contract';
+  return 'consumer';
+}
+
+const NODE_COLOURS: Record<
+  NodeRole,
+  { fill: string; textFill: string; stroke: string }
+> = {
+  root: { fill: '#1e1b4b', textFill: '#fff', stroke: '#4338ca' },
+  contract: { fill: '#f0f9ff', textFill: '#1e1b4b', stroke: '#7dd3fc' },
+  consumer: { fill: '#f5f3ff', textFill: '#1e1b4b', stroke: '#a5b4fc' },
+};
+
 const NODE_W = 160;
 const NODE_H = 40;
 const H_GAP = 220;
@@ -58,7 +76,7 @@ function buildGraph(productName: string, impact: ImpactResult): { nodes: GraphNo
   });
 
   // Contracts (midway)
-  impact.affectedContracts.slice(0, 4).forEach((cId, i) => {
+  impact.affectedContracts.slice(0, 4).forEach((_contractId, i) => {
     const y = 200 + (i - impact.affectedContracts.length / 2) * V_GAP;
     const nodeId = `contract-${i}`;
     nodes.push({ id: nodeId, label: `contract ${i + 1}`, isRoot: false, isContract: true, x: H_GAP * 1.5, y });
@@ -127,9 +145,7 @@ function SVGGraph({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }) 
       {/* Nodes */}
       {nodes.map(n => {
         const isHov = hovered === n.id;
-        const fill = n.isRoot ? '#1e1b4b' : n.isContract ? '#f0f9ff' : '#f5f3ff';
-        const textFill = n.isRoot ? '#fff' : '#1e1b4b';
-        const stroke = n.isRoot ? '#4338ca' : n.isContract ? '#7dd3fc' : '#a5b4fc';
+        const { fill, textFill, stroke } = NODE_COLOURS[nodeRole(n)];
         return (
           <g key={n.id} transform={`translate(${n.x},${n.y})`}
             onMouseEnter={() => setHovered(n.id)}
@@ -162,7 +178,7 @@ export function LineageDAGView({ productName }: { productName: string }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!productName) return;
+    if (!productName) return undefined;
     let active = true;
     setLoading(true);
     discoveryApi.getBaseUrl('composer').then(async base => {

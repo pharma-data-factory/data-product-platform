@@ -6,7 +6,9 @@
  * here for convenience.
  */
 
-import type { ComponentType, QualityRule, UpgradeNotification } from '@internal/platform-common';
+// UpgradeNotification is not imported here — it is re-exported directly from
+// platform-common below, so an import binding would go unused.
+import type { ComponentType, QualityRule } from '@internal/platform-common';
 
 export type {
   Product,

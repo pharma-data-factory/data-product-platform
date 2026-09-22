@@ -483,18 +483,21 @@ function QualityTab({
   const [liveLoading, setLiveLoading] = useState(false);
 
   useEffect(() => {
-    if (!entityRef) return;
+    if (!entityRef) return undefined;
     let active = true;
     setLiveLoading(true);
     qualityApi
       .getQuality(entityRef)
       .then(result => {
-        if (!active || !result.value) return;
-        const health = result.value;
+        if (!active || !result.data) return;
+        const health = result.data;
         const checks: Record<string, string> = {};
         for (const [key, check] of Object.entries(health)) {
           if (check && typeof check === 'object' && 'state' in check) {
-            checks[key] = `${(check as { state: string }).state}${(check as { message?: string }).message ? ` — ${(check as { message: string }).message}` : ''}`;
+            const detail = check as { state: string; message?: string };
+            checks[key] = detail.message
+              ? `${detail.state} — ${detail.message}`
+              : detail.state;
           }
         }
         setLiveHealth(checks);

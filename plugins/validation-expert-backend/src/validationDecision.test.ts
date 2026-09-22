@@ -42,8 +42,8 @@ function makeService() {
 
   const service = new ValidationExpertService({
     repository: repo,
-    runnerRegistry: { getRunner: () => undefined } as any,
-    basePath: '/unused',
+    runners: { getRunner: () => undefined } as any,
+    validationRoot: '/unused',
   });
   return { service, repo };
 }

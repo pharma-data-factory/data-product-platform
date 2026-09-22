@@ -9,6 +9,10 @@
  *   import { DataProductHealth } from '@internal/nexora-industrial-vocab'
  */
 
+// Type-only: platform-common re-exports this package as a compatibility shim,
+// so a value import would close a runtime cycle. `import type` is erased.
+import type { CatalogEntityLike } from '@internal/platform-common';
+
 export const NEXORA_ANNOTATION_PREFIX = 'nexora.io';
 
 export const NEXORA_ANNOTATIONS = {

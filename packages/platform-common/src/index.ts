@@ -645,6 +645,8 @@ export {
 } from './product';
 export {
   QUALITY_RULE_TYPES,
+  SUBSCRIPTION_STATUSES,
+  UPGRADE_NOTIFICATION_TYPES,
   isQualityRuleType,
 } from './product';
 export type {
@@ -655,8 +657,6 @@ export type {
   DataContract,
   ProductDependency,
   ContractSubscription,
-  SUBSCRIPTION_STATUSES,
-  UPGRADE_NOTIFICATION_TYPES,
   TraceabilityLink,
   ProductBaseline,
   ProductType,
@@ -680,6 +680,7 @@ export type {
 export {
   CONTRACT_COMPAT_STATUSES,
   compareJsonSchemas,
+  detectSchemaDrift,
   evaluateContractCompatibility,
   parseSemver as parseContractSemver,
 } from './contract-compatibility';
@@ -688,6 +689,8 @@ export type {
   ContractCompatFinding,
   ContractCompatReport,
   JsonSchemaLike,
+  SchemaDriftResult,
+  SchemaSnapshot,
 } from './contract-compatibility';
 
 // Registry Federation types (W3-7 foundation)

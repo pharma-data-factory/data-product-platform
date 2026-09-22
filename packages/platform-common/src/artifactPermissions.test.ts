@@ -27,8 +27,11 @@ describe('the permission barrel', () => {
     // permissions.ts but not to that list resolves to `undefined` in every
     // consuming plugin — a router would then authorize against nothing, and
     // only a runtime read of `.name` would notice.
+    // Widened to unknown[] first: the union of every platform-common export
+    // value does not overlap `{ name: string }`, so the predicate cannot be
+    // narrowed from it directly.
     const exported = new Set(
-      Object.values(platformCommon)
+      (Object.values(platformCommon) as unknown[])
         .filter(
           (value): value is { name: string } =>
             typeof value === 'object' &&

@@ -89,6 +89,14 @@ export interface ReleaseGateBlocker {
   message: string;
 }
 
+/**
+ * Page size `getArtifactChangeImpact` reads the product table with. Impact
+ * analysis is only correct if it sees every product, so this has to exceed the
+ * real product count; it is a bound against an unbounded scan, not a page the
+ * caller can walk.
+ */
+const ARTIFACT_IMPACT_SCAN_LIMIT = 10_000;
+
 const VALID_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ['APPROVED'],
   APPROVED: ['RELEASE_CANDIDATE'],
@@ -737,7 +745,8 @@ export class ComposerService {
         // Evaluate each obligation's `check` identifier against the product's
         // actual data. Unknown check IDs fail loudly (same rule as platform-policy.ts).
         const isGxp = product.gxpRelevance && product.gxpRelevance !== 'NONE';
-        const components = await this.repository.listProductComponents(versionId);
+        // Reuses the `components` already loaded above for the NO_COMPONENTS
+        // check — same version, same query.
         const contractList: DataContract[] = [];
         for (const comp of components) {
           contractList.push(...(await this.repository.listDataContracts(comp.id)));
@@ -1723,11 +1732,17 @@ export class ComposerService {
     const hasChanges = addedComponents.length > 0 || removedComponents.length > 0 ||
       addedContracts.length > 0 || removedContracts.length > 0;
 
-    const recommendation = hasChanges
-      ? `Full IQ and targeted OQ/UAT for changed components: ${[...addedComponents, ...removedComponents].join(', ') || 'none'}.`
-      : previous
-      ? 'No structural changes since last baseline. Regression test only.'
-      : 'First approved baseline — full IQ/OQ/UAT required.';
+    let recommendation: string;
+    if (hasChanges) {
+      const changed =
+        [...addedComponents, ...removedComponents].join(', ') || 'none';
+      recommendation = `Full IQ and targeted OQ/UAT for changed components: ${changed}.`;
+    } else if (previous) {
+      recommendation =
+        'No structural changes since last baseline. Regression test only.';
+    } else {
+      recommendation = 'First approved baseline — full IQ/OQ/UAT required.';
+    }
 
     return {
       productVersionId,
@@ -1800,9 +1815,16 @@ export class ComposerService {
     affectedVersions: Array<{ productVersionId: string; productName: string }>;
     totalAffected: number;
   }> {
-    // Find all products whose name matches the artifact (heuristic for now)
-    const products = await this.repository.listProducts();
-    const matched = products.filter(p => p.name.toLowerCase().includes(artifactName.toLowerCase()));
+    // Find all products whose name matches the artifact (heuristic for now).
+    // listProducts is paginated; impact analysis has to see every product, so
+    // this asks for a page large enough to be the whole table in practice.
+    const { items: products } = await this.repository.listProducts(
+      ARTIFACT_IMPACT_SCAN_LIMIT,
+      0,
+    );
+    const matched = products.filter(p =>
+      p.name.toLowerCase().includes(artifactName.toLowerCase()),
+    );
     const affectedContracts = new Set<string>();
     const affectedVersions: Array<{ productVersionId: string; productName: string }> = [];
 

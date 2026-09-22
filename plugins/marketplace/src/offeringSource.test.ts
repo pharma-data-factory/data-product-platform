@@ -165,6 +165,8 @@ describe('offeringViewToItem', () => {
       status: 'available',
       certificationStatus: 'TESTED',
       documentation: '/docs',
+      publisherTrustLevel: 'INTERNAL',
+      externalPublisher: false,
     };
     expect(offeringViewToItem(view)?.category).toBe('Connectors');
   });
@@ -181,6 +183,8 @@ describe('offeringViewToItem', () => {
       status: 'available',
       certificationStatus: 'TESTED',
       documentation: '/docs',
+      publisherTrustLevel: 'INTERNAL',
+      externalPublisher: false,
     };
     expect(offeringViewToItem(view)).toBeUndefined();
   });

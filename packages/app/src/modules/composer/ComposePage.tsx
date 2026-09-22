@@ -1169,7 +1169,14 @@ export function ComposePage() {
                       {secret && (
                         <span
                           title="Secret — store in deployment secrets, never in .env committed to source control"
-                          style={{ marginLeft: 4, fontSize: '0.75em', background: '#b71c1c', color: '#fff', borderRadius: 3, padding: '1px 4px' }}
+                          style={{
+                            marginLeft: 4,
+                            fontSize: '0.75em',
+                            background: NEXORA_TONE.danger.bg,
+                            color: NEXORA_TONE.danger.fg,
+                            borderRadius: 3,
+                            padding: '1px 4px',
+                          }}
                         >
                           SECRET
                         </span>

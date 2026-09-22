@@ -541,11 +541,6 @@ describe('Phase 1: Versioning Foundation', () => {
     let serviceWithDecisionResolver: ComposerService;
     let mockUrsResolver: UrsBaselineResolver;
     let mockDecisionResolver: ValidationDecisionResolver;
-    const repository2 = (() => {
-      let r: any;
-      return { get: async () => r, set: (v: any) => { r = v; } };
-    })();
-
     beforeAll(async () => {
       const repo = await ComposerRepository.create({ getClient: () => db });
       mockUrsResolver = {

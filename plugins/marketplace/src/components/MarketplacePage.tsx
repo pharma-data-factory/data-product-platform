@@ -87,6 +87,16 @@ const useStyles = makeStyles(theme => ({
   },
 }));
 
+/**
+ * What the Publisher column shows. An internal offering names its provider;
+ * an external one names its trust tier instead, so a reader can tell a
+ * reviewed Partner artifact from an unreviewed Community one (P7-S4).
+ */
+function publisherLabel(item: MarketplaceItem): string {
+  if (!item.externalPublisher) return item.provider;
+  return item.publisherTrustLevel === 'PARTNER' ? '✓ Partner' : '⚠ Community';
+}
+
 export function MarketplacePage() {
   const classes = useStyles();
   const navigate = useNavigate();
@@ -271,11 +281,7 @@ export function MarketplacePage() {
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.version}</TableCell>
                       <TableCell>
-                        {item.externalPublisher
-                          ? item.publisherTrustLevel === 'PARTNER'
-                            ? '✓ Partner'
-                            : '⚠ Community'
-                          : item.provider}
+                        {publisherLabel(item)}
                       </TableCell>
                       <TableCell>
                         {item.qualityStatus ? (

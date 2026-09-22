@@ -113,6 +113,14 @@ describe('Phase 1 brand separation', () => {
     expect(backendPackage.scripts['build-image']).not.toContain(
       '--tag backstage',
     );
-    expect(compose).toContain('image: pharma-data-factory');
+    // The guarantee is that the local stack pins an image this project owns
+    // rather than a stock upstream one. Two project names are live at once:
+    // `build-image` still tags `pharma-data-factory:mvp-1.0` while
+    // docker-compose.yml was rewritten to `nexora:latest` during the Nexora
+    // rebrand. Both satisfy brand separation, so both are accepted here —
+    // but the two should be reconciled to one name, and this assertion
+    // tightened back to it, once that decision is made.
+    expect(compose).toMatch(/^\s*image: (pharma-data-factory|nexora)/m);
+    expect(compose).not.toMatch(/^\s*image: backstage/m);
   });
 });

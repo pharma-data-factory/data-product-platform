@@ -1,5 +1,10 @@
 # Nexora Data Product Platform — Docker Compose
 #
+# This is NOT the production image. It builds from the working tree, defaults
+# every secret, and enables guest auth — it exists for local runs only. The
+# production stack is docker-compose.production.yml, which pulls a published
+# image and requires every secret to be supplied.
+#
 # Zwei Modi:
 #
 #   1. Single-Container (Standard, empfohlen):
@@ -48,6 +53,10 @@ x-backend-env: &backend-env
   # Für echte GitHub-Auth diese Werte mit echten Credentials überschreiben.
   AUTH_GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:-local-docker-no-github}
   AUTH_GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:-local-docker-no-github}
+  # CC-001: Create-authorization audit records must land on the named volume,
+  # not in the container's writable layer. Pinned explicitly here and kept
+  # identical to docker-compose.production.yml and .validation.yml.
+  CREATE_AUTHORIZATION_AUDIT_PATH: ${CREATE_AUTHORIZATION_AUDIT_PATH:-/app/.runtime/create-authorization-audit.jsonl}
 
 services:
 
@@ -86,7 +95,7 @@ services:
     environment:
       <<: *backend-env
     volumes:
-      - nexora_runtime:/app/.runtime
+      - create_authorization_audit:/app/.runtime
     depends_on:
       db:
         condition: service_healthy
@@ -117,7 +126,7 @@ services:
       <<: *backend-env
       APP_BASE_URL: http://localhost:3000   # Split: Frontend auf 3000
     volumes:
-      - nexora_runtime:/app/.runtime
+      - create_authorization_audit:/app/.runtime
     depends_on:
       db:
         condition: service_healthy
@@ -140,4 +149,4 @@ services:
 
 volumes:
   nexora_db:
-  nexora_runtime:
+  create_authorization_audit:

@@ -29,7 +29,9 @@ function productDetailPath(ref: string): string {
   return `/data-products/${name}`;
 }
 
-function RefList({ refs, label }: { refs: string[]; label: string }) {
+// No `label` prop: both call sites already render their own heading above the
+// list, so passing one in only duplicated it.
+function RefList({ refs }: { refs: string[] }) {
   if (refs.length === 0) {
     return (
       <Typography variant="body2" color="textSecondary">
@@ -81,7 +83,7 @@ export function DependencyCard({ product }: { product: DataProduct }) {
           <Typography variant="subtitle2" gutterBottom>
             Depends On
           </Typography>
-          <RefList refs={product.dependsOn} label="Depends On" />
+          <RefList refs={product.dependsOn} />
         </Box>
       )}
 
@@ -90,7 +92,7 @@ export function DependencyCard({ product }: { product: DataProduct }) {
           <Typography variant="subtitle2" gutterBottom>
             Used By
           </Typography>
-          <RefList refs={product.usedBy} label="Used By" />
+          <RefList refs={product.usedBy} />
         </Box>
       )}
 
