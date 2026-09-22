@@ -24,6 +24,7 @@ import {
   SnapshotItemChange,
   TraceabilityLink,
   contractRef,
+  validateContractExchange,
   findVersionLabelClash,
   parseContractRef,
   isQualityRuleType,
@@ -37,6 +38,7 @@ import {
   validateTraceabilityLink,
   evaluateContractCompatibility,
   type ContractCompatReport,
+  type ContractExchange,
   type JsonSchemaLike,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
@@ -182,6 +184,13 @@ export class ComposerService {
       consumers: request.consumers,
       slo: request.slo,
       costInfo: request.costInfo,
+      // Was missing: CreateProductRequest declares it and the products table
+      // has the column, but the mapping was never written, so every product
+      // created through the API stored NULL. checkReleaseGate only resolves
+      // Policy Packs when declaredPolicies is non-empty, which meant the whole
+      // 5-R1 mechanism was inert for API-created products — the gate resolved
+      // nothing and reported no obligations, silently.
+      declaredPolicies: request.declaredPolicies,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -440,6 +449,22 @@ export class ComposerService {
       });
     }
 
+    // Provider-neutral exchange (Slice 2). Validated for shape only — an
+    // unknown deliveryMechanism is accepted on purpose, because the strategy
+    // makes exchange technologies providers rather than Core domain truth.
+    let exchange: ContractExchange | undefined;
+    if (request.exchange) {
+      const exchangeIssues = validateContractExchange(request.exchange);
+      if (exchangeIssues.length > 0) {
+        throw new InputError(exchangeIssues.join('; '));
+      }
+      exchange = {
+        ...request.exchange,
+        deliveryMechanism: String(request.exchange.deliveryMechanism).trim(),
+        accessMode: request.exchange.accessMode ?? 'REQUEST',
+      };
+    }
+
     const contract: DataContract = {
       id: randomUUID(),
       productComponentId: componentId,
@@ -452,6 +477,7 @@ export class ComposerService {
       status: 'DRAFT',
       version,
       qualityRules,
+      exchange,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -822,6 +848,14 @@ export class ComposerService {
           'urs-baseline-bound': () => Boolean(approvedBaseline?.ursBaselineIds?.length),
           'validation-decision-approved': () => false, // evaluated separately by validationDecisionResolver
           'output-contracts-declared': () => contractList.length > 0,
+          // Phase 4 closure (Slice 2). A released contract that does not say
+          // how it is delivered cannot actually be consumed — the coordinate
+          // names it, the exchange definition is what makes it reachable.
+          // Every contract must declare one, not just some: a single silent
+          // contract is the one a consumer will trip over.
+          'exchange-declared': () =>
+            contractList.length > 0 &&
+            contractList.every(c => Boolean(c.exchange?.deliveryMechanism)),
           'quality-checks-declared': () => contractList.some(c => (c.qualityRules ?? []).length > 0),
           'product-dependencies-declared': () => deps.length > 0,
         };

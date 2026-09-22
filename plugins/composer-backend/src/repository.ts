@@ -200,6 +200,11 @@ export class ComposerRepository implements IComposerRepository {
         contract.qualityRules && contract.qualityRules.length > 0
           ? JSON.stringify(contract.qualityRules)
           : null,
+      delivery_mechanism: contract.exchange?.deliveryMechanism ?? null,
+      exchange_endpoint: contract.exchange?.endpoint ?? null,
+      access_mode: contract.exchange?.accessMode ?? null,
+      classification: contract.exchange?.classification ?? null,
+      sla: contract.exchange?.sla ? JSON.stringify(contract.exchange.sla) : null,
       created_by: contract.createdBy,
       created_at: contract.createdAt,
       revision: contract.revision || 1,
@@ -572,6 +577,19 @@ export class ComposerRepository implements IComposerRepository {
       status: row.status,
       version: row.version,
       qualityRules: row.quality_rules ? JSON.parse(row.quality_rules) : [],
+      // Absent rather than a half-built object: a contract with no declared
+      // mechanism has no exchange definition at all, and a caller checking
+      // `exchange?.deliveryMechanism` should not have to also check whether
+      // the surrounding object is a placeholder.
+      exchange: row.delivery_mechanism
+        ? {
+            deliveryMechanism: row.delivery_mechanism,
+            endpoint: row.exchange_endpoint ?? undefined,
+            accessMode: row.access_mode ?? undefined,
+            classification: row.classification ?? undefined,
+            sla: row.sla ? JSON.parse(row.sla) : undefined,
+          }
+        : undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedBy: row.updated_by,

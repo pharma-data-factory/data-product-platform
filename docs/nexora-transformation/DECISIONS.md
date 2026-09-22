@@ -1179,3 +1179,49 @@ Exercising `GET /contracts/resolve` against an absent coordinate returned 500:
 platform is broken". Fixed. The service tests now assert the error *types*, not
 just their messages, because the router maps them by instance check and this
 plugin has no router test harness.
+
+### NXD-049 — Exchange is provider-neutral: the delivery mechanism is a string, not an enum (closure Slice 2)
+
+Phase 4 asks for "provider-neutral exchange definitions". `DataContract` gains
+an optional `exchange` block: `deliveryMechanism`, `endpoint`, `accessMode`,
+`classification` and `sla`.
+
+**`deliveryMechanism` is an open vocabulary.** This is the decision, and it cuts
+against the rest of the model — `ProductComponent.interfaceType` is a closed set
+(`REST | EVENT | MQTT | KAFKA | DB | FILE`), so adding a transport there needs a
+Core release. `NEXORA_STRATEGY.md` makes exchange technologies providers rather
+than Nexora domain truth, and a team publishing over something Core has never
+heard of must not wait for one. The validator checks the *shape* of the value —
+lowercase kebab-case, the same grammar as a coordinate segment — and never its
+membership in a list. `s3-parquet` is accepted today with no platform change.
+
+The cost is real and accepted: two teams can spell the same transport
+differently (`kafka` vs `apache-kafka`) and Core will not notice. A registry of
+known mechanisms belongs in an Artifact if that becomes a problem, not in Core.
+
+`endpoint` is deliberately opaque. Its meaning belongs to the mechanism — a URL
+for `rest`, a topic for `kafka`, a bucket path for `s3-parquet`. Core stores and
+returns it and makes no claim about it.
+
+`accessMode` **is** a closed set (`OPEN | REQUEST | ENTITLEMENT`), because those
+are statements about governance rather than technology; a fourth would mean a
+new governance concept. It defaults to `REQUEST` rather than `OPEN` — an
+unstated access rule should not read as "help yourself".
+
+`classification` reuses `DATA_CLASSIFICATIONS` rather than introducing a second
+sensitivity scale.
+
+**Release gate.** A new `exchange-declared` obligation blocks a release when any
+output contract lacks a mechanism — `every`, not `some`: a single silent
+contract is the one a consumer trips over. The coordinate names a contract; the
+exchange definition is what makes it reachable.
+
+**Found while testing this.** `createProduct` never mapped `declaredPolicies`
+from the request onto the Product, although `CreateProductRequest` declares it
+and the `products` table has the column. Since `checkReleaseGate` only resolves
+Policy Packs when `declaredPolicies` is non-empty, **the entire 5-R1 mechanism
+was inert for every product created through the API** — the gate resolved
+nothing, reported nothing, and looked like it had passed. Fixed here because the
+new obligation could not otherwise be exercised at all. It is the second defect
+in two slices that only surfaced because the Definition of Done requires running
+the thing.

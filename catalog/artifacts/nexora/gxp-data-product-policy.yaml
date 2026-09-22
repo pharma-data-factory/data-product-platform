@@ -103,6 +103,17 @@ spec:
           Consumers must know what data the product provides and in what schema.
           Declare at least one output DataContract before releasing.
 
+      - id: exchange-declared
+        title: "Every output contract says how it is delivered"
+        appliesTo: gxp
+        check: exchange-declared
+        message: >
+          At least one output DataContract does not declare an exchange
+          definition. A coordinate names a contract; the delivery mechanism is
+          what makes it reachable. State how consumers obtain the data — the
+          mechanism is an open vocabulary (rest, kafka, mqtt, s3-parquet, …),
+          so no platform change is needed for a new transport.
+
       # ── Quality ────────────────────────────────────────────────────────────
 
       - id: quality-checks-declared

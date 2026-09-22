@@ -8,6 +8,7 @@
 
 import {
   ComponentType,
+  DATA_CLASSIFICATIONS,
   DataClassification,
   InterfaceType,
 } from './classification';
@@ -179,6 +180,144 @@ export interface QualityRule {
   mandatory: boolean;
 }
 
+// ============================================================================
+// PROVIDER-NEUTRAL EXCHANGE
+// ============================================================================
+
+/**
+ * How a consumer is granted access to the data a contract describes.
+ *
+ * A closed set, unlike the delivery mechanism, because these three are
+ * statements about governance rather than about technology, and a fourth would
+ * mean a new governance concept rather than a new transport.
+ */
+export const CONTRACT_ACCESS_MODES = [
+  /** Anyone who can see the contract may consume it. */
+  'OPEN',
+  /** Consumption requires an agreement with the owner, arranged out of band. */
+  'REQUEST',
+  /** Consumption is governed by the entitlement system. */
+  'ENTITLEMENT',
+] as const;
+
+export type ContractAccessMode = (typeof CONTRACT_ACCESS_MODES)[number];
+
+/** What the producer commits to. Every field optional: a contract may promise nothing. */
+export interface ContractSla {
+  /** Availability as a percentage, e.g. 99.5. */
+  availabilityPercent?: number;
+  /** Upper bound on delivery latency. */
+  maxLatencySeconds?: number;
+  /** How stale the data may be before it breaks the promise. */
+  freshnessSeconds?: number;
+  /** Free text, e.g. "24x7" or "Mon-Fri 08:00-18:00 CET". */
+  supportHours?: string;
+}
+
+/**
+ * How the data described by a contract is actually obtained.
+ *
+ * Phase 4's "provider-neutral exchange definitions". Provider-neutral is the
+ * whole point and it is why `deliveryMechanism` is a **string, not an enum**:
+ * `ProductComponent.interfaceType` is a closed set (`REST | EVENT | MQTT |
+ * KAFKA | DB | FILE`), so adding a transport there means changing Core. The
+ * strategy says exchange technologies are providers, not Nexora domain truth,
+ * so a team publishing over something Core has never heard of must not need a
+ * Core release. The validator therefore checks the *shape* of the value, never
+ * its membership in a list.
+ *
+ * `endpoint` is deliberately opaque: its meaning belongs to the mechanism (a
+ * URL for `rest`, a topic for `kafka`, a bucket path for `s3-parquet`). Core
+ * stores and returns it and makes no claim about it.
+ */
+export interface ContractExchange {
+  /**
+   * Lowercase kebab-case identifier of the transport, e.g. `rest`, `kafka`,
+   * `mqtt`, `s3-parquet`. Open vocabulary — see above.
+   */
+  deliveryMechanism: string;
+  /** Mechanism-specific locator. Opaque to Core. */
+  endpoint?: string;
+  /** How access is granted. Defaults to `REQUEST` when unstated. */
+  accessMode?: ContractAccessMode;
+  /**
+   * Sensitivity of the data flowing over this contract. Reuses the platform
+   * classification rather than introducing a second scale.
+   */
+  classification?: DataClassification;
+  /** Producer commitments, if any. */
+  sla?: ContractSla;
+}
+
+export function isContractAccessMode(
+  value: string,
+): value is ContractAccessMode {
+  return (CONTRACT_ACCESS_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * Why `exchange` is not usable, or `[]` if it is.
+ *
+ * Validates shape, not vocabulary. An unknown `deliveryMechanism` is accepted
+ * by design; a malformed one is not, because the value is an identifier that
+ * consumers match on.
+ */
+export function validateContractExchange(
+  exchange: ContractExchange,
+): string[] {
+  const issues: string[] = [];
+
+  issues.push(
+    ...validateNameSegment(
+      String(exchange.deliveryMechanism ?? ''),
+      'deliveryMechanism',
+    ),
+  );
+
+  if (
+    exchange.accessMode !== undefined &&
+    !isContractAccessMode(exchange.accessMode)
+  ) {
+    issues.push(
+      `Unknown accessMode "${exchange.accessMode}". Supported: ` +
+        `${CONTRACT_ACCESS_MODES.join(', ')}`,
+    );
+  }
+
+  if (
+    exchange.classification !== undefined &&
+    !(DATA_CLASSIFICATIONS as readonly string[]).includes(
+      exchange.classification,
+    )
+  ) {
+    issues.push(
+      `Unknown classification "${exchange.classification}". Supported: ` +
+        `${DATA_CLASSIFICATIONS.join(', ')}`,
+    );
+  }
+
+  const sla = exchange.sla;
+  if (sla) {
+    const { availabilityPercent } = sla;
+    if (
+      availabilityPercent !== undefined &&
+      (typeof availabilityPercent !== 'number' ||
+        availabilityPercent < 0 ||
+        availabilityPercent > 100)
+    ) {
+      issues.push('sla.availabilityPercent must be a number between 0 and 100');
+    }
+    for (const key of ['maxLatencySeconds', 'freshnessSeconds'] as const) {
+      const value = sla[key];
+      if (value !== undefined && (typeof value !== 'number' || value < 0)) {
+        issues.push(`sla.${key} must be a non-negative number`);
+      }
+    }
+  }
+
+  return issues;
+}
+
 export interface DataContract {
   id: string;
   /**
@@ -224,6 +363,12 @@ export interface DataContract {
    * Empty array when no quality obligations have been declared.
    */
   qualityRules: QualityRule[];
+  /**
+   * How consumers obtain this data — Phase 4's provider-neutral exchange
+   * definition. Optional so that contracts predating it stay valid; the
+   * release gate is where it becomes required, not the model.
+   */
+  exchange?: ContractExchange;
   createdBy: string;
   createdAt: Date;
   updatedBy?: string;

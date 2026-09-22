@@ -208,6 +208,135 @@ describe('DataContract validation', () => {
     expect(resolved.id).toBe(created.id);
   });
 
+  // ── Provider-neutral exchange (phase-closure Slice 2) ────────────────────
+
+  describe('exchange definition', () => {
+    it('accepts a delivery mechanism Core has never heard of', async () => {
+      // The point of the slice. ProductComponent.interfaceType is a closed
+      // enum, so a new transport there needs a Core release. An exchange
+      // mechanism must not, because the strategy makes exchange technologies
+      // providers rather than Nexora domain truth.
+      const contract = await service.addDataContract(
+        componentId,
+        {
+          namespace: 'exch',
+          name: 'novel-transport',
+          schemaType: 'JSON_SCHEMA',
+          exchange: { deliveryMechanism: 's3-parquet' },
+        },
+        actor,
+      );
+      expect(contract.exchange?.deliveryMechanism).toBe('s3-parquet');
+    });
+
+    it('defaults accessMode to REQUEST rather than to open access', async () => {
+      const contract = await service.addDataContract(
+        componentId,
+        {
+          namespace: 'exch',
+          name: 'default-access',
+          schemaType: 'JSON_SCHEMA',
+          exchange: { deliveryMechanism: 'rest' },
+        },
+        actor,
+      );
+      expect(contract.exchange?.accessMode).toBe('REQUEST');
+    });
+
+    it('round-trips endpoint, classification and SLA', async () => {
+      const created = await service.addDataContract(
+        componentId,
+        {
+          namespace: 'exch',
+          name: 'full-exchange',
+          schemaType: 'JSON_SCHEMA',
+          exchange: {
+            deliveryMechanism: 'kafka',
+            endpoint: 'topic://orders.v1',
+            accessMode: 'ENTITLEMENT',
+            classification: 'CONFIDENTIAL',
+            sla: { availabilityPercent: 99.5, freshnessSeconds: 300 },
+          },
+        },
+        actor,
+      );
+      const read = await service.getDataContract(created.id);
+      expect(read?.exchange).toEqual({
+        deliveryMechanism: 'kafka',
+        endpoint: 'topic://orders.v1',
+        accessMode: 'ENTITLEMENT',
+        classification: 'CONFIDENTIAL',
+        sla: { availabilityPercent: 99.5, freshnessSeconds: 300 },
+      });
+    });
+
+    it('leaves exchange undefined when none is declared', async () => {
+      // Not a half-built object: a caller checking exchange?.deliveryMechanism
+      // should not also have to ask whether the wrapper is a placeholder.
+      const contract = await service.addDataContract(
+        componentId,
+        { namespace: 'exch', name: 'no-exchange', schemaType: 'JSON_SCHEMA' },
+        actor,
+      );
+      expect(contract.exchange).toBeUndefined();
+      expect((await service.getDataContract(contract.id))?.exchange).toBeUndefined();
+    });
+
+    it.each([
+      ['Not A Segment', /deliveryMechanism/i],
+      ['', /deliveryMechanism/i],
+    ])('rejects malformed deliveryMechanism %p', async (mechanism, expected) => {
+      await expect(
+        service.addDataContract(
+          componentId,
+          {
+            namespace: 'exch',
+            name: `bad-mech-${Math.random().toString(36).slice(2, 8)}`,
+            schemaType: 'JSON_SCHEMA',
+            exchange: { deliveryMechanism: mechanism },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(expected);
+    });
+
+    it('rejects an unknown accessMode but not an unknown mechanism', async () => {
+      await expect(
+        service.addDataContract(
+          componentId,
+          {
+            namespace: 'exch',
+            name: 'bad-access',
+            schemaType: 'JSON_SCHEMA',
+            exchange: {
+              deliveryMechanism: 'rest',
+              accessMode: 'SOMEHOW' as any,
+            },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(/Unknown accessMode/i);
+    });
+
+    it('rejects an out-of-range SLA', async () => {
+      await expect(
+        service.addDataContract(
+          componentId,
+          {
+            namespace: 'exch',
+            name: 'bad-sla',
+            schemaType: 'JSON_SCHEMA',
+            exchange: {
+              deliveryMechanism: 'rest',
+              sla: { availabilityPercent: 150 },
+            },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(/availabilityPercent/i);
+    });
+  });
+
   it('distinguishes a malformed ref from a contract that does not exist', async () => {
     // A typo and a retired contract are different problems and must not
     // produce the same answer.

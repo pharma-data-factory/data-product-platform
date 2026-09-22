@@ -9,9 +9,19 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
-Working through [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md). Slices 0 and 1
-are done; **Slice 2 (provider-neutral exchange definitions) is next**, and it
-closes Phase 4.
+Nothing in flight. Slices 0, 1 and 2 of
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) are done. **Phase 4 is
+closed** — `DataContract` is first-class and carries a provider-neutral
+exchange definition, the two criteria the phase text names that were missing.
+
+A re-read of the literal exit criteria on 2026-09-22 corrected an earlier
+over-count in this document. Per-namespace scoping is recorded below as
+*deferred, not part of Phase 2*; GP-7 is a component registry, not the
+"hard-coded domain composition" Phase 3 names; and Editions and Federation
+appear in no phase text at all — they are Wave 3, post-plan. Counting those
+against phases made five phases look open when three were. The remaining
+phase-level gaps are **Phase 5** (CI does not write baseline evidence) and
+**Phase 7** (no multiple source/package providers).
 
 The gate went red after the 2026-09-21 evening commits — 50 type errors, 9 lint
 errors and 5 failing suites — and was **restored to green on 2026-09-22**. See
@@ -309,6 +319,26 @@ per-namespace scoping (partial), entitlements verdrahtet, commercial marketplace
 
 **Phase-closure plan (2026-09-22 →).** Slices from
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), newest first.
+
+- **Slice 2 — provider-neutral exchange definitions. Phase 4 closed.** See
+  [`NXD-049`](DECISIONS.md). `DataContract.exchange` carries
+  `deliveryMechanism`, `endpoint`, `accessMode`, `classification` and `sla`.
+  The mechanism is an **open vocabulary** — validated for shape, never for
+  membership in a list — because `ProductComponent.interfaceType` is a closed
+  enum and the strategy makes exchange technologies providers, not Core domain
+  truth. `s3-parquet` works today with no platform change. `accessMode` is
+  closed (`OPEN | REQUEST | ENTITLEMENT`) and defaults to `REQUEST`, since an
+  unstated access rule should not read as "help yourself".
+
+  A new `exchange-declared` release-gate obligation blocks when *any* output
+  contract lacks a mechanism.
+
+  Exercising it exposed a defect that made the whole of 5-R1 inert:
+  **`createProduct` never mapped `declaredPolicies`** from the request,
+  although the request type declares it and the column exists. The gate only
+  resolves Policy Packs when that field is non-empty, so for every
+  API-created product it resolved nothing and reported nothing — and looked
+  like a pass. Fixed here.
 
 - **Slice 1 — `DataContract` is identified by its coordinate.** See
   [`NXD-048`](DECISIONS.md). Identity moves from

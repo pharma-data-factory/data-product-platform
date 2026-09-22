@@ -271,6 +271,27 @@ export async function up(knex: Knex): Promise<void> {
     }
 
     await promoteDataContractsToCoordinates(knex);
+
+    // Phase 4 closure (Slice 2): provider-neutral exchange definitions.
+    //
+    // Nullable throughout. A contract that predates this knows nothing about
+    // how it is delivered, and inventing a mechanism for it would be a guess
+    // that consumers could then match on. The release gate is where a missing
+    // mechanism becomes a blocker; the schema stays permissive so existing
+    // rows remain readable.
+    const hasDelivery = await knex.schema.hasColumn(
+      'data_contracts',
+      'delivery_mechanism',
+    );
+    if (!hasDelivery) {
+      await knex.schema.alterTable('data_contracts', table => {
+        table.string('delivery_mechanism', 64).nullable();
+        table.string('exchange_endpoint', 1024).nullable();
+        table.string('access_mode', 30).nullable();
+        table.string('classification', 30).nullable();
+        table.text('sla').nullable(); // JSON — ContractSla
+      });
+    }
   }
 
   // Upgrade Notifications (W2-1): records generated when a contract version bumps.

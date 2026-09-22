@@ -8,7 +8,11 @@
 
 // UpgradeNotification is not imported here — it is re-exported directly from
 // platform-common below, so an import binding would go unused.
-import type { ComponentType, QualityRule } from '@internal/platform-common';
+import type {
+  ComponentType,
+  ContractExchange,
+  QualityRule,
+} from '@internal/platform-common';
 
 export type {
   Product,
@@ -78,6 +82,11 @@ export interface CreateDataContractRequest {
   version?: string;
   /** Declarative quality rules for this contract. Phase 4 (P4-S6). */
   qualityRules?: QualityRule[];
+  /**
+   * How consumers obtain the data — delivery mechanism, endpoint, access mode,
+   * classification and SLA. Phase 4 closure (Slice 2).
+   */
+  exchange?: ContractExchange;
 }
 
 // ── Data Lineage (Phase 4, P4-S4) ─────────────────────────────────────────

@@ -608,4 +608,82 @@ describe('Phase 1: Versioning Foundation', () => {
       expect(result.blockers.map(b => b.code)).not.toContain('NO_APPROVED_VALIDATION_DECISION');
     });
   });
+  // ── Exchange obligation at the release gate (closure Slice 2) ────────────
+
+  describe('Release Gate: exchange-declared', () => {
+    // The policy-pack path had no test harness — the existing gate tests
+    // exercise platform-policy, which has no network dependency. A new
+    // blocker on a GxP control should not be covered only by a manual run.
+    const obligation = {
+      policyRef: 'nexora/gxp-data-product-policy@1.0.0',
+      id: 'exchange-declared',
+      title: 'Every output contract says how it is delivered',
+      check: 'exchange-declared',
+      appliesTo: 'all',
+      message: 'An output DataContract does not declare an exchange definition.',
+    };
+
+    async function gateWith(exchange?: {
+      deliveryMechanism: string;
+    }): Promise<string[]> {
+      const gateDb = createDb();
+      await gateDb.raw('select 1');
+      const repository = await ComposerRepository.create({ getClient: () => gateDb });
+      const svc = new ComposerService({
+        logger: mockLogger,
+        repository,
+        policyResolverClient: {
+          resolvePolicies: async () => ({
+            resolved: [obligation.policyRef],
+            unresolved: [],
+            obligations: [obligation],
+          }),
+        },
+      });
+
+      const product = await svc.createProduct(
+        {
+          name: `Exchange Gate ${Date.now()}${Math.random()}`,
+          productType: 'DATA_PRODUCT',
+          owner: 'group:default/platform-team',
+          dataClassification: 'INTERNAL',
+          gxpRelevance: 'NONE',
+          declaredPolicies: [obligation.policyRef],
+        },
+        actor,
+      );
+      const version = await svc.createProductVersion(product.id, {}, actor);
+      const component = await svc.addProductComponent(
+        version.id,
+        { componentType: 'SOURCE', name: 'Source' },
+        actor,
+      );
+      await svc.addDataContract(
+        component.id,
+        {
+          namespace: 'gate',
+          name: 'output',
+          schemaType: 'JSON_SCHEMA',
+          ...(exchange ? { exchange } : {}),
+        },
+        actor,
+      );
+      const result = await svc.checkReleaseGate(version.id);
+      await gateDb.destroy();
+      return result.blockers
+        .filter(b => b.code === 'POLICY_OBLIGATION_UNMET')
+        .map(b => b.message);
+    }
+
+    it('blocks a contract with no delivery mechanism', async () => {
+      const messages = await gateWith();
+      expect(messages.join(' ')).toMatch(/exchange definition/i);
+    });
+
+    it('passes once a mechanism is declared', async () => {
+      const messages = await gateWith({ deliveryMechanism: 'kafka' });
+      expect(messages.join(' ')).not.toMatch(/exchange definition/i);
+    });
+  });
+
 });
