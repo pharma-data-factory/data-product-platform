@@ -129,16 +129,27 @@ export const BusinessCapabilityStep: FC<BusinessCapabilityStepProps> = ({
     };
   }, [api]);
 
+  /**
+   * Other URS sets already covering a selected capability.
+   *
+   * "Other" is the point: this step is reused by the edit wizard, so without
+   * excluding `requirementSetId` the warning fires on every edit and names the
+   * very document being edited. A warning that always appears is one that gets
+   * clicked past, and this one guards a real GxP concern — two URS sets
+   * silently covering the same capability.
+   */
   const setsForSelection = useMemo(() => {
     if (state.businessCapabilityRefs.length === 0) {
       return [];
     }
-    return existingSets.filter(set =>
-      (set.businessCapabilityRefs || []).some(ref =>
-        state.businessCapabilityRefs.includes(ref),
-      ),
+    return existingSets.filter(
+      set =>
+        set.id !== state.requirementSetId &&
+        (set.businessCapabilityRefs || []).some(ref =>
+          state.businessCapabilityRefs.includes(ref),
+        ),
     );
-  }, [existingSets, state.businessCapabilityRefs]);
+  }, [existingSets, state.businessCapabilityRefs, state.requirementSetId]);
 
   const handleToggleCapability = (capabilityId: string) => {
     const newRefs = state.businessCapabilityRefs.includes(capabilityId)
@@ -236,8 +247,11 @@ export const BusinessCapabilityStep: FC<BusinessCapabilityStepProps> = ({
             ))}
           </ul>
           <Typography variant="caption" component="div">
-            Review these sets before creating a new one. Continue only if this URS covers a
-            different solution or scope for the same capability.
+            {state.requirementSetId
+              ? 'Another URS already covers this capability. Continue only if this ' +
+                'URS covers a different solution or scope.'
+              : 'Review these sets before creating a new one. Continue only if this ' +
+                'URS covers a different solution or scope for the same capability.'}
           </Typography>
         </Alert>
       )}
