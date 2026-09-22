@@ -128,10 +128,15 @@ Guest is a VIEWER by default. To exercise the Create journey set
 `AUTH_GUEST_ROLE=developer` in `.env` and restart — see `app-config.guest.yaml`.
 
 GitHub sign-in additionally needs `AUTH_GITHUB_CLIENT_ID`,
-`AUTH_GITHUB_CLIENT_SECRET` and an OAuth App callback of exactly
+`AUTH_GITHUB_CLIENT_SECRET` and an OAuth App Redirect URI of exactly
 `<forwarded-url>/api/auth/github/handler/frame`. Because the forwarded URL
-changes per workspace, the registered callback goes stale — Guest is the
-reliable path here.
+contains the workspace id, the registered URI goes stale whenever the
+workspace is recreated — Guest is the reliable path here.
+
+Which settings, and what each sign-in failure means:
+**[docs/github-setup.md](docs/github-setup.md)**. Read the troubleshooting
+section before debugging a failed login — the UI message is deliberately
+vague and the real cause is in the browser console.
 
 ---
 
