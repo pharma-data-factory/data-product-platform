@@ -299,7 +299,7 @@ describe('Phase 1: Versioning Foundation', () => {
       const { version, component } = await createFullSetup();
       await service.addDataContract(
         component.id,
-        { name: 'output-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
+        { namespace: 'test-ns', name: 'output-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
         actor,
       );
       const baseline = await service.createProductBaseline(version.id, {}, actor);
@@ -379,9 +379,12 @@ describe('Phase 1: Versioning Foundation', () => {
     it('completes Product → Version → Components → Baseline → Approve → Transition → RELEASED', async () => {
       const { version, component } = await createFullSetup();
 
+      // A distinct coordinate from the baseline test above: both share this
+      // suite's in-memory database, and since Slice 1 a coordinate names
+      // exactly one contract across the whole registry, not one per component.
       await service.addDataContract(
         component.id,
-        { name: 'output-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
+        { namespace: 'test-ns', name: 'lifecycle-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
         actor,
       );
       await service.createTraceabilityLink(

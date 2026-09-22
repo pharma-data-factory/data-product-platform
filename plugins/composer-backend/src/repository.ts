@@ -7,6 +7,7 @@
  */
 
 import { Knex } from 'knex';
+import type { ContractCoordinate } from '@internal/platform-common';
 import {
   Product,
   ProductVersion,
@@ -185,6 +186,7 @@ export class ComposerRepository implements IComposerRepository {
     await this.db('data_contracts').insert({
       id: contract.id,
       product_component_id: contract.productComponentId,
+      namespace: contract.namespace,
       name: contract.name,
       owner: contract.owner || null,
       schema_type: contract.schemaType,
@@ -206,19 +208,24 @@ export class ComposerRepository implements IComposerRepository {
   }
 
   /**
-   * Finds a contract on the same component with the same name (case-insensitive).
+   * Finds the contract at a coordinate, whichever component provides it.
    *
    * Used by the service before insertion to produce a clear ConflictError
    * rather than relying on a database constraint violation message, which is
-   * dialect-specific and harder to surface to clients cleanly.
+   * dialect-specific and harder to surface to clients cleanly — and by the
+   * by-ref lookup, which is the point of the coordinate: a consumer resolves a
+   * contract without knowing which component declares it.
+   *
+   * Matching on `lower(name)` agrees with the unique index. Names are already
+   * constrained to lowercase, so the fold only guards against a caller sending
+   * a differently-cased ref.
    */
-  async findDataContractByName(
-    componentId: string,
-    name: string,
+  async findDataContractByCoordinate(
+    coordinate: ContractCoordinate,
   ): Promise<DataContract | undefined> {
     const row = await this.db('data_contracts')
-      .where({ product_component_id: componentId })
-      .whereRaw('lower(name) = lower(?)', [name])
+      .where({ namespace: coordinate.namespace, version: coordinate.version })
+      .whereRaw('lower(name) = lower(?)', [coordinate.name])
       .first();
     return row ? this.rowToDataContract(row) : undefined;
   }
@@ -556,6 +563,7 @@ export class ComposerRepository implements IComposerRepository {
     return {
       id: row.id,
       productComponentId: row.product_component_id,
+      namespace: row.namespace,
       name: row.name ?? '',
       owner: row.owner ?? undefined,
       schemaType: row.schema_type,

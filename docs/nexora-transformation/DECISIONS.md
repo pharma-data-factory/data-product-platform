@@ -1140,3 +1140,42 @@ A durable job (pg-boss or the Backstage scheduler) is the upgrade, and it is
 scoped as part of Slice 5 in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md).
 Until then federation is unconfigured in every `app-config`, so the scheduler
 has never actually run.
+
+### NXD-048 — A DataContract is identified by its coordinate, not by its component (closure Slice 1)
+
+`DataContract` was keyed by `(product_component_id, lower(name))`. A consumer in
+another Product therefore had no way to name a contract: the only route in was
+the component that happened to declare it, and that component is an
+implementation detail the producer may reorganise. `product.ts` carried a
+comment promising a later Phase 4 slice would fix this; NXD-010 described what
+it required. Neither happened until now.
+
+Identity is now `namespace/name@version`, the same grammar as an Artifact
+coordinate — reused rather than reinvented, and `isArtifactSegment` now
+delegates to a single `isNameSegment` in `product.ts` so the two cannot drift.
+`product_component_id` stays as the relation to the providing component.
+
+**Names are lowercase kebab-case, tightened from free text.** This is the part
+that costs something: a mixed-case name used to be accepted and folded
+case-insensitively. It is now refused. The reason is that a coordinate is an
+identity, and `slice1/Orders@1.0` and `slice1/orders@1.0` being two spellings of
+one thing is precisely the ambiguity a coordinate exists to remove — especially
+for a ref that may end up quoted in a validation record.
+
+**The migration refuses rather than guesses**, following NXD-009. It stops on a
+contract with no name, a name that is not a segment, or two rows that would land
+on the same coordinate, and reports every offending row in one message so
+remediation is a single pass.
+
+Promoted rows land in a `legacy` namespace. Deriving one from the owning
+Product's name was considered and rejected: Product names are free text
+("Contract Product"), so derivation would either fail for almost every row or
+require slugifying — and two different names can slug to the same segment, which
+re-introduces the ambiguity. `legacy` states what is true: this contract was
+identified by its component and has not been given a real namespace yet.
+
+Exercising `GET /contracts/resolve` against an absent coordinate returned 500:
+`respondError` had no `NotFoundError` branch, so "no such contract" read as "the
+platform is broken". Fixed. The service tests now assert the error *types*, not
+just their messages, because the router maps them by instance check and this
+plugin has no router test harness.

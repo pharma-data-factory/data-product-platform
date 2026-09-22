@@ -20,7 +20,12 @@ import {
   type GoldenPathCertificationStatus,
   type GoldenPathLifecycle,
 } from './releases';
-import { parseVersionLabel, validateVersionLabel } from './product';
+import {
+  COORDINATE_SEGMENT_MAX_LENGTH,
+  isNameSegment,
+  parseVersionLabel,
+  validateVersionLabel,
+} from './product';
 
 // ============================================================================
 // KINDS
@@ -79,14 +84,16 @@ export function isArtifactLifecycle(value: string): value is ArtifactLifecycle {
  * printed in provenance, so `Acme`, `acme` and `acme ` must not be three ways
  * of naming one publisher. Same reasoning as the version-label rule.
  */
-const ARTIFACT_SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const ARTIFACT_SEGMENT_MAX_LENGTH = COORDINATE_SEGMENT_MAX_LENGTH;
 
-export const ARTIFACT_SEGMENT_MAX_LENGTH = 64;
-
+/**
+ * Delegates to the shared coordinate grammar in `product.ts`.
+ *
+ * The regex used to be duplicated here. It is the same rule for Artifacts and
+ * DataContracts, and two copies of a grammar are two things that can drift.
+ */
 export function isArtifactSegment(value: string): boolean {
-  return (
-    value.length <= ARTIFACT_SEGMENT_MAX_LENGTH && ARTIFACT_SEGMENT.test(value)
-  );
+  return isNameSegment(value);
 }
 
 /** A specific Artifact at a specific version: `namespace/name@version`. */

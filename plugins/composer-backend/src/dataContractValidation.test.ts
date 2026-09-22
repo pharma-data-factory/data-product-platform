@@ -1,16 +1,20 @@
 /**
- * DataContract input invariants — Phase 4 identity (NXD-034).
+ * DataContract input invariants — Phase 4 identity.
  *
- * Phase 4 (P4-S1) added name and owner to DataContract. A contract now has a
- * stable identity: its name is unique (case-insensitive) per component,
- * enforced both at the service layer (this test) and in the database
- * (unique index on (product_component_id, lower(name))).
+ * P4-S1 (NXD-034) gave a contract a name, unique per component. Slice 1 of the
+ * phase-closure plan finished the job NXD-010 described: identity is now the
+ * coordinate `namespace/name@version`, enforced at the service layer (these
+ * tests) and in the database (unique index on
+ * `(namespace, lower(name), version)`). `productComponentId` is the relation to
+ * the component that provides the contract, not the key.
  *
- * A row is still keyed to a productComponentId. Making contracts fully
- * first-class (own namespace, independent references across products) is the
- * next Phase 4 slice — NXD-010 recorded what that requires.
+ * The practical difference these tests pin down: two components may no longer
+ * both claim the same coordinate, the same name may live in two namespaces,
+ * and a contract resolves from its ref without the caller knowing which
+ * component declares it.
  */
 
+import { InputError, NotFoundError } from '@backstage/errors';
 import knex, { Knex } from 'knex';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
@@ -27,6 +31,7 @@ describe('DataContract validation', () => {
   let db: Knex;
   let service: ComposerService;
   let componentId: string;
+  let versionId: string;
 
   beforeAll(async () => {
     db = knex({
@@ -50,6 +55,7 @@ describe('DataContract validation', () => {
       actor,
     );
     const version = await service.createProductVersion(product.id, {}, actor);
+    versionId = version.id;
     const component = await service.addProductComponent(
       version.id,
       { componentType: 'SOURCE', name: 'Source' },
@@ -68,20 +74,20 @@ describe('DataContract validation', () => {
 
   it('requires a name', async () => {
     await expect(
-      service.addDataContract(componentId, { name: '', schemaType: 'JSON_SCHEMA' }, actor),
+      service.addDataContract(componentId, { namespace: 'test-ns', name: '', schemaType: 'JSON_SCHEMA' }, actor),
     ).rejects.toThrow(/name is required/i);
   });
 
   it('rejects a blank-only name', async () => {
     await expect(
-      service.addDataContract(componentId, { name: '  ', schemaType: 'JSON_SCHEMA' }, actor),
+      service.addDataContract(componentId, { namespace: 'test-ns', name: '  ', schemaType: 'JSON_SCHEMA' }, actor),
     ).rejects.toThrow(/name is required/i);
   });
 
   it('stores the name and returns it', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'test-ns', name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     expect(contract.name).toBe('output-event-v1');
@@ -91,40 +97,139 @@ describe('DataContract validation', () => {
   it('stores the owner when provided', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { name: 'contract-with-owner', owner: 'group:default/data-team', schemaType: 'AVRO' },
+      { namespace: 'test-ns', name: 'contract-with-owner', owner: 'group:default/data-team', schemaType: 'AVRO' },
       actor,
     );
     expect(contract.owner).toBe('group:default/data-team');
   });
 
-  it('rejects a duplicate name (exact match) on the same component', async () => {
+  it('rejects a duplicate coordinate', async () => {
     await service.addDataContract(
       componentId,
-      { name: 'duplicate-name', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'test-ns', name: 'duplicate-name', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     await expect(
       service.addDataContract(
         componentId,
-        { name: 'duplicate-name', schemaType: 'OPENAPI' },
+        { namespace: 'test-ns', name: 'duplicate-name', schemaType: 'OPENAPI' },
         actor,
       ),
     ).rejects.toThrow(/already exists/i);
   });
 
-  it('rejects a duplicate name (case-insensitive) on the same component', async () => {
+  // ── Coordinate identity (phase-closure Slice 1) ──────────────────────────
+
+  it('rejects a name that is not a coordinate segment', async () => {
+    // Uppercase used to be accepted and folded case-insensitively. It is now
+    // refused outright: a coordinate is an identity, and two spellings of one
+    // identity is the ambiguity the segment grammar exists to prevent.
+    await expect(
+      service.addDataContract(
+        componentId,
+        { namespace: 'test-ns', name: 'Case-Sensitive-Contract', schemaType: 'JSON_SCHEMA' },
+        actor,
+      ),
+    ).rejects.toThrow(/lowercase kebab-case/i);
+  });
+
+  it.each(['', '  ', 'Not A Segment', 'trailing-', 'double--hyphen'])(
+    'rejects namespace %p',
+    async namespace => {
+      await expect(
+        service.addDataContract(
+          componentId,
+          { namespace, name: 'some-contract', schemaType: 'JSON_SCHEMA' },
+          actor,
+        ),
+      ).rejects.toThrow(/namespace/i);
+    },
+  );
+
+  it('allows the same name in two namespaces', async () => {
+    // The point of a namespace: two teams may both own an "orders" contract.
+    const a = await service.addDataContract(
+      componentId,
+      { namespace: 'sales', name: 'orders', schemaType: 'JSON_SCHEMA' },
+      actor,
+    );
+    const b = await service.addDataContract(
+      componentId,
+      { namespace: 'logistics', name: 'orders', schemaType: 'JSON_SCHEMA' },
+      actor,
+    );
+    expect(a.id).not.toBe(b.id);
+  });
+
+  it('allows the same namespace and name at two versions', async () => {
     await service.addDataContract(
       componentId,
-      { name: 'Case-Sensitive-Contract', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'billing', name: 'invoice', schemaType: 'JSON_SCHEMA', version: '1.0' },
+      actor,
+    );
+    const next = await service.addDataContract(
+      componentId,
+      { namespace: 'billing', name: 'invoice', schemaType: 'JSON_SCHEMA', version: '2.0' },
+      actor,
+    );
+    expect(next.version).toBe('2.0');
+  });
+
+  it('refuses a coordinate already held by a different component', async () => {
+    // Before Slice 1 this was legal: identity was scoped to the component, so
+    // two components could each declare "shipments" and a ref naming it would
+    // have been ambiguous.
+    const other = await service.addProductComponent(
+      versionId,
+      { componentType: 'SINK', name: 'Second Component' },
+      actor,
+    );
+    await service.addDataContract(
+      componentId,
+      { namespace: 'fulfilment', name: 'shipments', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     await expect(
       service.addDataContract(
-        componentId,
-        { name: 'case-sensitive-contract', schemaType: 'JSON_SCHEMA' },
+        other.id,
+        { namespace: 'fulfilment', name: 'shipments', schemaType: 'JSON_SCHEMA' },
         actor,
       ),
-    ).rejects.toThrow(/already exists/i);
+    ).rejects.toThrow(/already exists at fulfilment\/shipments@1\.0/i);
+  });
+
+  it('resolves a contract from its ref alone', async () => {
+    const created = await service.addDataContract(
+      componentId,
+      { namespace: 'catalogue', name: 'products', schemaType: 'AVRO', version: '3.1' },
+      actor,
+    );
+    const resolved = await service.getDataContractByRef('catalogue/products@3.1');
+    expect(resolved.id).toBe(created.id);
+  });
+
+  it('distinguishes a malformed ref from a contract that does not exist', async () => {
+    // A typo and a retired contract are different problems and must not
+    // produce the same answer.
+    //
+    // The error *types* are asserted, not just the messages, because the
+    // router maps them to 400 and 404 by instance check. Exercising
+    // /contracts/resolve against an absent coordinate is what caught the
+    // missing NotFoundError branch — it answered 500. This plugin has no
+    // router test harness, so this assertion is what keeps the two halves of
+    // that mapping in step.
+    await expect(service.getDataContractByRef('not-a-ref')).rejects.toThrow(
+      InputError,
+    );
+    await expect(service.getDataContractByRef('not-a-ref')).rejects.toThrow(
+      /not a contract coordinate/i,
+    );
+    await expect(
+      service.getDataContractByRef('catalogue/absent@1.0'),
+    ).rejects.toThrow(NotFoundError);
+    await expect(
+      service.getDataContractByRef('catalogue/absent@1.0'),
+    ).rejects.toThrow(/No DataContract at/i);
   });
 
   // ── Schema type and version validation (pre-existing, Phase 1, NXD-010) ──
@@ -134,7 +239,7 @@ describe('DataContract validation', () => {
     async schemaType => {
       const contract = await service.addDataContract(
         componentId,
-        { name: `schema-type-${schemaType.toLowerCase()}`, schemaType },
+        { namespace: 'test-ns', name: `schema-type-${schemaType.toLowerCase().replace(/_/g, '-')}`, schemaType },
         actor,
       );
       expect(contract.schemaType).toBe(schemaType);
@@ -147,14 +252,14 @@ describe('DataContract validation', () => {
     // downstream had to cope with a value the type said was impossible.
     for (const schemaType of ['XSD', 'json_schema', 'JSON-SCHEMA', 'anything']) {
       await expect(
-        service.addDataContract(componentId, { name: `bad-type-${schemaType}`, schemaType }, actor),
+        service.addDataContract(componentId, { namespace: 'test-ns', name: `bad-type-${String(schemaType).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, schemaType }, actor),
       ).rejects.toThrow(/schemaType/i);
     }
   });
 
   it('still requires a schema type', async () => {
     await expect(
-      service.addDataContract(componentId, { name: 'no-schema-type', schemaType: '  ' }, actor),
+      service.addDataContract(componentId, { namespace: 'test-ns', name: 'no-schema-type', schemaType: '  ' }, actor),
     ).rejects.toThrow(/schemaType/i);
   });
 
@@ -163,7 +268,7 @@ describe('DataContract validation', () => {
       await expect(
         service.addDataContract(
           componentId,
-          { name: `bad-version-${version || 'empty'}`, schemaType: 'JSON_SCHEMA', version },
+          { namespace: 'test-ns', name: `bad-version-${version || 'empty'}`, schemaType: 'JSON_SCHEMA', version },
           actor,
         ),
       ).rejects.toThrow(/version/i);
@@ -173,7 +278,7 @@ describe('DataContract validation', () => {
   it('defaults to 1.0 when no version is given', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { name: 'default-version-contract', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'test-ns', name: 'default-version-contract', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     expect(contract.version).toBe('1.0');
@@ -182,7 +287,7 @@ describe('DataContract validation', () => {
   it('accepts a semantic version with a patch component', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { name: 'patch-version-contract', schemaType: 'AVRO', version: '2.1.3' },
+      { namespace: 'test-ns', name: 'patch-version-contract', schemaType: 'AVRO', version: '2.1.3' },
       actor,
     );
     expect(contract.version).toBe('2.1.3');
@@ -194,6 +299,7 @@ describe('DataContract validation', () => {
     const contract = await service.addDataContract(
       componentId,
       {
+        namespace: 'test-ns',
         name: 'contract-with-quality',
         schemaType: 'JSON_SCHEMA',
         qualityRules: [
@@ -215,7 +321,7 @@ describe('DataContract validation', () => {
   it('defaults to empty qualityRules when none are provided', async () => {
     const contract = await service.addDataContract(
       componentId,
-      { name: 'no-quality-rules', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'test-ns', name: 'no-quality-rules', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     expect(contract.qualityRules).toEqual([]);
@@ -226,6 +332,7 @@ describe('DataContract validation', () => {
       service.addDataContract(
         componentId,
         {
+          namespace: 'test-ns',
           name: 'bad-rule-type',
           schemaType: 'JSON_SCHEMA',
           qualityRules: [
@@ -242,6 +349,7 @@ describe('DataContract validation', () => {
       service.addDataContract(
         componentId,
         {
+          namespace: 'test-ns',
           name: 'missing-field-rule',
           schemaType: 'JSON_SCHEMA',
           qualityRules: [

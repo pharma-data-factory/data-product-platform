@@ -13,6 +13,7 @@ import {
   ConflictError,
   InputError,
   NotAllowedError,
+  NotFoundError,
 } from '@backstage/errors';
 import {
   HttpAuthService,
@@ -96,6 +97,14 @@ function respondError(
   // exists, not a server fault. Without this it fell through to a 500.
   if (error instanceof ConflictError) {
     res.status(409).json({ error: String(error) });
+    return;
+  }
+  // Same reasoning for the opposite case: asking for something that is not
+  // there is a 404, not a fault. Found by exercising /contracts/resolve
+  // against a coordinate that does not exist — it answered 500, which reads
+  // as "the platform is broken" rather than "no such contract".
+  if (error instanceof NotFoundError) {
+    res.status(404).json({ error: String(error) });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -314,6 +323,29 @@ export async function createRouter(
       try {
         await authorize(permissions, httpAuth, req, productReadPermission);
         res.json(await service.listDataContracts(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /contracts/resolve?ref=namespace/name@version
+   *
+   * Resolves a contract from its coordinate alone — the point of Slice 1. A
+   * consumer in another Product holds the ref and nothing else.
+   *
+   * Registered before `/contracts/:id` deliberately: Express matches in
+   * declaration order, so the parameterised route would otherwise swallow
+   * "resolve" as an id.
+   */
+  router.get(
+    '/contracts/resolve',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const ref = String(req.query.ref ?? '');
+        res.json(await service.getDataContractByRef(ref));
       } catch (err) {
         respondError(res, logger, err);
       }

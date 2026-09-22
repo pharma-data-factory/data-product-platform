@@ -6,7 +6,7 @@
  */
 
 import { LoggerService } from '@backstage/backend-plugin-api';
-import { ConflictError, InputError } from '@backstage/errors';
+import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import { createHash, randomUUID } from 'crypto';
 import {
   ContractSubscription,
@@ -23,13 +23,16 @@ import {
   SUBSCRIPTION_STATUSES,
   SnapshotItemChange,
   TraceabilityLink,
+  contractRef,
   findVersionLabelClash,
+  parseContractRef,
   isQualityRuleType,
   nextMajorVersionLabel,
   isDataContractSchemaType,
   validateBaselineLabel,
   validateDataContractSchemaType,
   validateProduct,
+  validateNameSegment,
   validateVersionLabel,
   validateTraceabilityLink,
   evaluateContractCompatibility,
@@ -347,20 +350,29 @@ export class ComposerService {
     request: CreateDataContractRequest,
     actor: string,
   ): Promise<DataContract> {
-    // Phase 4 (P4-S1, NXD-034): DataContract identity. A contract must have a
-    // name — it is no longer just an opaque row attached to a component.
+    // Slice 1 of the phase-closure plan: a contract is identified by
+    // namespace/name@version, not by the component that declares it. Both
+    // segments follow the same grammar as an Artifact coordinate so a
+    // contract ref reads like every other reference on the platform.
     const name = String(request.name ?? '').trim();
-    if (!name) {
+    const nameIssues = validateNameSegment(name, 'DataContract name');
+    if (nameIssues.length > 0) {
       throw new InputError(
-        'DataContract name is required. Provide a short, descriptive name ' +
-          'that identifies this contract within the component (e.g. "output-event-v1").',
+        `${nameIssues.join('; ')}. The name is half of the contract's ` +
+          'coordinate, which consumers in other Products write down — ' +
+          'e.g. "output-event".',
       );
     }
-    const clash = await this.repository.findDataContractByName(componentId, name);
-    if (clash) {
-      throw new ConflictError(
-        `A DataContract named "${name}" already exists on component ${componentId}. ` +
-          'Contract names are case-insensitive and must be unique per component.',
+
+    const namespace = String(request.namespace ?? '').trim();
+    const namespaceIssues = validateNameSegment(
+      namespace,
+      'DataContract namespace',
+    );
+    if (namespaceIssues.length > 0) {
+      throw new InputError(
+        `${namespaceIssues.join('; ')}. The namespace is what makes this ` +
+          'contract addressable outside its own Product.',
       );
     }
 
@@ -386,6 +398,23 @@ export class ComposerService {
     const versionIssues = validateVersionLabel(version);
     if (versionIssues.length > 0) {
       throw new InputError(versionIssues.join('; '));
+    }
+
+    // Uniqueness is checked once the whole coordinate is known, because the
+    // version is part of it: `orders@1.0` and `orders@2.0` are two contracts,
+    // not a collision. The database index enforces the same rule and closes
+    // the race two concurrent creates would otherwise win; this check exists
+    // to return a readable error rather than a dialect-specific constraint
+    // violation.
+    const coordinate = { namespace, name, version };
+    const clash = await this.repository.findDataContractByCoordinate(coordinate);
+    if (clash) {
+      throw new ConflictError(
+        `A DataContract already exists at ${contractRef(coordinate)} ` +
+          `(id ${clash.id}, provided by component ${clash.productComponentId}). ` +
+          'A coordinate names exactly one contract — choose a different name, ' +
+          'or publish this as a new version.',
+      );
     }
 
     // Phase 4 (P4-S6): validate quality rules.
@@ -414,6 +443,7 @@ export class ComposerService {
     const contract: DataContract = {
       id: randomUUID(),
       productComponentId: componentId,
+      namespace,
       name,
       owner: request.owner ? String(request.owner).trim() || undefined : undefined,
       schemaType,
@@ -428,6 +458,37 @@ export class ComposerService {
     };
     await this.repository.createDataContract(contract);
     await this.audit('DATA_CONTRACT', contract.id, 'DATA_CONTRACT_CREATED', actor);
+    return contract;
+  }
+
+  /**
+   * Resolves a contract from its coordinate alone.
+   *
+   * This is what the coordinate is for. A consumer in another Product holds
+   * `namespace/name@version` and nothing else — not the contract's id, not the
+   * component that provides it, not even which Product that component belongs
+   * to. Before Slice 1 this lookup was impossible: the only way in was the
+   * component.
+   *
+   * A malformed ref is rejected rather than treated as "not found", so a typo
+   * in a coordinate does not look the same as a contract that was retired.
+   */
+  async getDataContractByRef(ref: string): Promise<DataContract> {
+    const coordinate = parseContractRef(ref);
+    if (!coordinate) {
+      throw new InputError(
+        `"${ref}" is not a contract coordinate. Expected ` +
+          'namespace/name@version, e.g. "sales/order-events@1.0".',
+      );
+    }
+    const contract = await this.repository.findDataContractByCoordinate(
+      coordinate,
+    );
+    if (!contract) {
+      throw new NotFoundError(
+        `No DataContract at ${contractRef(coordinate)}.`,
+      );
+    }
     return contract;
   }
 

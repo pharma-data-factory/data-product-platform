@@ -181,16 +181,31 @@ export interface QualityRule {
 
 export interface DataContract {
   id: string;
+  /**
+   * The component that provides this contract.
+   *
+   * A relation, not the identity. Until Slice 1 of the phase-closure plan a
+   * contract was keyed by this column, so it could not be named from outside
+   * the component that happened to declare it. Identity is now
+   * `namespace/name@version` — see `contractRef`.
+   */
   productComponentId: string;
   /**
-   * Human-readable contract name, unique (case-insensitive) per component.
+   * Owning namespace, the first segment of the contract's coordinate.
    *
-   * Required on all new contracts. Existing rows created before Phase 4 carry
-   * null here; the migration adds the column as nullable so the database does
-   * not reject them. The service rejects any new request that omits a name.
+   * Lowercase kebab-case, same grammar as an Artifact namespace. This is what
+   * makes a contract referenceable from another Product: a consumer writes
+   * down `namespace/name@version`, which survives the producer moving the
+   * contract to a different component.
+   */
+  namespace: string;
+  /**
+   * Contract name, the second segment of the coordinate.
    *
-   * Phase 4 (P4-S1) — NXD-034. Phase 4 later slices will promote contracts
-   * to a first-class namespace so they can be referenced across products.
+   * Lowercase kebab-case. Unique per `(namespace, name, version)`, not per
+   * component — two components may no longer both declare `orders` in the same
+   * namespace at the same version, because that would make the coordinate
+   * ambiguous.
    */
   name: string;
   /**
@@ -526,6 +541,108 @@ export function nextMajorVersionLabel(
     }
   }
   return `${highestMajor + 1}.0`;
+}
+
+// ============================================================================
+// COORDINATE SEGMENTS
+// ============================================================================
+
+/**
+ * Lowercase kebab-case, no leading, trailing or doubled separator.
+ *
+ * The grammar for one segment of a platform coordinate — the `namespace` and
+ * `name` of `namespace/name@version`. Lowercase because a coordinate is an
+ * identity: `Orders` and `orders` naming two different things is a defect
+ * waiting to happen, and naming the same thing means every comparison has to
+ * remember to fold case.
+ *
+ * It lives here rather than in `artifact.ts` because `artifact.ts` already
+ * imports this module for version labels; putting the shared grammar in the
+ * lower layer keeps the dependency one-way. `isArtifactSegment` delegates to
+ * it, so Artifacts and DataContracts cannot drift apart on what a valid name
+ * is.
+ */
+const COORDINATE_SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export const COORDINATE_SEGMENT_MAX_LENGTH = 64;
+
+export function isNameSegment(value: string): boolean {
+  return (
+    value.length <= COORDINATE_SEGMENT_MAX_LENGTH &&
+    COORDINATE_SEGMENT.test(value)
+  );
+}
+
+/**
+ * Why `value` is not a usable coordinate segment, or `[]` if it is.
+ *
+ * Returns the reason rather than a boolean so callers can put it in front of
+ * the person who typed it. `label` names the field, so one validator serves
+ * both halves of a coordinate.
+ */
+export function validateNameSegment(value: string, label: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [`${label} is required`];
+  }
+  if (trimmed.length > COORDINATE_SEGMENT_MAX_LENGTH) {
+    return [
+      `${label} "${trimmed}" is longer than ${COORDINATE_SEGMENT_MAX_LENGTH} characters`,
+    ];
+  }
+  if (!isNameSegment(trimmed)) {
+    return [
+      `${label} "${trimmed}" must be lowercase kebab-case: letters and digits ` +
+        `separated by single hyphens, e.g. "order-events"`,
+    ];
+  }
+  return [];
+}
+
+// ============================================================================
+// CONTRACT COORDINATES
+// ============================================================================
+
+/** A specific DataContract at a specific version: `namespace/name@version`. */
+export interface ContractCoordinate {
+  namespace: string;
+  name: string;
+  version: string;
+}
+
+/**
+ * The coordinate of a contract, as a string.
+ *
+ * This is what a consumer in another Product writes down. It deliberately does
+ * not mention the component or the Product that provides the contract: those
+ * are relations that may change, and a reference that breaks when a producer
+ * reorganises its components is not a stable reference.
+ */
+export function contractRef(coordinate: ContractCoordinate): string {
+  return `${coordinate.namespace}/${coordinate.name}@${coordinate.version}`;
+}
+
+/**
+ * The coordinate a ref names, or nothing if the string does not name one.
+ *
+ * Same shape and the same all-or-nothing contract as `parseArtifactRef`:
+ * callers get a coordinate or nothing, never a half-parsed value that turns
+ * out later not to identify anything.
+ */
+export function parseContractRef(ref: string): ContractCoordinate | undefined {
+  const match = /^([^/@]+)\/([^/@]+)@(.+)$/.exec(ref.trim());
+  if (!match) {
+    return undefined;
+  }
+  const [, namespace, name, version] = match;
+  if (
+    !isNameSegment(namespace) ||
+    !isNameSegment(name) ||
+    !parseVersionLabel(version)
+  ) {
+    return undefined;
+  }
+  return { namespace, name, version };
 }
 
 // ============================================================================

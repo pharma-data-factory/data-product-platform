@@ -644,7 +644,12 @@ export {
   validateTraceabilityLink,
 } from './product';
 export {
+  COORDINATE_SEGMENT_MAX_LENGTH,
   QUALITY_RULE_TYPES,
+  contractRef,
+  isNameSegment,
+  parseContractRef,
+  validateNameSegment,
   SUBSCRIPTION_STATUSES,
   UPGRADE_NOTIFICATION_TYPES,
   isQualityRuleType,
@@ -656,6 +661,7 @@ export type {
   ProductComponent,
   DataContract,
   ProductDependency,
+  ContractCoordinate,
   ContractSubscription,
   TraceabilityLink,
   ProductBaseline,

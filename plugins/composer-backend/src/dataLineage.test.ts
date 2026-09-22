@@ -70,7 +70,7 @@ describe('Data lineage', () => {
     );
     const contract = await service.addDataContract(
       comp.id,
-      { name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'test-ns', name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     contractId = contract.id;

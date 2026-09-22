@@ -9,8 +9,9 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
-Nothing in flight. The last work was the review-item series 1–9, closed
-2026-09-21 19:00 in `beeab2a`.
+Working through [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md). Slices 0 and 1
+are done; **Slice 2 (provider-neutral exchange definitions) is next**, and it
+closes Phase 4.
 
 The gate went red after the 2026-09-21 evening commits — 50 type errors, 9 lint
 errors and 5 failing suites — and was **restored to green on 2026-09-22**. See
@@ -305,6 +306,41 @@ testable. See NXD-036, NXD-037.
 
 **Phase 7 exit criteria met:** external publishers, vendor Artifacts, publisher trust/certification,
 per-namespace scoping (partial), entitlements verdrahtet, commercial marketplace trust badges.
+
+**Phase-closure plan (2026-09-22 →).** Slices from
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), newest first.
+
+- **Slice 1 — `DataContract` is identified by its coordinate.** See
+  [`NXD-048`](DECISIONS.md). Identity moves from
+  `(product_component_id, lower(name))` to `namespace/name@version`;
+  `product_component_id` becomes the relation to the providing component.
+  `GET /contracts/resolve?ref=…` resolves a contract without the caller knowing
+  which component — or which Product — declares it. The coordinate grammar is
+  the Artifact one, reused: `isArtifactSegment` now delegates to a single
+  `isNameSegment` in `product.ts`, so the two cannot drift.
+
+  Names tighten from free text to lowercase kebab-case, and the migration
+  refuses rather than guesses — it stops on an unnamed contract, a name that is
+  not a segment, or two rows that would collide, listing every offender at
+  once. Promoted rows land in a `legacy` namespace rather than one derived from
+  the Product name, because Product names are free text and slugifying two of
+  them can produce one segment.
+
+  The executed path found a defect no test had: `/contracts/resolve` against an
+  absent coordinate answered **500**, because `respondError` had no
+  `NotFoundError` branch. Fixed, and the service tests now assert error types
+  rather than only messages, since the router maps by instance check and this
+  plugin has no router harness.
+
+- **Slice 0 — the record made trustworthy.** See
+  [`NXD-043`](DECISIONS.md)–[`NXD-047`](DECISIONS.md). Four image names for one
+  artifact reduced to the one production already publishes
+  (`data-product-platform`); `platform-core:1.0-rc2` deliberately untouched
+  because formal validation records carry it as the validated product
+  candidate. `DECISIONS.md` backfilled for Wave 1 and the remediation series —
+  about twenty commits that had produced two decision records between them,
+  including that policy resolution fails *open* and why. GP-8 struck from
+  `HARDCODED_DOMAIN_INVENTORY.md`, leaving GP-7 as the only open row.
 
 **Post-plan strategy work (2026-09-21, 16:22–19:00).** Everything below down to
 the Docker entry landed after Phase 7 closed and is not part of the eight-phase

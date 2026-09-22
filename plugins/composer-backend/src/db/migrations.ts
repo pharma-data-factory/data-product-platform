@@ -269,6 +269,8 @@ export async function up(knex: Knex): Promise<void> {
         table.text('quality_rules').nullable();
       });
     }
+
+    await promoteDataContractsToCoordinates(knex);
   }
 
   // Upgrade Notifications (W2-1): records generated when a contract version bumps.
@@ -390,6 +392,117 @@ async function assertNoDuplicateIdentities(knex: Knex): Promise<void> {
         'Decide which row keeps the label, correct the others, then redeploy.',
     );
   }
+}
+
+/**
+ * Namespace given to contracts that predate coordinates.
+ *
+ * A holding namespace, not a guess. The alternative was to derive one from the
+ * owning Product's name, but Product names are free text ("Contract Product"),
+ * so deriving would either fail for almost every row or require slugifying —
+ * and two different names can slug to the same segment, which is precisely the
+ * ambiguity a coordinate exists to remove. `legacy` says what is true: this
+ * contract was identified by its component and has not been given a real
+ * namespace yet. Moving it is a deliberate act, not a migration's guess.
+ */
+const LEGACY_CONTRACT_NAMESPACE = 'legacy';
+
+/** Mirrors `isNameSegment` in platform-common. Kept local: a migration must */
+/** not change behaviour when the domain package is refactored. */
+const CONTRACT_SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Slice 1 of the phase-closure plan: a DataContract gets its own coordinate.
+ *
+ * Until now a contract was keyed by `(product_component_id, lower(name))`, so
+ * it could not be named from outside the component that declared it —
+ * `product.ts` itself carried a comment promising a later slice would fix
+ * that. Identity becomes `(namespace, lower(name), version)`;
+ * `product_component_id` stays as the relation to the providing component.
+ *
+ * The migration refuses rather than guesses, following NXD-009. Three things
+ * can stop it, and all three mean the existing data is already ambiguous:
+ *
+ *   - a contract with no name (rows predating P4-S1);
+ *   - a name that is not a coordinate segment, which cannot appear in a ref;
+ *   - two contracts that would land on the same coordinate.
+ *
+ * Every offending row is reported in one message, so remediation is one pass
+ * rather than a fix-redeploy-discover-the-next-one loop.
+ */
+async function promoteDataContractsToCoordinates(knex: Knex): Promise<void> {
+  if (await knex.schema.hasColumn('data_contracts', 'namespace')) {
+    return;
+  }
+
+  const rows: any[] = await knex('data_contracts').select(
+    'id',
+    'product_component_id',
+    'name',
+    'version',
+  );
+
+  const problems: string[] = [];
+  const seen = new Map<string, string>();
+
+  for (const row of rows) {
+    const name = String(row.name ?? '').trim();
+    if (!name) {
+      problems.push(
+        `  ${row.id}: has no name (predates P4-S1) — name it before upgrading`,
+      );
+      continue;
+    }
+    if (!CONTRACT_SEGMENT.test(name) || name.length > 64) {
+      problems.push(
+        `  ${row.id}: name "${name}" is not lowercase kebab-case, so it ` +
+          `cannot appear in a coordinate — rename it`,
+      );
+      continue;
+    }
+    const coordinate = `${LEGACY_CONTRACT_NAMESPACE}/${name}@${row.version}`;
+    const previous = seen.get(coordinate);
+    if (previous) {
+      problems.push(
+        `  ${row.id}: would collide with ${previous} at ${coordinate} — ` +
+          `both are named "${name}" at version ${row.version}. Rename one, or ` +
+          `bump its version`,
+      );
+      continue;
+    }
+    seen.set(coordinate, row.id);
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      'Composer migration stopped: DataContracts cannot be promoted to ' +
+        'coordinates because the existing rows are ambiguous.\n' +
+        `${problems.join('\n')}\n` +
+        'A contract is now identified by namespace/name@version so it can be ' +
+        'referenced from another Product. The migration will not rename a ' +
+        'contract on your behalf — a name a consumer may already have written ' +
+        'down is not something to change silently. Correct the rows above, ' +
+        `then redeploy. Promoted contracts land in the "${LEGACY_CONTRACT_NAMESPACE}" ` +
+        'namespace; move them to a real one deliberately afterwards.',
+    );
+  }
+
+  await knex.schema.alterTable('data_contracts', table => {
+    table.string('namespace', 64).nullable();
+  });
+  await knex('data_contracts').update({
+    namespace: LEGACY_CONTRACT_NAMESPACE,
+  });
+
+  // The old index keyed identity to the component. Dropping it is the point of
+  // the slice: two components may now provide differently-named contracts, and
+  // one component may no longer claim a name another already holds in the same
+  // namespace.
+  await knex.raw('drop index if exists data_contracts_name_unique');
+  await knex.raw(
+    'create unique index if not exists data_contracts_coordinate_unique ' +
+      'on data_contracts (namespace, lower(name), version)',
+  );
 }
 
 /**

@@ -1,3 +1,4 @@
+import type { ContractCoordinate } from '@internal/platform-common';
 import {
   Product,
   ProductVersion,
@@ -43,7 +44,7 @@ export interface IComposerRepository {
   createDataContract(contract: DataContract): Promise<DataContract>;
   getDataContract(id: string): Promise<DataContract | undefined>;
   listDataContracts(componentId: string): Promise<DataContract[]>;
-  findDataContractByName(componentId: string, name: string): Promise<DataContract | undefined>;
+  findDataContractByCoordinate(coordinate: ContractCoordinate): Promise<DataContract | undefined>;
 
   createProductDependency(dep: ProductDependency): Promise<ProductDependency>;
   getProductDependency(id: string): Promise<ProductDependency | undefined>;

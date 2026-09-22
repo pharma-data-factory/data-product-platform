@@ -59,7 +59,16 @@ export interface CreateProductComponentRequest {
 }
 
 export interface CreateDataContractRequest {
-  /** Required. Human-readable name, unique (case-insensitive) per component. */
+  /**
+   * Required. Owning namespace — the first segment of the coordinate.
+   * Lowercase kebab-case, e.g. `sales`.
+   */
+  namespace: string;
+  /**
+   * Required. Contract name — the second segment of the coordinate.
+   * Lowercase kebab-case. Unique per `(namespace, name, version)`, not per
+   * component.
+   */
   name: string;
   /** Optional. Who owns this contract (e.g. a group entity ref). */
   owner?: string;

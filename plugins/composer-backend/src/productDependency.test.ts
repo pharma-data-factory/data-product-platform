@@ -67,7 +67,7 @@ describe('ProductDependency', () => {
     );
     const contract = await service.addDataContract(
       component.id,
-      { name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
+      { namespace: 'test-ns', name: 'output-event-v1', schemaType: 'JSON_SCHEMA' },
       actor,
     );
     contractId = contract.id;
