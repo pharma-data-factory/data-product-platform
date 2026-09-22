@@ -8,10 +8,15 @@ Read in this order:
 3. `PRODUCT_STRATEGY.md`
 4. `TARGET_ARCHITECTURE.md`
 5. `IMPLEMENTATION_PLAN.md`
-6. `STATUS.md`
-7. `DECISIONS.md`
-8. `CLAUDE_MASTER_PROMPT.md`
+6. `PHASE_CLOSURE_PLAN.md`
+7. `STATUS.md`
+8. `DECISIONS.md`
+9. `CLAUDE_MASTER_PROMPT.md`
+
+`IMPLEMENTATION_PLAN.md` defines the eight phases. `PHASE_CLOSURE_PLAN.md`
+defines how the gaps still open in them get closed, in what order, and what
+counts as closed — read it before scoping any slice.
 
 For a new Claude session use:
 
-> Read `AGENTS.md`, `NEXORA_STRATEGY.md` and `docs/nexora-transformation/STATUS.md`. Continue the Nexora transformation from the next unfinished vertical slice according to `IMPLEMENTATION_PLAN.md`. Re-audit relevant code before changing it, update STATUS/DECISIONS, run tests, and respect all stop conditions.
+> Read `AGENTS.md`, `NEXORA_STRATEGY.md`, `docs/nexora-transformation/STATUS.md` and `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md`. Continue the Nexora transformation from the next unfinished slice in the closure plan. Re-audit relevant code before changing it, honour the plan's Definition of Done in full — including executing one real path — update STATUS/DECISIONS in the same commit, run all four gates, and respect all stop conditions.

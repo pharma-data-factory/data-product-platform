@@ -620,6 +620,16 @@ no decision records yet.
 Nothing in flight.
 
 ## Next
+**Sequencing now lives in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md)**
+(written 2026-09-22). A code audit for that plan found four phases still open
+against `IMPLEMENTATION_PLAN.md` — 2, 3, 4 and 7 — and that the entries below
+understated Phase 4 in particular: `DataContract` was never promoted to a
+first-class namespace despite `product.ts:192` saying a later slice would do
+it, and provider-neutral exchange definitions do not exist at all. Phase 5's
+CI-evidence chain is also not automated. The nine slices, their order and the
+Definition of Done are in that document; the notes below remain accurate as
+context.
+
 **1 — ~~Restore the green gate.~~ Done 2026-09-22.** All four gates pass again;
 see `## Test Status` for what was wrong and what each fix was. One item was
 left deliberately open: `build-image` tags `pharma-data-factory:mvp-1.0` while
