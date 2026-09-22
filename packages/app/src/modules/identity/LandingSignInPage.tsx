@@ -21,6 +21,7 @@ import { isPublicLegalPath } from '../legal/constants';
 import { LegalPage } from '../legal/LegalPage';
 import { AccessDeniedPage } from './AccessDeniedPage';
 import {
+  describeAuthError,
   formatAuthError,
   githubLoginFromProfile,
   isAccessDeniedError,
@@ -145,6 +146,12 @@ export function LandingSignInPage(props: SignInPageProps) {
         }
         return;
       }
+      // The UI message is deliberately vague. Put the real one somewhere a
+      // developer can reach it, redacted — otherwise a failed sign-in leaves
+      // no trace anywhere: the auth backend does not log resolver or token
+      // failures, so this catch is the only place the cause exists.
+      // eslint-disable-next-line no-console
+      console.error('[nexora] GitHub sign-in failed:', describeAuthError(err));
       setError(formatAuthError(err));
     }
   };

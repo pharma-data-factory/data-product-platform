@@ -1,5 +1,6 @@
 import {
   ACCESS_DENIED_MESSAGE,
+  describeAuthError,
   formatAuthError,
   isAccessDeniedError,
   isGithubOAuthConfigured,
@@ -80,5 +81,40 @@ describe('GitHub OAuth configuration detection', () => {
     expect(isGithubOAuthConfigured('')).toBe(false);
     expect(isGithubOAuthConfigured('${AUTH_GITHUB_CLIENT_ID}')).toBe(false);
     expect(isGithubOAuthConfigured('oauth-client')).toBe(true);
+  });
+
+  describe('describeAuthError', () => {
+    // The UI message collapses everything unrecognised into "please try
+    // again", and the auth backend logs nothing for a failed sign-in, so
+    // before this existed a failed login left no diagnosable trace anywhere.
+    // "Authentication failed, Failed to obtain access token" — the message
+    // that identified a rejected client secret — is exactly the kind of text
+    // formatAuthError discards.
+    it('keeps the detail the UI message throws away', () => {
+      const detail = describeAuthError(
+        new Error('Authentication failed, Failed to obtain access token'),
+      );
+      expect(detail).toContain('Failed to obtain access token');
+      expect(formatAuthError(new Error('Authentication failed, Failed to obtain access token')))
+        .toBe('GitHub sign-in failed. Please try again.');
+    });
+
+    it('redacts a secret instead of dropping the whole message', () => {
+      const detail = describeAuthError(
+        new Error('token: ghp_abc123def456 rejected by the provider'),
+      );
+      expect(detail).not.toContain('ghp_abc123def456');
+      expect(detail).toContain('[redacted]');
+      // The surrounding words survive — losing them is what made the original
+      // all-or-nothing masking useless for debugging.
+      expect(detail).toContain('rejected by the provider');
+    });
+
+    it('handles a non-Error rejection', () => {
+      expect(describeAuthError('plain string failure')).toContain(
+        'plain string failure',
+      );
+      expect(describeAuthError(undefined)).toContain('unknown error');
+    });
   });
 });

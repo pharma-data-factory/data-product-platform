@@ -4,6 +4,28 @@ export const ACCESS_DENIED_MESSAGE =
 const SECRET_PATTERN =
   /client.?secret|private.?key|AUTH_GITHUB_CLIENT_SECRET|GITHUB_PRIVATE_KEY|GITHUB_CLIENT_SECRET|bearer\s+[a-z0-9._-]+|ghp_[a-z0-9]+|ghs_[a-z0-9]+|token[=:]\s*\S+/i;
 
+/**
+ * The raw error, with anything secret-looking removed.
+ *
+ * `formatAuthError` deliberately collapses everything it does not recognise
+ * into "GitHub sign-in failed. Please try again." That protects a shared
+ * screen, but it also meant the cause was discarded at the only point where it
+ * existed: the auth backend logs nothing for a failed sign-in, so a masked
+ * message left no way at all to find out what went wrong.
+ *
+ * This keeps the redaction and gives the detail back, for a console log rather
+ * than the UI. `SECRET_PATTERN` is applied to the whole string, not tested
+ * against it, so a message that merely *contains* a token loses the token
+ * instead of the message.
+ */
+export function describeAuthError(err: unknown): string {
+  const raw =
+    err instanceof Error
+      ? `${err.name}: ${err.message}${err.stack ? `\n${err.stack}` : ''}`
+      : String(err ?? 'unknown error');
+  return raw.replace(new RegExp(SECRET_PATTERN.source, 'gi'), '[redacted]');
+}
+
 export function isAccessDeniedError(err: unknown): boolean {
   const raw = err instanceof Error ? err.message : String(err ?? '');
   return /catalog|user entity|not found|unable to resolve user identity|not authorized|access denied/i.test(
