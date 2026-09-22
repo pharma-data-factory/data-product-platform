@@ -416,7 +416,13 @@ export const DEVELOPER_PERMISSION_NAMES = new Set([
   'pluginDirectory.read',
   'modelCompany.runScenario',
   'modelCompany.control',
-  'urs.create',
+  // `urs.create` is deliberately NOT here. Authoring a URS is a governance
+  // act, not a development one: the platform tiers that may work on
+  // requirements are DATA_PRODUCT_OWNER, BUSINESS_CAPABILITY_LEAD and
+  // PLATFORM_ADMIN. A developer who should author requirements is given the
+  // `urs-authors` domain group instead — see URS_DOMAIN_PERMISSIONS. That
+  // keeps one person's development tier and their requirements role separate
+  // and separately auditable, which is what ALCOA attribution needs.
   'product.create',
   'artifact.create',
   'artifact.submit',
@@ -431,6 +437,9 @@ export const OWNER_PERMISSION_NAMES = new Set([
   'data-product.certification.manage',
   'aas.manage',
   'validation.review',
+  // Restated rather than inherited: it left DEVELOPER, and an owner who could
+  // edit a requirement set but not start one would be a strange gap.
+  'urs.create',
   'urs.manage',
   'urs.approve',
   // Signing sits at the same level as approving: the permission only says a
@@ -474,4 +483,14 @@ export const ADMIN_PERMISSION_NAMES = new Set([
 export const BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES = new Set([
   ...VIEWER_PERMISSION_NAMES,
   'business-capability.manage',
+  // A lead owns the capability a requirement set describes, so authoring one
+  // is part of the job. Until now the tier held read only — it ranks above
+  // DEVELOPER but inherited from VIEWER, so it had fewer rights than the tier
+  // below it.
+  //
+  // Authoring only. `urs.approve` and `urs.sign` stay with the owner tier and
+  // the review domain groups: whoever writes a requirement must not also be
+  // the one who approves and signs it.
+  'urs.create',
+  'urs.manage',
 ]);

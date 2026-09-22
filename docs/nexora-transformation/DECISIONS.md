@@ -1225,3 +1225,47 @@ nothing, reported nothing, and looked like it had passed. Fixed here because the
 new obligation could not otherwise be exercised at all. It is the second defect
 in two slices that only surfaced because the Definition of Done requires running
 the thing.
+
+### NXD-050 — URS authoring is a governance tier plus an assignable domain role
+
+Requested: only `data-product-owners`, `business-capability-leads` and
+`platform-admins` may work on URS — but a developer must still be able to hold
+those roles, and every change must be attributable under ALCOA and GMP.
+
+Two mechanisms already grant URS rights and they stay separate, which is what
+makes the request satisfiable:
+
+- **Platform tier** — what someone is on the platform. `urs.create` leaves
+  DEVELOPER and is restated on DATA_PRODUCT_OWNER (which inherited it) and
+  added to BUSINESS_CAPABILITY_LEAD.
+- **URS domain group** — what someone does with requirements, independent of
+  tier. `urs-authors`, `urs-owners`, `urs-business-reviewers`,
+  `urs-product-managers`, `urs-quality-reviewers`, applied by
+  `decidePermission` on top of the tier.
+
+So a developer authors requirements by being given `urs-authors`, not by being
+a developer. The two axes are granted separately and audited separately, which
+is the point: the audit trail records that *this person* changed *this URS*,
+and the role they held to do it is visible as a separate, separately-revocable
+grant. Collapsing URS rights into the tier would have removed
+`urs-quality-reviewers` and with it `urs.sign` — a 21 CFR Part 11 signature —
+and the separation between whoever writes a requirement and whoever approves
+it.
+
+**BUSINESS_CAPABILITY_LEAD was inconsistent** and is corrected here. It ranks
+above DEVELOPER (3 vs 2) but inherited from VIEWER, so it held `urs.read` and
+nothing else — fewer rights than the tier below it. It now authors
+(`urs.create`, `urs.manage`) but does not approve or sign: whoever writes a
+requirement must not also be the one who signs it off.
+
+**No test pinned any of this.** Removing `urs.create` from DEVELOPER left all
+1822 tests green. For a permission deciding who may author a regulated
+requirement that is not acceptable, so the rule is now asserted directly —
+including the case the request turns on: a DEVELOPER plus `urs-authors` may
+author, and still may not approve.
+
+Attribution was verified rather than assumed. `audit_events` is append-only,
+`urs_requirement_version_immutability()` raises `URS_IMMUTABLE` on a frozen
+version, `updateRequirementSet` writes `updatedBy: actor`, and the persistence
+guard refuses `memory` mode when `auth.environment` is production — a rule that
+exists because production once ran the audit trail in process memory.

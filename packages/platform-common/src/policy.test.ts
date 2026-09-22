@@ -429,3 +429,53 @@ describe('guest identity', () => {
     expect(decidePermission(platformAdminPermission, role)).toBe('deny');
   });
 });
+
+describe('URS authoring is a governance tier, not a development one', () => {
+  const urs = (name: string) => ({
+    name,
+    attributes: { action: name.endsWith('create') ? 'create' : 'update' },
+  });
+
+  // No test previously pinned DEVELOPER holding urs.create, so removing it
+  // from the tier passed the whole suite silently. For a permission that
+  // decides who may author a regulated requirement, that is not good enough.
+  it('denies a Developer urs.create and urs.manage from the tier alone', () => {
+    expect(decidePermission(urs('urs.create'), 'DEVELOPER')).toBe('deny');
+    expect(decidePermission(urs('urs.manage'), 'DEVELOPER')).toBe('deny');
+  });
+
+  it('grants a Business Capability Lead authoring but not approval', () => {
+    // The tier ranks above DEVELOPER but inherited from VIEWER, so until now
+    // it held read only — fewer rights than the tier below it.
+    expect(decidePermission(urs('urs.create'), 'BUSINESS_CAPABILITY_LEAD')).toBe('allow');
+    expect(decidePermission(urs('urs.manage'), 'BUSINESS_CAPABILITY_LEAD')).toBe('allow');
+    // Whoever writes a requirement must not also approve and sign it.
+    expect(decidePermission(urs('urs.approve'), 'BUSINESS_CAPABILITY_LEAD')).toBe('deny');
+    expect(decidePermission(urs('urs.sign'), 'BUSINESS_CAPABILITY_LEAD')).toBe('deny');
+  });
+
+  it('keeps urs.create with the owner and admin tiers', () => {
+    expect(decidePermission(urs('urs.create'), 'DATA_PRODUCT_OWNER')).toBe('allow');
+    expect(decidePermission(urs('urs.create'), 'PLATFORM_ADMIN')).toBe('allow');
+  });
+
+  it('lets a Developer author once the urs-authors role is assigned', () => {
+    // The point of keeping the two axes separate: a person's development tier
+    // and their requirements role are granted independently and audited
+    // independently, which is what ALCOA attribution needs.
+    const developerWhoAuthors = [
+      'group:default/data-product-developers',
+      'group:default/urs-authors',
+    ];
+    expect(
+      decidePermission(urs('urs.create'), 'DEVELOPER', undefined, developerWhoAuthors),
+    ).toBe('allow');
+    expect(
+      decidePermission(urs('urs.manage'), 'DEVELOPER', undefined, developerWhoAuthors),
+    ).toBe('allow');
+    // Authoring is not approving, whichever way the rights were obtained.
+    expect(
+      decidePermission(urs('urs.approve'), 'DEVELOPER', undefined, developerWhoAuthors),
+    ).toBe('deny');
+  });
+});
