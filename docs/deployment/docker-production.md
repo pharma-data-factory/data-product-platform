@@ -60,7 +60,7 @@ See [portainer.md](./portainer.md).
 yarn install --immutable
 yarn tsc
 yarn build:backend
-docker build -f packages/backend/Dockerfile -t pharma-data-factory:mvp-1.0 .
+docker build -f packages/backend/Dockerfile -t data-product-platform:mvp-1.0 .
 ```
 
 Or: `yarn docker:prod:build`

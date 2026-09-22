@@ -1024,3 +1024,119 @@ Use this file for durable architecture decisions.
 - W3-2: GP-8 Deprecation Notice. `nexora-industrial.ts` receives a prominent JSDoc `@deprecated` block with migration plan: create `nexora/industrial-vocabulary@1.0.0` COMPONENT Artifact, move exports, delete file. No new vocabulary to be added to this file.
 - W3-4: Visual Lineage UI. `LineageDAGView` component added to data-products plugin. Layered column layout (Upstream → Root → Downstream). Consumes the `/impact/artifact` endpoint. Replaces plain text `<ul>` in the Lineage tab with a structured visual.
 - W3-7: Multi-Registry Federation Foundation. `packages/platform-common/src/registry-federation.ts` defines `FederatedRegistry`, `FederatedArtifact`, `FederatedSearchResult`, `FederationConfig`. Types only — the HTTP fan-out client is the next slice.
+
+### NXD-043 — Local container images take the name production already publishes
+
+Four names existed for one artifact: `docker-compose.production.yml` defaults to
+`ghcr.io/pharma-data-factory/data-product-platform:mvp-1.0`, `build-image` tagged
+`pharma-data-factory:mvp-1.0`, `docker-compose.yml` tagged `nexora:latest`, and
+`docker-compose.validation.yml` defaults to `platform-core:1.0-rc2`.
+
+Decision: local images use `data-product-platform` — the repository component of
+the GHCR path production already publishes. `build-image` produces
+`data-product-platform:mvp-1.0`, `docker-compose.yml` uses
+`data-product-platform:local`.
+
+This is not a rebrand. Production's published name was never in question; the
+two local names had drifted from it, so what a developer builds locally now
+carries the same name as what ships. `pharma-data-factory` remains the GitHub
+organisation and stays in the GHCR path, in schema `$id` URLs and in the 100-odd
+documentation references — none of those are image names.
+
+**`platform-core:1.0-rc2` is deliberately untouched.** It appears in formal
+validation records (`docs/validation/00-phase0/`, `docs/archive/validation-expert-design.md`)
+as the validated product candidate `platform-core-v1.0-rc2`. A name carried by
+GxP evidence is a controlled identifier, not drift; renaming it would invalidate
+the traceability those records establish.
+
+`brandSeparation.test.ts` is tightened back to the single name. The guarantee it
+exists to make — the stack pins an image this project owns, never a stock
+upstream one — is unchanged.
+
+### NXD-044 — Wave 1 open strategy items (P-EXT-S1..S5)
+
+Recorded 2026-09-22; the wave landed 2026-09-21 in `17c8446` without a decision
+entry.
+
+- P-EXT-S1: Evidence provenance. `ProductBaseline.snapshot` carries a
+  `_provenance` block with `snapshotChecksum` (`sha256:hex`),
+  `snapshotTimestamp` and `createdBy`, and the audit event records the checksum.
+  A baseline whose content is altered after the fact no longer matches its own
+  checksum, so tampering is detectable rather than merely discouraged.
+- P-EXT-S2: Publisher self-registration. `POST /publishers/self-register` lets a
+  DEVELOPER create a COMMUNITY external publisher and adds the registrant to
+  `memberGroups`. Promotion to PARTNER stays with a Platform Admin. This trades
+  an admin bottleneck for a trust tier that cannot publish — a COMMUNITY
+  publisher may submit DRAFT artifacts only. It is also the first read path for
+  `memberGroups`, which [`NXD-014`](DECISIONS.md) had recorded as written but
+  unread.
+- P-EXT-S3: Change impact analysis. `GET /contracts/:id/impact` and
+  `GET /impact/artifact?name=` answer "who breaks if this changes", one hop over
+  direct `ProductDependency` links. One hop, not transitive: multi-hop arrived
+  later as `W3-1`.
+- P-EXT-S4: Contract subscriptions. `ContractSubscription` and the
+  `contract_subscriptions` table, unique per contract and consumer, with
+  `ACTIVE | PAUSED | CANCELLED`. A subscription is an operational registration,
+  not an entitlement — it says "tell me when this changes", not "I may read
+  this".
+- P-EXT-S5: The `UpgradeNotification` type only. Persistence and dispatch were
+  deliberately deferred to `W2-1` rather than shipped half-wired.
+
+### NXD-045 — Policy Packs resolve into the Release Gate, and resolution fails open (5-R1, 7-R4)
+
+`Product.declaredPolicies` (nullable `declared_policies` column, JSON array of
+coordinates) records which Policy Packs a product claims.
+`nexora/gxp-data-product-policy@1.0.0` is a POLICY_PACK Artifact with 8
+obligations derived from FDA 21 CFR Part 11, EU Annex 11 and GAMP 5.
+`checkReleaseGate` resolves the declared coordinates through an injected
+`policyResolverClient` and raises `POLICY_PACK_UNRESOLVABLE` or
+`POLICY_OBLIGATION_UNMET`.
+
+**The resolver fails open: an unreachable resolver returns null and does not
+block a release.** This is the deliberate part of the decision and it cuts
+against instinct for a GxP control. The reasoning: the resolver is a
+cross-plugin HTTP call, so its availability is an infrastructure property, not a
+compliance property. Failing closed would convert every registry restart into a
+release freeze, which trains people to bypass the gate. The obligations that
+genuinely must hold are also checked directly against product data by
+`platform-policy.ts`, which has no network dependency and fails loudly. The
+policy pack layer adds distributable, versioned obligations on top of that
+floor — it is not the floor itself.
+
+An unknown check id raises `POLICY_OBLIGATION_UNMET` rather than passing
+silently, matching the fail-loud rule in `platform-policy.ts`.
+
+### NXD-046 — Nexora Core is a PLATFORM_PRODUCT on the normal lifecycle (7-R5, W3-3)
+
+`PRODUCT_TYPES` gains `PLATFORM_PRODUCT` alongside `DATA_PRODUCT` and `SERVICE`,
+and `bootstrapPlatformProduct()` registers `nexora-core` on plugin init —
+idempotent, non-fatal, declaring `nexora/gxp-data-product-policy@1.0.0`.
+
+The decision is that a platform product follows the **same** lifecycle as every
+other product: Requirements → Baselines → Validation → Release Gate. No parallel
+path, no exemption. This is what "Nexora manages Nexora with Nexora" has to mean
+to be more than a slogan — if the platform needed its own lifecycle, the claim
+would be false.
+
+Bootstrap is non-fatal by design: a failure to register the platform product
+must not prevent the platform from starting, or a self-referential bug becomes
+unrecoverable without a database edit.
+
+### NXD-047 — Federation syncs on an in-process interval, knowingly (A-3, 7-R2)
+
+The artifact-registry plugin reads `artifactRegistry.federation` at startup and
+runs an initial fan-out plus a `setInterval` sync. The fan-out uses
+`Promise.allSettled` so one unreachable peer cannot block the others, with a 15s
+`AbortSignal.timeout` per peer.
+
+`setInterval` was chosen over a durable job with its limits accepted and stated:
+the schedule dies with the process, runs once per replica rather than once per
+cluster, and has no retry or backoff. This is tolerable only because federation
+sync is idempotent and advisory — a missed sync delays the appearance of remote
+artifacts, it does not corrupt local state. It would not be tolerable for
+anything that writes.
+
+A durable job (pg-boss or the Backstage scheduler) is the upgrade, and it is
+scoped as part of Slice 5 in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md).
+Until then federation is unconfigured in every `app-config`, so the scheduler
+has never actually run.

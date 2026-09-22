@@ -27,7 +27,7 @@ proven — see the migration architecture in `TARGET_ARCHITECTURE.md`.
 | ~~GP-5~~ | ~~`WAVE1_COMPONENT_TITLES` — display names for a fixed component set~~ | — | **REMOVED 2026-09-21 (NXD-033)** |
 | ~~GP-6~~ | ~~`EQUIPMENT_USE_LOG_COMPOSITION_YAML` — a manifest embedded as a string~~ | — | **REMOVED 2026-09-21 (NXD-032)** |
 | GP-7 | `RUNTIME_PACKAGE_*` / `CATALOG_ONLY_COMPONENT_NAMES` — fixed component registry | `platform-component-library.ts` | Medium |
-| GP-8 | Industrial semantics as a Core vocabulary — equipment, site, area, line, OEE and equipment-state API annotations | `nexora-industrial.ts` | **High** |
+| ~~GP-8~~ | ~~Industrial semantics as a Core vocabulary~~ | — | **REMOVED 2026-09-21** |
 
 **Not** hard-coded, and worth preserving as the precedent to follow:
 `OFFICIAL_GOLDEN_PATHS` in `releases.ts` is *derived* from
@@ -156,11 +156,20 @@ runtime availability becomes a property of an `ArtifactVersion`.
 
 ---
 
-## GP-8 — Industrial semantics are a Core vocabulary
+## ~~GP-8~~ — Industrial semantics are a Core vocabulary — **REMOVED**
 
 *Added 2026-09-17 by the status audit. Missed by the P0-S3 sweep, which looked
 for hard-coded Golden Paths and composition lists and therefore did not catch
 a domain vocabulary that names no Golden Path at all.*
+
+> **Closed 2026-09-21** in `4909efe` and `b3fc357`. All 62 exports moved to
+> `packages/nexora-industrial-vocab/src/index.ts` (598 lines, 39 tests);
+> `platform-common/src/nexora-industrial.ts` is a 9-line
+> `export * from '@internal/nexora-industrial-vocab'` shim under a
+> `@deprecated` notice, so no consumer import changed. The extraction landed in
+> two steps — the package was first created as a pure re-export so consumers
+> could migrate incrementally, then the content moved and the dependency
+> direction reversed. **GP-7 is now the only open row.**
 
 `packages/platform-common/src/nexora-industrial.ts` is 589 lines and 62
 exports of manufacturing domain: `NEXORA_ANNOTATIONS` (equipment-id, site,

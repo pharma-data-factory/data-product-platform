@@ -82,7 +82,7 @@ services:
     build:
       context: .
       dockerfile: packages/backend/Dockerfile
-    image: nexora:latest
+    image: data-product-platform:local
     ports:
       - "7007:7007"
     # Lokaler Betrieb ohne GitHub-Credentials.
@@ -113,7 +113,7 @@ services:
     build:
       context: .
       dockerfile: packages/backend/Dockerfile
-    image: nexora:latest
+    image: data-product-platform:local
     profiles: [split]
     ports:
       - "7007:7007"
