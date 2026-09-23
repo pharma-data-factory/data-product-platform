@@ -13,11 +13,24 @@ export interface UrsBaselineReference {
 }
 
 export interface UrsRequirementSummary {
+  /** The URS `RequirementVersion.id` — the immutable version the baseline pins. */
   id: string;
+  /**
+   * The URS `RequirementVersion.requirementId` — the stable logical id
+   * (`URS-OEE-014`) that humans, protocol tests and traceability links all
+   * speak. Absent only on malformed data; `bindUrsBaseline` refuses such rows
+   * rather than storing a requirement nothing can reference.
+   */
+  requirementRef?: string;
   title: string;
   statement: string;
   category?: string;
   priority?: string;
+  /** GxP classification, carried through so validation can be risk-proportional. */
+  gxpRelevance?: string;
+  versionLabel?: string;
+  /** SHA-256 over the signed URS content. Proves which wording was tested. */
+  contentHash?: string;
   classification?: {
     componentType?: string;
     requirementNature?: string;
@@ -201,10 +214,15 @@ export function createHttpUrsBaselineResolver(options: {
           if (vRes.ok) {
             const v = (await vRes.json()) as {
               id?: string;
+              requirementId?: string;
               title?: string;
               statement?: string;
               category?: string;
               priority?: string;
+              gxpRelevance?: string;
+              versionLabel?: string;
+              version?: string;
+              contentHash?: string;
               classification?: {
                 componentType?: string;
                 requirementNature?: string;
@@ -213,10 +231,14 @@ export function createHttpUrsBaselineResolver(options: {
             };
             requirements.push({
               id: v.id ?? vid,
+              requirementRef: v.requirementId,
               title: v.title ?? '',
               statement: v.statement ?? '',
               category: v.category,
               priority: v.priority,
+              gxpRelevance: v.gxpRelevance,
+              versionLabel: v.versionLabel ?? v.version,
+              contentHash: v.contentHash,
               classification: v.classification,
             });
           } else {
@@ -236,12 +258,25 @@ export function createHttpUrsBaselineResolver(options: {
       }
 
       if (versionIds.length > 0 && requirements.length < versionIds.length) {
-        // A partial requirement list is worse than none for a GxP context: it
-        // looks complete. Say plainly how much is missing.
+        // A partial requirement list is worse than none: it looks complete.
+        //
+        // This used to warn and return the short list. Both callers made that
+        // wrong in the same way — `bindUrsBaseline` would freeze a snapshot
+        // missing requirements nobody would ever notice were absent, and
+        // `generateProductSpec` would ask the model to design against a subset
+        // while the draft claims the baseline. Neither caller can tell a short
+        // list from a short baseline, so the decision belongs here.
         options.logger?.warn(
           `URS baseline ${baselineId} resolved ${requirements.length} of ` +
             `${versionIds.length} requirement versions. The context is ` +
             `incomplete.`,
+        );
+        throw new Error(
+          `URS baseline ${baselineId} could not be resolved in full: ` +
+            `${requirements.length} of ${versionIds.length} requirement ` +
+            `versions were readable. Refusing to return a partial ` +
+            `requirement set — it would be indistinguishable from a complete ` +
+            `one. Check that the URS Composer is reachable and retry.`,
         );
       }
 

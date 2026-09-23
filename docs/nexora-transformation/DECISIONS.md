@@ -1537,3 +1537,167 @@ Segregation of Duties, and local guest auth supplies one; that branch is
 covered by `crossPluginAuth.test.ts` instead. Recorded as a limitation rather
 than glossed, because it is the one step of the chain still proven only by
 test.
+
+### NXD-055 — A Product Version holds its requirements as a snapshot, not a pointer (Slice 1a/1b)
+
+An analysis of the URS → Product Development handoff found the journey broken
+at exactly one joint. The URS side is complete — lifecycle, e-signatures with
+SoD, an immutable `Baseline` with a stable UUID, PostgreSQL triggers that
+content-freeze released versions. The Product side received none of it:
+`Product` had no URS field at all, `ProductVersion.baselineId` pointed at a
+*ProductBaseline*, and the only URS binding anywhere was
+`ProductBaseline.ursBaselineIds` — a nullable JSON column on an optional child
+record, written by exactly one code path (`applySpecDraft`, fed by a UUID
+pasted into a free-text box on `/compose`, from a draft held in a
+non-persistent `Map`). The frontend client hard-coded an empty body, and no
+component called it.
+
+Requirement *text* was read exactly once, by `resolveBaselineContext`, to build
+an LLM prompt, and thrown away. So there was nothing on the product side to
+map, count, show coverage against, or hand to a developer — every other gap in
+the handoff was downstream of that one absence.
+
+**`ProductRequirement` is a copy, not a reference.** The product implements the
+requirements in the wording it was built against; a pointer into a living URS
+cannot answer "which text was tested?", which is the question an inspection
+asks. `contentHash` carries the URS side's own SHA-256 over the signed content,
+so the copy can be proven to be that wording. Rows are written once and never
+updated — a revised baseline produces a new binding on a new version.
+
+This also means the Product Composer stores requirement text it does not own.
+That is deliberate and is the same trade `ValidationContext` already makes for
+`requirementIds`: a controlled record has to survive the revision of its
+source, and a cross-plugin read at display time would show today's wording
+against yesterday's evidence.
+
+**Three refusals, each chosen rather than defaulted.** Binding requires the
+version to be `DRAFT` (the requirements a version implements are part of what
+was approved); refuses a second binding (rebinding is change control — a new
+version keeps both relationships on the record, overwriting keeps neither); and
+refuses a requirement with no stable `requirementRef`, because a requirement
+nothing can reference produces coverage that can never be satisfied.
+
+**`resolveBaselineContext` now rejects a partial requirement list instead of
+warning.** Its own comment already said "a partial requirement list is worse
+than none for a GxP context: it looks complete" — and then returned it. Both
+callers were wrong in the same way: the binding would freeze a snapshot missing
+requirements nobody would notice were absent, and spec generation would ask the
+model to design against a subset while the draft claimed the baseline. Neither
+caller can distinguish a short list from a short baseline, so the decision
+belongs in the resolver. Enrichment from the requirement *set* (solution name,
+capabilities) still degrades to a warning — losing it degrades the context,
+losing a requirement corrupts it.
+
+**Identity is `(product_version_id, urs_requirement_version_id)`, in the
+database as well as the service** (NXD-009). The service refuses a rebind, so
+the unique index is the only thing that can stop a concurrent second write.
+
+**Verification and validation are two axes, not one status** —
+`NEXORA_STRATEGY.md`: "Engineering Verification and formal Pharma Validation
+are separate but traceable." Both hang off the same `requirementRef`, which is
+the stable logical id (`URS-OEE-014`) that `ValidationContext` already speaks;
+the version UUID is the identity key but never the join key. Slice 1b reads
+per-requirement coverage from the Validation Expert through the existing
+`GET /contexts/:id/coverage`.
+
+**`getValidationCoverage` returns `undefined` where `hasApprovedDecision`
+returns `false`.** The gate needs a verdict and must fail closed. A coverage
+table must not: rendering an unreachable validation-expert as "nothing is
+validated" states something about the product that was never checked. The UI
+shows "Validated — unknown" for that case rather than zero.
+
+**The release gate was already written and could not fire.** `NO_URS_BASELINE`
+and the `urs-baseline-bound` obligation have existed and been tested since
+Phase 5, but only `applySpecDraft` ever set `ursBaselineIds`, so on the normal
+path the check was unreachable. `createProductBaseline` now inherits the
+version's binding when the caller states none, which makes a dormant gate live
+without touching the gate. An explicit `ursBaselineIds` still wins, for a
+version bound before this existed.
+
+**Two defects fixed in passing, both inside the path this slice touches.**
+`applySpecDraft` created components and discarded their `traceabilityRefs`,
+even though the prompt demands them and the draft carries them — so every
+AI-generated product failed its own release gate on `INCOMPLETE_TRACEABILITY`.
+It now creates the `IMPLEMENTS` links, skipping refs that match no requirement
+in the baseline (a link to a requirement the baseline does not contain is worse
+than a missing one). And `ProductDetailPage` loaded components for the *latest*
+version while the picker selected any version; requirements are per-version by
+definition, so the mismatch had to be resolved rather than inherited.
+
+**The free-text requirement id is gone.** The traceability form's `sourceId`
+was a text box with placeholder `URS-OUT-001`; a typo stored fine, counted as
+coverage, and pointed at nothing. It is now a select over the bound baseline.
+Coverage still matches links written against either the ref or the version
+UUID, so links created before this slice keep counting.
+
+**What was executed, and what was not.** The gate is green — 214 suites, 1903
+tests, `tsc`, `lint:all` and `guard:platform` all pass, including 21 new tests
+covering the binding, the snapshot, both coverage axes and the identity
+constraint on SQLite.
+
+The migration was additionally executed against real PostgreSQL, since NXD-009
+makes that the standing rule for an identity constraint and the composer suites
+are SQLite-only. Four things were observed rather than assumed: all sixteen
+columns of `product_requirements` exist; `product_versions.urs_baseline_id` is
+added; the unique index refuses a second row for the same
+`(product_version_id, urs_requirement_version_id)`; and the foreign key refuses
+a requirement whose version does not exist. It was also run against a schema
+that predates the slice — the pre-existing version row survives with
+`urs_baseline_id` NULL — and run four times over, unchanged after the first.
+This was a one-off execution, not a committed suite: the PostgreSQL helper
+lives in `urs-composer-backend` and importing it would add a second
+`CROSS_PLUGIN_BOUNDARY` warning to the one already on record.
+
+**The slice has not been exercised against a running stack.** Producing an
+approved URS baseline requires several distinct identities under Segregation of
+Duties, the same limitation NXD-054 recorded. Recorded rather than glossed:
+this repository has found four defects that every test passed and no execution
+had ever reached (NXD-053), and the UI path in particular is not yet outside
+that class.
+
+### NXD-056 — `/products` is the Product page; the catalog page stays the consumer view
+
+Two pages both call themselves a product. `/products/:productId` is backed by
+the Composer domain — versions, baselines, requirements, traceability, release
+gate — has no tabs, and is not in the sidebar. `/data-products/:name` is backed
+by a Catalog entity, has ten tabs, and is where users actually are. Slice 1a put
+the requirements on the first one, which forced the question.
+
+**Decision: they stay separate.** `/products` is the Product page and gets the
+owner-facing tab set (Overview, Requirements, Architecture, Contracts,
+Development, Tests, Validation). `/data-products` keeps the consumer-facing
+view.
+
+They answer different questions for different people. `/products` answers "is
+this fit to release?" — read by the product owner and QA. `/data-products`
+answers "can I use this data?" — read by a consumer. Seven of its ten tabs
+(Data, API, Realtime, Quality, Lineage, Ownership, and most of Contracts) are
+consumer-facing. Putting GxP evidence between them serves both badly.
+
+**The load-bearing reason not to merge now: the two records have no shared
+identity.** The scaffolder creates the Catalog entity, `POST /products` creates
+the Composer row, and nothing joins them. Making the catalog page the product
+page today would require a key onto the Composer row, and the only available
+one is a Catalog annotation — which is exactly what
+`dataprod.platform/urs-baseline` already is: the same fact in two places, never
+synchronised, read by nobody. Repeating that pattern to solve a UI question
+would be the second instance of the defect class, not a fix.
+
+Step 2 of the URS → Product roadmap ("one door" — a `nexora:product:create`
+scaffolder action that writes the repo, the entity and the `products` row in
+one act) gives the two records a shared identity at birth. A merge, or a
+cross-link, is only clean after that. So the page decision is taken now and the
+merge is deliberately not.
+
+**Consequences, in order.** `/products` goes into the sidebar under *Build* —
+that group currently offers `/create` and `/compose` and then no destination,
+so the product page is its missing end, and a page holding release governance
+that cannot be navigated to is a defect on its own. Tabs replace the single
+scroll; the content for Overview, Requirements, Architecture and Tests is
+already on the page, so it is re-sorting, not new work. A one-line cross-link
+in each direction follows Step 2.
+
+**If this is reversed** and the catalog page becomes the product page, Step 2
+must be pulled forward ahead of any further UI work. Without the shared
+identity there is no way to attach the requirements view there except the
+annotation this record rejects.

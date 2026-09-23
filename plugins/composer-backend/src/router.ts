@@ -32,6 +32,7 @@ import {
 import { ComposerService } from './service';
 import type { AvailableComponentSummary } from './llm-client';
 import {
+  BindUrsBaselineRequest,
   CreateDataContractRequest,
   CreateProductDependencyRequest,
   CreateSubscriptionRequest,
@@ -617,6 +618,64 @@ export async function createRouter(
         );
         await service.removeProductDependency(req.params.id, actor);
         res.status(204).end();
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // ============================================================================
+  // PRODUCT REQUIREMENTS (Slice 1a / 1b)
+  // ============================================================================
+
+  /**
+   * Bind this version to an approved URS baseline and snapshot its
+   * requirements. `product.manage` — stating what a product implements is a
+   * governance act on the product, the same authority that approves a version.
+   */
+  router.post(
+    '/versions/:versionId/urs-baseline',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productManagePermission,
+        );
+        const body = (req.body ?? {}) as BindUrsBaselineRequest;
+        const result = await service.bindUrsBaseline(
+          req.params.versionId,
+          String(body.ursBaselineId ?? ''),
+          actor,
+        );
+        res.status(201).json(result);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/requirements',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({
+          items: await service.listProductRequirements(req.params.versionId),
+        });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  router.get(
+    '/versions/:versionId/requirement-coverage',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.getRequirementCoverage(req.params.versionId));
       } catch (err) {
         respondError(res, logger, err);
       }

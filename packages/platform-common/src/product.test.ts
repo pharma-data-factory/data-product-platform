@@ -13,6 +13,9 @@ import {
   validateProduct,
   validateVersionLabel,
   validateTraceabilityLink,
+  isRequirementOrigin,
+  validateProductRequirement,
+  REQUIREMENT_ORIGINS,
 } from './product';
 
 describe('product model', () => {
@@ -165,6 +168,74 @@ describe('product model', () => {
       expect(validateDataContractSchemaType('   ')).toEqual([
         'Data contract schemaType is required',
       ]);
+    });
+  });
+
+  describe('product requirements (Slice 1a)', () => {
+    const valid = {
+      ursBaselineId: 'baseline-1',
+      ursRequirementVersionId: 'rv-014',
+      requirementRef: 'URS-OEE-014',
+      title: 'System shall calculate OEE Availability',
+      origin: 'PRODUCT',
+    };
+
+    it('accepts a requirement carrying a stable id and an origin', () => {
+      expect(validateProductRequirement(valid)).toEqual([]);
+    });
+
+    it('keeps room for the other two origins without a later migration', () => {
+      // PRODUCT is all that is populated today. ORGANIZATION and ARTIFACT
+      // exist so the Effective Requirement Set has somewhere to grow.
+      expect([...REQUIREMENT_ORIGINS]).toEqual([
+        'PRODUCT',
+        'ORGANIZATION',
+        'ARTIFACT',
+      ]);
+      for (const origin of REQUIREMENT_ORIGINS) {
+        expect(isRequirementOrigin(origin)).toBe(true);
+        expect(validateProductRequirement({ ...valid, origin })).toEqual([]);
+      }
+    });
+
+    it('rejects an origin outside the set, including case variants', () => {
+      for (const origin of ['product', 'URS', 'Organization', '']) {
+        expect(isRequirementOrigin(origin)).toBe(false);
+        expect(validateProductRequirement({ ...valid, origin })).not.toEqual(
+          [],
+        );
+      }
+    });
+
+    it('refuses a requirement with no stable reference, and says why', () => {
+      // A requirement with no stable id cannot be mapped to a component or a
+      // test, so storing it would create coverage nothing can ever satisfy.
+      const issues = validateProductRequirement({
+        ...valid,
+        requirementRef: '   ',
+      });
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatch(/cannot be mapped to a component or a test/);
+    });
+
+    it('requires the baseline, the version id and a title', () => {
+      expect(
+        validateProductRequirement({
+          ursBaselineId: '',
+          ursRequirementVersionId: '',
+          requirementRef: '',
+          title: '',
+          origin: 'PRODUCT',
+        }),
+      ).toHaveLength(4);
+    });
+
+    it('does not re-judge the requirement text the URS already approved', () => {
+      // Statement, category, priority and hash are absent here. They are
+      // optional by design: this text was written, reviewed and signed in the
+      // URS Composer, and a second opinion in front of an approved record is
+      // not this function's job.
+      expect(validateProductRequirement(valid)).toEqual([]);
     });
   });
 });

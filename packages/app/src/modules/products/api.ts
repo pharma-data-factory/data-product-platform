@@ -7,6 +7,8 @@ import {
 import type {
   Product,
   ProductComponent,
+  ProductRequirement,
+  ProductRequirementCoverage,
   ProductVersion,
   TraceabilityLink,
 } from '@internal/platform-common';
@@ -52,12 +54,28 @@ export interface ComposerClient {
   listProductBaselines(
     versionId: string,
   ): Promise<Array<Record<string, unknown>>>;
+  /**
+   * `ursBaselineIds` is optional because a bound version supplies it: the
+   * service inherits `product_versions.urs_baseline_id` when the body states
+   * none. It used to be impossible to send at all — this method hard-coded an
+   * empty body, so the one field that made the release gate's URS check
+   * reachable could not be set from the UI.
+   */
   createProductBaseline(
     versionId: string,
+    input?: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
   approveProductBaseline(
     baselineId: string,
   ): Promise<Record<string, unknown>>;
+  bindUrsBaseline(
+    versionId: string,
+    ursBaselineId: string,
+  ): Promise<{ version: ProductVersion; requirements: ProductRequirement[] }>;
+  listProductRequirements(versionId: string): Promise<ProductRequirement[]>;
+  getRequirementCoverage(
+    versionId: string,
+  ): Promise<ProductRequirementCoverage>;
 }
 
 export function useComposerClient(): ComposerClient {
@@ -110,9 +128,17 @@ export function useComposerClient(): ComposerClient {
       request('POST', `/versions/${versionId}/transition`, { targetStatus }),
     listProductBaselines: versionId =>
       request('GET', `/versions/${versionId}/baselines`),
-    createProductBaseline: versionId =>
-      request('POST', `/versions/${versionId}/baselines`, {}),
+    createProductBaseline: (versionId, input) =>
+      request('POST', `/versions/${versionId}/baselines`, input ?? {}),
     approveProductBaseline: baselineId =>
       request('POST', `/baselines/${baselineId}/approve`, {}),
+    bindUrsBaseline: (versionId, ursBaselineId) =>
+      request('POST', `/versions/${versionId}/urs-baseline`, { ursBaselineId }),
+    listProductRequirements: versionId =>
+      request('GET', `/versions/${versionId}/requirements`).then(
+        (body: { items: ProductRequirement[] }) => body.items,
+      ),
+    getRequirementCoverage: versionId =>
+      request('GET', `/versions/${versionId}/requirement-coverage`),
   };
 }

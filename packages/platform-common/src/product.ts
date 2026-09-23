@@ -71,6 +71,38 @@ export const TRACEABILITY_RELATIONSHIP_TYPES = [
 export type TraceabilityRelationshipType =
   (typeof TRACEABILITY_RELATIONSHIP_TYPES)[number];
 
+/**
+ * Where a Product Requirement came from.
+ *
+ * Only `PRODUCT` is produced today — a requirement inherited from the approved
+ * URS baseline the version is bound to. The other two exist so the Effective
+ * Requirement Set named in `PRODUCT_STRATEGY.md` has somewhere to grow without
+ * a second migration: `ORGANIZATION` for requirements every product in the
+ * organisation carries, `ARTIFACT` for requirements an Artifact brings with it
+ * (`ArtifactManifest.spec.requirements`). Reading code must not assume the set
+ * is single-origin.
+ */
+export const REQUIREMENT_ORIGINS = [
+  'PRODUCT',
+  'ORGANIZATION',
+  'ARTIFACT',
+] as const;
+
+export type RequirementOrigin = (typeof REQUIREMENT_ORIGINS)[number];
+
+/**
+ * The verification/validation state of one requirement, as the Product sees it.
+ *
+ * Two independent axes, deliberately not collapsed into one status —
+ * `NEXORA_STRATEGY.md`: "Engineering Verification and formal Pharma Validation
+ * are separate but traceable." A requirement can be verified by a CI test and
+ * still not be formally validated, and that difference is the whole point.
+ */
+export const REQUIREMENT_MAPPING_STATES = ['MAPPED', 'UNMAPPED'] as const;
+
+export type RequirementMappingState =
+  (typeof REQUIREMENT_MAPPING_STATES)[number];
+
 export interface Product {
   id: string;
   name: string;
@@ -114,6 +146,18 @@ export interface ProductVersion {
   releaseCommitSha?: string;
   artifactDigest?: string;
   baselineId?: string;
+  /**
+   * The approved URS baseline this version implements.
+   *
+   * Set once, by `bindUrsBaseline`, which also snapshots the baseline's
+   * requirements into `ProductRequirement` rows. Distinct from `baselineId`
+   * above, which points at a *ProductBaseline* — two unrelated things that have
+   * shared the word "baseline" in this domain since Phase 1.
+   *
+   * Nullable because a product may legitimately exist before it is bound; the
+   * release gate is where the binding becomes mandatory.
+   */
+  ursBaselineId?: string;
   createdBy: string;
   createdAt: Date;
   approvedBy?: string;
@@ -499,6 +543,111 @@ export interface TraceabilityLink {
   metadata?: Record<string, unknown>;
   createdBy: string;
   createdAt: Date;
+}
+
+/**
+ * One requirement, as held by a Product Version.
+ *
+ * A **copy**, not a reference. The product implements the requirements in the
+ * wording they had when it was bound, which is what makes "which text was
+ * tested?" answerable in an inspection — the question a pointer into a living
+ * URS cannot answer. `contentHash` carries the URS side's own SHA-256 over the
+ * signed content, so the copy can be proven to be that wording and no other.
+ *
+ * Rows are written once by `bindUrsBaseline` and never updated. A revised URS
+ * baseline produces a new binding on a new version, not an edit here.
+ */
+export interface ProductRequirement {
+  id: string;
+  productVersionId: string;
+  /** The URS baseline this row was snapshotted from. */
+  ursBaselineId: string;
+  /**
+   * The URS `RequirementVersion.id` — the exact immutable version pinned by
+   * the baseline. Unique per product version; this is the identity key.
+   */
+  ursRequirementVersionId: string;
+  /**
+   * The URS `RequirementVersion.requirementId` — the stable logical id a human
+   * says out loud, e.g. `URS-OEE-014`. Not unique across versions of the same
+   * requirement, so it is the *display* and *join* key, never the identity.
+   *
+   * This is also the key the Validation Expert speaks: `ValidationContext`
+   * carries stable logical ids, not version UUIDs.
+   */
+  requirementRef: string;
+  title: string;
+  statement: string;
+  category?: string;
+  priority?: string;
+  /**
+   * The URS side's GxP classification, carried through so verification and
+   * validation can be required proportionally rather than uniformly. GAMP 5 is
+   * risk-based; a gate that demands formal validation of every requirement
+   * regardless of relevance gets routed around.
+   */
+  gxpRelevance?: string;
+  /** The requirement version label, e.g. `2.0`. */
+  versionLabel?: string;
+  /** SHA-256 over the signed URS content. Absent on requirements that predate it. */
+  contentHash?: string;
+  origin: RequirementOrigin;
+  /** Position within the baseline, so the product lists them in URS order. */
+  position: number;
+  createdBy: string;
+  createdAt: Date;
+}
+
+/** One row of the requirement coverage report. */
+export interface ProductRequirementCoverageRow {
+  requirementRef: string;
+  ursRequirementVersionId: string;
+  title: string;
+  gxpRelevance?: string;
+  origin: RequirementOrigin;
+  /** Engineering: components this requirement is mapped to via `IMPLEMENTS`. */
+  mapping: RequirementMappingState;
+  componentIds: string[];
+  /**
+   * Engineering verification: components linked by `VERIFIED_BY`, and tests
+   * the Validation Expert has executed against this requirement id.
+   */
+  verified: boolean;
+  /** Protocol test ids from the Validation Context, when one is resolvable. */
+  testIds: string[];
+  runIds: string[];
+  findingIds: string[];
+  /**
+   * Formal validation: the requirement is covered by an executed protocol test
+   * *and* its Validation Context carries an APPROVED ValidationDecision.
+   * `undefined` when no context could be resolved — unknown, not false.
+   */
+  validated?: boolean;
+}
+
+/**
+ * Requirement coverage for one Product Version.
+ *
+ * Replaces nothing — `getProductTraceability` still reports *component*
+ * coverage, which answers a different question ("does every component trace to
+ * something?"). This answers the regulated one: "is every requirement
+ * implemented, verified and validated?"
+ */
+export interface ProductRequirementCoverage {
+  productVersionId: string;
+  ursBaselineId?: string;
+  total: number;
+  mapped: number;
+  unmapped: number;
+  verified: number;
+  validated: number;
+  /**
+   * Absent when no ValidationContext could be resolved for the bound baseline.
+   * Distinguishes "not validated" from "we could not find out", which the
+   * release gate and the UI must not conflate.
+   */
+  validationContextId?: string;
+  byRequirement: ProductRequirementCoverageRow[];
 }
 
 export function isProductType(value: string): value is ProductType {
@@ -948,6 +1097,51 @@ export function validateTraceabilityLink(link: {
   }
   if (!link.relationshipType?.trim()) {
     issues.push('Traceability link relationshipType is required');
+  }
+  return issues;
+}
+
+export function isRequirementOrigin(value: string): value is RequirementOrigin {
+  return (REQUIREMENT_ORIGINS as readonly string[]).includes(value);
+}
+
+/**
+ * Presence and vocabulary checks on a requirement about to be snapshotted.
+ *
+ * Deliberately not a content check: the URS Composer already validated,
+ * reviewed and signed this text, and re-judging it here would put a second
+ * opinion in front of an approved record. What this catches is a resolver that
+ * handed back something unusable — a requirement with no stable id cannot be
+ * mapped, verified or traced, so storing it would create a row that looks like
+ * coverage and can never be satisfied.
+ */
+export function validateProductRequirement(requirement: {
+  ursBaselineId?: string;
+  ursRequirementVersionId?: string;
+  requirementRef?: string;
+  title?: string;
+  origin?: string;
+}): string[] {
+  const issues: string[] = [];
+  if (!requirement.ursBaselineId?.trim()) {
+    issues.push('Product requirement ursBaselineId is required');
+  }
+  if (!requirement.ursRequirementVersionId?.trim()) {
+    issues.push('Product requirement ursRequirementVersionId is required');
+  }
+  if (!requirement.requirementRef?.trim()) {
+    issues.push(
+      'Product requirement requirementRef is required — a requirement with ' +
+        'no stable URS id cannot be mapped to a component or a test',
+    );
+  }
+  if (!requirement.title?.trim()) {
+    issues.push('Product requirement title is required');
+  }
+  if (!requirement.origin || !isRequirementOrigin(requirement.origin)) {
+    issues.push(
+      `Unsupported requirement origin: ${requirement.origin ?? ''}`,
+    );
   }
   return issues;
 }

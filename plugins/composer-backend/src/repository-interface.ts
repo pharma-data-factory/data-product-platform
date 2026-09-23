@@ -9,6 +9,7 @@ import {
   UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
+  ProductRequirement,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -69,6 +70,21 @@ export interface IComposerRepository {
   listSubscriptionsByContract(contractId: string): Promise<ContractSubscription[]>;
   listSubscriptionsByConsumer(consumerRef: string): Promise<ContractSubscription[]>;
   updateSubscriptionStatus(id: string, status: ContractSubscription['status']): Promise<void>;
+
+  /**
+   * Write the requirement snapshot and the version's URS binding together.
+   *
+   * One method rather than two because the two halves are meaningless apart:
+   * a binding with no requirements looks like an empty baseline, and
+   * requirements with no binding are unreachable. Implementations must apply
+   * both or neither.
+   */
+  bindUrsBaseline(
+    productVersionId: string,
+    ursBaselineId: string,
+    requirements: ProductRequirement[],
+  ): Promise<void>;
+  listProductRequirements(productVersionId: string): Promise<ProductRequirement[]>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;

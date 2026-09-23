@@ -9,7 +9,26 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
-Nothing in flight. Slices 0, 1, 2 and 3 of
+**URS → Product Slice 1a/1b is done.** A Product Version can now be bound to an
+approved URS baseline, holds that baseline's requirements as an immutable
+snapshot, and reports per-requirement coverage across both axes — engineering
+verification and formal validation. See [`NXD-055`](DECISIONS.md).
+
+This is not from `PHASE_CLOSURE_PLAN.md`; it came out of a 2026-09-23 analysis
+of the URS → Product Development handoff, which found the journey broken at one
+joint and everything downstream blocked by it. The product side held no
+requirements at all, so there was nothing to map, count, show coverage against
+or hand to a developer. Four further steps are planned on top of it (one door
+for product creation, export into the generated repo, CI coverage feedback,
+then mandatory binding with change control); none is started.
+
+One side effect is worth naming: the release gate's `NO_URS_BASELINE` check and
+the `urs-baseline-bound` policy obligation have existed and been tested since
+Phase 5, but nothing except `applySpecDraft` ever set `ursBaselineIds`, so on
+the normal path they could not fire. `createProductBaseline` now inherits the
+version's binding, which makes an already-written gate reachable.
+
+Slices 0, 1, 2 and 3 of
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) are done. **Phase 4 is
 closed** — `DataContract` is first-class and carries a provider-neutral
 exchange definition, the two criteria the phase text names that were missing.
@@ -936,7 +955,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
-**GREEN.** Verified on 2026-09-22 the way CI runs it (`CI=true`, PostgreSQL up
+**GREEN.** Verified on 2026-09-23 the way CI runs it (`CI=true`, PostgreSQL up
 via `docker-compose.test.yml`).
 
 | Gate | Command | Result |
@@ -944,7 +963,13 @@ via `docker-compose.test.yml`).
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `CI=true yarn test` | PASS — 209 suites, 1799 tests, **0 skipped** |
+| Unit tests | `CI=true yarn test` | PASS — 214 suites, 1903 tests, **0 skipped** |
+
+Slice 1a/1b added 21 tests in `productRequirements.test.ts` and a new
+`ursBaselineResolver.test.ts`, and changed one existing fixture: the AI spec
+draft's stub resolver returned a requirement with no stable `requirementId`,
+which the new binding refuses. That was a test double predating the field, not
+a behaviour the product ever had.
 
 ### The 2026-09-22 repair
 Earlier the same day the gate was red: 50 type errors in 12 files, 9 lint errors

@@ -18,6 +18,7 @@ import {
   UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
+  ProductRequirement,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -143,6 +144,7 @@ export class ComposerRepository implements IComposerRepository {
       release_commit_sha: version.releaseCommitSha || null,
       artifact_digest: version.artifactDigest || null,
       baseline_id: version.baselineId || null,
+      urs_baseline_id: version.ursBaselineId || null,
       approved_by: version.approvedBy || null,
       approved_at: version.approvedAt || null,
       revision: (version.revision || 1) + 1,
@@ -403,6 +405,75 @@ export class ComposerRepository implements IComposerRepository {
 
   // ── Traceability Links ─────────────────────────────────────────────────────
 
+  /**
+   * The only transaction in this repository, and it earns it.
+   *
+   * Binding writes N requirement rows and one column on the version. Half of
+   * that is a worse state than none: requirements with no binding are
+   * unreachable, and a binding with no requirements reads as an approved
+   * baseline that happened to be empty — which the release gate would then
+   * pass. Either both land or neither does.
+   */
+  async bindUrsBaseline(
+    productVersionId: string,
+    ursBaselineId: string,
+    requirements: ProductRequirement[],
+  ): Promise<void> {
+    await this.db.transaction(async trx => {
+      if (requirements.length > 0) {
+        await trx('product_requirements').insert(
+          requirements.map(requirement => ({
+            id: requirement.id,
+            product_version_id: requirement.productVersionId,
+            urs_baseline_id: requirement.ursBaselineId,
+            urs_requirement_version_id: requirement.ursRequirementVersionId,
+            requirement_ref: requirement.requirementRef,
+            title: requirement.title,
+            statement: requirement.statement || null,
+            category: requirement.category || null,
+            priority: requirement.priority || null,
+            gxp_relevance: requirement.gxpRelevance || null,
+            version_label: requirement.versionLabel || null,
+            content_hash: requirement.contentHash || null,
+            origin: requirement.origin,
+            position: requirement.position,
+            created_by: requirement.createdBy,
+            created_at: requirement.createdAt,
+          })),
+        );
+      }
+      await trx('product_versions')
+        .where({ id: productVersionId })
+        .update({ urs_baseline_id: ursBaselineId });
+    });
+  }
+
+  async listProductRequirements(
+    productVersionId: string,
+  ): Promise<ProductRequirement[]> {
+    const rows = await this.db('product_requirements')
+      .where({ product_version_id: productVersionId })
+      .orderBy('position', 'asc');
+    return rows.map((row: any) => ({
+      id: row.id,
+      productVersionId: row.product_version_id,
+      ursBaselineId: row.urs_baseline_id,
+      ursRequirementVersionId: row.urs_requirement_version_id,
+      requirementRef: row.requirement_ref,
+      title: row.title,
+      statement: row.statement ?? '',
+      category: row.category || undefined,
+      priority: row.priority || undefined,
+      gxpRelevance: row.gxp_relevance || undefined,
+      versionLabel: row.version_label || undefined,
+      contentHash: row.content_hash || undefined,
+      origin: row.origin,
+      position: row.position,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+    }));
+  }
+
   async createTraceabilityLink(
     link: TraceabilityLink,
   ): Promise<TraceabilityLink> {
@@ -543,6 +614,7 @@ export class ComposerRepository implements IComposerRepository {
       releaseCommitSha: row.release_commit_sha || undefined,
       artifactDigest: row.artifact_digest || undefined,
       baselineId: row.baseline_id || undefined,
+      ursBaselineId: row.urs_baseline_id || undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       approvedBy: row.approved_by,

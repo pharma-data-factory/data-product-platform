@@ -24,7 +24,16 @@ export type {
   UpgradeNotification,
   TraceabilityLink,
   ProductBaseline,
+  ProductRequirement,
+  ProductRequirementCoverage,
+  ProductRequirementCoverageRow,
+  RequirementOrigin,
 } from '@internal/platform-common';
+
+/** Body of `POST /versions/:versionId/urs-baseline`. */
+export interface BindUrsBaselineRequest {
+  ursBaselineId?: string;
+}
 
 export interface CreateProductRequest {
   name: string;

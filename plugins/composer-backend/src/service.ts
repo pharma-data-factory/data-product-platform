@@ -18,6 +18,9 @@ import {
   ProductBaselineDelta,
   ProductComponent,
   ProductDependency,
+  ProductRequirement,
+  ProductRequirementCoverage,
+  ProductRequirementCoverageRow,
   ProductVersion,
   QualityRule,
   ReleaseProvenance,
@@ -36,6 +39,7 @@ import {
   validateBaselineLabel,
   validateDataContractSchemaType,
   validateProduct,
+  validateProductRequirement,
   validateNameSegment,
   validateVersionLabel,
   validateTraceabilityLink,
@@ -76,6 +80,25 @@ import type { PolicyResolverClient } from './policy-resolver-client';
  *
  * Phase 5 (P5-S1).
  */
+/**
+ * What the Validation Expert knows about one URS baseline, per requirement.
+ *
+ * Slice 1b. The Validation Context already computes this — it is keyed to a
+ * URS baseline and carries stable logical requirement ids, the same key
+ * `ProductRequirement.requirementRef` holds. What was missing is anyone asking
+ * for it from the product side.
+ */
+export interface ValidationCoverageSummary {
+  contextId: string;
+  /** True only when the context carries an APPROVED ValidationDecision. */
+  decisionApproved: boolean;
+  /** Keyed by stable requirement id (`URS-OEE-014`), not version UUID. */
+  byRequirement: Map<
+    string,
+    { testIds: string[]; runIds: string[]; findingIds: string[] }
+  >;
+}
+
 export interface ValidationDecisionResolver {
   /**
    * Returns true when the ValidationContext for `baselineId` has an APPROVED
@@ -83,6 +106,18 @@ export interface ValidationDecisionResolver {
    * or when the decision status is CONDITIONAL or REJECTED.
    */
   hasApprovedDecision(baselineId: string): Promise<boolean>;
+  /**
+   * Per-requirement validation coverage for a URS baseline, or `undefined`
+   * when no context could be resolved.
+   *
+   * `undefined` is load-bearing: "no validation context exists" and "the
+   * validation-expert is unreachable" must not render as "nothing is
+   * validated", which is a statement about the product rather than about the
+   * lookup. Optional so existing resolver doubles in tests keep compiling.
+   */
+  getValidationCoverage?(
+    baselineId: string,
+  ): Promise<ValidationCoverageSummary | undefined>;
 }
 import {
   toComponentType,
@@ -671,6 +706,251 @@ export class ComposerService {
     return { versionId, upstream, downstream };
   }
 
+  /**
+   * Bind a Product Version to an approved URS baseline and snapshot its
+   * requirements.
+   *
+   * This is the joint the whole left-to-right journey turns on. Before it, the
+   * only record that a product implements anything was a nullable JSON column
+   * on an optional child object, written by one code path; requirement text
+   * was fetched once to build an LLM prompt and thrown away.
+   *
+   * Three refusals, each deliberate:
+   *
+   *  - **not DRAFT** — the requirements a version implements are part of what
+   *    was approved. Adding them after approval would change the scope of an
+   *    approved record without re-approval.
+   *  - **already bound** — rebinding is change control, not editing. The
+   *    supersede path (a new version bound to the new baseline) keeps both the
+   *    old and the new relationship on the record; overwriting keeps neither.
+   *  - **not fully resolvable** — enforced by the resolver. A snapshot missing
+   *    requirements nobody knows are missing is the failure this whole slice
+   *    exists to prevent.
+   */
+  async bindUrsBaseline(
+    productVersionId: string,
+    ursBaselineId: string,
+    actor: string,
+  ): Promise<{ version: ProductVersion; requirements: ProductRequirement[] }> {
+    const trimmed = String(ursBaselineId ?? '').trim();
+    if (!trimmed) {
+      throw new InputError('ursBaselineId is required');
+    }
+
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    if (version.status !== 'DRAFT') {
+      throw new ConflictError(
+        `Product version ${version.version} is ${version.status}. A URS ` +
+          `baseline can only be bound while the version is DRAFT — the ` +
+          `requirements a version implements are part of what was approved.`,
+      );
+    }
+    if (version.ursBaselineId) {
+      throw new ConflictError(
+        `Product version ${version.version} is already bound to URS baseline ` +
+          `${version.ursBaselineId}. Binding a different baseline is a change ` +
+          `to what the product implements: create a new product version for ` +
+          `it, so both relationships stay on the record.`,
+      );
+    }
+
+    if (!this.ursBaselineResolver) {
+      throw new ConflictError(
+        'No URS baseline resolver is configured, so the baseline cannot be ' +
+          'verified as approved. Refusing to record an unverified binding.',
+      );
+    }
+
+    // Throws unless the baseline is APPROVED and every pinned requirement
+    // version resolved. Both checks live in the resolver.
+    const context = await this.ursBaselineResolver.resolveBaselineContext(trimmed);
+
+    const now = new Date();
+    const requirements: ProductRequirement[] = [];
+    const issues: string[] = [];
+    context.requirements.forEach((summary, index) => {
+      const candidate = {
+        id: randomUUID(),
+        productVersionId,
+        ursBaselineId: context.baselineId,
+        ursRequirementVersionId: summary.id,
+        requirementRef: summary.requirementRef ?? '',
+        title: summary.title,
+        statement: summary.statement,
+        category: summary.category,
+        priority: summary.priority,
+        gxpRelevance: summary.gxpRelevance,
+        versionLabel: summary.versionLabel,
+        contentHash: summary.contentHash,
+        origin: 'PRODUCT' as const,
+        position: index,
+        createdBy: actor,
+        createdAt: now,
+      };
+      const rowIssues = validateProductRequirement(candidate);
+      if (rowIssues.length > 0) {
+        issues.push(`  ${summary.id}: ${rowIssues.join('; ')}`);
+        return;
+      }
+      requirements.push(candidate);
+    });
+
+    // Report every bad row at once. Binding is a single deliberate act; making
+    // someone discover the second malformed requirement only after fixing the
+    // first turns one conversation with the URS owner into several.
+    if (issues.length > 0) {
+      throw new InputError(
+        `URS baseline ${trimmed} cannot be bound: ${issues.length} of ` +
+          `${context.requirements.length} requirements are unusable.\n` +
+          `${issues.join('\n')}\n` +
+          `A requirement with no stable id cannot be mapped to a component ` +
+          `or a test, so storing it would create coverage that can never be ` +
+          `satisfied.`,
+      );
+    }
+
+    await this.repository.bindUrsBaseline(
+      productVersionId,
+      context.baselineId,
+      requirements,
+    );
+
+    await this.audit(
+      'PRODUCT_VERSION',
+      productVersionId,
+      'URS_BASELINE_BOUND',
+      actor,
+      {
+        newValue: JSON.stringify({
+          ursBaselineId: context.baselineId,
+          baselineVersion: context.baselineVersion,
+          requirementCount: requirements.length,
+        }),
+      },
+    );
+
+    return {
+      version: { ...version, ursBaselineId: context.baselineId },
+      requirements,
+    };
+  }
+
+  async listProductRequirements(
+    productVersionId: string,
+  ): Promise<ProductRequirement[]> {
+    return this.repository.listProductRequirements(productVersionId);
+  }
+
+  /**
+   * Requirement coverage for one Product Version — the regulated question.
+   *
+   * `getProductTraceability` answers "does every component trace to
+   * something?", which is a housekeeping check. This answers "is every
+   * requirement implemented, verified and validated?", which is the
+   * traceability matrix GAMP 5 asks for and which nothing could compute before
+   * requirements existed on the product side.
+   *
+   * Two independent axes, per `NEXORA_STRATEGY.md` ("Engineering Verification
+   * and formal Pharma Validation are separate but traceable"):
+   *
+   *  - **mapped / verified** from this plugin's own `traceability_links`,
+   *    joined on either the stable requirement id or the version UUID, because
+   *    links predating this slice were hand-typed and used whichever the
+   *    author had to hand.
+   *  - **validated** from the Validation Expert, keyed on the stable id.
+   *    Absent rather than false when no context resolves (Slice 1b).
+   */
+  async getRequirementCoverage(
+    productVersionId: string,
+  ): Promise<ProductRequirementCoverage> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+
+    const requirements =
+      await this.repository.listProductRequirements(productVersionId);
+    const components =
+      await this.repository.listProductComponents(productVersionId);
+    const componentIds = new Set(components.map(component => component.id));
+    const allLinks = await this.repository.listTraceabilityLinks();
+
+    // Slice 1b: ask the Validation Expert once, not once per requirement.
+    let validation: ValidationCoverageSummary | undefined;
+    if (version.ursBaselineId && this.validationDecisionResolver?.getValidationCoverage) {
+      try {
+        validation = await this.validationDecisionResolver.getValidationCoverage(
+          version.ursBaselineId,
+        );
+      } catch (error) {
+        // Unreachable is not "nothing is validated" — leave it undefined so
+        // the row renders as unknown and say why in the log.
+        this.logger.warn(
+          `Could not resolve validation coverage for URS baseline ` +
+            `${version.ursBaselineId}: ` +
+            `${error instanceof Error ? error.message : String(error)}. ` +
+            `Requirement rows will report validation as unknown.`,
+        );
+      }
+    }
+
+    const byRequirement: ProductRequirementCoverageRow[] = requirements.map(
+      requirement => {
+        const keys = new Set([
+          requirement.requirementRef,
+          requirement.ursRequirementVersionId,
+        ]);
+        const linked = allLinks.filter(
+          link =>
+            keys.has(link.sourceId) && componentIds.has(link.targetId),
+        );
+        const implementing = linked.filter(
+          link => link.relationshipType === 'IMPLEMENTS',
+        );
+        const verifyingLinks = linked.filter(
+          link => link.relationshipType === 'VERIFIED_BY',
+        );
+
+        const validationRow = validation?.byRequirement.get(
+          requirement.requirementRef,
+        );
+        const testIds = validationRow?.testIds ?? [];
+
+        return {
+          requirementRef: requirement.requirementRef,
+          ursRequirementVersionId: requirement.ursRequirementVersionId,
+          title: requirement.title,
+          gxpRelevance: requirement.gxpRelevance,
+          origin: requirement.origin,
+          mapping: implementing.length > 0 ? 'MAPPED' : 'UNMAPPED',
+          componentIds: implementing.map(link => link.targetId),
+          verified: verifyingLinks.length > 0 || testIds.length > 0,
+          testIds,
+          runIds: validationRow?.runIds ?? [],
+          findingIds: validationRow?.findingIds ?? [],
+          validated: validation
+            ? validation.decisionApproved && testIds.length > 0
+            : undefined,
+        };
+      },
+    );
+
+    return {
+      productVersionId,
+      ursBaselineId: version.ursBaselineId,
+      total: byRequirement.length,
+      mapped: byRequirement.filter(row => row.mapping === 'MAPPED').length,
+      unmapped: byRequirement.filter(row => row.mapping === 'UNMAPPED').length,
+      verified: byRequirement.filter(row => row.verified).length,
+      validated: byRequirement.filter(row => row.validated === true).length,
+      validationContextId: validation?.contextId,
+      byRequirement,
+    };
+  }
+
   async createTraceabilityLink(
     request: CreateTraceabilityLinkRequest,
     actor: string,
@@ -1091,7 +1371,18 @@ export class ComposerService {
           createdBy: actor,
         },
       },
-      ursBaselineIds: request.ursBaselineIds,
+      // Inherit the version's binding when the caller states none.
+      //
+      // Slice 1a. Until now the only writer of this field was `applySpecDraft`,
+      // so `NO_URS_BASELINE` and the `urs-baseline-bound` policy obligation —
+      // both written, both tested — could only ever fire on the AI path. A
+      // baseline taken of a bound version now carries what that version
+      // implements, which is what makes the gate reachable from the normal
+      // path. An explicit `ursBaselineIds` still wins: the caller may be
+      // recording a version bound before this existed.
+      ursBaselineIds:
+        request.ursBaselineIds ??
+        (version.ursBaselineId ? [version.ursBaselineId] : undefined),
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -1482,8 +1773,22 @@ export class ComposerService {
       actor,
     );
 
+    // The changelog above is prose. Bind the baseline properly so the origin
+    // is machine-readable, the requirements land on the version, and the
+    // release gate's URS check can resolve it. One binding mechanism, not two:
+    // this used to pass `ursBaselineIds` straight to the ProductBaseline,
+    // which recorded the fact without ever bringing the requirements across.
+    const { requirements } = await this.bindUrsBaseline(
+      version.id,
+      draft.ursBaselineId,
+      actor,
+    );
+    const requirementByRef = new Map(
+      requirements.map(requirement => [requirement.requirementRef, requirement]),
+    );
+
     for (const comp of draft.suggestedComponents) {
-      await this.addProductComponent(
+      const component = await this.addProductComponent(
         version.id,
         {
           componentType: toComponentType(comp.componentType),
@@ -1492,16 +1797,42 @@ export class ComposerService {
         },
         actor,
       );
+
+      // The prompt demands every suggested component reference at least one
+      // requirement ("Every suggested component MUST reference at least one
+      // URS requirement ID"), the draft carries them — and they were dropped
+      // on the floor here, so the generated product failed its own release
+      // gate on INCOMPLETE_TRACEABILITY. Now that requirements are rows, the
+      // refs resolve to something. Refs the model invented match nothing and
+      // are skipped rather than stored: an IMPLEMENTS link to a requirement
+      // the baseline does not contain is worse than a missing one.
+      for (const ref of comp.traceabilityRefs ?? []) {
+        const requirement = requirementByRef.get(String(ref).trim());
+        if (!requirement) {
+          this.logger.warn(
+            `AI spec draft ${draftId} referenced requirement ${ref} for ` +
+              `component ${comp.name}, but URS baseline ` +
+              `${draft.ursBaselineId} contains no such requirement. The link ` +
+              `is not created.`,
+          );
+          continue;
+        }
+        await this.createTraceabilityLink(
+          {
+            sourceType: 'URS_REQUIREMENT_VERSION',
+            sourceId: requirement.requirementRef,
+            relationshipType: 'IMPLEMENTS',
+            targetType: 'PRODUCT_COMPONENT',
+            targetId: component.id,
+          },
+          actor,
+        );
+      }
     }
 
-    // The changelog above is prose. Record the origin machine-readably as well,
-    // so the release gate's URS check can resolve it and traceability can be
-    // reported on. The baseline stays DRAFT — approving it is a human act.
-    await this.createProductBaseline(
-      version.id,
-      { ursBaselineIds: [draft.ursBaselineId] },
-      actor,
-    );
+    // Inherits `ursBaselineIds` from the version binding above. The baseline
+    // stays DRAFT — approving it is a human act.
+    await this.createProductBaseline(version.id, {}, actor);
 
     draft.status = 'APPLIED';
     draft.appliedBy = actor;

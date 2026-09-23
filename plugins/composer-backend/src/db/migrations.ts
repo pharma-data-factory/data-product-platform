@@ -181,6 +181,60 @@ export async function up(knex: Knex): Promise<void> {
     }
   }
 
+  // Slice 1a: the URS baseline a version implements.
+  //
+  // Separate from `baseline_id` above, which is a ProductBaseline. Nullable:
+  // products created before this could not state one, and a sandbox product
+  // legitimately has none. The release gate is where absence becomes a
+  // blocker, not the schema.
+  if (await knex.schema.hasTable('product_versions')) {
+    if (!(await knex.schema.hasColumn('product_versions', 'urs_baseline_id'))) {
+      await knex.schema.alterTable('product_versions', table => {
+        table.string('urs_baseline_id', 255).nullable();
+        table.index(['urs_baseline_id']);
+      });
+    }
+  }
+
+  // Slice 1a: Product Requirements — the snapshot of an approved URS baseline
+  // that a Product Version implements.
+  //
+  // A copy rather than a join to the URS Composer's tables: that plugin owns
+  // its schema and cross-plugin database access is forbidden (AGENTS.md,
+  // "PLUGIN BOUNDARIES"), and more importantly the product must keep the
+  // wording it was built against even after the URS side revises.
+  if (!(await knex.schema.hasTable('product_requirements'))) {
+    await knex.schema.createTable('product_requirements', table => {
+      table.string('id', 255).primary();
+      table.string('product_version_id', 255).notNullable();
+      table.string('urs_baseline_id', 255).notNullable();
+      table.string('urs_requirement_version_id', 255).notNullable();
+      table.string('requirement_ref', 255).notNullable();
+      table.text('title').notNullable();
+      table.text('statement');
+      table.string('category', 100);
+      table.string('priority', 50);
+      table.string('gxp_relevance', 20);
+      table.string('version_label', 50);
+      table.string('content_hash', 255);
+      table.string('origin', 30).notNullable().defaultTo('PRODUCT');
+      table.integer('position').notNullable().defaultTo(0);
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+
+      table.index(['product_version_id']);
+      table.index(['product_version_id', 'requirement_ref']);
+      // Identity: one row per pinned requirement version per product version.
+      // In the database as well as the service, per NXD-009 — the service
+      // check cannot close the race between two concurrent binds.
+      table.unique(['product_version_id', 'urs_requirement_version_id']);
+      table
+        .foreign('product_version_id')
+        .references('id')
+        .inTable('product_versions');
+    });
+  }
+
   // Phase 1: revision-specific traceability links
   if (await knex.schema.hasTable('traceability_links')) {
     if (!(await knex.schema.hasColumn('traceability_links', 'source_revision'))) {
@@ -579,6 +633,7 @@ export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('upgrade_notifications');
   await knex.schema.dropTableIfExists('contract_subscriptions');
   await knex.schema.dropTableIfExists('product_version_dependencies');
+  await knex.schema.dropTableIfExists('product_requirements');
   await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');
   await knex.schema.dropTableIfExists('traceability_links');

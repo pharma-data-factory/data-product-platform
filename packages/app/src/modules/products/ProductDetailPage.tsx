@@ -11,6 +11,11 @@ import {
 import { Button, MenuItem, TextField, Typography, Chip, Box, Card, CardContent, List, ListItem, ListItemText } from '@material-ui/core';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import ErrorIcon from '@material-ui/icons/Error';
+import { useApi } from '@backstage/core-plugin-api';
+import {
+  ursComposerApiRef,
+  type ApprovedBaselineOption,
+} from '@internal/plugin-urs-composer';
 import {
   COMPONENT_TYPES,
   INTERFACE_TYPES,
@@ -19,6 +24,8 @@ import {
 import type {
   Product,
   ProductComponent,
+  ProductRequirement,
+  ProductRequirementCoverage,
   ProductVersion,
 } from '@internal/platform-common';
 import { useComposerClient, ProductTraceability, ReleaseGateResult } from './api';
@@ -26,6 +33,7 @@ import { useComposerClient, ProductTraceability, ReleaseGateResult } from './api
 export function ProductDetailPage() {
   const { productId = '' } = useParams();
   const client = useComposerClient();
+  const ursApi = useApi(ursComposerApiRef);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [versions, setVersions] = useState<ProductVersion[]>([]);
@@ -50,6 +58,39 @@ export function ProductDetailPage() {
   const [transitionLoading, setTransitionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Requirements (Slice 1a / 1b)
+  const [requirements, setRequirements] = useState<ProductRequirement[]>([]);
+  const [coverage, setCoverage] = useState<ProductRequirementCoverage | null>(
+    null,
+  );
+  const [approvedBaselines, setApprovedBaselines] = useState<
+    ApprovedBaselineOption[]
+  >([]);
+  const [baselineToBind, setBaselineToBind] = useState('');
+  const [bindLoading, setBindLoading] = useState(false);
+  const [bindError, setBindError] = useState<string | null>(null);
+
+  /**
+   * Everything scoped to one version: components, requirements, coverage.
+   *
+   * Previously components were loaded once for the *latest* version while the
+   * Release Management picker selected any version, so choosing an older one
+   * left the component list describing a different version than the header
+   * said. Requirements are per-version by definition, so the mismatch had to
+   * be resolved rather than inherited.
+   */
+  const loadVersionScoped = async (versionId: string) => {
+    if (!versionId) {
+      setComponents([]);
+      setRequirements([]);
+      setCoverage(null);
+      return;
+    }
+    setComponents(await client.listProductComponents(versionId));
+    setRequirements(await client.listProductRequirements(versionId));
+    setCoverage(await client.getRequirementCoverage(versionId));
+  };
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -58,13 +99,16 @@ export function ProductDetailPage() {
       setProduct(productData);
       const versionList = await client.listProductVersions(productId);
       setVersions(versionList);
-      if (versionList.length > 0) {
-        const latest = versionList[versionList.length - 1];
-        setSelectedVersionId(latest.id);
-        setComponents(
-          await client.listProductComponents(latest.id),
-        );
-      }
+
+      // Keep the user's selection across a reload — binding a baseline or
+      // adding a link should not silently jump them to the latest version.
+      const stillExists = versionList.some(v => v.id === selectedVersionId);
+      const nextSelectedId = stillExists
+        ? selectedVersionId
+        : versionList[versionList.length - 1]?.id ?? '';
+      setSelectedVersionId(nextSelectedId);
+      await loadVersionScoped(nextSelectedId);
+
       setGateResult(null);
       setActionError(null);
       setTraceability(await client.getProductTraceability(productId));
@@ -80,6 +124,28 @@ export function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
+  useEffect(() => {
+    // Approved baselines are product-independent and only needed to offer a
+    // binding. A failure here must not break the page: the rest of it works
+    // without the URS Composer, and the helper text says what is missing.
+    let mounted = true;
+    ursApi
+      .listApprovedBaselines()
+      .then(items => {
+        if (mounted) {
+          setApprovedBaselines(items);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setApprovedBaselines([]);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [ursApi]);
+
   const latestVersion = versions[versions.length - 1];
 
   const createVersion = async () => {
@@ -88,6 +154,40 @@ export function ProductDetailPage() {
       await load();
     } catch (e) {
       setError(e as Error);
+    }
+  };
+
+  /**
+   * Why the baseline picker is disabled, when it is.
+   *
+   * Both reasons are refusals the server also enforces, so saying which one
+   * applies here saves a round trip that would come back as an error message
+   * the user could have been shown up front.
+   */
+  const bindHelperText = (version: ProductVersion): string => {
+    if (version.status !== 'DRAFT') {
+      return `Version is ${version.status}. A baseline can only be bound while the version is DRAFT.`;
+    }
+    if (approvedBaselines.length === 0) {
+      return 'No approved URS baseline is available. Approve one in the URS Composer first.';
+    }
+    return 'Only approved baselines are listed.';
+  };
+
+  const bindBaseline = async () => {
+    if (!baselineToBind || !selectedVersionId) {
+      return;
+    }
+    setBindLoading(true);
+    setBindError(null);
+    try {
+      await client.bindUrsBaseline(selectedVersionId, baselineToBind);
+      setBaselineToBind('');
+      await load();
+    } catch (e) {
+      setBindError((e as Error).message);
+    } finally {
+      setBindLoading(false);
     }
   };
 
@@ -244,9 +344,14 @@ export function ProductDetailPage() {
                     label="Version"
                     value={selectedVersionId}
                     onChange={e => {
-                      setSelectedVersionId(e.target.value);
+                      const nextId = e.target.value as string;
+                      setSelectedVersionId(nextId);
                       setGateResult(null);
                       setActionError(null);
+                      setBindError(null);
+                      loadVersionScoped(nextId).catch(err =>
+                        setError(err as Error),
+                      );
                     }}
                     style={{ minWidth: 200 }}
                   >
@@ -331,6 +436,233 @@ export function ProductDetailPage() {
                     </CardContent>
                   </Card>
                 )}
+              </>
+            )}
+          </section>
+
+          {/*
+            Requirements — the joint between an approved URS baseline and this
+            product. Placed above Components and Traceability because it is the
+            input to both: a component implements a requirement, and a
+            traceability link is only meaningful once the requirement it names
+            exists here.
+          */}
+          <section style={{ marginTop: 24 }}>
+            <Typography variant="h6" style={{ marginBottom: 12 }}>
+              Requirements
+            </Typography>
+
+            {!selectedVersion && (
+              <Typography variant="body2" color="textSecondary">
+                Create a version first. Requirements are bound to a version,
+                not to the product, so the version records which requirements
+                it was built against.
+              </Typography>
+            )}
+
+            {selectedVersion && !selectedVersion.ursBaselineId && (
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="body2" color="textSecondary" paragraph>
+                    Version {selectedVersion.version} is not bound to a URS
+                    baseline. Binding copies the approved requirements onto
+                    this version, so it keeps the wording it was built against
+                    even after the URS is revised.
+                  </Typography>
+                  <Box style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <TextField
+                      select
+                      label="Approved URS baseline"
+                      value={baselineToBind}
+                      onChange={e => setBaselineToBind(e.target.value)}
+                      disabled={
+                        selectedVersion.status !== 'DRAFT' ||
+                        approvedBaselines.length === 0
+                      }
+                      style={{ minWidth: 360 }}
+                      helperText={bindHelperText(selectedVersion)}
+                    >
+                      <MenuItem value="">Select…</MenuItem>
+                      {approvedBaselines.map(option => (
+                        <MenuItem
+                          key={option.baselineId}
+                          value={option.baselineId}
+                        >
+                          {option.requirementSetKey} v{option.baselineVersion}
+                          {option.solutionName ? ` — ${option.solutionName}` : ''}
+                          {` (${option.requirementCount} requirement${
+                            option.requirementCount === 1 ? '' : 's'
+                          })`}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      disabled={
+                        !baselineToBind ||
+                        bindLoading ||
+                        selectedVersion.status !== 'DRAFT'
+                      }
+                      onClick={bindBaseline}
+                    >
+                      {bindLoading ? 'Binding…' : 'Bind baseline'}
+                    </Button>
+                  </Box>
+                  {bindError && (
+                    <Box marginTop={2}>
+                      <Typography color="error" variant="body2">
+                        {bindError}
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {selectedVersion && selectedVersion.ursBaselineId && (
+              <>
+                <Box
+                  style={{
+                    display: 'flex',
+                    gap: 24,
+                    flexWrap: 'wrap',
+                    alignItems: 'baseline',
+                    marginBottom: 12,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Approved baseline:{' '}
+                    <strong>
+                      {approvedBaselines.find(
+                        option =>
+                          option.baselineId === selectedVersion.ursBaselineId,
+                      )?.baselineVersion ?? selectedVersion.ursBaselineId}
+                    </strong>
+                  </Typography>
+                  {coverage && (
+                    <>
+                      <Typography variant="body2">
+                        {coverage.total} requirement
+                        {coverage.total === 1 ? '' : 's'}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={`Mapped ${coverage.mapped}`}
+                        style={{
+                          backgroundColor: NEXORA_TONE.success.bg,
+                          color: NEXORA_CARD,
+                        }}
+                      />
+                      <Chip
+                        size="small"
+                        label={`Unmapped ${coverage.unmapped}`}
+                        style={{
+                          backgroundColor:
+                            coverage.unmapped > 0
+                              ? NEXORA_TONE.danger.bg
+                              : NEXORA_TONE.neutral.text,
+                          color: NEXORA_CARD,
+                        }}
+                      />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`Verified ${coverage.verified}`}
+                      />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={
+                          coverage.validationContextId
+                            ? `Validated ${coverage.validated}`
+                            : 'Validated — unknown'
+                        }
+                      />
+                    </>
+                  )}
+                </Box>
+
+                {/*
+                  "unknown" rather than zero when no ValidationContext resolves.
+                  Rendering an unreachable validation-expert as "nothing is
+                  validated" states something about the product that was never
+                  checked.
+                */}
+                {coverage && !coverage.validationContextId && (
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    style={{ display: 'block', marginBottom: 8 }}
+                  >
+                    No validation context resolved for this baseline, so
+                    validation status is unknown rather than negative. Create
+                    one in the Validation Expert to populate it.
+                  </Typography>
+                )}
+
+                {coverage?.byRequirement.map(row => {
+                  const names = row.componentIds
+                    .map(
+                      id =>
+                        components.find(component => component.id === id)
+                          ?.name ?? id,
+                    )
+                    .join(', ');
+                  return (
+                    <section
+                      key={row.ursRequirementVersionId}
+                      style={{
+                        border: `1px solid ${NEXORA_GREY[200]}`,
+                        borderRadius: 12,
+                        padding: 12,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Box
+                        display="flex"
+                        justifyContent="space-between"
+                        alignItems="center"
+                      >
+                        <Typography variant="subtitle1">
+                          {row.requirementRef}{' '}
+                          <span style={{ color: NEXORA_GREY[500] }}>
+                            {row.title}
+                          </span>
+                        </Typography>
+                        <Box style={{ display: 'flex', gap: 8 }}>
+                          {row.gxpRelevance && (
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`GxP ${row.gxpRelevance}`}
+                            />
+                          )}
+                          <Chip
+                            size="small"
+                            label={row.mapping}
+                            style={{
+                              backgroundColor:
+                                row.mapping === 'MAPPED'
+                                  ? NEXORA_TONE.success.bg
+                                  : NEXORA_TONE.danger.bg,
+                              color: NEXORA_CARD,
+                              fontWeight: 600,
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                      <Typography variant="body2" color="textSecondary">
+                        {names ? `Implemented by: ${names}` : 'Not implemented by any component'}
+                        {row.testIds.length > 0
+                          ? ` · Verified by ${row.testIds.length} test${
+                              row.testIds.length === 1 ? '' : 's'
+                            }`
+                          : ''}
+                      </Typography>
+                    </section>
+                  );
+                })}
               </>
             )}
           </section>
@@ -448,13 +780,36 @@ export function ProductDetailPage() {
                 marginTop: 12,
               }}
             >
+              {/*
+                Was a free-text box with placeholder "URS-OUT-001". A typed id
+                matched nothing and nobody found out: the link stored fine,
+                reported as coverage, and pointed at a requirement that did not
+                exist. Selecting from the bound baseline makes the id a
+                reference instead of a string.
+              */}
               <TextField
-                label="Requirement ID"
+                select
+                label="Requirement"
                 value={sourceId}
                 onChange={e => setSourceId(e.target.value)}
-                placeholder="URS-OUT-001"
-                style={{ minWidth: 200 }}
-              />
+                disabled={requirements.length === 0}
+                style={{ minWidth: 280 }}
+                helperText={
+                  requirements.length === 0
+                    ? 'Bind a URS baseline to this version first.'
+                    : undefined
+                }
+              >
+                <MenuItem value="">Select…</MenuItem>
+                {requirements.map(requirement => (
+                  <MenuItem
+                    key={requirement.id}
+                    value={requirement.requirementRef}
+                  >
+                    {requirement.requirementRef} — {requirement.title}
+                  </MenuItem>
+                ))}
+              </TextField>
               <TextField
                 select
                 label="Component"

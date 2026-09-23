@@ -19,7 +19,10 @@
  * Phase 5 (P5-S3).
  */
 
-import type { ValidationDecisionResolver } from './service';
+import type {
+  ValidationCoverageSummary,
+  ValidationDecisionResolver,
+} from './service';
 
 export function createHttpValidationDecisionResolver(options: {
   discovery: { getBaseUrl(pluginId: string): Promise<string> };
@@ -62,66 +65,90 @@ export function createHttpValidationDecisionResolver(options: {
     return headers;
   }
 
+  /**
+   * The context whose source baseline is `baselineId`, or undefined.
+   *
+   * Shared by both methods, which need the same lookup for opposite reasons:
+   * the decision check treats "not found" as a finding about the product, the
+   * coverage read treats it as "we do not know". Keeping one implementation
+   * means they cannot drift into disagreeing about which context is the one.
+   */
+  async function findContext(
+    base: string,
+    headers: Record<string, string>,
+    baselineId: string,
+  ): Promise<{ id: string } | undefined> {
+    const contextsRes = await doFetch(`${base}/contexts`, { headers });
+    if (!contextsRes.ok) {
+      options.logger?.warn(
+        `validation-expert returned HTTP ${contextsRes.status} listing ` +
+          `contexts for URS baseline ${baselineId}.`,
+      );
+      return undefined;
+    }
+
+    // `GET /contexts` answers `{ items: [...] }`, not a bare array. This
+    // was read as an array, so `.find` threw on every call and the catch
+    // below turned it into "not approved" — the resolver could never
+    // return true. Both shapes are accepted now so the reader does not
+    // break again if the envelope changes back. See `NXD-054`.
+    const body = (await contextsRes.json()) as
+      | Array<{ id: string; source?: { baselineId?: string } }>
+      | { items?: Array<{ id: string; source?: { baselineId?: string } }> };
+    const contexts = Array.isArray(body) ? body : body.items ?? [];
+
+    const context = contexts.find(c => c.source?.baselineId === baselineId);
+    if (!context && contexts.length === 0) {
+      options.logger?.warn(
+        `validation-expert returned no validation contexts at all. ` +
+          `URS baseline ${baselineId} resolves to none; verify the plugin ` +
+          `is reachable.`,
+      );
+    }
+    return context;
+  }
+
+  async function readDecisionApproved(
+    base: string,
+    headers: Record<string, string>,
+    contextId: string,
+    baselineId: string,
+  ): Promise<boolean> {
+    const decisionRes = await doFetch(
+      `${base}/contexts/${encodeURIComponent(contextId)}/decision`,
+      { headers },
+    );
+    if (!decisionRes.ok) {
+      // 404 = no decision recorded yet — not an error, just "not approved".
+      if (decisionRes.status !== 404) {
+        options.logger?.warn(
+          `validation-expert returned HTTP ${decisionRes.status} for the ` +
+            `decision on context ${contextId}. Treating URS baseline ` +
+            `${baselineId} as having no approved decision.`,
+        );
+      }
+      return false;
+    }
+    const decision = (await decisionRes.json()) as { status?: string };
+    return decision.status === 'APPROVED';
+  }
+
   return {
     async hasApprovedDecision(baselineId: string): Promise<boolean> {
       try {
         const base = await options.discovery.getBaseUrl('validation-expert');
         const headers = await getAuthHeaders();
 
-        // 1. List all contexts and find the one for this baseline.
-        const contextsRes = await doFetch(`${base}/contexts`, { headers });
-        if (!contextsRes.ok) {
-          options.logger?.warn(
-            `validation-expert returned HTTP ${contextsRes.status} listing ` +
-              `contexts. Treating URS baseline ${baselineId} as having no ` +
-              `approved decision.`,
-          );
-          return false;
-        }
-
-        // `GET /contexts` answers `{ items: [...] }`, not a bare array. This
-        // was read as an array, so `.find` threw on every call and the catch
-        // below turned it into "not approved" — the resolver could never
-        // return true. Both shapes are accepted now so the reader does not
-        // break again if the envelope changes back. See `NXD-054`.
-        const body = (await contextsRes.json()) as
-          | Array<{ id: string; source?: { baselineId?: string } }>
-          | { items?: Array<{ id: string; source?: { baselineId?: string } }> };
-        const contexts = Array.isArray(body) ? body : body.items ?? [];
-
-        const context = contexts.find(c => c.source?.baselineId === baselineId);
+        const context = await findContext(base, headers, baselineId);
         if (!context) {
-          // A real finding, not a failure: no validation context references
-          // this baseline. Logged at debug volume via warn only when the list
-          // itself was empty, which usually means the wrong plugin answered.
-          if (contexts.length === 0) {
-            options.logger?.warn(
-              `validation-expert returned no validation contexts at all. ` +
-                `URS baseline ${baselineId} is reported as having no ` +
-                `approved decision; verify the plugin is reachable.`,
-            );
-          }
           return false;
         }
-
-        // 2. Fetch the decision for that context.
-        const decisionRes = await doFetch(
-          `${base}/contexts/${encodeURIComponent(context.id)}/decision`,
-          { headers },
+        return await readDecisionApproved(
+          base,
+          headers,
+          context.id,
+          baselineId,
         );
-        if (!decisionRes.ok) {
-          // 404 = no decision recorded yet — not an error, just "not approved".
-          if (decisionRes.status !== 404) {
-            options.logger?.warn(
-              `validation-expert returned HTTP ${decisionRes.status} for the ` +
-                `decision on context ${context.id}. Treating URS baseline ` +
-                `${baselineId} as having no approved decision.`,
-            );
-          }
-          return false;
-        }
-        const decision = (await decisionRes.json()) as { status?: string };
-        return decision.status === 'APPROVED';
       } catch (error) {
         // Network or parse failure → treat as "not approved".
         options.logger?.warn(
@@ -131,6 +158,86 @@ export function createHttpValidationDecisionResolver(options: {
             `The release gate will report no approved decision.`,
         );
         return false;
+      }
+    },
+
+    /**
+     * Per-requirement validation coverage for a URS baseline (Slice 1b).
+     *
+     * Unlike `hasApprovedDecision`, this returns `undefined` rather than an
+     * empty result when the lookup fails. The gate needs a verdict and must
+     * fail closed; a coverage table needs to distinguish "nothing is
+     * validated" from "we could not ask", because rendering the second as the
+     * first states something untrue about the product.
+     */
+    async getValidationCoverage(
+      baselineId: string,
+    ): Promise<ValidationCoverageSummary | undefined> {
+      try {
+        const base = await options.discovery.getBaseUrl('validation-expert');
+        const headers = await getAuthHeaders();
+
+        const context = await findContext(base, headers, baselineId);
+        if (!context) {
+          return undefined;
+        }
+
+        const coverageRes = await doFetch(
+          `${base}/contexts/${encodeURIComponent(context.id)}/coverage`,
+          { headers },
+        );
+        if (!coverageRes.ok) {
+          options.logger?.warn(
+            `validation-expert returned HTTP ${coverageRes.status} for the ` +
+              `coverage of context ${context.id}. Requirement rows will ` +
+              `report validation as unknown.`,
+          );
+          return undefined;
+        }
+
+        const coverage = (await coverageRes.json()) as {
+          byRequirement?: Array<{
+            requirementId?: string;
+            testIds?: string[];
+            runIds?: string[];
+            findingIds?: string[];
+          }>;
+        };
+
+        const byRequirement = new Map<
+          string,
+          { testIds: string[]; runIds: string[]; findingIds: string[] }
+        >();
+        for (const row of coverage.byRequirement ?? []) {
+          const key = String(row.requirementId ?? '').trim();
+          if (!key) {
+            continue;
+          }
+          byRequirement.set(key, {
+            testIds: row.testIds ?? [],
+            runIds: row.runIds ?? [],
+            findingIds: row.findingIds ?? [],
+          });
+        }
+
+        return {
+          contextId: context.id,
+          decisionApproved: await readDecisionApproved(
+            base,
+            headers,
+            context.id,
+            baselineId,
+          ),
+          byRequirement,
+        };
+      } catch (error) {
+        options.logger?.warn(
+          `Could not resolve validation coverage for URS baseline ` +
+            `${baselineId}: ` +
+            `${error instanceof Error ? error.message : String(error)}. ` +
+            `Requirement rows will report validation as unknown.`,
+        );
+        return undefined;
       }
     },
   };

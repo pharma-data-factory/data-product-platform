@@ -55,10 +55,16 @@ function stubResolver(): UrsBaselineResolver {
     requirements: [
       {
         id: 'urs-version-0001',
+        // The stable logical id. Slice 1a made it load-bearing: the snapshot
+        // is keyed on it and a requirement without one cannot be mapped to a
+        // component or a test, so the binding refuses.
+        requirementRef: 'URS-WD-001',
         title: 'Balance events arrive within 2 seconds',
         statement:
           'The solution shall ingest weighing events in near real time.',
         priority: 'MUST',
+        gxpRelevance: 'DIRECT',
+        contentHash: 'sha256:urs-version-0001',
       },
     ],
   };
@@ -82,6 +88,11 @@ function stubLlmClient(): ComposerLLMClient {
           name: 'balance-mqtt-source',
           reason: 'Ingests weighing events from the balance',
           priority: 'required' as const,
+          // The prompt demands this of the model and the draft has always
+          // carried it; until Slice 1a `applySpecDraft` dropped it, so every
+          // AI-built product failed its own release gate on
+          // INCOMPLETE_TRACEABILITY.
+          traceabilityRefs: ['URS-WD-001'],
         },
       ],
       contracts: [],
@@ -147,6 +158,33 @@ describe('AI spec draft: approved URS baseline -> product', () => {
 
     const baselines = await service.listProductBaselines(versions[0].id);
     expect(baselines.length).toBeGreaterThan(0);
+    // Inherited from the version binding now, rather than passed straight to
+    // the baseline — one binding mechanism instead of two.
     expect(baselines[0].ursBaselineIds).toContain(URS_BASELINE_ID);
+    expect(versions[0].ursBaselineId).toBe(URS_BASELINE_ID);
+  });
+
+  it('brings the requirements across, not just the baseline id', async () => {
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+    const product = await service.applySpecDraft(draft.id, actor);
+    const [version] = await service.listProductVersions(product.id);
+
+    const requirements = await service.listProductRequirements(version.id);
+    expect(requirements.map(r => r.requirementRef)).toEqual(['URS-WD-001']);
+    expect(requirements[0].contentHash).toBe('sha256:urs-version-0001');
+  });
+
+  it('creates the traceability links the model was asked to produce', async () => {
+    // Previously the suggested components were created and their
+    // traceabilityRefs discarded, so the generated product could not pass
+    // INCOMPLETE_TRACEABILITY — the gate refused the platform's own output.
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+    const product = await service.applySpecDraft(draft.id, actor);
+    const [version] = await service.listProductVersions(product.id);
+
+    const coverage = await service.getRequirementCoverage(version.id);
+    expect(coverage.total).toBe(1);
+    expect(coverage.mapped).toBe(1);
+    expect(coverage.unmapped).toBe(0);
   });
 });
