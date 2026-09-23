@@ -49,6 +49,43 @@ async function authorize(
   return credentials;
 }
 
+/**
+ * Read authorization that also admits a sibling backend plugin.
+ *
+ * The Product Composer's release gate asks whether a URS baseline has an
+ * APPROVED ValidationDecision. It asks as the platform, not as the person who
+ * opened the page, and it must get the same answer either way — otherwise a
+ * user without validation read access sees a spurious
+ * `NO_APPROVED_VALIDATION_DECISION` blocker on a properly validated product.
+ *
+ * Read-only, and only on the two routes the Composer calls. Recording a
+ * decision stays `POST /contexts/:id/decision`, which still requires a human
+ * PLATFORM_ADMIN and still enforces Segregation of Duties — nothing here lets
+ * a machine approve anything. See `NXD-054`.
+ */
+async function authorizeReadOrService(
+  permissions: PermissionsService | undefined,
+  httpAuth: HttpAuthService,
+  req: express.Request,
+  permission: BasicPermission,
+) {
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user', 'service'],
+    allowLimitedAccess: true,
+  });
+  if (credentials.principal.type === 'service') {
+    return credentials;
+  }
+  if (!permissions) {
+    throw new NotAllowedError('Permission service is not configured');
+  }
+  const [decision] = await permissions.authorize([{ permission }], { credentials });
+  if (decision.result !== AuthorizeResult.ALLOW) {
+    throw new NotAllowedError();
+  }
+  return credentials;
+}
+
 async function resolveExecutor(
   httpAuth: HttpAuthService,
   userInfo: UserInfoService | undefined,
@@ -300,7 +337,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   /** GET /contexts — list validation contexts (each anchored to an approved URS baseline). */
   router.get('/contexts', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationReadPermission);
+      // Service-callable: the Composer's release gate scans these.
+      await authorizeReadOrService(permissions, httpAuth, req, validationReadPermission);
       res.json({ items: await service.listContexts() });
     } catch (error) {
       respondError(res, logger, error);
@@ -413,7 +451,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
    */
   router.get('/contexts/:id/decision', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationReadPermission);
+      // Service-callable: the Composer's release gate reads the verdict.
+      await authorizeReadOrService(permissions, httpAuth, req, validationReadPermission);
       const decision = await service.getValidationDecision(req.params.id);
       if (!decision) {
         res.status(404).json({ error: `No decision recorded for context ${req.params.id}` });

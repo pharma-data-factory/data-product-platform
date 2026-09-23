@@ -85,6 +85,47 @@ async function authorize(
 }
 
 /**
+ * Read authorization that also admits a sibling backend plugin.
+ *
+ * `authorize` above takes `allow: ['user']`, which covers a person and a
+ * limited *user* token forwarded on someone's behalf. It does not cover a
+ * plain service principal, and the Product Composer's release gate is one:
+ * it asks "is this URS baseline APPROVED?" as the platform, not as whoever
+ * happened to open the page.
+ *
+ * That distinction is deliberate rather than convenient. Whether a baseline
+ * is approved is a fact about a controlled record; it must not vary with the
+ * URS permissions of the person triggering the gate, or a developer without
+ * URS read access would see a spurious `NO_APPROVED_URS_BASELINE` blocker on
+ * a product that is perfectly releasable.
+ *
+ * Applied only to the three read routes the Composer calls. Everything that
+ * writes, signs or approves still requires a human. See `NXD-054`.
+ */
+async function authorizeReadOrService(
+  permissions: PermissionsService | undefined,
+  httpAuth: HttpAuthService,
+  req: express.Request,
+  permission: BasicPermission,
+): Promise<string> {
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user', 'service'],
+    allowLimitedAccess: true,
+  });
+  if (credentials.principal.type === 'service') {
+    return credentials.principal.subject;
+  }
+  if (!permissions) {
+    throw new NotAllowedError('Permission service is not configured');
+  }
+  const [decision] = await permissions.authorize([{ permission }], { credentials });
+  if (decision.result !== AuthorizeResult.ALLOW) {
+    throw new NotAllowedError();
+  }
+  return credentials.principal.userEntityRef || 'unknown';
+}
+
+/**
  * Standard error response handler
  */
 function respondError(res: express.Response, logger: LoggerService, error: unknown) {
@@ -382,7 +423,8 @@ export async function createRouter(
    */
   router.get('/requirement-sets/:id', async (req: express.Request, res: express.Response) => {
     try {
-      await authorize(permissions, httpAuth, req, ursReadPermission);
+      // Service-callable: the Composer enriches baseline context from this.
+      await authorizeReadOrService(permissions, httpAuth, req, ursReadPermission);
       const requirementSet = await service.getRequirementSet(req.params.id);
       if (!requirementSet) {
         res.status(404).json({ error: 'Requirement set not found' });
@@ -725,7 +767,8 @@ export async function createRouter(
    */
   router.get('/requirement-versions/:id', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, ursReadPermission);
+      // Service-callable: the Composer reads requirements for AI spec context.
+      await authorizeReadOrService(permissions, httpAuth, req, ursReadPermission);
       const version = await service.getVersion(req.params.id);
       if (!version) {
         res.status(404).json({ error: 'Version not found' });
@@ -836,7 +879,8 @@ export async function createRouter(
    */
   router.get('/baselines/:id', async (req: express.Request, res: express.Response) => {
     try {
-      await authorize(permissions, httpAuth, req, ursReadPermission);
+      // Service-callable: the Composer's release gate reads this.
+      await authorizeReadOrService(permissions, httpAuth, req, ursReadPermission);
       const baseline = await service.getBaseline(req.params.id);
       if (!baseline) {
         res.status(404).json({ error: 'Baseline not found' });

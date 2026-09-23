@@ -24,11 +24,20 @@ import type { ValidationDecisionResolver } from './service';
 export function createHttpValidationDecisionResolver(options: {
   discovery: { getBaseUrl(pluginId: string): Promise<string> };
   auth: {
+    /** This plugin's own service identity. Required — see `NXD-054`. */
+    getOwnServiceCredentials(): Promise<unknown>;
     getPluginRequestToken(options: {
       onBehalfOf: unknown;
       targetPluginId: string;
     }): Promise<{ token: string }>;
   };
+  /**
+   * Strongly wanted. Every failure here returns `false`, which the release
+   * gate reports as `NO_APPROVED_VALIDATION_DECISION` — indistinguishable
+   * from a product that genuinely has no decision. Without a log, a broken
+   * call and a real finding look identical to whoever reads the gate.
+   */
+  logger?: { warn(message: string): void };
   fetchImpl?: typeof fetch;
 }): ValidationDecisionResolver {
   const doFetch =
@@ -38,12 +47,17 @@ export function createHttpValidationDecisionResolver(options: {
     const headers: Record<string, string> = { Accept: 'application/json' };
     try {
       const t = await options.auth.getPluginRequestToken({
-        onBehalfOf: await Promise.resolve({} as never),
+        onBehalfOf: await options.auth.getOwnServiceCredentials(),
         targetPluginId: 'validation-expert',
       });
       headers.Authorization = `Bearer ${t.token}`;
-    } catch {
-      // best-effort; fall through without an auth header
+    } catch (error) {
+      options.logger?.warn(
+        `Could not mint a service token for validation-expert: ` +
+          `${error instanceof Error ? error.message : String(error)}. ` +
+          `The request will be sent unauthenticated and will likely fail, ` +
+          `which the release gate reports as "no approved decision".`,
+      );
     }
     return headers;
   }
@@ -57,14 +71,36 @@ export function createHttpValidationDecisionResolver(options: {
         // 1. List all contexts and find the one for this baseline.
         const contextsRes = await doFetch(`${base}/contexts`, { headers });
         if (!contextsRes.ok) {
+          options.logger?.warn(
+            `validation-expert returned HTTP ${contextsRes.status} listing ` +
+              `contexts. Treating URS baseline ${baselineId} as having no ` +
+              `approved decision.`,
+          );
           return false;
         }
-        const contexts = (await contextsRes.json()) as Array<{
-          id: string;
-          source?: { baselineId?: string };
-        }>;
+
+        // `GET /contexts` answers `{ items: [...] }`, not a bare array. This
+        // was read as an array, so `.find` threw on every call and the catch
+        // below turned it into "not approved" — the resolver could never
+        // return true. Both shapes are accepted now so the reader does not
+        // break again if the envelope changes back. See `NXD-054`.
+        const body = (await contextsRes.json()) as
+          | Array<{ id: string; source?: { baselineId?: string } }>
+          | { items?: Array<{ id: string; source?: { baselineId?: string } }> };
+        const contexts = Array.isArray(body) ? body : body.items ?? [];
+
         const context = contexts.find(c => c.source?.baselineId === baselineId);
         if (!context) {
+          // A real finding, not a failure: no validation context references
+          // this baseline. Logged at debug volume via warn only when the list
+          // itself was empty, which usually means the wrong plugin answered.
+          if (contexts.length === 0) {
+            options.logger?.warn(
+              `validation-expert returned no validation contexts at all. ` +
+                `URS baseline ${baselineId} is reported as having no ` +
+                `approved decision; verify the plugin is reachable.`,
+            );
+          }
           return false;
         }
 
@@ -75,12 +111,25 @@ export function createHttpValidationDecisionResolver(options: {
         );
         if (!decisionRes.ok) {
           // 404 = no decision recorded yet — not an error, just "not approved".
+          if (decisionRes.status !== 404) {
+            options.logger?.warn(
+              `validation-expert returned HTTP ${decisionRes.status} for the ` +
+                `decision on context ${context.id}. Treating URS baseline ` +
+                `${baselineId} as having no approved decision.`,
+            );
+          }
           return false;
         }
         const decision = (await decisionRes.json()) as { status?: string };
         return decision.status === 'APPROVED';
-      } catch {
+      } catch (error) {
         // Network or parse failure → treat as "not approved".
+        options.logger?.warn(
+          `Could not resolve a ValidationDecision for URS baseline ` +
+            `${baselineId}: ` +
+            `${error instanceof Error ? error.message : String(error)}. ` +
+            `The release gate will report no approved decision.`,
+        );
         return false;
       }
     },

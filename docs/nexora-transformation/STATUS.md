@@ -374,6 +374,54 @@ role changes and audit records in every container deployment.
 **Phase-closure plan (2026-09-22 →).** Slices from
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), newest first.
 
+- **Follow-up to Slice 3 — the last three cross-plugin clients work.** See
+  [`NXD-054`](DECISIONS.md). `urs-baseline-resolver`,
+  `catalog-component-loader` and `validation-decision-resolver` now pass
+  `auth.getOwnServiceCredentials()` instead of `{} as never`, and every
+  silent failure path logs.
+
+  **The characterisation in [`NXD-053`](DECISIONS.md) was wrong for two of the
+  three and is corrected.** Only the catalog loader failed *open*. The URS and
+  ValidationDecision resolvers fail **closed** — a failed call becomes a
+  `NO_APPROVED_URS_BASELINE` or `NO_APPROVED_VALIDATION_DECISION` blocker. So
+  they were not letting bad releases through; they were **blocking good ones**,
+  reporting an approved baseline as unapproved and naming the product for a
+  fault in the platform. No release was wrongly permitted by these two.
+
+  **Fixing the clients was not enough.** Both target plugins authorize reads
+  with `allow: ['user'], allowLimitedAccess: true`, which admits a forwarded
+  limited *user* token but not a service principal — so a correctly minted
+  token would still have been refused. Five read routes now use an
+  `authorizeReadOrService` helper: `GET /baselines/:id`,
+  `/requirement-sets/:id`, `/requirement-versions/:id`, `/contexts` and
+  `/contexts/:id/decision`. Nothing writable was opened; recording a
+  ValidationDecision is still PLATFORM_ADMIN with SoD intact.
+
+  Service identity is the right answer rather than forwarding the caller's:
+  whether a baseline is approved is a fact about a controlled record and must
+  not vary with the URS permissions of whoever opened the page.
+
+  **A second defect in the validation resolver.** `GET /contexts` answers
+  `{ items: [...] }`; the client read it as a bare array, so `.find` threw on
+  every call and `hasApprovedDecision` could never return `true` even with
+  auth fixed. Both shapes are accepted now.
+
+  `getOwnServiceCredentials` is **required, not optional**, so a mock that
+  omits it fails to compile — the old signature let production pass `{}` while
+  the mock passed nothing, which is why no test could have caught this.
+  `crossPluginAuth.test.ts` adds 10 tests that assert the call *shape* rather
+  than the parsed response.
+
+  Verified live: all five routes accept a service principal (404 "Baseline not
+  found", 200 `{"items":[]}` — not 401); the gate reported
+  `NO_APPROVED_URS_BASELINE: … (HTTP 404)`, the real answer reached with a
+  minted token; the log shows 2 authenticated requests to `urs-composer` and 3
+  to `validation-expert`, **0 token-minting failures and 0 401/403**.
+  **The APPROVED branch was not executed live** — producing an approved URS
+  baseline needs several identities under SoD and local guest auth supplies
+  one. That branch is covered by unit test only, and is the one step of the
+  chain still unproven in the application.
+
 - **Slice 3 — CI evidence reaches the ProductBaseline. Phase 5 closed.** See
   [`NXD-052`](DECISIONS.md). `POST /baselines/:id/provenance` records
   `releaseCommitSha`, `artifactDigest` and `provenanceTimestamp` on the
@@ -438,14 +486,8 @@ role changes and audit records in every container deployment.
   since it landed, while reading as a pass. Every fail-open return in the
   policy client now logs why.
 
-  **Three sibling clients carry the same `onBehalfOf` defect and are left
-  unfixed** (`urs-baseline-resolver.ts:61`,
-  `catalog-component-loader.ts:41`, `validation-decision-resolver.ts:41`).
-  Each needs its own executed path to verify, and fixing them blind would
-  repeat exactly the mistake above. While they stand, the gate's
-  `NO_APPROVED_URS_BASELINE` and `NO_APPROVED_VALIDATION_DECISION` checks and
-  the catalog context for AI spec generation are inert. **This is the next
-  thing to pick up.**
+  **Three sibling clients carried the same `onBehalfOf` defect. Closed —
+  see [`NXD-054`](DECISIONS.md) and the entry below.**
 
   Verified live, not only in tests. Blocker list before the build:
   `INVALID_STATUS, INCOMPLETE_TRACEABILITY, POLICY_OBLIGATION_UNMET ×4,

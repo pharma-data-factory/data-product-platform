@@ -100,9 +100,25 @@ export const composerPlugin = createBackendPlugin({
       },
       async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config }) {
         const repository = await ComposerRepository.create(database);
-        const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
-        const catalogLoader = createHttpCatalogComponentLoader({ discovery, auth });
-        const validationDecisionResolver = createHttpValidationDecisionResolver({ discovery, auth });
+        // Every one of these degrades quietly on failure — by design, but the
+        // logger is what makes the degradation visible. Without it a broken
+        // cross-plugin call is indistinguishable from a real finding about the
+        // product. See NXD-053 and NXD-054.
+        const ursBaselineResolver = createHttpUrsBaselineResolver({
+          discovery,
+          auth,
+          logger,
+        });
+        const catalogLoader = createHttpCatalogComponentLoader({
+          discovery,
+          auth,
+          logger,
+        });
+        const validationDecisionResolver = createHttpValidationDecisionResolver({
+          discovery,
+          auth,
+          logger,
+        });
         const policyResolverClient = createHttpPolicyResolverClient({
           discovery,
           auth,

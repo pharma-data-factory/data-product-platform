@@ -1466,3 +1466,74 @@ mistake this record exists to describe. The consequence while they stand is
 that the release gate's `NO_APPROVED_URS_BASELINE` and
 `NO_APPROVED_VALIDATION_DECISION` checks, and the catalog context for AI spec
 generation, are also inert in the running application.
+
+### NXD-054 — The three remaining cross-plugin clients, and the correction NXD-053 needs
+
+Closes the residual gap `NXD-053` recorded. `urs-baseline-resolver.ts`,
+`catalog-component-loader.ts` and `validation-decision-resolver.ts` all passed
+`onBehalfOf: {} as never` to `getPluginRequestToken`, which throws, and all
+three swallowed the throw. They now pass `auth.getOwnServiceCredentials()`.
+
+**`NXD-053` mischaracterised two of these three and is corrected here.** It
+called them "inert", by analogy with the policy resolver, which genuinely
+failed open. Only the catalog loader does that. The other two fail **closed**:
+
+- `resolveApprovedBaseline` *throws* on a failed request, and the gate converts
+  the throw into a `NO_APPROVED_URS_BASELINE` blocker.
+- `hasApprovedDecision` returns `false`, which the gate converts into
+  `NO_APPROVED_VALIDATION_DECISION`.
+
+So these two were not letting bad releases through — they were **blocking good
+ones**, reporting a properly approved baseline as unapproved. Safer than the
+alternative, and still wrong, because the blocker names the product when the
+fault is in the platform. Stating it accurately matters: "inert" would have
+had someone looking for releases that should have been stopped, and there were
+none.
+
+**Fixing the clients was not sufficient; the routes had to change too.** Both
+`urs-composer` and `validation-expert` authorize reads with
+`allow: ['user'], allowLimitedAccess: true`. `allowLimitedAccess` admits a
+limited *user* token forwarded on someone's behalf — it does not admit a
+service principal, so a correctly minted service token would still have been
+refused. Five read routes now use an `authorizeReadOrService` helper:
+`GET /baselines/:id`, `GET /requirement-sets/:id`,
+`GET /requirement-versions/:id`, `GET /contexts` and
+`GET /contexts/:id/decision`.
+
+**Service identity rather than the caller's is the right answer here, not just
+the easy one.** The alternative is threading the requesting user's credentials
+through `ComposerService` into each resolver. That would make the gate's verdict
+depend on the caller's URS and validation permissions — so a developer without
+URS read access would see `NO_APPROVED_URS_BASELINE` on a perfectly releasable
+product. Whether a baseline is approved is a fact about a controlled record; it
+must not vary with who asks. Nothing writable was opened: recording a
+ValidationDecision is still `POST /contexts/:id/decision`, PLATFORM_ADMIN only,
+with Segregation of Duties intact.
+
+**A second, independent defect in the validation resolver.** `GET /contexts`
+answers `{ items: [...] }`; the client typed the body as a bare array and
+called `.find` on it, which throws, which the catch turned into "not approved".
+Even with authentication fixed, `hasApprovedDecision` could not have returned
+`true` under any circumstances. It now accepts either shape.
+
+**Every silent failure path now logs.** This is the part that generalises. A
+`catch {}` around a call that fails open — or fails closed onto a
+product-shaped blocker — is why four defects survived across two plugins and
+several months: the symptom was always indistinguishable from a legitimate
+finding. `getOwnServiceCredentials` is also declared **required**, not
+optional, so a test mock that omits it fails to compile; the old signature let
+production pass `{}` while the mock passed nothing, and no test could have
+noticed.
+
+**What was executed, and what was not.** Live against a running backend: a
+service principal is accepted by all five routes (404 "Baseline not found" and
+200 `{"items":[]}`, not 401); the Composer's gate produced
+`NO_APPROVED_URS_BASELINE: … (HTTP 404)` — the real answer from urs-composer,
+reached with a minted token — and the log shows two authenticated requests to
+`urs-composer` and three to `validation-expert`, with zero token-minting
+failures and zero 401/403. **The APPROVED branch was not executed live.**
+Producing an approved URS baseline requires several distinct identities under
+Segregation of Duties, and local guest auth supplies one; that branch is
+covered by `crossPluginAuth.test.ts` instead. Recorded as a limitation rather
+than glossed, because it is the one step of the chain still proven only by
+test.

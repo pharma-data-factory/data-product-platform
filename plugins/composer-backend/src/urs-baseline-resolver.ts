@@ -44,11 +44,26 @@ export interface UrsBaselineResolver {
 export function createHttpUrsBaselineResolver(options: {
   discovery: { getBaseUrl(pluginId: string): Promise<string> };
   auth: {
+    /**
+     * This plugin's own service identity. Required — see `NXD-054`. The
+     * previous code passed `{} as never`, which is not a credentials object,
+     * so token minting threw on every call and the request went out with no
+     * Authorization header at all.
+     */
+    getOwnServiceCredentials(): Promise<unknown>;
     getPluginRequestToken(options: {
       onBehalfOf: unknown;
       targetPluginId: string;
     }): Promise<{ token: string }>;
   };
+  /**
+   * Strongly wanted. An unauthenticated request to the URS Composer answers
+   * 401, `resolveApprovedBaseline` throws, and the release gate turns that
+   * into a `NO_APPROVED_URS_BASELINE` blocker — so a genuinely approved
+   * baseline was reported as unapproved, with nothing anywhere saying why.
+   * Every failure path now explains itself.
+   */
+  logger?: { warn(message: string): void };
   fetchImpl?: typeof fetch;
 }): UrsBaselineResolver {
   const doFetch =
@@ -58,12 +73,19 @@ export function createHttpUrsBaselineResolver(options: {
     const headers: Record<string, string> = { Accept: 'application/json' };
     try {
       const t = await options.auth.getPluginRequestToken({
-        onBehalfOf: await Promise.resolve({} as never),
+        onBehalfOf: await options.auth.getOwnServiceCredentials(),
         targetPluginId: 'urs-composer',
       });
       headers.Authorization = `Bearer ${t.token}`;
-    } catch {
-      // best-effort
+    } catch (error) {
+      // Proceeding unauthenticated will almost certainly 401. Say so here,
+      // because the 401 surfaces as "baseline not approved" and that reads
+      // like a finding about the product rather than a broken call.
+      options.logger?.warn(
+        `Could not mint a service token for urs-composer: ` +
+          `${error instanceof Error ? error.message : String(error)}. ` +
+          `The request will be sent unauthenticated and will likely fail.`,
+      );
     }
     return headers;
   }
@@ -151,9 +173,20 @@ export function createHttpUrsBaselineResolver(options: {
             solutionType = set.solutionType;
             businessNeed = set.businessNeed;
             businessCapabilities = set.businessCapabilityRefs ?? [];
+          } else {
+            options.logger?.warn(
+              `URS requirement set ${baseline.requirementSetId} returned ` +
+                `HTTP ${setRes.status}; baseline context will omit the ` +
+                `solution name, type, business need and capabilities.`,
+            );
           }
-        } catch {
+        } catch (error) {
           // best-effort enrichment
+          options.logger?.warn(
+            `Could not enrich URS baseline ${baselineId} with its ` +
+              `requirement set: ` +
+              `${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
 
@@ -186,10 +219,30 @@ export function createHttpUrsBaselineResolver(options: {
               priority: v.priority,
               classification: v.classification,
             });
+          } else {
+            options.logger?.warn(
+              `URS requirement version ${vid} returned HTTP ${vRes.status}; ` +
+                `it is omitted from baseline ${baselineId}'s context.`,
+            );
           }
-        } catch {
+        } catch (error) {
           // skip unresolvable versions
+          options.logger?.warn(
+            `Could not read URS requirement version ${vid}: ` +
+              `${error instanceof Error ? error.message : String(error)}. ` +
+              `It is omitted from baseline ${baselineId}'s context.`,
+          );
         }
+      }
+
+      if (versionIds.length > 0 && requirements.length < versionIds.length) {
+        // A partial requirement list is worse than none for a GxP context: it
+        // looks complete. Say plainly how much is missing.
+        options.logger?.warn(
+          `URS baseline ${baselineId} resolved ${requirements.length} of ` +
+            `${versionIds.length} requirement versions. The context is ` +
+            `incomplete.`,
+        );
       }
 
       return {

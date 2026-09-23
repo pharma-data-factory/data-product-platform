@@ -5,7 +5,14 @@ function fakeDiscovery(base = 'http://backstage:7007/api/catalog') {
 }
 
 function fakeAuth(token = 'test-token') {
+  // `getOwnServiceCredentials` is required, not optional, precisely so a mock
+  // cannot omit it. The real defect (NXD-054) was that production passed
+  // `{} as never` here while the mock passed nothing at all, so no test could
+  // ever have noticed the call shape was wrong.
   return {
+    getOwnServiceCredentials: jest.fn(async () => ({
+      principal: { type: 'service', subject: 'plugin:composer' },
+    })),
     getPluginRequestToken: jest.fn(async () => ({ token })),
   };
 }
