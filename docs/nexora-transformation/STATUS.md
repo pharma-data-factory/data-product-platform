@@ -9,10 +9,12 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
-Nothing in flight. Slices 0, 1 and 2 of
+Nothing in flight. Slices 0, 1, 2 and 3 of
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) are done. **Phase 4 is
 closed** — `DataContract` is first-class and carries a provider-neutral
 exchange definition, the two criteria the phase text names that were missing.
+**Phase 5 is closed** — CI now writes release provenance into the
+ProductBaseline, which was the last link in the phase's evidence chain.
 
 A re-read of the literal exit criteria on 2026-09-22 corrected an earlier
 over-count in this document. Per-namespace scoping is recorded below as
@@ -20,8 +22,8 @@ over-count in this document. Per-namespace scoping is recorded below as
 "hard-coded domain composition" Phase 3 names; and Editions and Federation
 appear in no phase text at all — they are Wave 3, post-plan. Counting those
 against phases made five phases look open when three were. The remaining
-phase-level gaps are **Phase 5** (CI does not write baseline evidence) and
-**Phase 7** (no multiple source/package providers).
+phase-level gap is **Phase 7** (no multiple source/package providers). Phase 5's
+gap — CI does not write baseline evidence — was closed by closure Slice 3.
 
 The gate went red after the 2026-09-21 evening commits — 50 type errors, 9 lint
 errors and 5 failing suites — and was **restored to green on 2026-09-22**. See
@@ -317,8 +319,140 @@ testable. See NXD-036, NXD-037.
 **Phase 7 exit criteria met:** external publishers, vendor Artifacts, publisher trust/certification,
 per-namespace scoping (partial), entitlements verdrahtet, commercial marketplace trust badges.
 
+**Off-plan work (2026-09-22).** Two commits that are not closure slices and
+close no phase gap. Recorded here because `STATUS.md` had fallen behind them —
+both wrote to `DECISIONS.md` and neither wrote here, which is DoD point 3 of
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) slipping. They were the right
+work to interrupt for: `ab8d681` fixed a defect that was silently discarding
+role changes and audit records in every container deployment.
+
+- **`ab8d681` — users, roles and the audit trail live in the database.** See
+  [`NXD-051`](DECISIONS.md). User records were kept in
+  `catalog/users.seed.yaml` and rewritten in place, with the audit trail in
+  JSONL files beside it; both paths resolved against `process.cwd()`, which
+  differs between the dev server and the image. In a container the plugin
+  wrote `/catalog/users.seed.yaml` while the catalog read
+  `/app/catalog/users.seed.yaml` — **a role assignment had no effect** — and
+  neither path was on a persistent volume, so **every role change and every
+  audit record died with the container**. For a platform whose validation
+  story rests on attributability that is not a deferrable defect.
+
+  Records now live in `platform_users`, `user_audit_events` and
+  `user_sign_in_events`, owned by `users-backend` through
+  `coreServices.database`. `knex@^3.0.0` was added to that package — the same
+  version three sibling plugins already declare and already in `yarn.lock`, so
+  no new dependency entered the repository. The seed runs **once, against an
+  empty table** (the `urs-composer-backend` pattern), so a restart never
+  rewrites a role an administrator changed, and under
+  `auth.environment: production` it installs only `users.bootstrapAdmin`
+  rather than the eight committed demo accounts — two of which hold
+  `platform-admins` and, because the seed never runs again, would have stayed.
+
+  The Catalog reads `catalog/runtime/platform-users.yaml`, a projection
+  rewritten *from* the database and never into it. An entity provider would be
+  tidier but is registered through `catalogProcessingExtensionPoint`, and an
+  extension point may only be consumed by a module of that plugin — which
+  would then receive the catalog's database, not this one's.
+
+- **`f39d801` — URS authoring is a governance tier plus an assignable role.**
+  See [`NXD-050`](DECISIONS.md). Two axes, granted and audited separately: the
+  platform tier (`urs.create` restated on DATA_PRODUCT_OWNER, added to
+  BUSINESS_CAPABILITY_LEAD) and the URS domain groups (`urs-authors`,
+  `urs-owners`, `urs-business-reviewers`, `urs-product-managers`,
+  `urs-quality-reviewers`) applied on top by `decidePermission`. A developer
+  authors requirements by holding `urs-authors`, not by being a developer.
+
+  Collapsing the two into the tier would have removed `urs-quality-reviewers`
+  and with it `urs.sign` — a 21 CFR Part 11 signature — and the separation
+  between whoever writes a requirement and whoever approves it.
+  BUSINESS_CAPABILITY_LEAD was also corrected: it ranks above DEVELOPER but
+  inherited from VIEWER, so it held fewer rights than the tier below it.
+
+  **No test pinned any of this** — removing `urs.create` from DEVELOPER left
+  all 1822 tests green. The rules are now asserted directly.
+
 **Phase-closure plan (2026-09-22 →).** Slices from
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), newest first.
+
+- **Slice 3 — CI evidence reaches the ProductBaseline. Phase 5 closed.** See
+  [`NXD-052`](DECISIONS.md). `POST /baselines/:id/provenance` records
+  `releaseCommitSha`, `artifactDigest` and `provenanceTimestamp` on the
+  baseline, written by the release build rather than typed by a human, and
+  `.github/workflows/ci.yml` posts them after `docker/build-push-action`
+  succeeds on `main`.
+
+  Four things the slice had to decide, each recorded in `NXD-052`:
+
+  - **Provenance is not part of the checksummed snapshot.** `snapshot`
+    carries a `_provenance.snapshotChecksum` from `P-EXT-S1` that covers its
+    own canonical JSON; writing CI evidence into it after the fact would
+    invalidate the checksum the block exists to provide. The three fields are
+    new columns on `product_baselines` instead, so the tamper-evidence of the
+    snapshot and the provenance of the build stay separable.
+  - **Write-once, not editable.** A second post with identical values is a
+    200 (CI retries and re-runs are normal); a second post with *different*
+    values is a 409. Release provenance is an attestation about a build that
+    happened, so the platform records it or refuses it — it never overwrites
+    one SHA with another.
+  - **The audit event goes to `composer_audit_events`, not
+    `user_audit_events`.** The latter belongs to `users-backend`, lives in
+    that plugin's own `coreServices.database`, and carries a user/role schema
+    (`actor`/`action`/`entity`). Writing into it from the Composer is the
+    direct cross-plugin private-database access `AGENTS.md` forbids, and it is
+    not reachable from this plugin's connection in any case. The Composer's
+    own append-only trail already records `PRODUCT_BASELINE` events; the new
+    one is `PROVENANCE_RECORDED`.
+  - **CI authenticates as a service, not as a user.** The route is the first
+    in the repository to accept `httpAuth.credentials(req, { allow:
+    ['service'] })`, backed by Backstage's own
+    `backend.auth.externalAccess` static-token mechanism. No new credential
+    type and no new dependency — the mechanism was always there, unused.
+
+  The gate learns `MISSING_CI_PROVENANCE`: a distinct blocker code rather
+  than the generic `POLICY_OBLIGATION_UNMET`, because the remedy is not
+  "fill in a field" but "run the release build". It fires only when the
+  product declares a policy carrying the new `ci-provenance-recorded`
+  obligation, so products that do not ask for build provenance are unaffected.
+
+  **The CI step cannot fail the build.** It runs `continue-on-error` against a
+  best-effort `curl`: a Composer that is unreachable from the runner must not
+  turn a good build red. The absence then shows up at the release gate, where
+  a human is already looking, which is the same fail-visible-not-fail-loud
+  placement `5-R1` chose for policy resolution.
+
+  **Executing the path found four defects that every test passed** — see
+  [`NXD-053`](DECISIONS.md). None was introduced here; all four were in code
+  already marked done, and all four share one shape: the unit tests exercise
+  the modules directly, so nothing had ever gone through the wiring. The
+  release gate answered 500 for *every* product because
+  `platform-policy.ts` and `platform-policy.json` shared a basename and the
+  backend resolved the JSON; `POST /policies/resolve` answered 500 on a
+  dynamic `import()` that destructured to `undefined` under CJS; that route
+  then rejected its only caller by admitting `user` credentials when the
+  Composer calls it with a plugin token; and the Composer never sent the
+  request at all, because its client passed `{} as never` as `onBehalfOf` and
+  swallowed the resulting throw into a silent fail-open.
+
+  Taken together this means **Phase 5's terminal control had never executed in
+  the application**, and `5-R1`'s Policy Pack enforcement has reported nothing
+  since it landed, while reading as a pass. Every fail-open return in the
+  policy client now logs why.
+
+  **Three sibling clients carry the same `onBehalfOf` defect and are left
+  unfixed** (`urs-baseline-resolver.ts:61`,
+  `catalog-component-loader.ts:41`, `validation-decision-resolver.ts:41`).
+  Each needs its own executed path to verify, and fixing them blind would
+  repeat exactly the mistake above. While they stand, the gate's
+  `NO_APPROVED_URS_BASELINE` and `NO_APPROVED_VALIDATION_DECISION` checks and
+  the catalog context for AI spec generation are inert. **This is the next
+  thing to pick up.**
+
+  Verified live, not only in tests. Blocker list before the build:
+  `INVALID_STATUS, INCOMPLETE_TRACEABILITY, POLICY_OBLIGATION_UNMET ×4,
+  MISSING_CI_PROVENANCE, NO_URS_BASELINE`. After CI posted: the same list
+  without `MISSING_CI_PROVENANCE`. A user token on the route is refused 403,
+  a re-post of the same build returns 200 with an unchanged timestamp, a
+  different build is refused 409, and a malformed SHA is refused 400.
 
 - **Slice 2 — provider-neutral exchange definitions. Phase 4 closed.** See
   [`NXD-049`](DECISIONS.md). `DataContract.exchange` carries

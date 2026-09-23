@@ -34,11 +34,26 @@ export interface PolicyResolverClient {
 export function createHttpPolicyResolverClient(options: {
   discovery: { getBaseUrl(pluginId: string): Promise<string> };
   auth: {
+    /**
+     * This plugin's own service identity. Required: the previous code passed
+     * `{} as never` as `onBehalfOf`, which is not a credentials object, so
+     * token minting threw and the silent catch below turned it into
+     * "no obligations" — see the note on `logger`.
+     */
+    getOwnServiceCredentials(): Promise<unknown>;
     getPluginRequestToken(options: {
       onBehalfOf: unknown;
       targetPluginId: string;
     }): Promise<{ token: string }>;
   };
+  /**
+   * Optional, but strongly wanted. Resolution fails **open** by deliberate
+   * decision (NXD-045): an unreachable registry must not block every release.
+   * A fail-open path with no log is indistinguishable from a pass, and that is
+   * exactly how this client stayed broken — it never reached the registry at
+   * all, and nothing said so. Every null return now explains itself.
+   */
+  logger?: { warn(message: string): void };
   fetchImpl?: typeof fetch;
 }): PolicyResolverClient {
   const doFetch =
@@ -54,7 +69,7 @@ export function createHttpPolicyResolverClient(options: {
       try {
         const base = await options.discovery.getBaseUrl('artifact-registry');
         const { token } = await options.auth.getPluginRequestToken({
-          onBehalfOf: await Promise.resolve({} as never),
+          onBehalfOf: await options.auth.getOwnServiceCredentials(),
           targetPluginId: 'artifact-registry',
         });
         const res = await doFetch(`${base}/policies/resolve`, {
@@ -65,10 +80,24 @@ export function createHttpPolicyResolverClient(options: {
           },
           body: JSON.stringify({ policies: policyRefs }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          options.logger?.warn(
+            `Policy resolution failed: the artifact registry answered ` +
+              `${res.status}. The release gate will report no policy ` +
+              `obligations for this product (fail-open, NXD-045).`,
+          );
+          return null;
+        }
         return (await res.json()) as PolicyResolutionResult;
-      } catch {
-        return null; // fail-open: registry unavailable does not block all releases
+      } catch (error) {
+        // fail-open: registry unavailable does not block all releases
+        options.logger?.warn(
+          `Policy resolution could not reach the artifact registry: ` +
+            `${error instanceof Error ? error.message : String(error)}. The ` +
+            `release gate will report no policy obligations for this product ` +
+            `(fail-open, NXD-045).`,
+        );
+        return null;
       }
     },
   };

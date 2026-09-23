@@ -8,7 +8,10 @@
 # Reverse proxy (Traefik, Nginx Proxy Manager, or existing) stays outside
 # this file. Point HTTPS <domain> at control-plane:7007.
 
-name: pharma-data-factory
+# Compose project name. `data-product-platform` is the one artifact name the
+# platform publishes (closure Slice 0); the `pharma-data-factory` occurrences
+# below are the GitHub *organisation*, which is a real account name and stays.
+name: data-product-platform
 
 services:
   postgres:
@@ -48,6 +51,10 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
       BACKEND_BASE_URL: ${BACKEND_BASE_URL:?BACKEND_BASE_URL is required}
       BACKEND_SECRET: ${BACKEND_SECRET:?BACKEND_SECRET is required}
+      # Optional. Static external-access token the release pipeline uses to
+      # post build provenance (closure Slice 3). Unset disables the route's
+      # only caller rather than leaving it open.
+      NEXORA_PROVENANCE_TOKEN: ${NEXORA_PROVENANCE_TOKEN:-}
       AUTH_GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:?AUTH_GITHUB_CLIENT_ID is required}
       AUTH_GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:?AUTH_GITHUB_CLIENT_SECRET is required}
       AUTH_GITHUB_CALLBACK_URL: ${AUTH_GITHUB_CALLBACK_URL:?AUTH_GITHUB_CALLBACK_URL is required}

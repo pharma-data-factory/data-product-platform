@@ -82,6 +82,18 @@ spec:
           A GxP-relevant product must demonstrate which requirements it
           implements. Bind the product to an approved URS baseline.
 
+      - id: ci-provenance-recorded
+        title: "The approved baseline identifies the build it describes"
+        appliesTo: gxp
+        check: ci-provenance-recorded
+        message: >
+          The approved product baseline carries no release provenance. A
+          validated baseline must name the exact commit and artifact digest it
+          was built from, written by the release pipeline rather than entered
+          by hand, so the record can be resolved back to one build years later.
+          Run the release build; CI posts the evidence to
+          POST /api/composer/baselines/:id/provenance.
+
       - id: validation-decision-approved
         title: "A GxP-relevant product has an APPROVED Validation Decision"
         appliesTo: gxp

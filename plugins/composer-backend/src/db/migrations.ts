@@ -217,6 +217,28 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // Phase 5 closure (Slice 3): CI release provenance on the baseline.
+  //
+  // Columns rather than a write into `snapshot`: that object is checksummed at
+  // creation (`_provenance.snapshotChecksum`, P-EXT-S1) over its own canonical
+  // JSON, and provenance arrives afterwards, so writing it in would invalidate
+  // the very checksum the block exists to provide.
+  //
+  // Nullable throughout. Every baseline that already exists was created before
+  // CI could post anything, and a baseline made for a version that is never
+  // built legitimately has none. Absence is a release-gate question, not a
+  // schema violation.
+  if (await knex.schema.hasTable('product_baselines')) {
+    if (!(await knex.schema.hasColumn('product_baselines', 'release_commit_sha'))) {
+      await knex.schema.alterTable('product_baselines', table => {
+        table.string('release_commit_sha', 64).nullable();
+        table.string('artifact_digest', 512).nullable();
+        table.timestamp('provenance_timestamp').nullable();
+        table.string('provenance_recorded_by', 255).nullable();
+      });
+    }
+  }
+
   // Phase 1: enforce version and baseline identity in the database.
   await assertNoDuplicateIdentities(knex);
   await createIdentityIndexes(knex);

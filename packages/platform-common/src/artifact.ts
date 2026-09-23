@@ -597,8 +597,15 @@ export function artifactCoordinateOf(
 
 /**
  * A Platform Edition defines a named combination of Core + Artifacts + Capabilities.
- * Editions are declared in `catalog/editions.yaml` and read at startup.
  * They are data, not code — a new edition does not require a Core change.
+ *
+ * NOT YET LOADED. `catalog/editions.yaml` declares four editions and this type
+ * describes them, but nothing in the repository reads that file: no loader, no
+ * startup hook, no consumer. An earlier version of this comment claimed the
+ * editions were "read at startup", which was never true and made dormant code
+ * read as live. Closure Slice 4 of `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md`
+ * is where the loader lands; until then, treat these types as a declared shape
+ * with no runtime behind it.
  */
 export interface PlatformEdition {
   id: string;

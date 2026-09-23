@@ -28,7 +28,7 @@ describe('shared platform policy', () => {
     );
     const vendored = JSON.parse(
       fs.readFileSync(
-        path.join(ROOT, 'plugins/composer-backend/src/platform-policy.json'),
+        path.join(ROOT, 'plugins/composer-backend/src/platform-policy.document.json'),
         'utf8',
       ),
     );

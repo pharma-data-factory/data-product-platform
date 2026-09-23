@@ -550,6 +550,33 @@ export const PRODUCT_BASELINE_STATUSES = [
 
 export type ProductBaselineStatus = (typeof PRODUCT_BASELINE_STATUSES)[number];
 
+/**
+ * What the release build asserts about the artifact a baseline describes.
+ *
+ * Phase 5 names the chain "CI evidence -> ProductBaseline". Until closure
+ * Slice 3 the two provenance fields existed on `ProductVersion` and were
+ * copied into the baseline snapshot, but nothing ever wrote them: the only
+ * writers were a request body and that copy, so a field meant to identify the
+ * exact build was whatever a human last typed. These are written by the system
+ * that produced the artifact and by nothing else.
+ *
+ * Deliberately **not** part of `snapshot`. That object carries a
+ * `_provenance.snapshotChecksum` (P-EXT-S1) computed over its own canonical
+ * JSON; writing CI evidence into it after the baseline exists would invalidate
+ * the checksum the block exists to provide. Snapshot tamper-evidence and build
+ * provenance are two different claims and stay in two different places.
+ */
+export interface ReleaseProvenance {
+  /** Commit the release artifact was built from. */
+  releaseCommitSha: string;
+  /** Content digest of the published artifact, `sha256:<64 hex>`. */
+  artifactDigest: string;
+  /** When CI recorded this. ISO-8601. */
+  provenanceTimestamp: string;
+  /** Service principal that posted it. Never a human. */
+  provenanceRecordedBy?: string;
+}
+
 export interface ProductBaseline {
   id: string;
   productVersionId: string;
@@ -562,7 +589,78 @@ export interface ProductBaseline {
   approvedBy?: string;
   approvedAt?: Date;
   supersededBy?: string;
+  /**
+   * Build evidence from CI. Absent until a release build posts it — absent
+   * rather than null so "not built yet" stays distinguishable from
+   * "explicitly unknown", the same distinction P5-S5 drew in the snapshot.
+   */
+  provenance?: ReleaseProvenance;
   revision: number;
+}
+
+/** A 40-hex git SHA-1, or a 64-hex SHA-256 for repositories that have moved. */
+const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$|^[0-9a-f]{64}$/;
+
+/** OCI content digest as `docker/build-push-action` emits it. */
+const ARTIFACT_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
+
+/**
+ * Why this provenance is not recordable, or `[]` if it is.
+ *
+ * Both values are checked against a grammar rather than merely for presence,
+ * which is the opposite of the choice made for baseline *labels* (NXD-007) —
+ * and for the opposite reason. A baseline label often has to match a document
+ * number in an external QMS, so Nexora cannot impose a shape on it. A commit
+ * SHA and an artifact digest have exactly one shape each, both machine-issued,
+ * and a malformed one means the CI step is broken. Accepting it would put an
+ * unresolvable reference into a controlled record.
+ */
+export function validateReleaseProvenance(input: {
+  releaseCommitSha?: unknown;
+  artifactDigest?: unknown;
+}): string[] {
+  const issues: string[] = [];
+
+  const sha = typeof input.releaseCommitSha === 'string' ? input.releaseCommitSha.trim() : '';
+  if (!sha) {
+    issues.push('releaseCommitSha is required');
+  } else if (!COMMIT_SHA_PATTERN.test(sha.toLowerCase())) {
+    issues.push(
+      `releaseCommitSha "${sha}" is not a full commit SHA. Expected 40 or 64 ` +
+        'hex characters — an abbreviated SHA is ambiguous and cannot be ' +
+        'resolved back to one commit years later.',
+    );
+  }
+
+  const digest = typeof input.artifactDigest === 'string' ? input.artifactDigest.trim() : '';
+  if (!digest) {
+    issues.push('artifactDigest is required');
+  } else if (!ARTIFACT_DIGEST_PATTERN.test(digest.toLowerCase())) {
+    issues.push(
+      `artifactDigest "${digest}" is not an OCI content digest. Expected ` +
+        '"sha256:" followed by 64 hex characters.',
+    );
+  }
+
+  return issues;
+}
+
+/**
+ * Whether two provenance records make the same claim.
+ *
+ * A release build can re-run — a retried job, a re-pushed tag — and post the
+ * same evidence twice. That is not a conflict. A *different* SHA or digest for
+ * one baseline is, because only one of them can describe the artifact that was
+ * validated.
+ */
+export function isSameProvenance(
+  a: Pick<ReleaseProvenance, 'releaseCommitSha' | 'artifactDigest'>,
+  b: Pick<ReleaseProvenance, 'releaseCommitSha' | 'artifactDigest'>,
+): boolean {
+  return (
+    a.releaseCommitSha.toLowerCase() === b.releaseCommitSha.toLowerCase() &&
+    a.artifactDigest.toLowerCase() === b.artifactDigest.toLowerCase()
+  );
 }
 
 export function isProductBaselineStatus(

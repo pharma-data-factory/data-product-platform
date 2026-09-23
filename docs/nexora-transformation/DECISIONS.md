@@ -1331,3 +1331,138 @@ with `no such column: seq` against a database created one start earlier. The
 replacement attempt failed too: SQLite cannot add an autoincrement column to an
 existing table. Ordering is now `(timestamp, id)` — deterministic without a
 migration the dev database cannot perform.
+
+### NXD-052 — CI writes release provenance to the ProductBaseline, write-once, as a service (closure Slice 3)
+
+Phase 5 names the chain "CI evidence → ProductBaseline". `releaseCommitSha` and
+`artifactDigest` have existed on the baseline snapshot since `P5-S5`, and
+nothing ever wrote them: the only writers were a request body and a copy from
+the version row. A field meant to identify one build was whatever a human last
+typed. `POST /baselines/:id/provenance` closes that.
+
+**Provenance is a set of columns, not a snapshot field.** `snapshot` carries
+`_provenance.snapshotChecksum` from `P-EXT-S1`, a SHA-256 over its own
+canonical JSON. Provenance arrives *after* the baseline exists, so writing it
+into the snapshot would invalidate the checksum the block exists to provide.
+Snapshot tamper-evidence and build provenance are two different claims about
+two different things and are stored separately. `release_commit_sha`,
+`artifact_digest`, `provenance_timestamp` and `provenance_recorded_by` are
+nullable — every baseline that already exists predates CI being able to post,
+and a baseline for a version that is never built legitimately has none.
+Absence is a release-gate question, not a schema violation.
+
+**Write-once.** Re-posting identical evidence returns 200 and changes nothing,
+including the timestamp, because a retried or re-run CI job is normal and
+should not need to know whether its predecessor got through. Posting
+*different* evidence is a 409. Only one artifact was validated against a given
+baseline; quietly replacing the SHA would make a controlled record describe a
+build nobody checked. A SUPERSEDED baseline is refused outright — it is a
+historical record and does not acquire new evidence. Approval status is
+otherwise irrelevant: the release build normally runs *after* approval, and
+appending a fact about a build is not an edit to the controlled content.
+
+**Both values are checked against a grammar**, unlike baseline *labels*, which
+`NXD-007` deliberately checks only for presence. The reasoning is opposite in
+each case and consistent underneath: a label often has to match a document
+number in an external QMS, so Nexora cannot impose a shape on it, whereas a
+commit SHA and an OCI digest have exactly one machine-issued shape each. An
+abbreviated SHA is rejected because the record's whole purpose is to resolve
+back to one commit years later.
+
+**The blocker gets its own code.** `MISSING_CI_PROVENANCE`, not
+`POLICY_OBLIGATION_UNMET`. Every other obligation on that list is answered by a
+person filling something in; this one is answered by a build running. It fires
+only when the product declares a policy carrying the new
+`ci-provenance-recorded` obligation, so nothing that has not asked for build
+provenance is blocked on it.
+
+**CI authenticates as a service.** This is the first route in the repository to
+accept `httpAuth.credentials(req, { allow: ['service'] })`, backed by
+Backstage's own `backend.auth.externalAccess` static token — configured, not
+invented, and no new credential type. The permission framework is deliberately
+not consulted for it: the platform resolves a `PlatformRole` from catalog group
+membership, and a service principal has no catalog identity, so asking the
+policy would compare against an empty role set and deny. Possession of the
+token is the authorization, which is the model Backstage intends here. A user
+token on this route is refused with 403 — asserting what CI built is the one
+thing a person must not be able to do by hand.
+
+**The audit event goes to `composer_audit_events`.** The request named
+`user_audit_events`; that table belongs to `users-backend`, lives in that
+plugin's own `coreServices.database`, and carries a user/role schema
+(`actor`/`action`/`entity`). Writing into it from the Composer is the direct
+cross-plugin private-database access `AGENTS.md` forbids, and it is not
+reachable from this plugin's connection in any case. The Composer's own
+append-only trail already records `PRODUCT_BASELINE` events; the new one is
+`PROVENANCE_RECORDED`.
+
+**The obligation was added to `gxp-data-product-policy@1.0.0` without a version
+bump**, following the `exchange-declared` precedent from Slice 2. This is a
+known wart, not an oversight: bumping to `1.1.0` would strand every product
+that declares `@1.0.0`, including the `nexora-core` product that
+`bootstrapPlatformProduct` registers, and `NXD-030` records that an edited
+manifest does not reach a registry already holding that coordinate — so a fresh
+registry sees the new obligation and an existing one does not. Policy-pack
+versioning needs its own slice; it should not be improvised inside this one.
+
+**The CI step cannot fail the build.** `continue-on-error`, a best-effort
+`curl`, and a warning annotation on a non-200. This is the first time CI writes
+back into the platform, and an unreachable Composer must not turn a good build
+red; the absence surfaces at the release gate instead, where a human is already
+looking. Same fail-visible-not-fail-loud placement `5-R1` chose for policy
+resolution. The step is inert until `NEXORA_COMPOSER_URL`,
+`NEXORA_PROVENANCE_TOKEN` and `NEXORA_BASELINE_ID` are configured, and says so
+rather than pretending to have posted.
+
+### NXD-053 — Four defects that every test passed and no execution had ever reached
+
+Executing Slice 3's path end-to-end, as `PHASE_CLOSURE_PLAN.md` DoD point 2
+requires, found four defects in code that was already marked done. None was
+introduced by Slice 3. All four share one shape: **the unit tests exercise the
+modules directly, so nothing ever went through the wiring.** They are recorded
+together because the pattern matters more than any one of them.
+
+1. **The release gate answered 500 for every product.**
+   `plugins/composer-backend/src/platform-policy.ts` and `platform-policy.json`
+   shared a basename, so `import { evaluatePlatformPolicy } from
+   './platform-policy'` in `service.ts` resolved to the **JSON** in the running
+   backend — which exports no functions. Jest resolves `.ts` before `.json`, so
+   the entire suite passed. The JSON is now `platform-policy.document.json`.
+   Phase 5's terminal control had never once executed in the application.
+
+2. **`POST /policies/resolve` answered 500.** The route did
+   `const { resolvePolicies } = await import('./policyResolver')`; the plugin
+   transpiles to CJS, where `await import()` of a CJS module yields
+   `{ default: exports }`, so the destructured binding was `undefined`. Now a
+   static import.
+
+3. **The route rejected its only caller.** It authorized with
+   `allow: ['user']`, but the Composer's release gate calls it with a *plugin*
+   token — a service principal — so it answered 401. Added
+   `authorizeReadOrService`.
+
+4. **The Composer never sent the request at all.**
+   `createHttpPolicyResolverClient` passed `onBehalfOf: {} as never` to
+   `getPluginRequestToken`, which throws; the surrounding `catch` returned null
+   with no log, and null means fail-open (`NXD-045`). Now
+   `auth.getOwnServiceCredentials()`, and **every fail-open return logs why** —
+   a fail-open path with no log is indistinguishable from a pass, which is
+   precisely how this survived.
+
+Defects 2–4 stacked: each on its own was enough to make `5-R1`'s Policy Pack
+enforcement inert, so fixing fewer than all three would have changed nothing
+observable. Slice 2 had already found and fixed a *fourth* independent cause
+(`createProduct` never mapped `declaredPolicies`). Between them, the release
+gate has reported no policy obligation since `5-R1` landed, while reading as a
+pass.
+
+**Three sibling clients carry defect 4 unfixed** —
+`urs-baseline-resolver.ts:61`, `catalog-component-loader.ts:41` and
+`validation-decision-resolver.ts:41` all pass `onBehalfOf: {} as never`, and
+all three fail open or fall back silently. They are left alone here on purpose:
+each needs its own executed path to verify (a real URS baseline, a real
+catalog, a real validation decision), and fixing them blind would repeat the
+mistake this record exists to describe. The consequence while they stand is
+that the release gate's `NO_APPROVED_URS_BASELINE` and
+`NO_APPROVED_VALIDATION_DECISION` checks, and the catalog context for AI spec
+generation, are also inert in the running application.

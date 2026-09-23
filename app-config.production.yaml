@@ -11,6 +11,22 @@ backend:
   auth:
     keys:
       - secret: ${BACKEND_SECRET}
+    # Phase 5 closure (Slice 3): the release pipeline posts build provenance
+    # to POST /api/composer/baselines/:id/provenance as a service principal.
+    #
+    # Backstage's own external-access mechanism, configured rather than
+    # invented — no new credential type. The token is write-scoped by what the
+    # route accepts, not by config: it is the only route in the repository that
+    # admits a service principal, and it can only append provenance that is
+    # not already there.
+    #
+    # Omitted entirely when NEXORA_PROVENANCE_TOKEN is unset, which disables
+    # external access rather than enabling it with an empty secret.
+    externalAccess:
+      - type: static
+        options:
+          token: ${NEXORA_PROVENANCE_TOKEN}
+          subject: release-pipeline
   database:
     client: pg
     connection:

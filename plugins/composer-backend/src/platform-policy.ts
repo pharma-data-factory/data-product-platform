@@ -19,7 +19,14 @@
 
 import type { Product } from '@internal/platform-common';
 
-import policyDocument from './platform-policy.json';
+// `platform-policy.document.json`, not `platform-policy.json`. The basename
+// has to differ from this module's: while they matched, `import ... from
+// './platform-policy'` in service.ts resolved to the JSON in the running
+// backend — which exports no functions — and every release-gate call answered
+// 500 with "evaluatePlatformPolicy is not a function". Jest resolves `.ts`
+// before `.json`, so the whole suite passed while the gate had never once
+// worked in the application. Found by executing the path (closure Slice 3).
+import policyDocument from './platform-policy.document.json';
 
 export interface PolicyObligation {
   id: string;

@@ -70,6 +70,36 @@ async function authorize(
   return credentials.principal?.userEntityRef || 'unknown';
 }
 
+/**
+ * Authenticates a non-human caller and returns the service it is.
+ *
+ * Phase 5 closure (Slice 3). Every other route in this plugin admits only
+ * `user` credentials, which is correct for them — they are all actions a
+ * person takes. Release provenance is the one thing a person must *not* be
+ * able to assert: the value of the record is that the system which produced
+ * the artifact is the system that named it.
+ *
+ * This is Backstage's own external-access mechanism, configured rather than
+ * invented — `backend.auth.externalAccess` with a static token, which
+ * `httpAuth` then presents as a service principal. No new credential type and
+ * no new dependency; the mechanism was always available and simply unused
+ * here, so this route is the first in the repository to accept one.
+ *
+ * Permission-framework authorization is deliberately *not* applied. The
+ * platform's permissions resolve a `PlatformRole` from catalog group
+ * membership, and a service principal has no catalog identity to resolve — so
+ * asking the policy about it would compare against an empty role set and deny.
+ * Possession of the external-access token is the authorization here, which is
+ * the model Backstage intends for external callers.
+ */
+async function authorizeService(
+  httpAuth: HttpAuthService,
+  req: express.Request,
+): Promise<string> {
+  const credentials = await httpAuth.credentials(req, { allow: ['service'] });
+  return credentials.principal?.subject || 'external:unknown';
+}
+
 function respondError(
   res: express.Response,
   logger: LoggerService,
@@ -741,6 +771,34 @@ export async function createRouter(
         );
         const baseline = await service.approveProductBaseline(
           req.params.id,
+          actor,
+        );
+        res.json(baseline);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /baselines/:id/provenance — CI records what it built.
+   *
+   * Phase 5 closure (Slice 3): the link from CI evidence to ProductBaseline
+   * that the phase names and that nothing implemented. Service credentials
+   * only — see `authorizeService`.
+   */
+  router.post(
+    '/baselines/:id/provenance',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorizeService(httpAuth, req);
+        const body = (req.body ?? {}) as {
+          releaseCommitSha?: unknown;
+          artifactDigest?: unknown;
+        };
+        const baseline = await service.recordBaselineProvenance(
+          req.params.id,
+          body,
           actor,
         );
         res.json(baseline);

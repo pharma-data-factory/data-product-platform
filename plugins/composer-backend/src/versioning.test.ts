@@ -686,4 +686,237 @@ describe('Phase 1: Versioning Foundation', () => {
     });
   });
 
+  // ── CI release provenance (closure Slice 3) ──────────────────────────────
+
+  describe('Baseline provenance', () => {
+    const SHA = 'a'.repeat(40);
+    const DIGEST = `sha256:${'c'.repeat(64)}`;
+    const ciActor = 'external:release-pipeline';
+
+    async function baseline() {
+      const { version } = await createFullSetup();
+      return service.createProductBaseline(version.id, {}, actor);
+    }
+
+    it('records a commit and digest posted by CI', async () => {
+      const created = await baseline();
+      expect(created.provenance).toBeUndefined();
+
+      const updated = await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA, artifactDigest: DIGEST },
+        ciActor,
+      );
+      expect(updated.provenance).toMatchObject({
+        releaseCommitSha: SHA,
+        artifactDigest: DIGEST,
+        provenanceRecordedBy: ciActor,
+      });
+      expect(updated.provenance?.provenanceTimestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T/,
+      );
+    });
+
+    it('persists it — a re-read returns the evidence, not just the write', async () => {
+      const created = await baseline();
+      await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA, artifactDigest: DIGEST },
+        ciActor,
+      );
+      const reread = await service.getProductBaseline(created.id);
+      expect(reread?.provenance?.releaseCommitSha).toBe(SHA);
+    });
+
+    it('leaves the snapshot checksum untouched', async () => {
+      // The whole reason provenance is a column and not a snapshot field: the
+      // checksum covers the snapshot's canonical JSON, and evidence arriving
+      // afterwards must not invalidate it.
+      const created = await baseline();
+      const before = (created.snapshot as any)._provenance.snapshotChecksum;
+      await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA, artifactDigest: DIGEST },
+        ciActor,
+      );
+      const reread = await service.getProductBaseline(created.id);
+      expect((reread?.snapshot as any)._provenance.snapshotChecksum).toBe(before);
+    });
+
+    it('is idempotent for a re-run of the same build', async () => {
+      const created = await baseline();
+      const first = await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA, artifactDigest: DIGEST },
+        ciActor,
+      );
+      const second = await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA.toUpperCase(), artifactDigest: DIGEST },
+        ciActor,
+      );
+      expect(second.provenance?.provenanceTimestamp).toBe(
+        first.provenance?.provenanceTimestamp,
+      );
+    });
+
+    it('refuses to re-point a baseline at a different build', async () => {
+      const created = await baseline();
+      await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA, artifactDigest: DIGEST },
+        ciActor,
+      );
+      await expect(
+        service.recordBaselineProvenance(
+          created.id,
+          { releaseCommitSha: 'd'.repeat(40), artifactDigest: DIGEST },
+          ciActor,
+        ),
+      ).rejects.toThrow(/write-once/i);
+    });
+
+    it('rejects a malformed SHA before anything is written', async () => {
+      const created = await baseline();
+      await expect(
+        service.recordBaselineProvenance(
+          created.id,
+          { releaseCommitSha: 'abc123', artifactDigest: DIGEST },
+          ciActor,
+        ),
+      ).rejects.toThrow(/not a full commit SHA/);
+      const reread = await service.getProductBaseline(created.id);
+      expect(reread?.provenance).toBeUndefined();
+    });
+
+    it('404s on a baseline that does not exist', async () => {
+      await expect(
+        service.recordBaselineProvenance(
+          'no-such-baseline',
+          { releaseCommitSha: SHA, artifactDigest: DIGEST },
+          ciActor,
+        ),
+      ).rejects.toThrow(/not found/i);
+    });
+
+    it('refuses a SUPERSEDED baseline', async () => {
+      const { version } = await createFullSetup();
+      const first = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(first.id, approver);
+      // Creating the next baseline supersedes the approved one.
+      await service.createProductBaseline(version.id, {}, actor);
+      await expect(
+        service.recordBaselineProvenance(
+          first.id,
+          { releaseCommitSha: SHA, artifactDigest: DIGEST },
+          ciActor,
+        ),
+      ).rejects.toThrow(/SUPERSEDED/);
+    });
+
+    it('writes an audit event naming the service that posted it', async () => {
+      const created = await baseline();
+      await service.recordBaselineProvenance(
+        created.id,
+        { releaseCommitSha: SHA, artifactDigest: DIGEST },
+        ciActor,
+      );
+      const events = await service.getEntityAuditTrail('PRODUCT_BASELINE', created.id);
+      const recorded = events.find(e => e.eventType === 'PROVENANCE_RECORDED');
+      expect(recorded).toBeDefined();
+      expect(recorded?.actor).toBe(ciActor);
+      expect(recorded?.newValue).toContain(SHA);
+    });
+  });
+
+  describe('Release Gate: ci-provenance-recorded', () => {
+    const SHA = 'a'.repeat(40);
+    const DIGEST = `sha256:${'c'.repeat(64)}`;
+    const obligation = {
+      policyRef: 'nexora/gxp-data-product-policy@1.0.0',
+      id: 'ci-provenance-recorded',
+      title: 'The approved baseline identifies the build it describes',
+      check: 'ci-provenance-recorded',
+      appliesTo: 'all',
+      message: 'The approved product baseline carries no release provenance.',
+    };
+
+    async function gateWith(options: { postProvenance: boolean }) {
+      const gateDb = createDb();
+      await gateDb.raw('select 1');
+      const repository = await ComposerRepository.create({ getClient: () => gateDb });
+      const svc = new ComposerService({
+        logger: mockLogger,
+        repository,
+        policyResolverClient: {
+          resolvePolicies: async () => ({
+            resolved: [obligation.policyRef],
+            unresolved: [],
+            obligations: [obligation],
+          }),
+        },
+      });
+      const product = await svc.createProduct(
+        {
+          name: `Provenance Gate ${Date.now()}${Math.random()}`,
+          productType: 'DATA_PRODUCT',
+          owner: 'group:default/platform-team',
+          dataClassification: 'INTERNAL',
+          gxpRelevance: 'NONE',
+          declaredPolicies: [obligation.policyRef],
+        },
+        actor,
+      );
+      const version = await svc.createProductVersion(product.id, {}, actor);
+      await svc.addProductComponent(
+        version.id,
+        { componentType: 'SOURCE', name: 'Source' },
+        actor,
+      );
+      const created = await svc.createProductBaseline(version.id, {}, actor);
+      await svc.approveProductBaseline(created.id, approver);
+      if (options.postProvenance) {
+        await svc.recordBaselineProvenance(
+          created.id,
+          { releaseCommitSha: SHA, artifactDigest: DIGEST },
+          'external:release-pipeline',
+        );
+      }
+      const result = await svc.checkReleaseGate(version.id);
+      await gateDb.destroy();
+      return result.blockers.map(b => b.code);
+    }
+
+    it('blocks an approved baseline with no build behind it', async () => {
+      expect(await gateWith({ postProvenance: false })).toContain(
+        'MISSING_CI_PROVENANCE',
+      );
+    });
+
+    it('clears once CI has posted', async () => {
+      expect(await gateWith({ postProvenance: true })).not.toContain(
+        'MISSING_CI_PROVENANCE',
+      );
+    });
+
+    it('uses its own code, not the generic obligation code', async () => {
+      // A reviewer scanning the blocker list needs to see that this one is
+      // answered by running a build, not by filling in a field.
+      const codes = await gateWith({ postProvenance: false });
+      expect(codes.filter(c => c === 'POLICY_OBLIGATION_UNMET')).toHaveLength(0);
+    });
+
+    it('does not fire for a product that declares no policy', async () => {
+      // The obligation is opt-in via declaredPolicies. A product that has not
+      // asked for build provenance must not be blocked on it.
+      const { version } = await createFullSetup();
+      const created = await service.createProductBaseline(version.id, {}, actor);
+      await service.approveProductBaseline(created.id, approver);
+      const result = await service.checkReleaseGate(version.id);
+      expect(result.blockers.map(b => b.code)).not.toContain(
+        'MISSING_CI_PROVENANCE',
+      );
+    });
+  });
+
 });

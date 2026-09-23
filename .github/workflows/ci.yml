@@ -113,6 +113,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push production image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -121,3 +122,58 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.mvp_tag }}
+
+      # Phase 5 closure (Slice 3): CI evidence reaches the ProductBaseline.
+      #
+      # Until now `releaseCommitSha` and `artifactDigest` existed on the
+      # baseline snapshot and nothing wrote them — the only writers were a
+      # request body and a copy from the version row, so a field meant to
+      # identify one build was whatever a human last typed. This is the step
+      # that makes the system which produced the artifact the system that
+      # names it.
+      #
+      # `continue-on-error` is deliberate and is the mitigation named in the
+      # closure plan: this is the first time CI writes back into the platform,
+      # and an unreachable Composer must not turn a good build red. A missing
+      # record surfaces at the release gate as MISSING_CI_PROVENANCE, where a
+      # human is already looking — the same fail-visible placement 5-R1 chose
+      # for policy resolution.
+      #
+      # Inert until a deployment configures the three values. That is honest
+      # rather than convenient: the platform's own baseline id is not knowable
+      # when this file is written, so the step says it is unconfigured instead
+      # of pretending to have posted.
+      - name: Record release provenance on the ProductBaseline
+        continue-on-error: true
+        env:
+          COMPOSER_URL: ${{ secrets.NEXORA_COMPOSER_URL }}
+          PROVENANCE_TOKEN: ${{ secrets.NEXORA_PROVENANCE_TOKEN }}
+          BASELINE_ID: ${{ vars.NEXORA_BASELINE_ID }}
+          ARTIFACT_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -u
+          if [ -z "${COMPOSER_URL}" ] || [ -z "${PROVENANCE_TOKEN}" ] || [ -z "${BASELINE_ID}" ]; then
+            echo "Release provenance not configured (NEXORA_COMPOSER_URL / NEXORA_PROVENANCE_TOKEN / NEXORA_BASELINE_ID)."
+            echo "Skipping. The release gate will report MISSING_CI_PROVENANCE if a policy requires it."
+            exit 0
+          fi
+          echo "Recording provenance for commit ${GITHUB_SHA} (${ARTIFACT_DIGEST}) on baseline ${BASELINE_ID}"
+          status=$(curl --silent --show-error --location \
+            --output /tmp/provenance-response.json \
+            --write-out '%{http_code}' \
+            --max-time 30 \
+            --request POST "${COMPOSER_URL}/api/composer/baselines/${BASELINE_ID}/provenance" \
+            --header "Authorization: Bearer ${PROVENANCE_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data "$(printf '{"releaseCommitSha":"%s","artifactDigest":"%s"}' "${GITHUB_SHA}" "${ARTIFACT_DIGEST}")")
+          echo "HTTP ${status}"
+          cat /tmp/provenance-response.json
+          echo
+          # 409 means this baseline already carries different evidence. That is
+          # a real conflict a person has to resolve, but it must not fail the
+          # image job — the image is already built and pushed by this point.
+          if [ "${status}" = "409" ]; then
+            echo "::warning::Baseline ${BASELINE_ID} already carries provenance for a different build."
+          elif [ "${status}" != "200" ]; then
+            echo "::warning::Provenance was not recorded (HTTP ${status})."
+          fi

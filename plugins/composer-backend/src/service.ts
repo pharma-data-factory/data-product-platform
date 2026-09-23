@@ -20,11 +20,14 @@ import {
   ProductDependency,
   ProductVersion,
   QualityRule,
+  ReleaseProvenance,
   SUBSCRIPTION_STATUSES,
   SnapshotItemChange,
   TraceabilityLink,
   contractRef,
   validateContractExchange,
+  validateReleaseProvenance,
+  isSameProvenance,
   findVersionLabelClash,
   parseContractRef,
   isQualityRuleType,
@@ -858,6 +861,10 @@ export class ComposerService {
             contractList.every(c => Boolean(c.exchange?.deliveryMechanism)),
           'quality-checks-declared': () => contractList.some(c => (c.qualityRules ?? []).length > 0),
           'product-dependencies-declared': () => deps.length > 0,
+          // Phase 5 closure (Slice 3). Evaluated here so the obligation is
+          // discoverable with the others, but reported under its own blocker
+          // code below rather than as POLICY_OBLIGATION_UNMET.
+          'ci-provenance-recorded': () => Boolean(approvedBaseline?.provenance),
         };
 
         for (const obl of resolution.obligations) {
@@ -882,8 +889,17 @@ export class ComposerService {
           if (obl.check === 'validation-decision-approved') continue;
 
           if (!checkFn()) {
+            // Build provenance gets its own code. Every other obligation on
+            // this list is answered by a person filling something in; this one
+            // is answered by a release build running, and a reviewer reading
+            // the blocker list needs to see that difference without parsing
+            // the message text. The gate never *records* provenance itself —
+            // only CI can, which is the point of the whole slice.
             blockers.push({
-              code: 'POLICY_OBLIGATION_UNMET',
+              code:
+                obl.check === 'ci-provenance-recorded'
+                  ? 'MISSING_CI_PROVENANCE'
+                  : 'POLICY_OBLIGATION_UNMET',
               message: `[${obl.policyRef}] ${obl.title}: ${obl.message}`,
             });
           }
@@ -1107,6 +1123,85 @@ export class ComposerService {
     await this.repository.updateProductBaseline(approved);
     await this.audit('PRODUCT_BASELINE', baselineId, 'BASELINE_APPROVED', actor);
     return approved;
+  }
+
+  /**
+   * Records what CI built, against the baseline that describes it.
+   *
+   * Phase 5 closure (Slice 3). The caller is the release pipeline, not a
+   * person: the router admits only a service principal here, which is why
+   * `actor` is a service ref rather than a `user:default/...`.
+   *
+   * Three rules, each with a reason a reviewer will ask about:
+   *
+   * - **Write-once.** Re-posting the same evidence succeeds and changes
+   *   nothing, because a retried CI job is normal and should not need to know
+   *   whether its predecessor got through. Posting *different* evidence is a
+   *   409: only one artifact was validated against this baseline, and quietly
+   *   replacing the SHA would make the record describe a build nobody checked.
+   * - **Not on a superseded baseline.** A superseded baseline is a historical
+   *   record. Attaching a new build to it would attach evidence to a
+   *   controlled document that has already been replaced.
+   * - **Approval status is irrelevant.** Provenance may land on a DRAFT or an
+   *   APPROVED baseline, because the release build usually runs *after*
+   *   approval. This is not an edit to the controlled content — the snapshot
+   *   and its checksum are untouched — it is an append of a fact about a build.
+   */
+  async recordBaselineProvenance(
+    baselineId: string,
+    request: { releaseCommitSha?: unknown; artifactDigest?: unknown },
+    actor: string,
+  ): Promise<ProductBaseline> {
+    const baseline = await this.repository.getProductBaseline(baselineId);
+    if (!baseline) {
+      throw new NotFoundError(`Product baseline ${baselineId} not found`);
+    }
+
+    const issues = validateReleaseProvenance(request);
+    if (issues.length > 0) {
+      throw new InputError(issues.join('; '));
+    }
+
+    // Safe after validation: both are non-empty strings or we threw above.
+    const incoming = {
+      releaseCommitSha: String(request.releaseCommitSha).trim().toLowerCase(),
+      artifactDigest: String(request.artifactDigest).trim().toLowerCase(),
+    };
+
+    if (baseline.status === 'SUPERSEDED') {
+      throw new ConflictError(
+        `Baseline ${baselineId} is SUPERSEDED. Record provenance against the ` +
+          'baseline that replaced it — a superseded baseline is a historical ' +
+          'record and does not acquire new evidence.',
+      );
+    }
+
+    const existing = baseline.provenance;
+    if (existing) {
+      if (isSameProvenance(existing, incoming)) {
+        // Idempotent: a re-run of the same build. Nothing to write, nothing
+        // to audit — an audit trail that records non-events is harder to read.
+        return baseline;
+      }
+      throw new ConflictError(
+        `Baseline ${baselineId} already carries provenance for commit ` +
+          `${existing.releaseCommitSha} (${existing.artifactDigest}). Release ` +
+          'provenance is write-once: create a new baseline for a new build ' +
+          'rather than re-pointing this one.',
+      );
+    }
+
+    const provenance: ReleaseProvenance = {
+      ...incoming,
+      provenanceTimestamp: new Date().toISOString(),
+      provenanceRecordedBy: actor,
+    };
+    const updated: ProductBaseline = { ...baseline, provenance };
+    await this.repository.updateProductBaseline(updated);
+    await this.audit('PRODUCT_BASELINE', baselineId, 'PROVENANCE_RECORDED', actor, {
+      newValue: JSON.stringify(provenance),
+    });
+    return { ...updated, revision: (baseline.revision || 1) + 1 };
   }
 
   async getProductBaseline(id: string): Promise<ProductBaseline | null> {

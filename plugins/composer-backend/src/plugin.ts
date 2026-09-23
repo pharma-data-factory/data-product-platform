@@ -103,7 +103,11 @@ export const composerPlugin = createBackendPlugin({
         const ursBaselineResolver = createHttpUrsBaselineResolver({ discovery, auth });
         const catalogLoader = createHttpCatalogComponentLoader({ discovery, auth });
         const validationDecisionResolver = createHttpValidationDecisionResolver({ discovery, auth });
-        const policyResolverClient = createHttpPolicyResolverClient({ discovery, auth });
+        const policyResolverClient = createHttpPolicyResolverClient({
+          discovery,
+          auth,
+          logger,
+        });
         const llmClient = createLLMClient(config, logger);
         const llmEnabled = config.getOptionalBoolean('composer.ai.enabled') ?? false;
         const service = new ComposerService({

@@ -492,6 +492,13 @@ export class ComposerRepository implements IComposerRepository {
       approved_by: baseline.approvedBy || null,
       approved_at: baseline.approvedAt || null,
       superseded_by: baseline.supersededBy || null,
+      // Phase 5 closure (Slice 3). Written here as well as by
+      // recordBaselineProvenance so an update never silently drops evidence
+      // that is already on the row.
+      release_commit_sha: baseline.provenance?.releaseCommitSha || null,
+      artifact_digest: baseline.provenance?.artifactDigest || null,
+      provenance_timestamp: baseline.provenance?.provenanceTimestamp || null,
+      provenance_recorded_by: baseline.provenance?.provenanceRecordedBy || null,
       revision: (baseline.revision || 1) + 1,
     });
   }
@@ -643,7 +650,36 @@ export class ComposerRepository implements IComposerRepository {
       approvedBy: row.approved_by || undefined,
       approvedAt: row.approved_at || undefined,
       supersededBy: row.superseded_by || undefined,
+      // Both halves of the evidence have to be present for the record to mean
+      // anything — a digest with no commit does not identify a build — so the
+      // object appears only when the pair does.
+      provenance:
+        row.release_commit_sha && row.artifact_digest
+          ? {
+              releaseCommitSha: row.release_commit_sha,
+              artifactDigest: row.artifact_digest,
+              provenanceTimestamp: toIsoString(row.provenance_timestamp),
+              provenanceRecordedBy: row.provenance_recorded_by || undefined,
+            }
+          : undefined,
       revision: row.revision,
     };
   }
+}
+
+/**
+ * Normalises a timestamp column to ISO-8601.
+ *
+ * PostgreSQL hands back a `Date`, SQLite an integer or a string depending on
+ * how it was written. The field is declared as an ISO string, so the shape is
+ * settled here rather than at every reader.
+ */
+function toIsoString(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'number') return new Date(value).toISOString();
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+  }
+  return '';
 }

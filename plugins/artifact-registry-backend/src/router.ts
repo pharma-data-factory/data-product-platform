@@ -38,6 +38,14 @@ import {
   type Artifact,
 } from '@internal/platform-common';
 import { ArtifactRegistryService, CreatePublisherRequest } from './service';
+// Static, not `await import('./policyResolver')`. The dynamic form destructured
+// to `undefined` in the running backend — the plugin transpiles to CJS, where
+// `await import()` of a CJS module yields `{ default: exports }` — so
+// POST /policies/resolve answered 500 with "resolvePolicies is not a function"
+// and, because the Composer's policy client fails open (NXD-045), the release
+// gate silently resolved no obligations at all. Jest's interop hid it.
+// Found by executing the path (closure Slice 3).
+import { resolvePolicies } from './policyResolver';
 
 export interface RouterOptions {
   logger: LoggerService;
@@ -65,6 +73,51 @@ async function authorize(
     throw new NotAllowedError();
   }
   return credentials.principal?.userEntityRef || 'unknown';
+}
+
+/**
+ * Read authorization for a route another backend plugin calls.
+ *
+ * `authorize` above admits only `user` credentials, which is right for the
+ * routes a person drives. `/policies/resolve` is not one of them: its only
+ * caller is the Composer's release gate, which authenticates with a plugin
+ * token. A plugin token is a *service* principal, so the user-only check threw
+ * `AuthenticationError`, the route answered 401, and the Composer's client —
+ * which fails open by design (NXD-045) — turned that into "no obligations".
+ *
+ * The effect was that 5-R1's Policy Pack enforcement never once ran in the
+ * application: every gate check resolved nothing and reported nothing, which
+ * reads exactly like a pass. Slice 2 found and fixed one cause of that
+ * (`declaredPolicies` was never mapped on create); this was the second, and it
+ * sat behind the first. Found by executing the path (closure Slice 3).
+ *
+ * A service principal carries no catalog identity, so there is no
+ * `PlatformRole` to resolve and the permission framework is not consulted for
+ * it — possession of a plugin token is the authorization, which is what
+ * Backstage intends for backend-to-backend calls.
+ */
+async function authorizeReadOrService(
+  permissions: PermissionsService | undefined,
+  httpAuth: HttpAuthService,
+  req: express.Request,
+  permission: BasicPermission,
+): Promise<string> {
+  const credentials = await httpAuth.credentials(req, {
+    allow: ['user', 'service'],
+  });
+  if (credentials.principal.type === 'service') {
+    return credentials.principal.subject;
+  }
+  if (!permissions) {
+    throw new NotAllowedError('Permission service is not configured');
+  }
+  const [decision] = await permissions.authorize([{ permission }], {
+    credentials,
+  });
+  if (decision.result !== AuthorizeResult.ALLOW) {
+    throw new NotAllowedError();
+  }
+  return credentials.principal.userEntityRef || 'unknown';
 }
 
 function respondError(
@@ -462,13 +515,17 @@ export async function createRouter(
     '/policies/resolve',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        await authorizeReadOrService(
+          permissions,
+          httpAuth,
+          req,
+          artifactReadPermission,
+        );
         const { policies } = req.body as { policies?: string[] };
         if (!Array.isArray(policies)) {
           res.status(400).json({ error: 'policies must be an array of strings' });
           return;
         }
-        const { resolvePolicies } = await import('./policyResolver');
         const result = await resolvePolicies(policies, service);
         res.json(result);
       } catch (err) {
