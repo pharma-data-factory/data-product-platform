@@ -5,8 +5,11 @@ import {
   useApi,
 } from '@backstage/core-plugin-api';
 import type {
+  DataContract,
   Product,
+  ProductBaseline,
   ProductComponent,
+  ProductDependency,
   ProductRequirement,
   ProductRequirementCoverage,
   ProductVersion,
@@ -51,9 +54,15 @@ export interface ComposerClient {
     versionId: string,
     targetStatus: string,
   ): Promise<ProductVersion>;
-  listProductBaselines(
-    versionId: string,
-  ): Promise<Array<Record<string, unknown>>>;
+  /**
+   * Baselines of one version, newest first (`created_at` descending).
+   *
+   * Typed as `ProductBaseline[]` rather than the loose record it used to
+   * return: the Tests tab reads `provenance` off these, and CI's build
+   * evidence is the one field on the record that nothing in the frontend had
+   * ever looked at.
+   */
+  listProductBaselines(versionId: string): Promise<ProductBaseline[]>;
   /**
    * `ursBaselineIds` is optional because a bound version supplies it: the
    * service inherits `product_versions.urs_baseline_id` when the body states
@@ -76,6 +85,18 @@ export interface ComposerClient {
   getRequirementCoverage(
     versionId: string,
   ): Promise<ProductRequirementCoverage>;
+  /** Contracts this component provides. Keyed by component, listed by coordinate. */
+  listComponentContracts(componentId: string): Promise<DataContract[]>;
+  /** Contracts this version consumes — the other side of the exchange. */
+  listVersionDependencies(versionId: string): Promise<ProductDependency[]>;
+  /**
+   * One contract by id.
+   *
+   * A `ProductDependency` carries only `contractId`, and a bare UUID says
+   * nothing about what is being consumed. Resolving it is what turns the
+   * dependency list into coordinates — the point of Slice 1.
+   */
+  getContract(contractId: string): Promise<DataContract>;
 }
 
 export function useComposerClient(): ComposerClient {
@@ -140,5 +161,10 @@ export function useComposerClient(): ComposerClient {
       ),
     getRequirementCoverage: versionId =>
       request('GET', `/versions/${versionId}/requirement-coverage`),
+    listComponentContracts: componentId =>
+      request('GET', `/components/${componentId}/contracts`),
+    listVersionDependencies: versionId =>
+      request('GET', `/versions/${versionId}/dependencies`),
+    getContract: contractId => request('GET', `/contracts/${contractId}`),
   };
 }

@@ -12,6 +12,7 @@
  */
 
 import knex, { Knex } from 'knex';
+import { expectRefusedByDatabase } from './__testUtils__/databaseRefusal';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
@@ -275,7 +276,12 @@ describe('Slice 1a: binding a URS baseline to a Product Version', () => {
     // Straight at the repository: the service refuses a rebind, so the unique
     // index is the only thing that can stop a concurrent second write. That is
     // the race the service check cannot close (NXD-009).
-    await expect(
+    //
+    // Asserted through `expectRefusedByDatabase`, which matches the message
+    // rather than the thrown value's Error-ness. This test shipped with a bare
+    // `.rejects.toThrow()` and failed roughly two full runs in five for the
+    // reason that helper documents — see NXD-016.
+    await expectRefusedByDatabase(
       repository.bindUrsBaseline(version.id, BASELINE_ID, [
         {
           id: 'duplicate-row',
@@ -291,7 +297,8 @@ describe('Slice 1a: binding a URS baseline to a Product Version', () => {
           createdAt: new Date(),
         },
       ]),
-    ).rejects.toThrow();
+      /UNIQUE constraint failed: product_requirements\.product_version_id, product_requirements\.urs_requirement_version_id/,
+    );
 
     expect(await service.listProductRequirements(version.id)).toHaveLength(2);
   });

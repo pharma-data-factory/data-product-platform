@@ -1701,3 +1701,54 @@ in each direction follows Step 2.
 must be pulled forward ahead of any further UI work. Without the shared
 identity there is no way to attach the requirements view there except the
 annotation this record rejects.
+
+#### Addendum, 2026-09-24 — executed with six tabs, not seven
+
+The tab set ships as Overview · Requirements · Architecture · Contracts ·
+Tests · Validation. **`Development` is not built.** Nothing on the Product
+joins it to a repository: `Product` has no repository field, no entity
+reference and no scaffolder bearing, which is precisely the shared identity
+Step 2 creates. The tab would have had a heading and an explanation of what is
+missing, and nothing else. A tab that resolves to an apology is worse than a
+tab that is not there — the record's own argument against attaching the
+requirements view to the catalog page through an annotation is the same
+argument: do not build the joint before the identity exists.
+
+It goes in when Step 2 lands, next to the cross-link that was already deferred
+to the same step. String tab keys rather than the numeric index
+`URSRequirementSetPage` uses, so inserting it later moves nothing.
+
+**The record said four tabs were "re-sorting, not new work". That was true of
+four and wrong about the rest being expensive.** Contracts, Tests and
+Validation turned out to need no new endpoint and no new backend work at all —
+the data was already reaching the browser or already had a route:
+`GET /components/:id/contracts` and `GET /versions/:id/dependencies` for
+Contracts, `ProductBaseline.provenance` for build evidence, and the coverage
+row's `testIds`/`runIds`/`findingIds`/`validated` for the other two. Slices 1,
+2 and 3 of the closure plan had each landed a backend capability that no page
+displayed. Three tabs of this slice are that backlog becoming visible.
+
+**Two defects found while moving the code, both fixed here.**
+
+`addComponent` wrote against `latestVersion` while the picker selected any
+version, so a component added while viewing 1.0.0 landed silently on 2.0.0.
+This is the same defect NXD-055 fixed on the read path and did not check for on
+the write path. The form is now scoped to the selected version, and refuses
+outside `DRAFT`. That refusal is **UI-only**: `addProductComponent` in the
+service checks no status, so an API client can still change a released
+version's architecture. The rule belongs in the service and is recorded as
+open — the page not offering it is not the same as the platform not allowing
+it.
+
+Every `TextField` on the page was unlabelled. Material UI v4 does not generate
+an `id`, so without an explicit one the `<label>` is associated with no input:
+the version picker, the baseline picker and all seven form fields were
+anonymous controls to a screen reader. Found because a test could not query
+them by label, which is the same lookup assistive technology performs. All
+fields now carry an `id`.
+
+**Verified:** `tsc`, `lint:all`, `guard:platform` and the full suite pass, with
+six new tests over the tab shell, the version-scoping fix, the three-valued
+validation display and the absent-provenance case. Not verified against a
+running stack for the same reason NXD-055 records — producing an approved URS
+baseline needs several identities under Segregation of Duties.

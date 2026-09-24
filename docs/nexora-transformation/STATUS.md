@@ -9,6 +9,27 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
+**`/products` is the Product page, and it is reachable.** The 2026-09-24 slice
+executed [`NXD-056`](DECISIONS.md): the page went into the sidebar under
+*Build*, where the group previously offered `/create` and `/compose` and then no
+destination, and the single 856-line scroll became six tabs — Overview,
+Requirements, Architecture, Contracts, Tests, Validation.
+
+Three of those tabs show data that already existed and no page had ever
+displayed: contracts by coordinate with their exchange definition (closure
+Slices 1 and 2), CI build provenance on the ProductBaseline (closure Slice 3),
+and the verification/validation axes per requirement (Slice 1b). No new
+endpoint was needed for any of them.
+
+**`Development` is not built** — the seventh tab NXD-056 names. `Product` has
+no repository field, no entity reference and no scaffolder bearing, so the tab
+would hold only an explanation of what is missing. It lands with Step 2, which
+creates that identity. Two defects were fixed in passing: the add-component
+form wrote against the *latest* version while the picker selected any version
+(the write-path twin of the bug NXD-055 fixed on the read path), and every
+`TextField` on the page was unlabelled because Material UI v4 generates no
+`id`. See the addendum on [`NXD-056`](DECISIONS.md).
+
 **URS → Product Slice 1a/1b is done.** A Product Version can now be bound to an
 approved URS baseline, holds that baseline's requirements as an immutable
 snapshot, and reports per-requirement coverage across both axes — engineering
@@ -20,7 +41,11 @@ joint and everything downstream blocked by it. The product side held no
 requirements at all, so there was nothing to map, count, show coverage against
 or hand to a developer. Four further steps are planned on top of it (one door
 for product creation, export into the generated repo, CI coverage feedback,
-then mandatory binding with change control); none is started.
+then mandatory binding with change control); none is started. **Step 2 — "one
+door", a `nexora:product:create` scaffolder action writing the repo, the
+Catalog entity and the `products` row in one act — is now the next one**, and
+two deferred items wait on it: the `Development` tab and the cross-link
+between `/products` and `/data-products`.
 
 One side effect is worth naming: the release gate's `NO_URS_BASELINE` check and
 the `urs-baseline-bound` policy obligation have existed and been tested since
@@ -891,6 +916,13 @@ CI-evidence chain is also not automated. The nine slices, their order and the
 Definition of Done are in that document; the notes below remain accurate as
 context.
 
+**0 — `addProductComponent` does not check the version status.** The service
+(`plugins/composer-backend/src/service.ts:351`) will add a component to a
+`RELEASED` version. NXD-056's slice closed this in the UI — the form refuses
+outside `DRAFT` and says why — but a UI refusal is not a platform rule, and an
+API client can still change the architecture of a released version. The guard
+belongs next to the one `bindUrsBaseline` already has.
+
 **1 — ~~Restore the green gate.~~ Done 2026-09-22.** All four gates pass again;
 see `## Test Status` for what was wrong and what each fix was. One item was
 left deliberately open: `build-image` tags `pharma-data-factory:mvp-1.0` while
@@ -955,7 +987,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
-**GREEN.** Verified on 2026-09-23 the way CI runs it (`CI=true`, PostgreSQL up
+**GREEN.** Verified on 2026-09-24 the way CI runs it (`CI=true`, PostgreSQL up
 via `docker-compose.test.yml`).
 
 | Gate | Command | Result |
@@ -963,7 +995,48 @@ via `docker-compose.test.yml`).
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `CI=true yarn test` | PASS — 214 suites, 1903 tests, **0 skipped** |
+| Unit tests | `CI=true yarn test` | PASS — 215 suites, 1909 tests, **0 skipped** |
+
+### The 2026-09-24 flake — NXD-016 regressed in Slice 1a, now fixed
+
+`Slice 1a › enforces one row per pinned requirement version in the database`
+failed three full-repository runs in eight, always on the same assertion, and
+passed everywhere else: 25 consecutive runs of the file alone under CPU load,
+nine runs of `yarn test plugins/composer-backend` including `--maxWorkers=12`,
+and serially. The "green at 214 suites / 1903 tests" recorded on 2026-09-23 was
+therefore a run that happened to pass.
+
+**The constraint always fired.** A probe capturing the rejection showed the
+same `SqliteError` carrying the same message —
+`UNIQUE constraint failed: product_requirements.product_version_id,
+product_requirements.urs_requirement_version_id` — on every run, while
+`rejection instanceof Error` flipped between `true` and `false` from run to
+run. That is the mechanism [`NXD-016`](DECISIONS.md) already records:
+better-sqlite3 is a native module whose binding is loaded once per worker
+process, so its `SqliteError` carries the `Error` intrinsic of whichever jest
+module realm loaded it first. When another project's file got there first,
+`instanceof Error` reads false inside this file, and `toThrow()` reports
+*"Received function did not throw"* for a rejection that did happen.
+
+The literal message was the tell and was misread for several runs. Jest says
+*"Received promise resolved instead of rejected"* when nothing is thrown. "Did
+not throw" meant a value **was** thrown and was not an `Error`.
+
+**Fix.** `expectRefusedByDatabase` — which `identityConstraints.test.ts` had
+carried as a local function since NXD-016, mechanism spelled out in its doc
+comment — moved to
+`plugins/composer-backend/src/__testUtils__/databaseRefusal.ts`, and both
+suites import it. `productRequirements.test.ts` now asserts the constraint by
+name, which is a stronger claim than the bare `.rejects.toThrow()` it replaced.
+
+The standing rule, since it did not stick the first time: **a bare
+`.rejects.toThrow()` on a database-level refusal is a latent flake in this
+repository.** Slice 1a introduced one days after NXD-016 explained why. The
+helper is now importable, which is the only reason it will not recur.
+
+One other suite is load-sensitive and is **not** fixed: `Plugin Directory UI ›
+renders directory summary and Validation Expert entry` failed one full run on a
+`waitFor` left at the 1 s default. It passes in isolation and in its project.
 
 Slice 1a/1b added 21 tests in `productRequirements.test.ts` and a new
 `ursBaselineResolver.test.ts`, and changed one existing fixture: the AI spec
@@ -1302,11 +1375,17 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 [`NXD-009`](DECISIONS.md).
 
 ## Last Commit
-`beeab2a` — "fix(items-6-7-8-9): PLATFORM_PRODUCT lifecycle, secret masking, SSE
-DI, vocab tests", 2026-09-21 19:00, on `ms/composer-ai-spec-and-ci-quality-gate`.
+"feat(nxd-056): /products becomes the Product page, in six tabs", 2026-09-24,
+on `ms/composer-ai-spec-and-ci-quality-gate`.
 
-As of 2026-09-22 the branch is **6 commits ahead of its remote** and nothing is
-pushed since `2fc06a3`. The working tree is clean.
+**No hash here, deliberately.** A commit cannot record its own id, so writing
+one means either a stale value or a second commit whose only job is to name the
+first — which is then itself unnamed. This entry was wrong for three days for
+exactly that reason: it said `beeab2a` while HEAD was `164039f`. `git log -1`
+is authoritative; this section carries the subject and the date.
+
+As of 2026-09-24 the branch is **3 commits ahead of its remote**; the last
+pushed commit is `f054b3c`. The working tree is clean.
 
 For historical reference, Phase 0 landed as three commits: the transformation
 memory, "fix(test): restore a green baseline and stop the jest resolver

@@ -31,6 +31,7 @@ import EmojiEventsIcon from '@material-ui/icons/EmojiEvents';
 import CategoryIcon from '@material-ui/icons/Category';
 import DeviceHubIcon from '@material-ui/icons/DeviceHub';
 import FolderOpenIcon from '@material-ui/icons/FolderOpen';
+import LayersIcon from '@material-ui/icons/Layers';
 import StorageIcon from '@material-ui/icons/Storage';
 import ViewListIcon from '@material-ui/icons/ViewList';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
@@ -160,6 +161,16 @@ function PlatformSidebar() {
                 to="/compose"
                 title="Composer"
                 subtitle="Advanced"
+              />
+              {/*
+                The end of the Build journey. /products holds the release
+                governance — versions, requirements, the release gate — and
+                until NXD-056 it could not be navigated to at all.
+              */}
+              <SidebarSubmenuItem
+                icon={LayersIcon}
+                to="/products"
+                title="Products"
               />
             </SidebarSubmenu>
           </SidebarItem>
