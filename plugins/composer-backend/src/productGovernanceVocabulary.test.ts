@@ -20,6 +20,7 @@
  */
 
 import knex, { Knex } from 'knex';
+import { InputError } from '@backstage/errors';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
 
@@ -121,6 +122,18 @@ describe('product governance vocabulary', () => {
   });
 
   describe('updateProduct', () => {
+    it('refuses with an InputError, so the caller is told what was wrong', async () => {
+      // The refusal was a plain Error, which `respondError` maps to
+      // `500 {"error":"Internal server error"}` — the reason reaches the server
+      // log and never the caller. Driving the live API showed exactly that: a
+      // rejected vocabulary value read as a server fault. The router maps by
+      // instance check, so the type is the assertion, not the message.
+      const product = await create();
+      await expect(
+        service.updateProduct(product.id, { gxpRelevance: 'MAYBE' }, ACTOR),
+      ).rejects.toBeInstanceOf(InputError);
+    });
+
     it('refuses garbage that createProduct would have refused', async () => {
       // The edit path validated nothing at all, so the vocabulary could be
       // bypassed by creating clean and then updating dirty.

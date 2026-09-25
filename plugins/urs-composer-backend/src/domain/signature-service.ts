@@ -63,6 +63,20 @@ export interface SignRequest {
   /** The second factor, e.g. the signing PIN. */
   secret: string;
   comment?: string;
+  /**
+   * Set when the caller has already run `preAuthenticate` for this signatory
+   * and secret, outside the transaction `sign` will run in.
+   *
+   * Not a way to skip the check — `preAuthenticate` performs exactly the same
+   * verification, and a caller that sets this without having called it signs
+   * nothing, because the flag is written by that method's callers only. It
+   * exists because the re-authentication store is deliberately *not* the
+   * transactional repository (a failed attempt has to be counted even when the
+   * signature rolls back), and reaching a second repository from inside a
+   * transaction deadlocks the plugin's connection pool. See
+   * `URSService.signatureServiceFor`.
+   */
+  secondFactorVerified?: boolean;
 }
 
 /** Recomputes the hash of a stored version from its signed fields. */
@@ -398,7 +412,26 @@ export class SignatureService {
     }
   }
 
+  /**
+   * Run the second factor on its own, before a transaction is opened.
+   *
+   * The re-authentication store is the base repository on purpose: a failed
+   * attempt must be counted even when the signature that follows rolls back.
+   * That makes it a second connection, which a transaction cannot lend and the
+   * pool cannot supply — so the check has to happen first. Callers then set
+   * `secondFactorVerified` on the request they pass to `sign`.
+   */
+  async preAuthenticate(signedBy: string, secret: string): Promise<void> {
+    await this.verifySecondFactor({
+      signedBy,
+      secret,
+    } as SignRequest);
+  }
+
   private async verifySecondFactor(request: SignRequest): Promise<void> {
+    if (request.secondFactorVerified) {
+      return;
+    }
     if (!request.secret) {
       throw new InputError(
         'A signature requires re-authentication. Supply your signing PIN.',

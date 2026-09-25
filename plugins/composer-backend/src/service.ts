@@ -257,15 +257,20 @@ export class ComposerService {
   ): Promise<Product> {
     const existing = await this.repository.getProduct(id);
     if (!existing) {
-      throw new Error(`Product ${id} not found`);
+      throw new NotFoundError(`Product ${id} not found`);
     }
     // `createProduct` validated and this did not, so every vocabulary field on
     // the product could be set to anything at all through the edit path even
     // once the create path refused it. Governance only — a partial update is
     // not required to restate name and productType.
+    //
+    // InputError, not Error: `respondError` maps a plain Error to
+    // `500 {"error":"Internal server error"}`, so the live refusal read as a
+    // server fault and the caller never saw which value was rejected. Found by
+    // driving the API on 2026-09-25, one day after this check was written.
     const issues = validateProductGovernance(request);
     if (issues.length > 0) {
-      throw new Error(issues.join('; '));
+      throw new InputError(issues.join('; '));
     }
     const updated: Product = {
       ...existing,

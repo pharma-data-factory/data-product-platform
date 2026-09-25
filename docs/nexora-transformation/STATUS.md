@@ -41,9 +41,26 @@ migration ever created, and the two approval workflows existed only in the
 Postgres seed, so `submitBaseline` failed with `Workflow not found` on the
 shipped `memory` mode. See [`NXD-058`](DECISIONS.md).
 
-**Still not verified end-to-end against a running stack.** That is what NXD-057
-exists to make possible; walking it as three identities is the next act, not a
-completed one.
+**The journey was then walked on a running stack, and it completes.** See
+[`NXD-059`](DECISIONS.md). URS → review chain → QA signature → baseline → three
+role-separated approvals → Product → binding → release gate, as three
+identities. The gate ends at `INCOMPLETE_TRACEABILITY` and
+`NO_APPROVED_VALIDATION_DECISION`; `NO_URS_BASELINE` is gone because the binding
+is real. **This is the first time the deepest branch of the release gate has
+been reached in the application**, and it retires the note that closes
+[`NXD-054`](DECISIONS.md), [`NXD-055`](DECISIONS.md) and
+[`NXD-056`](DECISIONS.md).
+
+It did not complete on the first attempt. **Signing a requirement version was
+impossible and had been since the feature was written**: the role lookup and the
+PIN re-authentication were both made from inside `repository.withTransaction`,
+which holds the only connection they need, so knex waited 60 seconds and the two
+failures arrived disguised as a 401 about permissions and a 500. No version
+could be signed, so none could reach APPROVED, so no baseline could be released.
+Fixed — roles and second factor are resolved before the transaction opens, with
+`transactionBoundary.test.ts` pinning the ordering. Six further findings are
+recorded in `NXD-059` and **not** fixed; the most serious is that approval order
+is not enforced.
 
 **`/products` is the Product page, and it is reachable.** The 2026-09-24 slice
 executed [`NXD-056`](DECISIONS.md): the page went into the sidebar under
@@ -939,12 +956,28 @@ no decision records yet.
   and `readGoldenPathComposition()`. See [`NXD-032`](DECISIONS.md).
 
 ## In Progress
-**Batch 1 is written and green but uncommitted** — 31 modified files, 16 new,
-about 1,100 lines. See `## Current Vertical Slice` for what it is and
-[`NXD-057`](DECISIONS.md)/[`NXD-058`](DECISIONS.md) for why each part is shaped
-the way it is. What it does not yet have is the live run: the point of the demo
-identities is an end-to-end walk of URS → baseline → Product → release gate, and
-that walk has not been recorded here.
+Nothing in flight. Batch 1 is committed (`b7378b0`) and the live walk that
+followed it is recorded in [`NXD-059`](DECISIONS.md).
+
+**Open from the walk, in the order they matter** — none of these is fixed:
+
+1. **Approval order is not enforced.** A later step can be approved while an
+   earlier one is open; observed live. `approveApprovalStep` checks status and
+   role, never that the step is the current one.
+2. **A Product baseline can be approved by whoever created it** — no
+   segregation of duties, where the version transition and every URS signature
+   have it.
+3. Approval steps carry no `stepNumber` over the API, so no client can number
+   the chain.
+4. Three refusals answer 500 instead of 409/400: re-approving an approved step,
+   binding an unapproved URS baseline, and (before the walk) the product
+   governance vocabulary.
+5. An unknown requirement-set id answers 200 with an empty list on two routes
+   and 404 on a third, which also disagree about which identifier they take.
+
+Next planned step is unchanged: **Step 2 — "one door"**, a
+`nexora:product:create` scaffolder action writing the repo, the Catalog entity
+and the `products` row in one act.
 
 ## Next
 **Sequencing now lives in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md)**
@@ -1028,21 +1061,29 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
-**GREEN.** Verified on 2026-09-25 over the uncommitted Batch 1 working tree,
-the way CI runs it (`CI=true`, PostgreSQL up via `docker-compose.test.yml`).
+**GREEN.** Verified on 2026-09-25 the way CI runs it (`CI=true`, PostgreSQL up
+via `docker-compose.test.yml`), after the walk fixes.
 
 | Gate | Command | Result |
 | --- | --- | --- |
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `CI=true yarn test` | PASS — 221 suites, 1958 tests, **0 skipped** |
+| Unit tests | `CI=true yarn test` | PASS — 222 suites, 1961 tests, **0 skipped** |
 
-Seven suites are new in Batch 1: the governance vocabulary, the product update
-path, release-gate progress, the approval-workflow seed in both persistence
-modes, the approval-instance column, the review chain, and the guest role.
+Eight suites are new today: the governance vocabulary, the product update path,
+release-gate progress, the approval-workflow seed in both persistence modes, the
+approval-instance column, the review chain, the guest role, and the transaction
+boundary. Batch 1 alone measured 221 suites / 1958 tests; the 2026-09-24 figures
+were 215 and 1909.
 
-The 2026-09-24 figures were 215 suites and 1909 tests.
+**The gate did not catch the defect that mattered most today**, and it is worth
+being plain about why. Signing a requirement version was impossible on a real
+connection pool for as long as the feature has existed, and every suite passed
+throughout, because they drive the service with an in-memory repository and a
+stub catalog where the two offending calls cost nothing. See
+[`NXD-059`](DECISIONS.md). `transactionBoundary.test.ts` now pins the ordering
+rather than the symptom, and was mutation-checked against the fix.
 
 ### The 2026-09-24 flake — NXD-016 regressed in Slice 1a, now fixed
 
@@ -1422,8 +1463,8 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 [`NXD-009`](DECISIONS.md).
 
 ## Last Commit
-"feat(nxd-056): /products becomes the Product page, in six tabs", 2026-09-24,
-on `ms/composer-ai-spec-and-ci-quality-gate`.
+"fix(walk): a transaction does no I/O it does not own", 2026-09-25, on
+`ms/composer-ai-spec-and-ci-quality-gate`.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
@@ -1431,9 +1472,8 @@ first — which is then itself unnamed. This entry was wrong for three days for
 exactly that reason: it said `beeab2a` while HEAD was `164039f`. `git log -1`
 is authoritative; this section carries the subject and the date.
 
-As of 2026-09-25 the branch is **3 commits ahead of its remote**; the last
-pushed commit is `f054b3c`. The working tree is **not clean** — Batch 1 is
-written, green and uncommitted; see `## In Progress`.
+As of 2026-09-25 the branch is **5 commits ahead of its remote**; the last
+pushed commit is `f054b3c`. The working tree is clean.
 
 For historical reference, Phase 0 landed as three commits: the transformation
 memory, "fix(test): restore a green baseline and stop the jest resolver

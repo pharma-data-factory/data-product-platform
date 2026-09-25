@@ -1444,7 +1444,9 @@ export class URSService {
     comment?: string,
     credentials?: BackstageCredentials,
   ): Promise<ChangeRequest> {
-    const signatures = this.signatureService(credentials);
+    const signatures = await this.signatureServiceFor(actor, credentials);
+    // Before the transaction, like the role lookup and for the same reason.
+    await signatures.preAuthenticate(actor, secret);
 
     return this.repository.withTransaction(async repo => {
       await signatures.sign(
@@ -1455,6 +1457,7 @@ export class URSService {
           signedBy: actor,
           secret,
           comment,
+          secondFactorVerified: true,
         },
         repo,
       );
@@ -1571,7 +1574,8 @@ export class URSService {
   // ============================================================================
 
   /**
-   * Build the signature service for one request.
+   * Build the signature service for one request, with the signer's roles
+   * already resolved.
    *
    * Constructed per call because role resolution needs the caller's
    * credentials for the catalog lookup, and threading those through the domain
@@ -1580,14 +1584,46 @@ export class URSService {
    * The re-authentication provider is bound to the base repository on purpose:
    * a failed attempt has to be counted even when the surrounding transaction
    * rolls the signature back.
+   *
+   * **The lookup happens before this returns, and that is the point.** Every
+   * caller runs `sign` inside `repository.withTransaction`, and resolving the
+   * roles from in there deadlocks the plugin against itself: the transaction
+   * holds the only pooled connection, minting the outgoing plugin token needs a
+   * connection of its own to read the signing key, and knex waits 60 seconds
+   * for one that cannot be released until the transaction it is blocking
+   * finishes. The request then goes out unauthenticated and the catalog answers
+   * **401**, so the failure arrives as
+   * `Failed to resolve approval roles for <user>: Request failed with 401` —
+   * which reads as a permission problem and is not one.
+   *
+   * Observed live on 2026-09-25, not inferred: the same call with the same
+   * credentials returned `PRODUCT_MANAGER,QUALITY_REVIEWER` immediately before
+   * the transaction and 401'd inside it, with
+   * `KnexTimeoutError: Timeout acquiring a connection` in the backend log
+   * exactly 60 seconds later. No test could have caught it — the suites call
+   * the service with a stub resolver and never open a real pool.
+   *
+   * The rule this encodes, for anything added here later: **a transaction does
+   * no I/O it does not own.** Resolve first, then transact.
    */
-  private signatureService(
+  private async signatureServiceFor(
+    actor: string,
     credentials?: BackstageCredentials,
-  ): SignatureService {
+    knownRoles?: ApprovalRole[],
+  ): Promise<SignatureService> {
+    const roles =
+      knownRoles ?? (await this.getUserApprovalRoles(actor, credentials));
     return new SignatureService({
       repository: this.repository,
       reAuth: new SignaturePinReAuth(this.repository),
-      resolveRoles: userRef => this.getUserApprovalRoles(userRef, credentials),
+      // Only the signer's roles are pre-resolved, because only the signer's are
+      // read (`verifyRole`). Any other ref falls through to a live lookup,
+      // which is correct outside a transaction and would deadlock inside one —
+      // so if a future check needs another user's roles, resolve it here too.
+      resolveRoles: async userRef =>
+        userRef === actor
+          ? roles
+          : this.getUserApprovalRoles(userRef, credentials),
     });
   }
 
@@ -1628,7 +1664,10 @@ export class URSService {
     comment?: string,
     credentials?: BackstageCredentials,
   ): Promise<Signature> {
-    const signatures = this.signatureService(credentials);
+    const signatures = await this.signatureServiceFor(actor, credentials);
+    // Before the transaction, like the role lookup and for the same reason.
+    await signatures.preAuthenticate(actor, secret);
+
     const request: SignRequest = {
       targetType: SignatureTargetType.REQUIREMENT_VERSION,
       targetId: versionId,
@@ -1636,6 +1675,7 @@ export class URSService {
       signedBy: actor,
       secret,
       comment,
+      secondFactorVerified: true,
     };
 
     return this.repository.withTransaction(async repo => {
@@ -2729,12 +2769,16 @@ export class URSService {
       );
     }
 
+    // Resolved once, here, and handed to the signature below. This is the only
+    // place it can happen: everything after the transaction opens is barred
+    // from making this call. See `signatureServiceFor`.
+    const actorRoles = await this.getUserApprovalRoles(actor, credentials);
+
     // Role-based access: verify actor holds the step's required role.
     // ADMIN deliberately does not bypass this check. Segregation of duties
     // requires each approval step to be decided by its designated role; an
     // administrative override would make the approval chain unprovable.
     if (step.role) {
-      const actorRoles = await this.getUserApprovalRoles(actor, credentials);
       if (!actorRoles.includes(step.role)) {
         throw new NotAllowedError(
           `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
@@ -2768,7 +2812,11 @@ export class URSService {
     //
     // A baseline Signature record is written only on the final required step
     // (unique meaning per signatory). Intermediate steps still require the PIN.
-    const signatures = this.signatureService(credentials);
+    const signatures = await this.signatureServiceFor(
+      actor,
+      credentials,
+      actorRoles,
+    );
 
     return this.repository.withTransaction(async repo => {
       if (isFinalRequiredStep) {
@@ -2784,6 +2832,10 @@ export class URSService {
             signedBy: actor,
             secret: pin,
             comment,
+            // The PIN was verified above, before the transaction opened — the
+            // same check this would otherwise run from inside it, where the
+            // re-authentication store cannot be reached.
+            secondFactorVerified: true,
           },
           repo,
         );

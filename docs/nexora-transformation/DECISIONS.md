@@ -1955,4 +1955,123 @@ the governance vocabulary, the update path, gate progress, the workflow seed in
 both persistence modes, the approval-instance column and the review chain.
 **The end-to-end run against a live stack is what NXD-057 exists to make
 possible and is not yet recorded here** — the batch closes the paths, and
-walking them as three identities is the next act.
+walking them as three identities is the next act. **Done the same day; see
+[`NXD-059`](DECISIONS.md).**
+
+### NXD-059 — The journey was walked, and a transaction does no I/O it does not own
+
+- Date: 2026-09-25
+
+The walk NXD-057 exists to make possible was performed against a running stack:
+`yarn start:demo`, three sign-ins, URS → review chain → QA signature → baseline
+→ three approvals → Product → binding → release gate. It completes. It did not
+complete on the first attempt, and what stopped it had been stopping it since
+the signature feature was written.
+
+**The whole chain now executes.** The requirement versions reach APPROVED
+through a QA signature, the baseline reaches APPROVED through three
+role-separated approvals, `/baselines/approved` answers with it, the Product
+version binds it and reports holding its two requirements, and the release gate
+returns `INCOMPLETE_TRACEABILITY` and `NO_APPROVED_VALIDATION_DECISION` —
+`NO_URS_BASELINE` is gone, because the binding is real. **That is the first time
+the deepest branch of the release gate has been reached in the application.**
+[`NXD-054`](DECISIONS.md), [`NXD-055`](DECISIONS.md) and
+[`NXD-056`](DECISIONS.md) each close with a note that the APPROVED branch could
+not be exercised live for want of several identities. That note can be retired.
+
+The segregation of duties held under test rather than by assertion: the author
+was refused the QA signature on their own work
+(`A APPROVED_QA signature requires the QUALITY_REVIEWER role. Your roles:
+PRODUCT_MANAGER, AUTHOR.`), and each approval step refused an identity that did
+not hold its role.
+
+## The defect that made signing impossible
+
+`getUserApprovalRoles` is an HTTP call to the catalog. `SignaturePinReAuth` is
+bound to the **base** repository, deliberately, so a failed PIN attempt is
+counted even when the signature rolls back. Both were called from inside
+`repository.withTransaction`, and both need a second database connection, which
+the transaction is holding. Knex waits 60 seconds for a connection that cannot
+be released until the transaction it is blocking finishes.
+
+Neither failure looks like what it is:
+
+- the role lookup's outgoing plugin token cannot be minted (that needs a
+  connection too), so the request goes out unauthenticated and the catalog
+  answers **401**. The user is told
+  `Failed to resolve approval roles for <user>: Request failed with 401
+  Unauthorized` — which reads as a permission problem, and sends whoever is
+  debugging it into the RBAC configuration;
+- the PIN check surfaces as **500 Internal server error**.
+
+So **no requirement version could ever be signed**, therefore none could reach
+APPROVED, therefore no baseline could be released, therefore the Product page
+could bind nothing. The gap NXD-055 and NXD-056 recorded as "not verified
+against a running stack" was not a gap in verification. It was this.
+
+**The evidence, because guessing at it wasted more time than measuring it.** A
+probe logged the same credentials object (`principal.type: user`, unexpired) on
+both paths; the same call returned `PRODUCT_MANAGER,QUALITY_REVIEWER`
+immediately before `withTransaction` and 401'd inside it, with
+`KnexTimeoutError: Timeout acquiring a connection` in the backend log exactly 60
+seconds later. The catalog access log shows the same URL answering 200 on the
+approval-step path and 401 on the signature path, 150 ms apart.
+
+**Decision: a transaction does no I/O it does not own.** Roles are resolved and
+the second factor is verified before the transaction opens;
+`signatureServiceFor` takes the signer and pre-resolves, and `SignRequest`
+carries `secondFactorVerified` so `sign` does not repeat a check it cannot make.
+This keeps the property the re-authentication store exists for — a failed
+attempt is recorded outside the transaction, so a rollback cannot erase it —
+rather than trading it away by moving the check onto the transactional
+repository.
+
+**No test could have caught it and the new one does not catch it either.** The
+suites drive the service with an in-memory repository and a stub catalog, where
+neither call costs a connection. `transactionBoundary.test.ts` therefore pins
+the *ordering*: its stubs throw if either call arrives while a transaction is
+open. Mutation-checked — removing the fix turns it red.
+
+## Six more findings, recorded and not fixed
+
+Each was produced by the walk, each is real, none is in Batch 1's scope:
+
+1. **Approval order is not enforced.** On one run the QUALITY_REVIEWER step was
+   approved while the PRODUCT_MANAGER step was still open, and the platform
+   accepted it. `approveApprovalStep` checks the step's status and the actor's
+   role, and never that it is the *current* step. A three-step GxP chain whose
+   steps can be taken in any order is a set of approvals, not a chain — this is
+   the most serious of the six.
+2. **Approval steps carry no `stepNumber` over the API.** Every step comes back
+   with `stepNumber: undefined` and the instance with
+   `currentStepNumber: undefined`, so no client can number or order the chain it
+   renders.
+3. **Re-approving an approved step answers 500.** `Cannot approve step in
+   APPROVED status` is thrown as a plain `Error`; the caller sees
+   `Internal server error`. Same class as the three refusals
+   [`NXD-058`](DECISIONS.md) retyped, in the method next to them.
+4. **Binding an unapproved URS baseline answers 500** rather than a 409 naming
+   the status.
+5. **A Product baseline can be approved by whoever created it.** `P5-S2` put
+   segregation of duties on the version's APPROVED transition and the URS side
+   enforces it on every signature; `approveProductBaseline` has none.
+6. **An unknown requirement-set id answers 200.** `GET
+   …/current-versions` returns an empty list and `POST …/versions/transition`
+   returns "advanced 0" for a set that does not exist, while the requirements
+   route 404s on the same id. An unknown set is indistinguishable from an empty
+   one — and the two routes disagree about which identifier they take, the
+   business key or the row id.
+
+One fix was made outside the two above, because it was Batch 1's own and one
+line: `updateProduct`'s vocabulary refusal threw a plain `Error` and reached the
+caller as `500 Internal server error`, so the check added the day before was
+invisible in the application. It is an `InputError` now, asserted by type.
+
+- Affected components: `plugins/urs-composer-backend` (`service.ts`,
+  `domain/signature-service.ts`, `transactionBoundary.test.ts`),
+  `plugins/composer-backend/src/service.ts`.
+
+**Verified:** all four gates green — `guard:platform` (9 pass, 9 documented
+warnings, 0 fail), `tsc`, `lint:all`, `CI=true yarn test` at 222 suites / 1961
+tests / 0 skipped with PostgreSQL up — and, for the first time, the journey
+itself on a running stack.
