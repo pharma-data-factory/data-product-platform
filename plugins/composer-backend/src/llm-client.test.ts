@@ -244,3 +244,130 @@ describe('AnthropicComposerLLMClient parsing', () => {
     );
   });
 });
+
+/**
+ * The shape is a constraint on generation, not a request in the prompt.
+ *
+ * Both JSON paths used to ask for a shape and then hope: the parsers exist
+ * because the model was free to answer with prose, a fence or an invented
+ * `priority`. `output_config.format` moves that to the API. These tests pin
+ * the request — that the schema is sent, that it is sent only where JSON is
+ * wanted, and that the two states where a schema does not hold are reported
+ * as what they are rather than as "not valid JSON".
+ */
+describe('AnthropicComposerLLMClient structured outputs', () => {
+  function mockFetchReturning(body: object) {
+    return jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    });
+  }
+
+  function clientWith(mockFetch: jest.Mock) {
+    return new AnthropicComposerLLMClient({
+      apiKey: 'sk-ant-test',
+      model: 'claude-haiku-4-5',
+      fetchApi: mockFetch as unknown as typeof fetch,
+    });
+  }
+
+  function sentBody(mockFetch: jest.Mock): any {
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    return JSON.parse(String(init.body));
+  }
+
+  it('constrains suggestComponents to the suggestions schema', async () => {
+    const mockFetch = mockFetchReturning({
+      content: [{ type: 'text', text: JSON.stringify({ suggestions: [] }) }],
+      stop_reason: 'end_turn',
+    });
+
+    await clientWith(mockFetch).suggestComponents(sampleContext, 'system');
+
+    const body = sentBody(mockFetch);
+    expect(body.output_config.format.type).toBe('json_schema');
+    const schema = body.output_config.format.schema;
+    expect(schema.required).toEqual(['suggestions']);
+    // additionalProperties: false is required on every object by the API, so
+    // a schema that omits it is rejected at request time, not at parse time.
+    expect(schema.additionalProperties).toBe(false);
+    expect(schema.properties.suggestions.items.additionalProperties).toBe(false);
+    expect(schema.properties.suggestions.items.properties.priority.enum).toEqual([
+      'required',
+      'recommended',
+      'optional',
+    ]);
+  });
+
+  it('constrains generateProductSpec, including the componentType vocabulary', async () => {
+    const spec = {
+      productName: 'OEE',
+      description: 'd',
+      domain: 'manufacturing',
+      components: [],
+      contracts: [],
+    };
+    const mockFetch = mockFetchReturning({
+      content: [{ type: 'text', text: JSON.stringify(spec) }],
+      stop_reason: 'end_turn',
+    });
+
+    await clientWith(mockFetch).generateProductSpec({
+      businessNeed: 'Line supervisors cannot see OEE per shift.',
+      solutionType: 'DATA_PRODUCT',
+      solutionName: 'OEE Analytics',
+      requirements: [],
+      businessCapabilities: [],
+      availableComponents: [],
+    });
+
+    const schema = sentBody(mockFetch).output_config.format.schema;
+    expect(schema.required).toContain('productName');
+    // The enum is what makes toComponentType's PROCESSING fallback
+    // unreachable on this provider: the model cannot invent a type.
+    const componentType =
+      schema.properties.components.items.properties.componentType;
+    expect(componentType.enum).toContain('PROCESSING');
+    expect(componentType.enum.length).toBeGreaterThan(1);
+  });
+
+  it('sends no schema for analyzeProduct, which answers a person in prose', async () => {
+    const mockFetch = mockFetchReturning({
+      content: [{ type: 'text', text: 'The product looks healthy.' }],
+      stop_reason: 'end_turn',
+    });
+
+    const answer = await clientWith(mockFetch).analyzeProduct('How is it?', {});
+
+    expect(answer).toBe('The product looks healthy.');
+    expect(sentBody(mockFetch).output_config).toBeUndefined();
+  });
+
+  it('reports a refusal as a refusal, not as malformed JSON', async () => {
+    // A schema does not survive a safety decline — the answer is not an
+    // attempt at the shape at all, and the parser's "not valid JSON" would
+    // send a reader looking for a prompt fault that is not there.
+    const mockFetch = mockFetchReturning({
+      content: [{ type: 'text', text: 'I cannot help with that.' }],
+      stop_reason: 'refusal',
+      stop_details: { category: 'cyber', explanation: 'declined' },
+    });
+
+    await expect(
+      clientWith(mockFetch).suggestComponents(sampleContext, 'system'),
+    ).rejects.toThrow(/declined this request \(cyber\)/);
+  });
+
+  it('reports truncation as truncation, and names the setting that fixes it', async () => {
+    const mockFetch = mockFetchReturning({
+      content: [{ type: 'text', text: '{"suggestions": [{"name": "rest-' }],
+      stop_reason: 'max_tokens',
+    });
+
+    await expect(
+      clientWith(mockFetch).suggestComponents(sampleContext, 'system'),
+    ).rejects.toThrow(/truncated at max_tokens=4096.*composer\.ai\.maxTokens/s);
+  });
+});

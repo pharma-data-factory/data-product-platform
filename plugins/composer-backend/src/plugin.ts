@@ -37,6 +37,13 @@ import {
  *   `anthropic`  — Anthropic Messages API (Claude). Default model:
  *                  `claude-haiku-4-5`. Override with composer.ai.model.
  *
+ *                  The two JSON paths constrain the response with
+ *                  `output_config.format`, so the model must support
+ *                  structured outputs: Haiku 4.5, Sonnet 5, Opus 5 and
+ *                  Opus 4.8 do; Opus 4.7 and 4.6 do not, and setting one of
+ *                  those here makes the API reject the request rather than
+ *                  degrade quietly. The error text names the parameter.
+ *
  * AI is disabled (MockComposerLLMClient) when composer.ai.enabled is false
  * or no API key is configured.
  */

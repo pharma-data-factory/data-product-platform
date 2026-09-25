@@ -1,4 +1,8 @@
-import { isComponentType, type ComponentType } from '@internal/platform-common';
+import {
+  COMPONENT_TYPES,
+  isComponentType,
+  type ComponentType,
+} from '@internal/platform-common';
 import {
   buildProductAnalystSystemPrompt,
   buildProductAnalystUserPrompt,
@@ -208,6 +212,114 @@ export interface AnthropicLLMClientOptions {
 }
 
 /**
+ * The response shapes, as schemas the Anthropic API enforces.
+ *
+ * Until now both JSON paths asked for a shape in the prompt and hoped: the
+ * parsers below exist because the model was free to answer with prose, a code
+ * fence, a missing field or an invented `priority`. `output_config.format`
+ * makes the shape a constraint on generation rather than a request, so the
+ * failure mode it was written for stops occurring on this provider.
+ *
+ * They sit here rather than beside the parsers they mirror only because the
+ * class below references them and this file is read top to bottom.
+ *
+ * **The parsers stay, and that is deliberate.** They are the contract for
+ * `OpenAIComposerLLMClient` too, which has no equivalent mechanism, and a
+ * schema does not survive a refusal or a truncated response (both are checked
+ * in `callAnthropicApi`). Belt and braces on a path that writes to the product
+ * record.
+ *
+ * Schema rules the API imposes, so these do not drift into being invalid:
+ * every object needs `additionalProperties: false`, and `minLength`/`maximum`
+ * style constraints are rejected — what cannot be expressed here is what the
+ * parsers still check.
+ */
+const SUGGESTION_PRIORITIES = [
+  'required',
+  'recommended',
+  'optional',
+] as const;
+
+const COMPONENT_SUGGESTIONS_SCHEMA = {
+  type: 'object',
+  properties: {
+    suggestions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description:
+              'Must match one of the available component names exactly.',
+          },
+          reason: { type: 'string' },
+          priority: { type: 'string', enum: [...SUGGESTION_PRIORITIES] },
+        },
+        required: ['name', 'reason', 'priority'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['suggestions'],
+  additionalProperties: false,
+} as const;
+
+const PRODUCT_SPEC_SCHEMA = {
+  type: 'object',
+  properties: {
+    productName: { type: 'string' },
+    description: { type: 'string' },
+    domain: { type: 'string' },
+    components: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          reason: { type: 'string' },
+          // An enum, so `toComponentType`'s PROCESSING fallback can no longer
+          // be reached from this provider — the model cannot invent a type.
+          componentType: { type: 'string', enum: [...COMPONENT_TYPES] },
+          priority: { type: 'string', enum: [...SUGGESTION_PRIORITIES] },
+          traceabilityRefs: { type: 'array', items: { type: 'string' } },
+        },
+        required: [
+          'name',
+          'reason',
+          'componentType',
+          'priority',
+          'traceabilityRefs',
+        ],
+        additionalProperties: false,
+      },
+    },
+    contracts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          type: { type: 'string' },
+          description: { type: 'string' },
+          traceabilityRefs: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['name', 'type', 'description', 'traceabilityRefs'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: [
+    'productName',
+    'description',
+    'domain',
+    'components',
+    'contracts',
+  ],
+  additionalProperties: false,
+} as const;
+
+/**
  * Calls the Anthropic Messages API via raw `fetch`.
  *
  * No `@anthropic-ai/sdk` dependency: the request shape is simple enough, and
@@ -224,6 +336,13 @@ export interface AnthropicLLMClientOptions {
  * Response parsing: the Anthropic content array may contain `thinking` blocks
  * (on Opus 5, thinking is on by default). `callAnthropicApi` finds the first
  * `text` block, so thinking blocks are silently skipped.
+ *
+ * The two JSON methods send `output_config.format`, which constrains
+ * generation to the schema instead of asking for it in the prompt — see
+ * `COMPONENT_SUGGESTIONS_SCHEMA`. `analyzeProduct` deliberately does not: it
+ * answers a person in prose. This requires a model that supports structured
+ * outputs (Haiku 4.5, Sonnet 5, Opus 5, Opus 4.8 — not Opus 4.7 or 4.6), which
+ * is the one constraint `composer.ai.model` now carries.
  */
 export class AnthropicComposerLLMClient implements ComposerLLMClient {
   private readonly apiKey: string;
@@ -238,9 +357,18 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
     this.fetchApi = options.fetchApi;
   }
 
+  /**
+   * One call to the Messages API.
+   *
+   * `jsonSchema` is optional because only two of the three callers want JSON:
+   * `analyzeProduct` answers a person in prose, and constraining that to a
+   * schema would be wrong. When it is given, the API constrains generation to
+   * it rather than being asked to comply in the prompt.
+   */
   private async callAnthropicApi(
     system: string,
     userContent: string,
+    jsonSchema?: unknown,
   ): Promise<string> {
     const response = await this.fetchApi(
       'https://api.anthropic.com/v1/messages',
@@ -256,6 +384,13 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
           max_tokens: this.maxTokens,
           system,
           messages: [{ role: 'user', content: userContent }],
+          ...(jsonSchema
+            ? {
+                output_config: {
+                  format: { type: 'json_schema', schema: jsonSchema },
+                },
+              }
+            : {}),
         }),
       },
     );
@@ -267,7 +402,31 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
 
     const data = (await response.json()) as {
       content: Array<{ type: string; text?: string }>;
+      stop_reason?: string;
+      stop_details?: { category?: string | null; explanation?: string };
     };
+
+    // Two states where the text is present but the schema does not hold, and
+    // both were previously reported as "not valid JSON" by the parser — which
+    // sends whoever is debugging it looking for a prompt fault that is not
+    // there.
+    //
+    // A refusal is a safety decision: the answer is not an attempt at the
+    // schema at all. Truncation means generation hit the ceiling mid-object,
+    // so the JSON is well-formed right up to where it stops.
+    if (data.stop_reason === 'refusal') {
+      const category = data.stop_details?.category ?? 'unspecified';
+      throw new Error(
+        `Anthropic API declined this request (${category}). ` +
+          `The response does not follow the requested schema.`,
+      );
+    }
+    if (data.stop_reason === 'max_tokens') {
+      throw new Error(
+        `Anthropic API response was truncated at max_tokens=${this.maxTokens}. ` +
+          `Raise composer.ai.maxTokens for this product size.`,
+      );
+    }
 
     // Content may include thinking blocks (Opus 5); find the first text block.
     const textBlock = data.content?.find(b => b.type === 'text');
@@ -283,7 +442,11 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
     systemPrompt: string,
   ): Promise<SuggestedComponent[]> {
     const userPrompt = buildUserPrompt(context);
-    const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
+    const raw = await this.callAnthropicApi(
+      systemPrompt,
+      userPrompt,
+      COMPONENT_SUGGESTIONS_SCHEMA,
+    );
     return parseAndValidateResponse(raw);
   }
 
@@ -298,7 +461,11 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
   }> {
     const systemPrompt = buildProductSpecSystemPrompt();
     const userPrompt = buildProductSpecUserPrompt(context);
-    const raw = await this.callAnthropicApi(systemPrompt, userPrompt);
+    const raw = await this.callAnthropicApi(
+      systemPrompt,
+      userPrompt,
+      PRODUCT_SPEC_SCHEMA,
+    );
     return parseProductSpecResponse(raw);
   }
 
