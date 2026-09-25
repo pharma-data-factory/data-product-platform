@@ -1752,3 +1752,207 @@ six new tests over the tab shell, the version-scoping fix, the three-valued
 validation display and the absent-provenance case. Not verified against a
 running stack for the same reason NXD-055 records — producing an approved URS
 baseline needs several identities under Segregation of Duties.
+
+### NXD-057 — Segregation of Duties is demonstrated by switching seat, not by granting every role
+
+- Date: 2026-09-25
+
+Every decision record since NXD-055 ends with the same caveat: *not verified
+against a running stack, because producing an approved URS baseline needs
+several identities under Segregation of Duties, and local guest auth supplies
+one.* Three records carried it. It was treated as a documentation footnote; it
+is a defect in the product's ability to be shown, and the reason four of the
+release gate's blockers had never been cleared by anyone.
+
+A live run as the shipped Guest stops with a message that is exactly right:
+
+    403 A APPROVED_QA signature requires the QUALITY_REVIEWER role.
+        Your roles: PRODUCT_MANAGER, AUTHOR.
+
+**Decision: the chain is walked by more than one identity, and the separation
+stays real.** A local-only `demo` auth provider signs in as one of a fixed
+allow-list of named catalog users (`demo-author`, `demo-reviewer`,
+`demo-quality`), and the demonstrator switches seat between the steps.
+
+**Alternative rejected: grant one identity every role.** It clears the 403 and
+proves nothing. An approval chain one person can walk alone is not an approval
+chain, and the repository already makes this argument in
+`app-config.guest-developer.yaml`. `approveApprovalStep` does not let ADMIN
+bypass a step's role, and `verifySegregationOfDuties` refuses a signature from
+whoever authored the version; both must stay.
+
+**Where the elevation has to happen, and the defect that taught us.**
+`app-config.guest-developer.yaml` claimed to raise Guest to DEVELOPER by
+listing `auth.providers.guest.ownershipEntityRefs`. **It never did anything.**
+The upstream guest resolver reads that list only as a fallback:
+
+    try { return await ctx.signInWithCatalogUser({ entityRef: userRef }) }
+    catch { return ctx.issueToken({ claims: { sub: userRef, ent: ownershipRefs } }) }
+
+`user:default/guest` is in the catalog, so the first line always succeeds and
+ownership comes from the entity's `spec.memberOf`. Loading the file changed the
+merged config and nothing else; the issued token still said `platform-viewers`.
+`app-config.docker-local.yaml` carried the same dead list — including
+`platform-developers`, a group that does not exist, which nothing that read the
+list could have noticed.
+
+So both the Guest elevation and the demo identities write to `platform_users`,
+the table the Catalog projection is generated from, before that projection is
+written. That reaches further than a token claim: `getUserApprovalRoles`
+resolves approval roles off the same entity, so a `urs-*` group granted here is
+an approval role and not just an ownership string.
+
+**Not `catalog/users.seed.yaml`.** NXD-051 made the seed run once against an
+empty table, deliberately, so a restart never rewrites a role an administrator
+changed. That is right for first-install content and wrong for these: anyone
+with an existing dev database would never receive them — the "works on a fresh
+install only" class of defect this batch exists to close.
+
+**Three properties, enforced in code rather than assumed from the config being
+absent.** Refused when `auth.environment` is production, because a config file
+gets copied. Inert when unconfigured, so the default install is untouched.
+Idempotent and silent when unchanged, so a restart loop does not bury the audit
+trail — the record answers "who granted this role", and a hundred identical
+entries is not an answer.
+
+**Consequence, stated rather than hidden: removing the config later does not
+demote an identity it already raised.** Grants live in the database precisely so
+a restart cannot overwrite them, and an absent key is indistinguishable from a
+role an administrator set on purpose. Lower it through Admin → Users & Roles,
+like any other account.
+
+**One wart, pre-existing.** `GROUP_TO_APPROVAL_ROLE` maps `data-product-owners`
+to `PRODUCT_MANAGER` as a retained alias, so all three demo identities hold
+PRODUCT_MANAGER and step 2 of the workflow is satisfiable by any of them. Steps
+1 and 3 are not, and those are the ones that carry the separation. Named here
+rather than papered over.
+
+`app-config.demo.yaml` also sets `ursComposer.persistence.mode: postgres`
+instead of the shipped `memory`, because walking the chain takes three sign-ins
+and several minutes and losing the set to a restart makes the journey
+untestable in the way this profile exists to fix. `postgres` names the
+repository implementation, not the server — on the dev SQLite file
+`applyGxpConstraints` is guarded on the `pg` dialect, so the immutability and
+append-only triggers do **not** exist there. Good enough to demonstrate the
+journey; not a regulated store.
+
+- Affected components: `plugins/users-backend` (`demoIdentityProvider.ts`,
+  `demoUsers.ts`, `guestRole.ts`), `packages/app/src/modules/identity`,
+  `app-config.demo.yaml`, `app-config.guest-developer.yaml`,
+  `app-config.docker-local.yaml`, `packages/backend/src/index.ts`.
+
+### NXD-058 — The release gate's blockers become clearable: four written controls reach a user
+
+- Date: 2026-09-25
+
+The release gate is the best-built thing in `composer-backend` and was the least
+reachable. Driving the journey as a user found that four of its blockers named
+evidence **no screen could produce**, and two write paths that had been
+written, routed, tested and exposed on the frontend client were called by
+nothing. This is the same shape as NXD-053: the unit tests exercise the modules
+directly, so the wiring had never carried a request.
+
+**Decision: close the paths, and measure the closure with a test that drives
+the gate rather than a document that claims it.**
+`releaseGateProgress.test.ts` performs the operations the Product page now
+offers and asserts which codes clear **and which remain** — a test that only
+checked the happy direction would let the gate quietly stop asking for
+something. Starting position for a product created the way the Products page
+creates one: `INVALID_STATUS`, `NO_APPROVED_BASELINE`, `NO_COMPONENTS`,
+`POLICY_OBLIGATION_UNMET ×3`. After: `INCOMPLETE_TRACEABILITY` and
+`NO_URS_BASELINE`, both deliberately, each naming a later batch.
+
+Four defects behind it, none introduced here:
+
+- **`updateProduct` never mapped `dataClassification`, `lifecycle` or
+  `declaredPolicies`.** Requested, stored, and dropped in the mapping — the
+  identical omission NXD-049 found in `createProduct` for `declaredPolicies`,
+  in the sibling method, unfixed. `data-classification-declared` is one of the
+  three platform-policy obligations every product must meet, so the gate was
+  asking for something the write path could not record. The create form
+  collects four of sixteen fields and nothing called `PUT /products/:id`, so
+  owner, classification and GxP relevance were unsettable for the entire life
+  of a product.
+- **`updateProduct` validated nothing.** `POST /products` with
+  `gxpRelevance: 'TOTALLY_MADE_UP_VALUE'` returned 201 and stored it, on the
+  field that classifies regulatory relevance — and because the gate only asks
+  whether the field is *set*, the garbage **satisfied** `gxp-relevance-set`.
+  `GXP_RELEVANCE_LEVELS` and `PRODUCT_CRITICALITIES` are now named vocabularies
+  and `validateProductGovernance` checks new writes against them. The stored
+  type stays `string` and existing rows are untouched: NXD-009's rule that
+  nothing relabels a controlled classification unattended is about *reading*,
+  and was mistaken for one about writing. The function is separate from
+  `validateProduct` so a partial update need not restate name and productType.
+- **`createProductBaseline` and `approveProductBaseline` were called from no
+  page.** So `NO_APPROVED_BASELINE` was a blocker no user could clear, on a gate
+  that refuses to release without it. `BaselinesSection` sits on Overview beside
+  the gate rather than on the Tests tab, where baselines are also shown: Tests
+  reads build evidence off a baseline that already exists, and a baseline is
+  created and approved while the version is still DRAFT.
+- **`ComposerRepository.updateProduct` incremented `revision` a second time.**
+  The service had already advanced it, so every edit moved the revision by two —
+  a counter that skips is no longer a count of anything.
+
+**The URS side had the same class of gap, one joint earlier.** No client method
+existed for the two version-transition routes and nothing called
+`signRequirementVersion`, so a requirement version could not leave DRAFT from
+the browser. A baseline may only be released once every version it pins is
+APPROVED, so **no baseline a user created could ever be released**, and
+`/baselines/approved` — the list the Product page binds against — was
+permanently empty. The whole URS → Product journey stopped there. The rule is
+extracted into `reviewChain.tsx` rather than branched inline in a 1600-line
+page, so the step the journey turns on can be tested without a DOM.
+
+The chain's asymmetry is preserved in the UI and stated in the code: the first
+three steps are transitions that move the set together; **APPROVED is not a
+transition at all** — `assertTransition` refuses IN_APPROVAL → APPROVED, and a
+version gets there only as the consequence of a valid `APPROVED_QA` signature.
+Signing is per version, each bound to its own content hash, with the PIN
+entered once for the set; the loop stops at the first refusal, because a role or
+SoD failure will refuse every remaining version for the same reason and
+continuing turns one accurate message into a list of identical ones.
+
+**Two storage defects found the same way.** `baselines.approval_instance_id` had
+been declared on the type since P1A and read by `postgres-repository.ts` off a
+column **no migration ever created** — so it read `undefined` every time and
+`submitBaseline` never wrote it. The in-flight approval chain was therefore
+reachable only from the React state of the submit call: reload the page
+mid-approval and the approval you were part of was gone. And the two approval
+workflows existed only in `db/seeds.ts`, which only `postgres-repository.ts`
+runs — so in the `memory` mode `app-config.yaml` ships, the table was empty and
+`submitBaseline` failed with `Workflow not found` on the default developer
+setup. They are now reference data in `data/approvalWorkflows.ts` that both
+repositories derive from, like `BUSINESS_CAPABILITIES`.
+
+**Error types, not just messages.** Three URS refusals threw a bare `Error`,
+which `respondError` maps to `500 {"error":"Internal server error"}` with the
+reason only in the server log. Creating a requirement set is the first write a
+new user makes and both of its refusals are caller-fixable; telling them
+"internal server error" is wrong twice. Now `InputError`, `NotFoundError` and
+`ConflictError`.
+
+**One UI decision that is not cosmetic.** `public/index.html` paints
+`html, body, #root` in the signed-out shell's navy, and Material UI v4 injects
+above that static rule, so `CssBaseline`'s `background.default` never wins and a
+page rendering bare text put near-black type on navy at roughly 1.05:1 —
+invisible. Content moves onto `InfoCard` surfaces with the tab bar left on the
+canvas, which is what every readable page here already does. Fixed per page
+rather than in the theme deliberately: `/compose` and `/model-company` are
+designed *for* the dark canvas, so repainting it globally would fix this page by
+breaking those two.
+
+- Affected components: `packages/platform-common/src/product.ts`,
+  `plugins/composer-backend` (service, repository),
+  `plugins/urs-composer-backend` (service, migrations, repositories,
+  `data/approvalWorkflows.ts`), `plugins/urs-composer`
+  (`URSRequirementSetPage.tsx`, `reviewChain.tsx`, api client),
+  `packages/app/src/modules/products`.
+
+**Verified:** all four gates green on 2026-09-25 — `guard:platform` (9 pass,
+9 documented warnings, 0 fail), `tsc`, `lint:all`, and `CI=true yarn test` at
+221 suites / 1958 tests / 0 skipped, with PostgreSQL up. Seven new suites cover
+the governance vocabulary, the update path, gate progress, the workflow seed in
+both persistence modes, the approval-instance column and the review chain.
+**The end-to-end run against a live stack is what NXD-057 exists to make
+possible and is not yet recorded here** — the batch closes the paths, and
+walking them as three identities is the next act.

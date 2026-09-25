@@ -230,6 +230,27 @@ export interface RequirementVersion {
 }
 
 /**
+ * A version a bulk advance left where it was, and why.
+ *
+ * Mirrors the backend `SkippedVersion`. Reported rather than thrown: a set
+ * part-way through its review is a normal state, and one version that cannot
+ * move must not roll back the others — so the UI has to render this, not treat
+ * a non-empty list as failure.
+ */
+export interface SkippedVersion {
+  versionId: string;
+  requirementId: string;
+  status: URSStatus;
+  reason: string;
+}
+
+/** What `advanceRequirementSetVersions` reports back. */
+export interface AdvanceVersionsResult {
+  advanced: RequirementVersion[];
+  skipped: SkippedVersion[];
+}
+
+/**
  * An approved baseline as the picker shows it. Mirrors the backend read model
  * from GET /baselines/approved — identity of the requirement set included,
  * because nobody recognises a baseline by its UUID.

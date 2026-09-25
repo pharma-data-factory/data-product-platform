@@ -2,6 +2,7 @@ import { createBackend } from '@backstage/backend-defaults';
 import { catalogModuleCertificationOverlay } from '@internal/plugin-data-products-backend';
 import { scaffolderModuleUrsBinding } from '@internal/plugin-composer-backend';
 import { permissionModulePlatformPolicy } from './permission/module';
+import { authModuleDemoIdentities } from '@internal/plugin-users-backend';
 import { aasPlugin } from '@internal/plugin-aas-backend';
 
 const backend = createBackend();
@@ -20,6 +21,10 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 backend.add(import('@backstage/plugin-auth-backend-module-github-provider'));
+// Local-only `demo` provider, so the URS approval chain can be walked by more
+// than one identity. Inert unless auth.providers.demo.users names any, and
+// refused outright when auth.environment is production.
+backend.add(authModuleDemoIdentities);
 
 backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(

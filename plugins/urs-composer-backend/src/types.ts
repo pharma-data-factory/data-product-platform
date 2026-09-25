@@ -572,6 +572,13 @@ export interface WorkflowStep {
   role: ApprovalRole;
   required: boolean;
   allowSkip?: boolean;
+  /**
+   * What the step is for, in the reviewer's words. Carried in the stored
+   * `steps` JSON since the workflows were first seeded; declared here so the
+   * canonical definitions in `data/approvalWorkflows.ts` type without losing
+   * it on the way into Postgres.
+   */
+  description?: string;
 }
 
 /**

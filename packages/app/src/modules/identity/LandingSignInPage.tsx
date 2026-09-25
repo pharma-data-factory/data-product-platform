@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   configApiRef,
   discoveryApiRef,
@@ -29,6 +29,11 @@ import {
   readGithubOAuthClientId,
 } from './authErrors';
 import { createGuestIdentity } from './guestIdentity';
+import {
+  createDemoIdentity,
+  forgetDemoUser,
+  rememberedDemoUser,
+} from './demoIdentity';
 import { LoginPage } from './LoginPage';
 import { PublicLanding } from './PublicLanding';
 import { isPublicEcosystemPath } from '../ecosystem/constants';
@@ -82,6 +87,10 @@ export function LandingSignInPage(props: SignInPageProps) {
     environment !== 'production' &&
     configApi.getOptional('auth.providers.guest') !== undefined;
   const githubConfigured = Boolean(readGithubOAuthClientId(configApi));
+  const demoUsers =
+    environment !== 'production'
+      ? configApi.getOptionalStringArray('auth.providers.demo.users') ?? []
+      : [];
 
   const returnToLanding = () => {
     setError(undefined);
@@ -171,6 +180,46 @@ export function LandingSignInPage(props: SignInPageProps) {
     }
   };
 
+  const onDemoSignIn = async (userName: string) => {
+    try {
+      setError(undefined);
+      const identity = await createDemoIdentity(discoveryApi, userName);
+      props.onSignInSuccess(identity);
+      void recordSignIn(`demo:${userName}`);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Demo sign-in is only available for local development',
+      );
+      setView('login');
+    }
+  };
+
+  /**
+   * Resume the seat this tab last chose.
+   *
+   * Without it a reload drops you back to the sign-in page, which during a
+   * three-step approval means losing your place several times over. Guarded
+   * with a ref because onSignInSuccess unmounts this component and a second
+   * attempt would race it.
+   */
+  const resumeAttempted = useRef(false);
+  useEffect(() => {
+    if (resumeAttempted.current || demoUsers.length === 0) {
+      return;
+    }
+    const remembered = rememberedDemoUser();
+    if (!remembered || !demoUsers.includes(remembered)) {
+      // A name that is no longer configured is stale, not an error to show.
+      forgetDemoUser();
+      return;
+    }
+    resumeAttempted.current = true;
+    void onDemoSignIn(remembered);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoUsers.join(',')]);
+
   const onDeniedSignOut = async () => {
     try {
       await githubAuth.signOut();
@@ -196,6 +245,8 @@ export function LandingSignInPage(props: SignInPageProps) {
         guestEnabled={guestEnabled}
         onGitHubSignIn={onGitHubSignIn}
         onGuestSignIn={guestEnabled ? onGuestSignIn : undefined}
+        demoUsers={demoUsers}
+        onDemoSignIn={demoUsers.length > 0 ? onDemoSignIn : undefined}
         onBack={returnToLanding}
         error={error}
       />

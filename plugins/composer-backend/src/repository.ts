@@ -104,7 +104,12 @@ export class ComposerRepository implements IComposerRepository {
       declared_policies: product.declaredPolicies ? JSON.stringify(product.declaredPolicies) : null,
       updated_by: product.updatedBy || null,
       updated_at: product.updatedAt || new Date(),
-      revision: (product.revision || 1) + 1,
+      // Written as given, not incremented. `updateProduct` on the service has
+      // already advanced it, so incrementing again here moved the revision by
+      // two per edit — and a revision counter that skips is no longer a count
+      // of anything. `createProduct` above writes the value it is handed; this
+      // now matches.
+      revision: product.revision || 1,
     });
   }
 

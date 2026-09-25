@@ -549,6 +549,7 @@ export class PostgresURSRepository implements IURSRepository {
       approved_by: baseline.approvedBy || null,
       approved_at: baseline.approvedAt || null,
       superseded_by: baseline.supersededBy || null,
+      approval_instance_id: baseline.approvalInstanceId || null,
       revision: baseline.revision || 1,
     });
 
@@ -681,6 +682,10 @@ export class PostgresURSRepository implements IURSRepository {
       approved_by: baseline.approvedBy || null,
       approved_at: baseline.approvedAt || null,
       superseded_by: baseline.supersededBy || null,
+      // Callers pass a whole Baseline read back from this repository, so an
+      // update that is not the submit carries the existing value through
+      // rather than clearing it.
+      approval_instance_id: baseline.approvalInstanceId || null,
       revision: (baseline.revision || 1) + 1,
     });
   }

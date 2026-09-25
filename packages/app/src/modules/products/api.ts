@@ -38,6 +38,16 @@ export interface ComposerClient {
   createProduct(input: Record<string, unknown>): Promise<Product>;
   listProducts(): Promise<{ items: Product[]; total: number }>;
   getProduct(id: string): Promise<Product>;
+  /**
+   * Edits a product's governance metadata.
+   *
+   * `PUT /products/:id` has existed since the plugin did; nothing in the
+   * frontend called it, and the create form collects four of the sixteen
+   * fields. Owner, data classification and GxP relevance were therefore
+   * unsettable for the whole life of a product — three release-gate blockers
+   * with no UI that could clear them.
+   */
+  updateProduct(id: string, input: Record<string, unknown>): Promise<Product>;
   createProductVersion(productId: string): Promise<ProductVersion>;
   listProductVersions(productId: string): Promise<ProductVersion[]>;
   addProductComponent(
@@ -73,10 +83,8 @@ export interface ComposerClient {
   createProductBaseline(
     versionId: string,
     input?: Record<string, unknown>,
-  ): Promise<Record<string, unknown>>;
-  approveProductBaseline(
-    baselineId: string,
-  ): Promise<Record<string, unknown>>;
+  ): Promise<ProductBaseline>;
+  approveProductBaseline(baselineId: string): Promise<ProductBaseline>;
   bindUrsBaseline(
     versionId: string,
     ursBaselineId: string,
@@ -131,6 +139,7 @@ export function useComposerClient(): ComposerClient {
     createProduct: input => request('POST', '/products', input),
     listProducts: () => request('GET', '/products'),
     getProduct: id => request('GET', `/products/${id}`),
+    updateProduct: (id, input) => request('PUT', `/products/${id}`, input),
     createProductVersion: productId =>
       request('POST', `/products/${productId}/versions`, {}),
     listProductVersions: productId =>

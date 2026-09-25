@@ -38,6 +38,42 @@ export const PRODUCT_STATUSES = ['ACTIVE', 'RETIRED'] as const;
 
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
+/**
+ * GxP relevance a Product may declare, least to most involved.
+ *
+ * The same three values the URS domain uses, named here so the product side
+ * has one vocabulary instead of a free string. The release gate already treats
+ * anything other than `NONE` as GxP-relevant
+ * (`gxpRelevance && gxpRelevance !== 'NONE'`), so `NONE` is a stated answer and
+ * not the absence of one — which is the whole point of the
+ * `gxp-relevance-declared` obligation.
+ *
+ * `Product.gxpRelevance` stays `string`: the column is free-form and holds rows
+ * written before this list existed, and nothing relabels a stored classification
+ * unattended (the rule NXD-009 set for version labels).
+ *
+ * That is a statement about *reading*. It was mistaken for one about writing:
+ * `POST /products` with `gxpRelevance: 'TOTALLY_MADE_UP_VALUE'` returned 201 and
+ * stored it, on the field that classifies regulatory relevance — and because the
+ * release gate only asks whether the field is set, the garbage *satisfied*
+ * `gxp-relevance-set`. Found by running the API, not by a test. New writes are
+ * now checked against this list in `validateProductGovernance`; the type and the
+ * existing rows are untouched.
+ */
+export const GXP_RELEVANCE_LEVELS = ['NONE', 'INDIRECT', 'DIRECT'] as const;
+
+export type GxpRelevanceLevel = (typeof GXP_RELEVANCE_LEVELS)[number];
+
+/** Criticality a Product may declare. Required once it is GxP-relevant. */
+export const PRODUCT_CRITICALITIES = [
+  'LOW',
+  'MEDIUM',
+  'HIGH',
+  'CRITICAL',
+] as const;
+
+export type ProductCriticality = (typeof PRODUCT_CRITICALITIES)[number];
+
 export const PRODUCT_VERSION_STATUSES = [
   'DRAFT',
   'APPROVED',
@@ -1069,9 +1105,51 @@ export function findVersionLabelClash(
   );
 }
 
+/**
+ * Vocabulary checks for the governance fields a write may carry.
+ *
+ * Each is optional — absence is not an error here, because the release gate is
+ * what decides a field is *required*, and it says so per obligation with a
+ * message a reviewer can act on. What this refuses is a value outside the
+ * vocabulary, which the gate cannot catch: `gxpRelevance: 'MAYBE'` is not an
+ * unmet obligation, it reads as a declared answer and satisfies
+ * `gxp-relevance-set`.
+ *
+ * Separated from `validateProduct`'s identity checks so `updateProduct` can
+ * apply it to a partial payload without demanding name and productType again.
+ */
+export function validateProductGovernance(product: {
+  gxpRelevance?: string;
+  criticality?: string;
+  lifecycle?: string;
+  dataClassification?: string;
+}): string[] {
+  const issues: string[] = [];
+  const check = (
+    value: string | undefined,
+    allowed: readonly string[],
+    field: string,
+  ) => {
+    if (value !== undefined && !allowed.includes(value)) {
+      issues.push(
+        `Unsupported ${field}: ${value}. Expected one of ${allowed.join(', ')}`,
+      );
+    }
+  };
+  check(product.gxpRelevance, GXP_RELEVANCE_LEVELS, 'gxpRelevance');
+  check(product.criticality, PRODUCT_CRITICALITIES, 'criticality');
+  check(product.lifecycle, PRODUCT_LIFECYCLES, 'lifecycle');
+  check(product.dataClassification, DATA_CLASSIFICATIONS, 'dataClassification');
+  return issues;
+}
+
 export function validateProduct(product: {
   name?: string;
   productType?: string;
+  gxpRelevance?: string;
+  criticality?: string;
+  lifecycle?: string;
+  dataClassification?: string;
 }): string[] {
   const issues: string[] = [];
   if (!product.name?.trim()) {
@@ -1080,6 +1158,7 @@ export function validateProduct(product: {
   if (!product.productType || !isProductType(product.productType)) {
     issues.push(`Unsupported productType: ${product.productType ?? ''}`);
   }
+  issues.push(...validateProductGovernance(product));
   return issues;
 }
 

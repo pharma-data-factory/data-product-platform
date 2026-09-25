@@ -10,6 +10,15 @@ export interface LoginPageProps {
   guestEnabled?: boolean;
   onGitHubSignIn: () => void;
   onGuestSignIn?: () => void;
+  /**
+   * Named local identities, from `auth.providers.demo.users`.
+   *
+   * One button each rather than a dropdown: switching seat is the whole point
+   * of the profile, and the person walking the URS chain needs to see at a
+   * glance that there are three of them and which one they are about to be.
+   */
+  demoUsers?: string[];
+  onDemoSignIn?: (userName: string) => void;
   onBack?: () => void;
   error?: string;
 }
@@ -18,6 +27,8 @@ export function LoginPage({
   guestEnabled = false,
   onGitHubSignIn,
   onGuestSignIn,
+  demoUsers = [],
+  onDemoSignIn,
   onBack,
   error,
 }: LoginPageProps) {
@@ -150,6 +161,44 @@ export function LoginPage({
               >
                 Continue as Guest
               </Button>
+            </div>
+          )}
+
+          {demoUsers.length > 0 && onDemoSignIn && (
+            <div>
+              <p
+                style={{
+                  margin: '8px 0 10px',
+                  fontSize: 12,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: C.muted,
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  textAlign: 'center',
+                }}
+              >
+                Demo identities — not authenticated
+              </p>
+              {demoUsers.map(userName => (
+                <Button
+                  key={userName}
+                  variant="outlined"
+                  onClick={() => onDemoSignIn(userName)}
+                  style={{
+                    width: '100%',
+                    marginBottom: 8,
+                    borderColor: C.border,
+                    color: PHARMA_NAVY,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: 15,
+                    borderRadius: 10,
+                    padding: '10px 16px',
+                  }}
+                >
+                  Continue as {userName}
+                </Button>
+              ))}
             </div>
           )}
         </div>

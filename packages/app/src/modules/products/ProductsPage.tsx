@@ -3,6 +3,7 @@ import {
   Content,
   ErrorPanel,
   Header,
+  InfoCard,
   Link,
   Page,
   Progress,
@@ -77,17 +78,15 @@ export function ProductsPage() {
       />
       <Content>
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 0' }}>
-          <section
-            style={{
-              border: `1px solid ${NEXORA_GREY[200]}`,
-              borderRadius: 12,
-              padding: 20,
-              marginBottom: 32,
-            }}
-          >
-            <Typography variant="h6" style={{ marginBottom: 16 }}>
-              Create product
-            </Typography>
+          {/*
+            Both sections sit on an InfoCard surface rather than on the app
+            canvas. index.html paints html/body/#root navy for the marketing
+            shell and Material UI v4 injects above it, so CssBaseline's
+            background.default never applies and bare text renders near-black
+            on near-black. Every readable page here answers it the same way —
+            see DataProductDetailPage.
+          */}
+          <InfoCard title="Create product">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
               <TextField
                 label="Name"
@@ -130,11 +129,11 @@ export function ProductsPage() {
             >
               Create product
             </Button>
-          </section>
+          </InfoCard>
 
-          <Typography variant="h6" style={{ marginBottom: 16 }}>
-            Products
-          </Typography>
+          <div style={{ height: 24 }} />
+
+          <InfoCard title="Products">
           {loading && <Progress />}
           {!loading && products.length === 0 && (
             <Typography variant="body2" color="textSecondary">
@@ -166,6 +165,7 @@ export function ProductsPage() {
               </section>
             ))}
           {error ? <ErrorPanel error={error} /> : null}
+          </InfoCard>
         </div>
       </Content>
     </Page>

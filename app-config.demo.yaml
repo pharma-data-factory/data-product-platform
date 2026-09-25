@@ -1,0 +1,100 @@
+# Three demo identities, so the URS approval chain can actually be walked.
+# LOCAL DEVELOPMENT ONLY.
+#
+#   yarn start:demo
+#
+# ## Why this file exists
+#
+# The chain cannot be walked by one person, by design: each approval step needs
+# its own role, ADMIN does not bypass the check, and a QA signature is refused
+# from whoever authored the version. That is correct and must stay. But it left
+# the chain impossible to demonstrate — a live run as the shipped Guest stopped
+# with:
+#
+#   403 A APPROVED_QA signature requires the QUALITY_REVIEWER role.
+#       Your roles: PRODUCT_MANAGER, AUTHOR.
+#
+# Granting Guest every role would have cleared that message and proved nothing,
+# which is the argument app-config.guest-developer.yaml already makes. So the
+# roles are split across identities instead, and you switch seat.
+#
+# ## The two axes, and why every identity is a data-product-owner
+#
+# Platform permission and URS approval role are independent, and only the
+# highest platform role decides a permission (`decidePermission` takes one
+# role, not a union). Mixing tiers to look tidy would silently remove rights:
+# business-capability-leads outranks data-product-developers, so an identity in
+# both loses product.create.
+#
+# All three therefore sit at data-product-owners on the platform axis, and
+# differ only on the axis that enforces the separation — the urs-* approval
+# groups. What actually keeps the chain honest is there: only demo-quality
+# holds QUALITY_REVIEWER, and `verifySegregationOfDuties` refuses a signature
+# from the version's author regardless of role.
+#
+# One wart, pre-existing and worth naming rather than hiding: GROUP_TO_APPROVAL_ROLE
+# maps data-product-owners to PRODUCT_MANAGER as a retained alias, so all three
+# hold PRODUCT_MANAGER too. Step 2 of the workflow is therefore satisfiable by
+# any of them. Steps 1 and 3 are not, and those are the ones under test.
+#
+# ## Walking it
+#
+#   demo-author    author the set, add requirements, advance the review chain,
+#                  create the baseline and submit it, create the Product
+#   demo-reviewer  approve workflow step 1 (BUSINESS_REVIEWER) and step 2,
+#                  approve the Product version the author raised
+#   demo-quality   apply the APPROVED_QA signature that releases the requirement
+#                  versions, then approve workflow step 3 (QUALITY_REVIEWER)
+
+auth:
+  # Never loaded in the production image. The provider refuses to resolve any
+  # identity when auth.environment is production, and users-backend refuses to
+  # install the rows — belt and braces, because a config file gets copied.
+  environment: development
+  providers:
+    demo:
+      # The closed allow-list the provider checks before it consults the
+      # catalog. A name absent here cannot be assumed.
+      # @visibility frontend
+      users:
+        - demo-author
+        - demo-reviewer
+        - demo-quality
+
+users:
+  # Written into platform_users on every non-production start, which the
+  # Catalog projection is generated from. Not in catalog/users.seed.yaml
+  # because that runs once against an empty table, so an existing dev database
+  # would never receive them.
+  demoIdentities:
+    - name: demo-author
+      displayName: Dana Author (demo)
+      memberOf:
+        - data-product-owners
+        - urs-authors
+    - name: demo-reviewer
+      displayName: Rick Reviewer (demo)
+      memberOf:
+        - data-product-owners
+        - urs-business-reviewers
+    - name: demo-quality
+      displayName: Quinn Quality (demo)
+      memberOf:
+        - data-product-owners
+        - urs-quality-reviewers
+
+ursComposer:
+  persistence:
+    # Not `memory`, which app-config.yaml ships for a plain `yarn start`.
+    #
+    # Walking the chain takes three sign-ins and several minutes; losing the
+    # set to a restart part-way through makes the journey untestable in exactly
+    # the way this profile exists to fix.
+    #
+    # `postgres` names the repository implementation, not the server: it runs
+    # on whatever coreServices.database provides, which here is the dev SQLite
+    # file, so the data survives a restart. Be clear about what that does NOT
+    # give you — applyGxpConstraints is guarded on the `pg` dialect, so the
+    # immutability, append-only and single-open-version triggers do not exist
+    # on SQLite. Good enough to demonstrate the journey; not a regulated store.
+    mode: postgres

@@ -11,8 +11,14 @@ import {
 } from '@material-ui/core';
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import ErrorIcon from '@material-ui/icons/Error';
-import type { Product, ProductVersion } from '@internal/platform-common';
+import type {
+  Product,
+  ProductBaseline,
+  ProductVersion,
+} from '@internal/platform-common';
 import type { ReleaseGateResult } from '../api';
+import { GovernanceCard } from './GovernanceCard';
+import { BaselinesSection } from './BaselinesSection';
 
 /**
  * Which transitions a version in each status offers.
@@ -38,9 +44,15 @@ interface OverviewTabProps {
   gateLoading: boolean;
   transitionLoading: boolean;
   actionError: string | null;
+  baselines: ProductBaseline[] | null;
+  baselineBusy: boolean;
+  baselineError: string | null;
   onCreateVersion: () => void;
   onCheckGate: () => void;
   onTransition: (targetStatus: string) => void;
+  onSaveGovernance: (input: Record<string, unknown>) => Promise<void>;
+  onCreateBaseline: (baselineVersion?: string) => Promise<void>;
+  onApproveBaseline: (baselineId: string) => Promise<void>;
 }
 
 export function OverviewTab({
@@ -51,9 +63,15 @@ export function OverviewTab({
   gateLoading,
   transitionLoading,
   actionError,
+  baselines,
+  baselineBusy,
+  baselineError,
   onCreateVersion,
   onCheckGate,
   onTransition,
+  onSaveGovernance,
+  onCreateBaseline,
+  onApproveBaseline,
 }: OverviewTabProps) {
   return (
     <>
@@ -61,6 +79,12 @@ export function OverviewTab({
         {product.description || 'No description'} ·{' '}
         {product.domain || 'no domain'} · {product.lifecycle}
       </Typography>
+
+      {/*
+        Product-scoped, so it sits above the version picker's concerns and does
+        not move when the selected version changes.
+      */}
+      <GovernanceCard product={product} onSave={onSaveGovernance} />
 
       <section style={{ marginTop: 24 }}>
         <div
@@ -105,8 +129,22 @@ export function OverviewTab({
               </Box>
             )}
 
+            {/*
+              Before the gate, not only when it is reachable: a baseline is
+              created and approved while the version is still DRAFT, and the
+              gate only reads the result.
+            */}
+            <BaselinesSection
+              selectedVersion={selectedVersion}
+              baselines={baselines}
+              busy={baselineBusy}
+              error={baselineError}
+              onCreate={onCreateBaseline}
+              onApprove={onApproveBaseline}
+            />
+
             {selectedVersion && selectedVersion.status === 'RELEASE_CANDIDATE' && (
-              <Card variant="outlined" style={{ marginBottom: 16 }}>
+              <Card variant="outlined" style={{ marginTop: 24, marginBottom: 16 }}>
                 <CardContent>
                   <Box
                     display="flex"

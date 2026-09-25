@@ -29,7 +29,8 @@
     "lint:all": "backstage-cli repo lint",
     "prettier:check": "prettier --check .",
     "new": "backstage-cli new",
-    "guard:platform": "node scripts/verify-platform-guardrails.mjs"
+    "guard:platform": "node scripts/verify-platform-guardrails.mjs",
+    "start:demo": "node --env-file=.env ./node_modules/@backstage/cli/bin/backstage-cli repo start --config ../../app-config.yaml --config ../../app-config.demo.yaml"
   },
   "backstage": {
     "cli": {

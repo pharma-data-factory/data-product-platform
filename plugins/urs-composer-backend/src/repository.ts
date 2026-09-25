@@ -33,6 +33,7 @@ import {
 } from './domain/transitions';
 import { baselineItemsOf } from './domain/baseline';
 import { IURSRepository, Transaction } from './repository-interface';
+import { APPROVAL_WORKFLOWS } from './data/approvalWorkflows';
 import { BUSINESS_CAPABILITIES } from './data/businessCapabilities';
 import {
   SEED_REQUIREMENT_SETS,
@@ -117,6 +118,17 @@ export class URSRepository implements IURSRepository {
         createdAt: new Date(),
         createdBy: 'system',
         version: 1,
+      });
+    }
+    // Reference data, like the two above, and seeded here rather than in
+    // `seedRequirementSets` for that reason: `submitBaseline` resolves a
+    // workflow by a fixed id on every submission, so an empty set is not an
+    // empty starting point but a broken one. Postgres gets the same two rows
+    // from `db/seeds.ts`, off the same list.
+    for (const workflow of APPROVAL_WORKFLOWS) {
+      this.approvalWorkflows.set(workflow.id, {
+        ...workflow,
+        createdAt: new Date(),
       });
     }
   }

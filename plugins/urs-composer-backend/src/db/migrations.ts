@@ -248,6 +248,23 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // Idempotent: the approval instance a submitted baseline is being approved
+  // through.
+  //
+  // `Baseline.approvalInstanceId` has been declared on the type since P1A and
+  // `postgres-repository.ts` has always read `row.approval_instance_id` — off a
+  // column no migration ever created, so it read `undefined` every time and
+  // `submitBaseline` never wrote it. The effect was only visible in the browser:
+  // `URSRequirementSetPage` finds the in-flight chain with
+  // `baselines.find(b => b.approvalInstanceId)`, so the chain was reachable from
+  // the React state of the submit call and from nowhere else. Reload the page
+  // mid-approval and the approval you were part-way through was gone.
+  if (!(await knex.schema.hasColumn('baselines', 'approval_instance_id'))) {
+    await knex.schema.alterTable('baselines', table => {
+      table.string('approval_instance_id', 255).index();
+    });
+  }
+
   // ============================================================================
   // APPROVAL WORKFLOWS (P1A)
   // ============================================================================

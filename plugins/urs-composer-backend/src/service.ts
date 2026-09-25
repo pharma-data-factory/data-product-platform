@@ -443,19 +443,25 @@ export class URSService {
     data: Partial<RequirementSet>,
     actor: string,
   ): Promise<RequirementSet> {
-    // Validate capabilities
+    // Validate capabilities.
+    //
+    // InputError, not Error: `respondError` maps it to 400 with the message,
+    // and maps a plain Error to `500 {"error":"Internal server error"}` with
+    // the reason only in the server log. Creating a requirement set is the
+    // first write a new user makes, and both of these refusals are things the
+    // caller can fix — telling them "internal server error" is wrong twice.
     if (
       !data.businessCapabilityRefs ||
       data.businessCapabilityRefs.length === 0
     ) {
-      throw new Error('At least one business capability is required');
+      throw new InputError('At least one business capability is required');
     }
 
     const isValid = await this.validateCapabilityRefs(
       data.businessCapabilityRefs,
     );
     if (!isValid) {
-      throw new Error('Invalid business capability reference');
+      throw new InputError('Invalid business capability reference');
     }
 
     // Human-readable requirement set ID: honor a caller-supplied stable key,
@@ -768,11 +774,17 @@ export class URSService {
       requirementSetId,
     );
     if (!requirementSet) {
-      throw new Error('Requirement set not found');
+      throw new NotFoundError(`Requirement set ${requirementSetId} not found`);
     }
 
+    // ConflictError, not Error: the request is well formed and conflicts with
+    // the set's current state, which is what 409 means here and everywhere else
+    // the transition engine refuses.
     if (requirementSet.status !== URSStatus.DRAFT) {
-      throw new Error('Can only add requirements to DRAFT requirement sets');
+      throw new ConflictError(
+        `Can only add requirements to a DRAFT requirement set; ` +
+          `${requirementSet.requirementSetId} is ${requirementSet.status}`,
+      );
     }
 
     // Generate requirement ID (URS-WD-001, etc.)
@@ -2654,10 +2666,14 @@ export class URSService {
       actor,
     );
 
-    // Update baseline status to IN_REVIEW
+    // Update baseline status to IN_REVIEW, and record which approval instance
+    // is carrying it. The audit event below has always named the instance;
+    // until now the baseline itself did not, so the only way back to an
+    // in-flight chain was the return value of this call.
     await this.repository.updateBaseline({
       ...baseline,
       status: URSStatus.IN_REVIEW,
+      approvalInstanceId: instance.id,
       revision: baseline.revision || 1,
     });
 

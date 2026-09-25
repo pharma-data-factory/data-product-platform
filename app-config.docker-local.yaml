@@ -10,12 +10,22 @@ auth:
   providers:
     guest:
       userEntityRef: user:default/guest
-      ownershipEntityRefs:
-        - user:default/guest
-        - group:default/guests
-        - group:default/platform-viewers
-        - group:default/platform-developers
-        - group:default/data-product-developers
+
+# Was `auth.providers.guest.ownershipEntityRefs`, which the guest sign-in
+# resolver reads only when `signInWithCatalogUser` *fails* — and for
+# user:default/guest it never does, so the list had no effect and the Docker
+# Guest was a VIEWER despite AUTH_GUEST_ROLE=developer in docker-compose.yml.
+# One entry, `platform-developers`, was not even a real group: nothing that
+# reads this list could have been watching it.
+#
+# users-backend applies these to the guest row the Catalog projection is
+# written from, and refuses to when auth.environment is production — which the
+# line above deliberately overrides for this local-only profile.
+users:
+  guestGroups:
+    - guests
+    - data-product-developers
+    - urs-authors
 
 # Kein GitHub-Integration (verhindert den startup-Fehler)
 integrations: {}

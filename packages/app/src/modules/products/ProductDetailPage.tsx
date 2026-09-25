@@ -5,6 +5,7 @@ import {
   Content,
   ErrorPanel,
   Header,
+  InfoCard,
   Page,
   Progress,
 } from '@backstage/core-components';
@@ -81,10 +82,10 @@ export function ProductDetailPage() {
   /**
    * Tab-scoped data, loaded when its tab is first opened for a version.
    *
-   * Contracts fan out one request per component and build evidence answers a
-   * question no other tab asks, so neither belongs in the load every version
-   * switch runs. `null` means "not loaded yet" and is what triggers the fetch;
-   * `loadVersionScoped` resets both, so a version switch invalidates them.
+   * Contracts fan out one request per component, so they do not belong in the
+   * load every version switch runs. `null` means "not loaded yet" and is what
+   * triggers the fetch; `loadVersionScoped` resets them, so a version switch
+   * invalidates them.
    *
    * The page still owns the fetch. A tab that loaded its own data would also
    * need its own refresh path after every mutation, and there would be six of
@@ -96,8 +97,19 @@ export function ProductDetailPage() {
   const [consumedContracts, setConsumedContracts] = useState<
     ConsumedContract[] | null
   >(null);
-  const [baselines, setBaselines] = useState<ProductBaseline[] | null>(null);
   const [tabError, setTabError] = useState<string | null>(null);
+
+  /**
+   * Baselines, loaded with the version rather than with a tab.
+   *
+   * They used to be lazy behind the Tests tab, on the grounds that build
+   * evidence was a question no other tab asked. Overview now creates and
+   * approves them, so that is no longer true — and a section that can mutate
+   * the list has to be looking at a loaded one.
+   */
+  const [baselines, setBaselines] = useState<ProductBaseline[] | null>(null);
+  const [baselineBusy, setBaselineBusy] = useState(false);
+  const [baselineError, setBaselineError] = useState<string | null>(null);
 
   /**
    * Everything scoped to one version: components, requirements, coverage.
@@ -113,6 +125,7 @@ export function ProductDetailPage() {
     setConsumedContracts(null);
     setBaselines(null);
     setTabError(null);
+    setBaselineError(null);
     if (!versionId) {
       setComponents([]);
       setRequirements([]);
@@ -122,6 +135,7 @@ export function ProductDetailPage() {
     setComponents(await client.listProductComponents(versionId));
     setRequirements(await client.listProductRequirements(versionId));
     setCoverage(await client.getRequirementCoverage(versionId));
+    setBaselines(await client.listProductBaselines(versionId));
   };
 
   const load = async () => {
@@ -219,12 +233,6 @@ export function ProductDetailPage() {
             setConsumedContracts(consumed);
           }
         }
-        if (tab === 'tests' && baselines === null) {
-          const items = await client.listProductBaselines(selectedVersionId);
-          if (!cancelled) {
-            setBaselines(items);
-          }
-        }
       } catch (e) {
         if (!cancelled) {
           setTabError((e as Error).message);
@@ -261,6 +269,62 @@ export function ProductDetailPage() {
       setBindError((e as Error).message);
     } finally {
       setBindLoading(false);
+    }
+  };
+
+  /**
+   * Saves the governance fields the release gate requires.
+   *
+   * Rethrows so the card can show the failure next to the form the user is
+   * looking at, rather than replacing the page with an error panel over four
+   * fields they can still fix.
+   */
+  const saveGovernance = async (input: Record<string, unknown>) => {
+    const updated = await client.updateProduct(productId, input);
+    setProduct(updated);
+    // A governance change can clear a gate blocker, so a gate result computed
+    // before it is stale rather than merely old.
+    setGateResult(null);
+  };
+
+  const refreshBaselines = async (versionId: string) => {
+    setBaselines(await client.listProductBaselines(versionId));
+  };
+
+  const createBaseline = async (baselineVersion?: string) => {
+    if (!selectedVersionId) {
+      return;
+    }
+    setBaselineBusy(true);
+    setBaselineError(null);
+    try {
+      await client.createProductBaseline(
+        selectedVersionId,
+        baselineVersion ? { baselineVersion } : {},
+      );
+      await refreshBaselines(selectedVersionId);
+      setGateResult(null);
+    } catch (e) {
+      setBaselineError((e as Error).message);
+    } finally {
+      setBaselineBusy(false);
+    }
+  };
+
+  const approveBaseline = async (baselineId: string) => {
+    if (!selectedVersionId) {
+      return;
+    }
+    setBaselineBusy(true);
+    setBaselineError(null);
+    try {
+      await client.approveProductBaseline(baselineId);
+      await refreshBaselines(selectedVersionId);
+      setGateResult(null);
+    } catch (e) {
+      setBaselineError((e as Error).message);
+    } finally {
+      setBaselineBusy(false);
     }
   };
 
@@ -356,7 +420,46 @@ export function ProductDetailPage() {
     <Page themeId="service">
       <Header title={product.name} subtitle={product.productType} />
       <Content>
+        {/*
+          The tab bar stays on the app canvas; everything else sits on a
+          surface.
+
+          `public/index.html` paints `html, body, #root` in the deep navy of
+          the signed-out marketing shell, and Material UI v4 injects its styles
+          above that static rule, so CssBaseline's `background.default` never
+          wins. A page that renders bare text therefore puts this theme's
+          near-black type straight onto that navy — measured at a contrast
+          ratio of roughly 1.05:1, which is invisible.
+
+          Every readable page in this app answers that the same way: content on
+          `InfoCard` surfaces, tab bar on the canvas (see
+          `DataProductDetailPage`). The split matters — an inactive tab label
+          uses the cyan accent, which reads at about 8:1 on the navy and 2.2:1
+          on white, so pulling the tabs onto the card would trade one contrast
+          failure for another.
+
+          Fixing it here rather than in the theme is deliberate: `/compose` and
+          `/model-company` are designed *for* the dark canvas, so repainting the
+          canvas globally fixes this page by breaking those two.
+        */}
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 0' }}>
+          <Tabs
+            value={tab}
+            onChange={(_, value) => setTab(value)}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="scrollable"
+            style={{ marginBottom: 16 }}
+          >
+            <Tab value="overview" label="Overview" />
+            <Tab value="requirements" label="Requirements" />
+            <Tab value="architecture" label="Architecture" />
+            <Tab value="contracts" label="Contracts" />
+            <Tab value="tests" label="Tests" />
+            <Tab value="validation" label="Validation" />
+          </Tabs>
+
+          <InfoCard>
           {versions.length > 0 && (
             <Box
               style={{
@@ -408,22 +511,6 @@ export function ProductDetailPage() {
             </Box>
           )}
 
-          <Tabs
-            value={tab}
-            onChange={(_, value) => setTab(value)}
-            indicatorColor="primary"
-            textColor="primary"
-            variant="scrollable"
-            style={{ marginBottom: 16 }}
-          >
-            <Tab value="overview" label="Overview" />
-            <Tab value="requirements" label="Requirements" />
-            <Tab value="architecture" label="Architecture" />
-            <Tab value="contracts" label="Contracts" />
-            <Tab value="tests" label="Tests" />
-            <Tab value="validation" label="Validation" />
-          </Tabs>
-
           {tab === 'overview' && (
             <OverviewTab
               product={product}
@@ -433,9 +520,15 @@ export function ProductDetailPage() {
               gateLoading={gateLoading}
               transitionLoading={transitionLoading}
               actionError={actionError}
+              baselines={baselines}
+              baselineBusy={baselineBusy}
+              baselineError={baselineError}
               onCreateVersion={createVersion}
               onCheckGate={checkGate}
               onTransition={doTransition}
+              onSaveGovernance={saveGovernance}
+              onCreateBaseline={createBaseline}
+              onApproveBaseline={approveBaseline}
             />
           )}
 
@@ -479,6 +572,7 @@ export function ProductDetailPage() {
           )}
 
           {tab === 'validation' && <ValidationTab coverage={coverage} />}
+          </InfoCard>
         </div>
       </Content>
     </Page>

@@ -1,24 +1,65 @@
 # Raises the local Guest from VIEWER to DEVELOPER.
 #
 # Opt-in on top of app-config.guest.yaml, loaded only when the .env sets
-# AUTH_GUEST_ROLE=developer. Use it to exercise the Create / Scaffolder journey
-# locally without a GitHub OAuth App.
+# AUTH_GUEST_ROLE=developer. Use it to exercise the URS → Product → Create
+# journey locally without a GitHub OAuth App.
 #
 # This grants scaffolder.task.create, catalog.entity.create, data-product.create
-# and validation.test.execute to an identity that nobody approved. Local
+# and urs.create/urs.manage to an identity that nobody approved. Local
 # development only — never in the production image, and never on a shared host.
+# users-backend refuses to apply this when auth.environment is production.
 #
-# Backstage replaces arrays on merge rather than concatenating them, so the list
-# below fully supersedes the one in app-config.guest.yaml.
-#
-# Note: this raises the issued *token* only. catalog/users.seed.yaml keeps the
-# Guest user in platform-viewers, which stays the documented default.
+# It works by writing the groups onto the Guest's row in `platform_users`, which
+# the Catalog projection is generated from. That is not a detour: the upstream
+# guest sign-in resolver calls `signInWithCatalogUser` and only falls back to
+# `auth.providers.guest.ownershipEntityRefs` when that lookup *fails*. Guest is
+# in the catalog, so the fallback never runs. This file used to list
+# ownershipEntityRefs and nothing else, and consequently did nothing at all —
+# the issued token still said platform-viewers. See plugins/users-backend/src/guestRole.ts.
+users:
+  guestGroups:
+    - guests
+    # DEVELOPER: scaffold, create catalog entities, create data products.
+    - data-product-developers
+    # Author and baseline a URS. Without this the Define journey is read-only.
+    - urs-authors
+    # DATA_PRODUCT_OWNER, which /products needs past its first screen.
+    #
+    # `product.create` is a developer permission and `product.manage` is an
+    # owner one, and every route on the Product page except "create product"
+    # takes the latter — versions, governance, baselines, transitions. That
+    # split is deliberate: a developer may start a product, governing its
+    # lifecycle is an owner's call. It does mean a Guest with only
+    # data-product-developers can create a product and then do nothing with it.
+    #
+    # This also opens the coarse `urs.approve` and `urs.sign` permissions. It
+    # does not defeat segregation of duties: which step a person may approve is
+    # decided by their `urs-*` approval role, checked separately in
+    # `approveApprovalStep`, and none is granted here.
+    - data-product-owners
+
+    # Approving a baseline is deliberately NOT granted above.
+    #
+    # Each approval step requires its own role and ADMIN does not bypass the
+    # check (`approveApprovalStep`), because an approval chain one person can
+    # walk alone proves nothing. Locally there is no second identity to switch
+    # to without GitHub OAuth, so uncomment these three to walk the chain
+    # end-to-end — and be clear with yourself that doing so defeats segregation
+    # of duties and makes the resulting signatures worthless as evidence.
+    #
+    # - urs-business-reviewers
+    # - urs-product-managers
+    # - urs-quality-reviewers
+
+# Removing this file from the config list does not demote a Guest it already
+# raised — the groups are in the database, where a restart cannot overwrite
+# them. Lower it in Admin → Users & Roles, or delete the local .sqlite.
+
+# The frontend reads this to decide whether to offer the Guest sign-in button.
+# The ownership list that used to live here is gone: it was never read on the
+# path that runs.
 auth:
   providers:
     guest:
       # @visibility frontend
       userEntityRef: user:default/guest
-      ownershipEntityRefs:
-        - user:default/guest
-        - group:default/guests
-        - group:default/data-product-developers

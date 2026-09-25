@@ -13,6 +13,7 @@
  */
 
 import { Knex } from 'knex';
+import { APPROVAL_WORKFLOWS } from '../data/approvalWorkflows';
 import { BUSINESS_CAPABILITIES } from '../data/businessCapabilities';
 import {
   SEED_REQUIREMENT_SETS,
@@ -131,52 +132,14 @@ export async function seedApprovalWorkflows(knex: Knex): Promise<void> {
     }
   }
 
-  const workflows = [
-    {
-      id: 'standard-gxp-urs',
-      name: 'Standard GxP URS Approval',
-      description: 'Three-step approval for GxP-relevant requirements',
-      steps: JSON.stringify([
-        {
-          sequence: 1,
-          role: 'BUSINESS_REVIEWER',
-          required: true,
-          description: 'Business context review',
-        },
-        {
-          sequence: 2,
-          role: 'PRODUCT_MANAGER',
-          required: true,
-          description: 'Product management review',
-        },
-        {
-          sequence: 3,
-          role: 'QUALITY_REVIEWER',
-          required: true,
-          description: 'Quality assurance review',
-        },
-      ]),
-    },
-    {
-      id: 'non-gxp-urs',
-      name: 'Non-GxP URS Approval',
-      description: 'Two-step approval for non-GxP requirements',
-      steps: JSON.stringify([
-        {
-          sequence: 1,
-          role: 'BUSINESS_REVIEWER',
-          required: true,
-          description: 'Business context review',
-        },
-        {
-          sequence: 2,
-          role: 'PRODUCT_MANAGER',
-          required: true,
-          description: 'Product management review',
-        },
-      ]),
-    },
-  ];
+  // Derived from the canonical list so the Postgres mirror and the in-memory
+  // repository cannot drift apart — the same rule the capability seed follows.
+  const workflows = APPROVAL_WORKFLOWS.map(workflow => ({
+    id: workflow.id,
+    name: workflow.name,
+    description: workflow.description,
+    steps: JSON.stringify(workflow.steps),
+  }));
 
   for (const workflow of workflows) {
     // Check if already exists (idempotent)

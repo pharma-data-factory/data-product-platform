@@ -306,12 +306,18 @@ Guest sign-in is opt-in and local-only:
 | --- | --- |
 | `AUTH_GUEST_ENABLED=true` | Shows **Continue as Guest** |
 | `AUTH_GUEST_ROLE=viewer` | Read-only (default) |
-| `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding and create |
+| `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding, create, and URS authoring |
 
 Guest resolves to **VIEWER**: catalog, marketplace and data-product read
 access, no scaffolding, no create. Raising it to `developer` is a deliberate
 local escalation. Guest is unavailable in production, where
 `auth.environment: production` applies.
+
+`developer` does **not** grant URS approval. Each approval step requires its
+own role and no role bypasses the check, so a chain one identity can walk alone
+would prove nothing. To walk it locally anyway, uncomment the three
+`urs-*-reviewers` groups in `app-config.guest-developer.yaml` — and treat the
+resulting signatures as worthless evidence, because they are.
 
 ### GitHub setup
 

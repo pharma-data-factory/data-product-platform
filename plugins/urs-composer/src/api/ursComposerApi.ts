@@ -46,7 +46,11 @@ import {
   CreateImpactAssessmentRequest,
   QualityCheckRequest,
   QualityValidateResponse,
+  AdvanceVersionsResult,
 } from './types';
+// From './types' rather than platform-common directly: that file re-exports the
+// vocabulary precisely so this one has a single source for it.
+import { URSStatus } from './types';
 
 export type { URSApiError };
 
@@ -429,6 +433,34 @@ export class URSComposerApi {
    */
   async listRequirementVersions(requirementId: string): Promise<RequirementVersion[]> {
     return this.get<RequirementVersion[]>(`/requirements/${requirementId}/versions`);
+  }
+
+  /**
+   * POST /requirement-sets/:setId/versions/transition
+   * Move every open version of the set one step along the review chain:
+   * DRAFT -> IN_REVIEW -> REVIEWED -> IN_APPROVAL, or REJECTED.
+   *
+   * Never APPROVED. A version reaches APPROVED only as the consequence of a
+   * valid QA signature (`signRequirementVersion`), which is the rule the
+   * service states at `assertTransition` and this client must not appear to
+   * offer a way round.
+   *
+   * This method did not exist, and neither did any caller for the two routes
+   * behind it. A version could therefore not leave DRAFT from the browser; a
+   * baseline may only be released once every pinned version is APPROVED; so no
+   * baseline a user created could ever be released, and `/baselines/approved`
+   * — the list the Product page binds against — was permanently empty. The
+   * whole URS -> Product journey stopped here.
+   */
+  async advanceRequirementSetVersions(
+    setId: string,
+    status: URSStatus,
+    reason?: string,
+  ): Promise<AdvanceVersionsResult> {
+    return this.post<AdvanceVersionsResult>(
+      `/requirement-sets/${encodeURIComponent(setId)}/versions/transition`,
+      { status, reason },
+    );
   }
 
   /**

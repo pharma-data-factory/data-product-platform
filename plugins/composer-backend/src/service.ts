@@ -39,6 +39,7 @@ import {
   validateBaselineLabel,
   validateDataContractSchemaType,
   validateProduct,
+  validateProductGovernance,
   validateProductRequirement,
   validateNameSegment,
   validateVersionLabel,
@@ -258,6 +259,14 @@ export class ComposerService {
     if (!existing) {
       throw new Error(`Product ${id} not found`);
     }
+    // `createProduct` validated and this did not, so every vocabulary field on
+    // the product could be set to anything at all through the edit path even
+    // once the create path refused it. Governance only — a partial update is
+    // not required to restate name and productType.
+    const issues = validateProductGovernance(request);
+    if (issues.length > 0) {
+      throw new Error(issues.join('; '));
+    }
     const updated: Product = {
       ...existing,
       name: request.name ?? existing.name,
@@ -269,6 +278,18 @@ export class ComposerService {
       team: request.team ?? existing.team,
       criticality: request.criticality ?? existing.criticality,
       gxpRelevance: request.gxpRelevance ?? existing.gxpRelevance,
+      // The same omission `createProduct` carried for `declaredPolicies`:
+      // requested, stored, and never mapped, so the field could not be written
+      // through this method at all. `data-classification-declared` is one of
+      // the three platform-policy obligations every product must meet, which
+      // made it unclearable — the release gate asked for something the write
+      // path could not record.
+      dataClassification:
+        (request.dataClassification as Product['dataClassification']) ??
+        existing.dataClassification,
+      lifecycle:
+        (request.lifecycle as Product['lifecycle']) ?? existing.lifecycle,
+      declaredPolicies: request.declaredPolicies ?? existing.declaredPolicies,
       updatedBy: actor,
       updatedAt: new Date(),
       revision: existing.revision + 1,

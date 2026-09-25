@@ -10,6 +10,8 @@ import {
 import { createRouter } from './router';
 import { UsersRepository } from './repository';
 import { CatalogUserProjection } from './entityProvider';
+import { applyGuestGroups } from './guestRole';
+import { applyDemoUsers, readDemoUsers } from './demoUsers';
 import { seed } from './db/seeds';
 
 /** Committed first-install content. Read once, when the table is empty. */
@@ -66,6 +68,31 @@ export const usersBackendPlugin = createBackendPlugin({
               'the audit trail persist across restarts.',
           );
         }
+
+        // After the seed, before the projection: the elevation has to be in
+        // the database by the time the Catalog is written from it, because the
+        // Catalog entity is what the guest sign-in resolver reads.
+        await applyGuestGroups({
+          environment: config.getOptionalString('auth.environment'),
+          groups: config.getOptionalStringArray('users.guestGroups'),
+          repository,
+          log: message => logger.info(message),
+          warn: message => logger.warn(message),
+        });
+
+        // Same placement and the same reason: in the database before the
+        // Catalog is written from it, because the Catalog entity is what the
+        // sign-in resolver and getUserApprovalRoles both read.
+        await applyDemoUsers({
+          environment: config.getOptionalString('auth.environment'),
+          users: readDemoUsers(
+            config.getOptional('users.demoIdentities'),
+            message => logger.warn(message),
+          ),
+          repository,
+          log: message => logger.info(message),
+          warn: message => logger.warn(message),
+        });
 
         const projectionTarget =
           config.getOptionalString('users.projectionFile') ?? PROJECTION_FILE;

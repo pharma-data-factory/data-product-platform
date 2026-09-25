@@ -9,6 +9,42 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
+**Batch 1 — the journey the platform describes can be walked.** Uncommitted as
+of 2026-09-25 and green on all four gates. Driving the URS → Product → Release
+path as a user, rather than testing its modules, found it broken at four
+joints, each the same shape as [`NXD-053`](DECISIONS.md): written, routed,
+tested, and reachable from no caller.
+
+- A requirement version could not leave DRAFT from the browser — no client
+  method existed for the two transition routes and nothing called
+  `signRequirementVersion`. A baseline is releasable only once every version it
+  pins is APPROVED, so **no baseline a user created could ever be released** and
+  `/baselines/approved`, the list the Product page binds against, was
+  permanently empty.
+- `createProductBaseline` and `approveProductBaseline` were called from no page,
+  so `NO_APPROVED_BASELINE` was a blocker no user could clear.
+- `updateProduct` dropped `dataClassification`, `lifecycle` and
+  `declaredPolicies` in its mapping and validated nothing, so the three
+  platform-policy obligations were unclearable — and
+  `gxpRelevance: 'TOTALLY_MADE_UP_VALUE'` was stored and *satisfied*
+  `gxp-relevance-set`.
+- The approval chain could not be walked by one identity, correctly, and there
+  was only one. Three demo identities now exist behind a local-only provider;
+  the separation is unchanged. See [`NXD-057`](DECISIONS.md).
+
+`releaseGateProgress.test.ts` measures the result instead of asserting it in
+prose: it drives the gate with the operations the Product page now offers and
+records which codes clear and which remain. Two remain deliberately —
+`INCOMPLETE_TRACEABILITY` and `NO_URS_BASELINE`. Two storage defects were found
+the same way: `baselines.approval_instance_id` was read off a column no
+migration ever created, and the two approval workflows existed only in the
+Postgres seed, so `submitBaseline` failed with `Workflow not found` on the
+shipped `memory` mode. See [`NXD-058`](DECISIONS.md).
+
+**Still not verified end-to-end against a running stack.** That is what NXD-057
+exists to make possible; walking it as three identities is the next act, not a
+completed one.
+
 **`/products` is the Product page, and it is reachable.** The 2026-09-24 slice
 executed [`NXD-056`](DECISIONS.md): the page went into the sidebar under
 *Build*, where the group previously offered `/create` and `/compose` and then no
@@ -903,7 +939,12 @@ no decision records yet.
   and `readGoldenPathComposition()`. See [`NXD-032`](DECISIONS.md).
 
 ## In Progress
-Nothing in flight.
+**Batch 1 is written and green but uncommitted** — 31 modified files, 16 new,
+about 1,100 lines. See `## Current Vertical Slice` for what it is and
+[`NXD-057`](DECISIONS.md)/[`NXD-058`](DECISIONS.md) for why each part is shaped
+the way it is. What it does not yet have is the live run: the point of the demo
+identities is an end-to-end walk of URS → baseline → Product → release gate, and
+that walk has not been recorded here.
 
 ## Next
 **Sequencing now lives in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md)**
@@ -987,15 +1028,21 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
-**GREEN.** Verified on 2026-09-24 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`).
+**GREEN.** Verified on 2026-09-25 over the uncommitted Batch 1 working tree,
+the way CI runs it (`CI=true`, PostgreSQL up via `docker-compose.test.yml`).
 
 | Gate | Command | Result |
 | --- | --- | --- |
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
 | Typecheck | `yarn tsc` | PASS |
 | Lint | `yarn lint:all` | PASS |
-| Unit tests | `CI=true yarn test` | PASS — 215 suites, 1909 tests, **0 skipped** |
+| Unit tests | `CI=true yarn test` | PASS — 221 suites, 1958 tests, **0 skipped** |
+
+Seven suites are new in Batch 1: the governance vocabulary, the product update
+path, release-gate progress, the approval-workflow seed in both persistence
+modes, the approval-instance column, the review chain, and the guest role.
+
+The 2026-09-24 figures were 215 suites and 1909 tests.
 
 ### The 2026-09-24 flake — NXD-016 regressed in Slice 1a, now fixed
 
@@ -1384,8 +1431,9 @@ first — which is then itself unnamed. This entry was wrong for three days for
 exactly that reason: it said `beeab2a` while HEAD was `164039f`. `git log -1`
 is authoritative; this section carries the subject and the date.
 
-As of 2026-09-24 the branch is **3 commits ahead of its remote**; the last
-pushed commit is `f054b3c`. The working tree is clean.
+As of 2026-09-25 the branch is **3 commits ahead of its remote**; the last
+pushed commit is `f054b3c`. The working tree is **not clean** — Batch 1 is
+written, green and uncommitted; see `## In Progress`.
 
 For historical reference, Phase 0 landed as three commits: the transformation
 memory, "fix(test): restore a green baseline and stop the jest resolver

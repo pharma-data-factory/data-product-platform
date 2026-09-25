@@ -11,9 +11,13 @@ metadata:
     dataprod.platform/identity: development-fallback
 spec:
   # platform-viewers = VIEWER. Guest is deliberately read-only; it cannot
-  # scaffold or create. Local development can raise the issued token with
-  # AUTH_GUEST_ROLE=developer (app-config.guest-developer.yaml) without
-  # changing this default.
+  # scaffold or create. This file is first-install content, read once into an
+  # empty table, so it sets the default and nothing more.
+  #
+  # Local development can raise it with AUTH_GUEST_ROLE=developer, which loads
+  # app-config.guest-developer.yaml and rewrites the guest row's groups on
+  # every start. That reaches further than this file does — the seed cannot,
+  # since it never runs a second time.
   memberOf: [guests, platform-viewers]
 ---
 apiVersion: backstage.io/v1alpha1

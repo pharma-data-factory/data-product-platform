@@ -124,8 +124,10 @@ Two things to know:
 - **The URL changes when the workspace restarts.** Re-run `expose`;
   `.runtime/app-config.ona.yaml` is gitignored and environment-specific.
 
-Guest is a VIEWER by default. To exercise the Create journey set
-`AUTH_GUEST_ROLE=developer` in `.env` and restart — see `app-config.guest.yaml`.
+Guest is a VIEWER by default. To exercise the Define and Create journeys set
+`AUTH_GUEST_ROLE=developer` in `.env` and restart — see
+`app-config.guest-developer.yaml`, which also explains what it deliberately
+does not grant.
 
 GitHub sign-in additionally needs `AUTH_GITHUB_CLIENT_ID`,
 `AUTH_GITHUB_CLIENT_SECRET` and an OAuth App Redirect URI of exactly

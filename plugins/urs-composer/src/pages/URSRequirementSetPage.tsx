@@ -62,7 +62,7 @@ import {
   NEXORA_TONE,
   StatusBadge,
 } from '@internal/plugin-nexora-common';
-import { ursApprovePermission, ursManagePermission, formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
+import { ursApprovePermission, ursManagePermission, ursSignPermission, formatJourneyError, isUnauthorizedError } from '@internal/platform-common';
 import { ursComposerApiRef } from '../api/ursComposerApi';
 import {
   RequirementSet,
@@ -74,7 +74,13 @@ import {
   ApprovalInstance,
   ApprovalStepInstance,
   SignatureMeaning,
+  SkippedVersion,
 } from '../api/types';
+import {
+  nextReviewChainAction,
+  statusCounts,
+  versionsAwaitingSignature,
+} from './reviewChain';
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
 import { ESignatureDialog } from '../components/ESignatureDialog/ESignatureDialog';
 import { SigningPinDialog } from '../components/SigningPinDialog/SigningPinDialog';
@@ -210,6 +216,12 @@ export const URSRequirementSetPage: FC = () => {
   const [confirmAction, setConfirmAction] = useState<'reject' | 'cancel' | null>(null);
   const [confirmStepId, setConfirmStepId] = useState<string | null>(null);
   const [confirmReason, setConfirmReason] = useState('');
+  // Requirement review chain: advancing the set's versions, and the QA
+  // signature that is the only way any of them reaches APPROVED.
+  const [advancing, setAdvancing] = useState(false);
+  const [advanceError, setAdvanceError] = useState<string | null>(null);
+  const [advanceSkipped, setAdvanceSkipped] = useState<SkippedVersion[]>([]);
+  const [qaSignOpen, setQaSignOpen] = useState(false);
   // E-sign approve dialog
   const [eSignOpen, setESignOpen] = useState(false);
   const [eSignStepId, setESignStepId] = useState<string | null>(null);
@@ -264,6 +276,11 @@ export const URSRequirementSetPage: FC = () => {
 
   const approveAllowed = usePermission({ permission: ursApprovePermission });
   const manageAllowed = usePermission({ permission: ursManagePermission });
+  // Signing is its own permission, and holding it is still not enough: the
+  // service checks the QUALITY_REVIEWER approval role separately, and refuses
+  // a signature from whoever authored the version. This gate only hides a
+  // button nobody could use; it is not the authorization.
+  const signAllowed = usePermission({ permission: ursSignPermission });
 
   /**
    * Everything the page shows about the set.
@@ -469,6 +486,66 @@ export const URSRequirementSetPage: FC = () => {
     }
   };
 
+  /**
+   * Move every open version of the set one step along the review chain.
+   *
+   * `skipped` is rendered, not thrown: the service reports versions it could
+   * not move rather than failing the whole call, because one version stuck
+   * behind a change request must not roll back the rest.
+   */
+  const handleAdvanceVersions = async (target: URSStatus) => {
+    if (!id) {
+      return;
+    }
+    setAdvancing(true);
+    setAdvanceError(null);
+    setAdvanceSkipped([]);
+    try {
+      const result = await api.advanceRequirementSetVersions(id, target);
+      setAdvanceSkipped(result.skipped ?? []);
+      await reload();
+    } catch (err: any) {
+      setAdvanceError(
+        isUnauthorizedError(err)
+          ? formatJourneyError(err)
+          : err.message || 'Failed to advance the review chain',
+      );
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
+  /**
+   * Apply the QA signature that releases the set's versions to APPROVED.
+   *
+   * One signature per version, each bound to that version's own content hash —
+   * `signRequirementVersion` takes a single version and there is deliberately
+   * no bulk signing endpoint. The PIN is entered once for the set, mirroring
+   * `advanceRequirementSetVersions`, which is already a whole-set act.
+   *
+   * Stops at the first refusal instead of continuing. A rejected signature here
+   * is a role or segregation-of-duties failure, which will refuse every
+   * remaining version for the same reason; carrying on would turn one accurate
+   * message into a list of identical ones.
+   */
+  const handleQaSign = async (opts: { pin: string; comment?: string }) => {
+    const awaiting = versionsAwaitingSignature(currentVersions);
+    setAdvancing(true);
+    setAdvanceError(null);
+    try {
+      for (const version of awaiting) {
+        await api.signRequirementVersion(version.id, {
+          meaning: SignatureMeaning.APPROVED_QA,
+          pin: opts.pin,
+          comment: opts.comment,
+        });
+      }
+      await reload();
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
   const handleApproveStep = async (
     stepId: string,
     opts: { comment?: string; pin: string },
@@ -619,6 +696,12 @@ export const URSRequirementSetPage: FC = () => {
     requirements.length - currentVersions.length,
   );
   const nothingToPin = currentVersions.length === 0;
+
+  // The one action the review-chain card offers, derived rather than branched
+  // inline: which step is next, and whether it is a transition or a signature,
+  // is the rule the whole URS -> Product journey turns on. It lives in
+  // `reviewChain.tsx` so it can be tested without a DOM.
+  const reviewChainAction = nextReviewChainAction(currentVersions);
 
   const canRevise =
     manageAllowed &&
@@ -969,6 +1052,125 @@ export const URSRequirementSetPage: FC = () => {
               Approval steps require a signing PIN (technical workflow control).
               This is not a GxP or 21 CFR Part 11 compliance claim.
             </Alert>
+
+            {/*
+              The requirement review chain, which had no UI at all.
+
+              Two approvals happen on this page and they are not the same one.
+              This card approves the requirement VERSIONS; the card below
+              approves the BASELINE that pins them. The second cannot be
+              released until the first is finished
+              (`assertPinnedVersionsReleased`), and the first was unreachable:
+              no client method existed for the transition routes and nothing
+              called `signRequirementVersion`. So every baseline a user created
+              stayed unreleasable, `/baselines/approved` stayed empty, and the
+              Product page could bind nothing. This card is that missing step.
+            */}
+            <Card style={{ marginBottom: 16 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Requirement review chain
+                </Typography>
+                <Typography variant="body2" color="textSecondary" paragraph>
+                  Requirement versions walk DRAFT → IN_REVIEW → REVIEWED →
+                  IN_APPROVAL, then reach APPROVED through a QA signature. A
+                  baseline can only be released once every version it pins is
+                  approved.
+                </Typography>
+
+                <Box
+                  display="flex"
+                  style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}
+                >
+                  {statusCounts(currentVersions).map(({ status, count }) => (
+                    <Chip
+                      key={status}
+                      size="small"
+                      label={`${count} ${status}`}
+                      variant={
+                        status === URSStatus.APPROVED ? 'default' : 'outlined'
+                      }
+                    />
+                  ))}
+                </Box>
+
+                <Typography variant="body2" paragraph>
+                  {reviewChainAction.description}
+                </Typography>
+
+                {reviewChainAction.kind === 'ADVANCE' && (
+                  <Button
+                    color="primary"
+                    variant="contained"
+                    disabled={!manageAllowed || advancing}
+                    onClick={() =>
+                      handleAdvanceVersions(reviewChainAction.target)
+                    }
+                  >
+                    {advancing ? 'Working…' : reviewChainAction.label}
+                  </Button>
+                )}
+
+                {reviewChainAction.kind === 'SIGN' && (
+                  <Button
+                    color="primary"
+                    variant="contained"
+                    disabled={!signAllowed || advancing}
+                    onClick={() => setQaSignOpen(true)}
+                  >
+                    {advancing ? 'Working…' : reviewChainAction.label}
+                  </Button>
+                )}
+
+                {/*
+                  Said rather than shown as a disabled button with no reason.
+                  Both refusals are role-based and the user cannot grant
+                  themselves the role, so the only useful thing to do is name it.
+                */}
+                {reviewChainAction.kind === 'ADVANCE' && !manageAllowed && (
+                  <Typography variant="caption" color="textSecondary">
+                    Advancing the review chain needs the urs.manage permission.
+                  </Typography>
+                )}
+                {reviewChainAction.kind === 'SIGN' && !signAllowed && (
+                  <Typography variant="caption" color="textSecondary">
+                    Applying a QA signature needs the urs.sign permission and
+                    the QUALITY_REVIEWER approval role.
+                  </Typography>
+                )}
+
+                {/*
+                  `advanceRequirementSetVersions` reports versions it could not
+                  move rather than throwing, because a set part-way through its
+                  review is a normal state. Rendering the list is the whole
+                  point of that choice.
+                */}
+                {advanceSkipped.length > 0 && (
+                  <Alert severity="warning" style={{ marginTop: 12 }}>
+                    <Typography variant="subtitle2">
+                      {advanceSkipped.length} version(s) did not move:
+                    </Typography>
+                    <List dense>
+                      {advanceSkipped.map(skipped => (
+                        <ListItem key={skipped.versionId} disableGutters>
+                          <ListItemText
+                            primary={`${skipped.requirementId} (${skipped.status})`}
+                            secondary={skipped.reason}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Alert>
+                )}
+
+                {advanceError && (
+                  <Alert severity="error" style={{ marginTop: 12 }}>
+                    {advanceError}
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardContent>
                 {/* A) Approval */}
@@ -1294,6 +1496,28 @@ export const URSRequirementSetPage: FC = () => {
           setESignOpen(false);
           setESignStepId(null);
         }}
+      />
+
+      {/*
+        The QA signature on the requirement versions — the step that had no UI.
+        Same dialog as baseline approval, which is what its doc comment says it
+        is for: "review signatures, QA approval, baseline release and change
+        request approval".
+      */}
+      <ESignatureDialog
+        open={qaSignOpen}
+        meaning={SignatureMeaning.APPROVED_QA}
+        subject={`${
+          versionsAwaitingSignature(currentVersions).length
+        } requirement version(s) · ${set.requirementSetId}`}
+        onConfirm={async ({ pin, comment }) => {
+          // Not caught here: ESignatureDialog shows the rejection itself and
+          // stays open, which is what should happen to a wrong PIN or a
+          // missing QUALITY_REVIEWER role.
+          await handleQaSign({ pin, comment });
+          setQaSignOpen(false);
+        }}
+        onClose={() => setQaSignOpen(false)}
       />
 
       <SigningPinDialog
