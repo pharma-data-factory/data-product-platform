@@ -208,22 +208,24 @@ async function selectVersion(label: string) {
 }
 
 describe('ProductDetailPage — NXD-056 tab set', () => {
-  it('renders the six tabs and opens on Overview', async () => {
+  it('renders all seven tabs and opens on Overview', async () => {
     await renderPage();
 
+    // Six until Step 2. `Development` was the tab NXD-056 named and left out,
+    // because nothing joined a Product to a repository and the tab would have
+    // held an explanation of what was missing. It sits between Architecture
+    // and Contracts, the position that record specified.
     for (const label of [
       'Overview',
       'Requirements',
       'Architecture',
+      'Development',
       'Contracts',
       'Tests',
       'Validation',
     ]) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
-    // Development is deliberately absent until Step 2 gives the product a
-    // repository identity.
-    expect(screen.queryByRole('tab', { name: 'Development' })).toBeNull();
 
     expect(screen.getByText('Release Management')).toBeInTheDocument();
   });
@@ -532,5 +534,103 @@ describe('ProductDetailPage — baselines', () => {
     ).toBeInTheDocument();
     // The page is still usable.
     expect(screen.getByText('Release Management')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The Development tab, and the honest empty state.
+ *
+ * Step 2 writes `repositoryUrl` and `catalogEntityRef` onto the Product from
+ * the scaffolder task that created it. Three other paths create products and
+ * none of them has a repository, so the absent case is ordinary and has to read
+ * as a statement of fact rather than as a broken page.
+ */
+describe('ProductDetailPage — Development tab', () => {
+  async function openDevelopment() {
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: 'Development' }));
+    });
+  }
+
+  it('shows the repository and the catalog entity when the product has them', async () => {
+    client.getProduct.mockResolvedValue({
+      ...PRODUCT,
+      repositoryUrl: 'https://github.com/acme/batch-genealogy',
+      catalogEntityRef: 'component:default/batch-genealogy',
+    });
+
+    await renderPage();
+    await openDevelopment();
+
+    expect(
+      screen.getByText('https://github.com/acme/batch-genealogy'),
+    ).toBeInTheDocument();
+    const entityLink = screen.getByText('component:default/batch-genealogy');
+    expect(entityLink).toBeInTheDocument();
+    expect(entityLink.closest('a')).toHaveAttribute(
+      'href',
+      '/catalog/default/component/batch-genealogy',
+    );
+  });
+
+  it('says what is missing, and why, for a product with no repository', async () => {
+    // PRODUCT carries neither field: created through the API, as most products
+    // in this fixture set are.
+    await renderPage();
+    await openDevelopment();
+
+    expect(
+      screen.getByText(/This product has no repository/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Create').closest('a')).toHaveAttribute(
+      'href',
+      '/create',
+    );
+  });
+
+  it('shows the CI build evidence already on the baseline', async () => {
+    // Not new data: closure Slice 3 has written provenance to the baseline
+    // since CI started posting it. It was only ever shown on Tests, where it
+    // reads as test metadata rather than as a statement about this repository.
+    client.getProduct.mockResolvedValue({
+      ...PRODUCT,
+      repositoryUrl: 'https://github.com/acme/batch-genealogy',
+      catalogEntityRef: 'component:default/batch-genealogy',
+    });
+    client.listProductBaselines.mockResolvedValue([
+      {
+        id: 'b1',
+        productVersionId: 'v2',
+        baselineVersion: '1.0',
+        status: 'APPROVED',
+        provenance: {
+          releaseCommitSha: 'a'.repeat(40),
+          artifactDigest: `sha256:${'b'.repeat(64)}`,
+          provenanceTimestamp: new Date('2026-03-01'),
+        },
+      },
+    ]);
+
+    await renderPage();
+    await openDevelopment();
+
+    await waitFor(() =>
+      expect(screen.getByText('a'.repeat(40))).toBeInTheDocument(),
+    );
+    expect(screen.getByText('Recorded by CI')).toBeInTheDocument();
+  });
+
+  it('does not claim a build that never happened', async () => {
+    client.getProduct.mockResolvedValue({
+      ...PRODUCT,
+      repositoryUrl: 'https://github.com/acme/batch-genealogy',
+    });
+
+    await renderPage();
+    await openDevelopment();
+
+    expect(
+      screen.getByText(/No release build has written provenance/),
+    ).toBeInTheDocument();
   });
 });

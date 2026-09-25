@@ -40,6 +40,7 @@ import {
   validateDataContractSchemaType,
   validateProduct,
   validateProductGovernance,
+  validateCatalogEntityRef,
   validateProductRequirement,
   validateNameSegment,
   validateVersionLabel,
@@ -199,10 +200,14 @@ export class ComposerService {
     request: CreateProductRequest,
     actor: string,
   ): Promise<Product> {
-    const issues = validateProduct(request);
+    const issues = [
+      ...validateProduct(request),
+      ...this.identityIssues(request),
+    ];
     if (issues.length > 0) {
-      throw new Error(issues.join('; '));
+      throw new InputError(issues.join('; '));
     }
+    await this.assertCatalogEntityUnclaimed(request.catalogEntityRef);
     const product: Product = {
       id: randomUUID(),
       name: request.name,
@@ -230,6 +235,8 @@ export class ComposerService {
       // 5-R1 mechanism was inert for API-created products — the gate resolved
       // nothing and reported no obligations, silently.
       declaredPolicies: request.declaredPolicies,
+      repositoryUrl: request.repositoryUrl,
+      catalogEntityRef: request.catalogEntityRef,
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -237,6 +244,59 @@ export class ComposerService {
     await this.repository.createProduct(product);
     await this.audit('PRODUCT', product.id, 'PRODUCT_CREATED', actor);
     return product;
+  }
+
+  /**
+   * Why the identity fields on a write are unusable, or `[]` if they are fine.
+   *
+   * Shape only. Whether the entity exists is the Catalog's business and whether
+   * it is already claimed is the next check's; this one answers the question a
+   * caller can fix without looking anything up.
+   */
+  private identityIssues(request: Partial<CreateProductRequest>): string[] {
+    const issues: string[] = [];
+    if (request.catalogEntityRef !== undefined) {
+      issues.push(...validateCatalogEntityRef(request.catalogEntityRef));
+    }
+    if (request.repositoryUrl !== undefined) {
+      const url = request.repositoryUrl.trim();
+      // A repository URL is displayed as a link and handed to a developer to
+      // clone. Anything that is not http(s) is either a mistake or a way to put
+      // a `javascript:` target in front of a user.
+      if (!/^https?:\/\/\S+$/.test(url)) {
+        issues.push(
+          `repositoryUrl "${request.repositoryUrl}" must be an http(s) URL`,
+        );
+      }
+    }
+    return issues;
+  }
+
+  /**
+   * Refuses a Catalog entity that another product already claims.
+   *
+   * The database enforces this too, and that is the authority — this check
+   * exists to answer with the id of the product that holds it, because the
+   * caller is usually a scaffolder task whose next move depends on knowing
+   * which one. A race still ends at the unique index, which is the point of
+   * having it (NXD-009).
+   */
+  private async assertCatalogEntityUnclaimed(
+    entityRef: string | undefined,
+    exceptProductId?: string,
+  ): Promise<void> {
+    if (!entityRef) {
+      return;
+    }
+    const existing = await this.repository.getProductByCatalogEntityRef(
+      entityRef,
+    );
+    if (existing && existing.id !== exceptProductId) {
+      throw new ConflictError(
+        `Catalog entity ${entityRef} is already claimed by product ` +
+          `${existing.name} (${existing.id})`,
+      );
+    }
   }
 
   async listProducts(
@@ -248,6 +308,17 @@ export class ComposerService {
 
   async getProduct(id: string): Promise<Product | null> {
     return this.repository.getProduct(id);
+  }
+
+  /** The product that claims a Catalog entity, or null. Step 2. */
+  async getProductByCatalogEntityRef(
+    entityRef: string,
+  ): Promise<Product | null> {
+    const issues = validateCatalogEntityRef(entityRef);
+    if (issues.length > 0) {
+      throw new InputError(issues.join('; '));
+    }
+    return this.repository.getProductByCatalogEntityRef(entityRef);
   }
 
   async updateProduct(
@@ -268,10 +339,14 @@ export class ComposerService {
     // `500 {"error":"Internal server error"}`, so the live refusal read as a
     // server fault and the caller never saw which value was rejected. Found by
     // driving the API on 2026-09-25, one day after this check was written.
-    const issues = validateProductGovernance(request);
+    const issues = [
+      ...validateProductGovernance(request),
+      ...this.identityIssues(request),
+    ];
     if (issues.length > 0) {
       throw new InputError(issues.join('; '));
     }
+    await this.assertCatalogEntityUnclaimed(request.catalogEntityRef, id);
     const updated: Product = {
       ...existing,
       name: request.name ?? existing.name,
@@ -295,6 +370,12 @@ export class ComposerService {
       lifecycle:
         (request.lifecycle as Product['lifecycle']) ?? existing.lifecycle,
       declaredPolicies: request.declaredPolicies ?? existing.declaredPolicies,
+      // Step 2's identity. Settable here as well as at creation, because the
+      // action writes the row after the repository and the entity exist, and a
+      // product created by one of the other three paths may be joined to a
+      // repository later. `??`, so an update that mentions neither leaves both.
+      repositoryUrl: request.repositoryUrl ?? existing.repositoryUrl,
+      catalogEntityRef: request.catalogEntityRef ?? existing.catalogEntityRef,
       updatedBy: actor,
       updatedAt: new Date(),
       revision: existing.revision + 1,

@@ -33,6 +33,7 @@ import {
   type PresentationCapability,
 } from '@internal/data-product-consumption';
 import { DataProduct, catalogClassLabel, toRelatedDataProducts } from '../model';
+import { useGoverningProduct } from './useGoverningProduct';
 import { CertificationChip } from './CertificationChip';
 import { CompatibilityChip } from './CompatibilityChip';
 import { CiQualityGateCard } from './CiQualityGateCard';
@@ -76,6 +77,12 @@ export function DataProductDetailPage() {
   const [tab, setTab] = useState('overview');
 
   const entityRef = name ? `component:default/${name}` : undefined;
+
+  // The governance half of this product, if the Composer holds one. Step 2:
+  // a product created from a template writes the entity ref onto its row, so
+  // this resolves by identity rather than by name. Absent for everything the
+  // Catalog holds that is not a Nexora Product, which is most of it.
+  const { product: governingProduct } = useGoverningProduct(entityRef);
   const {
     data: descriptor,
     error: consumeError,
@@ -185,6 +192,19 @@ export function DataProductDetailPage() {
         )}
         {product && (
           <>
+            {governingProduct && (
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                style={{ marginBottom: 12 }}
+              >
+                Governance and release:{' '}
+                <Link to={`/products/${governingProduct.id}`}>
+                  {governingProduct.name}
+                </Link>{' '}
+                — versions, baselines, requirements and the release gate.
+              </Typography>
+            )}
             {(context.site || context.line || context.equipment) && (
               <Typography variant="body2" color="textSecondary" style={{ marginBottom: 12 }}>
                 Context: {[

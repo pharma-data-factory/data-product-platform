@@ -27,6 +27,8 @@ export interface ComposerAuditEvent {
 export interface IComposerRepository {
   createProduct(product: Product): Promise<Product>;
   getProduct(id: string): Promise<Product | null>;
+  /** The product that claims a Catalog entity, case-folded. Step 2. */
+  getProductByCatalogEntityRef(entityRef: string): Promise<Product | null>;
   listProducts(
     limit: number,
     offset: number,

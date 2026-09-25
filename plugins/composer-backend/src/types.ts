@@ -53,6 +53,14 @@ export interface CreateProductRequest {
   consumers?: string[];
   slo?: Record<string, unknown>;
   costInfo?: Record<string, unknown>;
+  /**
+   * Step 2 ("one door"): the repository the product's code lives in and the
+   * Catalog entity that describes it, both written by the
+   * `nexora:product:create` scaffolder action. Optional — the other creation
+   * paths have neither.
+   */
+  repositoryUrl?: string;
+  catalogEntityRef?: string;
 }
 
 export interface CreateProductVersionRequest {

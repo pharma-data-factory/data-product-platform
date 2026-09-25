@@ -132,6 +132,9 @@ describe('REST Equipment Data Product Golden Path', () => {
         'nexora:urs:verify-baseline',
         'publish:github',
         'catalog:register',
+        // Step 2: the governed record, written last, from the repository the
+        // publish step produced and the entity the register step created.
+        'nexora:product:create',
       ],
     );
     const stepById = (id: string) =>

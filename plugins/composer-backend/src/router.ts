@@ -198,6 +198,40 @@ export async function createRouter(
     }
   });
 
+  /**
+   * The product that claims a Catalog entity.
+   *
+   * Declared before `/products/:id` because Express matches in order and
+   * `by-entity-ref` would otherwise be read as a product id.
+   *
+   * The ref goes in the query string rather than the path: it contains a `/`
+   * (`component:default/oee-data-product`), and a path parameter carrying an
+   * encoded slash is decoded differently by proxies and by Express itself.
+   *
+   * This is the reverse of the link Step 2 writes, and the reason the
+   * `/data-products` page can find its governance without guessing at a name.
+   * 404 rather than an empty body when nothing claims it: most Catalog entities
+   * are not Nexora products, and the caller has to be able to tell "no product"
+   * from "a product with no fields".
+   */
+  router.get(
+    '/products/by-entity-ref',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        const ref = String(req.query.ref ?? '');
+        const product = await service.getProductByCatalogEntityRef(ref);
+        if (!product) {
+          res.status(404).json({ error: 'No product claims this entity' });
+          return;
+        }
+        res.json(product);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get(
     '/products/:id',
     async (req: express.Request, res: express.Response) => {

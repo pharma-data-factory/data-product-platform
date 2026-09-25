@@ -27,6 +27,7 @@ import { useComposerClient, ProductTraceability, ReleaseGateResult } from './api
 import { OverviewTab } from './tabs/OverviewTab';
 import { RequirementsTab } from './tabs/RequirementsTab';
 import { ArchitectureTab } from './tabs/ArchitectureTab';
+import { DevelopmentTab } from './tabs/DevelopmentTab';
 import {
   ContractsTab,
   type ConsumedContract,
@@ -454,6 +455,12 @@ export function ProductDetailPage() {
             <Tab value="overview" label="Overview" />
             <Tab value="requirements" label="Requirements" />
             <Tab value="architecture" label="Architecture" />
+            {/*
+              The seventh tab NXD-056 named and did not build, because until
+              Step 2 nothing joined a Product to a repository. String keys, as
+              that record required, so inserting it here moved nothing.
+            */}
+            <Tab value="development" label="Development" />
             <Tab value="contracts" label="Contracts" />
             <Tab value="tests" label="Tests" />
             <Tab value="validation" label="Validation" />
@@ -553,6 +560,10 @@ export function ProductDetailPage() {
               onAddComponent={addComponent}
               onAddLink={addLink}
             />
+          )}
+
+          {tab === 'development' && (
+            <DevelopmentTab product={product} baselines={baselines} />
           )}
 
           {tab === 'contracts' && (

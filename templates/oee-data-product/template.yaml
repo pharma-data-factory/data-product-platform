@@ -225,6 +225,24 @@ spec:
       input:
         repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
+
+    # The third thing a product is made of, and until Step 2 the missing one:
+    # the governed record that versions, baselines, requirements and the
+    # release gate hang off. Last on purpose — the repository and the entity
+    # are the expensive artifacts, so they are proven before this is written,
+    # and a failure here is fixed by re-running (the action is idempotent on
+    # the entity ref). It runs as whoever started the task, so it is refused if
+    # they may not create products.
+    - id: product
+      name: Create the product record
+      action: nexora:product:create
+      input:
+        name: ${{ parameters.name }}
+        productType: DATA_PRODUCT
+        domain: ${{ parameters.domain }}
+        description: ${{ parameters.description }}
+        repositoryUrl: ${{ steps['publish'].output.remoteUrl }}
+        catalogEntityRef: ${{ steps['register'].output.entityRef }}
   output:
     links:
       - title: Repository
@@ -232,3 +250,5 @@ spec:
       - title: View Data Product
         icon: catalog
         entityRef: ${{ steps['register'].output.entityRef }}
+      - title: Governance and release
+        url: ${{ steps['product'].output.productUrl }}

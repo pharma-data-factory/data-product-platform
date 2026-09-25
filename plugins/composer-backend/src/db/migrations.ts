@@ -410,6 +410,36 @@ export async function up(knex: Knex): Promise<void> {
         table.text('declared_policies').nullable(); // JSON array of policy coordinates
       });
     }
+
+    // Step 2 ("one door"): where the code lives and which Catalog entity
+    // describes it. Written by the `nexora:product:create` scaffolder action
+    // from the repository the task published and the entity it registered.
+    //
+    // Both nullable, and they stay nullable: three other paths create products
+    // (the API, an applied AI spec draft, the platform bootstrap) and none of
+    // them has a repository. Existing rows are untouched.
+    //
+    // The unique index is on the entity ref alone, case-folded. Two products
+    // claiming one Catalog entity is precisely the ambiguity these columns
+    // exist to remove — the reverse lookup that the /data-products cross-link
+    // uses has to have exactly one answer. NULLs do not collide in a unique
+    // index in either SQLite or PostgreSQL, so every repository-less product
+    // remains legal. `repository_url` is deliberately *not* unique: two
+    // products in one monorepo is a shape the platform should not forbid.
+    const hasRepositoryUrl = await knex.schema.hasColumn(
+      'products',
+      'repository_url',
+    );
+    if (!hasRepositoryUrl) {
+      await knex.schema.alterTable('products', table => {
+        table.string('repository_url', 1024).nullable();
+        table.string('catalog_entity_ref', 255).nullable();
+      });
+      await knex.raw(
+        'create unique index if not exists products_catalog_entity_ref_unique ' +
+          'on products (lower(catalog_entity_ref))',
+      );
+    }
   }
 
   // Contract Subscriptions (P-EXT-S4): operational consumer registrations.

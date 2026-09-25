@@ -647,6 +647,8 @@ export {
   validateDataContractSchemaType,
   validateProduct,
   validateProductGovernance,
+  validateCatalogEntityRef,
+  parseCatalogEntityRef,
   validateVersionLabel,
   validateTraceabilityLink,
 } from './product';

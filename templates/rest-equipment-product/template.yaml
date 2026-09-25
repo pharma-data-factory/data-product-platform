@@ -129,6 +129,20 @@ spec:
       input:
         repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
+
+    # See the oee-data-product template for why this runs last and what it
+    # guarantees: the governed record, joined to the repository and the entity
+    # at birth, created as whoever started the task.
+    - id: product
+      name: Create the product record
+      action: nexora:product:create
+      input:
+        name: ${{ parameters.name }}
+        productType: DATA_PRODUCT
+        domain: ${{ parameters.domain }}
+        description: ${{ parameters.description }}
+        repositoryUrl: ${{ steps['publish'].output.remoteUrl }}
+        catalogEntityRef: ${{ steps['register'].output.entityRef }}
   output:
     links:
       - title: Repository
@@ -136,3 +150,5 @@ spec:
       - title: Open in catalog
         icon: catalog
         entityRef: ${{ steps['register'].output.entityRef }}
+      - title: Governance and release
+        url: ${{ steps['product'].output.productUrl }}

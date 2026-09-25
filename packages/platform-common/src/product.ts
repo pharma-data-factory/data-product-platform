@@ -164,6 +164,29 @@ export interface Product {
    * 5-R1 / Phase 5 release gate integration.
    */
   declaredPolicies?: string[];
+  /**
+   * Where the code lives, and which Catalog entity describes it.
+   *
+   * Both are written once, by the `nexora:product:create` scaffolder action,
+   * from the repository the task published and the entity it registered. Step 2
+   * of the URS → Product roadmap: until it landed, a Product and the Catalog
+   * entity for the same thing had no identity in common, so `/products` could
+   * not show a repository and `/data-products` could not find its governance.
+   *
+   * Optional, and that is a decision rather than an oversight. A Product may
+   * still be created by `POST /products`, by applying an AI spec draft, or by
+   * the platform bootstrap, and none of those has a repository. "One door"
+   * means one path that produces a whole product, not the abolition of the
+   * others — so absence here means "not created from a template", which the
+   * Development tab says in as many words.
+   */
+  repositoryUrl?: string;
+  /**
+   * `kind:namespace/name` of the Catalog entity. Unique across products where
+   * it is set, in the database as well as the service (NXD-009): two products
+   * claiming one entity is exactly the ambiguity this field exists to remove.
+   */
+  catalogEntityRef?: string;
   createdBy: string;
   createdAt: Date;
   updatedBy?: string;
@@ -1022,6 +1045,75 @@ export function validateNameSegment(value: string, label: string): string[] {
     return [
       `${label} "${trimmed}" must be lowercase kebab-case: letters and digits ` +
         `separated by single hyphens, e.g. "order-events"`,
+    ];
+  }
+  return [];
+}
+
+// ============================================================================
+// CATALOG ENTITY REFERENCE
+// ============================================================================
+
+/**
+ * One part of an entity reference, by Backstage's grammar and not this file's.
+ *
+ * Deliberately **not** `COORDINATE_SEGMENT`. That grammar is lowercase
+ * kebab-case because a platform coordinate is an identity this repository
+ * issues; an entity ref is an identity the *Catalog* issues, and it permits
+ * dots, underscores and mixed case. Validating it more strictly than the
+ * Catalog does would mean refusing to record an entity that demonstrably
+ * exists — the field would reject the very thing it is there to point at.
+ *
+ * Length and character set follow `@backstage/catalog-model`'s own rule.
+ */
+const ENTITY_REF_PART = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+const ENTITY_REF_PART_MAX_LENGTH = 63;
+
+/** Split `kind:namespace/name`, or `undefined` if it is not one. */
+export function parseCatalogEntityRef(
+  value: string,
+): { kind: string; namespace: string; name: string } | undefined {
+  const [kindPart, rest] = value.split(':', 2);
+  if (!rest) {
+    return undefined;
+  }
+  const [namespace, name, ...extra] = rest.split('/');
+  if (extra.length > 0) {
+    return undefined;
+  }
+  const parts = [kindPart, namespace, name];
+  if (
+    parts.some(
+      part =>
+        !part ||
+        part.length > ENTITY_REF_PART_MAX_LENGTH ||
+        !ENTITY_REF_PART.test(part),
+    )
+  ) {
+    return undefined;
+  }
+  return { kind: kindPart, namespace, name };
+}
+
+/**
+ * Why `value` is not a usable entity reference, or `[]` if it is.
+ *
+ * The full `kind:namespace/name` form only. Backstage's own parser defaults a
+ * missing kind or namespace, and this field must not: it is written by a
+ * scaffolder action from `catalog:register`'s output, which is always complete,
+ * and a stored ref that needs defaults applied to be understood is a ref that
+ * two readers can resolve differently.
+ */
+export function validateCatalogEntityRef(value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return ['catalogEntityRef is required'];
+  }
+  if (!parseCatalogEntityRef(trimmed)) {
+    return [
+      `catalogEntityRef "${trimmed}" must be a full entity reference of the ` +
+        `form kind:namespace/name, e.g. "component:default/oee-data-product"`,
     ];
   }
   return [];

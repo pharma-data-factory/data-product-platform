@@ -169,13 +169,37 @@ describe('template registration and generation contract', () => {
         ]),
       );
 
-      // Every template fetches its base content first and ends by publishing
-      // the repository and registering the result in the Catalog.
+      // Every template fetches its base content first, then publishes the
+      // repository and registers the result in the Catalog, in that order.
+      //
+      // No longer asserted as "the last two steps": Step 2 adds
+      // `nexora:product:create` after them on the templates that carry it, and
+      // deliberately last — the repository and the entity are the expensive
+      // artifacts, so they are proven before the governed record is written.
+      // What has to hold is the relative order, which is what the offsets
+      // check.
       expect(stepIds[0]).toBe('fetch-base');
       expect(actionById.get('fetch-base')).toBe('fetch:template');
-      expect(stepIds.slice(-2)).toEqual(['publish', 'register']);
+      expect(stepIds).toContain('publish');
+      expect(stepIds).toContain('register');
+      expect(stepIds.indexOf('register')).toBe(stepIds.indexOf('publish') + 1);
       expect(actionById.get('publish')).toBe('publish:github');
       expect(actionById.get('register')).toBe('catalog:register');
+
+      // A template that creates the product record must do it after the
+      // Catalog entity exists, because the entity ref is what joins the two.
+      // Collapsed into one unconditional assertion: a template without the
+      // step reports the passing shape, so the rule reads the same whether or
+      // not this template carries it.
+      const productIndex = stepIds.indexOf('product');
+      expect(
+        productIndex === -1
+          ? { action: 'nexora:product:create', afterRegister: true }
+          : {
+              action: actionById.get('product'),
+              afterRegister: productIndex > stepIds.indexOf('register'),
+            },
+      ).toEqual({ action: 'nexora:product:create', afterRegister: true });
 
       // A template that asks the author for an approved URS baseline must also
       // verify that baseline before it publishes anything. The two always ship

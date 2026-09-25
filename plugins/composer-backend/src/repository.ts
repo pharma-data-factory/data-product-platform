@@ -58,6 +58,8 @@ export class ComposerRepository implements IComposerRepository {
       slo: product.slo ? JSON.stringify(product.slo) : null,
       cost_info: product.costInfo ? JSON.stringify(product.costInfo) : null,
       declared_policies: product.declaredPolicies ? JSON.stringify(product.declaredPolicies) : null,
+      repository_url: product.repositoryUrl || null,
+      catalog_entity_ref: product.catalogEntityRef || null,
       created_by: product.createdBy,
       created_at: product.createdAt,
       revision: product.revision || 1,
@@ -67,6 +69,25 @@ export class ComposerRepository implements IComposerRepository {
 
   async getProduct(id: string): Promise<Product | null> {
     const row = await this.db('products').where({ id }).first();
+    return row ? this.rowToProduct(row) : null;
+  }
+
+  /**
+   * The product that claims a Catalog entity, if any.
+   *
+   * Case-folded, matching the unique index: an entity ref is a Catalog identity
+   * and two spellings of it are one entity, so the lookup and the constraint
+   * have to agree on that or the constraint would permit a row the lookup
+   * cannot find.
+   */
+  async getProductByCatalogEntityRef(
+    entityRef: string,
+  ): Promise<Product | null> {
+    const row = await this.db('products')
+      .whereRaw('lower(catalog_entity_ref) = ?', [
+        entityRef.trim().toLowerCase(),
+      ])
+      .first();
     return row ? this.rowToProduct(row) : null;
   }
 
@@ -102,6 +123,11 @@ export class ComposerRepository implements IComposerRepository {
       slo: product.slo ? JSON.stringify(product.slo) : null,
       cost_info: product.costInfo ? JSON.stringify(product.costInfo) : null,
       declared_policies: product.declaredPolicies ? JSON.stringify(product.declaredPolicies) : null,
+      // Mapped here as well as in `createProduct`, because the omission of
+      // exactly this — a column that exists, is requested and is never written
+      // by the update path — is what NXD-058 found twice in this method.
+      repository_url: product.repositoryUrl || null,
+      catalog_entity_ref: product.catalogEntityRef || null,
       updated_by: product.updatedBy || null,
       updated_at: product.updatedAt || new Date(),
       // Written as given, not incremented. `updateProduct` on the service has
@@ -599,6 +625,8 @@ export class ComposerRepository implements IComposerRepository {
       slo: row.slo ? JSON.parse(row.slo) : undefined,
       costInfo: row.cost_info ? JSON.parse(row.cost_info) : undefined,
       declaredPolicies: row.declared_policies ? JSON.parse(row.declared_policies) : undefined,
+      repositoryUrl: row.repository_url ?? undefined,
+      catalogEntityRef: row.catalog_entity_ref ?? undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedBy: row.updated_by,
