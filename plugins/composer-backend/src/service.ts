@@ -1507,11 +1507,32 @@ export class ComposerService {
   ): Promise<ProductBaseline> {
     const baseline = await this.repository.getProductBaseline(baselineId);
     if (!baseline) {
-      throw new Error(`Product baseline ${baselineId} not found`);
+      throw new NotFoundError(`Product baseline ${baselineId} not found`);
     }
     if (baseline.status !== 'DRAFT') {
-      throw new Error(`Cannot approve baseline in status ${baseline.status}`);
+      throw new ConflictError(
+        `Cannot approve baseline in status ${baseline.status}`,
+      );
     }
+
+    // Segregation of Duties, the same rule P5-S2 put on the APPROVED
+    // transition and the same one every URS signature enforces. It was missing
+    // here, and the gap was visible rather than theoretical: driving the
+    // journey on 2026-09-25 showed one identity creating a ProductBaseline and
+    // approving it in the next call, clearing NO_APPROVED_BASELINE on its own.
+    //
+    // A ProductBaseline is the controlled snapshot the release gate reads. An
+    // approval the author can grant themselves is a record of one person's
+    // opinion, not of a review, and it is exactly what an inspector would look
+    // for. See NXD-059, finding 2.
+    if (actor === baseline.createdBy) {
+      throw new InputError(
+        `Segregation of Duties violation: the author of a product baseline ` +
+          `cannot approve it. Actor "${actor}" created baseline ${baselineId}. ` +
+          `A different person must perform the approval.`,
+      );
+    }
+
     const approved: ProductBaseline = {
       ...baseline,
       status: 'APPROVED',

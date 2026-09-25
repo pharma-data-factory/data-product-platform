@@ -2756,11 +2756,48 @@ export class URSService {
 
     const step = instance.steps?.find(s => s.id === stepId);
     if (!step) {
-      throw new Error('Approval step not found');
+      throw new NotFoundError(`Approval step ${stepId} not found`);
     }
 
     if (step.status !== 'PENDING' && step.status !== 'ACTIVE') {
-      throw new Error(`Cannot approve step in ${step.status} status`);
+      throw new ConflictError(
+        `Cannot approve step ${step.sequence} in ${step.status} status`,
+      );
+    }
+
+    // The chain has to be a chain.
+    //
+    // Until now this method checked the step's own status and the actor's
+    // role, and never that the step was the one due. Driving the journey on
+    // 2026-09-25 showed what that permits: the QUALITY_REVIEWER step was
+    // approved while the PRODUCT_MANAGER step below it was still open, and the
+    // platform accepted it. A three-step GxP workflow whose steps can be taken
+    // in any order is a set of approvals, not an approval chain — the quality
+    // reviewer signed off on a package the product manager had not yet
+    // reviewed, which is the one thing the sequence exists to prevent.
+    // NXD-059, finding 1.
+    //
+    // Only *required* steps block. An optional step is one the workflow says
+    // may be left out, and treating it as a barrier would make it mandatory by
+    // the back door. SKIPPED and REJECTED are settled states, not open ones —
+    // a rejected instance is terminal and cannot reach here anyway.
+    const blocking = (instance.steps ?? [])
+      .filter(
+        s =>
+          s.required &&
+          s.sequence < step.sequence &&
+          s.status !== ApprovalStepStatus.APPROVED &&
+          s.status !== ApprovalStepStatus.SKIPPED,
+      )
+      .sort((a, b) => a.sequence - b.sequence);
+
+    if (blocking.length > 0) {
+      const next = blocking[0];
+      throw new ConflictError(
+        `Approval steps run in order. Step ${step.sequence} (${step.role}) ` +
+          `cannot be approved while step ${next.sequence} (${next.role}) is ` +
+          `still ${next.status}.`,
+      );
     }
 
     if (!pin?.trim()) {

@@ -961,12 +961,12 @@ followed it is recorded in [`NXD-059`](DECISIONS.md).
 
 **Open from the walk, in the order they matter** — none of these is fixed:
 
-1. **Approval order is not enforced.** A later step can be approved while an
-   earlier one is open; observed live. `approveApprovalStep` checks status and
-   role, never that the step is the current one.
-2. **A Product baseline can be approved by whoever created it** — no
-   segregation of duties, where the version transition and every URS signature
-   have it.
+1. ~~**Approval order is not enforced.**~~ **Closed 2026-09-25** — a step is
+   refused while any required step with a lower `sequence` is still open, and
+   the refusal names the blocker. Only required steps block.
+2. ~~**A Product baseline can be approved by whoever created it.**~~
+   **Closed 2026-09-25** — the rule P5-S2 put on the version transition now
+   covers the baseline too.
 3. Approval steps carry no `stepNumber` over the API, so no client can number
    the chain.
 4. Three refusals answer 500 instead of 409/400: re-approving an approved step,

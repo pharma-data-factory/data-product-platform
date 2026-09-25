@@ -215,7 +215,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { ursBaselineIds: ['urs-baseline-1'] },
         actor,
       );
-      await service.approveProductBaseline(baseline.id, actor);
+      await service.approveProductBaseline(baseline.id, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
@@ -256,7 +256,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { ursBaselineIds: ['urs-baseline-1'] },
         actor,
       );
-      await service.approveProductBaseline(baseline.id, actor);
+      await service.approveProductBaseline(baseline.id, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
@@ -283,7 +283,7 @@ describe('Phase 1: Versioning Foundation', () => {
         actor,
       );
       const baseline = await service.createProductBaseline(version.id, {}, actor);
-      await service.approveProductBaseline(baseline.id, actor);
+      await service.approveProductBaseline(baseline.id, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
@@ -312,7 +312,7 @@ describe('Phase 1: Versioning Foundation', () => {
     it('supersedes previous APPROVED baseline when creating new one', async () => {
       const { version } = await createFullSetup();
       const b1 = await service.createProductBaseline(version.id, {}, actor);
-      await service.approveProductBaseline(b1.id, actor);
+      await service.approveProductBaseline(b1.id, approver);
       const b2 = await service.createProductBaseline(version.id, {}, actor);
       const baselines = await service.listProductBaselines(version.id);
       const superseded = baselines.find(b => b.id === b1.id);
@@ -323,18 +323,19 @@ describe('Phase 1: Versioning Foundation', () => {
     it('approves a DRAFT baseline', async () => {
       const { version } = await createFullSetup();
       const baseline = await service.createProductBaseline(version.id, {}, actor);
-      const approved = await service.approveProductBaseline(baseline.id, actor);
+      const approved = await service.approveProductBaseline(baseline.id, approver);
       expect(approved.status).toBe('APPROVED');
-      expect(approved.approvedBy).toBe(actor);
+      // The approver, not the author — and they are now required to differ.
+      expect(approved.approvedBy).toBe(approver);
       expect(approved.approvedAt).toBeDefined();
     });
 
     it('rejects approval of non-DRAFT baseline', async () => {
       const { version } = await createFullSetup();
       const baseline = await service.createProductBaseline(version.id, {}, actor);
-      await service.approveProductBaseline(baseline.id, actor);
+      await service.approveProductBaseline(baseline.id, approver);
       await expect(
-        service.approveProductBaseline(baseline.id, actor),
+        service.approveProductBaseline(baseline.id, approver),
       ).rejects.toThrow('Cannot approve baseline');
     });
   });
@@ -405,7 +406,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { ursBaselineIds: ['urs-baseline-1'] },
         actor,
       );
-      await service.approveProductBaseline(baseline.id, actor);
+      await service.approveProductBaseline(baseline.id, approver);
 
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
@@ -477,7 +478,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { ursBaselineIds: ['urs-baseline-1'] },
         actor,
       );
-      await serviceWithResolver.approveProductBaseline(baseline.id, actor);
+      await serviceWithResolver.approveProductBaseline(baseline.id, approver);
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockRejectedValueOnce(
         new Error('URS baseline urs-baseline-1 is DRAFT; expected APPROVED'),
       );
@@ -499,7 +500,7 @@ describe('Phase 1: Versioning Foundation', () => {
         { ursBaselineIds: ['urs-baseline-2'] },
         actor,
       );
-      await serviceWithResolver.approveProductBaseline(baseline.id, actor);
+      await serviceWithResolver.approveProductBaseline(baseline.id, approver);
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockResolvedValueOnce({
         id: 'urs-baseline-2',
         status: 'APPROVED',
@@ -523,7 +524,7 @@ describe('Phase 1: Versioning Foundation', () => {
         actor,
       );
       const baseline = await serviceWithResolver.createProductBaseline(version.id, {}, actor);
-      await serviceWithResolver.approveProductBaseline(baseline.id, actor);
+      await serviceWithResolver.approveProductBaseline(baseline.id, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
 
@@ -585,7 +586,7 @@ describe('Phase 1: Versioning Foundation', () => {
       const baseline = await serviceWithDecisionResolver.createProductBaseline(
         version.id, { ursBaselineIds: ['urs-vd-001'] }, actor,
       );
-      await serviceWithDecisionResolver.approveProductBaseline(baseline.id, actor);
+      await serviceWithDecisionResolver.approveProductBaseline(baseline.id, approver);
       await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithDecisionResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       return { version };

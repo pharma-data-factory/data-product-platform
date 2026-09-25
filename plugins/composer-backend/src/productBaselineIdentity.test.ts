@@ -17,6 +17,7 @@
  */
 
 import knex, { Knex } from 'knex';
+import { InputError } from '@backstage/errors';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
 
@@ -48,6 +49,11 @@ describe('ProductBaseline identity', () => {
   });
 
   const actor = 'user:default/test-user';
+  // A ProductBaseline may not be approved by whoever created it — the same
+  // Segregation of Duties the version transition has carried since P5-S2.
+  // These cases are about identity, not about who signs, so they simply
+  // needed a second person.
+  const approver = 'user:default/approver-user';
   let seq = 0;
 
   async function newProductVersion() {
@@ -122,6 +128,40 @@ describe('ProductBaseline identity', () => {
     expect(baseline.baselineVersion).toBe('SOP-1234 Rev B');
   });
 
+  it('refuses an approval from the person who created the baseline', async () => {
+    // The rule the version transition has carried since P5-S2 and every URS
+    // signature enforces, missing here until now. The gap was visible rather
+    // than theoretical: driving the journey showed one identity creating a
+    // baseline and approving it in the next call, clearing
+    // NO_APPROVED_BASELINE on its own. NXD-059, finding 2.
+    const version = await newProductVersion();
+    const baseline = await service.createProductBaseline(
+      version.id,
+      { baselineVersion: '1.0' },
+      actor,
+    );
+
+    await expect(
+      service.approveProductBaseline(baseline.id, actor),
+    ).rejects.toBeInstanceOf(InputError);
+    await expect(
+      service.approveProductBaseline(baseline.id, actor),
+    ).rejects.toThrow(/Segregation of Duties/);
+
+    // Refused, not half-applied: the baseline is still a DRAFT that a second
+    // person can approve.
+    const reloaded = await service.getProductBaseline(baseline.id);
+    expect(reloaded?.status).toBe('DRAFT');
+    expect(reloaded?.approvedBy ?? undefined).toBeUndefined();
+
+    const approved = await service.approveProductBaseline(
+      baseline.id,
+      approver,
+    );
+    expect(approved.status).toBe('APPROVED');
+    expect(approved.approvedBy).toBe(approver);
+  });
+
   it('does not supersede the approved baseline when the request is rejected', async () => {
     const version = await newProductVersion();
     const first = await service.createProductBaseline(
@@ -129,7 +169,7 @@ describe('ProductBaseline identity', () => {
       { baselineVersion: '1.0' },
       actor,
     );
-    await service.approveProductBaseline(first.id, actor);
+    await service.approveProductBaseline(first.id, approver);
 
     // Creating a baseline supersedes the approved one. If the label were
     // checked after that write, a rejected request would leave this product

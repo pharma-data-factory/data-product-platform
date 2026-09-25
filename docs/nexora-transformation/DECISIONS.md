@@ -2042,6 +2042,20 @@ Each was produced by the walk, each is real, none is in Batch 1's scope:
    role, and never that it is the *current* step. A three-step GxP chain whose
    steps can be taken in any order is a set of approvals, not a chain — this is
    the most serious of the six.
+
+   **Closed 2026-09-25.** A step is refused while any *required* step with a
+   lower `sequence` is neither APPROVED nor SKIPPED, and the refusal names the
+   step that is blocking. Two choices worth recording: only required steps
+   block, because treating an optional step as a barrier would make it
+   mandatory by the back door; and the order check sits with the step-status
+   check, before the role check, which is this method's existing
+   state-then-role convention. That ordering changed an existing test — it had
+   reached for step 3 while step 1 was open as a convenient way to exercise the
+   *role* rule, so the role check never ran and the test passed for the wrong
+   reason. It now asserts the role rule on the step that is due, and a second
+   test covers the order rule directly. Note that `stepNumber` in finding 2 is
+   the same field under another name: the instance steps carry `sequence`, and
+   that is what the enforcement uses.
 2. **Approval steps carry no `stepNumber` over the API.** Every step comes back
    with `stepNumber: undefined` and the instance with
    `currentStepNumber: undefined`, so no client can number or order the chain it
@@ -2055,6 +2069,14 @@ Each was produced by the walk, each is real, none is in Batch 1's scope:
 5. **A Product baseline can be approved by whoever created it.** `P5-S2` put
    segregation of duties on the version's APPROVED transition and the URS side
    enforces it on every signature; `approveProductBaseline` has none.
+
+   **Closed 2026-09-25.** `actor === baseline.createdBy` is refused with the
+   wording P5-S2 already uses, and the two `Error`s in the same method became
+   `NotFoundError` and `ConflictError`. Fifteen call sites across two suites
+   had been creating and approving as one actor — convenience, not intent, in
+   tests about labels and superseding — and now pass an approver. One of them
+   asserted `approvedBy === actor`, which was the defect stated as an
+   expectation.
 6. **An unknown requirement-set id answers 200.** `GET
    …/current-versions` returns an empty list and `POST …/versions/transition`
    returns "advanced 0" for a set that does not exist, while the requirements

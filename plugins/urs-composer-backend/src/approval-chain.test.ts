@@ -290,9 +290,46 @@ describe('Approval steps', () => {
     expect(storedBaseline?.status).toBe(URSStatus.DRAFT);
   });
 
-  test('a reviewer cannot approve the quality step', async () => {
+  test('a quality reviewer cannot approve the business step', async () => {
+    // Asserted on the step that is *due*, so the role rule is what answers.
+    //
+    // This case used to reach for step 3 while step 1 was still open, which
+    // the order rule below now refuses first — the role check never ran, and
+    // the test passed for the wrong reason. Isolating the two keeps both
+    // guarantees pinned instead of one masking the other.
     const { service } = await setup(GxPRelevance.DIRECT, [
-      'group:default/urs-business-reviewers',
+      'group:default/urs-quality-reviewers',
+    ]);
+
+    const instance = await service.submitBaseline(
+      'baseline-001',
+      'user:default/author',
+    );
+    const businessStep = instance.steps.find(s => s.sequence === 1)!;
+
+    await expect(
+      service.approveApprovalStep(
+        instance.id,
+        businessStep.id,
+        'user:default/qa',
+        undefined,
+        {} as any,
+        TEST_PIN,
+      ),
+    ).rejects.toThrow(/requires role 'BUSINESS_REVIEWER'/);
+  });
+
+  test('a later step cannot be approved while an earlier one is open', async () => {
+    // The chain has to be a chain. Driving the journey on a running stack
+    // showed the QUALITY_REVIEWER step being approved while the
+    // PRODUCT_MANAGER step below it was still PENDING, and the platform
+    // accepting it — the quality reviewer signing off on a package the product
+    // manager had not reviewed. NXD-059, finding 1.
+    //
+    // The actor here holds the role the step requires, so nothing but the
+    // order stands between them and the approval.
+    const { service } = await setup(GxPRelevance.DIRECT, [
+      'group:default/urs-quality-reviewers',
     ]);
 
     const instance = await service.submitBaseline(
@@ -305,12 +342,14 @@ describe('Approval steps', () => {
       service.approveApprovalStep(
         instance.id,
         qualityStep.id,
-        'user:default/reviewer',
+        'user:default/qa',
         undefined,
         {} as any,
         TEST_PIN,
       ),
-    ).rejects.toThrow(/requires role 'QUALITY_REVIEWER'/);
+    ).rejects.toThrow(
+      /Step 3 \(QUALITY_REVIEWER\) cannot be approved while step 1 \(BUSINESS_REVIEWER\) is still PENDING/,
+    );
   });
 });
 
