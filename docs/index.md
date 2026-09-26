@@ -43,4 +43,4 @@ These pages are published with Backstage TechDocs. There is no second wiki.
 - [Demo guide](demo-guide.md)
 - [Pilot readiness](pilot-readiness.md)
 - [Pilot hardening gate](pilot-hardening-gate.md)
-- [Capability matrix](capability-matrix.md)
+- [Capability matrix](capability-matrix.md) — **DEPRECATED**, see [subsystem status](subsystem-status.md)

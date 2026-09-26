@@ -12,7 +12,7 @@ nav:
       - Status model: status-model.md
       - Developer journey evidence: developer/mvp-journey-evidence.md
       - Pilot runbook: operations/pilot-runbook.md
-      - Capability matrix: capability-matrix.md
+      - "Capability matrix (DEPRECATED)": capability-matrix.md
       - Catalog hygiene: catalog.md
   - Developer Hub:
       - Home: developer/index.md

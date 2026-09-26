@@ -20,16 +20,16 @@ The Control Plane is built on [Backstage](https://backstage.io) **1.53.0**
 (Apache-2.0). Backstage is the framework, not the product. Generated Data
 Products run independently of the Control Plane.
 
-| | |
-| --- | --- |
-| Product name | Nexora |
-| Wordmark | NEXORA |
-| Product line | Nexora |
-| Brand mark | Hexagonal N mark (`docs/brand/nexora-lockup.svg`, `packages/app/public/favicon.svg`) |
-| Baseline | MVP 1.0 |
-| Technical status | TECHNICAL_MVP_COMPLETE |
-| Commercial distribution | BLOCKED pending counsel-approved LICENSE / NOTICE |
-| GxP / CSV | Not validated. CERTIFIED is technical conformance only. |
+|                         |                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| Product name            | Nexora                                                                               |
+| Wordmark                | NEXORA                                                                               |
+| Product line            | Nexora                                                                               |
+| Brand mark              | Hexagonal N mark (`docs/brand/nexora-lockup.svg`, `packages/app/public/favicon.svg`) |
+| Baseline                | MVP 1.0                                                                              |
+| Technical status        | TECHNICAL_MVP_COMPLETE                                                               |
+| Commercial distribution | BLOCKED pending counsel-approved LICENSE / NOTICE                                    |
+| GxP / CSV               | Not validated. CERTIFIED is technical conformance only.                              |
 
 This repository is standalone. It does not reuse or connect to unrelated
 corporate platforms.
@@ -41,12 +41,12 @@ corporate platforms.
 Nexora keeps core systems standard, composes certified capabilities, and
 delivers independently versioned Data Products.
 
-| Capability | What you get |
-| --- | --- |
-| **Discover** | Catalog, Marketplace, TechDocs, ownership, APIs, dependencies |
-| **Create** | Golden Path templates, GitHub repository, source, Docker, tests, CI |
-| **Deliver** | GitHub Actions quality gate, contracts, compatibility, versioning |
-| **Operate** | Lifecycle metadata, documentation, RBAC, certification status |
+| Capability   | What you get                                                        |
+| ------------ | ------------------------------------------------------------------- |
+| **Discover** | Catalog, Marketplace, TechDocs, ownership, APIs, dependencies       |
+| **Create**   | Golden Path templates, GitHub repository, source, Docker, tests, CI |
+| **Deliver**  | GitHub Actions quality gate, contracts, compatibility, versioning   |
+| **Operate**  | Lifecycle metadata, documentation, RBAC, certification status       |
 
 Official Golden Path:
 
@@ -95,7 +95,7 @@ upgrades tractable.
 `packages/platform-common` is the lowest Nexora layer: the Data Product
 model, roles and permissions, URS types, release and compatibility rules. It
 is framework-agnostic and must not depend on UI packages — the dependency
-runs the other way. Domain code therefore names a *meaning* (a status tone,
+runs the other way. Domain code therefore names a _meaning_ (a status tone,
 a role) and the presentation layer decides how it looks.
 
 ### Catalog-native by design
@@ -127,11 +127,11 @@ Details: [docs/architecture.md](docs/architecture.md),
 
 ## Official Golden Paths
 
-| Golden Path | Catalog name | Technical status | Commercial availability |
-| --- | --- | --- | --- |
+| Golden Path                   | Catalog name                    | Technical status     | Commercial availability  |
+| ----------------------------- | ------------------------------- | -------------------- | ------------------------ |
 | MQTT Temperature Data Product | `mqtt-temperature-data-product` | CERTIFIED / RELEASED | Pilot (legal gates OPEN) |
-| REST Equipment Data Product | `rest-equipment-data-product` | CERTIFIED / RELEASED | Pilot (legal gates OPEN) |
-| OEE Data Product | `oee-data-product` | CERTIFIED / RELEASED | FUTURE |
+| REST Equipment Data Product   | `rest-equipment-data-product`   | CERTIFIED / RELEASED | Pilot (legal gates OPEN) |
+| OEE Data Product              | `oee-data-product`              | CERTIFIED / RELEASED | FUTURE                   |
 
 CERTIFIED means the template conforms to Data Product Standard 1.0.x. It
 is not GxP validation and not a sales SKU.
@@ -149,12 +149,12 @@ environment after publish.
 
 ### Shared (all official Data Product templates)
 
-| Parameter | Required | Meaning |
-| --- | --- | --- |
-| **Data Product Name** | Yes | Lowercase letters, digits, and dashes (`^[a-z0-9]+(-[a-z0-9]+)*$`). Becomes the GitHub repository name. |
-| **Description** | Yes | Short product description. |
-| **Owner** | Yes | Catalog User or Group. Not the GitHub organization. |
-| **GitHub Repository** | Yes | Created in `pharma-data-factory` by the platform GitHub App. Enter the repository name only. |
+| Parameter             | Required | Meaning                                                                                                 |
+| --------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| **Data Product Name** | Yes      | Lowercase letters, digits, and dashes (`^[a-z0-9]+(-[a-z0-9]+)*$`). Becomes the GitHub repository name. |
+| **Description**       | Yes      | Short product description.                                                                              |
+| **Owner**             | Yes      | Catalog User or Group. Not the GitHub organization.                                                     |
+| **GitHub Repository** | Yes      | Created in `pharma-data-factory` by the platform GitHub App. Enter the repository name only.            |
 
 Fixed by the template (not asked on Create): GitHub host `github.com`,
 organization `pharma-data-factory`, private repository, default branch
@@ -162,16 +162,16 @@ organization `pharma-data-factory`, private repository, default branch
 
 ### MQTT Temperature
 
-| Parameter | Default | Meaning |
-| --- | --- | --- |
+| Parameter      | Default                | Meaning                                             |
+| -------------- | ---------------------- | --------------------------------------------------- |
 | **MQTT Topic** | `pharma/temperature/+` | Subscription topic. `+` is a single-level wildcard. |
 
 Domain is manufacturing.
 
 ### REST Equipment
 
-| Parameter | Default | Meaning |
-| --- | --- | --- |
+| Parameter  | Default         | Meaning                               |
+| ---------- | --------------- | ------------------------------------- |
 | **Domain** | `manufacturing` | Business domain for catalog metadata. |
 
 The REST source URL is a runtime environment variable on the generated
@@ -179,13 +179,13 @@ service, not a Create field.
 
 ### OEE Data Product
 
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| **Domain** | `manufacturing` | Business domain. |
-| **Equipment Identifier** | `filler-01` | Canonical `equipmentId` on every OEE input and result. |
-| **Default Time Window** | `hour` | `hour`, `day`, `shift`, `order`, or `custom`. `CURRENT_SHIFT` requires from/to at query time. |
-| **MQTT Topic Pattern** | `pharma/oee/+/+` | Machine, count, and quality events. |
-| **Production Context URL Reference** | `SOURCE_API_URL` | **Name** of the env var that will hold the MES REST URL. Do not paste the URL or a secret. |
+| Parameter                            | Default          | Meaning                                                                                       |
+| ------------------------------------ | ---------------- | --------------------------------------------------------------------------------------------- |
+| **Domain**                           | `manufacturing`  | Business domain.                                                                              |
+| **Equipment Identifier**             | `filler-01`      | Canonical `equipmentId` on every OEE input and result.                                        |
+| **Default Time Window**              | `hour`           | `hour`, `day`, `shift`, `order`, or `custom`. `CURRENT_SHIFT` requires from/to at query time. |
+| **MQTT Topic Pattern**               | `pharma/oee/+/+` | Machine, count, and quality events.                                                           |
+| **Production Context URL Reference** | `SOURCE_API_URL` | **Name** of the env var that will hold the MES REST URL. Do not paste the URL or a secret.    |
 
 OEE architecture is fixed: counter convention CUMULATIVE; Wave 1 MQTT
 Consumer and REST Source; OEE contract 1.0.0.
@@ -204,15 +204,15 @@ Full template notes: [docs/templates.md](docs/templates.md).
 Write `.env` by hand — see [Environment file](#environment-file) for why
 copying the example breaks startup. Never commit `.env`.
 
-| Variable group | Purpose |
-| --- | --- |
-| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` / `AUTH_GITHUB_CALLBACK_URL` | GitHub **OAuth App** for human login (`Ov23…`). Callback: `{backend}/api/auth/github/handler/frame`. |
-| `GITHUB_APP_ID` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_PRIVATE_KEY` / `GITHUB_WEBHOOK_SECRET` | GitHub **App** for publishing generated repositories (`Iv23…`). Do not mix with OAuth login. |
-| `GITHUB_ORG` | Target organization (default `pharma-data-factory`). |
-| `APP_BASE_URL` / `BACKEND_BASE_URL` / `BACKEND_SECRET` | Hosted Control Plane URLs and backend cookie secret. Leave empty for local `yarn start`. |
-| `POSTGRES_*` | Docker Compose / hosted PostgreSQL. Local Compose uses documented local-only defaults. |
-| `AWS_MARKETPLACE_*` | Optional procurement integration. Empty for local development. Not a public listing. |
-| `LEGAL_DISTRIBUTION_STATUS` | Operational flag. Default **BLOCKED** until counsel approves LICENSE / NOTICE. |
+| Variable group                                                                                                 | Purpose                                                                                              |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` / `AUTH_GITHUB_CALLBACK_URL`                             | GitHub **OAuth App** for human login (`Ov23…`). Callback: `{backend}/api/auth/github/handler/frame`. |
+| `GITHUB_APP_ID` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_PRIVATE_KEY` / `GITHUB_WEBHOOK_SECRET` | GitHub **App** for publishing generated repositories (`Iv23…`). Do not mix with OAuth login.         |
+| `GITHUB_ORG`                                                                                                   | Target organization (default `pharma-data-factory`).                                                 |
+| `APP_BASE_URL` / `BACKEND_BASE_URL` / `BACKEND_SECRET`                                                         | Hosted Control Plane URLs and backend cookie secret. Leave empty for local `yarn start`.             |
+| `POSTGRES_*`                                                                                                   | Docker Compose / hosted PostgreSQL. Local Compose uses documented local-only defaults.               |
+| `AWS_MARKETPLACE_*`                                                                                            | Optional procurement integration. Empty for local development. Not a public listing.                 |
+| `LEGAL_DISTRIBUTION_STATUS`                                                                                    | Operational flag. Default **BLOCKED** until counsel approves LICENSE / NOTICE.                       |
 
 OAuth App client IDs start with `Ov23`. GitHub App client IDs start with
 `Iv23`. Mixing them breaks login or publish.
@@ -242,13 +242,13 @@ are prepared but **not yet counsel-approved**:
 Counsel review is required before commercial distribution, Template
 Edition packaging, or publishing final legal pages.
 
-| Layer | Status |
-| --- | --- |
-| Nexora original code | Proprietary. `license: UNLICENSED`. Distribution blocked until counsel approves outbound terms. Nexora and Nexora are product names, not an open-source grant. |
-| Backstage 1.53.0 | [Apache License 2.0](https://github.com/backstage/backstage/blob/master/LICENSE). Apache-2.0 does not grant trademark rights in Backstage®. |
-| Upstream NOTICE | [The Backstage Authors](https://github.com/backstage/backstage/blob/master/NOTICE) plus third-party portions. |
-| Generated Data Products | Independent FastAPI services. Outbound LICENSE / NOTICE / third-party notices are counsel-gated placeholders, not invented here. |
-| Public legal pages | `/legal`, `/privacy`, `/terms`, `/open-source` are review placeholders, not binding terms. |
+| Layer                   | Status                                                                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nexora original code    | Proprietary. `license: UNLICENSED`. Distribution blocked until counsel approves outbound terms. Nexora and Nexora are product names, not an open-source grant. |
+| Backstage 1.53.0        | [Apache License 2.0](https://github.com/backstage/backstage/blob/master/LICENSE). Apache-2.0 does not grant trademark rights in Backstage®.                    |
+| Upstream NOTICE         | [The Backstage Authors](https://github.com/backstage/backstage/blob/master/NOTICE) plus third-party portions.                                                  |
+| Generated Data Products | Independent FastAPI services. Outbound LICENSE / NOTICE / third-party notices are counsel-gated placeholders, not invented here.                               |
+| Public legal pages      | `/legal`, `/privacy`, `/terms`, `/open-source` are review placeholders, not binding terms.                                                                     |
 
 Final OSS attribution and distribution approval require the Phase 0
 counsel gates to be APPROVED. Until then, do not treat this README as a
@@ -302,10 +302,10 @@ GitHub login is the default and requires an OAuth App — see
 
 Guest sign-in is opt-in and local-only:
 
-| Variable | Effect |
-| --- | --- |
-| `AUTH_GUEST_ENABLED=true` | Shows **Continue as Guest** |
-| `AUTH_GUEST_ROLE=viewer` | Read-only (default) |
+| Variable                    | Effect                                                      |
+| --------------------------- | ----------------------------------------------------------- |
+| `AUTH_GUEST_ENABLED=true`   | Shows **Continue as Guest**                                 |
+| `AUTH_GUEST_ROLE=viewer`    | Read-only (default)                                         |
 | `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding, create, and URS authoring |
 
 Guest resolves to **VIEWER**: catalog, marketplace and data-product read
@@ -323,17 +323,17 @@ resulting signatures as worthless evidence, because they are.
 
 Two distinct GitHub applications serve two different purposes.
 
-| | Purpose | Client ID | Variables |
-| --- | --- | --- | --- |
-| OAuth App | Portal login | `Ov23…` | `AUTH_GITHUB_*` |
-| GitHub App | Publishing generated repositories | `Iv23…` | `GITHUB_APP_*`, `GITHUB_CLIENT_*`, `GITHUB_PRIVATE_KEY` |
+|            | Purpose                           | Client ID | Variables                                               |
+| ---------- | --------------------------------- | --------- | ------------------------------------------------------- |
+| OAuth App  | Portal login                      | `Ov23…`   | `AUTH_GITHUB_*`                                         |
+| GitHub App | Publishing generated repositories | `Iv23…`   | `GITHUB_APP_*`, `GITHUB_CLIENT_*`, `GITHUB_PRIVATE_KEY` |
 
 **OAuth App.** GitHub → Settings → Developer settings → OAuth Apps → New
 OAuth App.
 
-| Field | Value |
-| --- | --- |
-| Homepage URL | Base URL, e.g. `http://localhost:3000` |
+| Field                      | Value                                               |
+| -------------------------- | --------------------------------------------------- |
+| Homepage URL               | Base URL, e.g. `http://localhost:3000`              |
 | Authorization callback URL | Backend base URL + `/api/auth/github/handler/frame` |
 
 The callback must match exactly, including the path, or GitHub returns
@@ -379,14 +379,13 @@ rebuild. `.gitpod/automations.yaml` defines both; apply it once with
 
 Pushing requires a token with **Contents: Read and write** for this
 repository. A fine-grained token must also list the repository under
-*Repository access*; "Public repositories (read-only)" cannot push even when
+_Repository access_; "Public repositories (read-only)" cannot push even when
 the account is a repository admin, and the resulting 403 resembles an
 organization permission problem.
 
 ```bash
 gh api repos/<owner>/<repo> --jq .permissions
 ```
-
 
 ### Docker
 
@@ -436,15 +435,15 @@ against an external database.
 
 ### Configuration files
 
-| File | Purpose |
-| --- | --- |
-| `app-config.yaml` | Default local configuration |
-| `app-config.local.yaml` | Safe local overrides, no secrets |
-| `app-config.guest.yaml` | Opt-in Guest sign-in, loaded when `AUTH_GUEST_ENABLED=true` |
-| `app-config.guest-developer.yaml` | Raises the local Guest to DEVELOPER |
-| `app-config.github.yaml` | Opt-in GitHub App for repository publishing |
-| `app-config.docker.yaml` | Compose / container paths and PostgreSQL |
-| `app-config.production.yaml` | Production-like PostgreSQL, GitHub login, no Guest |
+| File                              | Purpose                                                     |
+| --------------------------------- | ----------------------------------------------------------- |
+| `app-config.yaml`                 | Default local configuration                                 |
+| `app-config.local.yaml`           | Safe local overrides, no secrets                            |
+| `app-config.guest.yaml`           | Opt-in Guest sign-in, loaded when `AUTH_GUEST_ENABLED=true` |
+| `app-config.guest-developer.yaml` | Raises the local Guest to DEVELOPER                         |
+| `app-config.github.yaml`          | Opt-in GitHub App for repository publishing                 |
+| `app-config.docker.yaml`          | Compose / container paths and PostgreSQL                    |
+| `app-config.production.yaml`      | Production-like PostgreSQL, GitHub login, no Guest          |
 
 Without GitHub App credentials the portal still runs. **Create** fails at
 publish until the App is installed on the organization.
@@ -501,7 +500,7 @@ Authenticated starting point: **Developer Hub** (`/developer`).
 - [Architecture](docs/architecture.md)
 - [Engineering contract](docs/engineering-contract.md)
 - [Demo guide](docs/demo-guide.md)
-- [Capability matrix](docs/capability-matrix.md)
+- [Capability matrix](docs/capability-matrix.md) — **DEPRECATED**, see [subsystem status](docs/subsystem-status.md)
 
 ---
 

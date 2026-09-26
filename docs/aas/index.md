@@ -2,7 +2,7 @@
 
 > Standardized digital representation of manufacturing assets.  
 > **Status:** CERTIFIED (Wave 2 Technical Baseline)  
-> **Standards:** IEC 63278-1:2024 / IDTA-01001 v3.0  
+> **Standards:** IEC 63278-1:2024 / IDTA-01001 v3.0
 
 ---
 
@@ -49,18 +49,18 @@ The **Asset Administration Shell** is a standardized, vendor-neutral digital twi
 ### Golden Path Template
 
 - [Golden Path Quickstart](../aas-golden-path-implementation.md) — Template-specific guide
-- [Template Marketplace](../capability-matrix.md#aas-asset-administration-shell) — Create data products from template
+- [Subsystem status](../subsystem-status.md) — current AAS implementation status
 
 ---
 
 ## Compliance & Standards
 
-| Standard | Version | Compliance |
-|----------|---------|------------|
-| **IEC 63278-1** | 2024 | ✅ Fully compliant |
-| **IDTA-01001** (Metamodel) | 3.0 | ✅ Full support |
-| **IDTA-01002** (REST API) | 3.0 | ✅ Full support |
-| **IDTA-01005** (AASX Format) | 3.0 | 🔜 Phase 2 roadmap |
+| Standard                     | Version | Compliance         |
+| ---------------------------- | ------- | ------------------ |
+| **IEC 63278-1**              | 2024    | ✅ Fully compliant |
+| **IDTA-01001** (Metamodel)   | 3.0     | ✅ Full support    |
+| **IDTA-01002** (REST API)    | 3.0     | ✅ Full support    |
+| **IDTA-01005** (AASX Format) | 3.0     | 🔜 Phase 2 roadmap |
 
 ---
 
@@ -119,6 +119,7 @@ curl "http://localhost:8080/api/v1/quality"
 AAS is a foundational Platform Component that downstream data products can depend on:
 
 ### MQTT Temperature Data Product
+
 ```yaml
 dependsOn:
   - component:default/aas-foundation
@@ -126,6 +127,7 @@ dependsOn:
 ```
 
 ### REST Equipment Data Product
+
 ```yaml
 dependsOn:
   - component:default/aas-foundation
@@ -133,6 +135,7 @@ dependsOn:
 ```
 
 ### OEE Data Product
+
 ```yaml
 dependsOn:
   - component:default/aas-foundation
@@ -156,6 +159,7 @@ Use the **Marketplace** to create a new asset registry:
 4. **Create** — Repository generated with full CI/CD
 
 Result:
+
 - GitHub repository in `pharma-data-factory` org
 - Automatic catalog registration
 - CI/CD pipeline configured
@@ -166,6 +170,7 @@ Result:
 ## Roadmap
 
 ### Wave 2 (NOW) ✅
+
 - AAS Golden Path Template (CERTIFIED)
 - IDTA-01001 v3.0 compliance
 - Multi-source ingestion
@@ -173,6 +178,7 @@ Result:
 - REST API
 
 ### Phase 2 (PLANNED) 🔜
+
 - AASX Package File Format (.aasx)
 - Advanced submodel types
 - Asset versioning
@@ -180,6 +186,7 @@ Result:
 - Knowledge graph integration
 
 ### Phase 3+ (FUTURE) 🔮
+
 - GxP validation
 - Multi-site federation
 - Real-time synchronization
@@ -191,16 +198,19 @@ Result:
 ## Support & References
 
 **Official Standards:**
+
 - [IEC 63278-1:2024](https://webstore.iec.ch/en/publication/65628) — Asset Administration Shell Structure
 - [IDTA Specifications](https://industrialdigitaltwin.io/aas-specifications/) — Complete AAS documentation
 - [Eclipse BaSyx](https://basyx.org/) — Open-source AAS runtime
 
 **Platform Documentation:**
+
 - [PRODUCT.md](../../PRODUCT.md) — Product overview
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) — System architecture
 - [ROADMAP.md](../../ROADMAP.md) — Release roadmap
 
 **Questions?**
+
 - Platform Team: platform@pharma-data-factory.local
 - Issues: https://github.com/pharma-data-factory/
 - Documentation: https://docs.pharma-data-factory.local

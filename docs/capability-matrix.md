@@ -1,42 +1,80 @@
 # Product capability matrix
 
+> # ⚠️ DEPRECATED — 2026-09-26. DO NOT USE AS A STATUS SOURCE.
+>
+> **This file is not authoritative and its contents are known to be wrong.**
+> It is retained only as a record of what was believed on 2026-08-21.
+>
+> It contradicts the canonical sources on at least two rows, verified against
+> the code on 2026-09-26:
+>
+> | This file says                                          | The canonical source says                                                                                                                                            |
+> | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | AAS Asset Administration Shell — `CERTIFIED / RELEASED` | `subsystem-status.md`: **DEVELOPMENT (in-memory prototype)**. `plugins/aas-backend` stores assets in a `Map`; `templates/aas-asset` publishes and registers nothing. |
+> | AAS Foundation — `CERTIFIED (Wave 2)`                   | `platform-components/asset-semantic/aas-foundation/catalog-info.yaml`: `dataprod.platform/certification-status: DEVELOPMENT`                                         |
+>
+> ## Where status actually lives
+>
+> The **product catalog is the single source of truth**. Per
+> [source of truth](engineering/source-of-truth.md), the canonical technical
+> status of any asset is the Catalog annotation
+> `dataprod.platform/certification-status` on its entity — not a table in a
+> document. Read it there, and nowhere else.
+>
+> For the questions this file used to answer:
+>
+> | Question                                | Authoritative source                                                                  |
+> | --------------------------------------- | ------------------------------------------------------------------------------------- |
+> | Is this asset certified?                | the Catalog entity annotation (see [source of truth](engineering/source-of-truth.md)) |
+> | Is this Control Plane subsystem usable? | [subsystem status](subsystem-status.md)                                               |
+> | Is this Golden Path version released?   | Golden Path release metadata; [roadmap](../ROADMAP.md)                                |
+> | What is actually implemented?           | [target conformance audit](audits/TARGET_CONFORMANCE_AUDIT.md)                        |
+> | What do the status words mean?          | [status model](status-model.md)                                                       |
+>
+> Adding a third certification store is explicitly forbidden by
+> [source of truth](engineering/source-of-truth.md). This file was the second.
+
 Owner: Platform Team  
 Last reviewed: 2026-08-21  
 Audience: INTERNAL ENGINEERING / PLATFORM USER  
 Version: MVP 1.0
+Status: **DEPRECATED — historical record only**
 
-Authoritative mapping of what the running product is. Marketplace, Developer
-Hub, Catalog, and this matrix must use the same terms.
+Historical note, preserved as written on 2026-08-21: _"Authoritative mapping
+of what the running product is. Marketplace, Developer Hub, Catalog, and this
+matrix must use the same terms."_ That claim is withdrawn; see the banner
+above.
 
 Do not collapse implementation, release, commercial, and validation
 status. See [Status model](status-model.md) and
 [MVP 1.0 baseline](mvp-1.0-baseline.md).
 
 **Official Data Product Golden Paths:**
+
 - Wave 1 (MVP 1.0): MQTT Temperature, REST Equipment, OEE Data Product
 - Wave 2 (Extended): AAS Asset Administration Shell
 
 CERTIFIED means technical conformance to the Nexora standard.
 It is not GxP, commercial approval, or an AWS Marketplace listing.
 
-| Capability | Class | Implementation / release | Commercial | Notes |
-| --- | --- | --- | --- | --- |
-| MQTT Temperature | Official Data Product Golden Path | CERTIFIED / RELEASED | AVAILABLE (internal) | Wave 1: MQTT ingest, temperature-event contract, quality gate, CI, Docker, Catalog, TechDocs |
-| REST Equipment | Official Data Product Golden Path | CERTIFIED / RELEASED | AVAILABLE (internal; AWS test SKU only) | Wave 1: REST source, equipment-event contract, quality gate, CI, Docker, Catalog, TechDocs |
-| OEE Data Product | Official Data Product Golden Path | CERTIFIED / RELEASED | **FUTURE** | Wave 1: Composition of REST Source, MQTT Consumer, Time-Series Storage, REST API, Health, Observability |
-| AAS Asset Administration Shell | Official Data Product Golden Path | CERTIFIED / RELEASED | AVAILABLE (internal) | Wave 2: IEC 63278 / IDTA-01001 v3.0, asset registry, MQTT/REST ingest, quality gate, CI, Docker, Catalog, TechDocs |
-| Python Microservice | General service template | TESTED | n/a | Not a Data Product Golden Path |
-| Node.js Microservice | General service template | TESTED | n/a | Not a Data Product Golden Path |
-| MQTT Connector | Connector template | DEVELOPMENT | n/a | Not an official Golden Path |
-| Machine State Consumer | Composition / reference proof | TESTED | n/a | Not an official RELEASED Golden Path |
-| Unified Namespace | Platform Component | DEVELOPMENT | n/a | Canonical runtime: `uns/` |
-| Wave 1 Platform Components | Certified reusable libraries | CERTIFIED 1.0.0 | n/a | Health, Observability, REST API, REST Source, MQTT Consumer, Time-Series |
-| Machine Metrics | Composition proof | TESTED | n/a | Proves Wave 1 composition |
-| AAS Foundation | Platform Component | CERTIFIED (Wave 2) | n/a | Reusable asset management layer supporting Data Product integration |
-| Kafka / RAG / Knowledge Graph | Placeholders | PLANNED / FUTURE | n/a | Not implemented |
-| Template Edition | Commercial edition | n/a | AVAILABLE FOR PILOT | Not commercially distributable while legal gates are OPEN |
-| Platform Edition | Commercial edition | n/a | PLANNED | |
-| SaaS Edition | Commercial edition | n/a | FUTURE | |
+| Capability                     | Class                             | Implementation / release | Commercial                              | Notes                                                                                                              |
+| ------------------------------ | --------------------------------- | ------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| MQTT Temperature               | Official Data Product Golden Path | CERTIFIED / RELEASED     | AVAILABLE (internal)                    | Wave 1: MQTT ingest, temperature-event contract, quality gate, CI, Docker, Catalog, TechDocs                       |
+| REST Equipment                 | Official Data Product Golden Path | CERTIFIED / RELEASED     | AVAILABLE (internal; AWS test SKU only) | Wave 1: REST source, equipment-event contract, quality gate, CI, Docker, Catalog, TechDocs                         |
+| OEE Data Product               | Official Data Product Golden Path | CERTIFIED / RELEASED     | **FUTURE**                              | Wave 1: Composition of REST Source, MQTT Consumer, Time-Series Storage, REST API, Health, Observability            |
+| AAS Asset Administration Shell | Official Data Product Golden Path | CERTIFIED / RELEASED     | AVAILABLE (internal)                    | Wave 2: IEC 63278 / IDTA-01001 v3.0, asset registry, MQTT/REST ingest, quality gate, CI, Docker, Catalog, TechDocs |
+| Python Microservice            | General service template          | TESTED                   | n/a                                     | Not a Data Product Golden Path                                                                                     |
+| Node.js Microservice           | General service template          | TESTED                   | n/a                                     | Not a Data Product Golden Path                                                                                     |
+| MQTT Connector                 | Connector template                | DEVELOPMENT              | n/a                                     | Not an official Golden Path                                                                                        |
+| Machine State Consumer         | Composition / reference proof     | TESTED                   | n/a                                     | Not an official RELEASED Golden Path                                                                               |
+| Unified Namespace              | Platform Component                | DEVELOPMENT              | n/a                                     | Canonical runtime: `uns/`                                                                                          |
+| Wave 1 Platform Components     | Certified reusable libraries      | CERTIFIED 1.0.0          | n/a                                     | Health, Observability, REST API, REST Source, MQTT Consumer, Time-Series                                           |
+| Machine Metrics                | Composition proof                 | TESTED                   | n/a                                     | Proves Wave 1 composition                                                                                          |
+| AAS Foundation                 | Platform Component                | CERTIFIED (Wave 2)       | n/a                                     | Reusable asset management layer supporting Data Product integration                                                |
+| Kafka / RAG / Knowledge Graph  | Placeholders                      | PLANNED / FUTURE         | n/a                                     | Not implemented                                                                                                    |
+| Template Edition               | Commercial edition                | n/a                      | AVAILABLE FOR PILOT                     | Not commercially distributable while legal gates are OPEN                                                          |
+| Platform Edition               | Commercial edition                | n/a                      | PLANNED                                 |                                                                                                                    |
+| SaaS Edition                   | Commercial edition                | n/a                      | FUTURE                                  |                                                                                                                    |
 
 OEE FUTURE commercial status does **not** mean OEE is unimplemented.
 OEE CERTIFIED does **not** mean customers can buy it.
@@ -47,13 +85,13 @@ AAS is both a Platform Component (reusable foundation) and a Golden Path (standa
 
 ## Source of truth
 
-| Concern | Source |
-| --- | --- |
-| Technical entity state | Catalog |
-| Golden Path release / certification of official paths | `catalog/releases` / `golden-path-releases.json` |
-| Marketplace presentation | Curated static list, enriched from Catalog and release metadata |
-| Commercial SKU mapping | `config/commercial-products.yaml` |
-| Instance certification write | Catalog annotation, with MVP file overlay documented in [source of truth](engineering/source-of-truth.md) |
+| Concern                                               | Source                                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Technical entity state                                | Catalog                                                                                                   |
+| Golden Path release / certification of official paths | `catalog/releases` / `golden-path-releases.json`                                                          |
+| Marketplace presentation                              | Curated static list, enriched from Catalog and release metadata                                           |
+| Commercial SKU mapping                                | `config/commercial-products.yaml`                                                                         |
+| Instance certification write                          | Catalog annotation, with MVP file overlay documented in [source of truth](engineering/source-of-truth.md) |
 
 ## Composition honesty
 
