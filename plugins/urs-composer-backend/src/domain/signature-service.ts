@@ -25,6 +25,7 @@ import {
 } from '@backstage/errors';
 import { computeContentHash } from '@internal/platform-common';
 import {
+  AuditContext,
   ApprovalRole,
   Baseline,
   ChangeRequest,
@@ -214,8 +215,9 @@ export class SignatureService {
     const permitted = PERMITTED_STATUSES[request.meaning];
     if (!permitted.includes(version.status)) {
       throw new ConflictError(
-        `A ${request.meaning} signature requires status ${permitted.join(' or ')}; ` +
-          `${request.targetId} is ${version.status}.`,
+        `A ${request.meaning} signature requires status ${permitted.join(
+          ' or ',
+        )}; ` + `${request.targetId} is ${version.status}.`,
       );
     }
 
@@ -287,9 +289,18 @@ export class SignatureService {
    * sets in motion; see URSService for the release that an APPROVED_QA
    * signature triggers.
    */
+  /**
+   * @param audit - the operation the signature belongs to. Required in
+   *   practice: the audit event written below must carry the correlation id
+   *   of the approval or change-request operation that produced the
+   *   signature, or it lands in the trail unattached to the act it records.
+   *   Optional in the signature only so a caller outside an operation — a
+   *   standalone signature, which does not exist today — stays expressible.
+   */
   async sign(
     request: SignRequest,
     repository: IURSRepository = this.repository,
+    audit?: AuditContext,
   ): Promise<Signature> {
     const { contentHash } = await this.validate(request, repository);
 
@@ -327,6 +338,7 @@ export class SignatureService {
       actor: request.signedBy,
       timestamp: signature.signedAt,
       reason: request.comment,
+      correlationId: audit?.correlationId ?? randomUUID(),
     });
 
     return signature;

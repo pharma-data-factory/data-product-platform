@@ -11,7 +11,6 @@
  * - Relationships
  */
 
-
 import type { RequirementClassification } from '@internal/platform-common';
 
 /**
@@ -237,9 +236,48 @@ export interface AuditEvent {
   newValue?: unknown;
   actor: string; // Authenticated user
   timestamp: Date;
-  correlationId?: string;
+  /**
+   * The operation this event belongs to. **Required, and that is the point.**
+   *
+   * The column, the type field and both repository mappers have existed
+   * since the audit table was created, and not one of the 34 write sites
+   * ever set it — so every row in `audit_events` carried NULL. A baseline
+   * approbation writes events for the step, the instance, the baseline and
+   * each requirement version it releases, and nothing joined them. The
+   * regulated question "what happened in this one operation" had no answer.
+   *
+   * Optional was the whole defect: a field that may be omitted is a field
+   * that will be. It is required now, so a new write site cannot compile
+   * without one, and `URSService.writeAudit` supplies it from the
+   * `AuditContext` opened at the service entry point.
+   *
+   * Historic rows stay NULL. The column is deliberately not made NOT NULL:
+   * backfilling would mean inventing a correlation for events that never had
+   * one, which is worse than an honest gap in an append-only trail.
+   */
+  correlationId: string;
   reason?: string;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * What one service operation shares across every audit event it writes.
+ *
+ * Opened once at the service entry point and passed down; never created
+ * inside a helper, or the events of one operation would carry different
+ * correlation ids and the join this exists for would silently return one row.
+ *
+ * `actor` is the entity ref the rest of the service already passes as a
+ * string. It is carried here rather than wrapped in a richer `ActorContext`
+ * because nothing in the audit path needs more than the ref, and a
+ * one-field wrapper would force churn at every call site to say the same
+ * thing.
+ */
+export interface AuditContext {
+  /** Shared by every event of one operation. Never empty. */
+  correlationId: string;
+  /** Entity ref of the authenticated user, e.g. `user:default/qa`. */
+  actor: string;
 }
 
 /**

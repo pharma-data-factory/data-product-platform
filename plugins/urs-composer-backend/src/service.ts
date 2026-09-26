@@ -15,6 +15,7 @@ import type { CatalogService } from '@backstage/plugin-catalog-node';
 import { findVersionLabelClash } from '@internal/platform-common';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import {
+  AuditContext,
   RequirementSet,
   URSRequirement,
   AuditEvent,
@@ -220,6 +221,7 @@ export class URSService {
     data: { name: string; description?: string; domain: string },
     actor: string,
   ): Promise<BusinessCapabilityPersisted> {
+    const audit = this.beginAudit(actor);
     const name = data.name?.trim();
     const domain = data.domain?.trim();
     if (!name || !domain) {
@@ -247,7 +249,7 @@ export class URSService {
       version: 1,
     };
     const saved = await this.repository.createBusinessCapability(cap);
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BUSINESS_CAPABILITY',
       entityId: saved.id,
@@ -267,6 +269,7 @@ export class URSService {
     data: { name?: string; description?: string; domain?: string },
     actor: string,
   ): Promise<BusinessCapabilityPersisted> {
+    const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessCapability(id);
     if (!existing) {
       throw new Error(`Business capability ${id} not found`);
@@ -284,7 +287,7 @@ export class URSService {
       version: existing.version + 1,
     };
     const saved = await this.repository.updateBusinessCapability(updated);
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BUSINESS_CAPABILITY',
       entityId: saved.id,
@@ -304,12 +307,13 @@ export class URSService {
     id: string,
     actor: string,
   ): Promise<BusinessCapabilityPersisted> {
+    const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessCapability(id);
     if (!existing) {
       throw new Error(`Business capability ${id} not found`);
     }
     const retired = await this.repository.retireBusinessCapability(id, actor);
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BUSINESS_CAPABILITY',
       entityId: id,
@@ -353,6 +357,7 @@ export class URSService {
     data: { name: string; description?: string },
     actor: string,
   ): Promise<BusinessRolePersisted> {
+    const audit = this.beginAudit(actor);
     const name = data.name?.trim();
     if (!name) {
       throw new Error('name is required');
@@ -376,7 +381,7 @@ export class URSService {
       version: 1,
     };
     const saved = await this.repository.createBusinessRole(role);
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BUSINESS_ROLE',
       entityId: saved.id,
@@ -393,6 +398,7 @@ export class URSService {
     data: { name?: string; description?: string },
     actor: string,
   ): Promise<BusinessRolePersisted> {
+    const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessRole(id);
     if (!existing) {
       throw new Error(`Business role ${id} not found`);
@@ -409,7 +415,7 @@ export class URSService {
       version: existing.version + 1,
     };
     const saved = await this.repository.updateBusinessRole(updated);
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BUSINESS_ROLE',
       entityId: id,
@@ -426,12 +432,13 @@ export class URSService {
     id: string,
     actor: string,
   ): Promise<BusinessRolePersisted> {
+    const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessRole(id);
     if (!existing) {
       throw new Error(`Business role ${id} not found`);
     }
     const retired = await this.repository.retireBusinessRole(id, actor);
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BUSINESS_ROLE',
       entityId: id,
@@ -451,6 +458,7 @@ export class URSService {
     data: Partial<RequirementSet>,
     actor: string,
   ): Promise<RequirementSet> {
+    const audit = this.beginAudit(actor);
     // Validate capabilities.
     //
     // InputError, not Error: `respondError` maps it to 400 with the message,
@@ -501,7 +509,7 @@ export class URSService {
     const saved = await this.repository.createRequirementSet(requirementSet);
 
     // Audit
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
       entityId: saved.id,
@@ -543,6 +551,7 @@ export class URSService {
     requirementSet: RequirementSet;
     requirements: URSRequirement[];
   }> {
+    const audit = this.beginAudit(actor);
     const existing = await this.repository.getRequirementSet(requirementSetId);
     if (!existing) {
       throw new Error('Requirement set not found');
@@ -628,10 +637,10 @@ export class URSService {
     // Wizard persist never called createRequirement; seed 0.1 for any row
     // that still has no version history so baselines and revisions have a start.
     for (const requirement of savedRequirements) {
-      await this.seedInitialRequirementVersion(requirement, actor);
+      await this.seedInitialRequirementVersion(requirement, actor, audit);
     }
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
       entityId: requirementSetId,
@@ -662,6 +671,7 @@ export class URSService {
     actor: string,
     reason?: string,
   ): Promise<RequirementSet> {
+    const audit = this.beginAudit(actor);
     const source = await this.repository.getRequirementSet(id);
     if (!source) {
       throw new NotFoundError('Requirement set not found');
@@ -745,7 +755,7 @@ export class URSService {
       });
     }
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
       entityId: saved.id,
@@ -762,7 +772,7 @@ export class URSService {
       reason,
     });
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
       entityId: source.id,
@@ -785,6 +795,7 @@ export class URSService {
     data: Partial<URSRequirement>,
     actor: string,
   ): Promise<URSRequirement> {
+    const audit = this.beginAudit(actor);
     const requirementSet = await this.repository.getRequirementSet(
       requirementSetId,
     );
@@ -830,7 +841,7 @@ export class URSService {
 
     const saved = await this.repository.createRequirement(requirement);
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT',
       entityId: saved.id,
@@ -842,7 +853,7 @@ export class URSService {
 
     // A requirement without a version cannot be baselined, signed or revised.
     // createRevision requires a predecessor; this is the only genesis path.
-    await this.seedInitialRequirementVersion(saved, actor);
+    await this.seedInitialRequirementVersion(saved, actor, audit);
 
     return saved;
   }
@@ -857,7 +868,9 @@ export class URSService {
   private async seedInitialRequirementVersion(
     requirement: URSRequirement,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<RequirementVersion | undefined> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const existing = await this.repository.getRequirementVersions(
       requirement.requirementId,
     );
@@ -894,7 +907,7 @@ export class URSService {
 
     await this.repository.createRequirementVersion(version);
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_VERSION',
       entityId: version.id,
@@ -1043,6 +1056,43 @@ export class URSService {
   }
 
   /**
+   * Open the audit context for one service operation.
+   *
+   * Called at the top of every method that writes audit events. Pass
+   * `inherited` when the method can also be reached from another auditing
+   * method — `releaseBaseline` is reached from both `approveApprovalStep`
+   * and `approveBaseline`, and the events it writes belong to whichever
+   * operation called it, not to a new one.
+   *
+   * Generating the id here rather than per event is the whole mechanism:
+   * one operation, one id, however many events and however deep the call.
+   */
+  private beginAudit(actor: string, inherited?: AuditContext): AuditContext {
+    return inherited ?? { correlationId: this.generateUUID(), actor };
+  }
+
+  /**
+   * Write one audit event within an operation.
+   *
+   * Takes the repository handle explicitly because half the write sites are
+   * inside a transaction and must use its handle (`repo`) rather than
+   * `this.repository` — writing the audit outside the transaction that
+   * produced the change would leave the two able to disagree.
+   *
+   * `correlationId` is supplied here and cannot be passed in: `AuditEvent`
+   * requires it, and `Omit` removes it from what a caller may state. A site
+   * that wants a different correlation has to open a different context,
+   * which is a deliberate act rather than a slip.
+   */
+  private async writeAudit(
+    ctx: AuditContext,
+    repo: IURSRepository,
+    event: Omit<AuditEvent, 'correlationId'>,
+  ): Promise<void> {
+    await repo.createAuditEvent({ ...event, correlationId: ctx.correlationId });
+  }
+
+  /**
    * Resolve the human-readable requirement set key. A caller-supplied stable
    * key is validated and checked for uniqueness; otherwise a timestamp-based
    * key is generated.
@@ -1175,6 +1225,7 @@ export class URSService {
     actor: string,
     changeRequestId?: string,
   ): Promise<RequirementVersion> {
+    const audit = this.beginAudit(actor);
     const previous = await this.repository.getRequirementVersion(
       previousVersionId,
     );
@@ -1244,7 +1295,7 @@ export class URSService {
     await this.repository.createRequirementVersion(newVersion);
 
     // Audit
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_VERSION',
       entityId: newVersion.id,
@@ -1353,6 +1404,7 @@ export class URSService {
     },
     actor: string,
   ): Promise<ChangeRequest> {
+    const audit = this.beginAudit(actor);
     for (const field of ['title', 'description', 'reason'] as const) {
       if (!data[field]?.trim()) {
         throw new InputError(`${field} is required`);
@@ -1376,7 +1428,7 @@ export class URSService {
       try {
         const created = await this.repository.createChangeRequest(request);
 
-        await this.repository.createAuditEvent({
+        await this.writeAudit(audit, this.repository, {
           id: this.generateUUID(),
           entityType: 'CHANGE_REQUEST',
           entityId: created.id,
@@ -1431,6 +1483,7 @@ export class URSService {
     },
     actor: string,
   ): Promise<ImpactAssessment> {
+    const audit = this.beginAudit(actor);
     if (!data.summary?.trim()) {
       throw new InputError('summary is required');
     }
@@ -1462,7 +1515,7 @@ export class URSService {
         status: ChangeRequestStatus.ASSESSED,
       });
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'CHANGE_REQUEST',
         entityId: changeRequestId,
@@ -1494,6 +1547,7 @@ export class URSService {
     comment?: string,
     credentials?: BackstageCredentials,
   ): Promise<ChangeRequest> {
+    const audit = this.beginAudit(actor);
     const signatures = await this.signatureServiceFor(actor, credentials);
     // Before the transaction, like the role lookup and for the same reason.
     await signatures.preAuthenticate(actor, secret);
@@ -1510,6 +1564,7 @@ export class URSService {
           secondFactorVerified: true,
         },
         repo,
+        audit,
       );
 
       const request = await repo.getChangeRequest(changeRequestId);
@@ -1523,7 +1578,7 @@ export class URSService {
       };
       await repo.updateChangeRequest(approved);
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'CHANGE_REQUEST',
         entityId: changeRequestId,
@@ -1549,6 +1604,7 @@ export class URSService {
     reason: string,
     actor: string,
   ): Promise<ChangeRequest> {
+    const audit = this.beginAudit(actor);
     if (!reason?.trim()) {
       throw new InputError('A rejection reason is required');
     }
@@ -1569,7 +1625,7 @@ export class URSService {
       };
       await repo.updateChangeRequest(rejected);
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'CHANGE_REQUEST',
         entityId: changeRequestId,
@@ -1679,9 +1735,10 @@ export class URSService {
 
   /** Set or replace the caller's own signing PIN. */
   async setSigningPin(actor: string, pin: string): Promise<void> {
+    const audit = this.beginAudit(actor);
     await new SignaturePinReAuth(this.repository).enroll(actor, pin);
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'SIGNATURE_CREDENTIAL',
       entityId: actor,
@@ -1714,6 +1771,10 @@ export class URSService {
     comment?: string,
     credentials?: BackstageCredentials,
   ): Promise<Signature> {
+    // Opened here although this method writes no event itself: the events
+    // its callee writes belong to this operation, and a context opened
+    // further down would give each of them a different correlation id.
+    const audit = this.beginAudit(actor);
     const signatures = await this.signatureServiceFor(actor, credentials);
     // Before the transaction, like the role lookup and for the same reason.
     await signatures.preAuthenticate(actor, secret);
@@ -1729,10 +1790,10 @@ export class URSService {
     };
 
     return this.repository.withTransaction(async repo => {
-      const signature = await signatures.sign(request, repo);
+      const signature = await signatures.sign(request, repo, audit);
 
       if (meaning === SignatureMeaning.APPROVED_QA) {
-        await this.releaseSignedVersion(repo, versionId, actor);
+        await this.releaseSignedVersion(repo, versionId, actor, audit);
       }
 
       return signature;
@@ -1749,7 +1810,9 @@ export class URSService {
     repo: IURSRepository,
     versionId: string,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<void> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const version = await repo.getRequirementVersion(versionId);
     if (!version) {
       throw new NotFoundError(`Requirement version ${versionId} not found`);
@@ -1764,7 +1827,7 @@ export class URSService {
       releasedAt,
     });
 
-    await repo.createAuditEvent({
+    await this.writeAudit(audit, repo, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_VERSION',
       entityId: versionId,
@@ -1790,7 +1853,7 @@ export class URSService {
         supersededBy: versionId,
       });
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'REQUIREMENT_VERSION',
         entityId: previous.id,
@@ -1890,6 +1953,7 @@ export class URSService {
     baselineVersion: string,
     actor: string,
   ): Promise<Baseline> {
+    const audit = this.beginAudit(actor);
     await this.assertBaselineVersionAvailable(
       requirementSetId,
       baselineVersion,
@@ -1919,7 +1983,7 @@ export class URSService {
 
     await this.repository.createBaseline(baseline);
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BASELINE',
       entityId: baseline.id,
@@ -2266,7 +2330,9 @@ export class URSService {
     target: URSStatus,
     actor: string,
     reason?: string,
+    inheritedAudit?: AuditContext,
   ): Promise<RequirementVersion> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     if (target === URSStatus.APPROVED) {
       throw new InputError(
         'A version reaches APPROVED only through a QA signature. ' +
@@ -2296,7 +2362,7 @@ export class URSService {
       const advanced = { ...version, status: target };
       await repo.updateRequirementVersion(advanced);
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'REQUIREMENT_VERSION',
         entityId: versionId,
@@ -2331,6 +2397,10 @@ export class URSService {
     target: URSStatus,
     actor: string,
   ): Promise<{ advanced: RequirementVersion[]; skipped: SkippedVersion[] }> {
+    // Opened here although this method writes no event itself: the events
+    // its callee writes belong to this operation, and a context opened
+    // further down would give each of them a different correlation id.
+    const audit = this.beginAudit(actor);
     // getCurrentVersions asserts the set exists, so an unknown id reaches the
     // caller as 404 rather than as a cheerful "advanced 0, skipped 0".
     const current = await this.getCurrentVersions(requirementSetId);
@@ -2341,7 +2411,13 @@ export class URSService {
     for (const version of current) {
       try {
         advanced.push(
-          await this.advanceRequirementVersion(version.id, target, actor),
+          await this.advanceRequirementVersion(
+            version.id,
+            target,
+            actor,
+            undefined,
+            audit,
+          ),
         );
       } catch (error) {
         skipped.push({
@@ -2361,6 +2437,7 @@ export class URSService {
     reason: string,
     actor: string,
   ): Promise<RequirementVersion> {
+    const audit = this.beginAudit(actor);
     if (!reason?.trim()) {
       throw new InputError('A reason is required to make a version obsolete');
     }
@@ -2390,7 +2467,7 @@ export class URSService {
       };
       await repo.updateRequirementVersion(obsolete);
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'REQUIREMENT_VERSION',
         entityId: versionId,
@@ -2419,7 +2496,9 @@ export class URSService {
     repo: IURSRepository,
     baseline: Baseline,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<void> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     await this.assertPinnedVersionsReleased(repo, baseline);
 
     const previous = await repo.getCurrentApprovedBaseline(
@@ -2454,7 +2533,7 @@ export class URSService {
         supersededBy: baseline.id,
       });
 
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'BASELINE',
         entityId: previous.id,
@@ -2469,7 +2548,7 @@ export class URSService {
       });
     }
 
-    await repo.createAuditEvent({
+    await this.writeAudit(audit, repo, {
       id: this.generateUUID(),
       entityType: 'BASELINE',
       entityId: baseline.id,
@@ -2653,6 +2732,10 @@ export class URSService {
     actor: string,
     workflowId?: string,
   ): Promise<{ baseline: Baseline; workflow: ApprovalWorkflow | null }> {
+    // Opened here although this method writes no event itself: the events
+    // its callee writes belong to this operation, and a context opened
+    // further down would give each of them a different correlation id.
+    const audit = this.beginAudit(actor);
     let baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
       throw new Error('Baseline not found');
@@ -2671,7 +2754,7 @@ export class URSService {
     // failure in between must not leave the set with two effective baselines.
     const toRelease = baseline;
     await this.repository.withTransaction(repo =>
-      this.releaseBaseline(repo, toRelease, actor),
+      this.releaseBaseline(repo, toRelease, actor, audit),
     );
     baseline = (await this.repository.getBaseline(baselineId))!;
 
@@ -2716,7 +2799,9 @@ export class URSService {
     baselineId: string,
     workflowId: string,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<ApprovalInstance> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const workflow = await this.repository.getApprovalWorkflow(workflowId);
     if (!workflow) {
       throw new Error('Workflow not found');
@@ -2749,7 +2834,7 @@ export class URSService {
 
     await this.repository.createApprovalInstance(instance);
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'APPROVAL_INSTANCE',
       entityId: instance.id,
@@ -2791,6 +2876,7 @@ export class URSService {
     baselineId: string,
     actor: string,
   ): Promise<ApprovalInstance> {
+    const audit = this.beginAudit(actor);
     const baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
       throw new Error('Baseline not found');
@@ -2818,6 +2904,7 @@ export class URSService {
       baselineId,
       workflowId,
       actor,
+      audit,
     );
 
     // Update baseline status to IN_REVIEW, and record which approval instance
@@ -2832,7 +2919,7 @@ export class URSService {
     });
 
     // Audit submission
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'BASELINE',
       entityId: baselineId,
@@ -2863,6 +2950,7 @@ export class URSService {
     credentials?: BackstageCredentials,
     pin?: string,
   ): Promise<ApprovalInstance> {
+    const audit = this.beginAudit(actor);
     const instance = await this.repository.getApprovalInstance(
       approvalInstanceId,
     );
@@ -2995,6 +3083,7 @@ export class URSService {
             secondFactorVerified: true,
           },
           repo,
+          audit,
         );
       }
 
@@ -3015,7 +3104,7 @@ export class URSService {
       await repo.updateApprovalStep(step);
 
       // Create audit event for step approval
-      await repo.createAuditEvent({
+      await this.writeAudit(audit, repo, {
         id: this.generateUUID(),
         entityType: 'APPROVAL_STEP',
         entityId: stepId,
@@ -3041,7 +3130,7 @@ export class URSService {
         // requirement version is released on its own quality signature. If any
         // pinned version is still unreleased, invariant 9 refuses here and
         // names them, rather than approving them as a side effect.
-        await this.releaseBaseline(repo, baseline, actor);
+        await this.releaseBaseline(repo, baseline, actor, audit);
 
         // Propagate approval to the requirement set and close the version
         // chain: once a revision is approved, its predecessor stops being
@@ -3060,7 +3149,7 @@ export class URSService {
 
             // The set's own approval was previously unrecorded, which left a
             // hole in its audit trail and in the workflow view derived from it.
-            await repo.createAuditEvent({
+            await this.writeAudit(audit, repo, {
               id: this.generateUUID(),
               entityType: 'REQUIREMENT_SET',
               entityId: approvedSet.id,
@@ -3088,7 +3177,7 @@ export class URSService {
                 updatedAt: new Date(),
               });
 
-              await repo.createAuditEvent({
+              await this.writeAudit(audit, repo, {
                 id: this.generateUUID(),
                 entityType: 'REQUIREMENT_SET',
                 entityId: predecessor.id,
@@ -3111,7 +3200,7 @@ export class URSService {
         instance.completedAt = new Date();
 
         // Audit final approval
-        await repo.createAuditEvent({
+        await this.writeAudit(audit, repo, {
           id: this.generateUUID(),
           entityType: 'APPROVAL_INSTANCE',
           entityId: instance.id,
@@ -3159,6 +3248,7 @@ export class URSService {
     reason: string,
     credentials?: BackstageCredentials,
   ): Promise<ApprovalInstance> {
+    const audit = this.beginAudit(actor);
     if (!reason) {
       throw new Error('Rejection reason is required');
     }
@@ -3215,7 +3305,7 @@ export class URSService {
     await this.repository.updateApprovalInstance(instance);
 
     // Audit rejection
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'APPROVAL_INSTANCE',
       entityId: instance.id,
@@ -3242,6 +3332,7 @@ export class URSService {
     actor: string,
     reason?: string,
   ): Promise<ApprovalInstance> {
+    const audit = this.beginAudit(actor);
     const instance = await this.repository.getApprovalInstance(
       approvalInstanceId,
     );
@@ -3280,7 +3371,7 @@ export class URSService {
 
     await this.repository.updateApprovalInstance(instance);
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'APPROVAL_INSTANCE',
       entityId: instance.id,
@@ -3297,6 +3388,7 @@ export class URSService {
     requirementSetId: string,
     actor: string,
   ): Promise<GeneratedRequirement[]> {
+    const audit = this.beginAudit(actor);
     if (!this.llmClient) {
       throw new Error('AI is not configured');
     }
@@ -3356,7 +3448,7 @@ export class URSService {
       systemPrompt,
     );
 
-    await this.repository.createAuditEvent({
+    await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'REQUIREMENT_SET',
       entityId: requirementSetId,

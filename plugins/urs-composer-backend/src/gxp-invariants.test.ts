@@ -180,6 +180,7 @@ describeWhenPg('GxP invariants enforced by the database', () => {
       eventType: 'CREATED',
       actor: 'author',
       timestamp: new Date(),
+      correlationId: 'test-correlation',
     };
 
     test('an event cannot be rewritten', async () => {
@@ -356,10 +357,15 @@ describeWhenPg('GxP invariants enforced by the database', () => {
     }
 
     test('a decided request cannot be changed', async () => {
-      const request = await aRequest('CR-9999-0001', ChangeRequestStatus.APPROVED);
+      const request = await aRequest(
+        'CR-9999-0001',
+        ChangeRequestStatus.APPROVED,
+      );
 
       await expect(
-        db('change_requests').where({ id: request.id }).update({ reason: 'Rewritten' }),
+        db('change_requests')
+          .where({ id: request.id })
+          .update({ reason: 'Rewritten' }),
       ).rejects.toThrow(/URS_IMMUTABLE/);
     });
 
@@ -394,7 +400,9 @@ describeWhenPg('GxP invariants enforced by the database', () => {
       });
 
       await expect(
-        db('impact_assessments').where({ id: 'ia-001' }).update({ summary: 'No impact' }),
+        db('impact_assessments')
+          .where({ id: 'ia-001' })
+          .update({ summary: 'No impact' }),
       ).rejects.toThrow(/URS_APPEND_ONLY/);
 
       await expect(

@@ -87,7 +87,9 @@ export class PostgresURSRepository implements IURSRepository {
    * factory so the repository holds a real Knex instance (and the schema
    * exists) instead of an unresolved Promise.
    */
-  static async create(database: { getClient(): Promise<Knex> | Knex }): Promise<PostgresURSRepository> {
+  static async create(database: {
+    getClient(): Promise<Knex> | Knex;
+  }): Promise<PostgresURSRepository> {
     const db = await database.getClient();
     await up(db);
     await seed(db);
@@ -116,7 +118,9 @@ export class PostgresURSRepository implements IURSRepository {
     return cap;
   }
 
-  async getBusinessCapability(id: string): Promise<BusinessCapabilityPersisted | null> {
+  async getBusinessCapability(
+    id: string,
+  ): Promise<BusinessCapabilityPersisted | null> {
     const result = await this.db('business_capabilities').where({ id }).first();
     if (!result) return null;
 
@@ -212,7 +216,9 @@ export class PostgresURSRepository implements IURSRepository {
   // BUSINESS ROLES (P1B)
   // ============================================================================
 
-  async createBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted> {
+  async createBusinessRole(
+    role: BusinessRolePersisted,
+  ): Promise<BusinessRolePersisted> {
     await this.db('business_roles').insert({
       id: role.id,
       name: role.name,
@@ -272,15 +278,19 @@ export class PostgresURSRepository implements IURSRepository {
     return { items, total };
   }
 
-  async updateBusinessRole(role: BusinessRolePersisted): Promise<BusinessRolePersisted> {
-    await this.db('business_roles').where({ id: role.id }).update({
-      name: role.name,
-      description: role.description || null,
-      status: role.status,
-      version: role.version,
-      updated_by: role.updatedBy || null,
-      updated_at: role.updatedAt || new Date(),
-    });
+  async updateBusinessRole(
+    role: BusinessRolePersisted,
+  ): Promise<BusinessRolePersisted> {
+    await this.db('business_roles')
+      .where({ id: role.id })
+      .update({
+        name: role.name,
+        description: role.description || null,
+        status: role.status,
+        version: role.version,
+        updated_by: role.updatedBy || null,
+        updated_at: role.updatedAt || new Date(),
+      });
     return role;
   }
 
@@ -374,42 +384,51 @@ export class PostgresURSRepository implements IURSRepository {
       .offset(offset)
       .select();
 
-    return { items: results.map((r: any) => this.rowToRequirementSet(r)), total };
+    return {
+      items: results.map((r: any) => this.rowToRequirementSet(r)),
+      total,
+    };
   }
 
   async updateRequirementSet(set: RequirementSet): Promise<void> {
-    await this.db('requirement_sets').where({ id: set.id }).update({
-      business_capability_refs: set.businessCapabilityRefs?.length
-        ? JSON.stringify(set.businessCapabilityRefs)
-        : null,
-      business_need: set.businessNeed,
-      desired_outcome: set.desiredOutcome || null,
-      business_value: set.businessValue || null,
-      stakeholders: set.stakeholders ? JSON.stringify(set.stakeholders) : null,
-      process_context: set.processContext || null,
-      solution_type: set.solutionType,
-      solution_name: set.solutionName || null,
-      solution_catalog_ref: set.solutionCatalogRef || null,
-      scope: set.scope || null,
-      out_of_scope: set.outOfScope || null,
-      gxp_relevance: set.gxpRelevance || null,
-      patient_impact: set.patientImpact || false,
-      data_integrity_impact: set.dataIntegrityImpact || false,
-      electronic_records: set.electronicRecords || false,
-      status: set.status,
-      updated_by: set.updatedBy,
-      updated_at: set.updatedAt || new Date(),
-      revision: (set.revision || 1) + 1,
-      version_comment: set.versionComment || null,
-      supersedes_ref: set.supersedesRef || null,
-    });
+    await this.db('requirement_sets')
+      .where({ id: set.id })
+      .update({
+        business_capability_refs: set.businessCapabilityRefs?.length
+          ? JSON.stringify(set.businessCapabilityRefs)
+          : null,
+        business_need: set.businessNeed,
+        desired_outcome: set.desiredOutcome || null,
+        business_value: set.businessValue || null,
+        stakeholders: set.stakeholders
+          ? JSON.stringify(set.stakeholders)
+          : null,
+        process_context: set.processContext || null,
+        solution_type: set.solutionType,
+        solution_name: set.solutionName || null,
+        solution_catalog_ref: set.solutionCatalogRef || null,
+        scope: set.scope || null,
+        out_of_scope: set.outOfScope || null,
+        gxp_relevance: set.gxpRelevance || null,
+        patient_impact: set.patientImpact || false,
+        data_integrity_impact: set.dataIntegrityImpact || false,
+        electronic_records: set.electronicRecords || false,
+        status: set.status,
+        updated_by: set.updatedBy,
+        updated_at: set.updatedAt || new Date(),
+        revision: (set.revision || 1) + 1,
+        version_comment: set.versionComment || null,
+        supersedes_ref: set.supersedesRef || null,
+      });
   }
 
   // ============================================================================
   // REQUIREMENT VERSIONS
   // ============================================================================
 
-  async createRequirementVersion(version: RequirementVersion): Promise<RequirementVersion> {
+  async createRequirementVersion(
+    version: RequirementVersion,
+  ): Promise<RequirementVersion> {
     await this.db('requirement_versions').insert({
       id: version.id,
       ...this.classificationToColumns(version.classification),
@@ -463,7 +482,9 @@ export class PostgresURSRepository implements IURSRepository {
     return results.map((r: any) => this.rowToRequirementVersion(r));
   }
 
-  async getCurrentApprovedVersion(requirementId: string): Promise<RequirementVersion | null> {
+  async getCurrentApprovedVersion(
+    requirementId: string,
+  ): Promise<RequirementVersion | null> {
     const result = await this.db('requirement_versions')
       .where({ requirement_id: requirementId, status: URSStatus.APPROVED })
       .orderBy('version_number', 'desc')
@@ -474,7 +495,9 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   async updateRequirementVersion(version: RequirementVersion): Promise<void> {
-    const existing = await this.db('requirement_versions').where({ id: version.id }).first();
+    const existing = await this.db('requirement_versions')
+      .where({ id: version.id })
+      .first();
     if (!existing) {
       throw new NotFoundError(`Requirement version ${version.id} not found`);
     }
@@ -514,13 +537,15 @@ export class PostgresURSRepository implements IURSRepository {
     if (result === 0) {
       throw new Error(
         `Optimistic concurrency conflict on requirement version ${version.id}. ` +
-        `Expected revision ${currentRevision} but current revision differs. ` +
-        `Another process may have updated this version.`,
+          `Expected revision ${currentRevision} but current revision differs. ` +
+          `Another process may have updated this version.`,
       );
     }
   }
 
-  async getRequirementVersionsByIds(ids: string[]): Promise<RequirementVersion[]> {
+  async getRequirementVersionsByIds(
+    ids: string[],
+  ): Promise<RequirementVersion[]> {
     if (ids.length === 0) return [];
     const results = await this.db('requirement_versions')
       .whereIn('id', ids)
@@ -604,9 +629,14 @@ export class PostgresURSRepository implements IURSRepository {
     return this.withItems(results);
   }
 
-  async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {
+  async getCurrentApprovedBaseline(
+    requirementSetId: string,
+  ): Promise<Baseline | null> {
     const result = await this.db('baselines')
-      .where({ requirement_set_id: requirementSetId, status: URSStatus.APPROVED })
+      .where({
+        requirement_set_id: requirementSetId,
+        status: URSStatus.APPROVED,
+      })
       .orderBy('baseline_version', 'desc')
       .first();
 
@@ -663,7 +693,9 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   async updateBaseline(baseline: Baseline): Promise<void> {
-    const existing = await this.db('baselines').where({ id: baseline.id }).first();
+    const existing = await this.db('baselines')
+      .where({ id: baseline.id })
+      .first();
     if (!existing) {
       throw new NotFoundError(`Baseline ${baseline.id} not found`);
     }
@@ -677,24 +709,28 @@ export class PostgresURSRepository implements IURSRepository {
       );
     }
 
-    await this.db('baselines').where({ id: baseline.id }).update({
-      status: baseline.status,
-      approved_by: baseline.approvedBy || null,
-      approved_at: baseline.approvedAt || null,
-      superseded_by: baseline.supersededBy || null,
-      // Callers pass a whole Baseline read back from this repository, so an
-      // update that is not the submit carries the existing value through
-      // rather than clearing it.
-      approval_instance_id: baseline.approvalInstanceId || null,
-      revision: (baseline.revision || 1) + 1,
-    });
+    await this.db('baselines')
+      .where({ id: baseline.id })
+      .update({
+        status: baseline.status,
+        approved_by: baseline.approvedBy || null,
+        approved_at: baseline.approvedAt || null,
+        superseded_by: baseline.supersededBy || null,
+        // Callers pass a whole Baseline read back from this repository, so an
+        // update that is not the submit carries the existing value through
+        // rather than clearing it.
+        approval_instance_id: baseline.approvalInstanceId || null,
+        revision: (baseline.revision || 1) + 1,
+      });
   }
 
   // ============================================================================
   // APPROVAL WORKFLOWS
   // ============================================================================
 
-  async createApprovalWorkflow(workflow: ApprovalWorkflow): Promise<ApprovalWorkflow> {
+  async createApprovalWorkflow(
+    workflow: ApprovalWorkflow,
+  ): Promise<ApprovalWorkflow> {
     await this.db('approval_workflows').insert({
       id: workflow.id,
       name: workflow.name,
@@ -748,7 +784,9 @@ export class PostgresURSRepository implements IURSRepository {
   // APPROVAL INSTANCES
   // ============================================================================
 
-  async createApprovalInstance(instance: ApprovalInstance): Promise<ApprovalInstance> {
+  async createApprovalInstance(
+    instance: ApprovalInstance,
+  ): Promise<ApprovalInstance> {
     await this.db('approval_instances').insert({
       id: instance.id,
       workflow_id: instance.workflowId,
@@ -837,13 +875,15 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   async updateApprovalInstance(instance: ApprovalInstance): Promise<void> {
-    await this.db('approval_instances').where({ id: instance.id }).update({
-      status: instance.status,
-      current_step_sequence: instance.currentStepSequence,
-      completed_by: instance.completedBy || null,
-      completed_at: instance.completedAt || null,
-      revision: (instance.revision || 1) + 1,
-    });
+    await this.db('approval_instances')
+      .where({ id: instance.id })
+      .update({
+        status: instance.status,
+        current_step_sequence: instance.currentStepSequence,
+        completed_by: instance.completedBy || null,
+        completed_at: instance.completedAt || null,
+        revision: (instance.revision || 1) + 1,
+      });
   }
 
   // ============================================================================
@@ -884,14 +924,16 @@ export class PostgresURSRepository implements IURSRepository {
   }
 
   async updateApprovalStep(step: ApprovalStep): Promise<void> {
-    await this.db('approval_steps').where({ id: step.id }).update({
-      status: step.status,
-      assigned_to: step.assignedTo || null,
-      decision: step.decision || null,
-      comment: step.comment || null,
-      acted_by: step.actedBy || null,
-      acted_at: step.actedAt || null,
-    });
+    await this.db('approval_steps')
+      .where({ id: step.id })
+      .update({
+        status: step.status,
+        assigned_to: step.assignedTo || null,
+        decision: step.decision || null,
+        comment: step.comment || null,
+        acted_by: step.actedBy || null,
+        acted_at: step.actedAt || null,
+      });
   }
 
   // ============================================================================
@@ -957,7 +999,9 @@ export class PostgresURSRepository implements IURSRepository {
     requirementSetId: string,
     requirements: URSRequirement[],
   ): Promise<URSRequirement[]> {
-    await this.db('requirements').where({ requirement_set_id: requirementSetId }).del();
+    await this.db('requirements')
+      .where({ requirement_set_id: requirementSetId })
+      .del();
     for (const req of requirements) {
       await this.createRequirement(req);
     }
@@ -977,7 +1021,10 @@ export class PostgresURSRepository implements IURSRepository {
     return [];
   }
 
-  async approveAll(_requirementSetId: string, _approver: string): Promise<void> {
+  async approveAll(
+    _requirementSetId: string,
+    _approver: string,
+  ): Promise<void> {
     // P0 legacy - handled by approval instances
   }
 
@@ -1000,7 +1047,13 @@ export class PostgresURSRepository implements IURSRepository {
       new_value: event.newValue ? JSON.stringify(event.newValue) : null,
       actor: event.actor,
       timestamp: event.timestamp,
-      correlation_id: event.correlationId || null,
+      // No `|| null` fallback, unlike the optional columns around it.
+      // `AuditEvent.correlationId` is required, so a falsy value here means
+      // a caller constructed an event outside `URSService.writeAudit` and
+      // defeated the type — better that the insert fails loudly than that
+      // the trail grows another unattributable row. Historic rows keep their
+      // NULLs; the column stays nullable for them.
+      correlation_id: event.correlationId,
       reason: event.reason || null,
       metadata: event.metadata ? JSON.stringify(event.metadata) : null,
     });
@@ -1028,7 +1081,10 @@ export class PostgresURSRepository implements IURSRepository {
     }));
   }
 
-  async getEntityAuditTrail(entityId: string, entityType: string): Promise<AuditEvent[]> {
+  async getEntityAuditTrail(
+    entityId: string,
+    entityType: string,
+  ): Promise<AuditEvent[]> {
     const results = await this.db('audit_events')
       .where({ entity_id: entityId, entity_type: entityType })
       .orderBy('timestamp', 'desc')
@@ -1321,9 +1377,7 @@ export class PostgresURSRepository implements IURSRepository {
     // A Knex transaction is itself a query builder, so binding a repository
     // instance to it routes every query through the transaction. Knex commits
     // when the callback resolves and rolls back when it throws.
-    return this.db.transaction(async trx =>
-      fn(new PostgresURSRepository(trx)),
-    );
+    return this.db.transaction(async trx => fn(new PostgresURSRepository(trx)));
   }
 
   // ============================================================================
@@ -1364,9 +1418,7 @@ export class PostgresURSRepository implements IURSRepository {
     };
   }
 
-  private classificationToColumns(
-    classification?: RequirementClassification,
-  ): {
+  private classificationToColumns(classification?: RequirementClassification): {
     component_type: string | null;
     requirement_nature: string | null;
     criticality: string | null;
@@ -1396,7 +1448,9 @@ export class PostgresURSRepository implements IURSRepository {
     };
   }
 
-  private classificationFromRow(row: any): RequirementClassification | undefined {
+  private classificationFromRow(
+    row: any,
+  ): RequirementClassification | undefined {
     if (!row.component_type) {
       return undefined;
     }

@@ -1,6 +1,6 @@
 /**
  * URS Composer P1A PostgreSQL Persistence Verification
- * 
+ *
  * Comprehensive test suite for all P1A persistence features:
  * - Migrations and schema creation
  * - Idempotent seeding
@@ -109,19 +109,25 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       const seeds = require('./db/seeds');
       await seeds.seed(db);
 
-      const countAfterFirst = await db('business_capabilities').count('* as cnt').first();
+      const countAfterFirst = await db('business_capabilities')
+        .count('* as cnt')
+        .first();
       const firstCount = Number(countAfterFirst?.cnt || 0);
 
       await seeds.seed(db);
 
-      const countAfterSecond = await db('business_capabilities').count('* as cnt').first();
+      const countAfterSecond = await db('business_capabilities')
+        .count('* as cnt')
+        .first();
       const secondCount = Number(countAfterSecond?.cnt || 0);
 
       expect(firstCount).toBe(secondCount);
     });
 
     test('should have seeded at least 10 business capabilities', async () => {
-      const result = await db('business_capabilities').count('* as cnt').first();
+      const result = await db('business_capabilities')
+        .count('* as cnt')
+        .first();
       const count = Number(result?.cnt || 0);
       expect(count).toBeGreaterThanOrEqual(10);
     });
@@ -216,7 +222,9 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       const newPostgresRepo = new PostgresURSRepository(db);
 
       // Verify data persists
-      const retrieved = await newPostgresRepo.getBusinessCapability('durability-test-cap');
+      const retrieved = await newPostgresRepo.getBusinessCapability(
+        'durability-test-cap',
+      );
       expect(retrieved).not.toBeNull();
       expect(retrieved?.name).toBe('Durability Test');
     });
@@ -259,19 +267,33 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       await postgresRepo.createRequirementVersion(version);
 
       // Get version and verify revision
-      const retrieved = await postgresRepo.getRequirementVersion('concurrency-req-v1');
+      const retrieved = await postgresRepo.getRequirementVersion(
+        'concurrency-req-v1',
+      );
       expect(retrieved?.revision).toBe(1);
 
       // First update should succeed (increment revision)
-      const updated1 = { ...retrieved!, content: { title: 'Updated v1' }, revision: 1 };
+      const updated1 = {
+        ...retrieved!,
+        content: { title: 'Updated v1' },
+        revision: 1,
+      };
       await postgresRepo.updateRequirementVersion(updated1);
 
-      const afterFirst = await postgresRepo.getRequirementVersion('concurrency-req-v1');
+      const afterFirst = await postgresRepo.getRequirementVersion(
+        'concurrency-req-v1',
+      );
       expect(afterFirst?.revision).toBe(2);
 
       // Second update with stale revision should fail
-      const updated2 = { ...retrieved!, content: { title: 'Updated v2' }, revision: 1 };
-      await expect(postgresRepo.updateRequirementVersion(updated2)).rejects.toThrow();
+      const updated2 = {
+        ...retrieved!,
+        content: { title: 'Updated v2' },
+        revision: 1,
+      };
+      await expect(
+        postgresRepo.updateRequirementVersion(updated2),
+      ).rejects.toThrow();
     });
   });
 
@@ -312,8 +334,14 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       await postgresRepo.createRequirementVersion(version);
 
       // Attempt to update APPROVED version should fail
-      const modified = { ...version, content: { title: 'Modified', priority: RequirementPriority.COULD }, revision: 1 };
-      await expect(postgresRepo.updateRequirementVersion(modified)).rejects.toThrow();
+      const modified = {
+        ...version,
+        content: { title: 'Modified', priority: RequirementPriority.COULD },
+        revision: 1,
+      };
+      await expect(
+        postgresRepo.updateRequirementVersion(modified),
+      ).rejects.toThrow();
     });
   });
 
@@ -349,7 +377,9 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       await postgresRepo.createBaseline(baseline);
 
       const retrieved = await postgresRepo.getBaseline('baseline-001');
-      expect(retrieved?.requirementVersionIds).toEqual(baseline.requirementVersionIds);
+      expect(retrieved?.requirementVersionIds).toEqual(
+        baseline.requirementVersionIds,
+      );
     });
   });
 
@@ -395,7 +425,9 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       try {
         await postgresRepo.updateRequirementVersion(v1Superseded);
         // If success, verify
-        const retrieved = await postgresRepo.getRequirementVersion('supersession-req-v1');
+        const retrieved = await postgresRepo.getRequirementVersion(
+          'supersession-req-v1',
+        );
         expect(retrieved?.status).toBe(URSStatus.SUPERSEDED);
       } catch (e) {
         // If fails, that's also valid behavior (immutable APPROVED versions)
@@ -457,7 +489,9 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
       const stillThere = await postgresRepo.getRequirementSet(set.id);
       expect(stillThere?.requirementSetId).toBe('URS-ROLLBACK');
 
-      const version = await postgresRepo.getRequirementVersion('rollback-req-v1');
+      const version = await postgresRepo.getRequirementVersion(
+        'rollback-req-v1',
+      );
       expect(version?.title).toBe('Rollback Test V1');
       expect(
         (await postgresRepo.getRequirementVersions('URS-ROLLBACK-001')).length,
@@ -477,11 +511,15 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
         eventType: 'CREATE',
         entityType: 'REQUIREMENT' as any,
         entityId: 'audit-entity-001',
+        correlationId: 'test-correlation',
       };
       await postgresRepo.createAuditEvent(event);
 
       // Verify created
-      const retrieved = await postgresRepo.getEntityAuditTrail('audit-entity-001', 'REQUIREMENT');
+      const retrieved = await postgresRepo.getEntityAuditTrail(
+        'audit-entity-001',
+        'REQUIREMENT',
+      );
       expect(retrieved.length).toBeGreaterThan(0);
       expect(retrieved[0].actor).toBe('test-user');
     });
@@ -544,9 +582,9 @@ describeWhenPg('URS Composer P1A Persistence Verification', () => {
         },
       };
 
-      await expect(
-        PostgresURSRepository.create(badDb as any),
-      ).rejects.toThrow('Database connection failed');
+      await expect(PostgresURSRepository.create(badDb as any)).rejects.toThrow(
+        'Database connection failed',
+      );
     });
   });
 });

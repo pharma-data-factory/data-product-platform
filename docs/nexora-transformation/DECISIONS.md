@@ -2446,3 +2446,77 @@ dependencies is a dependency change and needs its own approval.
 product test evidence and FS/TDS. Those are not positions the platform is
 holding — they are unbuilt capability, and they belong to the completion
 plan, not to a compliance register.
+
+---
+
+### NXD-065 — The audit trail could not answer "what happened in this one operation"
+
+- Date: 2026-09-26
+- Slice: MVP1-B / B-3
+
+`audit_events` has had a `correlation_id` column since it was created,
+`AuditEvent` has had the field, and both repositories map it in each
+direction. No write site ever set it. **Every row was NULL.**
+
+A baseline approbation writes events for the approval step, the approval
+instance, the baseline, each requirement version the release supersedes, and
+the electronic signature. Five kinds of record, one act by one person, and
+nothing joined them. For a regulated trail that is not a reporting
+inconvenience — it is the difference between a sequence of events and an
+account of what was done.
+
+**Optional was the defect.** A field that may be omitted is a field that
+will be, 35 times. `AuditEvent.correlationId` is required now, so a new write
+site cannot compile without one, and `URSService.writeAudit` supplies it from
+an `AuditContext` opened at the entry point. `writeAudit` takes
+`Omit<AuditEvent, 'correlationId'>`, so a caller cannot state one either: a
+site that wants a different correlation must open a different context, which
+is a deliberate act rather than a slip.
+
+**Where the context opens.** `beginAudit(actor, inherited?)` at the top of
+every method that audits. The `inherited` argument is the whole mechanism:
+five methods are reachable from other auditing methods — `releaseBaseline`
+from both `approveApprovalStep` and `approveBaseline`,
+`seedInitialRequirementVersion` from `createRequirement` and
+`updateRequirementSetDraft`, and so on — and their events belong to the
+caller's operation, not to a new one.
+
+Three methods that write nothing themselves also open a context and pass it
+down: `signRequirementVersion`, `advanceRequirementSetVersions` and
+`approveBaseline`. Without that, advancing a set of versions would give each
+version its own id, which is precisely the join this record exists to
+create.
+
+**The type found a write site the code review had not.** Making the field
+required produced a compile error in
+`domain/signature-service.ts` — a 35th site, in a different class, with no
+way to know which operation it belonged to. `sign()` now takes the context.
+Reading the call graph had found 34; the compiler found the one that was not
+in the file I was reading.
+
+**The column stays nullable, deliberately.** Historic rows have no
+correlation and never will. Backfilling would mean inventing one for events
+that were never part of a recorded operation, which is worse than an honest
+gap in an append-only trail. The guarantee is on new writes: the type
+enforces it, and `postgres-repository` no longer falls back to `null`, so an
+event that somehow evades the type fails the insert rather than adding
+another unattributable row.
+
+**Tested against the operation, not the unit.** `audit-correlation.test.ts`
+walks a real non-GxP chain to completion and asserts the final approval's
+events share one id, span more than one entity type, and differ from the
+preceding step's. It captures what reaches the repository rather than what
+the service returns, because the defect was invisible from the outside —
+every one of those calls succeeded throughout.
+
+Two of its assertions were wrong on the first run and the code was right
+both times: `updateRequirementSetDraft` requires `priority` on a
+requirement, and a baseline signature is written only on the **final**
+required step, not on intermediate ones. Recorded because both are rules a
+reader of the test would otherwise have to rediscover.
+
+**Not done here.** The correlation id is generated at the service boundary
+and no HTTP header supplies one, so a single user action that crosses
+plugins — Product Composer binding a URS baseline, say — still produces two
+unrelated correlations. Threading it from the request is the natural next
+step and belongs with the cross-plugin evidence work, not with this slice.
