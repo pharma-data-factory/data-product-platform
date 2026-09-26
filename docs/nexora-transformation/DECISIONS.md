@@ -2240,3 +2240,55 @@ date and the reason: `docs/rbac/platform-roles.md` (twice) and
 control as well as the grant, because "granted to PLATFORM_ADMIN" on its own
 reads more permissive than the system actually is.
 
+---
+
+### NXD-062 — Twenty-four permissions that deny nothing
+
+- Date: 2026-09-26
+- Closes: W-7 (Authorization Profile residue)
+
+Six `templates/*/authorization.yaml` files declared an "Authorization
+Profile" per Golden Path: domain permissions in a
+`<domain>.{read,operate,configure,admin}` pattern, suggested roles, and
+platform-role mappings. Twenty-four permissions across `aas`, `machine-state`,
+`mqtt`, `oee`, `equipment` and `uns`, with four supporting documents — a
+registry, a schema reference, an architecture document and a matrix.
+
+Measured against the repository:
+
+| Check                                            | Result                                             |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `authorization.yaml` read by any source file     | no                                                 |
+| referenced by any `template.yaml`                | no                                                 |
+| loaded by the Catalog                            | no — not an allowed kind, no location points at it |
+| of the 24 permissions, present in source         | 1                                                  |
+| of the 24, present in generated template content | 0                                                  |
+
+The single survivor is a name collision, not evidence. The profiles declare
+`aas.read` with `runtimeEnforcement: IMPLEMENTED` and
+`mechanism: fastapi-permission-check` — enforcement inside the generated
+Python data product. The `aas.read` that exists is a control-plane permission
+defined in `permissions.ts` and enforced in `plugins/aas-backend/src/router.ts`.
+Same string, different system. **No generated product checks any of these.**
+
+`runtimeEnforcement: IMPLEMENTED` on a permission with no implementation is
+what makes this worth a decision rather than a cleanup. Someone designing an
+access model from these files would have built it on twenty-four controls
+that deny nothing, and the documents said, in the field reserved for exactly
+that question, that they were enforced.
+
+The material is archived under
+`docs/archive/architecture/authorization-profiles-legacy/` with the
+measurement beside it, rather than deleted: it is the client half of the
+design `NXD-060` records the server half of. Community RBAC was to provide
+the central role administration these profiles fed, and Community RBAC is
+disabled. The profiles were not abandoned so much as orphaned.
+
+`AGENTS.md` still carries the rule "Authorization Profile Registry is
+metadata/configuration. It is NOT an authorization decision engine." The rule
+is sound and is left untouched. Note only that there is currently no registry
+for it to govern — if one is built again, the rule is waiting.
+
+Not moved: `docs/PHASE9_EVIDENCE_MATRIX.md`, which is the acceptance evidence
+for this work and covers other deliverables too. It is a phase report and
+belongs with the rest of them; that is a separate pass.
