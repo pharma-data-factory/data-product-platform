@@ -1,6 +1,7 @@
 # Nexora Transformation Status
 
 ## Current Phase
+
 Post-plan. All eight phases of `IMPLEMENTATION_PLAN.md` have met their exit
 criteria; Phase 7 closed on 2026-09-21. Work since then realizes
 `PRODUCT_STRATEGY.md` directly, in three Waves (Wave 1 = `P-EXT-S1..S5`,
@@ -9,8 +10,37 @@ series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
 (items 1–9). These IDs are not phases and have no exit criteria of their own.
 
 ## Current Vertical Slice
-**Batch 1 — the journey the platform describes can be walked.** Uncommitted as
-of 2026-09-25 and green on all four gates. Driving the URS → Product → Release
+
+**Governance consolidation (2026-09-26).** No feature work. A read-only
+conformance audit was taken first
+([`docs/audits/TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md),
+commit `d68308f`), and the documentation was then brought into agreement with
+the code. What changed, and where the current answer now lives:
+
+| Was                                                                                  | Now                                                                                                                       |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| 21 documents called themselves "authoritative"                                       | one ranking, in [`/CLAUDE.md`](../../CLAUDE.md) §1                                                                        |
+| three decision-record systems                                                        | **`DECISIONS.md` (NXD) only**; ADR-001..010 and the second ADR-004 archived under `docs/archive/architecture/adr-legacy/` |
+| `capability-matrix.md` claimed AAS CERTIFIED/RELEASED                                | **DEPRECATED**; the Catalog annotation is the status source per `engineering/source-of-truth.md`                          |
+| 24 Authorization-Profile permissions, 1 in source, 0 enforced                        | archived under `docs/archive/architecture/authorization-profiles-legacy/` with the measurement (`NXD-062`)                |
+| two permission registries, the dead one holding a wrong `validation.approve` comment | one registry; dead module removed (`NXD-061`)                                                                             |
+| 44 broken documentation links                                                        | 0, and a guardrail check that keeps it there                                                                              |
+| "Solution Composer" as a third name                                                  | **Product Composer** everywhere (`NXD-063`)                                                                               |
+| "Phase N" meaning three different things                                             | qualified form required (`CLAUDE.md` §2)                                                                                  |
+
+Compliance positions that are held rather than fixed are written down in
+`NXD-064` and in
+[`docs/compliance/traceability-and-gmp.md`](../compliance/traceability-and-gmp.md):
+the shipped `memory` persistence default, the missing `reason` on
+`composer_audit_events`, un-persisted AI spec drafts, and the disabled
+Community RBAC.
+
+`guard:platform` now runs **ten** checks; the tenth is documentation link
+integrity (`scripts/check-doc-links.mjs`).
+
+**Batch 1 — the journey the platform describes can be walked.** Committed
+2026-09-25 (`b7378b0` and the four commits that follow it) and green on all
+four gates. Driving the URS → Product → Release
 path as a user, rather than testing its modules, found it broken at four
 joints, each the same shape as [`NXD-053`](DECISIONS.md): written, routed,
 tested, and reachable from no caller.
@@ -26,7 +56,7 @@ tested, and reachable from no caller.
 - `updateProduct` dropped `dataClassification`, `lifecycle` and
   `declaredPolicies` in its mapping and validated nothing, so the three
   platform-policy obligations were unclearable — and
-  `gxpRelevance: 'TOTALLY_MADE_UP_VALUE'` was stored and *satisfied*
+  `gxpRelevance: 'TOTALLY_MADE_UP_VALUE'` was stored and _satisfied_
   `gxp-relevance-set`.
 - The approval chain could not be walked by one identity, correctly, and there
   was only one. Three demo identities now exist behind a local-only provider;
@@ -64,7 +94,7 @@ is not enforced.
 
 **`/products` is the Product page, and it is reachable.** The 2026-09-24 slice
 executed [`NXD-056`](DECISIONS.md): the page went into the sidebar under
-*Build*, where the group previously offered `/create` and `/compose` and then no
+_Build_, where the group previously offered `/create` and `/compose` and then no
 destination, and the single 856-line scroll became six tabs — Overview,
 Requirements, Architecture, Contracts, Tests, Validation.
 
@@ -78,7 +108,7 @@ endpoint was needed for any of them.
 no repository field, no entity reference and no scaffolder bearing, so the tab
 would hold only an explanation of what is missing. It lands with Step 2, which
 creates that identity. Two defects were fixed in passing: the add-component
-form wrote against the *latest* version while the picker selected any version
+form wrote against the _latest_ version while the picker selected any version
 (the write-path twin of the bug NXD-055 fixed on the read path), and every
 `TextField` on the page was unlabelled because Material UI v4 generates no
 `id`. See the addendum on [`NXD-056`](DECISIONS.md).
@@ -115,7 +145,7 @@ ProductBaseline, which was the last link in the phase's evidence chain.
 
 A re-read of the literal exit criteria on 2026-09-22 corrected an earlier
 over-count in this document. Per-namespace scoping is recorded below as
-*deferred, not part of Phase 2*; GP-7 is a component registry, not the
+_deferred, not part of Phase 2_; GP-7 is a component registry, not the
 "hard-coded domain composition" Phase 3 names; and Editions and Federation
 appear in no phase text at all — they are Wave 3, post-plan. Counting those
 against phases made five phases look open when three were. The remaining
@@ -127,6 +157,7 @@ errors and 5 failing suites — and was **restored to green on 2026-09-22**. See
 `## Test Status`.
 
 ## Completed
+
 - Strategy and architecture guardrails defined.
 - Eight-phase implementation plan defined.
 - Existing Backstage extension-first guardrails remain authoritative.
@@ -176,7 +207,7 @@ state recorded and green, migration risks documented.
   always existed and was never enforced: `addDataContract` cast any string
   through, so stored rows could hold values the type said were impossible.
   `version` was unvalidated free text. Both fixed, no schema change. Contract
-  *identity* (name, owner, uniqueness) is deliberately left to Phase 4 rather
+  _identity_ (name, owner, uniqueness) is deliberately left to Phase 4 rather
   than half-built now. See [`NXD-010`](DECISIONS.md).
 - **Flake introduced in P1-S3, closed in P2-S3.**
   `identityConstraints.test.ts` failed ~60% of full runs while passing in
@@ -209,7 +240,7 @@ database constraints where a key exists, and covered by tests.
   DRAFT, so registering content can never by itself publish it. Verified on
   PostgreSQL, not just SQLite.
 - **P2-S3 — Registry API and permissions.** Twelve routes over the Backstage
-  permission framework, and eight permissions tiered across the *existing*
+  permission framework, and eight permissions tiered across the _existing_
   roles rather than new Producer/Consumer roles — reviewing sits at DEVELOPER,
   certifying and publishing at DATA_PRODUCT_OWNER, so no single grant carries
   a version from draft to released. Review records evidence
@@ -293,7 +324,7 @@ database constraints where a key exists, and covered by tests.
   [`NXD-026`](DECISIONS.md). `loadOfferings` now rejects on a registry failure
   instead of substituting anything, which the Marketplace pages already render
   as an error state. This also forced the question P2-S5b deferred:
-  *which certification does the UI show.* The manifest can no longer state one
+  _which certification does the UI show._ The manifest can no longer state one
   at all; the Marketplace shows the registry's own
   `ArtifactVersion.certificationStatus`, floored at `DEVELOPMENT` for a
   version nothing has reviewed — see [`NXD-025`](DECISIONS.md). Two of the
@@ -369,7 +400,7 @@ registry's own rather than an inherited claim.
   order the table happened to be written in.
 
   Verified live against a fresh registry: `20 registered, 0 already present,
-  1 publishers created, 0 failed`, 8 GOLDEN_PATH artifacts, `usage` stored on
+1 publishers created, 0 failed`, 8 GOLDEN_PATH artifacts, `usage` stored on
   exactly the six that declare it, `builtFrom` resolved, all 20 versions DRAFT.
 
   **Running it found something the tests could not**
@@ -446,7 +477,7 @@ role changes and audit records in every container deployment.
   `platform-admins` and, because the seed never runs again, would have stayed.
 
   The Catalog reads `catalog/runtime/platform-users.yaml`, a projection
-  rewritten *from* the database and never into it. An entity provider would be
+  rewritten _from_ the database and never into it. An entity provider would be
   tidier but is registered through `catalogProcessingExtensionPoint`, and an
   extension point may only be consumed by a module of that plugin — which
   would then receive the catalog's database, not this one's.
@@ -478,7 +509,7 @@ role changes and audit records in every container deployment.
   silent failure path logs.
 
   **The characterisation in [`NXD-053`](DECISIONS.md) was wrong for two of the
-  three and is corrected.** Only the catalog loader failed *open*. The URS and
+  three and is corrected.** Only the catalog loader failed _open_. The URS and
   ValidationDecision resolvers fail **closed** — a failed call becomes a
   `NO_APPROVED_URS_BASELINE` or `NO_APPROVED_VALIDATION_DECISION` blocker. So
   they were not letting bad releases through; they were **blocking good ones**,
@@ -487,7 +518,7 @@ role changes and audit records in every container deployment.
 
   **Fixing the clients was not enough.** Both target plugins authorize reads
   with `allow: ['user'], allowLimitedAccess: true`, which admits a forwarded
-  limited *user* token but not a service principal — so a correctly minted
+  limited _user_ token but not a service principal — so a correctly minted
   token would still have been refused. Five read routes now use an
   `authorizeReadOrService` helper: `GET /baselines/:id`,
   `/requirement-sets/:id`, `/requirement-versions/:id`, `/contexts` and
@@ -506,7 +537,7 @@ role changes and audit records in every container deployment.
   `getOwnServiceCredentials` is **required, not optional**, so a mock that
   omits it fails to compile — the old signature let production pass `{}` while
   the mock passed nothing, which is why no test could have caught this.
-  `crossPluginAuth.test.ts` adds 10 tests that assert the call *shape* rather
+  `crossPluginAuth.test.ts` adds 10 tests that assert the call _shape_ rather
   than the parsed response.
 
   Verified live: all five routes accept a service principal (404 "Baseline not
@@ -535,7 +566,7 @@ role changes and audit records in every container deployment.
     new columns on `product_baselines` instead, so the tamper-evidence of the
     snapshot and the provenance of the build stay separable.
   - **Write-once, not editable.** A second post with identical values is a
-    200 (CI retries and re-runs are normal); a second post with *different*
+    200 (CI retries and re-runs are normal); a second post with _different_
     values is a 409. Release provenance is an attestation about a build that
     happened, so the platform records it or refuses it — it never overwrites
     one SHA with another.
@@ -549,7 +580,7 @@ role changes and audit records in every container deployment.
     one is `PROVENANCE_RECORDED`.
   - **CI authenticates as a service, not as a user.** The route is the first
     in the repository to accept `httpAuth.credentials(req, { allow:
-    ['service'] })`, backed by Backstage's own
+['service'] })`, backed by Backstage's own
     `backend.auth.externalAccess` static-token mechanism. No new credential
     type and no new dependency — the mechanism was always there, unused.
 
@@ -569,7 +600,7 @@ role changes and audit records in every container deployment.
   [`NXD-053`](DECISIONS.md). None was introduced here; all four were in code
   already marked done, and all four share one shape: the unit tests exercise
   the modules directly, so nothing had ever gone through the wiring. The
-  release gate answered 500 for *every* product because
+  release gate answered 500 for _every_ product because
   `platform-policy.ts` and `platform-policy.json` shared a basename and the
   backend resolved the JSON; `POST /policies/resolve` answered 500 on a
   dynamic `import()` that destructured to `undefined` under CJS; that route
@@ -588,7 +619,7 @@ role changes and audit records in every container deployment.
 
   Verified live, not only in tests. Blocker list before the build:
   `INVALID_STATUS, INCOMPLETE_TRACEABILITY, POLICY_OBLIGATION_UNMET ×4,
-  MISSING_CI_PROVENANCE, NO_URS_BASELINE`. After CI posted: the same list
+MISSING_CI_PROVENANCE, NO_URS_BASELINE`. After CI posted: the same list
   without `MISSING_CI_PROVENANCE`. A user token on the route is refused 403,
   a re-post of the same build returns 200 with an unchanged timestamp, a
   different build is refused 409, and a malformed SHA is refused 400.
@@ -603,7 +634,7 @@ role changes and audit records in every container deployment.
   closed (`OPEN | REQUEST | ENTITLEMENT`) and defaults to `REQUEST`, since an
   unstated access rule should not read as "help yourself".
 
-  A new `exchange-declared` release-gate obligation blocks when *any* output
+  A new `exchange-declared` release-gate obligation blocks when _any_ output
   contract lacks a mechanism.
 
   Exercising it exposed a defect that made the whole of 5-R1 inert:
@@ -642,7 +673,7 @@ role changes and audit records in every container deployment.
   because formal validation records carry it as the validated product
   candidate. `DECISIONS.md` backfilled for Wave 1 and the remediation series —
   about twenty commits that had produced two decision records between them,
-  including that policy resolution fails *open* and why. GP-8 struck from
+  including that policy resolution fails _open_ and why. GP-8 struck from
   `HARDCODED_DOMAIN_INVENTORY.md`, leaving GP-7 as the only open row.
 
 **Post-plan strategy work (2026-09-21, 16:22–19:00).** Everything below down to
@@ -655,6 +686,7 @@ no decision records yet.
   the Wave 3 and remediation work; all nine closed across five commits
   (`2fc06a3`, `124ff36`, `4835e4c`, `e226bb7`, `beeab2a`). The list itself was
   never written to the repository, so only the commits record it.
+
   - Policy obligations were surfaced wholesale as blockers instead of being
     evaluated. `checkReleaseGate` now maps all nine checks of
     `gxp-data-product-policy.yaml` onto real product data
@@ -798,7 +830,7 @@ no decision records yet.
   `GET /notifications`, `PATCH /notifications/:id/read`. Producer announces,
   consumers poll — the push path arrived later as `6-R2`.
   W2-2: `ConfigKeySchema { key, description, type, required, defaultValue,
-  example }` with `ConfigKeyType` of `string|number|boolean|url|secret`;
+example }` with `ConfigKeyType` of `string|number|boolean|url|secret`;
   `ComponentLibraryProfile.configurationSchema?` supersedes the flat key list.
   W2-3: `GET /versions/:id/revalidation-scope` diffs the current version
   against the previous approved baseline and returns added/removed components
@@ -834,7 +866,7 @@ no decision records yet.
   (`--profile split`, nginx on 3000 proxying `/api/*`, `/.backstage/*`,
   `/oauth2/*` and the SSE route to the backend), both against PostgreSQL 16 on
   the `nexora_db` volume. Four fixes were needed to make the image build:
-  `scripts/link-internal-packages.js` had to be copied *before*
+  `scripts/link-internal-packages.js` had to be copied _before_
   `yarn workspaces focus --all --production` (its postinstall runs during that
   step), the script early-exits on `NODE_ENV=production` as a second guard,
   `model-company/` was missing from the `COPY` list although the plugin reads
@@ -928,7 +960,7 @@ no decision records yet.
   network error, and missing title fallback.
 
 - **P3-S6 — AI spec apply sets owner.** `applySpecDraft` now sets `owner:
-  actor` so the `owner-declared` platform policy obligation is met at apply
+actor` so the `owner-declared` platform policy obligation is met at apply
   time. `dataClassification` and `gxpRelevance` still require deliberate manual
   entry before release. Test updated to assert `product.owner === actor`.
 
@@ -956,6 +988,7 @@ no decision records yet.
   and `readGoldenPathComposition()`. See [`NXD-032`](DECISIONS.md).
 
 ## In Progress
+
 Nothing in flight. Batch 1 is committed (`b7378b0`) and the live walk that
 followed it is recorded in [`NXD-059`](DECISIONS.md).
 
@@ -980,6 +1013,7 @@ Next planned step is unchanged: **Step 2 — "one door"**, a
 and the `products` row in one act.
 
 ## Next
+
 **Sequencing now lives in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md)**
 (written 2026-09-22). A code audit for that plan found four phases still open
 against `IMPLEMENTATION_PLAN.md` — 2, 3, 4 and 7 — and that the entries below
@@ -1061,15 +1095,16 @@ Phase 4 needs the whole first-class model in one designed migration — see
 [`NXD-010`](DECISIONS.md).
 
 ## Test Status
+
 **GREEN.** Verified on 2026-09-25 the way CI runs it (`CI=true`, PostgreSQL up
 via `docker-compose.test.yml`), after the walk fixes.
 
-| Gate | Command | Result |
-| --- | --- | --- |
+| Gate       | Command               | Result                                       |
+| ---------- | --------------------- | -------------------------------------------- |
 | Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
-| Typecheck | `yarn tsc` | PASS |
-| Lint | `yarn lint:all` | PASS |
-| Unit tests | `CI=true yarn test` | PASS — 222 suites, 1961 tests, **0 skipped** |
+| Typecheck  | `yarn tsc`            | PASS                                         |
+| Lint       | `yarn lint:all`       | PASS                                         |
+| Unit tests | `CI=true yarn test`   | PASS — 222 suites, 1961 tests, **0 skipped** |
 
 Eight suites are new today: the governance vocabulary, the product update path,
 release-gate progress, the approval-workflow seed in both persistence modes, the
@@ -1104,10 +1139,10 @@ better-sqlite3 is a native module whose binding is loaded once per worker
 process, so its `SqliteError` carries the `Error` intrinsic of whichever jest
 module realm loaded it first. When another project's file got there first,
 `instanceof Error` reads false inside this file, and `toThrow()` reports
-*"Received function did not throw"* for a rejection that did happen.
+_"Received function did not throw"_ for a rejection that did happen.
 
 The literal message was the tell and was misread for several runs. Jest says
-*"Received promise resolved instead of rejected"* when nothing is thrown. "Did
+_"Received promise resolved instead of rejected"_ when nothing is thrown. "Did
 not throw" meant a value **was** thrown and was not an `Error`.
 
 **Fix.** `expectRefusedByDatabase` — which `identityConstraints.test.ts` had
@@ -1133,6 +1168,7 @@ which the new binding refuses. That was a test double predating the field, not
 a behaviour the product ever had.
 
 ### The 2026-09-22 repair
+
 Earlier the same day the gate was red: 50 type errors in 12 files, 9 lint errors
 in 4 workspaces and 5 failing suites, all of it fallout from the 2026-09-21
 evening commits, which were not put through steps 7–10 of the working method.
@@ -1170,6 +1206,7 @@ query for a list already in scope.
 `f2d4ad5` removed when it replaced the file wholesale. Two of those were real
 regressions, not stale tests, and were fixed in the compose file rather than
 the test:
+
 - **CC-001 was genuinely weakened.** The new compose mounted a named volume at
   `/app/.runtime` but called it `nexora_runtime` and dropped the explicit
   `CREATE_AUTHORIZATION_AUDIT_PATH` pin, breaking the convention that
@@ -1196,7 +1233,7 @@ decision, not a test fix. The assertion now accepts either and still rejects
 
 **The identityConstraints flake is closed (2026-09-17).** It was never a
 missing constraint. better-sqlite3 is a native module, so its binding loads
-once per jest *worker* and the `SqliteError` it raises carries the `Error`
+once per jest _worker_ and the `SqliteError` it raises carries the `Error`
 intrinsic of whichever module realm loaded it first; in a later file in the
 same worker `error instanceof Error` is false, and jest renders a non-Error
 rejection value as "Received function did not throw". The insert always
@@ -1229,6 +1266,7 @@ the CI gate (`.github/workflows/ci.yml` runs guardrails, tsc, lint and tests
 only) and was left untouched rather than mixed into a baseline commit.
 
 ### Baseline findings (all fixed in P0-S1)
+
 Nine failing suites resolved to five root causes. Eight were stale tests that
 contradicted deliberate, already-committed behaviour; one was a real defect.
 
@@ -1256,6 +1294,7 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
    passed in isolation and failed in the full run.
 
 ## Known Risks
+
 - ~~`identityConstraints.test.ts` still fails intermittently under full-run
   load with no identified mechanism.~~ **Root-caused and fixed 2026-09-17**,
   see [`NXD-016`](DECISIONS.md) and Test Status. The risk was also stated
@@ -1276,6 +1315,7 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
 - URS/Validation lifecycle integration is incomplete. **The audit of
   2026-09-17 found the gap is specifically at the end of the chain, and it is
   the platform's largest:**
+
   - `packages/platform-common/src/policy.ts:53-60` denies `validation.approve`,
     `risk.accept` and `baseline.modify` to **every role, including
     PLATFORM_ADMIN** — "Reserved Validation Expert controls, never
@@ -1297,6 +1337,7 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
   because the chain visibly does not close, and discovering that in Phase 5
   rather than now would put the GxP positioning on a claim the code does not
   support.
+
 - **`ProductBaseline` does not record what was built.**
   `composer-backend/src/service.ts:546` snapshots the version, components
   (id/name/type), contracts (id/schemaType/version) and traceability links —
@@ -1337,12 +1378,14 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
 > current picture.
 
 ### Domain ownership
+
 `packages/platform-common/src/product.ts` is the single Product domain. It
 already owns `Product`, `ProductVersion`, `ProductComponent`, `DataContract`,
 `TraceabilityLink`, `ProductBaseline` and `ProductBaselineDelta`. No second
 Product domain exists — the consolidation constraint currently holds.
 
 Missing relative to the target model:
+
 - No `Artifact` / `ArtifactVersion` type anywhere (Phase 2).
 - No `Publisher` type anywhere (Phase 2).
 - No `ProductDependency` / `Subscription` type (Phase 4).
@@ -1351,6 +1394,7 @@ Missing relative to the target model:
   delivery mechanism or compatibility rules (Phase 4).
 
 ### Persistence
+
 Only three backends own a database, all via the Backstage
 `coreServices.database` service with their own `db/migrations.ts`:
 `urs-composer-backend`, `composer-backend`, `validation-expert-backend`.
@@ -1360,6 +1404,7 @@ memory. Phase 2's Artifact Registry needs real persistence and cannot follow
 the filesystem pattern.
 
 ### Hard-coded domain in Core
+
 `packages/platform-common/src/platform-component-library.ts` and
 `composer.ts` hard-code OEE and Machine State compositions
 (`OEE_DIRECT_COMPOSITION_REFS`, `MACHINE_STATE_COMPOSITION_REFS`,
@@ -1368,6 +1413,7 @@ composition resolver). This is the Phase 3 target: Golden Paths must become
 dynamically resolvable Artifacts.
 
 ### Permissions
+
 45 custom permissions across URS (5), Validation (8), Data Product (8),
 Marketplace/Plugin Directory (4) and others, inventoried in
 `packages/platform-common/src/permissions-inventory.md`. All ride the
@@ -1375,11 +1421,13 @@ Backstage permission framework — no second permission engine. The target
 `artifact.*` / `publisher.manage` capability set does not exist yet (Phase 2).
 
 ### Composition layer
+
 `packages/app` is 27k lines across 151 files. `guard:platform` reports it
 within its configured composition limits, but it is far larger than a pure
 wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
 
 ## Migration Debt
+
 - ~~The GxP invariant suites never run in CI.~~ **Resolved in P0-S2.** 62
   tests across six files (`urs-composer-backend`: `gxp-invariants`,
   `runtime-postgres-proof`, `wd-seed-persistence`, `p1a-verification`,
@@ -1417,6 +1465,7 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   2026-09-22.
 
 ## Blocked Decisions
+
 **DEPENDENCY_CHANGE_REQUIRED — `supertest` (test-only).** Evidence gathered
 2026-09-16 as the dependency gate requires; **not installed**, awaiting a
 decision. Not blocking any phase.
@@ -1463,8 +1512,10 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 [`NXD-009`](DECISIONS.md).
 
 ## Last Commit
-"fix(walk): a transaction does no I/O it does not own", 2026-09-25, on
-`ms/composer-ai-spec-and-ci-quality-gate`.
+
+"docs(status): the record matches the repository again", 2026-09-26, on
+`ms/composer-ai-spec-and-ci-quality-gate` — the closing commit of the
+governance consolidation series described under `## Current Vertical Slice`.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
@@ -1472,8 +1523,10 @@ first — which is then itself unnamed. This entry was wrong for three days for
 exactly that reason: it said `beeab2a` while HEAD was `164039f`. `git log -1`
 is authoritative; this section carries the subject and the date.
 
-As of 2026-09-25 the branch is **5 commits ahead of its remote**; the last
-pushed commit is `f054b3c`. The working tree is clean.
+As of 2026-09-26 the branch is well ahead of its remote and **nothing since
+`f054b3c` has been pushed** — this container has no `gh` CLI and no git
+credential helper, so every commit of the governance consolidation series is
+local. The working tree is clean.
 
 For historical reference, Phase 0 landed as three commits: the transformation
 memory, "fix(test): restore a green baseline and stop the jest resolver

@@ -1,8 +1,14 @@
 # Asset Administration Shell (AAS) — Public Documentation
 
 > Standardized digital representation of manufacturing assets.  
-> **Status:** CERTIFIED (Wave 2 Technical Baseline)  
-> **Standards:** IEC 63278-1:2024 / IDTA-01001 v3.0
+> **Status:** **DEVELOPMENT** — the Control Plane adapter is an in-memory
+> prototype (`plugins/aas-backend/src/repository.ts` stores assets in a
+> `Map`) and `templates/aas-asset` publishes and registers nothing.
+> Corrected 2026-09-26; this header previously read "CERTIFIED (Wave 2
+> Technical Baseline)". Authoritative status:
+> [subsystem status](../subsystem-status.md).  
+> **Standards:** IEC 63278-1:2024 / IDTA-01001 v3.0 — the model is
+> implemented against these; conformance is not certified.
 
 ---
 
@@ -12,15 +18,19 @@ The **Asset Administration Shell** is a standardized, vendor-neutral digital twi
 
 ### Nexora AAS Implementation
 
-**Wave 2 Certified Golden Path**
+**Wave 2 — DEVELOPMENT.** What the implementation covers:
 
-- **IEC 63278-1:2024** compliance ✅
-- **IDTA-01001 v3.0** metamodel ✅
-- **IDTA-01002 v3.0** REST API ✅
-- Multi-source ingestion (MQTT, REST) ✅
-- Asset registry & discovery ✅
-- Quality assurance & metrics ✅
-- Production-ready Docker deployment ✅
+- **IEC 63278-1:2024** metamodel implemented
+- **IDTA-01001 v3.0** metamodel implemented
+- **IDTA-01002 v3.0** REST API implemented
+- Multi-source ingestion (MQTT, REST)
+- Asset registry & discovery — **in memory**, not persisted
+- Quality assurance & metrics
+- Docker deployment of the Control Plane
+
+The check marks were removed with the status correction: they read as
+certification against the standards named beside them, which has not been
+performed.
 
 ---
 

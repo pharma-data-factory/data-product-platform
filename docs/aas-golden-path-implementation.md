@@ -11,7 +11,14 @@
 
 We have implemented the **AAS Asset Administration Shell Golden Path** as a Wave 2 addition to the Nexora platform.
 
-AAS is a certified, production-ready template for asset management that enables organizations to:
+AAS is a template for asset management that enables organizations to:
+
+> **Status, corrected 2026-09-26.** This sentence read "a certified,
+> production-ready template". It is neither. The Control Plane adapter is
+> **DEVELOPMENT** — an in-memory prototype — per
+> [subsystem status](subsystem-status.md). Read this document as the
+> implementation write-up it is, not as a release statement.
+
 - Register and manage manufacturing equipment hierarchies
 - Ingest asset data from MQTT, REST, or file sources
 - Query and discover assets via standardized APIs
@@ -97,14 +104,14 @@ JSON Schema defining the mandatory structure for asset events:
 
 **Core Modules:**
 
-| Module | Responsibility |
-|--------|-----------------|
-| `main.py` | FastAPI application, routers, endpoints |
-| `models.py` | Pydantic data models (AssetEvent, etc.) |
-| `aas_service.py` | AAS business logic, validation, storage |
-| `config.py` | Environment-based configuration |
-| `health.py` | Liveness and readiness probes |
-| `observability.py` | Metrics collection |
+| Module             | Responsibility                          |
+| ------------------ | --------------------------------------- |
+| `main.py`          | FastAPI application, routers, endpoints |
+| `models.py`        | Pydantic data models (AssetEvent, etc.) |
+| `aas_service.py`   | AAS business logic, validation, storage |
+| `config.py`        | Environment-based configuration         |
+| `health.py`        | Liveness and readiness probes           |
+| `observability.py` | Metrics collection                      |
 
 **Key Endpoints:**
 
@@ -161,17 +168,20 @@ GET    /api/v1/metrics                # Observability metrics
 ### 6. Deployment
 
 **Local Development:**
+
 ```bash
 docker-compose up
 ```
 
 Brings up:
+
 - AAS Data Product (FastAPI)
 - Mosquitto (MQTT broker)
 - Eclipse BaSyx AAS Server
 - Eclipse BaSyx AAS Registry
 
 **Production Container:**
+
 ```bash
 docker build -t pharma-data-factory/aas-data-product:1.0.0 .
 ```
@@ -181,21 +191,25 @@ docker build -t pharma-data-factory/aas-data-product:1.0.0 .
 ## Standards Compliance
 
 ### IEC 63278-1:2024
+
 ✅ Asset Administration Shell Structure for industrial applications
 
 ### IDTA-01001 v3.0 (Metamodel)
+
 ✅ AAS metamodel implementation
 ✅ Submodel element support
 ✅ Asset reference paths
 ✅ Lifecycle metadata
 
 ### IDTA-01002 v3.0 (API)
+
 ✅ REST API endpoints
 ✅ JSON serialization
 ✅ Pagination and filtering
 ✅ Error handling
 
 ### IDTA-01005 v3.0 (AASX Format)
+
 ⚠️ Package file support deferred to Phase 2
 
 ---
@@ -205,6 +219,7 @@ docker build -t pharma-data-factory/aas-data-product:1.0.0 .
 ### With Existing Golden Paths
 
 **MQTT Temperature Data Product:**
+
 ```yaml
 dependsOn:
   - component:default/aas-foundation
@@ -212,6 +227,7 @@ dependsOn:
 ```
 
 **REST Equipment Data Product:**
+
 ```yaml
 dependsOn:
   - component:default/aas-foundation
@@ -219,6 +235,7 @@ dependsOn:
 ```
 
 **OEE Data Product:**
+
 ```yaml
 dependsOn:
   - component:default/aas-foundation
@@ -228,6 +245,7 @@ dependsOn:
 ### With Platform Components
 
 **aas-foundation** (`component:default/aas-foundation`):
+
 - Reusable Platform Component for centralized asset management
 - Shared across multiple data products
 - Certified status: DEVELOPMENT → TESTED → CERTIFIED
@@ -238,17 +256,18 @@ dependsOn:
 
 When creating an AAS Data Product, users specify:
 
-| Parameter | Type | Example |
-|-----------|------|---------|
-| `name` | string | `equipment-registry-plant-1` |
-| `description` | string | `Asset registry for Plant 1 equipment` |
-| `owner` | string | Platform Team / Manufacturing Team |
-| `assetSource` | enum | MQTT, REST, file |
-| `mqttTopic` | string | `pharma/assets/+` (if MQTT) |
-| `restEndpoint` | string | `/api/v1/assets/{assetId}` (if REST) |
-| `repoUrl` | string | `equipment-registry-plant-1` |
+| Parameter      | Type   | Example                                |
+| -------------- | ------ | -------------------------------------- |
+| `name`         | string | `equipment-registry-plant-1`           |
+| `description`  | string | `Asset registry for Plant 1 equipment` |
+| `owner`        | string | Platform Team / Manufacturing Team     |
+| `assetSource`  | enum   | MQTT, REST, file                       |
+| `mqttTopic`    | string | `pharma/assets/+` (if MQTT)            |
+| `restEndpoint` | string | `/api/v1/assets/{assetId}` (if REST)   |
+| `repoUrl`      | string | `equipment-registry-plant-1`           |
 
 **Result:**
+
 - GitHub repository created in `pharma-data-factory` org
 - Python FastAPI service with BaSyx SDK
 - Data Product registered in Catalog
@@ -260,12 +279,14 @@ When creating an AAS Data Product, users specify:
 ## Documentation
 
 **User-Facing:**
+
 - `docs/index.md` — Welcome and overview
 - `docs/getting-started/` — Quickstart, architecture, development
 - `docs/user-guide/` — API reference, data contracts, configuration, quality
 - `docs/reference/` — AAS specification, troubleshooting, FAQ
 
 **Developer:**
+
 - `README.md` — Quick start for local development
 - `.env.example` — Environment configuration template
 - `tests/` — Unit and integration test suite
@@ -281,6 +302,7 @@ pytest tests/ -v --cov=app
 ```
 
 **Coverage:**
+
 - Asset ingestion (validation, storage, retrieval)
 - Data contract validation
 - Quality checks
@@ -293,6 +315,7 @@ pytest tests/test_contract.py
 ```
 
 Validates:
+
 - Schema structure
 - Required fields
 - Property definitions
@@ -303,6 +326,7 @@ Validates:
 ## Deployment Path
 
 ### Local Development
+
 ```bash
 cp .env.example .env
 python -m venv venv
@@ -311,13 +335,16 @@ python -m uvicorn app.main:app --reload
 ```
 
 ### Docker Local
+
 ```bash
 docker-compose up
 # AAS available at http://localhost:8080
 ```
 
 ### Kubernetes (Future)
+
 Ready for:
+
 - Deployment manifests
 - ConfigMaps for configuration
 - Persistent volumes for SQLite/PostgreSQL
@@ -329,6 +356,7 @@ Ready for:
 ## Roadmap Integration
 
 ### Wave 2 Baseline (NOW)
+
 ✅ AAS Golden Path Template (CERTIFIED)
 ✅ Asset Event Data Contract v1.0.0
 ✅ Multi-source ingestion (MQTT, REST)
@@ -337,6 +365,7 @@ Ready for:
 ✅ TechDocs and developer journey
 
 ### Phase 2 (FUTURE)
+
 - 🔜 AASX Package File Format support
 - 🔜 Advanced submodel types (digital nameplate, maintenance, etc.)
 - 🔜 Asset versioning and lifecycle management
@@ -345,6 +374,7 @@ Ready for:
 - 🔜 Integration with SAP/MES systems
 
 ### Phase 3+ (FUTURE)
+
 - 🔜 GxP validation for regulated environments
 - 🔜 Multi-site asset federation
 - 🔜 Real-time asset state synchronization
@@ -445,7 +475,7 @@ curl http://localhost:8080/api/v1/health  # Should return 200
 
 ## Next Steps
 
-1. **Merge into main** — This implementation is production-ready
+1. **Merge into main** — ~~production-ready~~. Corrected 2026-09-26: the adapter is an in-memory prototype; persistence is the precondition for any release claim.
 2. **Update marketplace** — Backstage Marketplace will automatically discover template
 3. **Release notes** — Document Wave 2 in release notes
 4. **Pilot customer** — Onboard first pilot customer with AAS template

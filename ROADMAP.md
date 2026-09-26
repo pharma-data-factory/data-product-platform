@@ -1,7 +1,24 @@
 # Nexora — Product Roadmap
 
-This roadmap is the authoritative product plan. Status labels are exact.
-Planned and future capabilities are **not available** in the running product.
+This roadmap is the authoritative **product plan**: what is released, what is
+planned, what is not available. Status labels are exact, and planned or future
+capabilities are **not available** in the running product.
+
+It is not the authority on implementation state. For that:
+
+- **What is measured to exist** —
+  [target conformance audit](docs/audits/TARGET_CONFORMANCE_AUDIT.md)
+  (2026-09-26)
+- **Per-asset certification status** — the Catalog annotation
+  `dataprod.platform/certification-status`, per
+  [source of truth](docs/engineering/source-of-truth.md)
+- **Control Plane subsystems** —
+  [subsystem status](docs/subsystem-status.md)
+- **Which document wins on a disagreement** — [`CLAUDE.md`](CLAUDE.md) §1
+
+`docs/capability-matrix.md` is **DEPRECATED** as of 2026-09-26; it claimed
+AAS was CERTIFIED / RELEASED while the Catalog and this roadmap both said
+DEVELOPMENT. Do not reintroduce a second status table.
 
 MVP 1.0 freeze: [mvp-1.0-baseline.md](docs/mvp-1.0-baseline.md).
 Status dimensions: [status-model.md](docs/status-model.md).
@@ -55,8 +72,23 @@ value proposition (do not promote):
 
 - Unified Namespace (`uns/`) — DEVELOPMENT
 - AAS Foundation (`/assets`) — DEVELOPMENT / PROTOTYPE UI
+- AAS Control Plane adapter (`plugins/aas-backend`) — DEVELOPMENT.
+  In-memory only: `repository.ts` stores assets in a `Map`, and
+  `templates/aas-asset` publishes and registers nothing. Several documents
+  described it as certified and production-ready; corrected 2026-09-26.
 - Machine State Consumer — TESTED composition proof, not an official Golden Path
 - Machine Metrics — TESTED REFERENCE composition proof
+
+Withdrawn from the repository's active surface on 2026-09-26, and **not**
+part of any release claim:
+
+- **Authorization Profiles** — six `templates/*/authorization.yaml` declaring
+  24 domain permissions. Read by no code, enforced nowhere; one of the 24
+  exists in source. Archived with the measurement
+  (`docs/archive/architecture/authorization-profiles-legacy/`, `NXD-062`).
+- **Community RBAC** — installed in both `packages/app` and
+  `packages/backend` and registered in neither. Disabled deliberately;
+  `PlatformPermissionPolicy` is the sole permission authority (`NXD-060`).
 
 See [pilot-exit-gate.md](docs/pilot-exit-gate.md)
 and [developer journey evidence](docs/developer/mvp-journey-evidence.md).
