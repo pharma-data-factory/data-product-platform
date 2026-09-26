@@ -31,7 +31,7 @@ The platform separates concerns into layers:
 ├────────────────────────────────────────────────────────────┤
 │  PHARMA ENGINEERING LAYER                                  │
 │                                                            │
-│  URS Composer         Solution Composer    Validation      │
+│  URS Composer         Product Composer    Validation      │
 │  ├─ Requirements      ├─ Components        Expert          │
 │  ├─ Baselines         ├─ Data Products     ├─ Risk         │
 │  ├─ Approval          ├─ Connectors        ├─ Tests        │
@@ -111,7 +111,7 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **APIs**: `/api/urs-composer/*`  
 **Permissions**: `urs.read`, `urs.create`, `urs.manage`, `urs.approve`, `urs.admin`
 
-### Solution Composer
+### Product Composer
 
 **Purpose**: Solution design and component composition  
 **Status**: CONCEPTUAL  
@@ -350,8 +350,8 @@ Long-running operation
 
 | From              | To                | Mechanism         | Purpose             |
 | ----------------- | ----------------- | ----------------- | ------------------- |
-| URS Composer      | Solution Composer | API reference     | Traceability        |
-| Solution Composer | Validation Expert | API reference     | Risk linking        |
+| URS Composer      | Product Composer  | API reference     | Traceability        |
+| Product Composer  | Validation Expert | API reference     | Risk linking        |
 | Validation Expert | URS Composer      | API reference     | Evidence reference  |
 | Plugin Directory  | Marketplace       | Catalog entity    | Discoverability     |
 | Model Company     | Data Products     | Catalog reference | Testing integration |

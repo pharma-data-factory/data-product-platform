@@ -2292,3 +2292,113 @@ for it to govern — if one is built again, the rule is waiting.
 Not moved: `docs/PHASE9_EVIDENCE_MATRIX.md`, which is the acceptance evidence
 for this work and covers other deliverables too. It is a phase report and
 belongs with the rest of them; that is a separate pass.
+
+---
+
+### NXD-063 — One word, four registries: what was harmonised and what was only named
+
+- Date: 2026-09-26
+- Phase 0.4 (naming) of the governance consolidation
+
+The documentation audit found the same word carrying different meanings in
+different places. Some of those collisions are defects and were fixed. Some
+are legitimate — the word is right in each context and only the ambiguity is
+the problem — and those are named rather than renamed, because a rename that
+does not reduce meaning only moves the confusion.
+
+**Resolved.**
+
+- **"Solution Composer"** was a third name for the Product Composer, beside
+  `/compose` and `composer-backend`. It appeared in ADR-009 and in
+  `platform-architecture.md` (four occurrences, including the layer diagram
+  and the domain-responsibility table). All are now **Product Composer**, and
+  `URS/Solution/Validation` reads `URS/Product/Validation`. There is no
+  Solution domain in this platform; there never was.
+- **Decision records** ran in three systems — `NXD-nnn`, an inline
+  `ADR-001..010` set and a lone second `ADR-004`. `NXD` is now the only one
+  (`NXD-061` context, archive under `docs/archive/architecture/adr-legacy/`).
+- **ADR-004** was assigned to two different decisions. The Git-artifacts one
+  keeps the number; the RBAC one became `NXD-060`.
+
+**Named, not renamed — and why.**
+
+- **"Composer"** still means two unrelated systems: `/compose`, a
+  component-selection sandbox in `packages/app/src/modules/composer`, and the
+  Product domain in `plugins/composer-backend`. This is the one collision
+  that is a real information-architecture defect, and it is deliberately
+  _not_ fixed here. Renaming either is a user-visible change to routes,
+  navigation and a plugin package name; it belongs in a slice with the
+  people who will use the result, not in a documentation pass.
+- **"Product"** (governed row · Catalog entity · Artifact kind · commercial
+  SKU), **"Component"** (`product_components` · Platform Component library ·
+  Artifact kind · Backstage kind) and **"Baseline"** (URS · Product ·
+  the platform's own validation package) each carry several meanings that are
+  correct in their own context. Collapsing them would lose distinctions the
+  domain actually has.
+
+For all of these, `CLAUDE.md` section 7 now lists the meanings and requires
+the qualified form. That is the working rule: **the ambiguity is handled by
+saying which one you mean, not by pretending there is only one.**
+
+The same rule produced `CLAUDE.md` section 2 for "Phase", where three
+numbering schemes were in use and a bare "Phase 1" had no safe reading.
+
+---
+
+### NXD-064 — Four compliance positions, stated rather than quietly held
+
+- Date: 2026-09-26
+- Phase 0.5 (compliance positions) of the governance consolidation
+
+Each of these is a known gap between what a GxP-oriented platform should do
+and what this one currently does. None is fixed here. They are recorded
+because an unwritten gap is indistinguishable from an unnoticed one, and
+because `docs/compliance/traceability-and-gmp.md` is now the document a
+reviewer will read — it must not be the only place they appear.
+
+**C-1 — The shipped default disables the invariants.** `app-config.yaml` sets
+`ursComposer.persistence.mode: memory`. In memory mode none of the
+PostgreSQL GxP controls exist: no single-open-version index, no content
+immutability trigger, and no durable audit trail.
+`app-config.production.yaml` overrides it explicitly, with a comment warning
+that config layering would otherwise let `memory` survive the merge. The
+safety net exists; the default is the unsafe one, and a mis-layered config
+restores the unsafe state silently.
+
+_Position:_ the default should be postgres, or the backend should refuse to
+start in memory mode when `permission.enabled` is true. Not changed here
+because it alters how every developer starts the stack, which is a slice with
+a migration note, not a documentation edit.
+
+**C-2 — The product-side audit cannot answer "why".**
+`composer_audit_events` has no `reason` and no `entity_version` column. The
+URS store has both. So a requirement change carries its rationale and a
+product change does not, and the two stores cannot be correlated by version.
+
+_Position:_ align the schema with `audit_events`. Additive, low risk, and
+scheduled with the evidence work rather than done in isolation.
+
+**C-3 — AI proposals are not durable.** `AISpecDraft` lives in an in-process
+`Map` (`plugins/composer-backend/src/service.ts`). A draft is lost on
+restart, invisible to a second instance, and leaves no record of what the
+model proposed — only of what a human applied.
+`NEXORA_STRATEGY.md` requires that "AI may implement and propose, but
+controlled approvals remain human". An approval whose subject was never
+stored is not a controlled approval.
+
+_Position:_ persist drafts with model id, prompt hash and raw response before
+they can be applied.
+
+**C-4 — Community RBAC stays disabled and its packages stay installed.**
+Recorded in full as `NXD-060` and as deviation D-1. Named again here so the
+compliance picture is complete in one place: authorization is decided by a
+single proprietary policy, not by the standard component `AGENTS.md` points
+at, and two dependencies are declared and inert.
+
+_Position:_ re-evaluate at every Backstage upgrade gate. Removing the
+dependencies is a dependency change and needs its own approval.
+
+**Not on this list, deliberately:** the absence of `VERIFIED_BY` production,
+product test evidence and FS/TDS. Those are not positions the platform is
+holding — they are unbuilt capability, and they belong to the completion
+plan, not to a compliance register.
