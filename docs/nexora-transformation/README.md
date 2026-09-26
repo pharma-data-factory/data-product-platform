@@ -3,15 +3,18 @@
 Start here for the controlled transformation of Nexora.
 
 Read in this order:
-1. `/AGENTS.md`
-2. `/NEXORA_STRATEGY.md`
-3. `PRODUCT_STRATEGY.md`
-4. `TARGET_ARCHITECTURE.md`
-5. `IMPLEMENTATION_PLAN.md`
-6. `PHASE_CLOSURE_PLAN.md`
-7. `STATUS.md`
-8. `DECISIONS.md`
-9. `CLAUDE_MASTER_PROMPT.md`
+
+1. `/CLAUDE.md` — authority ranking, gates, and the word traps
+2. `/AGENTS.md`
+3. `/NEXORA_STRATEGY.md`
+4. `PRODUCT_STRATEGY.md`
+5. `TARGET_ARCHITECTURE.md`
+6. `IMPLEMENTATION_PLAN.md` — **historical**: all eight phases closed 2026-09-21
+7. `PHASE_CLOSURE_PLAN.md`
+8. `STATUS.md`
+9. `DECISIONS.md`
+
+`CLAUDE_MASTER_PROMPT.md` is **retired** — superseded by `/CLAUDE.md`.
 
 `IMPLEMENTATION_PLAN.md` defines the eight phases. `PHASE_CLOSURE_PLAN.md`
 defines how the gaps still open in them get closed, in what order, and what
