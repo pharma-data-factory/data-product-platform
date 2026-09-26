@@ -1,6 +1,6 @@
 /**
  * URS Composer Frontend API Types
- * 
+ *
  * Mirrors backend domain types but focused on frontend needs.
  * Maps P1B REST responses to typed frontend models.
  */
@@ -295,16 +295,36 @@ export interface ApprovalStep {
   description?: string;
 }
 
+/**
+ * An approval instance as the backend actually sends it.
+ *
+ * Three fields here were invented: `currentStepId`, `createdAt` and
+ * `createdBy`. The backend has never sent any of them — it sends
+ * `currentStepSequence`, `startedAt` and `startedBy` — and two were declared
+ * non-optional, so the type promised a value that was `undefined` on every
+ * response. Nothing read them, which is the only reason the review chain
+ * rendered correctly; the type was a loaded trap rather than an active
+ * defect.
+ *
+ * The field list is pinned by `APPROVAL_INSTANCE_REQUIRED_FIELDS` in
+ * `@internal/platform-common` and checked from both sides — see
+ * `approval-contract.test.ts` here and in the backend plugin.
+ */
 export interface ApprovalInstance {
   id: string;
   baselineId: string;
   workflowId: string;
   status: ApprovalStatus | string;
-  currentStepId?: string;
+  /**
+   * The `sequence` of the step currently due. Not an id: steps are ordered
+   * by `sequence`, and that is what the backend advances and enforces
+   * against.
+   */
+  currentStepSequence: number;
   steps: ApprovalStepInstance[];
-  createdAt: string;
-  createdBy: string;
-  startedBy?: string;
+  startedBy: string;
+  startedAt: string;
+  completedBy?: string;
   completedAt?: string;
 }
 
@@ -495,7 +515,8 @@ export interface CreateBaselineRequest {
   requirementVersionIds: string[];
 }
 
-export interface UpdateRequirementSetRequest extends Partial<CreateRequirementSetRequest> {
+export interface UpdateRequirementSetRequest
+  extends Partial<CreateRequirementSetRequest> {
   requirements?: Array<
     Partial<CreateRequirementRequest> & {
       id?: string;

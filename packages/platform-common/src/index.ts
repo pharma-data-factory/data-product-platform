@@ -137,6 +137,18 @@ export {
 } from './content-hash';
 export type { RequirementContent } from './content-hash';
 
+export {
+  APPROVAL_INSTANCE_REQUIRED_FIELDS,
+  APPROVAL_INSTANCE_OPTIONAL_FIELDS,
+  APPROVAL_STEP_REQUIRED_FIELDS,
+  APPROVAL_STEP_OPTIONAL_FIELDS,
+  missingWireFields,
+} from './approval-wire-contract';
+export type {
+  ApprovalInstanceRequiredField,
+  ApprovalStepRequiredField,
+} from './approval-wire-contract';
+
 // URS Composer → Validation Expert integration contract
 export { VALIDATION_DECISION_STATUSES } from './validation-integration';
 export type {
@@ -206,7 +218,11 @@ export {
   allowsUnknownGithubUserSignIn,
   requiresCatalogUserApproval,
 } from './accessPolicy';
-export type { AuthEnvironment, SignInAccessDecision, SignInAccessInput } from './accessPolicy';
+export type {
+  AuthEnvironment,
+  SignInAccessDecision,
+  SignInAccessInput,
+} from './accessPolicy';
 
 export {
   DEFAULT_ORGANIZATION,
