@@ -116,21 +116,25 @@ export class URSService {
    * `data-product-owners` entries are retained as aliases so that users who
    * could approve before this mapping was corrected keep their access.
    */
-  private static readonly GROUP_TO_APPROVAL_ROLE: Record<string, ApprovalRole> = {
-    'platform-admins': ApprovalRole.ADMIN,
-    'urs-authors': ApprovalRole.AUTHOR,
-    'urs-business-reviewers': ApprovalRole.BUSINESS_REVIEWER,
-    'urs-product-managers': ApprovalRole.PRODUCT_MANAGER,
-    'urs-quality-reviewers': ApprovalRole.QUALITY_REVIEWER,
-    'business-capability-leads': ApprovalRole.BUSINESS_REVIEWER,
-    'data-product-owners': ApprovalRole.PRODUCT_MANAGER,
-  };
+  private static readonly GROUP_TO_APPROVAL_ROLE: Record<string, ApprovalRole> =
+    {
+      'platform-admins': ApprovalRole.ADMIN,
+      'urs-authors': ApprovalRole.AUTHOR,
+      'urs-business-reviewers': ApprovalRole.BUSINESS_REVIEWER,
+      'urs-product-managers': ApprovalRole.PRODUCT_MANAGER,
+      'urs-quality-reviewers': ApprovalRole.QUALITY_REVIEWER,
+      'business-capability-leads': ApprovalRole.BUSINESS_REVIEWER,
+      'data-product-owners': ApprovalRole.PRODUCT_MANAGER,
+    };
 
   /**
    * Resolve a user's approval roles from their Backstage group memberships.
    * Throws NotAllowedError if catalog is unavailable (fail-closed).
    */
-  async getUserApprovalRoles(actor: string, credentials?: BackstageCredentials): Promise<ApprovalRole[]> {
+  async getUserApprovalRoles(
+    actor: string,
+    credentials?: BackstageCredentials,
+  ): Promise<ApprovalRole[]> {
     if (!this.catalog) {
       throw new NotAllowedError(
         'Catalog service unavailable — cannot verify approval roles. Please retry later.',
@@ -138,7 +142,9 @@ export class URSService {
     }
 
     try {
-      const entity = await this.catalog.getEntityByRef(actor, { credentials: credentials! });
+      const entity = await this.catalog.getEntityByRef(actor, {
+        credentials: credentials!,
+      });
       if (!entity) {
         this.logger.warn(`User entity not found in catalog: ${actor}`);
         return [];
@@ -161,7 +167,9 @@ export class URSService {
       return Array.from(roles);
     } catch (err) {
       throw new NotAllowedError(
-        `Failed to resolve approval roles for ${actor}: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to resolve approval roles for ${actor}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
     }
   }
@@ -531,7 +539,10 @@ export class URSService {
     data: UpdateRequirementSetRequest,
     requirements: Partial<URSRequirement>[],
     actor: string,
-  ): Promise<{ requirementSet: RequirementSet; requirements: URSRequirement[] }> {
+  ): Promise<{
+    requirementSet: RequirementSet;
+    requirements: URSRequirement[];
+  }> {
     const existing = await this.repository.getRequirementSet(requirementSetId);
     if (!existing) {
       throw new Error('Requirement set not found');
@@ -542,7 +553,9 @@ export class URSService {
     }
 
     if (data.businessCapabilityRefs) {
-      const isValid = await this.validateCapabilityRefs(data.businessCapabilityRefs);
+      const isValid = await this.validateCapabilityRefs(
+        data.businessCapabilityRefs,
+      );
       if (!isValid) {
         throw new Error('Invalid business capability reference');
       }
@@ -560,12 +573,14 @@ export class URSService {
       processContext: data.processContext ?? existing.processContext,
       solutionType: data.solutionType ?? existing.solutionType,
       solutionName: data.solutionName ?? existing.solutionName,
-      solutionCatalogRef: data.solutionCatalogRef ?? existing.solutionCatalogRef,
+      solutionCatalogRef:
+        data.solutionCatalogRef ?? existing.solutionCatalogRef,
       scope: data.scope ?? existing.scope,
       outOfScope: data.outOfScope ?? existing.outOfScope,
       gxpRelevance: data.gxpRelevance ?? existing.gxpRelevance,
       patientImpact: data.patientImpact ?? existing.patientImpact,
-      dataIntegrityImpact: data.dataIntegrityImpact ?? existing.dataIntegrityImpact,
+      dataIntegrityImpact:
+        data.dataIntegrityImpact ?? existing.dataIntegrityImpact,
       electronicRecords: data.electronicRecords ?? existing.electronicRecords,
       versionComment: data.versionComment ?? existing.versionComment,
       updatedBy: actor,
@@ -897,7 +912,38 @@ export class URSService {
   /**
    * Get requirements for a requirement set
    */
+  /**
+   * Refuse a requirement-set id that names nothing.
+   *
+   * Three read/write paths took a set id and answered as if the set existed
+   * and were empty: `getRequirements`, `getCurrentVersions` and
+   * `advanceRequirementSetVersions` returned `[]`, `[]` and "advanced 0". A
+   * caller could not tell a typo from an empty set, and
+   * `advanceRequirementSetVersions` reported success for a set that was never
+   * there.
+   *
+   * `createRequirement` has always done this check and answered 404. The
+   * three below did not, so the same id produced 404 on one route and 200 on
+   * three.
+   * One helper rather than three inline guards, so the next method that takes
+   * a set id has an obvious thing to call.
+   *
+   * All four take `requirement_sets.id` — the row UUID, which is what
+   * `requirements.requirement_set_id` holds under its foreign key. The
+   * business key (`URS-WD`) is a different column and is not accepted here by
+   * any of them.
+   */
+  private async assertRequirementSetExists(
+    requirementSetId: string,
+  ): Promise<void> {
+    const set = await this.repository.getRequirementSet(requirementSetId);
+    if (!set) {
+      throw new NotFoundError(`Requirement set ${requirementSetId} not found`);
+    }
+  }
+
   async getRequirements(requirementSetId: string): Promise<URSRequirement[]> {
+    await this.assertRequirementSetExists(requirementSetId);
     return this.repository.getRequirements(requirementSetId);
   }
 
@@ -1129,9 +1175,13 @@ export class URSService {
     actor: string,
     changeRequestId?: string,
   ): Promise<RequirementVersion> {
-    const previous = await this.repository.getRequirementVersion(previousVersionId);
+    const previous = await this.repository.getRequirementVersion(
+      previousVersionId,
+    );
     if (!previous) {
-      throw new NotFoundError(`Requirement version ${previousVersionId} not found`);
+      throw new NotFoundError(
+        `Requirement version ${previousVersionId} not found`,
+      );
     }
 
     // Checked here as well as by the database index, so that the caller gets a
@@ -1768,7 +1818,9 @@ export class URSService {
     requirementId: string,
     versionLabel: string,
   ): Promise<RequirementVersion | null> {
-    const versions = await this.repository.getRequirementVersions(requirementId);
+    const versions = await this.repository.getRequirementVersions(
+      requirementId,
+    );
     return (
       versions.find(
         v => v.versionLabel === versionLabel || v.version === versionLabel,
@@ -1797,7 +1849,10 @@ export class URSService {
   async getCurrentVersions(
     requirementSetId: string,
   ): Promise<RequirementVersion[]> {
-    const requirements = await this.repository.getRequirements(requirementSetId);
+    await this.assertRequirementSetExists(requirementSetId);
+    const requirements = await this.repository.getRequirements(
+      requirementSetId,
+    );
     const terminal = new Set<URSStatus>([
       URSStatus.SUPERSEDED,
       URSStatus.OBSOLETE,
@@ -1835,7 +1890,10 @@ export class URSService {
     baselineVersion: string,
     actor: string,
   ): Promise<Baseline> {
-    await this.assertBaselineVersionAvailable(requirementSetId, baselineVersion);
+    await this.assertBaselineVersionAvailable(
+      requirementSetId,
+      baselineVersion,
+    );
 
     const pinned = await this.loadPinnedVersions(
       requirementSetId,
@@ -1895,8 +1953,9 @@ export class URSService {
     requirementSetId: string,
     credentials?: BackstageCredentials,
   ): Promise<RequirementSetImpact> {
-    const released =
-      await this.repository.getCurrentApprovedBaseline(requirementSetId);
+    const released = await this.repository.getCurrentApprovedBaseline(
+      requirementSetId,
+    );
 
     const currentVersions = await this.getCurrentVersions(requirementSetId);
     const pinned = new Set(released?.requirementVersionIds ?? []);
@@ -1945,7 +2004,9 @@ export class URSService {
       );
 
       return response.items.map(entity => ({
-        entityRef: `${entity.kind.toLowerCase()}:default/${entity.metadata.name}`,
+        entityRef: `${entity.kind.toLowerCase()}:default/${
+          entity.metadata.name
+        }`,
         name: entity.metadata.name,
         title: entity.metadata.title,
         owner: (entity.spec as { owner?: string } | undefined)?.owner,
@@ -2090,13 +2151,17 @@ export class URSService {
     }
 
     // A version belongs to the set through its requirement.
-    const requirements = await this.repository.getRequirements(requirementSetId);
+    const requirements = await this.repository.getRequirements(
+      requirementSetId,
+    );
     const ownRequirementIds = new Set(requirements.map(r => r.requirementId));
 
     const foreign = found.filter(v => !ownRequirementIds.has(v.requirementId));
     if (foreign.length) {
       throw new InputError(
-        `Requirement version(s) do not belong to requirement set ${requirementSetId}: ${foreign.map(v => `${v.id} (${v.requirementId})`).join(', ')}`,
+        `Requirement version(s) do not belong to requirement set ${requirementSetId}: ${foreign
+          .map(v => `${v.id} (${v.requirementId})`)
+          .join(', ')}`,
       );
     }
 
@@ -2149,7 +2214,14 @@ export class URSService {
 
     if (unreleased.length) {
       throw new ConflictError(
-        `Baseline ${baseline.baselineVersion} cannot be released: ${unreleased.length} pinned version(s) are not approved — ${unreleased.map(v => `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`).join(', ')}`,
+        `Baseline ${baseline.baselineVersion} cannot be released: ${
+          unreleased.length
+        } pinned version(s) are not approved — ${unreleased
+          .map(
+            v =>
+              `${v.requirementId} ${v.versionLabel ?? v.version} (${v.status})`,
+          )
+          .join(', ')}`,
       );
     }
   }
@@ -2229,7 +2301,8 @@ export class URSService {
         entityType: 'REQUIREMENT_VERSION',
         entityId: versionId,
         entityVersion: version.versionLabel ?? version.version,
-        eventType: target === URSStatus.REJECTED ? 'REJECTED' : 'STATUS_CHANGED',
+        eventType:
+          target === URSStatus.REJECTED ? 'REJECTED' : 'STATUS_CHANGED',
         oldValue: { status: version.status },
         newValue: { status: target },
         actor,
@@ -2258,6 +2331,8 @@ export class URSService {
     target: URSStatus,
     actor: string,
   ): Promise<{ advanced: RequirementVersion[]; skipped: SkippedVersion[] }> {
+    // getCurrentVersions asserts the set exists, so an unknown id reaches the
+    // caller as 404 rather than as a cheerful "advanced 0, skipped 0".
     const current = await this.getCurrentVersions(requirementSetId);
 
     const advanced: RequirementVersion[] = [];
@@ -2302,7 +2377,9 @@ export class URSService {
 
       if (blocking.length) {
         throw new ConflictError(
-          `Requirement version ${versionId} is pinned by released baseline(s) and cannot be made obsolete: ${blocking.map(b => `${b.baselineVersion} (${b.id})`).join(', ')}`,
+          `Requirement version ${versionId} is pinned by released baseline(s) and cannot be made obsolete: ${blocking
+            .map(b => `${b.baselineVersion} (${b.id})`)
+            .join(', ')}`,
         );
       }
 
@@ -2425,11 +2502,16 @@ export class URSService {
   /**
    * Get current approved baseline
    */
-  async getCurrentApprovedBaseline(requirementSetId: string): Promise<Baseline | null> {
+  async getCurrentApprovedBaseline(
+    requirementSetId: string,
+  ): Promise<Baseline | null> {
     return this.repository.getCurrentApprovedBaseline(requirementSetId);
   }
 
-  async computeChangeSet(baselineId: string, actor: string): Promise<ChangeSet> {
+  async computeChangeSet(
+    baselineId: string,
+    actor: string,
+  ): Promise<ChangeSet> {
     const baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
       throw new Error(`Baseline ${baselineId} not found`);
@@ -2451,7 +2533,9 @@ export class URSService {
     const currentVersionIds = baseline.requirementVersionIds || [];
     const previousVersionIds = previousBaseline?.requirementVersionIds || [];
     const allIds = [...new Set([...currentVersionIds, ...previousVersionIds])];
-    const allVersions = await this.repository.getRequirementVersionsByIds(allIds);
+    const allVersions = await this.repository.getRequirementVersionsByIds(
+      allIds,
+    );
 
     const currentMap = new Map<string, RequirementVersion>();
     const previousMap = new Map<string, RequirementVersion>();
@@ -2473,9 +2557,17 @@ export class URSService {
       const previous = previousMap.get(reqId);
 
       if (current && !previous) {
-        changes.push({ requirementId: reqId, changeType: 'ADDED', currentVersion: current });
+        changes.push({
+          requirementId: reqId,
+          changeType: 'ADDED',
+          currentVersion: current,
+        });
       } else if (!current && previous) {
-        changes.push({ requirementId: reqId, changeType: 'REMOVED', previousVersion: previous });
+        changes.push({
+          requirementId: reqId,
+          changeType: 'REMOVED',
+          previousVersion: previous,
+        });
       } else if (current && previous) {
         const changedFields = this.diffRequirementVersions(previous, current);
         if (changedFields.length > 0) {
@@ -2515,15 +2607,30 @@ export class URSService {
     };
   }
 
-  private diffRequirementVersions(a: RequirementVersion, b: RequirementVersion): string[] {
-    const fields: Array<{ key: string; getA: () => unknown; getB: () => unknown }> = [
+  private diffRequirementVersions(
+    a: RequirementVersion,
+    b: RequirementVersion,
+  ): string[] {
+    const fields: Array<{
+      key: string;
+      getA: () => unknown;
+      getB: () => unknown;
+    }> = [
       { key: 'title', getA: () => a.title, getB: () => b.title },
       { key: 'statement', getA: () => a.statement, getB: () => b.statement },
       { key: 'rationale', getA: () => a.rationale, getB: () => b.rationale },
       { key: 'category', getA: () => a.category, getB: () => b.category },
       { key: 'priority', getA: () => a.priority, getB: () => b.priority },
-      { key: 'acceptanceIntent', getA: () => a.acceptanceIntent, getB: () => b.acceptanceIntent },
-      { key: 'gxpRelevance', getA: () => a.gxpRelevance, getB: () => b.gxpRelevance },
+      {
+        key: 'acceptanceIntent',
+        getA: () => a.acceptanceIntent,
+        getB: () => b.acceptanceIntent,
+      },
+      {
+        key: 'gxpRelevance',
+        getA: () => a.gxpRelevance,
+        getB: () => b.gxpRelevance,
+      },
       { key: 'source', getA: () => a.source, getB: () => b.source },
       { key: 'owner', getA: () => a.owner, getB: () => b.owner },
     ];
@@ -2671,7 +2778,7 @@ export class URSService {
 
   /**
    * Submit baseline for approval
-   * 
+   *
    * P1B: Orchestrate the approval workflow
    * 1. Validate baseline state (must be DRAFT)
    * 2. Select workflow based on GxP relevance
@@ -2680,20 +2787,27 @@ export class URSService {
    * 5. Activate first step
    * 6. Create audit event
    */
-  async submitBaseline(baselineId: string, actor: string): Promise<ApprovalInstance> {
+  async submitBaseline(
+    baselineId: string,
+    actor: string,
+  ): Promise<ApprovalInstance> {
     const baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
       throw new Error('Baseline not found');
     }
 
     if (baseline.status !== 'DRAFT') {
-      throw new Error(`Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`);
+      throw new Error(
+        `Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`,
+      );
     }
 
     // Select workflow: GxP relevance determines standard or non-GxP workflow.
     // Only DIRECT and INDIRECT relevance require the three-step GxP workflow.
     // A plain truthiness check would also match the string 'NONE'.
-    const requirementSet = await this.repository.getRequirementSet(baseline.requirementSetId);
+    const requirementSet = await this.repository.getRequirementSet(
+      baseline.requirementSetId,
+    );
     const isGxpRelevant =
       requirementSet?.gxpRelevance === GxPRelevance.DIRECT ||
       requirementSet?.gxpRelevance === GxPRelevance.INDIRECT;
@@ -2733,7 +2847,7 @@ export class URSService {
 
   /**
    * Approve an approval step
-   * 
+   *
    * P1B: Process approval decision
    * - Actor from Backstage identity
    * - Update step status
@@ -2749,9 +2863,13 @@ export class URSService {
     credentials?: BackstageCredentials,
     pin?: string,
   ): Promise<ApprovalInstance> {
-    const instance = await this.repository.getApprovalInstance(approvalInstanceId);
+    const instance = await this.repository.getApprovalInstance(
+      approvalInstanceId,
+    );
     if (!instance) {
-      throw new Error('Approval instance not found');
+      throw new NotFoundError(
+        `Approval instance ${approvalInstanceId} not found`,
+      );
     }
 
     const step = instance.steps?.find(s => s.id === stepId);
@@ -2818,7 +2936,9 @@ export class URSService {
     if (step.role) {
       if (!actorRoles.includes(step.role)) {
         throw new NotAllowedError(
-          `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
+          `This step requires role '${step.role}'. Your roles: ${
+            actorRoles.join(', ') || 'none'
+          }`,
         );
       }
     }
@@ -3023,7 +3143,7 @@ export class URSService {
 
   /**
    * Reject an approval step
-   * 
+   *
    * P1B: Process rejection
    * - Actor from Backstage identity
    * - Reason/comment required
@@ -3043,14 +3163,18 @@ export class URSService {
       throw new Error('Rejection reason is required');
     }
 
-    const instance = await this.repository.getApprovalInstance(approvalInstanceId);
+    const instance = await this.repository.getApprovalInstance(
+      approvalInstanceId,
+    );
     if (!instance) {
-      throw new Error('Approval instance not found');
+      throw new NotFoundError(
+        `Approval instance ${approvalInstanceId} not found`,
+      );
     }
 
     const step = instance.steps?.find(s => s.id === stepId);
     if (!step) {
-      throw new Error('Approval step not found');
+      throw new NotFoundError(`Approval step ${stepId} not found`);
     }
 
     if (step.status !== 'PENDING' && step.status !== 'ACTIVE') {
@@ -3065,7 +3189,9 @@ export class URSService {
       const actorRoles = await this.getUserApprovalRoles(actor, credentials);
       if (!actorRoles.includes(step.role)) {
         throw new NotAllowedError(
-          `This step requires role '${step.role}'. Your roles: ${actorRoles.join(', ') || 'none'}`,
+          `This step requires role '${step.role}'. Your roles: ${
+            actorRoles.join(', ') || 'none'
+          }`,
         );
       }
     }
@@ -3116,9 +3242,13 @@ export class URSService {
     actor: string,
     reason?: string,
   ): Promise<ApprovalInstance> {
-    const instance = await this.repository.getApprovalInstance(approvalInstanceId);
+    const instance = await this.repository.getApprovalInstance(
+      approvalInstanceId,
+    );
     if (!instance) {
-      throw new Error('Approval instance not found');
+      throw new NotFoundError(
+        `Approval instance ${approvalInstanceId} not found`,
+      );
     }
 
     if (
@@ -3132,7 +3262,10 @@ export class URSService {
 
     // Skip all open steps
     for (const step of instance.steps) {
-      if (step.status === ApprovalStepStatus.PENDING || step.status === ApprovalStepStatus.ACTIVE) {
+      if (
+        step.status === ApprovalStepStatus.PENDING ||
+        step.status === ApprovalStepStatus.ACTIVE
+      ) {
         step.status = ApprovalStepStatus.SKIPPED;
         step.actedBy = actor;
         step.actedAt = new Date();
@@ -3173,7 +3306,9 @@ export class URSService {
       throw new Error(`Requirement set not found: ${requirementSetId}`);
     }
 
-    const existingRequirements = await this.repository.getRequirements(requirementSetId);
+    const existingRequirements = await this.repository.getRequirements(
+      requirementSetId,
+    );
 
     const capabilities: string[] = [];
     for (const ref of set.businessCapabilityRefs) {
@@ -3216,7 +3351,10 @@ export class URSService {
       `Generating AI requirement suggestions for set ${requirementSetId} by ${actor}`,
     );
 
-    const suggestions = await this.llmClient.generateRequirements(context, systemPrompt);
+    const suggestions = await this.llmClient.generateRequirements(
+      context,
+      systemPrompt,
+    );
 
     await this.repository.createAuditEvent({
       id: this.generateUUID(),

@@ -7,6 +7,8 @@
  * nobody — a caller cannot tell a short list from a short baseline.
  */
 
+import { ConflictError, NotFoundError } from '@backstage/errors';
+
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 
 const logger = { warn: jest.fn() };
@@ -97,7 +99,10 @@ describe('resolveBaselineContext', () => {
   it('falls back to `version` when the URS side sends no versionLabel', async () => {
     const resolver = resolverOver(url => {
       if (url.endsWith('/baselines/b1')) {
-        return jsonResponse({ ...APPROVED_BASELINE, requirementVersionIds: ['rv-1'] });
+        return jsonResponse({
+          ...APPROVED_BASELINE,
+          requirementVersionIds: ['rv-1'],
+        });
       }
       if (url.includes('/requirement-sets/')) {
         return jsonResponse({});
@@ -129,14 +134,15 @@ describe('resolveBaselineContext', () => {
       return jsonResponse({ error: 'gone' }, 500);
     });
 
+    await expect(resolver.resolveBaselineContext('b1')).rejects.toBeInstanceOf(
+      ConflictError,
+    );
     await expect(resolver.resolveBaselineContext('b1')).rejects.toThrow(
       /1 of 2 requirement versions were readable/,
     );
     // The warning still fires: it names which one was missing, which the
     // thrown message does not.
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('rv-2'),
-    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('rv-2'));
   });
 
   it('rejects a baseline that is not APPROVED before reading any requirement', async () => {
@@ -150,10 +156,48 @@ describe('resolveBaselineContext', () => {
       fetchImpl: fetchImpl as any,
     });
 
-    await expect(resolver.resolveBaselineContext('b1')).rejects.toThrow(
-      /is DRAFT; expected APPROVED/,
+    // The type is the assertion, not the wording. respondError maps
+    // ConflictError to 409; an untyped throw reached the caller as 500 and
+    // read as "the platform is broken" rather than "approve it first".
+    await expect(resolver.resolveBaselineContext('b1')).rejects.toBeInstanceOf(
+      ConflictError,
     );
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await expect(resolver.resolveBaselineContext('b1')).rejects.toThrow(
+      /b1 is DRAFT, not APPROVED/,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers NotFound when the baseline does not exist, and 500 when the URS Composer is broken', async () => {
+    // Two upstream failures that must not read alike. A missing baseline is
+    // the caller naming something that is not there; an upstream 500 is a
+    // platform fault and stays untyped so it surfaces as one.
+    const missing = createHttpUrsBaselineResolver({
+      discovery,
+      auth,
+      logger,
+      fetchImpl: (async () => ({ ok: false, status: 404 })) as any,
+    });
+    await expect(missing.resolveBaselineContext('nope')).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    await expect(
+      missing.resolveApprovedBaseline('nope'),
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    const broken = createHttpUrsBaselineResolver({
+      discovery,
+      auth,
+      logger,
+      fetchImpl: (async () => ({ ok: false, status: 503 })) as any,
+    });
+    const err = await broken
+      .resolveBaselineContext('b1')
+      .then(() => undefined)
+      .catch(e => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(NotFoundError);
+    expect(err).not.toBeInstanceOf(ConflictError);
   });
 
   it('still tolerates a missing requirement set — that enrichment is optional', async () => {
@@ -162,7 +206,10 @@ describe('resolveBaselineContext', () => {
     // a requirement corrupts it. Only the second is fatal.
     const resolver = resolverOver(url => {
       if (url.endsWith('/baselines/b1')) {
-        return jsonResponse({ ...APPROVED_BASELINE, requirementVersionIds: ['rv-1'] });
+        return jsonResponse({
+          ...APPROVED_BASELINE,
+          requirementVersionIds: ['rv-1'],
+        });
       }
       if (url.includes('/requirement-sets/')) {
         return jsonResponse({ error: 'not found' }, 404);

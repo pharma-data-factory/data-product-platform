@@ -4,7 +4,27 @@
  * The Product Composer never reads URS tables directly. It resolves approved
  * URS baselines through the URS Composer's public API, following the same
  * pattern as validation-expert-backend.
+ *
+ * **Error typing matters here more than it looks.** Everything this file
+ * throws surfaces on `POST /versions/:id/urs-baseline`, and
+ * `respondError` in `router.ts` maps only typed Backstage errors — a plain
+ * `Error` reaches the caller as `500 Internal server error`. Binding a
+ * baseline that is still DRAFT is the single most likely thing a user gets
+ * wrong here, and it answered "the platform is broken" instead of naming the
+ * status.
+ *
+ * The distinction drawn below:
+ *
+ *  - the baseline does not exist (upstream 404) → `NotFoundError` (404)
+ *  - the baseline exists but is not APPROVED, or is incomplete →
+ *    `ConflictError` (409) — the request is well formed and conflicts with
+ *    the baseline's state
+ *  - any other upstream failure → untyped, so it stays a 500. An unreachable
+ *    or broken URS Composer *is* a server fault and must not be reported to
+ *    the caller as their mistake.
  */
+
+import { ConflictError, NotFoundError } from '@backstage/errors';
 
 export interface UrsBaselineReference {
   id: string;
@@ -80,7 +100,8 @@ export function createHttpUrsBaselineResolver(options: {
   fetchImpl?: typeof fetch;
 }): UrsBaselineResolver {
   const doFetch =
-    options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
+    options.fetchImpl ??
+    ((...args: Parameters<typeof fetch>) => fetch(...args));
 
   async function getAuthHeaders(): Promise<Record<string, string>> {
     const headers: Record<string, string> = { Accept: 'application/json' };
@@ -111,6 +132,9 @@ export function createHttpUrsBaselineResolver(options: {
 
       const res = await doFetch(url, { headers });
       if (!res.ok) {
+        if (res.status === 404) {
+          throw new NotFoundError(`URS baseline ${baselineId} does not exist.`);
+        }
         throw new Error(
           `Unable to resolve URS baseline ${baselineId} (HTTP ${res.status})`,
         );
@@ -124,8 +148,12 @@ export function createHttpUrsBaselineResolver(options: {
 
       const status = String(baseline.status ?? '').toUpperCase();
       if (status !== 'APPROVED') {
-        throw new Error(
-          `URS baseline ${baselineId} is ${status || 'NOT_FOUND'}; expected APPROVED`,
+        throw new ConflictError(
+          `URS baseline ${baselineId} is ${
+            status || 'UNKNOWN'
+          }, not APPROVED. ` +
+            `A product may only be bound to an approved baseline — approve it ` +
+            `in the URS Composer first, or bind a different one.`,
         );
       }
 
@@ -145,6 +173,9 @@ export function createHttpUrsBaselineResolver(options: {
         { headers },
       );
       if (!basRes.ok) {
+        if (basRes.status === 404) {
+          throw new NotFoundError(`URS baseline ${baselineId} does not exist.`);
+        }
         throw new Error(
           `Unable to resolve URS baseline ${baselineId} (HTTP ${basRes.status})`,
         );
@@ -159,8 +190,12 @@ export function createHttpUrsBaselineResolver(options: {
 
       const status = String(baseline.status ?? '').toUpperCase();
       if (status !== 'APPROVED') {
-        throw new Error(
-          `URS baseline ${baselineId} is ${status || 'NOT_FOUND'}; expected APPROVED`,
+        throw new ConflictError(
+          `URS baseline ${baselineId} is ${
+            status || 'UNKNOWN'
+          }, not APPROVED. ` +
+            `A product may only be bound to an approved baseline — approve it ` +
+            `in the URS Composer first, or bind a different one.`,
         );
       }
 
@@ -172,7 +207,9 @@ export function createHttpUrsBaselineResolver(options: {
       if (baseline.requirementSetId) {
         try {
           const setRes = await doFetch(
-            `${base}/requirement-sets/${encodeURIComponent(baseline.requirementSetId)}`,
+            `${base}/requirement-sets/${encodeURIComponent(
+              baseline.requirementSetId,
+            )}`,
             { headers },
           );
           if (setRes.ok) {
@@ -271,12 +308,22 @@ export function createHttpUrsBaselineResolver(options: {
             `${versionIds.length} requirement versions. The context is ` +
             `incomplete.`,
         );
-        throw new Error(
+        // ConflictError rather than a 500, which is a judgement worth stating.
+        //
+        // An unreachable URS Composer cannot produce this branch: the baseline
+        // fetch above would have failed first and thrown untyped. Reaching
+        // here means the Composer answered for the baseline and then could not
+        // produce some of the versions that baseline pins — which points at
+        // the data, not at the service. The baseline is unusable as a unit,
+        // and that is a conflict with the caller's precondition, not a
+        // platform fault.
+        throw new ConflictError(
           `URS baseline ${baselineId} could not be resolved in full: ` +
             `${requirements.length} of ${versionIds.length} requirement ` +
             `versions were readable. Refusing to return a partial ` +
             `requirement set — it would be indistinguishable from a complete ` +
-            `one. Check that the URS Composer is reachable and retry.`,
+            `one. The baseline references requirement versions the URS ` +
+            `Composer did not return; check it there before binding.`,
         );
       }
 

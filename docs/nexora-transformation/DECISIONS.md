@@ -2098,6 +2098,27 @@ APPROVED status` is thrown as a plain `Error`; the caller sees
    segregation of duties on the version's APPROVED transition and the URS side
    enforces it on every signature; `approveProductBaseline` has none.
 
+   **Closed 2026-09-26 (Slice B-1), in two parts and not where the note
+   said.** The step-status refusal had already become a `ConflictError`
+   during the approval-order work on 2026-09-25. What still answered 500 was
+   the lookup one line above it: `Approval instance not found`, thrown
+   untyped in `approveApprovalStep`, `rejectApprovalStep` and
+   `cancelApprovalInstance`, plus `Approval step not found` in
+   `rejectApprovalStep`. All four are `NotFoundError` now, and the messages
+   name the identifier that was not found instead of stating the noun.
+
+   **Closed 2026-09-26 (Slice B-1), and the cause was one layer out.**
+   `bindUrsBaseline` was already typed throughout; the 500 came from
+   `urs-baseline-resolver.ts`, which threw five plain `Error`s across the
+   cross-plugin HTTP boundary. They are typed by cause rather than
+   uniformly: an upstream 404 is `NotFoundError`, a baseline that exists but
+   is not APPROVED is `ConflictError` naming its actual status, and an
+   incomplete requirement list is `ConflictError` too — an unreachable URS
+   Composer cannot reach that branch, because the baseline fetch above it
+   would have failed first. Any other upstream failure stays untyped and so
+   stays a 500, which is correct: a broken URS Composer is a platform fault
+   and must not be reported to the caller as their mistake.
+
    **Closed 2026-09-25.** `actor === baseline.createdBy` is refused with the
    wording P5-S2 already uses, and the two `Error`s in the same method became
    `NotFoundError` and `ConflictError`. Fifteen call sites across two suites
@@ -2112,6 +2133,29 @@ APPROVED status` is thrown as a plain `Error`; the caller sees
    route 404s on the same id. An unknown set is indistinguishable from an empty
    one — and the two routes disagree about which identifier they take, the
    business key or the row id.
+
+   **Closed 2026-09-26 (MVP1-B, Slice B-1), and the second half of that
+   finding was wrong.** A private `assertRequirementSetExists` now precedes
+   `getRequirements`, `getCurrentVersions` and
+   `advanceRequirementSetVersions`; all three answer `NotFoundError` → 404,
+   matching `createRequirement`, which always did. One helper rather than
+   three inline guards, so the next method taking a set id has an obvious
+   thing to call.
+
+   The identifier claim does not survive checking. All four paths take
+   `requirement_sets.id`, the row UUID: `requirements.requirement_set_id`
+   carries a foreign key to it (`db/migrations.ts`), `createRequirement`
+   writes `saved.id`, and `getRequirementSet` looks up by `id`. The only
+   place the business key appears under that name is an audit-event payload
+   in `reviseRequirementSet`, which is a value being recorded, not a lookup.
+   There was one identifier and three missing guards, not two identifiers.
+
+   A test now holds the agreement rather than describing it:
+   `unknown-identifier.test.ts` asserts all three new refusals **and**
+   `createRequirement`'s, so relaxing the guard reappears as a failure
+   instead of as two green tests stating two truths. It also asserts that an
+   existing set with no requirements still answers `[]` — the guard had to
+   refuse the unknown id without refusing the empty set.
 
 One fix was made outside the two above, because it was Batch 1's own and one
 line: `updateProduct`'s vocabulary refusal threw a plain `Error` and reached the
