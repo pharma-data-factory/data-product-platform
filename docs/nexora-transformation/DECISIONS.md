@@ -362,9 +362,9 @@ Use this file for durable architecture decisions.
   permissions — `artifact.read/create/submit/review/certify/publish/deprecate`
   and `publisher.manage` — and tiers them across the existing roles: reading
   at VIEWER, registering/submitting/reviewing at DEVELOPER, certifying,
-  publishing and deprecating at DATA_PRODUCT_OWNER, and claiming a namespace
+  publishing and deprecating at DATA*PRODUCT_OWNER, and claiming a namespace
   at PLATFORM_ADMIN.
-  Reviewing is deliberately _not_ a lifecycle transition: it sets
+  Reviewing is deliberately \_not* a lifecycle transition: it sets
   `certificationStatus` to TESTED and leaves `lifecycle` at TESTING. Certifying
   is the act that advances the lifecycle, and it refuses to run unless the
   review already happened.
@@ -2063,10 +2063,10 @@ open. Mutation-checked — removing the fix turns it red.
 
 Each was produced by the walk, each is real, none is in Batch 1's scope:
 
-1. **Approval order is not enforced.** On one run the QUALITY_REVIEWER step was
+1. **Approval order is not enforced.** On one run the QUALITY*REVIEWER step was
    approved while the PRODUCT_MANAGER step was still open, and the platform
    accepted it. `approveApprovalStep` checks the step's status and the actor's
-   role, and never that it is the _current_ step. A three-step GxP chain whose
+   role, and never that it is the \_current* step. A three-step GxP chain whose
    steps can be taken in any order is a set of approvals, not a chain — this is
    the most serious of the six.
 
@@ -2188,3 +2188,55 @@ read by no code and referenced by no template, and of the roughly two dozen
 domain permissions that work documented, one (`aas.read`) exists in source.
 That residue is recorded in `docs/audits/TARGET_CONFORMANCE_AUDIT.md` and is
 not a decision this record revives.
+
+---
+
+### NXD-061 — A permission registry nobody imported, holding the wrong answer
+
+- Date: 2026-09-26
+- Closes: the `validation.approve` contradiction (W-8) and part of guardrail
+  deviation D-4
+
+`packages/platform-common/src/permissions/validation.ts` documented
+`validation.approve` as _"RESERVED — never granted in v0.1 (automatic
+approval is forbidden)"_. `policy.ts` grants it to `PLATFORM_ADMIN`, and
+`permissions.ts` lists it in `ADMIN_PERMISSION_NAMES`. One file said never,
+the other did.
+
+**The code is right and the comment is stale.** Enabling the permission was a
+deliberate Phase 5 decision, already on record here: the validation lifecycle
+could not close while its terminal step was denied to everyone. The
+"automatic approval is forbidden" property it was protecting is intact and is
+enforced where it belongs, in
+`plugins/validation-expert-backend/src/service.ts` — `createValidationDecision`
+refuses a decider who created the ValidationContext, requires a non-empty
+justification, validates the status against a closed list, and permits
+exactly one decision per context. Approval is a deliberate human act by
+someone other than the author. Nothing approves itself.
+
+So no security fix was needed. What needed fixing was that the wrong answer
+was reachable at all.
+
+**Why it was reachable.** `packages/platform-common/src/permissions/` was a
+second registry: per-domain modules (`urs.ts`, `validation.ts`) re-declaring
+the same permission names as the flat `permissions.ts`, with their own
+documentation. It was imported by **nothing** — not `index.ts`, not a plugin,
+not a test. Two definitions of `validation.approve` existed; the one that ran
+was correct and the one that was dead was wrong, and nothing made the
+difference visible to a reader.
+
+The directory is removed. `permissions.ts` is the definition, and it is the
+one `index.ts` exports. `tsc`, `lint:all` and the full suite are unchanged by
+the removal — 220 suites, 1923 tests, 3 suites skipped for want of local
+PostgreSQL.
+
+The per-domain split those files attempted is still a reasonable shape. It
+should happen as a refactor of the live file, not as a copy beside it: a
+second registry does not become authoritative by being better organised.
+
+Three documents repeated the stale claim and are corrected in place with the
+date and the reason: `docs/rbac/platform-roles.md` (twice) and
+`docs/e2e-platform-consolidation.md`. Each now names the service-level
+control as well as the grant, because "granted to PLATFORM_ADMIN" on its own
+reads more permissive than the system actually is.
+

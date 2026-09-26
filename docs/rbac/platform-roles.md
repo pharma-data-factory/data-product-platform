@@ -13,6 +13,7 @@ These roles define the fundamental access tiers available to all users on the pl
 ### Platform Viewer
 
 **Permissions:**
+
 - `catalog.entity.read` (Backstage)
 - `catalog.location.read` (Backstage)
 - `urs.read`
@@ -40,6 +41,7 @@ These roles define the fundamental access tiers available to all users on the pl
 **Inherits:** Platform Viewer
 
 **Additional Permissions:**
+
 - `catalog.entity.create` (Backstage)
 - `catalog.entity.refresh` (Backstage)
 - `scaffolder.task.create` (Backstage)
@@ -64,6 +66,7 @@ These roles define the fundamental access tiers available to all users on the pl
 **Inherits:** Platform Developer
 
 **Additional Permissions:**
+
 - `data-product.governance`
 - `data-product.certification.manage`
 - `urs.manage`
@@ -80,6 +83,7 @@ These roles define the fundamental access tiers available to all users on the pl
 ### Platform Admin
 
 **Includes All Permissions:**
+
 - All Platform Owner permissions
 - `catalog.entity.delete` (Backstage)
 - `catalog.location.create` (Backstage)
@@ -111,11 +115,13 @@ These roles define the fundamental access tiers available to all users on the pl
 #### URS Author
 
 **Permissions:**
+
 - `urs.read`
 - `urs.create`
 - `urs.manage`
 
 **Excludes:**
+
 - `urs.approve` (cannot approve own work)
 - `urs.admin` (no template administration)
 
@@ -128,11 +134,13 @@ These roles define the fundamental access tiers available to all users on the pl
 #### URS Owner
 
 **Permissions:**
+
 - `urs.read`
 - `urs.create`
 - `urs.manage`
 
 **Excludes:**
+
 - `urs.approve` (separate approval role)
 - `urs.admin`
 
@@ -145,14 +153,17 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Business Reviewer
 
 **Permissions:**
+
 - `urs.read`
 - `urs.approve`
 
 **Excludes:**
+
 - `urs.create`, `urs.manage` (cannot edit)
 - `urs.admin`
 
 **Workflow Eligibility:**
+
 - Can approve `BUSINESS_REVIEWER` workflow step (if configured in URS approval workflow)
 - Does NOT automatically approve all steps
 
@@ -165,14 +176,17 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Product Manager
 
 **Permissions:**
+
 - `urs.read`
 - `urs.approve`
 
 **Excludes:**
+
 - `urs.create`, `urs.manage`
 - `urs.admin`
 
 **Workflow Eligibility:**
+
 - Can approve `PRODUCT_MANAGER` workflow step (if configured)
 
 **Use Case:** Review and approve URS from product and market perspective.
@@ -184,15 +198,18 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Quality Reviewer
 
 **Permissions:**
+
 - `urs.read`
 - `urs.approve`
 - `urs.sign` (electronic signatures such as APPROVED_QA; SoD still applies)
 
 **Excludes:**
+
 - `urs.create`, `urs.manage`
 - `urs.admin`
 
 **Workflow Eligibility:**
+
 - Can approve `QUALITY_REVIEWER` workflow step (if configured)
 
 **Use Case:** Review and approve URS for quality, GxP compliance, and technical requirements.
@@ -206,12 +223,14 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Validation Reviewer
 
 **Permissions:**
+
 - `validation.read`
 - `requirement.read`
 - `traceability.read`
 - `validation.review`
 
 **Excludes:**
+
 - `validation.run.start`, `validation.test.execute` (cannot execute)
 - `validation.admin`
 
@@ -224,6 +243,7 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Validation Manager
 
 **Permissions:**
+
 - `validation.read`
 - `requirement.read`
 - `traceability.read`
@@ -233,7 +253,11 @@ These roles define the fundamental access tiers available to all users on the pl
 - `validation.admin`
 
 **Excludes:**
-- `validation.approve` (reserved, never granted)
+
+- `validation.approve` — granted to `PLATFORM_ADMIN` only, not to this role
+  (`NXD` Phase 5 / P5-S1; see `packages/platform-common/permissions.ts`
+  `ADMIN_PERMISSION_NAMES`). Corrected 2026-09-26; this line previously read
+  "reserved, never granted", which was the v0.1 posture.
 
 **Use Case:** Manage validation runs, execute tests, administer runners and protocols.
 
@@ -246,6 +270,7 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Data Product Developer
 
 **Permissions:**
+
 - `data-product.view`
 - `data-product.consume`
 - `data-product.create`
@@ -253,6 +278,7 @@ These roles define the fundamental access tiers available to all users on the pl
 - `data-product.viewValidation`
 
 **Excludes:**
+
 - `data-product.governance`, `data-product.certification.manage`
 - `data-product.admin`
 
@@ -267,6 +293,7 @@ These roles define the fundamental access tiers available to all users on the pl
 #### Marketplace Publisher
 
 **Permissions:**
+
 - `marketplace.view`
 - `marketplace.admin`
 - `pluginDirectory.read`
@@ -284,7 +311,12 @@ These roles define the fundamental access tiers available to all users on the pl
 
 - ❌ Assign `urs.approve` to `URS Author` (conflict of interest)
 - ❌ Assign `urs.manage` to `Business Reviewer` (role confusion)
-- ❌ Assign `validation.approve` to any group (reserved, never granted)
+- ❌ Assign `validation.approve` to any group other than platform administrators.
+  It is granted to `PLATFORM_ADMIN` only. The decision it guards is additionally
+  constrained in the service: the decider must not be the person who created the
+  ValidationContext, a justification is mandatory, and a context may be decided
+  exactly once (`plugins/validation-expert-backend/src/service.ts`,
+  `createValidationDecision`). Corrected 2026-09-26.
 - ❌ Assign `risk.accept` to any group (reserved for future)
 - ❌ Assign `baseline.modify` to any group (reserved for future)
 
@@ -329,11 +361,13 @@ These roles define the fundamental access tiers available to all users on the pl
 Future Golden Paths (OEE, MQTT, Equipment, etc.) may define Authorization Profiles.
 
 Golden Path Auth Profiles contain:
+
 - Domain permissions (owned by the path)
 - Suggested roles (descriptive, not prescriptive)
 - Group recommendations
 
 RBAC administrators remain responsible for:
+
 - Creating actual RBAC roles
 - Assigning users to groups
 - Configuring role-to-permission mappings

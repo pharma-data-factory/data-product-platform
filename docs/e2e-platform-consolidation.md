@@ -71,7 +71,7 @@ evidence, findings, contexts — reachable as a menu entry under Validate
 (`plugins/validation-expert/src/plugin.tsx:46`).
 
 The function has pages for reaching a verdict but no way to record one.
-`validation.approve`, `risk.accept` and `baseline.modify` are denied to
+`risk.accept` and `baseline.modify` are denied to
 **every** caller in `decidePermission`
 (`packages/platform-common/src/policy.ts:52`) — including `PLATFORM_ADMIN`,
 because the denial is evaluated before any role check.
@@ -185,7 +185,7 @@ URS baselines through `ursBaselineIds` and already carries the gate.
 | 5   | **Draw a baseline**                  | Developer declares the state ready for review              | Snapshot of components, contracts and traceability links (`createProductBaseline`)                                                     | Product baseline `DRAFT` → `APPROVED`  |
 | 6   | **Hand off to validation**           | Automatic on baseline approval                             | Validation context derived from the URS baseline (`urs-baseline-resolver`); case appears as work **in the Validation Expert function** | Validation run `PENDING`               |
 | 7   | **Plan and execute validation**      | Reviewer working in Validation Expert                      | IQ/OQ/UAT protocols; automated runners produce evidence, manual tests are signed                                                       | Run `RUNNING → COMPLETED`              |
-| 8   | **Validation verdict**               | Reviewer who does **not** own the product                  | `validation.approve` — currently denied to everyone, must be opened for a defined role                                                 | Validation `APPROVED` / `REJECTED`     |
+| 8   | **Validation verdict**               | Reviewer who does **not** own the product                  | `validation.approve` — granted to `PLATFORM_ADMIN`; the service refuses a decider who created the context                              | Validation `APPROVED` / `REJECTED`     |
 | 9   | **Release gate**                     | Owner requests release                                     | Gate checks all blockers **including a new `VALIDATION_NOT_APPROVED`**                                                                 | Version `RELEASE_CANDIDATE → RELEASED` |
 | 10  | **Operate and re-validate**          | URS change / new version                                   | Impact assessment (`RequirementSetImpact` exists) flags affected products                                                              | Back to step 5                         |
 
@@ -257,7 +257,7 @@ right, only the visibility is missing.
 ### M3 — Let the Validation Expert function conclude
 
 **Problem:** the function has pages for reaching a verdict, but
-`validation.approve`, `risk.accept` and `baseline.modify` are denied to every
+`risk.accept` and `baseline.modify` are denied to every
 caller. Nothing in the module can be closed.
 
 **Measure:** decide which existing role may conclude inside the function, and
