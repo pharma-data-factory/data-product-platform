@@ -14,7 +14,11 @@ Read in this order:
 8. `STATUS.md`
 9. `DECISIONS.md`
 
-`CLAUDE_MASTER_PROMPT.md` is **retired** — superseded by `/CLAUDE.md`.
+`CLAUDE_MASTER_PROMPT.md` was **removed on 2026-09-26**. If you still have its
+session-start prompt saved outside the repository, discard it: it instructed
+agents to execute the eight `IMPLEMENTATION_PLAN.md` phases, all of which
+closed on 2026-09-21, under a narrower stop-condition list than `AGENTS.md`.
+Use `/CLAUDE.md` instead.
 
 `IMPLEMENTATION_PLAN.md` defines the eight phases. `PHASE_CLOSURE_PLAN.md`
 defines how the gaps still open in them get closed, in what order, and what
