@@ -67,6 +67,11 @@ a supported Backstage release. Re-evaluate at every Backstage upgrade gate.
 
 **Risk while it stands:** the RBAC matrix is ours to maintain. See D-4.
 
+**Full history:** `NXD-060` in
+`docs/nexora-transformation/DECISIONS.md` — the original adoption decision
+(archived `ADR-004`) and its reversal. Both RBAC packages remain declared and
+inert; removing them is a dependency change and needs its own approval.
+
 ### D-2 — `/alpha` APIs in five places
 
 `@backstage/plugin-catalog/alpha`, `plugin-api-docs/alpha`,

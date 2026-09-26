@@ -5,6 +5,7 @@ Use this file for durable architecture decisions.
 ## Decision template
 
 ### NXD-XXX — Title
+
 - Date:
 - Context:
 - Decision:
@@ -15,6 +16,7 @@ Use this file for durable architecture decisions.
 ---
 
 ### NXD-001 — Backstage remains the platform kernel
+
 - Date: 2026-09-15
 - Context: Nexora needs identity, permissions, catalog, scaffolder, plugin runtime, search and documentation capabilities without owning platform plumbing.
 - Decision: Backstage remains the technical kernel. Nexora extends it through supported public APIs, plugins, modules and extension points.
@@ -23,6 +25,7 @@ Use this file for durable architecture decisions.
 - Affected components: all.
 
 ### NXD-002 — Producer and Consumer are capabilities
+
 - Date: 2026-09-15
 - Context: The same user/team may consume and publish.
 - Decision: No global Producer/Consumer mode. Access is determined by permissions, capabilities, publisher membership, lifecycle and policy gates.
@@ -31,6 +34,7 @@ Use this file for durable architecture decisions.
 - Affected components: identity, permissions, Marketplace, Product Studio.
 
 ### NXD-003 — AI proposes; humans govern
+
 - Date: 2026-09-15
 - Context: AI assists development and analysis but controlled approvals require accountability.
 - Decision: AI may implement and propose but may not approve controlled Requirements, regulated risk, Validation or Release.
@@ -39,10 +43,11 @@ Use this file for durable architecture decisions.
 - Affected components: Product Studio, AI providers, URS, Validation, Release.
 
 ### NXD-004 — `packages/app` owns an explicit jest project id
+
 - Date: 2026-09-16
 - Context: `packages/app/src/App.test.tsx` passed when run alone and failed in
   the full repository run with `Cannot find module
-  '@backstage/plugin-app-module-user-settings'`. That package ships no
+'@backstage/plugin-app-module-user-settings'`. That package ships no
   `dist/index.cjs.js` despite declaring it as `main`, so the app carries a
   `moduleNameMapper` pointing at the ESM build. The Backstage CLI derives each
   jest project's cache `id` from a hash of the Backstage version and the
@@ -73,6 +78,7 @@ Use this file for durable architecture decisions.
 - Affected components: `packages/app` test configuration.
 
 ### NXD-005 — Infrastructure-dependent tests skip locally but must run in CI
+
 - Date: 2026-09-16
 - Context: Six suites (the URS GxP invariants, the persistence and runtime
   PostgreSQL proofs, the seed-persistence and P1A verifications, and the
@@ -103,6 +109,7 @@ Use this file for durable architecture decisions.
   `packages/backend/src/compatibilityPolicyParity.test.ts`.
 
 ### NXD-006 — ProductVersion label is validated; the ordinal is a sequence
+
 - Date: 2026-09-16
 - Context: `createProductVersion` derived `versionNumber` from
   `versions.length + 1` and accepted any caller-supplied string as the version
@@ -122,12 +129,12 @@ Use this file for durable architecture decisions.
      would be distinct rows naming the same version.
   2. `versionNumber` is a per-product sequence of `max + 1`. It orders
      versions by creation and is never reused, independently of the labels.
-  3. A generated label clears the highest existing *label*, not the row count,
+  3. A generated label clears the highest existing _label_, not the row count,
      so it cannot collide with an explicitly supplied one. A duplicate label
      is a `ConflictError` (HTTP 409), not a driver error behind a 500.
-  The rules live in `packages/platform-common/src/product.ts` as
-  framework-independent functions, per the Phase 1 focus on stable contracts
-  and invariants.
+     The rules live in `packages/platform-common/src/product.ts` as
+     framework-independent functions, per the Phase 1 focus on stable contracts
+     and invariants.
 - Alternatives considered: derive `versionNumber` from the label's major
   (collides as soon as two versions share a major, e.g. `1.0` and `1.1`);
   full semver with pre-release and build metadata (more identity surface than
@@ -145,6 +152,7 @@ Use this file for durable architecture decisions.
   `plugins/composer-backend` service and router.
 
 ### NXD-007 — ProductBaseline labels: presence and uniqueness, not format
+
 - Date: 2026-09-16
 - Context: `createProductBaseline` had the same defects as
   `createProductVersion` before [`NXD-006`](#nxd-006--productversion-label-is-validated-the-ordinal-is-a-sequence),
@@ -154,7 +162,7 @@ Use this file for durable architecture decisions.
   was simply stored. A ValidationContext binds the exact validated candidate,
   and a ProductBaseline is part of that binding; two baselines of one
   ProductVersion sharing a label make the validated candidate ambiguous.
-  Separately, the method superseded the currently APPROVED baseline *before*
+  Separately, the method superseded the currently APPROVED baseline _before_
   it had finished deciding whether the request was valid.
 - Decision: adopt the rule the URS side already reached for requirement-set
   baselines (`assertBaselineVersionAvailable`): a baseline label is checked
@@ -181,6 +189,7 @@ Use this file for durable architecture decisions.
   `plugins/composer-backend` service.
 
 ### NXD-008 — Duplicated baseline-label logic is not yet consolidated
+
 - Date: 2026-09-16
 - Context: `urs-composer-backend` has `nextBaselineVersion` and
   `assertBaselineVersionAvailable` implementing the same rules that NXD-007
@@ -207,6 +216,7 @@ Use this file for durable architecture decisions.
   against real PostgreSQL.
 
 ### NXD-009 — Identity constraints in the database; migration stops on conflict
+
 - Date: 2026-09-16
 - Context: NXD-006 and NXD-007 made duplicate version ordinals and duplicate
   baseline labels unreachable through the service, but an application check is
@@ -236,6 +246,7 @@ Use this file for durable architecture decisions.
 - Affected components: `plugins/composer-backend/src/db/migrations.ts`.
 
 ### NXD-010 — DataContract: validate inputs now, identity in Phase 4
+
 - Date: 2026-09-16
 - Context: `addDataContract` cast `request.schemaType` straight to
   `DataContract['schemaType']`. `DATA_CONTRACT_SCHEMA_TYPES` has always
@@ -265,6 +276,7 @@ Use this file for durable architecture decisions.
   `plugins/composer-backend` service.
 
 ### NXD-011 — Do not hand a knex QueryBuilder to `expect().rejects`
+
 - Date: 2026-09-16
 - Context: `identityConstraints.test.ts`, added with NXD-009, failed in about
   60% of full repository runs (2 of 3 measured, 3 of 5 including earlier runs)
@@ -288,13 +300,14 @@ Use this file for durable architecture decisions.
   auditing if the symptom reappears elsewhere.
 - Affected components: `plugins/composer-backend/src/identityConstraints.test.ts`.
 - **Superseded in part (2026-09-17).** The builder-vs-Promise point stands and
-  is still the rule. But it was *not* what made this suite flake, and the
+  is still the rule. But it was _not_ what made this suite flake, and the
   "four consecutive passes" above were luck, not a fix — the suite went on
   failing intermittently. The actual cause is a native-module realm crossing,
   root-caused in NXD-016. Read the decision above as a style rule, not as a
   closed flake investigation.
 
 ### NXD-012 — Artifacts reuse the Golden Path lifecycle
+
 - Date: 2026-09-16
 - Context: Phase 2 needs an Artifact lifecycle covering the producer actions —
   Create, Develop, Test, Submit, Review, Certify, Publish, Version, Deprecate.
@@ -319,6 +332,7 @@ Use this file for durable architecture decisions.
   `packages/platform-common/src/releases.ts`.
 
 ### NXD-013 — Artifact dependencies pin exact versions
+
 - Date: 2026-09-16
 - Context: `spec.dependencies` in a `nexora.yaml` could accept ranges
   (`^1.0`, `1.x`) or exact versions.
@@ -327,7 +341,7 @@ Use this file for durable architecture decisions.
 - Alternatives considered: allow ranges with resolution at install time, which
   is what general-purpose package managers do.
 - Consequences: a range would make the set of Artifacts a Product was built
-  from depend on *when* it was resolved. A validated Product has to be able to
+  from depend on _when_ it was resolved. A validated Product has to be able to
   state exactly what it was built from, and a ValidationContext binds exact
   Artifact versions, so resolution-time variability cannot be allowed to reach
   it. The cost is that upgrades become an explicit act — which Phase 6 already
@@ -336,6 +350,7 @@ Use this file for durable architecture decisions.
 - Affected components: `packages/platform-common/src/artifact.ts`.
 
 ### NXD-014 — Registry authority is granular permissions, not Producer/Consumer roles
+
 - Date: 2026-09-17
 - Context: Phase 2 calls for "Producer/Consumer permissions". The obvious
   reading is two new platform roles. But the platform already has a five-tier
@@ -349,7 +364,7 @@ Use this file for durable architecture decisions.
   at VIEWER, registering/submitting/reviewing at DEVELOPER, certifying,
   publishing and deprecating at DATA_PRODUCT_OWNER, and claiming a namespace
   at PLATFORM_ADMIN.
-  Reviewing is deliberately *not* a lifecycle transition: it sets
+  Reviewing is deliberately _not_ a lifecycle transition: it sets
   `certificationStatus` to TESTED and leaves `lifecycle` at TESTING. Certifying
   is the act that advances the lifecycle, and it refuses to run unless the
   review already happened.
@@ -373,6 +388,7 @@ Use this file for durable architecture decisions.
   `plugins/artifact-registry-backend/src/router.ts`.
 
 ### NXD-015 — Lifecycle transitions are guarded by revision, not by a lock
+
 - Date: 2026-09-17
 - Context: every transition reads the version, checks the precondition
   ("publishing requires CERTIFIED") and writes, in three statements. Between
@@ -397,6 +413,7 @@ Use this file for durable architecture decisions.
   `plugins/artifact-registry-backend/src/service.ts`.
 
 ### NXD-016 — Assert database refusals on the message, not with `.rejects.toThrow()`
+
 - Date: 2026-09-17
 - Context: the flake NXD-011 was opened for never closed. `identityConstraints.test.ts`
   kept failing in roughly 2 of 10 full composer-backend runs with "Received
@@ -406,17 +423,17 @@ Use this file for durable architecture decisions.
   the same `SqliteError`, always with a correct UNIQUE message. The constraint
   fired every single time; the assertion was what failed.
   better-sqlite3 is a native module, so its binding is loaded once per jest
-  *worker process* and the `SqliteError` it raises carries the `Error`
+  _worker process_ and the `SqliteError` it raises carries the `Error`
   intrinsic of whichever jest module realm loaded it first. When another suite
   in the same worker got there first, `error instanceof Error` is false in the
   later file, and jest reports a non-Error rejection value as "Received
   function did not throw" (verified against a scratch test; a resolved promise
   instead says "Received promise resolved instead of rejected"). That single
   misleading message is what sent NXD-011 after the thenable.
-- Decision: for errors raised by a *native* driver, assert on the message
+- Decision: for errors raised by a _native_ driver, assert on the message
   rather than the type. A local `expectRefusedByDatabase(write, pattern)`
   helper awaits the write, fails loudly with a written-out explanation if the
-  write was *accepted* (the case that actually matters — a missing
+  write was _accepted_ (the case that actually matters — a missing
   constraint), and otherwise matches
   `String((raised as {message?: unknown})?.message ?? raised)` against the
   pattern. Matching the message is realm-blind.
@@ -425,7 +442,7 @@ Use this file for durable architecture decisions.
   worker (`--runInBand` repo-wide costs far more than the bug); a custom jest
   matcher or `serializer`/`snapshotResolver` shim (more machinery than a
   nine-line helper); leaving `.rejects.toThrow()` and retrying the suite
-  (hides a red that was telling the truth about *something*). Pure-JS drivers
+  (hides a red that was telling the truth about _something_). Pure-JS drivers
   like `pg` are re-instantiated per test file, so their errors are same-realm
   and `.rejects.toThrow()` stays correct there — this is deliberately not a
   repo-wide ban.
@@ -450,6 +467,7 @@ Use this file for durable architecture decisions.
   `plugins/artifact-registry-backend/.eslintrc.js`.
 
 ### NXD-017 — Test servers must rebind off the Fetch blocked-port list
+
 - Date: 2026-09-17
 - Context: while stressing NXD-016, `artifact-registry-backend` failed about 1
   run in 15 — but in `router.test.ts`, on a different test each time, with
@@ -457,7 +475,7 @@ Use this file for durable architecture decisions.
   recorded under Known Risks as unexplained and "not reproduced on demand"
   (seen once in `entitlements-backend/src/router.test.ts` with an empty error
   cause). It is now root-caused. `bad port` is not a network error: it is the
-  Fetch standard's blocked-port list, which `fetch` refuses *before* opening a
+  Fetch standard's blocked-port list, which `fetch` refuses _before_ opening a
   socket. Twelve backend test files bind with `app.listen(0)`, and this
   container's `ip_local_port_range` is `1024 65535` rather than the usual
   `32768 60999`, so the OS can hand back 6000, 6697, 10080 and friends.
@@ -469,7 +487,7 @@ Use this file for durable architecture decisions.
   unprivileged `listen(0)`.
 - Alternatives considered: `supertest`, which is what the Blocked Decisions
   entry proposed and which would remove sockets entirely — no longer needed
-  for *this* bug, and it should be approved on its own merits rather than as a
+  for _this_ bug, and it should be approved on its own merits rather than as a
   flake fix for a flake that is now fixed. Widening the container's
   `ip_local_port_range` — fixes one machine, not CI or anyone else's. Pinning
   a fixed port per suite — reintroduces collisions under parallel runs.
@@ -484,11 +502,12 @@ Use this file for durable architecture decisions.
   latent in eleven other backend `router.test.ts` files.
 
 ### NXD-018 — The Marketplace category travels as manifest metadata, not as a kind
+
 - Date: 2026-09-17
 - Context: the legacy Marketplace sorts its offerings into five display
   categories (Templates, Connectors, Data Products, Platform Components,
   Solutions). The registry has seven Artifact kinds. The two taxonomies are
-  neither the same size nor the same idea: a kind says what an Artifact *is*
+  neither the same size nor the same idea: a kind says what an Artifact _is_
   and is what every dependency on it means; a category says which shelf it
   sits on. Mapping the Marketplace onto the registry needs an answer for the
   offerings whose category has no kind, and for reading the category back.
@@ -505,7 +524,7 @@ Use this file for durable architecture decisions.
   silently pick one. Add a `SOLUTION` kind so the table is total — rejected as
   inventing product semantics; no offering uses that category today, and what
   a Solution is in registry terms is a product question, not a mapping detail.
-- Consequences: an offering whose category has no kind is *reported* by
+- Consequences: an offering whose category has no kind is _reported_ by
   `validateMarketplaceOffering` and produces no manifest, rather than being
   filed under a near-enough kind. `Solutions` is that case today and the
   parity suite names it as a known, deliberate gap; the first offering to use
@@ -515,6 +534,7 @@ Use this file for durable architecture decisions.
   `plugins/marketplace/src/registryParity.test.ts`.
 
 ### NXD-019 — A manifest may not declare its own certification
+
 - Date: 2026-09-17
 - Context: the legacy offerings carry `certificationStatus`, and three of the
   twelve claim CERTIFIED. The obvious mapping is onto
@@ -542,6 +562,7 @@ Use this file for durable architecture decisions.
   `plugins/marketplace/src/registryParity.test.ts`.
 
 ### NXD-020 — Registry content is files on disk, loaded at startup
+
 - Date: 2026-09-17
 - Context: the registry needed its first content. Two ways to get the twelve
   legacy offerings in: seed them from `marketplaceItems` at startup, or commit
@@ -573,13 +594,14 @@ Use this file for durable architecture decisions.
   `plugins/artifact-registry-backend/src/plugin.ts`, `catalog/artifacts/`.
 
 ### NXD-021 — A repo-relative content path is resolved by walking up
+
 - Date: 2026-09-17
 - Context: `yarn start` from the repo root runs the backend with cwd at the
   root; `backstage-cli package start` — the production-shaped `serve` mode —
   runs it with cwd at `packages/backend`. A default of `catalog/artifacts` is
   therefore correct from one and wrong from the other. This was not
   theoretical: the first live run logged `directory
-  .../packages/backend/catalog/artifacts does not exist` and loaded nothing.
+.../packages/backend/catalog/artifacts does not exist` and loaded nothing.
 - Decision: resolve a relative manifest directory by walking up from the
   working directory to the first candidate that exists, bounded at six levels,
   falling back to the cwd-relative path so a genuinely missing directory is
@@ -601,6 +623,7 @@ Use this file for durable architecture decisions.
   duplicate of `plugins/model-company-backend/src/factory.ts`.
 
 ### NXD-022 — The Marketplace reads the registry over HTTP, with the array as fallback
+
 - Date: 2026-09-17
 - Context: the registry holds the twelve offerings as of P2-S5a but nothing
   reads them. The Marketplace is a frontend plugin; the registry is a backend
@@ -635,6 +658,7 @@ Use this file for durable architecture decisions.
   `packages/platform-common/src/marketplace-artifact.ts`.
 
 ### NXD-023 — Card order is preserved from the array, and is not an Artifact property
+
 - Date: 2026-09-17
 - Context: the registry returns artifacts ordered by name. Switching the
   source therefore re-sorted the catalogue alphabetically. Nothing in the
@@ -652,13 +676,14 @@ Use this file for durable architecture decisions.
   Marketplace shelf position, and inventing one would mean choosing a curation
   on the platform's behalf.
 - Consequences: the UI is unchanged today. What is preserved, though, is the
-  order the offerings were *added over time*, not a designed one — so this is
+  order the offerings were _added over time_, not a designed one — so this is
   fidelity to an accident. Whether the Marketplace wants a deliberate order,
   and where it would live, is a question for after the array is deleted; this
   function is what gets replaced or removed then.
 - Affected components: `plugins/marketplace/src/offeringSource.ts`.
 
 ### NXD-024 — The blocked-port guard is a shared helper, and four files never needed it
+
 - Date: 2026-09-17
 - Context: [`NXD-017`](DECISIONS.md) fixed the Fetch blocked-port flake in one
   file and recorded that "twelve backend test files bind with `app.listen(0)`"
@@ -666,11 +691,11 @@ Use this file for durable architecture decisions.
   numbers were wrong, and in opposite directions.
 - **Thirteen files bind an ephemeral port, not twelve.** The original count
   missed one.
-- **Only nine of them can hit the bug.** The blocklist is a *Fetch* standard
+- **Only nine of them can hit the bug.** The blocklist is a _Fetch_ standard
   rule: `fetch` refuses those ports before opening a socket. `http.request`
   does not consult it at all. Four files —
   `urs-composer-backend/{authorize-approve-proof, p1b-http-final-verification,
-  seeded-baseline-http}.test.ts` and
+seeded-baseline-http}.test.ts` and
   `validation-expert-backend/validation-context-integration.test.ts` — drive
   their servers with `http.request` and were never affected. Eight needed
   fixing, not eleven.
@@ -698,6 +723,7 @@ Use this file for durable architecture decisions.
   listed above minus the four that use `http.request`.
 
 ### NXD-025 — Marketplace certification comes from the ArtifactVersion, not the manifest
+
 - Date: 2026-09-19
 - Context: P2-S5b deferred a question rather than answering it: once
   `marketplaceItems` is deleted, which certification does the Marketplace show?
@@ -744,6 +770,7 @@ Use this file for durable architecture decisions.
   `catalog/artifacts/nexora/*.yaml`, `plugins/marketplace/src/offeringSource.ts`.
 
 ### NXD-026 — `marketplaceItems` is deleted; card order is the registry's
+
 - Date: 2026-09-19
 - Context: P2-S5c. The read switch (NXD-022) has been the source in practice
   since P2-S5b, with the array kept only as a fallback nobody had needed to
@@ -767,7 +794,7 @@ Use this file for durable architecture decisions.
   proving parity during the switch, not permanent resilience against a backend
   the rest of the platform already depends on. Invent a deliberate display
   order to replace `inLegacyOrder` — rejected as a product decision with no
-  product behind it yet; NXD-023 already named this as a question for *after*
+  product behind it yet; NXD-023 already named this as a question for _after_
   the array is gone, not a design to smuggle in while removing it.
 - Consequences: the Marketplace's card order changes from
   insertion-into-the-array order to alphabetical-by-name, a visible but
@@ -805,7 +832,7 @@ Use this file for durable architecture decisions.
   declared `ArtifactKind` that no manifest used.
 - The component list travels in `spec.components`, **not** `spec.dependencies`.
   A composition's entries are Backstage Catalog entity refs
-  (`component:default/health`) with version *constraints* (`1.x`);
+  (`component:default/health`) with version _constraints_ (`1.x`);
   `spec.dependencies` holds Artifact refs with exact pins and would reject
   them. Platform Components are Catalog entities and AGENTS.md says to keep
   them there, so a composition points at the Catalog rather than restating it.
@@ -917,7 +944,7 @@ Use this file for durable architecture decisions.
   untouched: `officialGoldenPathForSelection` still returns the literal
   `'oee-data-product'`, and the preset ids are still Core's.
 - Affected components: `packages/platform-common/src/{artifact,composition,
-  composer,platform-component-library,marketplace-artifact}.ts`,
+composer,platform-component-library,marketplace-artifact}.ts`,
   `plugins/marketplace/src/useGoldenPathCompositions.ts`, five pages; deletes
   `packages/backend/src/compositionManifestParity.test.ts`.
 
@@ -928,7 +955,7 @@ Use this file for durable architecture decisions.
   loader logged `8 registered, 12 already present` and kept serving the
   manifests it had stored at `1.0.0`. The new fields only appeared after the
   registry database was dropped and reloaded (`20 registered, 0 already
-  present, 0 failed`).
+present, 0 failed`).
 - Decision: this is the loader behaving correctly, not a defect. A registered
   ArtifactVersion is immutable content; a loader that silently rewrote stored
   manifests would make "version 1.0.0" mean whatever was last on disk, which a
@@ -1176,7 +1203,7 @@ identified by its component and has not been given a real namespace yet.
 
 Exercising `GET /contracts/resolve` against an absent coordinate returned 500:
 `respondError` had no `NotFoundError` branch, so "no such contract" read as "the
-platform is broken". Fixed. The service tests now assert the error *types*, not
+platform is broken". Fixed. The service tests now assert the error _types_, not
 just their messages, because the router maps them by instance check and this
 plugin has no router test harness.
 
@@ -1191,7 +1218,7 @@ against the rest of the model — `ProductComponent.interfaceType` is a closed s
 (`REST | EVENT | MQTT | KAFKA | DB | FILE`), so adding a transport there needs a
 Core release. `NEXORA_STRATEGY.md` makes exchange technologies providers rather
 than Nexora domain truth, and a team publishing over something Core has never
-heard of must not wait for one. The validator checks the *shape* of the value —
+heard of must not wait for one. The validator checks the _shape_ of the value —
 lowercase kebab-case, the same grammar as a coordinate segment — and never its
 membership in a list. `s3-parquet` is accepted today with no platform change.
 
@@ -1245,7 +1272,7 @@ makes the request satisfiable:
 
 So a developer authors requirements by being given `urs-authors`, not by being
 a developer. The two axes are granted separately and audited separately, which
-is the point: the audit trail records that *this person* changed *this URS*,
+is the point: the audit trail records that _this person_ changed _this URS_,
 and the role they held to do it is visible as a separate, separately-revocable
 grant. Collapsing URS rights into the tier would have removed
 `urs-quality-reviewers` and with it `urs.sign` — a 21 CFR Part 11 signature —
@@ -1290,7 +1317,7 @@ so no new dependency entered the repository.
 **The seed runs once, against an empty table** — the pattern
 `urs-composer-backend` established and proves in `wd-seed-persistence.test.ts`.
 A restart does not rewrite a role an administrator changed, which is the whole
-point. Content that *should* be re-read on every start — components, templates,
+point. Content that _should_ be re-read on every start — components, templates,
 Golden Paths — stays a catalog file location, because it is versioned in git
 and is not edited at runtime.
 
@@ -1305,10 +1332,10 @@ would stay. Under `auth.environment: production` the seed installs only
 is rewritten from the database at startup and after every change. A Catalog
 entity provider would be tidier, but an entity provider is registered through
 `catalogProcessingExtensionPoint`, and an extension point may only be consumed
-by a module *of that plugin* — a `createBackendModule({ pluginId: 'catalog' })`
+by a module _of that plugin_ — a `createBackendModule({ pluginId: 'catalog' })`
 would then receive the catalog's `coreServices.database`, not this plugin's, so
 the provider and the router would read different databases. The projection
-keeps the property that matters: the file is written *from* the database,
+keeps the property that matters: the file is written _from_ the database,
 never into it, and losing it costs nothing.
 
 **EMU logins are accepted.** The login pattern allowed only `[a-z0-9-]`, so
@@ -1342,7 +1369,7 @@ typed. `POST /baselines/:id/provenance` closes that.
 
 **Provenance is a set of columns, not a snapshot field.** `snapshot` carries
 `_provenance.snapshotChecksum` from `P-EXT-S1`, a SHA-256 over its own
-canonical JSON. Provenance arrives *after* the baseline exists, so writing it
+canonical JSON. Provenance arrives _after_ the baseline exists, so writing it
 into the snapshot would invalidate the checksum the block exists to provide.
 Snapshot tamper-evidence and build provenance are two different claims about
 two different things and are stored separately. `release_commit_sha`,
@@ -1354,14 +1381,14 @@ Absence is a release-gate question, not a schema violation.
 **Write-once.** Re-posting identical evidence returns 200 and changes nothing,
 including the timestamp, because a retried or re-run CI job is normal and
 should not need to know whether its predecessor got through. Posting
-*different* evidence is a 409. Only one artifact was validated against a given
+_different_ evidence is a 409. Only one artifact was validated against a given
 baseline; quietly replacing the SHA would make a controlled record describe a
 build nobody checked. A SUPERSEDED baseline is refused outright — it is a
 historical record and does not acquire new evidence. Approval status is
-otherwise irrelevant: the release build normally runs *after* approval, and
+otherwise irrelevant: the release build normally runs _after_ approval, and
 appending a fact about a build is not an edit to the controlled content.
 
-**Both values are checked against a grammar**, unlike baseline *labels*, which
+**Both values are checked against a grammar**, unlike baseline _labels_, which
 `NXD-007` deliberately checks only for presence. The reasoning is opposite in
 each case and consistent underneath: a label often has to match a document
 number in an external QMS, so Nexora cannot impose a shape on it, whereas a
@@ -1425,7 +1452,7 @@ together because the pattern matters more than any one of them.
 1. **The release gate answered 500 for every product.**
    `plugins/composer-backend/src/platform-policy.ts` and `platform-policy.json`
    shared a basename, so `import { evaluatePlatformPolicy } from
-   './platform-policy'` in `service.ts` resolved to the **JSON** in the running
+'./platform-policy'` in `service.ts` resolved to the **JSON** in the running
    backend — which exports no functions. Jest resolves `.ts` before `.json`, so
    the entire suite passed. The JSON is now `platform-policy.document.json`.
    Phase 5's terminal control had never once executed in the application.
@@ -1437,7 +1464,7 @@ together because the pattern matters more than any one of them.
    static import.
 
 3. **The route rejected its only caller.** It authorized with
-   `allow: ['user']`, but the Composer's release gate calls it with a *plugin*
+   `allow: ['user']`, but the Composer's release gate calls it with a _plugin_
    token — a service principal — so it answered 401. Added
    `authorizeReadOrService`.
 
@@ -1451,7 +1478,7 @@ together because the pattern matters more than any one of them.
 
 Defects 2–4 stacked: each on its own was enough to make `5-R1`'s Policy Pack
 enforcement inert, so fixing fewer than all three would have changed nothing
-observable. Slice 2 had already found and fixed a *fourth* independent cause
+observable. Slice 2 had already found and fixed a _fourth_ independent cause
 (`createProduct` never mapped `declaredPolicies`). Between them, the release
 gate has reported no policy obligation since `5-R1` landed, while reading as a
 pass.
@@ -1478,7 +1505,7 @@ three swallowed the throw. They now pass `auth.getOwnServiceCredentials()`.
 called them "inert", by analogy with the policy resolver, which genuinely
 failed open. Only the catalog loader does that. The other two fail **closed**:
 
-- `resolveApprovedBaseline` *throws* on a failed request, and the gate converts
+- `resolveApprovedBaseline` _throws_ on a failed request, and the gate converts
   the throw into a `NO_APPROVED_URS_BASELINE` blocker.
 - `hasApprovedDecision` returns `false`, which the gate converts into
   `NO_APPROVED_VALIDATION_DECISION`.
@@ -1493,7 +1520,7 @@ none.
 **Fixing the clients was not sufficient; the routes had to change too.** Both
 `urs-composer` and `validation-expert` authorize reads with
 `allow: ['user'], allowLimitedAccess: true`. `allowLimitedAccess` admits a
-limited *user* token forwarded on someone's behalf — it does not admit a
+limited _user_ token forwarded on someone's behalf — it does not admit a
 service principal, so a correctly minted service token would still have been
 refused. Five read routes now use an `authorizeReadOrService` helper:
 `GET /baselines/:id`, `GET /requirement-sets/:id`,
@@ -1545,14 +1572,14 @@ at exactly one joint. The URS side is complete — lifecycle, e-signatures with
 SoD, an immutable `Baseline` with a stable UUID, PostgreSQL triggers that
 content-freeze released versions. The Product side received none of it:
 `Product` had no URS field at all, `ProductVersion.baselineId` pointed at a
-*ProductBaseline*, and the only URS binding anywhere was
+_ProductBaseline_, and the only URS binding anywhere was
 `ProductBaseline.ursBaselineIds` — a nullable JSON column on an optional child
 record, written by exactly one code path (`applySpecDraft`, fed by a UUID
 pasted into a free-text box on `/compose`, from a draft held in a
 non-persistent `Map`). The frontend client hard-coded an empty body, and no
 component called it.
 
-Requirement *text* was read exactly once, by `resolveBaselineContext`, to build
+Requirement _text_ was read exactly once, by `resolveBaselineContext`, to build
 an LLM prompt, and thrown away. So there was nothing on the product side to
 map, count, show coverage against, or hand to a developer — every other gap in
 the handoff was downstream of that one absence.
@@ -1584,7 +1611,7 @@ callers were wrong in the same way: the binding would freeze a snapshot missing
 requirements nobody would notice were absent, and spec generation would ask the
 model to design against a subset while the draft claimed the baseline. Neither
 caller can distinguish a short list from a short baseline, so the decision
-belongs in the resolver. Enrichment from the requirement *set* (solution name,
+belongs in the resolver. Enrichment from the requirement _set_ (solution name,
 capabilities) still degrades to a warning — losing it degrades the context,
 losing a requirement corrupts it.
 
@@ -1620,7 +1647,7 @@ even though the prompt demands them and the draft carries them — so every
 AI-generated product failed its own release gate on `INCOMPLETE_TRACEABILITY`.
 It now creates the `IMPLEMENTS` links, skipping refs that match no requirement
 in the baseline (a link to a requirement the baseline does not contain is worse
-than a missing one). And `ProductDetailPage` loaded components for the *latest*
+than a missing one). And `ProductDetailPage` loaded components for the _latest_
 version while the picker selected any version; requirements are per-version by
 definition, so the mismatch had to be resolved rather than inherited.
 
@@ -1689,7 +1716,7 @@ one act) gives the two records a shared identity at birth. A merge, or a
 cross-link, is only clean after that. So the page decision is taken now and the
 merge is deliberately not.
 
-**Consequences, in order.** `/products` goes into the sidebar under *Build* —
+**Consequences, in order.** `/products` goes into the sidebar under _Build_ —
 that group currently offers `/create` and `/compose` and then no destination,
 so the product page is its missing end, and a page holding release governance
 that cannot be navigated to is a defect on its own. Tabs replace the single
@@ -1757,10 +1784,10 @@ baseline needs several identities under Segregation of Duties.
 
 - Date: 2026-09-25
 
-Every decision record since NXD-055 ends with the same caveat: *not verified
+Every decision record since NXD-055 ends with the same caveat: _not verified
 against a running stack, because producing an approved URS baseline needs
 several identities under Segregation of Duties, and local guest auth supplies
-one.* Three records carried it. It was treated as a documentation footnote; it
+one._ Three records carried it. It was treated as a documentation footnote; it
 is a defect in the product's ability to be shown, and the reason four of the
 release gate's blockers had never been cleared by anyone.
 
@@ -1876,11 +1903,11 @@ Four defects behind it, none introduced here:
 - **`updateProduct` validated nothing.** `POST /products` with
   `gxpRelevance: 'TOTALLY_MADE_UP_VALUE'` returned 201 and stored it, on the
   field that classifies regulatory relevance — and because the gate only asks
-  whether the field is *set*, the garbage **satisfied** `gxp-relevance-set`.
+  whether the field is _set_, the garbage **satisfied** `gxp-relevance-set`.
   `GXP_RELEVANCE_LEVELS` and `PRODUCT_CRITICALITIES` are now named vocabularies
   and `validateProductGovernance` checks new writes against them. The stored
   type stays `string` and existing rows are untouched: NXD-009's rule that
-  nothing relabels a controlled classification unattended is about *reading*,
+  nothing relabels a controlled classification unattended is about _reading_,
   and was mistaken for one about writing. The function is separate from
   `validateProduct` so a partial update need not restate name and productType.
 - **`createProductBaseline` and `approveProductBaseline` were called from no
@@ -1938,7 +1965,7 @@ page rendering bare text put near-black type on navy at roughly 1.05:1 —
 invisible. Content moves onto `InfoCard` surfaces with the tab bar left on the
 canvas, which is what every readable page here already does. Fixed per page
 rather than in the theme deliberately: `/compose` and `/model-company` are
-designed *for* the dark canvas, so repainting it globally would fix this page by
+designed _for_ the dark canvas, so repainting it globally would fix this page by
 breaking those two.
 
 - Affected components: `packages/platform-common/src/product.ts`,
@@ -2000,7 +2027,7 @@ Neither failure looks like what it is:
   connection too), so the request goes out unauthenticated and the catalog
   answers **401**. The user is told
   `Failed to resolve approval roles for <user>: Request failed with 401
-  Unauthorized` — which reads as a permission problem, and sends whoever is
+Unauthorized` — which reads as a permission problem, and sends whoever is
   debugging it into the RBAC configuration;
 - the PIN check surfaces as **500 Internal server error**.
 
@@ -2029,7 +2056,7 @@ repository.
 **No test could have caught it and the new one does not catch it either.** The
 suites drive the service with an in-memory repository and a stub catalog, where
 neither call costs a connection. `transactionBoundary.test.ts` therefore pins
-the *ordering*: its stubs throw if either call arrives while a transaction is
+the _ordering_: its stubs throw if either call arrives while a transaction is
 open. Mutation-checked — removing the fix turns it red.
 
 ## Six more findings, recorded and not fixed
@@ -2039,11 +2066,11 @@ Each was produced by the walk, each is real, none is in Batch 1's scope:
 1. **Approval order is not enforced.** On one run the QUALITY_REVIEWER step was
    approved while the PRODUCT_MANAGER step was still open, and the platform
    accepted it. `approveApprovalStep` checks the step's status and the actor's
-   role, and never that it is the *current* step. A three-step GxP chain whose
+   role, and never that it is the _current_ step. A three-step GxP chain whose
    steps can be taken in any order is a set of approvals, not a chain — this is
    the most serious of the six.
 
-   **Closed 2026-09-25.** A step is refused while any *required* step with a
+   **Closed 2026-09-25.** A step is refused while any _required_ step with a
    lower `sequence` is neither APPROVED nor SKIPPED, and the refusal names the
    step that is blocking. Two choices worth recording: only required steps
    block, because treating an optional step as a barrier would make it
@@ -2051,17 +2078,18 @@ Each was produced by the walk, each is real, none is in Batch 1's scope:
    check, before the role check, which is this method's existing
    state-then-role convention. That ordering changed an existing test — it had
    reached for step 3 while step 1 was open as a convenient way to exercise the
-   *role* rule, so the role check never ran and the test passed for the wrong
+   _role_ rule, so the role check never ran and the test passed for the wrong
    reason. It now asserts the role rule on the step that is due, and a second
    test covers the order rule directly. Note that `stepNumber` in finding 2 is
    the same field under another name: the instance steps carry `sequence`, and
    that is what the enforcement uses.
+
 2. **Approval steps carry no `stepNumber` over the API.** Every step comes back
    with `stepNumber: undefined` and the instance with
    `currentStepNumber: undefined`, so no client can number or order the chain it
    renders.
 3. **Re-approving an approved step answers 500.** `Cannot approve step in
-   APPROVED status` is thrown as a plain `Error`; the caller sees
+APPROVED status` is thrown as a plain `Error`; the caller sees
    `Internal server error`. Same class as the three refusals
    [`NXD-058`](DECISIONS.md) retyped, in the method next to them.
 4. **Binding an unapproved URS baseline answers 500** rather than a 409 naming
@@ -2077,8 +2105,9 @@ Each was produced by the walk, each is real, none is in Batch 1's scope:
    tests about labels and superseding — and now pass an approver. One of them
    asserted `approvedBy === actor`, which was the defect stated as an
    expectation.
+
 6. **An unknown requirement-set id answers 200.** `GET
-   …/current-versions` returns an empty list and `POST …/versions/transition`
+…/current-versions` returns an empty list and `POST …/versions/transition`
    returns "advanced 0" for a set that does not exist, while the requirements
    route 404s on the same id. An unknown set is indistinguishable from an empty
    one — and the two routes disagree about which identifier they take, the
@@ -2097,3 +2126,65 @@ invisible in the application. It is an `InputError` now, asserted by type.
 warnings, 0 fail), `tsc`, `lint:all`, `CI=true yarn test` at 222 suites / 1961
 tests / 0 skipped with PostgreSQL up — and, for the first time, the journey
 itself on a running stack.
+
+---
+
+### NXD-060 — Community RBAC was adopted, then reversed by an extension point that admits one policy
+
+- Date: 2026-09-26
+- Supersedes: `ADR-004 — Central Platform RBAC via Backstage Community Plugin`
+  (archived at `docs/archive/architecture/adr-legacy/ADR-004-central-platform-rbac.md`)
+
+Carried into this record during Phase 1.0 because the decision it documents
+was reversed and nothing here said so. The reversal lived in a code comment
+and nowhere else, which is how an agent reading `AGENTS.md` — "Do not build
+another RBAC engine. Use Catalog Users / Groups → Community RBAC →
+Backstage Permission Framework" — arrives at the running system, sees an
+apparent violation, re-enables the plugin and stops the backend from booting.
+
+**The original decision (2026-08-26, ADR-004).** Authorization would be
+administered centrally through `@backstage-community/plugin-rbac-backend`,
+wrapping the existing `PlatformPermissionPolicy` rather than replacing it:
+if an RBAC rule matched it decided, otherwise the platform policy decided,
+preserving entitlements and release gates. Both layers active at once. The
+reasoning was sound and is the reasoning `AGENTS.md` still states.
+
+**Why it does not run.** Backstage 1.53 exposes `policyExtensionPoint` only
+under `/alpha`, and it admits exactly one policy: the second `setPolicy()`
+throws _"Policy already set."_ Community RBAC and `PlatformPermissionPolicy`
+both register through it. There is no chaining API to make the wrapping the
+ADR describes actually happen, so "both layers active at once" was not
+available — it was one or the other.
+
+`PlatformPermissionPolicy` won, and had to: it is the only one of the two
+that carries the RBAC matrix, the commercial entitlement gate and the
+authorization audit store. Dropping it to gain central role administration
+would have removed three controls to gain one convenience.
+
+**What is actually true today.** `PlatformPermissionPolicy`
+(`packages/backend/src/permission/policy.ts`) is the sole permission
+authority. Roles come from catalog group membership
+(`packages/platform-common/src/roles.ts`), in two independent systems —
+platform tiers and URS domain groups — plus the entitlement AND on scaffolder
+template permissions. Every route enforces server-side.
+
+Both RBAC packages remain declared —
+`@backstage-community/plugin-rbac-backend@^7.17.0` in the backend,
+`@backstage-community/plugin-rbac@^2.1.2` in the app — and both are inert:
+the backend registration is commented out and the frontend plugin is not in
+`App.tsx`. They are left installed deliberately. Removing them is a
+dependency change under `AGENTS.md` and would have to be approved on its own
+terms; leaving them costs nothing but a note, and this is the note.
+
+**This is a deviation from `AGENTS.md`, not a correction of it.** It is
+recorded as D-1 in `docs/architecture/ARCHITECTURE_GUARDRAILS.md` with its
+lifting condition: a stable, non-alpha policy-chaining extension point in a
+supported Backstage release. Re-evaluate at every Backstage upgrade gate.
+Until then, re-enabling Community RBAC is not a fix — it is a startup failure.
+
+**What was not carried over.** ADR-004's "Authorization Profiles" future
+extension. Six `templates/*/authorization.yaml` files exist from it; they are
+read by no code and referenced by no template, and of the roughly two dozen
+domain permissions that work documented, one (`aas.read`) exists in source.
+That residue is recorded in `docs/audits/TARGET_CONFORMANCE_AUDIT.md` and is
+not a decision this record revives.

@@ -258,20 +258,20 @@ unauditable. No AI Test Coordinator, no AI GMP Impact Agent.
 
 ## 8. Duplication
 
-| Concept               | Instances                                                                                    |
-| --------------------- | -------------------------------------------------------------------------------------------- |
-| **Composer**          | `/compose` sandbox · `composer-backend` Product domain                                       |
-| **Product**           | `products` table · Catalog entity · Artifact kind · commercial SKU                           |
-| **Component**         | `product_components` · Platform Component library · Artifact kind · Backstage kind           |
-| **Requirement**       | `requirements` (deprecated, still written) · `requirement_versions` · `product_requirements` |
-| **Baseline**          | URS · Product · `validation/baseline/`                                                       |
-| **Release / Version** | version status · golden-path releases · artifact lifecycle                                   |
-| **Template**          | Scaffolder templates · Artifact kind · GOLDEN_PATH composition                               |
-| Marketplace data      | static `data.ts` **and** live registry, on one page                                          |
-| Permission registries | three, hand-synced                                                                           |
-| Audit stores          | four, three different schemas                                                                |
-| LLM clients           | duplicated across two plugins                                                                |
-| ADR directories       | `docs/architecture/adr/` and `adrs/`                                                         |
+| Concept               | Instances                                                                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Composer**          | `/compose` sandbox · `composer-backend` Product domain                                                                                                                             |
+| **Product**           | `products` table · Catalog entity · Artifact kind · commercial SKU                                                                                                                 |
+| **Component**         | `product_components` · Platform Component library · Artifact kind · Backstage kind                                                                                                 |
+| **Requirement**       | `requirements` (deprecated, still written) · `requirement_versions` · `product_requirements`                                                                                       |
+| **Baseline**          | URS · Product · `validation/baseline/`                                                                                                                                             |
+| **Release / Version** | version status · golden-path releases · artifact lifecycle                                                                                                                         |
+| **Template**          | Scaffolder templates · Artifact kind · GOLDEN_PATH composition                                                                                                                     |
+| Marketplace data      | static `data.ts` **and** live registry, on one page                                                                                                                                |
+| Permission registries | three, hand-synced                                                                                                                                                                 |
+| Audit stores          | four, three different schemas                                                                                                                                                      |
+| LLM clients           | duplicated across two plugins                                                                                                                                                      |
+| ADR directories       | ~~`docs/architecture/adr/` and `adrs/`~~ — resolved 2026-09-26 (Phase 1.0): both archived under `docs/archive/architecture/adr-legacy/`; `DECISIONS.md` is the single decision log |
 
 ---
 

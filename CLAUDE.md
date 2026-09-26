@@ -34,3 +34,7 @@ higher in this list wins. There is no other tie-break.
 | —   | **`templates/**/\*.md`\*\*                                                            | Payload shipped into generated repositories. Not governance.                                                                                                 |
 
 **Do not add a document that claims authority.** Extend one of #2–#9 instead.
+
+**Architecture decisions have exactly one home:** `DECISIONS.md`, as `NXD-nnn`.
+Do not write an ADR. The legacy ADR-001…010 set is archived under
+`docs/archive/architecture/adr-legacy/` and is not maintained.

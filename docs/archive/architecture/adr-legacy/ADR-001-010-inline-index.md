@@ -1,26 +1,43 @@
-# Architecture Decision Records (ADRs)
+# Architecture Decision Records (ADRs) — LEGACY
 
+> # ARCHIVED 2026-09-26 · NOT THE LIVE DECISION LOG
+>
+> **The single source of truth for architecture decisions is
+> [`docs/nexora-transformation/DECISIONS.md`](../../../nexora-transformation/DECISIONS.md)
+> (`NXD-nnn`).** It is the only decision record that is maintained. Do not add
+> an ADR here, and do not cite this file as current.
+>
+> Moved from `docs/architecture/adr/README.md` during Phase 1.0 (SSOT & ADR
+> consolidation).
+>
 > **This file is not an index — it is the ADRs.** ADR-001 to ADR-010 were
 > never split into separate files; their full text is in "ADR Summaries"
-> below. The links to `ADR-00X-*.md` files have never resolved. Do not delete
-> this file expecting the content to live elsewhere; it does not.
+> below, which is why it is archived rather than deleted. The links to
+> `ADR-00X-*.md` files have never resolved; no such files were ever written.
 >
-> **Three caveats before you rely on it** (2026-09-26):
+> **Corrections applied 2026-09-26.** Three records claimed work was planned
+> or proposed that had in fact shipped. The statuses were corrected in place
+> and each correction is annotated where it appears:
 >
-> - **Stale statuses.** ADR-003 says PostgreSQL is "planned (P1A)",
->   ADR-006 and ADR-007 are "PROPOSED (P1A)". All three are implemented —
->   with database-level immutability triggers, in ADR-006's case.
-> - **ADR-008 is incomplete.** Community RBAC is deliberately disabled; see
->   `docs/architecture/ARCHITECTURE_GUARDRAILS.md` D-1.
+> | ADR                                     | Was                                                | Is                         | Evidence                                                                                                                                |
+> | --------------------------------------- | -------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+> | ADR-003 Operational Persistence         | ACCEPTED, "P0 in-memory, PostgreSQL planned (P1A)" | **ACCEPTED / IMPLEMENTED** | `app-config.production.yaml` runs `client: pg`; `postgres-repository.ts`; PostgreSQL proof suites in CI                                 |
+> | ADR-006 Immutable URS Baselines         | **PROPOSED (P1A)**                                 | **ACCEPTED / IMPLEMENTED** | `urs_requirement_version_immutability` trigger and the single-open-version partial index in `urs-composer-backend/src/db/migrations.ts` |
+> | ADR-007 Configurable Approval Workflows | **PROPOSED (P1A)**                                 | **ACCEPTED / IMPLEMENTED** | `data/approvalWorkflows.ts`; selection logic in `service.ts` matches this ADR exactly                                                   |
+>
+> **Two further caveats, not corrected because they need a decision:**
+>
+> - **ADR-008 is incomplete.** Community RBAC is deliberately disabled. See
+>   [`ARCHITECTURE_GUARDRAILS.md`](../../../architecture/ARCHITECTURE_GUARDRAILS.md)
+>   D-1, and `NXD-060` for the reversal.
 > - **ADR-004 is assigned twice.** Here it is "Git for Versioned Engineering
->   Artifacts"; `../adrs/ADR-004-central-platform-rbac.md` is a different
->   decision under the same number, in a second directory.
->
-> Durable decisions since 2026-08 are recorded as `NXD-nnn` in
-> `docs/nexora-transformation/DECISIONS.md`, which is the live record.
+>   Artifacts", which keeps the number. The other ADR-004
+>   ([central platform RBAC](ADR-004-central-platform-rbac.md)) is archived
+>   beside this file and its substance is carried forward as `NXD-060`.
 
 **Version**: 1.0  
 **Last Updated**: 2026-08-25  
+**Status**: ARCHIVED — superseded by `DECISIONS.md` (NXD)  
 **Curator**: Architecture Team
 
 ---
@@ -54,18 +71,18 @@ Each ADR follows a standard format:
 
 ## ADR Index & Matrix
 
-| #       | Title                                      | Status   | Domain       | Approved | Last Updated |
-| ------- | ------------------------------------------ | -------- | ------------ | -------- | ------------ |
-| ADR-001 | Backstage Platform Foundation              | ACCEPTED | Platform     | ✅       | 2026-08-25   |
-| ADR-002 | Plugin-Based Modular Architecture          | ACCEPTED | Architecture | ✅       | 2026-08-25   |
-| ADR-003 | Operational Persistence Strategy           | ACCEPTED | Data         | ✅       | 2026-08-25   |
-| ADR-004 | Git for Versioned Engineering Artifacts    | ACCEPTED | Data         | ✅       | 2026-08-25   |
-| ADR-005 | Business Capability as Requirements Anchor | ACCEPTED | Requirements | ✅       | 2026-08-25   |
-| ADR-006 | Immutable URS Baselines                    | PROPOSED | Requirements | ⏳ P1A   | 2026-08-25   |
-| ADR-007 | Configurable Approval Workflows            | PROPOSED | Governance   | ⏳ P1A   | 2026-08-25   |
-| ADR-008 | Backstage Permission Framework             | ACCEPTED | Security     | ✅       | 2026-08-25   |
-| ADR-009 | URS/Solution/Validation Domain Separation  | ACCEPTED | Architecture | ✅       | 2026-08-25   |
-| ADR-010 | Reuse Before Build                         | ACCEPTED | Platform     | ✅       | 2026-08-25   |
+| #       | Title                                      | Status                 | Domain       | Approved | Last Updated         |
+| ------- | ------------------------------------------ | ---------------------- | ------------ | -------- | -------------------- |
+| ADR-001 | Backstage Platform Foundation              | ACCEPTED               | Platform     | ✅       | 2026-08-25           |
+| ADR-002 | Plugin-Based Modular Architecture          | ACCEPTED               | Architecture | ✅       | 2026-08-25           |
+| ADR-003 | Operational Persistence Strategy           | ACCEPTED / IMPLEMENTED | Data         | ✅       | corrected 2026-09-26 |
+| ADR-004 | Git for Versioned Engineering Artifacts    | ACCEPTED               | Data         | ✅       | 2026-08-25           |
+| ADR-005 | Business Capability as Requirements Anchor | ACCEPTED               | Requirements | ✅       | 2026-08-25           |
+| ADR-006 | Immutable URS Baselines                    | ACCEPTED / IMPLEMENTED | Requirements | ✅       | corrected 2026-09-26 |
+| ADR-007 | Configurable Approval Workflows            | ACCEPTED / IMPLEMENTED | Governance   | ✅       | corrected 2026-09-26 |
+| ADR-008 | Backstage Permission Framework             | ACCEPTED               | Security     | ✅       | 2026-08-25           |
+| ADR-009 | URS/Product/Validation Domain Separation   | ACCEPTED               | Architecture | ✅       | 2026-08-25           |
+| ADR-010 | Reuse Before Build                         | ACCEPTED               | Platform     | ✅       | 2026-08-25           |
 
 ---
 
@@ -80,13 +97,13 @@ Each ADR follows a standard format:
 ### Architecture (2 ADRs)
 
 - [ADR-002: Plugin-Based Modular Architecture](#adr-002)
-- [ADR-009: URS/Solution/Validation Domain Separation](#adr-009)
+- [ADR-009: URS/Product/Validation Domain Separation](#adr-009)
 
 ### Requirements (3 ADRs)
 
 - [ADR-005: Business Capability as Requirements Anchor](#adr-005)
-- [ADR-006: Immutable URS Baselines](#adr-006) (PROPOSED)
-- [ADR-009: URS/Solution/Validation Domain Separation](#adr-009)
+- [ADR-006: Immutable URS Baselines](#adr-006) (IMPLEMENTED)
+- [ADR-009: URS/Product/Validation Domain Separation](#adr-009)
 
 ### Data (2 ADRs)
 
@@ -95,7 +112,7 @@ Each ADR follows a standard format:
 
 ### Governance (1 ADR)
 
-- [ADR-007: Configurable Approval Workflows](#adr-007) (PROPOSED)
+- [ADR-007: Configurable Approval Workflows](#adr-007) (IMPLEMENTED)
 
 ### Security (1 ADR)
 
@@ -167,8 +184,13 @@ Each ADR follows a standard format:
 - Git: Version control, decentralized backups, audit via commit history
 - Separation: Different concerns need different persistence
 
-**Current P0**: In-memory with abstraction layer ready for PostgreSQL (P1A)  
-**Future P1A**: Full PostgreSQL implementation planned
+**Status corrected 2026-09-26: IMPLEMENTED.** The original text read
+"Current P0: In-memory with abstraction layer ready for PostgreSQL (P1A) /
+Future P1A: Full PostgreSQL implementation planned". PostgreSQL is in
+production use (`app-config.production.yaml`, `client: pg`;
+`plugins/urs-composer-backend/src/postgres-repository.ts`), with persistence
+proof suites running against it in CI. Note that the shipped _development_
+default is still `ursComposer.persistence.mode: memory`.
 
 **Stores in PostgreSQL**:
 
@@ -228,7 +250,7 @@ Business Need (WHY)
   ↓
 URS / Requirement (WHAT)
   ↓
-Solution Design (HOW)
+Product Design (HOW)
   ↓
 Implementation & Testing
   ↓
@@ -243,7 +265,7 @@ Evidence & Validation
 
 ### ADR-006: Immutable URS Baselines
 
-**Status**: PROPOSED (P1A)  
+**Status**: ACCEPTED / IMPLEMENTED (corrected 2026-09-26; originally PROPOSED (P1A))  
 **Date**: 2026-08-25
 
 **Decision**: Approved URS baselines are immutable; revisions create new versions.
@@ -270,7 +292,11 @@ URS v1.1 APPROVED (immutable)
 Previous: v1.0 → SUPERSEDED
 ```
 
-**Implementation**: P1A introduces baseline versioning
+**Implementation**: shipped. Enforced in the database, not only in
+application code — `urs_requirement_version_immutability` (row trigger,
+freezes content once a version leaves DRAFT) and
+`requirement_versions_single_open` (partial unique index), both in
+`plugins/urs-composer-backend/src/db/migrations.ts`. PostgreSQL only.
 
 **Related**: ADR-005, ADR-007
 
@@ -278,7 +304,7 @@ Previous: v1.0 → SUPERSEDED
 
 ### ADR-007: Configurable Approval Workflows
 
-**Status**: PROPOSED (P1A)  
+**Status**: ACCEPTED / IMPLEMENTED (corrected 2026-09-26; originally PROPOSED (P1A))  
 **Date**: 2026-08-25
 
 **Decision**: URS approval workflows are template-based and configurable.
@@ -302,7 +328,9 @@ GxP.INDIRECT  → standard-gxp-urs
 GxP.NONE      → non-gxp-urs
 ```
 
-**Implementation**: P1A introduces configurable workflows
+**Implementation**: shipped. `plugins/urs-composer-backend/src/data/approvalWorkflows.ts`
+defines both workflows; the selection logic documented above matches
+`service.ts` exactly.
 
 **Related**: ADR-006, ADR-008
 
@@ -341,12 +369,12 @@ GxP.NONE      → non-gxp-urs
 
 ---
 
-### ADR-009: URS/Solution/Validation Domain Separation
+### ADR-009: URS/Product/Validation Domain Separation
 
 **Status**: ACCEPTED  
 **Date**: MVP 1.0 (2026-08-25)
 
-**Decision**: URS Composer, Solution Composer, and Validation Expert are separate domains.
+**Decision**: URS Composer, Product Composer, and Validation Expert are separate domains.
 
 **Rationale**:
 
@@ -357,19 +385,19 @@ GxP.NONE      → non-gxp-urs
 
 **Responsibilities**:
 
-| Domain                | Question                                                            | Responsibility                         |
-| --------------------- | ------------------------------------------------------------------- | -------------------------------------- |
-| **URS Composer**      | WHAT must the solution do?                                          | Requirement specification, approval    |
-| **Solution Composer** | HOW will the requirement be implemented?                            | Solution design, component composition |
-| **Validation Expert** | How do we demonstrate the implementation satisfies the requirement? | Risk, tests, evidence                  |
+| Domain                | Question                                                            | Responsibility                        |
+| --------------------- | ------------------------------------------------------------------- | ------------------------------------- |
+| **URS Composer**      | WHAT must the solution do?                                          | Requirement specification, approval   |
+| **Product Composer**  | HOW will the requirement be implemented?                            | Product design, component composition |
+| **Validation Expert** | How do we demonstrate the implementation satisfies the requirement? | Risk, tests, evidence                 |
 
 **Integration**:
 
-- URS Composer → Solution Composer (requirement reference)
-- Solution Composer → Validation Expert (implementation reference)
+- URS Composer → Product Composer (requirement reference)
+- Product Composer → Validation Expert (implementation reference)
 - Validation Expert → URS Composer (evidence linkage)
 
-**Implementation**: P0 validates URS, P1A adds versioning, P1B+ adds Solution/Validation integration
+**Implementation**: P0 validates URS, P1A adds versioning, P1B+ adds Product/Validation integration
 
 **Related**: ADR-005, ADR-006, ADR-007
 
@@ -423,10 +451,10 @@ GxP.NONE      → non-gxp-urs
 - ADR-009 ✅
 - ADR-010 ✅
 
-**P1A (In Progress)**:
+**P1A (complete)**:
 
-- ADR-006 🔶 (PROPOSED)
-- ADR-007 🔶 (PROPOSED)
+- ADR-006 ✅ (IMPLEMENTED — status corrected 2026-09-26)
+- ADR-007 ✅ (IMPLEMENTED — status corrected 2026-09-26)
 
 **P1B+ (Planned)**:
 
@@ -436,11 +464,18 @@ GxP.NONE      → non-gxp-urs
 
 ## Related Documentation
 
-- [../architecture-principles.md](../architecture-principles.md) — Foundational rules
-- [../platform-architecture.md](../platform-architecture.md) — Layered design
-- [../domain-architecture.md](../domain-architecture.md) — Domain responsibilities
-- [../../status-model.md](../../status-model.md) — Status definitions
-- [../../architecture.md](../../architecture.md) — Design rules
+Paths repointed 2026-09-26 when this file was archived; two targets never
+existed and are marked as such rather than linked.
+
+- `architecture-principles.md` — **never written.** The foundational rules are
+  in [`/AGENTS.md`](../../../../AGENTS.md) and
+  [`ARCHITECTURE_GUARDRAILS.md`](../../../architecture/ARCHITECTURE_GUARDRAILS.md).
+- [platform-architecture.md](../../../architecture/platform-architecture.md) — layered design
+- `domain-architecture.md` — **never written.** Domain responsibilities are in
+  [`TARGET_OPERATING_MODEL.md`](../../../architecture/TARGET_OPERATING_MODEL.md).
+- [status-model.md](../../../status-model.md) — status definitions
+- [architecture.md](../../../architecture.md) — design rules
+- [DECISIONS.md](../../../nexora-transformation/DECISIONS.md) — **the live decision log**
 
 ---
 

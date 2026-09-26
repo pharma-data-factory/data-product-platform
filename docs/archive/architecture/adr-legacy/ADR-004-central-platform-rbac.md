@@ -1,7 +1,41 @@
-# ADR-004: Central Platform RBAC via Backstage Community Plugin
+# ADR-004: Central Platform RBAC via Backstage Community Plugin — LEGACY
+
+> # ARCHIVED 2026-09-26 · THIS DECISION WAS REVERSED
+>
+> **The single source of truth for architecture decisions is
+> [`docs/nexora-transformation/DECISIONS.md`](../../../nexora-transformation/DECISIONS.md)
+> (`NXD-nnn`).** The substance of this ADR is carried forward as **`NXD-060`**,
+> which records both the decision below and its reversal. Read that instead.
+>
+> Moved from `docs/architecture/adrs/` during Phase 1.0 (SSOT & ADR
+> consolidation).
+>
+> **What is wrong with it.** The IMPLEMENTATION section below marks
+> "Backend Registration ✅" and "Frontend Integration ✅". Neither holds:
+>
+> - `packages/backend/src/index.ts` has the registration **commented out**,
+>   because Community RBAC claims the same `/alpha` `policyExtensionPoint` as
+>   `PlatformPermissionPolicy` and a second `setPolicy()` throws
+>   _"Policy already set"_ at startup.
+> - `packages/app/src/App.tsx` contains no RBAC frontend plugin.
+> - Both packages still declare the dependency
+>   (`@backstage-community/plugin-rbac-backend@^7.17.0`,
+>   `@backstage-community/plugin-rbac@^2.1.2`), so the code is installed and
+>   entirely inert.
+>
+> The architecture it describes — "RBAC wraps `PlatformPermissionPolicy`" —
+> is therefore **not** what runs. What runs is `PlatformPermissionPolicy`
+> alone, as the sole permission authority. This is recorded as deviation
+> **D-1** in
+> [`ARCHITECTURE_GUARDRAILS.md`](../../../architecture/ARCHITECTURE_GUARDRAILS.md),
+> together with the condition for lifting it.
+>
+> **Number collision.** ADR-004 is also
+> "Git for Versioned Engineering Artifacts" in
+> [the inline ADR index](ADR-001-010-inline-index.md), which keeps the number.
 
 **Date:** August 26, 2026  
-**Status:** Accepted  
+**Status:** SUPERSEDED — accepted 2026-08-26, reversed in implementation; see `NXD-060`  
 **Decision:** Implement centralized role-based access control using Backstage Community RBAC plugin
 
 ---
@@ -11,6 +45,7 @@
 The Pharma Data Platform consists of multiple domain plugins (URS Composer, Validation Expert, Data Products, Marketplace, etc.), each with its own permission requirements. Previously, permissions were defined but administered separately in each plugin.
 
 As the platform grows, a centralized authorization administration capability is needed to:
+
 1. **Manage roles** consistently across domains
 2. **Assign permissions** to groups centrally
 3. **Audit** authorization decisions
@@ -26,20 +61,16 @@ The platform uses:
 
 1. **Backstage Identity Provider** (Guest, GitHub, future providers)
    - Resolves authenticated user identity
-   
 2. **Backstage Catalog Users & Groups** (`catalog/org.yaml`)
    - Source of truth for group membership
    - No separate user/group database
-   
 3. **Backstage Permission Framework** (`@backstage/plugin-permission-backend`)
    - Standard authorization API all plugins use
    - Resolves permissions for authenticated requests
-   
 4. **Backstage Community RBAC Plugin** (`@backstage-community/plugin-rbac-backend`)
    - Central role administration (roles, group assignments)
    - Policy engine that wraps existing `PlatformPermissionPolicy`
    - Admin UI for self-service role management
-   
 5. **Domain Plugin Permissions**
    - Each plugin defines and enforces its own permissions
    - `packages/platform-common/src/permissions/*.ts` aggregates them
@@ -80,7 +111,6 @@ Authorized Operation
   - URS Composer defines `urs.*`
   - Validation Expert defines `validation.*`
   - Data Products define `data-product.*`
-  
 - **Central aggregation only**
   - `packages/platform-common/src/permissions/` exports all permissions
   - Single source of truth, no duplication
@@ -88,6 +118,7 @@ Authorized Operation
 ### 2. RBAC as Policy Overlay
 
 - **RBAC does NOT replace existing policy**
+
   - Wraps `PlatformPermissionPolicy`
   - Preserves entitlements and release gates
   - Backward compatible
@@ -100,6 +131,7 @@ Authorized Operation
 ### 3. Group-Based Assignment
 
 - **Catalog groups are the identity container**
+
   - No hardcoded users in application code
   - `catalog/org.yaml` is authoritative
   - RBAC assigns roles to groups
@@ -116,6 +148,7 @@ Authorized Operation
 ### 4. Approval Role vs Workflow Eligibility
 
 - **RBAC Gate**
+
   ```
   Does user have urs.approve permission?
   → Check RBAC role assignment
@@ -123,6 +156,7 @@ Authorized Operation
   ```
 
 - **Workflow Gate**
+
   ```
   Is user eligible for this SPECIFIC approval step?
   → Check URS approval workflow configuration
@@ -130,11 +164,12 @@ Authorized Operation
   ```
 
 - **Both must pass:**
+
   ```
   RBAC: ✓ User has urs.approve
   Workflow: ✓ User eligible for QUALITY_REVIEWER step
   → Approval succeeds
-  
+
   RBAC: ✓ User has urs.approve
   Workflow: ✗ User NOT eligible for BUSINESS_REVIEWER step
   → 403 Forbidden
@@ -147,24 +182,29 @@ Authorized Operation
 ### Phases
 
 1. **Backend Registration** ✅
+
    - Add RBAC backend plugin to `packages/backend/src/index.ts`
    - Configure in `app-config.yaml`
 
 2. **Frontend Integration** ✅
+
    - Add RBAC frontend plugin to `packages/app/src/App.tsx`
    - RBAC admin UI auto-available
 
 3. **Catalog Groups** ✅
+
    - Define platform groups (`platform-admins`, etc.)
    - Define domain groups (`urs-authors`, `validation-reviewers`, etc.)
    - Update `catalog/org.yaml`
 
 4. **Role Configuration** (via RBAC Admin UI)
+
    - Create roles (Platform Viewer, Platform Developer, etc.)
    - Create domain roles (URS Author, Quality Reviewer, etc.)
    - Assign roles to groups
 
 5. **Permission Discovery**
+
    - RBAC UI discovers all custom permissions
    - Organized by domain
 
@@ -180,18 +220,22 @@ Authorized Operation
 ### ✅ Positive
 
 - **Centralized administration**
+
   - Single place to manage roles and assignments
   - No per-plugin RBAC implementation needed
 
 - **Consistent permission naming**
+
   - `<domain>.<action>` standard across all plugins
   - `urs.read`, `validation.review`, `data-product.create`
 
 - **Audit trail**
+
   - All authorization decisions logged
   - Traceable to user, role, permission
 
 - **Backward compatible**
+
   - Existing plugins work unchanged
   - Entitlements and release gates preserved
   - Gradual migration possible
@@ -204,10 +248,12 @@ Authorized Operation
 ### ⚠️ Negative
 
 - **RBAC configuration required**
+
   - Administrators must create roles and assignments
   - Not automatic with plugin installation
 
 - **Dual-gate workflow**
+
   - RBAC role + Workflow eligibility both required
   - Developers must understand distinction
 
@@ -220,16 +266,19 @@ Authorized Operation
 ## ALTERNATIVES CONSIDERED
 
 ### A1: No Central RBAC
+
 - ❌ Each plugin implements own role system
 - ❌ Inconsistent permission models
 - ❌ Hard to assign cross-domain roles
 
 ### A2: Custom RBAC Engine
+
 - ❌ Reimplements what Backstage Community RBAC provides
 - ❌ Maintenance burden
 - ❌ Duplicate permission definitions
 
 ### A3: Replace PlatformPermissionPolicy Entirely
+
 - ❌ Breaks entitlements and release gates
 - ❌ All permissions must be RBAC-configured
 - ❌ No fallback for new plugins
@@ -241,6 +290,7 @@ Authorized Operation
 **Chosen:** Option implemented above (RBAC wraps existing policy)
 
 **Rationale:**
+
 - ✅ Lowest risk (coexistence, no replacement)
 - ✅ Preserves existing functionality
 - ✅ Incremental adoption possible
@@ -272,6 +322,7 @@ SuggestedGroups:
 ```
 
 RBAC administrators will:
+
 1. Review suggested permissions
 2. Create roles based on suggestions
 3. Assign users to groups

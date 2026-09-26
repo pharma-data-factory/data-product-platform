@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Status**: BASELINE  
-**Last Updated**: 2026-08-25  
+**Last Updated**: 2026-08-25
 
 ---
 
@@ -71,17 +71,17 @@ The platform separates concerns into layers:
 
 Provides the user interface and navigation for different personas and workflows.
 
-| Component | Purpose | Implementation |
-|-----------|---------|-----------------|
-| Home | Public landing page for unauthenticated visitors | Custom module |
-| Marketplace | Technical discovery and installation of Data Products | `plugin-marketplace` |
-| Factory | Model Company visualization and simulation | `plugin-model-company` |
-| Developer Portal | Authenticated developer starting point | Custom module (`developerHubModule`) |
-| Platform Components | Reusable library of composition building blocks | Custom module |
-| Architecture | Platform architecture visualization | Custom module (`architectureModule`) |
-| Releases | Release notes and versioning history | Custom module |
-| Create | Golden Path wizard for new products | Custom module + Scaffolder |
-| Entitlements | Commercial edition and feature gating | Custom module |
+| Component           | Purpose                                               | Implementation                       |
+| ------------------- | ----------------------------------------------------- | ------------------------------------ |
+| Home                | Public landing page for unauthenticated visitors      | Custom module                        |
+| Marketplace         | Technical discovery and installation of Data Products | `plugin-marketplace`                 |
+| Factory             | Model Company visualization and simulation            | `plugin-model-company`               |
+| Developer Portal    | Authenticated developer starting point                | Custom module (`developerHubModule`) |
+| Platform Components | Reusable library of composition building blocks       | Custom module                        |
+| Architecture        | Platform architecture visualization                   | Custom module (`architectureModule`) |
+| Releases            | Release notes and versioning history                  | Custom module                        |
+| Create              | Golden Path wizard for new products                   | Custom module + Scaffolder           |
+| Entitlements        | Commercial edition and feature gating                 | Custom module                        |
 
 ---
 
@@ -94,9 +94,10 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **Purpose**: Requirement management with business capability traceability  
 **Status**: IMPLEMENTED (P0 in-memory), PROPOSED (P1A PostgreSQL)  
 **Backend**: `plugin-urs-composer-backend`  
-**Frontend**: `plugin-urs-composer`  
+**Frontend**: `plugin-urs-composer`
 
 **Key Features**:
+
 - Business Capability anchor
 - Business Need tracking
 - Requirement versioning (P1A planned)
@@ -115,9 +116,10 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **Purpose**: Solution design and component composition  
 **Status**: CONCEPTUAL  
 **Backend**: TBD  
-**Frontend**: TBD  
+**Frontend**: TBD
 
 **Key Concepts**:
+
 - Maps URS requirements to engineering solutions
 - Manages component selection and configuration
 - Links to Data Products and Golden Paths
@@ -131,9 +133,10 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **Purpose**: Risk assessment, test planning, and evidence tracking  
 **Status**: PARTIALLY IMPLEMENTED  
 **Backend**: `plugin-validation-expert-backend`  
-**Frontend**: `plugin-validation-expert`  
+**Frontend**: `plugin-validation-expert`
 
 **Key Features**:
+
 - Risk identification from requirements
 - Test case linking to URS
 - Evidence collection
@@ -145,19 +148,20 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 ### Nexora Industrial Plugin Suite
 
 **Purpose**: Data integration and industrial asset management  
-**Status**: PARTIALLY IMPLEMENTED  
+**Status**: PARTIALLY IMPLEMENTED
 
 **Components**:
 
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| **nexora-backend** | Core service coordination | DEVELOPMENT |
-| **nexora-assets** | AAS-based asset registry | CERTIFIED |
-| **nexora-contracts** | Data contract management | DEVELOPMENT |
-| **nexora-quality** | Quality & compliance tracking | DEVELOPMENT |
-| **nexora-common** | Shared utilities and types | DEVELOPMENT |
+| Component            | Purpose                       | Status      |
+| -------------------- | ----------------------------- | ----------- |
+| **nexora-backend**   | Core service coordination     | DEVELOPMENT |
+| **nexora-assets**    | AAS-based asset registry      | CERTIFIED   |
+| **nexora-contracts** | Data contract management      | DEVELOPMENT |
+| **nexora-quality**   | Quality & compliance tracking | DEVELOPMENT |
+| **nexora-common**    | Shared utilities and types    | DEVELOPMENT |
 
 **Key Concepts**:
+
 - Asset Administration Shell (AAS) support
 - Industrial protocol handling (MQTT, REST, OPC UA planned)
 - Data contract definitions
@@ -168,9 +172,10 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **Purpose**: Discovery, installation, and lifecycle management of plugins  
 **Status**: PARTIALLY IMPLEMENTED  
 **Backend**: `plugin-directory-backend`  
-**Frontend**: `plugin-directory`  
+**Frontend**: `plugin-directory`
 
 **Key Features**:
+
 - Plugin catalog
 - Installation workflow
 - Dependency resolution (planned)
@@ -181,9 +186,10 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **Purpose**: Reference implementation and simulation of pharmaceutical manufacturing  
 **Status**: IMPLEMENTED  
 **Backend**: `plugin-model-company-backend`  
-**Frontend**: `plugin-model-company`  
+**Frontend**: `plugin-model-company`
 
 **Key Features**:
+
 - Factory visualization
 - Material flow simulation
 - Order/batch management
@@ -195,7 +201,7 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 **Purpose**: Legacy approval workflow and compliance documentation  
 **Status**: PARTIALLY IMPLEMENTED (being superseded by URS Composer)  
 **Backend**: `plugin-validation-manager-backend`  
-**Frontend**: `plugin-validation-manager`  
+**Frontend**: `plugin-validation-manager`
 
 **Status**: IMPLEMENTED features being migrated to URS Composer P1A
 
@@ -205,18 +211,18 @@ Domain-specific plugins implementing pharmaceutical engineering capabilities.
 
 Official Backstage plugins providing core platform capabilities.
 
-| Service | Purpose | Usage |
-|---------|---------|-------|
-| **Catalog** | Entity registry (Components, Systems, Resources, APIs, Data Products) | Authoritative platform entities |
-| **Scaffolder** | Template-driven code generation for Golden Paths | Create workflow |
-| **TechDocs** | Markdown-based documentation hosting | Developer Hub, API docs |
-| **Search** | Full-text search across platform | Global search |
-| **Auth** | Authentication (GitHub OAuth + Guest) | Identity provider |
-| **Permissions** | Permission framework and policy enforcement | Authorization |
-| **Events** | Event bus for async operations | Notifications, integrations |
-| **Signals** | Bi-directional communication | Real-time updates (planned) |
-| **API Registry** | OpenAPI/AsyncAPI hosting | Contract management |
-| **Graph** | Catalog entity relationships | Topology visualization |
+| Service          | Purpose                                                               | Usage                           |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------- |
+| **Catalog**      | Entity registry (Components, Systems, Resources, APIs, Data Products) | Authoritative platform entities |
+| **Scaffolder**   | Template-driven code generation for Golden Paths                      | Create workflow                 |
+| **TechDocs**     | Markdown-based documentation hosting                                  | Developer Hub, API docs         |
+| **Search**       | Full-text search across platform                                      | Global search                   |
+| **Auth**         | Authentication (GitHub OAuth + Guest)                                 | Identity provider               |
+| **Permissions**  | Permission framework and policy enforcement                           | Authorization                   |
+| **Events**       | Event bus for async operations                                        | Notifications, integrations     |
+| **Signals**      | Bi-directional communication                                          | Real-time updates (planned)     |
+| **API Registry** | OpenAPI/AsyncAPI hosting                                              | Contract management             |
+| **Graph**        | Catalog entity relationships                                          | Topology visualization          |
 
 ---
 
@@ -224,20 +230,21 @@ Official Backstage plugins providing core platform capabilities.
 
 Responsibility assignment for different persistence mechanisms.
 
-| Information | System of Record | Reason |
-|-------------|-----------------|--------|
-| **Operational State** | PostgreSQL | Transactional state, audit history |
-| **Approved URS Baselines** | PostgreSQL + Git export | Controlled version, immutability |
-| **Engineering Artifacts** | Git | Source control, versioning |
-| **Platform Entities** | Backstage Catalog | Entity relationships, topology |
-| **Entity Relationships** | Catalog relations | Traceability, provenance |
-| **Documentation** | Git / TechDocs | Docs-as-code, searchable |
-| **Audit Events** | PostgreSQL (append-only) | Compliance, history |
-| **API Contracts** | Catalog (API entities) | Source of truth for contracts |
+| Information                | System of Record         | Reason                             |
+| -------------------------- | ------------------------ | ---------------------------------- |
+| **Operational State**      | PostgreSQL               | Transactional state, audit history |
+| **Approved URS Baselines** | PostgreSQL + Git export  | Controlled version, immutability   |
+| **Engineering Artifacts**  | Git                      | Source control, versioning         |
+| **Platform Entities**      | Backstage Catalog        | Entity relationships, topology     |
+| **Entity Relationships**   | Catalog relations        | Traceability, provenance           |
+| **Documentation**          | Git / TechDocs           | Docs-as-code, searchable           |
+| **Audit Events**           | PostgreSQL (append-only) | Compliance, history                |
+| **API Contracts**          | Catalog (API entities)   | Source of truth for contracts      |
 
 ### PostgreSQL Operational Persistence
 
 **Stores**:
+
 - URS data (requirements, versions, baselines)
 - Approval workflows and instances
 - Audit events
@@ -245,6 +252,7 @@ Responsibility assignment for different persistence mechanisms.
 - Validation Evidence (planned)
 
 **Design Principles**:
+
 - Optimistic concurrency control (revision field)
 - Append-only audit table
 - Transactional integrity for multi-step operations
@@ -253,12 +261,14 @@ Responsibility assignment for different persistence mechanisms.
 ### Git for Engineering Artifacts
 
 **Stores**:
+
 - Generated Data Product source code
 - Software templates (Golden Paths)
 - Engineering documentation
 - Configuration as code
 
 **Design Principles**:
+
 - Single source of truth for code
 - Complete audit trail via Git history
 - Decoupled from platform (Data Products run independently)
@@ -266,6 +276,7 @@ Responsibility assignment for different persistence mechanisms.
 ### Backstage Catalog
 
 **Stores**:
+
 - Software components
 - Data Products
 - APIs (as contracts)
@@ -274,6 +285,7 @@ Responsibility assignment for different persistence mechanisms.
 - Resources
 
 **Design Principles**:
+
 - Entity topology (relationships)
 - Annotations for metadata
 - Certification overlay (custom annotation)
@@ -336,16 +348,16 @@ Long-running operation
 
 ### Inter-Plugin Communication
 
-| From | To | Mechanism | Purpose |
-|------|-----|-----------|---------|
-| URS Composer | Solution Composer | API reference | Traceability |
-| Solution Composer | Validation Expert | API reference | Risk linking |
-| Validation Expert | URS Composer | API reference | Evidence reference |
-| Plugin Directory | Marketplace | Catalog entity | Discoverability |
-| Model Company | Data Products | Catalog reference | Testing integration |
-| All plugins | Catalog | SDK / API | Entity registration |
-| All plugins | Search | Indexing API | Full-text search |
-| All plugins | TechDocs | File convention | Auto-publication |
+| From              | To                | Mechanism         | Purpose             |
+| ----------------- | ----------------- | ----------------- | ------------------- |
+| URS Composer      | Solution Composer | API reference     | Traceability        |
+| Solution Composer | Validation Expert | API reference     | Risk linking        |
+| Validation Expert | URS Composer      | API reference     | Evidence reference  |
+| Plugin Directory  | Marketplace       | Catalog entity    | Discoverability     |
+| Model Company     | Data Products     | Catalog reference | Testing integration |
+| All plugins       | Catalog           | SDK / API         | Entity registration |
+| All plugins       | Search            | Indexing API      | Full-text search    |
+| All plugins       | TechDocs          | File convention   | Auto-publication    |
 
 ---
 
@@ -379,9 +391,10 @@ Long-running operation
 
 **Current**: Single Backstage application instance  
 **Persistence**: PostgreSQL database + Git repositories + Catalog  
-**Generated Artifacts**: Independent Docker containers (Data Products)  
+**Generated Artifacts**: Independent Docker containers (Data Products)
 
 **Upgrade Path**:
+
 - Backstage framework updates: Regular cadence
 - Plugin updates: Decoupled from core
 - Database schema: Migrations via Flyway or equivalent
@@ -394,6 +407,7 @@ Long-running operation
 ### Architecture Decisions
 
 All architectural decisions recorded in ADRs. Statuses:
+
 - ACCEPTED: Decision made, implemented or actively planned
 - PROPOSED: Decision drafted, awaiting approval
 - DEPRECATED: Replaced by newer decision
@@ -402,6 +416,7 @@ All architectural decisions recorded in ADRs. Statuses:
 ### Change Impact
 
 Changes affecting architecture must:
+
 1. Update relevant documentation
 2. Create or update ADR
 3. Reference updated documentation in PR
@@ -410,7 +425,8 @@ Changes affecting architecture must:
 ---
 
 **See Also**:
+
 - [domain-architecture.md](domain-architecture.md) — Engineering domain responsibilities
 - [plugin-architecture.md](plugin-architecture.md) — Custom plugin patterns
 - [data-architecture.md](data-architecture.md) — Persistence design
-- [adr/README.md](adr/README.md) — Architecture Decision Record index
+- [DECISIONS.md](../nexora-transformation/DECISIONS.md) — the live decision log (`NXD-nnn`). The legacy ADR-001…010 set is archived at [adr-legacy](../archive/architecture/adr-legacy/ADR-001-010-inline-index.md).
