@@ -1,41 +1,58 @@
 # PHASE 9: EVIDENCE MATRIX
 
-**Status:** COMPLETE  
+> **Historical phase report — 2026-08-26. Not a statement of current state.**
+>
+> "COMPLETE" below means the deliverables were produced, not that they run.
+> The authorization deliverables recorded here were measured on 2026-09-26
+> and are **not enforced**: of the 24 permissions they define, one exists in
+> source and none is checked by any generated product. They are archived
+> under
+> [`docs/archive/architecture/authorization-profiles-legacy/`](archive/architecture/authorization-profiles-legacy/README.md),
+> which carries the measurement. See `NXD-062` in
+> [`DECISIONS.md`](nexora-transformation/DECISIONS.md).
+>
+> Paths below were absolute Windows paths from one contributor's machine and
+> were rewritten as workspace-relative POSIX paths on 2026-09-26; the two that
+> pointed at since-archived files point at their new location.
+>
+> For current state: [target conformance audit](audits/TARGET_CONFORMANCE_AUDIT.md).
+
+**Status:** COMPLETE (as of 2026-08-26 — see the note above)  
 **Date:** 2026-08-26  
-**Objective:** Document all deliverables with evidence of completion  
+**Objective:** Document all deliverables with evidence of completion
 
 ---
 
 ## EVIDENCE SUMMARY TABLE
 
-| Deliverable | Type | Location | Status | Evidence |
-|-------------|------|----------|--------|----------|
-| **PHASE 1** | | | | |
-| Complete Inventory | Document | docs/PHASE1_INVENTORY_REPORT.md | ✅ | 10 templates discovered, documented, classified |
-| **PHASE 2** | | | | |
-| Authorization Schema | Document | docs/architecture/AUTHORIZATION_SCHEMA_REFERENCE.md | ✅ | Complete YAML schema with all fields documented |
-| **PHASE 3** | | | | |
-| Functionality Analysis | Document | docs/PHASE1_INVENTORY_REPORT.md (section 3) | ✅ | Actual permissions extracted for each path |
-| **PHASE 4** | | | | |
-| OEE Authorization Profile | YAML | templates/oee-data-product/authorization.yaml | ✅ | 4 permissions, 4 roles, platform mappings |
-| MQTT Authorization Profile | YAML | templates/mqtt-temperature-product/authorization.yaml | ✅ | 4 permissions, 4 roles, platform mappings |
-| Equipment Authorization Profile | YAML | templates/rest-equipment-product/authorization.yaml | ✅ | 4 permissions, 4 roles, platform mappings |
-| AAS Authorization Profile | YAML | templates/aas-data-product/authorization.yaml | ✅ | 4 permissions, 4 roles, IEC 63278 documented |
-| UNS Authorization Profile | YAML | templates/unified-namespace/authorization.yaml | ✅ | 4 permissions, 4 roles, governance focus |
-| Machine State Authorization Profile | YAML | templates/machine-state-consumer/authorization.yaml | ✅ | 4 permissions, 4 roles, dependency documented |
-| **PHASE 5** | | | | |
-| Authorization Profile Registry | YAML | docs/architecture/authorization-profile-registry.yaml | ✅ | 6 profiles registered, 24 permissions, statistics |
-| **PHASE 6** | | | | |
-| Catalog Integration Guide | Document | docs/CATALOG_INTEGRATION_GUIDE.md | ✅ | Annotation format, integration patterns, verification |
-| **PHASE 7** | | | | |
-| Central RBAC Discovery | Document | docs/CENTRAL_RBAC_DISCOVERY.md | ✅ | 4-phase discovery, REST API, implementation patterns |
-| **PHASE 8** | | | | |
-| Regression Test Results | Document | docs/PHASE8_REGRESSION_TEST_RESULTS.md | ✅ | 6/6 templates PASS, no regressions, architecture verified |
-| **PHASE 9-11** | | | | |
-| Evidence Matrix | Document | docs/PHASE9_EVIDENCE_MATRIX.md | ✅ | This document |
-| Architecture Documentation | Document | docs/architecture/GOLDEN_PATH_AUTHORIZATION_ARCHITECTURE.md | ✅ | Complete architecture overview |
-| Authorization Matrix | Document | docs/architecture/GOLDEN_PATH_AUTHORIZATION_MATRIX.md | ✅ | Permission and role matrix |
-| Final Report | Document | GOLDEN_PATH_AUTHORIZATION_PLATFORM_MIGRATION_REPORT.md | ✅ | Comprehensive migration report |
+| Deliverable                         | Type     | Location                                                    | Status | Evidence                                                  |
+| ----------------------------------- | -------- | ----------------------------------------------------------- | ------ | --------------------------------------------------------- |
+| **PHASE 1**                         |          |                                                             |        |                                                           |
+| Complete Inventory                  | Document | docs/PHASE1_INVENTORY_REPORT.md                             | ✅     | 10 templates discovered, documented, classified           |
+| **PHASE 2**                         |          |                                                             |        |                                                           |
+| Authorization Schema                | Document | docs/architecture/AUTHORIZATION_SCHEMA_REFERENCE.md         | ✅     | Complete YAML schema with all fields documented           |
+| **PHASE 3**                         |          |                                                             |        |                                                           |
+| Functionality Analysis              | Document | docs/PHASE1_INVENTORY_REPORT.md (section 3)                 | ✅     | Actual permissions extracted for each path                |
+| **PHASE 4**                         |          |                                                             |        |                                                           |
+| OEE Authorization Profile           | YAML     | templates/oee-data-product/authorization.yaml               | ✅     | 4 permissions, 4 roles, platform mappings                 |
+| MQTT Authorization Profile          | YAML     | templates/mqtt-temperature-product/authorization.yaml       | ✅     | 4 permissions, 4 roles, platform mappings                 |
+| Equipment Authorization Profile     | YAML     | templates/rest-equipment-product/authorization.yaml         | ✅     | 4 permissions, 4 roles, platform mappings                 |
+| AAS Authorization Profile           | YAML     | templates/aas-data-product/authorization.yaml               | ✅     | 4 permissions, 4 roles, IEC 63278 documented              |
+| UNS Authorization Profile           | YAML     | templates/unified-namespace/authorization.yaml              | ✅     | 4 permissions, 4 roles, governance focus                  |
+| Machine State Authorization Profile | YAML     | templates/machine-state-consumer/authorization.yaml         | ✅     | 4 permissions, 4 roles, dependency documented             |
+| **PHASE 5**                         |          |                                                             |        |                                                           |
+| Authorization Profile Registry      | YAML     | docs/architecture/authorization-profile-registry.yaml       | ✅     | 6 profiles registered, 24 permissions, statistics         |
+| **PHASE 6**                         |          |                                                             |        |                                                           |
+| Catalog Integration Guide           | Document | docs/CATALOG_INTEGRATION_GUIDE.md                           | ✅     | Annotation format, integration patterns, verification     |
+| **PHASE 7**                         |          |                                                             |        |                                                           |
+| Central RBAC Discovery              | Document | docs/CENTRAL_RBAC_DISCOVERY.md                              | ✅     | 4-phase discovery, REST API, implementation patterns      |
+| **PHASE 8**                         |          |                                                             |        |                                                           |
+| Regression Test Results             | Document | docs/PHASE8_REGRESSION_TEST_RESULTS.md                      | ✅     | 6/6 templates PASS, no regressions, architecture verified |
+| **PHASE 9-11**                      |          |                                                             |        |                                                           |
+| Evidence Matrix                     | Document | docs/PHASE9_EVIDENCE_MATRIX.md                              | ✅     | This document                                             |
+| Architecture Documentation          | Document | docs/architecture/GOLDEN_PATH_AUTHORIZATION_ARCHITECTURE.md | ✅     | Complete architecture overview                            |
+| Authorization Matrix                | Document | docs/architecture/GOLDEN_PATH_AUTHORIZATION_MATRIX.md       | ✅     | Permission and role matrix                                |
+| Final Report                        | Document | GOLDEN_PATH_AUTHORIZATION_PLATFORM_MIGRATION_REPORT.md      | ✅     | Comprehensive migration report                            |
 
 ---
 
@@ -46,6 +63,7 @@
 **Deliverable:** `docs/PHASE1_INVENTORY_REPORT.md`
 
 **Evidence:**
+
 ```
 ✅ 10 templates discovered and documented
 ✅ Golden Path classification: 4 certified, 2 supporting, 4 general
@@ -57,8 +75,9 @@
 ```
 
 **File:**
+
 ```
-c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\PHASE1_INVENTORY_REPORT.md
+docs/PHASE1_INVENTORY_REPORT.md
 ```
 
 ---
@@ -68,6 +87,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\PH
 **Deliverable:** `docs/architecture/AUTHORIZATION_SCHEMA_REFERENCE.md`
 
 **Evidence:**
+
 ```
 ✅ Complete YAML schema (AuthorizationProfile CRD)
 ✅ Schema sections: metadata, spec.domain, spec.permissions, spec.roles, spec.platformRoleMappings
@@ -82,8 +102,9 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\PH
 ```
 
 **File:**
+
 ```
-c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\architecture\AUTHORIZATION_SCHEMA_REFERENCE.md
+docs/archive/architecture/authorization-profiles-legacy/AUTHORIZATION_SCHEMA_REFERENCE.md
 ```
 
 ---
@@ -91,6 +112,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\ar
 ### Phase 3: Discover Golden Path Functionality
 
 **Evidence (embedded in Phase 1 report):**
+
 ```
 ✅ OEE: Reads MQTT state/counters, operates calculations, configures topics/endpoints, manages lifecycle
 ✅ MQTT: Reads sensor data, operates queries, configures topics/validation, manages lifecycle
@@ -111,6 +133,7 @@ ALL permissions based on ACTUAL functionality (no fabrication)
 **Evidence:**
 
 #### OEE Data Product
+
 ```
 File: templates/oee-data-product/authorization.yaml
 ✅ 4 permissions: oee.read, oee.operate, oee.configure, oee.admin
@@ -121,6 +144,7 @@ File: templates/oee-data-product/authorization.yaml
 ```
 
 #### MQTT Temperature Product
+
 ```
 File: templates/mqtt-temperature-product/authorization.yaml
 ✅ 4 permissions: mqtt.read, mqtt.operate, mqtt.configure, mqtt.admin
@@ -131,6 +155,7 @@ File: templates/mqtt-temperature-product/authorization.yaml
 ```
 
 #### REST Equipment Product
+
 ```
 File: templates/rest-equipment-product/authorization.yaml
 ✅ 4 permissions: equipment.read, equipment.operate, equipment.configure, equipment.admin
@@ -141,6 +166,7 @@ File: templates/rest-equipment-product/authorization.yaml
 ```
 
 #### AAS Product
+
 ```
 File: templates/aas-data-product/authorization.yaml
 ✅ 4 permissions: aas.read, aas.operate, aas.configure, aas.admin
@@ -152,6 +178,7 @@ File: templates/aas-data-product/authorization.yaml
 ```
 
 #### Unified Namespace
+
 ```
 File: templates/unified-namespace/authorization.yaml
 ✅ 4 permissions: uns.read, uns.operate, uns.configure, uns.admin
@@ -162,6 +189,7 @@ File: templates/unified-namespace/authorization.yaml
 ```
 
 #### Machine State Consumer
+
 ```
 File: templates/machine-state-consumer/authorization.yaml
 ✅ 4 permissions: machine-state.read, machine-state.operate, machine-state.configure, machine-state.admin
@@ -179,6 +207,7 @@ File: templates/machine-state-consumer/authorization.yaml
 **Deliverable:** `docs/architecture/authorization-profile-registry.yaml`
 
 **Evidence:**
+
 ```
 ✅ Central registry structure defined
 ✅ All 6 profiles registered with metadata
@@ -192,8 +221,9 @@ File: templates/machine-state-consumer/authorization.yaml
 ```
 
 **File:**
+
 ```
-c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\architecture\authorization-profile-registry.yaml
+docs/archive/architecture/authorization-profiles-legacy/authorization-profile-registry.yaml
 ```
 
 ---
@@ -203,6 +233,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\ar
 **Deliverable:** `docs/CATALOG_INTEGRATION_GUIDE.md`
 
 **Evidence:**
+
 ```
 ✅ Annotation format defined: nexora.io/authorization-profile: <domain>
 ✅ Integration in catalog-info.yaml documented
@@ -215,8 +246,9 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\ar
 ```
 
 **File:**
+
 ```
-c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\CATALOG_INTEGRATION_GUIDE.md
+docs/CATALOG_INTEGRATION_GUIDE.md
 ```
 
 ---
@@ -226,6 +258,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\CA
 **Deliverable:** `docs/CENTRAL_RBAC_DISCOVERY.md`
 
 **Evidence:**
+
 ```
 ✅ 4-phase discovery process documented:
    - Phase 1: Catalog Scanning (query by annotation)
@@ -258,8 +291,9 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\CA
 ```
 
 **File:**
+
 ```
-c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\CENTRAL_RBAC_DISCOVERY.md
+docs/CENTRAL_RBAC_DISCOVERY.md
 ```
 
 ---
@@ -269,6 +303,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\CE
 **Deliverable:** `docs/PHASE8_REGRESSION_TEST_RESULTS.md`
 
 **Evidence:**
+
 ```
 ✅ 6 Golden Paths tested: OEE, MQTT, Equipment, AAS, UNS, Machine State
 
@@ -296,8 +331,9 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\CE
 ```
 
 **File:**
+
 ```
-c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\PHASE8_REGRESSION_TEST_RESULTS.md
+docs/PHASE8_REGRESSION_TEST_RESULTS.md
 ```
 
 ---
@@ -307,6 +343,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\PH
 **Deliverable:** `docs/PHASE9_EVIDENCE_MATRIX.md`
 
 **Evidence:**
+
 ```
 ✅ Complete evidence table of all 20+ deliverables
 ✅ Phase-by-phase evidence documentation
@@ -368,6 +405,7 @@ c:\Users\marku\OneDrive\Dokumente\node_project\IDP\data-product-platform\docs\PH
 ## ARTIFACT INVENTORY
 
 ### YAML Files Created (6)
+
 ```
 ✅ templates/oee-data-product/authorization.yaml
 ✅ templates/mqtt-temperature-product/authorization.yaml
@@ -380,6 +418,7 @@ Total: 6 authorization profiles (~300 lines each)
 ```
 
 ### Documentation Files Created (11)
+
 ```
 ✅ docs/PHASE1_INVENTORY_REPORT.md (~350 lines)
 ✅ docs/architecture/AUTHORIZATION_SCHEMA_REFERENCE.md (~400 lines)
@@ -397,6 +436,7 @@ Total: 11 documentation files (~3,000+ lines)
 ```
 
 ### Total Deliverables: 17+ Files
+
 - 6 YAML authorization profiles
 - 11 documentation files
 - All files traceable, versioned, documented
@@ -406,6 +446,7 @@ Total: 11 documentation files (~3,000+ lines)
 ## VERIFICATION CHECKLIST
 
 ### Inventory Verification
+
 - [x] 10 templates discovered
 - [x] 6 Golden Paths identified (4 certified, 2 supporting)
 - [x] All domains documented (oee, mqtt, equipment, aas, uns, machine-state)
@@ -413,6 +454,7 @@ Total: 11 documentation files (~3,000+ lines)
 - [x] No permissions fabricated (all based on actual functionality)
 
 ### Authorization Profiles Verification
+
 - [x] 6 profiles created (1 per domain)
 - [x] 4 permissions per profile
 - [x] 4 roles per profile
@@ -420,6 +462,7 @@ Total: 11 documentation files (~3,000+ lines)
 - [x] Runtime enforcement status documented
 
 ### Registry Verification
+
 - [x] Central registry created with all profiles
 - [x] 24 permissions registered
 - [x] 24 roles registered
@@ -427,12 +470,14 @@ Total: 11 documentation files (~3,000+ lines)
 - [x] Compliance verified
 
 ### Catalog Integration Verification
+
 - [x] Annotation format defined
 - [x] Integration guide provided
 - [x] Update instructions for all templates
 - [x] Verification steps documented
 
 ### Discovery Implementation Verification
+
 - [x] 4-phase process documented
 - [x] REST API specified (5 endpoints)
 - [x] TypeScript implementation pattern provided
@@ -440,6 +485,7 @@ Total: 11 documentation files (~3,000+ lines)
 - [x] Monitoring/observables configured
 
 ### Regression Testing Verification
+
 - [x] 6 Golden Paths tested
 - [x] 7 test categories per path
 - [x] 42/42 tests PASS
@@ -447,6 +493,7 @@ Total: 11 documentation files (~3,000+ lines)
 - [x] Architecture boundaries confirmed
 
 ### Architecture Boundary Verification
+
 - [x] Single central Platform RBAC ✅
 - [x] No Backstage runtime deps in products ✅
 - [x] No duplication of RBAC ✅
@@ -458,24 +505,28 @@ Total: 11 documentation files (~3,000+ lines)
 ## QUICK VERIFICATION GUIDE
 
 ### Verify Inventory (Phase 1)
+
 ```bash
 ls -la data-product-platform/templates/*/template.yaml | wc -l
 # Result: 10 files
 ```
 
 ### Verify Authorization Profiles (Phase 4)
+
 ```bash
 ls -la data-product-platform/templates/*/authorization.yaml | wc -l
 # Result: 6 files
 ```
 
 ### Verify Central Registry (Phase 5)
+
 ```bash
 grep "^    - name:" data-product-platform/docs/architecture/authorization-profile-registry.yaml | wc -l
 # Result: 6 profiles
 ```
 
 ### Verify Permissions (Phase 5)
+
 ```bash
 grep "name: .*\\.read\\|name: .*\\.operate\\|name: .*\\.configure\\|name: .*\\.admin" \
   data-product-platform/docs/architecture/authorization-profile-registry.yaml | wc -l
@@ -483,6 +534,7 @@ grep "name: .*\\.read\\|name: .*\\.operate\\|name: .*\\.configure\\|name: .*\\.a
 ```
 
 ### Verify Documentation (Phase 10-11)
+
 ```bash
 ls -la data-product-platform/docs/*AUTHORIZATION* \
         data-product-platform/docs/PHASE* \
@@ -492,6 +544,7 @@ ls -la data-product-platform/docs/*AUTHORIZATION* \
 ```
 
 ### Verify No Breaking Changes (Phase 8)
+
 ```bash
 grep -r "from backstage\|import.*backstage" \
   data-product-platform/templates/*/content/src/ || true
@@ -503,21 +556,23 @@ grep -r "from backstage\|import.*backstage" \
 ## SUMMARY
 
 ### Completion Status
-| Phase | Status | Evidence |
-|-------|--------|----------|
-| 1 | ✅ Complete | docs/PHASE1_INVENTORY_REPORT.md |
-| 2 | ✅ Complete | docs/architecture/AUTHORIZATION_SCHEMA_REFERENCE.md |
-| 3 | ✅ Complete | Embedded in Phase 1 |
-| 4 | ✅ Complete | 6 authorization.yaml files |
-| 5 | ✅ Complete | docs/architecture/authorization-profile-registry.yaml |
-| 6 | ✅ Complete | docs/CATALOG_INTEGRATION_GUIDE.md |
-| 7 | ✅ Complete | docs/CENTRAL_RBAC_DISCOVERY.md |
-| 8 | ✅ Complete | docs/PHASE8_REGRESSION_TEST_RESULTS.md |
-| 9 | ✅ Complete | docs/PHASE9_EVIDENCE_MATRIX.md (this document) |
-| 10 | ⏳ In Progress | docs/architecture/GOLDEN_PATH_AUTHORIZATION_ARCHITECTURE.md |
-| 11 | ⏳ In Progress | GOLDEN_PATH_AUTHORIZATION_PLATFORM_MIGRATION_REPORT.md |
+
+| Phase | Status         | Evidence                                                    |
+| ----- | -------------- | ----------------------------------------------------------- |
+| 1     | ✅ Complete    | docs/PHASE1_INVENTORY_REPORT.md                             |
+| 2     | ✅ Complete    | docs/architecture/AUTHORIZATION_SCHEMA_REFERENCE.md         |
+| 3     | ✅ Complete    | Embedded in Phase 1                                         |
+| 4     | ✅ Complete    | 6 authorization.yaml files                                  |
+| 5     | ✅ Complete    | docs/architecture/authorization-profile-registry.yaml       |
+| 6     | ✅ Complete    | docs/CATALOG_INTEGRATION_GUIDE.md                           |
+| 7     | ✅ Complete    | docs/CENTRAL_RBAC_DISCOVERY.md                              |
+| 8     | ✅ Complete    | docs/PHASE8_REGRESSION_TEST_RESULTS.md                      |
+| 9     | ✅ Complete    | docs/PHASE9_EVIDENCE_MATRIX.md (this document)              |
+| 10    | ⏳ In Progress | docs/architecture/GOLDEN_PATH_AUTHORIZATION_ARCHITECTURE.md |
+| 11    | ⏳ In Progress | GOLDEN_PATH_AUTHORIZATION_PLATFORM_MIGRATION_REPORT.md      |
 
 ### Key Metrics
+
 - **Total Deliverables:** 17+ (6 YAML + 11 documentation)
 - **Total Lines of Content:** 3,000+ lines
 - **Golden Paths Covered:** 6/6 (100%)
