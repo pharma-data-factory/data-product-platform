@@ -17,17 +17,17 @@ still generate this tree for engineering.
 
 ## Generated tree (`templates/rest-equipment-product/content/`)
 
-| Area | Paths |
-| --- | --- |
-| Application source | `app/main.py`, `app/config.py`, `app/models.py`, `app/source.py`, `app/store.py`, `app/quality.py`, `app/compatibility.py` |
+| Area                    | Paths                                                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application source      | `app/main.py`, `app/config.py`, `app/models.py`, `app/source.py`, `app/store.py`, `app/quality.py`, `app/compatibility.py`                                        |
 | Vendored `dataprod` SDK | `dataprod/__init__.py`, `dataprod/contracts.py`, `dataprod/quality.py`, `dataprod/metadata.py`, `dataprod/compatibility.py`, `dataprod/compatibility-policy.json` |
-| Contracts | `contracts/equipment-event.schema.json`, `compat/published.schema.json`, `compat/consumers.json` |
-| Tests | `tests/test_*.py`, `tests/conftest.py` |
-| Dockerfile | `Dockerfile`, `docker-compose.yml`, `.dockerignore` |
-| CI workflow | `.github/workflows/ci.yml`, `.github/workflows/data-product-quality.yml` |
-| TechDocs | `mkdocs.yml`, `docs/*.md` |
-| README | `README.md`, `catalog-info.yaml` |
-| Dependencies | `pyproject.toml` — FastAPI, Uvicorn, Pydantic, pydantic-settings, httpx, jsonschema; dev: pytest, ruff |
+| Contracts               | `contracts/equipment-event.schema.json`, `compat/published.schema.json`, `compat/consumers.json`                                                                  |
+| Tests                   | `tests/test_*.py`, `tests/conftest.py`                                                                                                                            |
+| Dockerfile              | `Dockerfile`, `docker-compose.yml`, `.dockerignore`                                                                                                               |
+| CI workflow             | `.github/workflows/ci.yml`, `.github/workflows/data-product-quality.yml`                                                                                          |
+| TechDocs                | `mkdocs.yml`, `docs/*.md`                                                                                                                                         |
+| README                  | `README.md`, `catalog-info.yaml`                                                                                                                                  |
+| Dependencies            | `pyproject.toml` — FastAPI, Uvicorn, Pydantic, pydantic-settings, httpx, jsonschema; dev: pytest, ruff                                                            |
 
 ## Third-party components (names only)
 
@@ -45,4 +45,4 @@ surfaces once a customer image is published.
 
 ## Files not present (blocked until counsel)
 
-See [generated placeholders](legal/generated-placeholders.md).
+See [generated placeholders](../legal/generated-placeholders.md).

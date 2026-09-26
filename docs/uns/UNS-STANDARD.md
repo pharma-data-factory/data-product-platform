@@ -54,22 +54,22 @@ Site-level business objects:
 {root}/{enterprise}/{site}/quality/{objectId}/state
 ```
 
-Details: [TOPIC-HIERARCHY.md](./TOPIC-HIERARCHY.md), [CONTRACTS.md](./CONTRACTS.md), [MQTT-QOS.md](./MQTT-QOS.md), [SECURITY.md](./SECURITY.md), [VERSIONING.md](./VERSIONING.md).
+Details: [TOPIC-HIERARCHY.md](./TOPIC-HIERARCHY.md), [CONTRACTS.md](./contracts.md), [MQTT-QOS.md](./MQTT-QOS.md), [SECURITY.md](./SECURITY.md), [VERSIONING.md](./VERSIONING.md).
 
 ---
 
 ## State vs event
 
-| Kind | Topics (examples) | Retained? |
-| --- | --- | --- |
-| **State** (current truth) | `…/state`, `…/telemetry`, `…/counts`, `…/temperature`, `…/availability` | MAY retain |
+| Kind                           | Topics (examples)                                                              | Retained?       |
+| ------------------------------ | ------------------------------------------------------------------------------ | --------------- |
+| **State** (current truth)      | `…/state`, `…/telemetry`, `…/counts`, `…/temperature`, `…/availability`        | MAY retain      |
 | **Event** (something happened) | `…/events/equipment-state-changed`, `…/events/microstop`, `…/events/breakdown` | MUST NOT retain |
 
 ---
 
 ## Envelope
 
-Every MQTT payload uses a versioned envelope (`schemaVersion: "1.0"`). See [CONTRACTS.md](./CONTRACTS.md). JSON Schemas: `contracts/uns/`.
+Every MQTT payload uses a versioned envelope (`schemaVersion: "1.0"`). See [CONTRACTS.md](./contracts.md). JSON Schemas: `contracts/uns/`.
 
 ---
 
@@ -81,11 +81,11 @@ Every MQTT payload uses a versioned envelope (`schemaVersion: "1.0"`). See [CONT
 
 ## Relationship to existing UNS service
 
-| Aspect | Legacy `uns/` (DEVELOPMENT) | Platform UNS Standard 1.0 |
-| --- | --- | --- |
-| Default root | `pharma` | `uns` (configurable) |
-| Hierarchy | site/area/line/equipment/**domain/event** | enterprise/site/area/line/equipment/**informationType** |
-| Envelope | `contract.name` + nested `source` | Flat industrial envelope + `schemaVersion` |
+| Aspect       | Legacy `uns/` (DEVELOPMENT)               | Platform UNS Standard 1.0                               |
+| ------------ | ----------------------------------------- | ------------------------------------------------------- |
+| Default root | `pharma`                                  | `uns` (configurable)                                    |
+| Hierarchy    | site/area/line/equipment/**domain/event** | enterprise/site/area/line/equipment/**informationType** |
+| Envelope     | `contract.name` + nested `source`         | Flat industrial envelope + `schemaVersion`              |
 
 New publishers (including Model Company) **MUST** follow Standard 1.0. Legacy service migration is a separate platform workstream.
 
