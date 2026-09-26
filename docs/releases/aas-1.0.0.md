@@ -11,6 +11,7 @@
 The **Asset Administration Shell (AAS) 1.0.0** is the fourth certified Golden Path data product for Nexora.
 
 AAS provides a standardized digital representation of manufacturing assets and equipment, enabling organizations to:
+
 - Register and manage equipment hierarchies
 - Ingest asset data from MQTT, REST, and file sources
 - Query and discover assets via standardized REST APIs
@@ -19,16 +20,16 @@ AAS provides a standardized digital representation of manufacturing assets and e
 
 ### Key Capabilities
 
-| Capability | Details |
-|-----------|---------|
+| Capability              | Details                                                       |
+| ----------------------- | ------------------------------------------------------------- |
 | **Standard Compliance** | IEC 63278-1:2024 ✅ / IDTA-01001 v3.0 ✅ / IDTA-01002 v3.0 ✅ |
-| **Ingestion** | MQTT, REST, File-based sources |
-| **Asset Types** | Equipment, Sensor, Component, Product, Facility, Other |
-| **API** | REST (IDTA-01002 v3.0 compliant) |
-| **Quality** | Automated schema validation, quality metrics |
-| **Deployment** | Docker, docker-compose, GitHub Actions CI/CD |
-| **Observability** | Health checks, metrics, logging |
-| **Documentation** | MkDocs, API reference, integration guides |
+| **Ingestion**           | MQTT, REST, File-based sources                                |
+| **Asset Types**         | Equipment, Sensor, Component, Product, Facility, Other        |
+| **API**                 | REST (IDTA-01002 v3.0 compliant)                              |
+| **Quality**             | Automated schema validation, quality metrics                  |
+| **Deployment**          | Docker, docker-compose, GitHub Actions CI/CD                  |
+| **Observability**       | Health checks, metrics, logging                               |
+| **Documentation**       | MkDocs, API reference, integration guides                     |
 
 ---
 
@@ -55,6 +56,7 @@ Organizations can now create asset management data products from the marketplace
 **Version:** 1.0.0
 
 Standardized schema for asset events with:
+
 - Mandatory fields: `eventId`, `assetId`, `timestamp`, `assetType`, `submodelElements`
 - Optional fields: `sourceSystem`, `metadata`, `context`
 - JSON Schema validation
@@ -64,16 +66,16 @@ Standardized schema for asset events with:
 
 **Version:** 1.0.0 (IDTA-01002 v3.0 compliant)
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/assets` | POST | Ingest asset event |
-| `/api/v1/assets/{asset_id}` | GET | Retrieve asset |
-| `/api/v1/assets` | GET | List/query assets |
-| `/api/v1/assets/{asset_id}/submodels` | GET | Get submodel elements |
-| `/api/v1/quality` | POST | Validate asset event |
-| `/api/v1/quality` | GET | Quality metrics |
-| `/api/v1/health` | GET | Liveness probe |
-| `/api/v1/ready` | GET | Readiness probe |
+| Endpoint                              | Method | Purpose               |
+| ------------------------------------- | ------ | --------------------- |
+| `/api/v1/assets`                      | POST   | Ingest asset event    |
+| `/api/v1/assets/{asset_id}`           | GET    | Retrieve asset        |
+| `/api/v1/assets`                      | GET    | List/query assets     |
+| `/api/v1/assets/{asset_id}/submodels` | GET    | Get submodel elements |
+| `/api/v1/quality`                     | POST   | Validate asset event  |
+| `/api/v1/quality`                     | GET    | Quality metrics       |
+| `/api/v1/health`                      | GET    | Liveness probe        |
+| `/api/v1/ready`                       | GET    | Readiness probe       |
 
 ### Platform Component
 
@@ -110,6 +112,7 @@ Marketplace Discovery & Query
 ### Dependencies
 
 - **Runtime:**
+
   - Python 3.12+
   - FastAPI
   - Pydantic
@@ -133,6 +136,7 @@ Marketplace Discovery & Query
 - Integration tests with MQTT broker (docker-compose)
 
 **Test Command:**
+
 ```bash
 pytest tests/ -v --cov=app --cov-report=html
 ```
@@ -161,6 +165,7 @@ docker run -p 8080:8080 \
 ### Kubernetes (Ready)
 
 Prepared for:
+
 - Deployment manifests
 - ConfigMaps for configuration
 - PersistentVolumeClaims for storage
@@ -171,12 +176,12 @@ Prepared for:
 
 ## Standards Compliance
 
-| Standard | Document | Version | Compliance |
-|----------|----------|---------|-----------|
-| **IEC 63278-1** | Asset Administration Shell Structure | 2024 | ✅ CERTIFIED |
-| **IDTA-01001** | AAS Metamodel | 3.0 | ✅ CERTIFIED |
-| **IDTA-01002** | AAS REST API | 3.0 | ✅ CERTIFIED |
-| **IDTA-01005** | AASX Package Format | 3.0 | 🔜 Phase 2 |
+| Standard        | Document                             | Version | Compliance   |
+| --------------- | ------------------------------------ | ------- | ------------ |
+| **IEC 63278-1** | Asset Administration Shell Structure | 2024    | ✅ CERTIFIED |
+| **IDTA-01001**  | AAS Metamodel                        | 3.0     | ✅ CERTIFIED |
+| **IDTA-01002**  | AAS REST API                         | 3.0     | ✅ CERTIFIED |
+| **IDTA-01005**  | AASX Package Format                  | 3.0     | 🔜 Phase 2   |
 
 ### Certification Status
 
@@ -227,24 +232,32 @@ spec:
 
 ### For Users
 
-- [AAS Overview](../docs/aas/index.md) — What is AAS?
-- [Quick Start](../templates/aas-data-product/content/README.md) — Get up and running
-- [API Reference](../docs/aas/api-reference.md) — Complete endpoint documentation
-- [Integration Guide](../docs/aas/integration.md) — How to use AAS in your products
+- [AAS Overview](../aas/index.md) — What is AAS?
+- [Quick Start](../../templates/aas-data-product/content/README.md) — Get up and running
+- [Connectivity](../aas/connectivity.md) — MQTT and REST ingestion
+- [Using AAS from a Data Product](../aas/using-from-data-product.md) — integration
 
 ### For Architects
 
-- [AAS Specification](../docs/aas/aas-specification.md) — Deep dive into standards
-- [Architecture](../ARCHITECTURE.md) — How AAS fits into platform
-- [Data Contracts](../docs/aas/contracts.md) — Event schema and validation
-- [Quality Framework](../docs/aas/quality.md) — Assurance and metrics
+- [AAS Specification](../aas/aas-specification.md) — Deep dive into standards
+- [Architecture](../architecture.md) and
+  [Target Operating Model](../architecture/TARGET_OPERATING_MODEL.md) — how AAS
+  fits into the platform
+- [Data Contracts](../aas/contracts.md) — Event schema and validation
+- [Quality Framework](../aas/quality.md) — Assurance and metrics
 
 ### For Operations
 
-- [Deployment](../docs/aas/deployment.md) — Production deployment
-- [Troubleshooting](../docs/aas/troubleshooting.md) — Common issues
-- [Observability](../docs/aas/observability.md) — Monitoring and metrics
-- [Security](../docs/aas/security.md) — Authentication, authorization
+- [Deployment](../deployment/docker-production.md) — running the Control Plane
+- [Administration](../aas/administration.md) — managing the asset registry
+
+> **Not written.** A dedicated API reference, integration guide, deployment
+> guide, troubleshooting page, observability page and security page for AAS
+> were linked from this release note and never existed. The AAS Control Plane
+> adapter is **DEVELOPMENT** (in-memory prototype) per
+> [subsystem status](../subsystem-status.md). Endpoints are defined in
+> `plugins/aas-backend/src/router.ts`; authorization follows the platform
+> model in [identity and RBAC](../identity-and-rbac.md).
 
 ---
 
@@ -280,6 +293,7 @@ None. This is the initial release (v1.0.0).
 Not applicable for v1.0.0.
 
 When v2.0.0 releases, this will document:
+
 - Backward compatibility strategy
 - Deprecation notices
 - Migration path for existing data products
@@ -294,17 +308,20 @@ When v2.0.0 releases, this will document:
 If you were running AAS DEVELOPMENT version, migrate to v1.0.0:
 
 1. **Backup your AAS data:**
+
    ```bash
    cp .data/aas.sqlite .data/aas.sqlite.backup-$(date +%Y%m%d)
    ```
 
 2. **Update template:**
+
    ```bash
    git fetch origin
    git checkout v1.0.0
    ```
 
 3. **Run tests:**
+
    ```bash
    pytest tests/ -v
    ```
@@ -319,6 +336,7 @@ If you were running AAS DEVELOPMENT version, migrate to v1.0.0:
 ## Acknowledgments
 
 Developed in compliance with:
+
 - **IEC 63278-1:2024** — International electrotechnical commission standard
 - **IDTA Specifications** — Industrial Digital Twin Association
 - **Nexora AGENTS.md** — Platform development guidelines

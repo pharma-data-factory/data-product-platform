@@ -29,22 +29,28 @@ The **Asset Administration Shell** is a standardized, vendor-neutral digital twi
 ### Understanding AAS
 
 - [AAS Specification Overview](aas-specification.md) — What AAS is, why it matters
-- [Domain Model](domain-model.md) — Asset types, submodel elements, lifecycles
+- [Submodels](submodels.md) and [Semantic IDs](semantic-ids.md) — asset types,
+  submodel elements and their identification
 - [Data Contracts](contracts.md) — Asset Event Schema v1.0.0
 - [Quality Checks](quality.md) — Automated validation rules
 
 ### Using AAS
 
-- [API Reference](api-reference.md) — Endpoints and examples
-- [Asset Ingestion Guide](ingestion.md) — How to ingest asset data
-- [Asset Discovery](discovery.md) — Querying and filtering assets
-- [Integration Patterns](integration.md) — Connecting with other data products
+- [Connectivity](connectivity.md) — ingesting asset data over MQTT and REST
+- [Using AAS from a Data Product](using-from-data-product.md) — integration patterns
+- [Administration](administration.md) — managing the asset registry
+- [AAS vs Catalog](vs-catalog.md) and [AAS vs UNS](vs-uns.md) — when to use which
 
 ### Operations & Deployment
 
-- [Deployment Guide](deployment.md) — Docker, Kubernetes, cloud
-- [Troubleshooting](troubleshooting.md) — Common issues and solutions
-- [FAQ](faq.md) — Frequently asked questions
+- [Deployment](../deployment/docker-production.md) — running the Control Plane
+
+> **Not written.** An API reference, a dedicated ingestion guide, a discovery
+> guide, a troubleshooting page and an FAQ were linked here and never existed.
+> The AAS Control Plane adapter is **DEVELOPMENT** (in-memory prototype) per
+> [subsystem status](../subsystem-status.md); the pages will be written when
+> it is more than that. Endpoints are defined in
+> `plugins/aas-backend/src/router.ts`.
 
 ### Golden Path Template
 
@@ -205,8 +211,11 @@ Result:
 
 **Platform Documentation:**
 
-- [PRODUCT.md](../../PRODUCT.md) — Product overview
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) — System architecture
+- [Nexora Vision](../vision/NEXORA_VISION.md) — product overview
+  (replaces the never-written `PRODUCT.md`)
+- [Architecture](../architecture.md) and
+  [Target Operating Model](../architecture/TARGET_OPERATING_MODEL.md) — system
+  architecture (replace the never-written `ARCHITECTURE.md`)
 - [ROADMAP.md](../../ROADMAP.md) — Release roadmap
 
 **Questions?**

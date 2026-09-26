@@ -426,7 +426,12 @@ Changes affecting architecture must:
 
 **See Also**:
 
-- [domain-architecture.md](domain-architecture.md) — Engineering domain responsibilities
-- [plugin-architecture.md](plugin-architecture.md) — Custom plugin patterns
-- [data-architecture.md](data-architecture.md) — Persistence design
+- [Target Operating Model](TARGET_OPERATING_MODEL.md) — engineering domain
+  responsibilities (replaces the never-written `domain-architecture.md`)
+- [Architecture Guardrails](ARCHITECTURE_GUARDRAILS.md) — plugin patterns,
+  boundaries and documented deviations (replaces the never-written
+  `plugin-architecture.md`)
+- [Target Conformance Audit](../audits/TARGET_CONFORMANCE_AUDIT.md) §4 —
+  the measured domain model and table ownership (replaces the never-written
+  `data-architecture.md`)
 - [DECISIONS.md](../nexora-transformation/DECISIONS.md) — the live decision log (`NXD-nnn`). The legacy ADR-001…010 set is archived at [adr-legacy](../archive/architecture/adr-legacy/ADR-001-010-inline-index.md).
