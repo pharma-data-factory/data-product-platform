@@ -18,20 +18,21 @@ Supersedes `docs/archive/PLATFORM_GUARDRAILS_REPORT.md`.
 `scripts/verify-platform-guardrails.mjs`, run as `yarn guard:platform` and as
 the first step of CI. Node standard library only; exit 0 = no hard violation.
 
-| Check                                     | What it refuses                                                            |
-| ----------------------------------------- | -------------------------------------------------------------------------- |
-| `BACKSTAGE_CORE_PATCHING`                 | patch-package / yarn patches / postinstall mutation against `@backstage/*` |
-| `PRIVATE_BACKSTAGE_IMPORTS`               | `@backstage/**/src` and `@backstage/**/dist` imports in owned source       |
-| `PACKAGE_MANAGER_CONSISTENCY`             | `package-lock.json`, `pnpm-lock.yaml`, foreign lockfiles                   |
-| `UNSAFE_DEPENDENCY_RANGES`                | `latest` and `*` outside a documented allowlist                            |
-| `DEPENDENCY_BASELINE`                     | mixed Material UI generations                                              |
-| `RESOLUTIONS`                             | undocumented `HIGH_RISK` root resolutions                                  |
-| `NODE_MODULES_MUTATION`                   | scripts that write into `node_modules`                                     |
-| `APP_COMPOSITION` / `BACKEND_COMPOSITION` | domain logic leaking into the wiring layers (size-bounded)                 |
-| `ALPHA_API_USAGE`                         | _(warning)_ `/alpha` imports — recorded as upgrade risk                    |
-| `CROSS_PLUGIN_BOUNDARY`                   | _(warning)_ importing another workspace's private source                   |
+| Check                                     | What it refuses                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BACKSTAGE_CORE_PATCHING`                 | patch-package / yarn patches / postinstall mutation against `@backstage/*`                                                                                                                                                                      |
+| `PRIVATE_BACKSTAGE_IMPORTS`               | `@backstage/**/src` and `@backstage/**/dist` imports in owned source                                                                                                                                                                            |
+| `PACKAGE_MANAGER_CONSISTENCY`             | `package-lock.json`, `pnpm-lock.yaml`, foreign lockfiles                                                                                                                                                                                        |
+| `UNSAFE_DEPENDENCY_RANGES`                | `latest` and `*` outside a documented allowlist                                                                                                                                                                                                 |
+| `DEPENDENCY_BASELINE`                     | mixed Material UI generations                                                                                                                                                                                                                   |
+| `RESOLUTIONS`                             | undocumented `HIGH_RISK` root resolutions                                                                                                                                                                                                       |
+| `NODE_MODULES_MUTATION`                   | scripts that write into `node_modules`                                                                                                                                                                                                          |
+| `APP_COMPOSITION` / `BACKEND_COMPOSITION` | domain logic leaking into the wiring layers (size-bounded)                                                                                                                                                                                      |
+| `DOC_LINK_INTEGRITY`                      | broken relative links in maintained documentation — `docs/**` outside `archive/`, plus the root governance files. Case-sensitive, so CI and macOS agree. Logic lives in `scripts/check-doc-links.mjs` and runs standalone with the same result. |
+| `ALPHA_API_USAGE`                         | _(warning)_ `/alpha` imports — recorded as upgrade risk                                                                                                                                                                                         |
+| `CROSS_PLUGIN_BOUNDARY`                   | _(warning)_ importing another workspace's private source                                                                                                                                                                                        |
 
-**Measured 2026-09-26 at `d68308f`:** `PASS 9 · WARNING 9 · FAIL 0 ·
+**Measured 2026-09-26:** `PASS 10 · WARNING 9 · FAIL 0 ·
 RESULT: GUARDRAILS_OK`. Composition layers: `packages/app/src` 155 files /
 30,313 lines, `packages/backend/src` 46 files / 6,453 lines — both inside
 their limits.
@@ -94,10 +95,17 @@ things to check on a Backstage upgrade — they are the most likely to break.
 
 ### D-4 — Hand-maintained permission surfaces
 
-Three registries must be kept in sync by hand:
-`packages/platform-common/src/permissions.ts` (role → permission-name sets),
-`packages/platform-common/src/permissions/{urs,validation}.ts`
-(`createPermission` objects), and `permissions-inventory.md`.
+Two registries must be kept in sync by hand:
+`packages/platform-common/src/permissions.ts` (definitions **and** role →
+permission-name sets) and `permissions-inventory.md`.
+
+Reduced from three on 2026-09-26. `packages/platform-common/src/permissions/`
+held a second, per-domain set of `createPermission` objects for the same
+permission names, imported by nothing — and its `validation.approve` comment
+still described the v0.1 posture that Phase 5 had superseded, which is how a
+duplicate registry turns into a wrong answer. Removed; see `NXD-061`. The
+per-domain split remains a reasonable target, but as a refactor of the live
+file, not as a second copy beside it.
 
 `decidePermission`'s `isPrivilegedRead()` is a **deny-list of 19 permission
 names**. A new privileged read permission that is not added to it is granted

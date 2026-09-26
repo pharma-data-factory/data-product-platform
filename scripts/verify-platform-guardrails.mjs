@@ -21,6 +21,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import process from 'node:process';
 
+import { checkDocLinks, formatBroken } from './check-doc-links.mjs';
+
 const ROOT = process.cwd();
 
 // ---------------------------------------------------------------------------
@@ -60,7 +62,8 @@ function walk(dir, onFile, depth = 0, maxDepth = 8) {
     return;
   }
   for (const entry of entries) {
-    if (WALK_EXCLUDES.has(entry.name) || entry.name.startsWith('.git')) continue;
+    if (WALK_EXCLUDES.has(entry.name) || entry.name.startsWith('.git'))
+      continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walk(full, onFile, depth + 1, maxDepth);
@@ -70,7 +73,7 @@ function walk(dir, onFile, depth = 0, maxDepth = 8) {
   }
 }
 
-const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
+const rel = p => path.relative(ROOT, p).split(path.sep).join('/');
 
 function readJson(file) {
   try {
@@ -82,7 +85,10 @@ function readJson(file) {
 
 function sha256(file) {
   if (!fs.existsSync(file)) return null;
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(file))
+    .digest('hex');
 }
 
 function collectWorkspacePackageJsons() {
@@ -111,15 +117,24 @@ function reportBaseline() {
     ? fs.readFileSync(path.join(ROOT, '.yarnrc.yml'), 'utf8')
     : '';
   console.log('PLATFORM BASELINE');
-  console.log(`  Backstage release baseline : ${backstageJson?.version ?? 'UNKNOWN'}`);
-  console.log(`  Package manager            : ${rootPj.packageManager ?? 'UNKNOWN'}`);
-  console.log(`  Node engines               : ${rootPj.engines?.node ?? 'UNKNOWN'}`);
+  console.log(
+    `  Backstage release baseline : ${backstageJson?.version ?? 'UNKNOWN'}`,
+  );
+  console.log(
+    `  Package manager            : ${rootPj.packageManager ?? 'UNKNOWN'}`,
+  );
+  console.log(
+    `  Node engines               : ${rootPj.engines?.node ?? 'UNKNOWN'}`,
+  );
   const yarnPath = (yarnrc.match(/yarnPath:\s*(\S+)/) || [])[1];
   console.log(`  Yarn release path          : ${yarnPath ?? 'n/a'}`);
   const lockSum = sha256(path.join(ROOT, 'yarn.lock'));
   console.log(`  yarn.lock sha256           : ${lockSum ?? 'MISSING'}`);
   if (!lockSum) {
-    fail('YARN_LOCK', 'yarn.lock is missing — controlled platform baseline artifact absent');
+    fail(
+      'YARN_LOCK',
+      'yarn.lock is missing — controlled platform baseline artifact absent',
+    );
   }
   console.log('');
 }
@@ -157,7 +172,12 @@ function checkPatching() {
     if (!j) continue;
     for (const sec of ['dependencies', 'devDependencies']) {
       if (j[sec] && j[sec]['patch-package']) {
-        warn(CHECK, `patch-package declared in ${rel(pj)} (${sec}) — verify no @backstage patches`);
+        warn(
+          CHECK,
+          `patch-package declared in ${rel(
+            pj,
+          )} (${sec}) — verify no @backstage patches`,
+        );
       }
     }
   }
@@ -184,7 +204,7 @@ function checkPatching() {
     }
   }
 
-  if (!findings.fail.some((f) => f.startsWith(`[${CHECK}]`))) {
+  if (!findings.fail.some(f => f.startsWith(`[${CHECK}]`))) {
     pass(CHECK, 'no Backstage patching mechanisms detected');
   }
 }
@@ -203,7 +223,7 @@ function checkPrivateImports() {
   const alphaHits = [];
 
   for (const base of ['packages', 'plugins']) {
-    walk(path.join(ROOT, base), (file) => {
+    walk(path.join(ROOT, base), file => {
       if (!SOURCE_EXT.has(path.extname(file))) return;
       const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
       lines.forEach((line, i) => {
@@ -244,7 +264,7 @@ function checkPackageManager() {
     'bun.lock',
   ]);
   const hits = [];
-  walk(ROOT, (file) => {
+  walk(ROOT, file => {
     if (FOREIGN_LOCKFILES.has(path.basename(file))) hits.push(rel(file));
   });
   if (hits.length) {
@@ -288,18 +308,29 @@ function checkUnsafeRanges() {
           const key = `${rel(pj)}|${sec}|${name}`;
           const reason = UNSAFE_RANGE_ALLOWLIST.get(key);
           if (reason) {
-            warn(CHECK, `allowlisted unsafe range ${name}@${range} in ${rel(pj)} (${sec}) — ${reason}`);
+            warn(
+              CHECK,
+              `allowlisted unsafe range ${name}@${range} in ${rel(
+                pj,
+              )} (${sec}) — ${reason}`,
+            );
           } else {
-            fail(CHECK, `unsafe dependency range ${name}@${range} in ${rel(pj)} (${sec})`);
+            fail(
+              CHECK,
+              `unsafe dependency range ${name}@${range} in ${rel(pj)} (${sec})`,
+            );
           }
         }
       }
     }
   }
-  if (!findings.fail.some((f) => f.startsWith(`[${CHECK}]`))) {
-    pass(CHECK, found === 0
-      ? 'no "latest"/"*" dependency ranges'
-      : 'all "latest"/"*" ranges are allowlisted with documented reasons');
+  if (!findings.fail.some(f => f.startsWith(`[${CHECK}]`))) {
+    pass(
+      CHECK,
+      found === 0
+        ? 'no "latest"/"*" dependency ranges'
+        : 'all "latest"/"*" ranges are allowlisted with documented reasons',
+    );
   }
 }
 
@@ -315,11 +346,11 @@ function parseMajor(range) {
 function checkDependencyBaseline() {
   const CHECK = 'DEPENDENCY_BASELINE';
   const FAMILIES = {
-    backstage: (n) => n.startsWith('@backstage/'),
-    community: (n) => n.startsWith('@backstage-community/'),
-    react: (n) => n === 'react' || n === 'react-dom',
-    mui: (n) => n.startsWith('@mui/') || n.startsWith('@material-ui/'),
-    typescript: (n) => n === 'typescript',
+    backstage: n => n.startsWith('@backstage/'),
+    community: n => n.startsWith('@backstage-community/'),
+    react: n => n === 'react' || n === 'react-dom',
+    mui: n => n.startsWith('@mui/') || n.startsWith('@material-ui/'),
+    typescript: n => n === 'typescript',
   };
   // family -> package -> range -> [workspaces]
   const inventory = {};
@@ -336,9 +367,12 @@ function checkDependencyBaseline() {
           if (!match(name)) continue;
           inventory[family] = inventory[family] || {};
           inventory[family][name] = inventory[family][name] || {};
-          (inventory[family][name][range] = inventory[family][name][range] || []).push(ws);
+          (inventory[family][name][range] =
+            inventory[family][name][range] || []).push(ws);
           if (family === 'mui') {
-            muiGenerations.add(name.startsWith('@mui/') ? 'mui-v5+' : 'material-ui-v4');
+            muiGenerations.add(
+              name.startsWith('@mui/') ? 'mui-v5+' : 'material-ui-v4',
+            );
           }
         }
       }
@@ -365,17 +399,35 @@ function checkDependencyBaseline() {
     if (!ranges) continue;
     const majors = new Set(Object.keys(ranges).map(parseMajor));
     if (majors.size > 1) {
-      fail(CHECK, `React major drift in ${pkg}: ${Object.keys(ranges).join(' vs ')}`);
+      fail(
+        CHECK,
+        `React major drift in ${pkg}: ${Object.keys(ranges).join(' vs ')}`,
+      );
     } else if (Object.keys(ranges).length > 1) {
-      warn(CHECK, `REVIEW_REQUIRED ${pkg} range drift (same major): ${Object.keys(ranges).join(' vs ')}`);
+      warn(
+        CHECK,
+        `REVIEW_REQUIRED ${pkg} range drift (same major): ${Object.keys(
+          ranges,
+        ).join(' vs ')}`,
+      );
     }
   }
 
   // Mixed Material UI generations (v4 + v5) without explicit approval is a failure.
   if (muiGenerations.size > 1) {
-    fail(CHECK, `mixed Material UI generations in use: ${[...muiGenerations].join(' + ')}`);
+    fail(
+      CHECK,
+      `mixed Material UI generations in use: ${[...muiGenerations].join(
+        ' + ',
+      )}`,
+    );
   } else {
-    pass(CHECK, `Material UI generation consistent: ${[...muiGenerations].join(', ') || 'none'}`);
+    pass(
+      CHECK,
+      `Material UI generation consistent: ${
+        [...muiGenerations].join(', ') || 'none'
+      }`,
+    );
   }
 
   // Backstage + community packages: different package versions are normal
@@ -386,7 +438,7 @@ function checkDependencyBaseline() {
       const rangeList = Object.keys(ranges);
       if (rangeList.length > 1) {
         const detail = rangeList
-          .map((r) => `${r} [${ranges[r].map((w) => path.dirname(w)).join(', ')}]`)
+          .map(r => `${r} [${ranges[r].map(w => path.dirname(w)).join(', ')}]`)
           .join(' vs ');
         warn(CHECK, `REVIEW_REQUIRED ${name} conflicting ranges: ${detail}`);
       }
@@ -440,14 +492,25 @@ function checkResolutions() {
     }
     console.log(`  ${target}: ${range}  -> ${classification}`);
     if (classification === 'HIGH_RISK') {
-      fail(CHECK, `undocumented HIGH_RISK resolution on core dependency: ${target}@${range}`);
+      fail(
+        CHECK,
+        `undocumented HIGH_RISK resolution on core dependency: ${target}@${range}`,
+      );
     } else if (classification.startsWith('REVIEW_REQUIRED')) {
-      warn(CHECK, `resolution ${target}@${range} — ${RESOLUTION_ALLOWLIST.get(target) || 'review required'}`);
+      warn(
+        CHECK,
+        `resolution ${target}@${range} — ${
+          RESOLUTION_ALLOWLIST.get(target) || 'review required'
+        }`,
+      );
     }
   }
   console.log('');
-  if (!findings.fail.some((f) => f.startsWith(`[${CHECK}]`))) {
-    pass(CHECK, 'all resolutions classified (no undocumented HIGH_RISK entries)');
+  if (!findings.fail.some(f => f.startsWith(`[${CHECK}]`))) {
+    pass(
+      CHECK,
+      'all resolutions classified (no undocumented HIGH_RISK entries)',
+    );
   }
 }
 
@@ -457,8 +520,10 @@ function checkResolutions() {
 
 function checkNodeModulesMutation() {
   const CHECK = 'NODE_MODULES_MUTATION';
-  const protectedPathRe = /node_modules[\\/]+(@backstage|react|@mui|@material-ui)[\\/]/;
-  const mutationVerbs = /\b(rm|rmdir|del|erase|mv|move|cp|copy|sed|patch|truncate|Set-Content|Out-File|writeFile|rmSync|copyFile)\b/;
+  const protectedPathRe =
+    /node_modules[\\/]+(@backstage|react|@mui|@material-ui)[\\/]/;
+  const mutationVerbs =
+    /\b(rm|rmdir|del|erase|mv|move|cp|copy|sed|patch|truncate|Set-Content|Out-File|writeFile|rmSync|copyFile)\b/;
   const hits = [];
 
   for (const pj of collectWorkspacePackageJsons()) {
@@ -477,7 +542,10 @@ function checkNodeModulesMutation() {
       if (!/\.(js|mjs|cjs|sh|ps1)$/.test(f)) continue;
       const content = fs.readFileSync(path.join(scriptsDir, f), 'utf8');
       // a script that both addresses a protected node_modules path AND mutates files
-      const mutating = /(fs\.(rm|unlink|write|copy|rename)|rmSync|unlinkSync|writeFileSync|copyFileSync)/.test(content);
+      const mutating =
+        /(fs\.(rm|unlink|write|copy|rename)|rmSync|unlinkSync|writeFileSync|copyFileSync)/.test(
+          content,
+        );
       if (protectedPathRe.test(content) && mutating) {
         hits.push(`scripts/${f}: writes into protected node_modules paths`);
       }
@@ -487,7 +555,10 @@ function checkNodeModulesMutation() {
   if (hits.length) {
     for (const h of hits) fail(CHECK, `node_modules mutation: ${h}`);
   } else {
-    pass(CHECK, 'no scripts mutate node_modules/@backstage, react, @mui or @material-ui');
+    pass(
+      CHECK,
+      'no scripts mutate node_modules/@backstage, react, @mui or @material-ui',
+    );
   }
 }
 
@@ -498,7 +569,7 @@ function checkNodeModulesMutation() {
 function countSource(dir) {
   let files = 0;
   let lines = 0;
-  walk(dir, (file) => {
+  walk(dir, file => {
     if (!/\.(ts|tsx|js|jsx)$/.test(file)) return;
     files++;
     lines += fs.readFileSync(file, 'utf8').split(/\r?\n/).length;
@@ -514,8 +585,12 @@ function checkCompositionThinness() {
   const backend = countSource(path.join(ROOT, 'packages', 'backend', 'src'));
 
   console.log('COMPOSITION LAYER SIZE');
-  console.log(`  packages/app/src     : ${app.files} files, ${app.lines} lines`);
-  console.log(`  packages/backend/src : ${backend.files} files, ${backend.lines} lines`);
+  console.log(
+    `  packages/app/src     : ${app.files} files, ${app.lines} lines`,
+  );
+  console.log(
+    `  packages/backend/src : ${backend.files} files, ${backend.lines} lines`,
+  );
   console.log('');
 
   if (app.files > APP_LIMITS.files || app.lines > APP_LIMITS.lines) {
@@ -525,17 +600,26 @@ function checkCompositionThinness() {
         'verify domain logic lives in owned plugins, not the composition layer',
     );
   } else {
-    pass('APP_COMPOSITION', `packages/app within composition limits (${app.files} files, ${app.lines} lines)`);
+    pass(
+      'APP_COMPOSITION',
+      `packages/app within composition limits (${app.files} files, ${app.lines} lines)`,
+    );
   }
 
-  if (backend.files > BACKEND_LIMITS.files || backend.lines > BACKEND_LIMITS.lines) {
+  if (
+    backend.files > BACKEND_LIMITS.files ||
+    backend.lines > BACKEND_LIMITS.lines
+  ) {
     warn(
       'BACKEND_COMPOSITION_WARNING',
       `packages/backend/src is large (${backend.files} files, ${backend.lines} lines) — ` +
         'verify domain logic lives in owned backend plugins, not the composition layer',
     );
   } else {
-    pass('BACKEND_COMPOSITION', `packages/backend within composition limits (${backend.files} files, ${backend.lines} lines)`);
+    pass(
+      'BACKEND_COMPOSITION',
+      `packages/backend within composition limits (${backend.files} files, ${backend.lines} lines)`,
+    );
   }
 }
 
@@ -558,20 +642,32 @@ function checkCrossPluginBoundaries() {
 
   for (const name of fs.readdirSync(pluginsDir)) {
     const pluginSrc = path.join(pluginsDir, name);
-    walk(pluginSrc, (file) => {
+    walk(pluginSrc, file => {
       if (!SOURCE_EXT.has(path.extname(file))) return;
       const content = fs.readFileSync(file, 'utf8');
       const internal = content.match(privateInternalRe);
       if (internal) {
-        hits.push(`${rel(file)} imports private source of another workspace: ${internal[1]}`);
+        hits.push(
+          `${rel(file)} imports private source of another workspace: ${
+            internal[1]
+          }`,
+        );
       }
       let m;
       relativeRe.lastIndex = 0;
       while ((m = relativeRe.exec(content)) !== null) {
         const resolved = path.resolve(path.dirname(file), m[1]);
         const resolvedRel = rel(resolved).split('/');
-        if (resolvedRel[0] === 'plugins' && resolvedRel[1] && resolvedRel[1] !== name) {
-          hits.push(`${rel(file)} imports across plugin boundary into plugins/${resolvedRel[1]}`);
+        if (
+          resolvedRel[0] === 'plugins' &&
+          resolvedRel[1] &&
+          resolvedRel[1] !== name
+        ) {
+          hits.push(
+            `${rel(file)} imports across plugin boundary into plugins/${
+              resolvedRel[1]
+            }`,
+          );
         }
       }
     });
@@ -582,6 +678,42 @@ function checkCrossPluginBoundaries() {
   } else {
     pass(CHECK, 'no cross-plugin private implementation imports detected');
   }
+}
+
+// ---------------------------------------------------------------------------
+// DOC_LINK_INTEGRITY — maintained documentation links resolve
+// ---------------------------------------------------------------------------
+
+/**
+ * A dead link is not cosmetic here. The documentation inventory of 2026-09-26
+ * found an index promising seventeen documents that were never written, and
+ * a link whose case resolved on macOS and 404'd in CI. Both sent readers
+ * looking for material that does not exist.
+ *
+ * Fails rather than warns: this was brought to zero deliberately (Phase 3.0)
+ * and a warning would let it drift back.
+ *
+ * Logic lives in check-doc-links.mjs so `node scripts/check-doc-links.mjs`
+ * gives the same answer with a usable report.
+ */
+function checkDocumentationLinks() {
+  const CHECK = 'DOC_LINK_INTEGRITY';
+  const { filesChecked, broken } = checkDocLinks();
+
+  if (broken.length === 0) {
+    pass(
+      CHECK,
+      `${filesChecked} documentation files, all relative links resolve`,
+    );
+    return;
+  }
+
+  fail(
+    CHECK,
+    `${
+      broken.length
+    } broken link(s) in maintained documentation:\n${formatBroken(broken)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -603,6 +735,7 @@ checkResolutions();
 checkNodeModulesMutation();
 checkCompositionThinness();
 checkCrossPluginBoundaries();
+checkDocumentationLinks();
 
 console.log('==============================================================');
 console.log('SUMMARY');
@@ -611,7 +744,9 @@ for (const p of findings.pass) console.log(`PASS     ${p}`);
 for (const w of findings.warn) console.log(`WARNING  ${w}`);
 for (const f of findings.fail) console.log(`FAIL     ${f}`);
 console.log('');
-console.log(`PASS: ${findings.pass.length}   WARNING: ${findings.warn.length}   FAIL: ${findings.fail.length}`);
+console.log(
+  `PASS: ${findings.pass.length}   WARNING: ${findings.warn.length}   FAIL: ${findings.fail.length}`,
+);
 
 if (findings.fail.length > 0) {
   console.log('\nRESULT: GUARDRAIL_VIOLATION');

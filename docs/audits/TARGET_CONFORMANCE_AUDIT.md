@@ -281,7 +281,7 @@ Reported, not removed: the deprecated `requirements` table ·
 `baselines.requirement_version_ids` · `risk.accept` and `baseline.modify`
 (hard-denied for every role) · `OidcStepUpReAuth` (always throws) ·
 `REQUIREMENT_ORIGINS` values `ORGANIZATION`/`ARTIFACT` (never produced) ·
-the `validation.approve` doc comment (says "never granted"; it is granted) ·
+~~the `validation.approve` doc comment~~ (resolved 2026-09-26, Phase 2.0: the duplicate registry that carried it is removed; `NXD-061`) ·
 the disabled Community RBAC dependency · the `aas-asset` template ·
 `pilot/oee/GITHUB_LIVE_PROOF_NOT_RUN`.
 
