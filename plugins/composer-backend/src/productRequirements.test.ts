@@ -407,18 +407,44 @@ describe('Slice 1a: requirement coverage', () => {
     ).toBe('MAPPED');
   });
 
-  it('ignores a link whose source matches no requirement in the baseline', async () => {
+  // MVP1-B split this in two. It used to write the link through the service
+  // and assert only that coverage ignored it. The write path refuses it now
+  // — that is completion item 4 — so the read-path guarantee has to be
+  // proven against a row that is already in the table, which is the only way
+  // such a row can exist from here on.
+  it('refuses a link to a requirement the bound baseline does not contain', async () => {
+    const { service, component } = await boundSetup();
+
+    await expect(
+      service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT_VERSION',
+          sourceId: 'URS-NOT-IN-BASELINE',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'PRODUCT_COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      ),
+    ).rejects.toThrow(/contains no such requirement/);
+  });
+
+  it('ignores a pre-existing link whose source matches no requirement in the baseline', async () => {
     const { service, version, component } = await boundSetup();
-    await service.createTraceabilityLink(
-      {
-        sourceType: 'URS_REQUIREMENT_VERSION',
-        sourceId: 'URS-NOT-IN-BASELINE',
-        relationshipType: 'IMPLEMENTS',
-        targetType: 'PRODUCT_COMPONENT',
-        targetId: component.id,
-      },
-      actor,
-    );
+
+    // Written straight to the table, standing in for a row from before the
+    // validation existed. Coverage still has to tolerate these: the read
+    // path cannot assume every row in the table was checked on the way in.
+    await db('traceability_links').insert({
+      id: 'legacy-link-1',
+      source_type: 'URS_REQUIREMENT_VERSION',
+      source_id: 'URS-NOT-IN-BASELINE',
+      relationship_type: 'IMPLEMENTS',
+      target_type: 'PRODUCT_COMPONENT',
+      target_id: component.id,
+      created_by: actor,
+      created_at: new Date(),
+    });
 
     const coverage = await service.getRequirementCoverage(version.id);
     expect(coverage.mapped).toBe(0);

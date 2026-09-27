@@ -17,6 +17,7 @@ import {
   ContractSubscription,
   UpgradeNotification,
   TraceabilityLink,
+  TestExecution,
   ProductBaseline,
   ProductRequirement,
 } from './types';
@@ -517,11 +518,58 @@ export class ComposerRepository implements IComposerRepository {
       target_type: link.targetType,
       target_id: link.targetId,
       target_revision: link.targetRevision ?? null,
+      // Mirrors target_id when the target is an execution, so the database
+      // can refuse an id that is not there. Every reader that predates this
+      // column keeps working off target_id.
+      target_test_execution_id:
+        link.targetType === 'TEST_EXECUTION' ? link.targetId : null,
       metadata: link.metadata ? JSON.stringify(link.metadata) : null,
       created_by: link.createdBy,
       created_at: link.createdAt,
     });
     return link;
+  }
+
+  async createTestExecution(execution: TestExecution): Promise<TestExecution> {
+    await this.db('test_executions').insert({
+      id: execution.id,
+      requirement_version_id: execution.requirementVersionId,
+      test_suite: execution.testSuite,
+      test_case: execution.testCase,
+      status: execution.status,
+      executed_at: execution.executedAt,
+      execution_artifact_url: execution.executionArtifactUrl ?? null,
+      correlation_id: execution.correlationId,
+      created_by: execution.createdBy,
+      created_at: execution.createdAt,
+    });
+    return execution;
+  }
+
+  async getTestExecution(id: string): Promise<TestExecution | null> {
+    const row = await this.db('test_executions').where({ id }).first();
+    return row ? this.rowToTestExecution(row) : null;
+  }
+
+  async requirementReferenceExists(reference: string): Promise<boolean> {
+    const row = await this.db('product_requirements')
+      .where({ urs_requirement_version_id: reference })
+      .orWhere({ requirement_ref: reference })
+      .first();
+    return Boolean(row);
+  }
+
+  async listTestExecutions(
+    requirementVersionIds: string[],
+  ): Promise<TestExecution[]> {
+    if (requirementVersionIds.length === 0) {
+      return [];
+    }
+    const rows = await this.db('test_executions')
+      .whereIn('requirement_version_id', requirementVersionIds)
+      .orderBy('executed_at', 'asc')
+      .select();
+    return rows.map((row: any) => this.rowToTestExecution(row));
   }
 
   async deleteTraceabilityLink(id: string): Promise<void> {
@@ -729,6 +777,24 @@ export class ComposerRepository implements IComposerRepository {
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
+    };
+  }
+
+  private rowToTestExecution(row: any): TestExecution {
+    return {
+      id: row.id,
+      requirementVersionId: row.requirement_version_id,
+      testSuite: row.test_suite,
+      testCase: row.test_case,
+      status: row.status as TestExecution['status'],
+      // SQLite hands timestamps back as numbers or strings depending on how
+      // they went in; the coverage rule compares them, so normalise here
+      // rather than at every call site.
+      executedAt: new Date(row.executed_at),
+      executionArtifactUrl: row.execution_artifact_url ?? undefined,
+      correlationId: row.correlation_id,
+      createdBy: row.created_by,
+      createdAt: new Date(row.created_at),
     };
   }
 

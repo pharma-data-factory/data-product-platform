@@ -16,6 +16,8 @@ import {
   isRequirementOrigin,
   validateProductRequirement,
   REQUIREMENT_ORIGINS,
+  validateTestExecution,
+  latestExecutionPerCase,
 } from './product';
 
 describe('product model', () => {
@@ -58,18 +60,76 @@ describe('product model', () => {
   it('validates traceability links', () => {
     expect(
       validateTraceabilityLink({
+        sourceType: 'URS_REQUIREMENT',
         sourceId: 'URS-OUT-001',
+        targetType: 'PRODUCT_COMPONENT',
         targetId: 'comp-1',
         relationshipType: 'IMPLEMENTS',
       }),
     ).toEqual([]);
     expect(
       validateTraceabilityLink({
+        sourceType: 'URS_REQUIREMENT',
         sourceId: '',
+        targetType: 'PRODUCT_COMPONENT',
         targetId: 'comp-1',
         relationshipType: 'IMPLEMENTS',
       }),
     ).toEqual(['Traceability link sourceId is required']);
+  });
+
+  // The two type fields were free strings until MVP1-B and drifted into
+  // three spellings of "a requirement" and two of "a component". They are a
+  // closed vocabulary now, and so is relationshipType, which had a constant
+  // since Phase 1 that the validator never consulted.
+  it('rejects a traceability link whose types are outside the vocabulary', () => {
+    expect(
+      validateTraceabilityLink({
+        sourceType: 'URS',
+        sourceId: 'URS-OUT-001',
+        targetType: 'COMPONENT',
+        targetId: 'comp-1',
+        relationshipType: 'IMPLEMENTS',
+      }),
+    ).toEqual([
+      expect.stringContaining('Unsupported sourceType: URS'),
+      expect.stringContaining('Unsupported targetType: COMPONENT'),
+    ]);
+
+    expect(
+      validateTraceabilityLink({
+        sourceType: 'URS_REQUIREMENT',
+        sourceId: 'URS-OUT-001',
+        targetType: 'PRODUCT_COMPONENT',
+        targetId: 'comp-1',
+        relationshipType: 'SUPERSEDES',
+      }),
+    ).toEqual([
+      expect.stringContaining('Unsupported relationshipType: SUPERSEDES'),
+    ]);
+
+    expect(
+      validateTraceabilityLink({
+        sourceId: 'URS-OUT-001',
+        targetId: 'comp-1',
+        relationshipType: 'IMPLEMENTS',
+      }),
+    ).toEqual([
+      'Traceability link sourceType is required',
+      'Traceability link targetType is required',
+    ]);
+  });
+
+  it('accepts a test execution as a link target', () => {
+    expect(
+      validateTraceabilityLink({
+        sourceType: 'URS_REQUIREMENT_VERSION',
+        sourceId: 'urs-version-1',
+        targetType: 'TEST_EXECUTION',
+        targetId: 'exec-1',
+        relationshipType: 'VERIFIED_BY',
+      }),
+    ).toEqual([]);
   });
 
   describe('version labels', () => {
@@ -236,6 +296,136 @@ describe('product model', () => {
       // URS Composer, and a second opinion in front of an approved record is
       // not this function's job.
       expect(validateProductRequirement(valid)).toEqual([]);
+    });
+  });
+
+  // MVP1-B (B-4a/B-4c). The verification rule lives here as a pure function
+  // precisely so it can be read and checked without a database — it decides
+  // whether the release gate blocks, which is too important to be reachable
+  // only through four layers of setup.
+  describe('test execution evidence', () => {
+    const at = (iso: string) => new Date(iso);
+
+    it('validates an ingested result', () => {
+      expect(
+        validateTestExecution({
+          requirementVersionId: 'urs-version-1',
+          testSuite: 'integration',
+          testCase: 'ingests a weighing event',
+          status: 'PASSED',
+        }),
+      ).toEqual([]);
+    });
+
+    it('refuses a status that is neither PASSED nor FAILED', () => {
+      expect(
+        validateTestExecution({
+          requirementVersionId: 'urs-version-1',
+          testSuite: 'integration',
+          testCase: 'x',
+          status: 'SKIPPED',
+        }),
+      ).toEqual([expect.stringContaining('Unsupported status: SKIPPED')]);
+    });
+
+    it('names every missing field at once rather than the first', () => {
+      expect(validateTestExecution({})).toEqual([
+        expect.stringContaining('requirementVersionId is required'),
+        expect.stringContaining('testSuite is required'),
+        expect.stringContaining('testCase is required'),
+        expect.stringContaining('status is required'),
+      ]);
+    });
+
+    // An artifact URL nobody else can open is not evidence. Absent is fine;
+    // present and unreachable is a promise the record cannot keep.
+    it.each(['artifacts/report.xml', 'file:///tmp/report.xml', 'not a url'])(
+      'refuses executionArtifactUrl %s',
+      url => {
+        expect(
+          validateTestExecution({
+            requirementVersionId: 'urs-version-1',
+            testSuite: 'integration',
+            testCase: 'x',
+            status: 'PASSED',
+            executionArtifactUrl: url,
+          }),
+        ).toEqual([
+          expect.stringContaining('absolute http(s) URL'),
+        ]);
+      },
+    );
+
+    it('accepts an absolute https artifact url', () => {
+      expect(
+        validateTestExecution({
+          requirementVersionId: 'urs-version-1',
+          testSuite: 'integration',
+          testCase: 'x',
+          status: 'PASSED',
+          executionArtifactUrl: 'https://ci.example.com/runs/1/report.xml',
+        }),
+      ).toEqual([]);
+    });
+
+    // Optional, but an empty string is a caller that meant to supply one and
+    // computed nothing. Accepting it would correlate a whole CI run on ''.
+    it('refuses an empty correlationId while allowing an absent one', () => {
+      const base = {
+        requirementVersionId: 'urs-version-1',
+        testSuite: 'integration',
+        testCase: 'x',
+        status: 'PASSED',
+      };
+      expect(validateTestExecution(base)).toEqual([]);
+      expect(
+        validateTestExecution({ ...base, correlationId: '   ' }),
+      ).toEqual([expect.stringContaining('correlationId, when present')]);
+    });
+
+    describe('latestExecutionPerCase', () => {
+      it('keeps the newest run of each case', () => {
+        const rows = [
+          { testSuite: 'a', testCase: '1', executedAt: at('2026-01-01T00:00:00Z'), status: 'PASSED' },
+          { testSuite: 'a', testCase: '1', executedAt: at('2026-01-02T00:00:00Z'), status: 'FAILED' },
+          { testSuite: 'a', testCase: '2', executedAt: at('2026-01-01T00:00:00Z'), status: 'PASSED' },
+        ];
+        const latest = latestExecutionPerCase(rows);
+        expect(latest).toHaveLength(2);
+        expect(latest.find(r => r.testCase === '1')?.status).toBe('FAILED');
+        expect(latest.find(r => r.testCase === '2')?.status).toBe('PASSED');
+      });
+
+      it('does not let an older re-run resurrect a pass', () => {
+        const rows = [
+          { testSuite: 'a', testCase: '1', executedAt: at('2026-01-02T00:00:00Z'), status: 'FAILED' },
+          { testSuite: 'a', testCase: '1', executedAt: at('2026-01-01T00:00:00Z'), status: 'PASSED' },
+        ];
+        expect(latestExecutionPerCase(rows)[0].status).toBe('FAILED');
+      });
+
+      // Two runs of one case at the same instant is a CI quirk. Taking the
+      // one that arrived second is the closest thing to "latest" the data
+      // supports, and it has to be decided rather than left to Map order.
+      it('breaks a timestamp tie towards the later element', () => {
+        const rows = [
+          { testSuite: 'a', testCase: '1', executedAt: at('2026-01-01T00:00:00Z'), status: 'PASSED' },
+          { testSuite: 'a', testCase: '1', executedAt: at('2026-01-01T00:00:00Z'), status: 'FAILED' },
+        ];
+        expect(latestExecutionPerCase(rows)[0].status).toBe('FAILED');
+      });
+
+      it('separates cases with the same name in different suites', () => {
+        const rows = [
+          { testSuite: 'unit', testCase: 'x', executedAt: at('2026-01-01T00:00:00Z'), status: 'PASSED' },
+          { testSuite: 'e2e', testCase: 'x', executedAt: at('2026-01-01T00:00:00Z'), status: 'FAILED' },
+        ];
+        expect(latestExecutionPerCase(rows)).toHaveLength(2);
+      });
+
+      it('answers empty for no evidence', () => {
+        expect(latestExecutionPerCase([])).toEqual([]);
+      });
     });
   });
 });

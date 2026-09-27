@@ -2601,3 +2601,113 @@ than the plumbing around it.
 - Affected components: `plugins/composer-backend`
   (`db/migrations.ts`, `repository-interface.ts`, `repository.ts`,
   `service.ts`, `types.ts`, `audit-correlation.test.ts`).
+
+---
+
+### NXD-067 — A link that could point at nothing, and a discriminator that discriminated nothing
+
+- Date: 2026-09-27
+- Slice: MVP1-B / B-4a
+- Closes: conformance audit §11 item 4 ("validated references on
+  `traceability_links`"); prepares items 2 and 3
+
+`traceability_links` has carried `source_type` and `target_type` since Phase 1
+as `varchar(50)` with nothing checking them. `relationship_type` had a closed
+vocabulary from the start — `TRACEABILITY_RELATIONSHIP_TYPES` — and
+`validateTraceabilityLink` **never consulted it either**. Three fields
+describing what a link is, none enforced.
+
+**What that produced.** `URS`, `URS_REQUIREMENT` and `URS_REQUIREMENT_VERSION`
+all appeared for "a requirement"; `COMPONENT` and `PRODUCT_COMPONENT` both
+appeared for a component. Production code had converged on the canonical pair
+(`service.ts`, `ArchitectureTab.tsx`); the drift lived in `versioning.test.ts`,
+which is worse than it sounds — the fixtures were the only written record of
+what the columns were supposed to contain, and they disagreed with the code.
+
+The deeper problem is not tidiness. **A discriminator that accepts any value
+cannot be resolved.** Nothing could look at a link and decide what its
+endpoints were, so nothing could check they existed, so the release gate was
+reading a table that could contain claims about entities that were never
+there.
+
+**Three mechanisms, because no single one reaches.**
+
+1. **A real foreign key, for the one endpoint in this schema.**
+   `target_test_execution_id` references `test_executions` and is set
+   whenever `targetType === 'TEST_EXECUTION'`, mirroring `target_id` so every
+   existing reader keeps working. `source_id`/`target_id` stay polymorphic
+   and can never carry a key themselves.
+2. **CHECK constraints on the two type columns — PostgreSQL only.** This is
+   the **first dialect branch in `migrations.ts`**, a file that had
+   deliberately had none. SQLite's `ALTER TABLE` supports RENAME, ADD COLUMN
+   and DROP COLUMN; adding a constraint to an existing table would mean
+   rebuilding it, copying production rows through a create/copy/drop/rename
+   to gain a guarantee the service already enforces on every write. So the
+   constraint goes where the data lives, and `migrations.postgres.test.ts`
+   asserts it — if the branch is removed the test fails rather than the
+   guarantee quietly disappearing.
+3. **Existence validation in the service**, which is what actually runs on
+   both dialects and for every write.
+
+**Why a cross-plugin foreign key is not on that list.** A URS requirement
+version lives in `urs-composer-backend`'s database. `AGENTS.md` §PLUGIN
+BOUNDARIES forbids direct cross-plugin database access and the two plugins
+have separate logical databases anyway (`composer` and `urs-composer`), so
+the referential guarantee that a relational schema would normally give is
+simply not available. What replaces it is `product_requirements` — this
+plugin's **own** snapshot of the bound baseline. Checking against the
+snapshot answers the same question and stays inside the boundary.
+
+**The scoping rule is the part that took a second attempt.** The first
+implementation required every requirement reference to appear in *some*
+product version's snapshot. It broke twelve existing tests, and the tests
+were right. A version that has bound no baseline has no snapshot, and the
+Architecture tab deliberately lets an author record that a component
+implements `URS-OEE-014` before the binding exists — `getRequirementCoverage`
+is explicitly built to join links written that way. Requiring the snapshot
+would have enforced a rule whose answer is not yet knowable, at the cost of a
+workflow the platform offers.
+
+So the rule is: **check the requirement against the bound version's snapshot
+when there is one.** Unbound, the link is provisional and passes. Bound, a
+requirement the baseline does not contain is refused — which is the case that
+matters, and the same judgement `applySpecDraft` already made when it skipped
+refs the model invented. Where there is no component to scope by (a
+requirement linked to a test execution), any snapshot counts: a requirement
+version is pinned by many products, and evidence about it is evidence about
+it.
+
+**The read path stays forgiving, and that is now explicit.** Rows written
+before this validation existed cannot be assumed valid, so
+`getRequirementCoverage` must still ignore a link whose source matches
+nothing. The test that proved this used to write the bad link through the
+service; it cannot any more, so it inserts the row directly and the write-path
+refusal became a second test. The pair says what one test used to imply:
+refused on the way in, tolerated on the way out.
+
+**`test_executions` is append-only, deliberately.** No unique constraint on
+`(requirement_version_id, test_suite, test_case)` and no upsert. A re-run is
+new evidence, not a correction — that a test passed on Tuesday and failed on
+Wednesday is exactly what a reviewer needs, and an upsert would destroy it.
+"Which is current" is therefore a question asked of the rows by
+`latestExecutionPerCase`, a pure function in `platform-common` so the rule
+that decides whether the release gate blocks can be read and tested without a
+database.
+
+**The migration refuses rather than normalises.** `assertTraceabilityVocabulary`
+lists offending rows and stops, the choice `NXD-009` made for duplicate
+identities and for the same reason: rewriting `COMPONENT` to
+`PRODUCT_COMPONENT` unattended is a guess about what an author meant, on a
+table that feeds the release gate, where a wrong guess produces a link that
+looks verified and is not.
+
+**One refusal retyped in passing.** `createTraceabilityLink` threw a plain
+`Error` for a validation failure, so a caller's typo answered
+`500 Internal server error`. It is an `InputError` now — the same family as
+the three refusals B-1 corrected.
+
+- Affected components: `packages/platform-common` (`product.ts`, `index.ts`),
+  `plugins/composer-backend` (`db/migrations.ts`, `repository-interface.ts`,
+  `repository.ts`, `service.ts`, `types.ts`), and the suites
+  `traceabilityIntegrity.test.ts`, `db/migrations.postgres.test.ts`,
+  `productRequirements.test.ts`, `versioning.test.ts`.

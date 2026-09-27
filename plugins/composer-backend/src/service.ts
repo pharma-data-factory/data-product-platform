@@ -1075,8 +1075,11 @@ export class ComposerService {
     const audit = this.beginAudit(actor, inheritedAudit);
     const issues = validateTraceabilityLink(request);
     if (issues.length > 0) {
-      throw new Error(issues.join('; '));
+      // Was a plain Error, so a caller's typo answered 500 "Internal server
+      // error". Same family as the three refusals B-1 retyped.
+      throw new InputError(issues.join('; '));
     }
+    await this.assertTraceabilityEndpointsExist(request);
     const link: TraceabilityLink = {
       id: randomUUID(),
       sourceType: request.sourceType,
@@ -2024,6 +2027,124 @@ export class ComposerService {
     // (e.g. unit tests). Spec generation proceeds with an empty component list
     // and the LLM will suggest from whatever it already knows.
     return [];
+  }
+
+  /**
+   * Refuse a traceability link to something that is not there.
+   *
+   * The audit's completion item 4 — "validated references on
+   * `traceability_links`". A link is the platform's claim that one thing
+   * relates to another; a link to something that does not exist is not a
+   * weak claim, it is a false one, and the release gate reads these rows.
+   *
+   * Two different standards, because the two kinds of endpoint are not
+   * comparable:
+   *
+   *  - **Rows this schema owns** — components and test executions — must
+   *    exist. There is no case where naming one that does not is anything
+   *    but a mistake.
+   *  - **URS requirement references** are checked only where the answer is
+   *    knowable. `product_requirements` is a snapshot that exists once a
+   *    baseline is bound; before that there is nothing to check against, and
+   *    refusing the link would break a workflow the platform offers — the
+   *    Architecture tab lets an author record that a component implements
+   *    `URS-OEE-014` while the version is still unbound, and
+   *    `getRequirementCoverage` is explicitly built to join links that
+   *    predate the snapshot.
+   *
+   * So the requirement check is **scoped to the bound version** when there is
+   * one. That refuses the case that actually matters — claiming a
+   * requirement the bound baseline does not contain, which is the same thing
+   * `applySpecDraft` already declines to write — without refusing a
+   * provisional link on a version that has bound nothing yet.
+   */
+  private async assertTraceabilityEndpointsExist(
+    request: CreateTraceabilityLinkRequest,
+  ): Promise<void> {
+    const missing = (end: string, type: string, id: string, what: string) =>
+      new NotFoundError(
+        `Traceability link ${end} ${type} ${id} does not exist: ${what}`,
+      );
+
+    let componentVersionId: string | undefined;
+
+    for (const [end, type, id] of [
+      ['source', request.sourceType, request.sourceId],
+      ['target', request.targetType, request.targetId],
+    ] as const) {
+      if (type === 'PRODUCT_COMPONENT') {
+        const component = await this.repository.getProductComponent(id);
+        if (!component) {
+          throw missing(end, type, id, 'no such product component');
+        }
+        componentVersionId = component.productVersionId;
+      } else if (type === 'TEST_EXECUTION') {
+        const execution = await this.repository.getTestExecution(id);
+        if (!execution) {
+          throw missing(end, type, id, 'no such test execution');
+        }
+      }
+    }
+
+    // A link has at most one requirement end. The source is by far the
+    // common case (`URS_REQUIREMENT -> PRODUCT_COMPONENT`); the target form
+    // exists because the vocabulary admits it.
+    let end: 'source' | 'target';
+    let type: string;
+    let id: string;
+    if (
+      request.sourceType === 'URS_REQUIREMENT_VERSION' ||
+      request.sourceType === 'URS_REQUIREMENT'
+    ) {
+      [end, type, id] = ['source', request.sourceType, request.sourceId];
+    } else if (request.targetType === 'URS_REQUIREMENT_VERSION') {
+      [end, type, id] = ['target', request.targetType, request.targetId];
+    } else {
+      return;
+    }
+
+    if (componentVersionId) {
+      const version =
+        await this.repository.getProductVersion(componentVersionId);
+      if (!version?.ursBaselineId) {
+        // Unbound: the link is provisional and there is nothing to check it
+        // against. Coverage will pick it up if and when a baseline that
+        // contains this requirement is bound.
+        return;
+      }
+      const snapshot =
+        await this.repository.listProductRequirements(componentVersionId);
+      const held = snapshot.some(
+        requirement =>
+          requirement.ursRequirementVersionId === id ||
+          requirement.requirementRef === id,
+      );
+      if (!held) {
+        throw missing(
+          end,
+          type,
+          id,
+          `URS baseline ${version.ursBaselineId}, bound to this product ` +
+            'version, contains no such requirement',
+        );
+      }
+      return;
+    }
+
+    // No component to scope by — a requirement linked to a test execution.
+    // Any product version's snapshot counts: a requirement version is pinned
+    // by many products, and evidence produced for one of them is evidence
+    // about that requirement.
+    const known = await this.repository.requirementReferenceExists(id);
+    if (!known) {
+      throw missing(
+        end,
+        type,
+        id,
+        'no product version has this requirement in its bound URS baseline ' +
+          'snapshot',
+      );
+    }
   }
 
   /**

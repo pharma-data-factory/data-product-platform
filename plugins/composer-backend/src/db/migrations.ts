@@ -6,6 +6,10 @@
  */
 
 import { Knex } from 'knex';
+import {
+  TRACEABILITY_SOURCE_TYPES,
+  TRACEABILITY_TARGET_TYPES,
+} from '@internal/platform-common';
 
 export async function up(knex: Knex): Promise<void> {
   if (!(await knex.schema.hasTable('products'))) {
@@ -499,6 +503,179 @@ export async function up(knex: Knex): Promise<void> {
       table.unique(['contract_id', 'consumer_ref']);
     });
   }
+
+  // MVP1-B (Slice B-4a): test evidence becomes a first-class row.
+  //
+  // Append-only. A re-run is new evidence, not a correction of the old row,
+  // so there is deliberately no unique constraint on
+  // (requirement_version_id, test_suite, test_case) and no upsert path. That
+  // a test passed on Tuesday and failed on Wednesday is precisely what a
+  // reviewer needs to see, and "which is current" is a question asked of the
+  // rows by `latestExecutionPerCase`, not a column that overwrites history.
+  //
+  // `requirement_version_id` carries the URS `RequirementVersion.id` as a
+  // value and not a foreign key. It cannot be one: the URS Composer owns its
+  // own database, and AGENTS.md (PLUGIN BOUNDARIES) forbids a direct
+  // cross-plugin database reference. The service checks the value against
+  // this plugin's own `product_requirements` snapshot instead, which answers
+  // the same question without crossing the boundary.
+  if (!(await knex.schema.hasTable('test_executions'))) {
+    await knex.schema.createTable('test_executions', table => {
+      table.string('id', 255).primary();
+      table.string('requirement_version_id', 255).notNullable();
+      table.string('test_suite', 255).notNullable();
+      table.string('test_case', 512).notNullable();
+      table.string('status', 16).notNullable();
+      table.timestamp('executed_at').notNullable();
+      table.string('execution_artifact_url', 1024).nullable();
+      table.string('correlation_id', 255).notNullable();
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+
+      table.index(['requirement_version_id']);
+      table.index(['correlation_id']);
+    });
+  }
+
+  await addTraceabilityIntegrity(knex);
+}
+
+/**
+ * Make `traceability_links` say what it points at, and refuse what it cannot.
+ *
+ * MVP1-B (Slice B-4a), audit completion item 4. The table has carried
+ * `source_type` and `target_type` since Phase 1 as free `varchar(50)`
+ * columns. Nothing checked them, so they drifted: `URS`, `URS_REQUIREMENT`
+ * and `URS_REQUIREMENT_VERSION` all meant "a requirement", and `COMPONENT`
+ * and `PRODUCT_COMPONENT` both meant a component. A discriminator that
+ * accepts anything discriminates nothing, and — the part that matters — an
+ * endpoint whose kind is unknown cannot be resolved to check it exists.
+ *
+ * Three mechanisms, because no single one reaches:
+ *
+ *  1. A real foreign key, for the one endpoint that lives in this schema.
+ *     `target_test_execution_id` is nullable and references
+ *     `test_executions`. `source_id`/`target_id` stay polymorphic and can
+ *     never carry a foreign key themselves.
+ *  2. CHECK constraints on the two type columns — PostgreSQL only, see below.
+ *  3. Existence validation in the service, which is what actually runs on
+ *     both dialects and for every write.
+ */
+async function addTraceabilityIntegrity(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('traceability_links'))) {
+    return;
+  }
+
+  if (
+    !(await knex.schema.hasColumn(
+      'traceability_links',
+      'target_test_execution_id',
+    ))
+  ) {
+    await knex.schema.alterTable('traceability_links', table => {
+      // Nullable and additive: every link written before this points at a
+      // component and has no execution to name. `target_id` still carries
+      // the value for every reader that predates this column; this one
+      // exists so the database can refuse an execution id that is not there.
+      table
+        .string('target_test_execution_id', 255)
+        .nullable()
+        .references('id')
+        .inTable('test_executions');
+    });
+  }
+
+  await assertTraceabilityVocabulary(knex);
+
+  // The only dialect branch in this file, and it is worth saying why.
+  //
+  // Everything else here is written so one statement covers both PostgreSQL
+  // (production) and SQLite (tests). A CHECK constraint cannot be: SQLite's
+  // ALTER TABLE supports RENAME, ADD COLUMN and DROP COLUMN and nothing else,
+  // so adding one to an existing table would mean rebuilding the table —
+  // copying production rows through a create/copy/drop/rename dance to gain
+  // a guarantee the service already enforces on every write.
+  //
+  // So the constraint is added where the data actually lives, and SQLite
+  // parity is carried by `validateTraceabilityLink` plus the suite. The
+  // constraint itself is proven in `db/migrations.postgres.test.ts`, which is
+  // the one composer suite that runs against real PostgreSQL.
+  if (knex.client.config.client !== 'pg') {
+    return;
+  }
+
+  const constraints: [string, string, readonly string[]][] = [
+    [
+      'traceability_links_source_type_check',
+      'source_type',
+      TRACEABILITY_SOURCE_TYPES,
+    ],
+    [
+      'traceability_links_target_type_check',
+      'target_type',
+      TRACEABILITY_TARGET_TYPES,
+    ],
+  ];
+
+  for (const [name, column, values] of constraints) {
+    const existing = await knex
+      .select('conname')
+      .from('pg_constraint')
+      .where({ conname: name })
+      .first();
+    if (existing) {
+      continue;
+    }
+    const list = values.map(value => `'${value}'`).join(', ');
+    await knex.raw(
+      `alter table ?? add constraint ?? check (?? in (${list}))`,
+      ['traceability_links', name, column],
+    );
+  }
+}
+
+/**
+ * Rows whose `source_type`/`target_type` is outside the vocabulary.
+ *
+ * Reports and stops, the same choice `assertNoDuplicateIdentities` makes and
+ * for the same reason. Normalising `COMPONENT` to `PRODUCT_COMPONENT`
+ * unattended would be a guess about what an author meant, on a table that
+ * feeds the release gate — and a wrong guess there produces a link that looks
+ * verified and is not. The data is already ambiguous; the constraint only
+ * makes that visible.
+ */
+async function assertTraceabilityVocabulary(knex: Knex): Promise<void> {
+  const rows = await knex('traceability_links')
+    .select('id', 'source_type', 'target_type')
+    .whereNotIn('source_type', [...TRACEABILITY_SOURCE_TYPES])
+    .orWhereNotIn('target_type', [...TRACEABILITY_TARGET_TYPES]);
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const problems = (rows as any[])
+    .slice(0, 20)
+    .map(
+      row =>
+        `  traceability_links: id=${row.id} ` +
+        `source_type=${row.source_type} target_type=${row.target_type}`,
+    );
+  const more =
+    rows.length > problems.length
+      ? `\n  ... and ${rows.length - problems.length} more`
+      : '';
+
+  throw new Error(
+    'Composer migration stopped: traceability_links contains rows whose ' +
+      'source_type or target_type is outside the supported vocabulary.\n' +
+      `${problems.join('\n')}${more}\n` +
+      `Supported source_type: ${TRACEABILITY_SOURCE_TYPES.join(', ')}\n` +
+      `Supported target_type: ${TRACEABILITY_TARGET_TYPES.join(', ')}\n` +
+      'These links cannot be resolved to an entity, so the release gate ' +
+      'cannot tell whether they verify anything. Correct them deliberately ' +
+      'and redeploy — the migration will not guess what a link meant.',
+  );
 }
 
 /**
@@ -704,7 +881,9 @@ export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('product_requirements');
   await knex.schema.dropTableIfExists('product_baselines');
   await knex.schema.dropTableIfExists('composer_audit_events');
+  // Before test_executions: traceability_links carries a foreign key into it.
   await knex.schema.dropTableIfExists('traceability_links');
+  await knex.schema.dropTableIfExists('test_executions');
   await knex.schema.dropTableIfExists('data_contracts');
   await knex.schema.dropTableIfExists('product_components');
   await knex.schema.dropTableIfExists('product_versions');

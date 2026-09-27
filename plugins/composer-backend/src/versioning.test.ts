@@ -184,7 +184,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceType: 'URS_REQUIREMENT',
           sourceId: 'urs-wd-001',
           relationshipType: 'IMPLEMENTS',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
         },
         actor,
@@ -203,7 +203,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceType: 'URS_REQUIREMENT',
           sourceId: 'urs-wd-001',
           relationshipType: 'IMPLEMENTS',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
         },
         actor,
@@ -246,7 +246,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceType: 'URS_REQUIREMENT',
           sourceId: 'urs-wd-001',
           relationshipType: 'IMPLEMENTS',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
         },
         actor,
@@ -277,7 +277,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceType: 'URS_REQUIREMENT',
           sourceId: 'urs-wd-001',
           relationshipType: 'IMPLEMENTS',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
         },
         actor,
@@ -349,7 +349,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceId: 'urs-wd-001',
           sourceRevision: 2,
           relationshipType: 'IMPLEMENTS',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
           targetRevision: 1,
         },
@@ -366,7 +366,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceType: 'URS_REQUIREMENT',
           sourceId: 'urs-wd-002',
           relationshipType: 'VERIFIED_BY',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
         },
         actor,
@@ -393,7 +393,7 @@ describe('Phase 1: Versioning Foundation', () => {
           sourceType: 'URS_REQUIREMENT',
           sourceId: 'urs-wd-001',
           relationshipType: 'IMPLEMENTS',
-          targetType: 'COMPONENT',
+          targetType: 'PRODUCT_COMPONENT',
           targetId: component.id,
         },
         actor,
@@ -470,7 +470,7 @@ describe('Phase 1: Versioning Foundation', () => {
     it('fails with NO_APPROVED_URS_BASELINE when resolver throws', async () => {
       const { version, component } = await createFullSetupWithResolver();
       await serviceWithResolver.createTraceabilityLink(
-        { sourceType: 'URS', sourceId: 'urs-1', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        { sourceType: 'URS_REQUIREMENT', sourceId: 'urs-1', relationshipType: 'IMPLEMENTS', targetType: 'PRODUCT_COMPONENT', targetId: component.id },
         actor,
       );
       const baseline = await serviceWithResolver.createProductBaseline(
@@ -492,7 +492,7 @@ describe('Phase 1: Versioning Foundation', () => {
     it('passes when URS baselines are all APPROVED', async () => {
       const { version, component } = await createFullSetupWithResolver();
       await serviceWithResolver.createTraceabilityLink(
-        { sourceType: 'URS', sourceId: 'urs-2', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        { sourceType: 'URS_REQUIREMENT', sourceId: 'urs-2', relationshipType: 'IMPLEMENTS', targetType: 'PRODUCT_COMPONENT', targetId: component.id },
         actor,
       );
       const baseline = await serviceWithResolver.createProductBaseline(
@@ -520,7 +520,7 @@ describe('Phase 1: Versioning Foundation', () => {
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockClear();
       const { version, component } = await createFullSetupWithResolver();
       await serviceWithResolver.createTraceabilityLink(
-        { sourceType: 'URS', sourceId: 'urs-3', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        { sourceType: 'URS_REQUIREMENT', sourceId: 'urs-3', relationshipType: 'IMPLEMENTS', targetType: 'PRODUCT_COMPONENT', targetId: component.id },
         actor,
       );
       const baseline = await serviceWithResolver.createProductBaseline(version.id, {}, actor);
@@ -580,7 +580,7 @@ describe('Phase 1: Versioning Foundation', () => {
         version.id, { componentType: 'SOURCE', name: 'S' }, actor,
       );
       await serviceWithDecisionResolver.createTraceabilityLink(
-        { sourceType: 'URS', sourceId: 'urs-x', relationshipType: 'IMPLEMENTS', targetType: 'COMPONENT', targetId: component.id },
+        { sourceType: 'URS_REQUIREMENT', sourceId: 'urs-x', relationshipType: 'IMPLEMENTS', targetType: 'PRODUCT_COMPONENT', targetId: component.id },
         actor,
       );
       const baseline = await serviceWithDecisionResolver.createProductBaseline(

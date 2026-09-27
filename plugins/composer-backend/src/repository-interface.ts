@@ -8,6 +8,7 @@ import {
   ContractSubscription,
   UpgradeNotification,
   TraceabilityLink,
+  TestExecution,
   ProductBaseline,
   ProductRequirement,
 } from './types';
@@ -121,6 +122,23 @@ export interface IComposerRepository {
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
   deleteTraceabilityLink(id: string): Promise<void>;
   listTraceabilityLinks(): Promise<TraceabilityLink[]>;
+
+  createTestExecution(execution: TestExecution): Promise<TestExecution>;
+  getTestExecution(id: string): Promise<TestExecution | null>;
+  /**
+   * Every recorded run for the given requirement versions, oldest first.
+   *
+   * Takes a list rather than one id because coverage asks for a whole
+   * product version's requirements at once, and one query beats N.
+   */
+  listTestExecutions(requirementVersionIds: string[]): Promise<TestExecution[]>;
+  /**
+   * Whether any product version's snapshot holds this requirement, by either
+   * key — the version UUID or the stable ref. Coverage joins on both, so an
+   * existence check that accepted only one would refuse links the read path
+   * would happily have counted.
+   */
+  requirementReferenceExists(reference: string): Promise<boolean>;
 
   createProductBaseline(baseline: ProductBaseline): Promise<ProductBaseline>;
   getProductBaseline(id: string): Promise<ProductBaseline | null>;

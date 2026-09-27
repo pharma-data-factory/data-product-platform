@@ -31,6 +31,11 @@ function row(overrides: Record<string, unknown>) {
   return { created_by: actor, created_at: new Date(), revision: 1, ...overrides };
 }
 
+/** traceability_links has no `revision` column; `row()` would invent one. */
+function linkRow(overrides: Record<string, unknown>) {
+  return { created_by: actor, created_at: new Date(), ...overrides };
+}
+
 describe('composer migration on PostgreSQL', () => {
   let db: Knex | undefined;
   let available = false;
@@ -135,5 +140,166 @@ describe('composer migration on PostgreSQL', () => {
         }),
       ),
     ).rejects.toThrow(/unique/i);
+  }, 60000);
+
+  // MVP1-B (B-4a). These two guarantees exist only on PostgreSQL, and this
+  // is the only composer suite that can see them.
+  //
+  // The CHECK constraints are the file's single dialect branch: SQLite's
+  // ALTER TABLE cannot add a constraint to an existing table, so the
+  // vocabulary is enforced there by the service alone. If that branch is
+  // ever removed or the constraint renamed, these assertions fail rather
+  // than the guarantee quietly disappearing.
+  it('enforces the traceability vocabulary and the test-execution foreign key', async () => {
+    if (!available) {
+      console.warn(
+        'Skipping composer PostgreSQL migration test: no database. Run ' +
+          '`docker compose -f docker-compose.test.yml up -d`.',
+      );
+      return;
+    }
+    const database = db as Knex;
+
+    await up(database);
+
+    await database('product_components').insert(
+      row({
+        id: 'c1',
+        product_version_id: 'v1',
+        component_type: 'API',
+        name: 'probe-api',
+      }),
+    );
+
+    await expect(
+      database('traceability_links').insert(
+        linkRow({
+          id: 'tl-bad-source',
+          source_type: 'URS',
+          source_id: 'URS-PROBE-001',
+          relationship_type: 'IMPLEMENTS',
+          target_type: 'PRODUCT_COMPONENT',
+          target_id: 'c1',
+        }),
+      ),
+    ).rejects.toThrow(/traceability_links_source_type_check/);
+
+    await expect(
+      database('traceability_links').insert(
+        linkRow({
+          id: 'tl-bad-target',
+          source_type: 'URS_REQUIREMENT',
+          source_id: 'URS-PROBE-001',
+          relationship_type: 'IMPLEMENTS',
+          target_type: 'COMPONENT',
+          target_id: 'c1',
+        }),
+      ),
+    ).rejects.toThrow(/traceability_links_target_type_check/);
+
+    // The canonical spelling of the same link goes in.
+    await database('traceability_links').insert(
+      linkRow({
+        id: 'tl-good',
+        source_type: 'URS_REQUIREMENT',
+        source_id: 'URS-PROBE-001',
+        relationship_type: 'IMPLEMENTS',
+        target_type: 'PRODUCT_COMPONENT',
+        target_id: 'c1',
+      }),
+    );
+
+    // The one endpoint that lives in this schema gets a real foreign key.
+    await expect(
+      database('traceability_links').insert(
+        linkRow({
+          id: 'tl-phantom-exec',
+          source_type: 'URS_REQUIREMENT_VERSION',
+          source_id: 'urs-version-probe',
+          relationship_type: 'VERIFIED_BY',
+          target_type: 'TEST_EXECUTION',
+          target_id: 'exec-that-does-not-exist',
+          target_test_execution_id: 'exec-that-does-not-exist',
+        }),
+      ),
+    ).rejects.toThrow(/foreign key|violates/i);
+
+    await database('test_executions').insert({
+      id: 'exec-1',
+      requirement_version_id: 'urs-version-probe',
+      test_suite: 'integration',
+      test_case: 'ingests a weighing event',
+      status: 'PASSED',
+      executed_at: new Date(),
+      correlation_id: 'corr-probe-1',
+      created_by: actor,
+      created_at: new Date(),
+    });
+
+    await database('traceability_links').insert(
+      linkRow({
+        id: 'tl-real-exec',
+        source_type: 'URS_REQUIREMENT_VERSION',
+        source_id: 'urs-version-probe',
+        relationship_type: 'VERIFIED_BY',
+        target_type: 'TEST_EXECUTION',
+        target_id: 'exec-1',
+        target_test_execution_id: 'exec-1',
+      }),
+    );
+
+    // Append-only: a second run of the same case is a second row, not an
+    // upsert. A unique constraint here would have destroyed the history the
+    // verification rule reads.
+    await database('test_executions').insert({
+      id: 'exec-2',
+      requirement_version_id: 'urs-version-probe',
+      test_suite: 'integration',
+      test_case: 'ingests a weighing event',
+      status: 'FAILED',
+      executed_at: new Date(),
+      correlation_id: 'corr-probe-2',
+      created_by: actor,
+      created_at: new Date(),
+    });
+    const runs = await database('test_executions')
+      .where({ requirement_version_id: 'urs-version-probe' })
+      .select();
+    expect(runs).toHaveLength(2);
+  }, 60000);
+
+  it('refuses to migrate over a link whose types are outside the vocabulary', async () => {
+    if (!available) {
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+
+    // Drop the constraint so a bad row can be planted — this is what a
+    // database written before MVP1-B looks like.
+    await database.raw(
+      'alter table ?? drop constraint ??',
+      ['traceability_links', 'traceability_links_source_type_check'],
+    );
+    await database('traceability_links').insert(
+      linkRow({
+        id: 'tl-legacy',
+        source_type: 'URS',
+        source_id: 'URS-LEGACY-001',
+        relationship_type: 'IMPLEMENTS',
+        target_type: 'PRODUCT_COMPONENT',
+        target_id: 'c1',
+      }),
+    );
+
+    // Reports, names the row, and changes nothing — the same choice
+    // assertNoDuplicateIdentities makes, for the same reason.
+    await expect(up(database)).rejects.toThrow(/tl-legacy/);
+    await expect(up(database)).rejects.toThrow(
+      /will not guess what a link meant/,
+    );
+
+    await database('traceability_links').where({ id: 'tl-legacy' }).del();
+    await expect(up(database)).resolves.toBeUndefined();
   }, 60000);
 });

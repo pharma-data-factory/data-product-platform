@@ -108,6 +108,120 @@ export type TraceabilityRelationshipType =
   (typeof TRACEABILITY_RELATIONSHIP_TYPES)[number];
 
 /**
+ * What a traceability link may point **from**.
+ *
+ * `relationshipType` has been a closed vocabulary since Phase 1; the two type
+ * fields beside it were free strings, and they drifted — `URS`,
+ * `URS_REQUIREMENT` and `URS_REQUIREMENT_VERSION` all appeared for the same
+ * idea, as did `COMPONENT` and `PRODUCT_COMPONENT`. A discriminator that
+ * takes any value discriminates nothing: a reader cannot tell a typo from a
+ * kind, and nothing can resolve the referent to check it exists.
+ *
+ * Both stable ids and version UUIDs are admitted on purpose. Coverage joins
+ * on either (`getRequirementCoverage`), because links written before the
+ * snapshot existed were hand-typed with whichever the author had to hand.
+ */
+export const TRACEABILITY_SOURCE_TYPES = [
+  'URS_REQUIREMENT_VERSION',
+  'URS_REQUIREMENT',
+  'PRODUCT_COMPONENT',
+] as const;
+
+export type TraceabilitySourceType =
+  (typeof TRACEABILITY_SOURCE_TYPES)[number];
+
+/** What a traceability link may point **to**. See the note above. */
+export const TRACEABILITY_TARGET_TYPES = [
+  'PRODUCT_COMPONENT',
+  'TEST_EXECUTION',
+  'URS_REQUIREMENT_VERSION',
+] as const;
+
+export type TraceabilityTargetType =
+  (typeof TRACEABILITY_TARGET_TYPES)[number];
+
+export function isTraceabilitySourceType(
+  value: string,
+): value is TraceabilitySourceType {
+  return (TRACEABILITY_SOURCE_TYPES as readonly string[]).includes(value);
+}
+
+export function isTraceabilityTargetType(
+  value: string,
+): value is TraceabilityTargetType {
+  return (TRACEABILITY_TARGET_TYPES as readonly string[]).includes(value);
+}
+
+/** A test either passed or it did not. There is no third answer to record. */
+export const TEST_EXECUTION_STATUSES = ['PASSED', 'FAILED'] as const;
+
+export type TestExecutionStatus = (typeof TEST_EXECUTION_STATUSES)[number];
+
+/**
+ * One run of one test case against one requirement version.
+ *
+ * Append-only. A re-run is new evidence, not a correction of the old row —
+ * the record that a test once passed and later failed is exactly what a
+ * reviewer needs, and an upsert would destroy it. "Current" is therefore a
+ * question asked of the rows (`latestExecutionPerCase`), not a column.
+ *
+ * `requirementVersionId` is the URS `RequirementVersion.id`, held as a
+ * **value**. It is not a foreign key and cannot be: the URS Composer owns its
+ * own database and `AGENTS.md` forbids reaching into it. What makes the value
+ * trustworthy is that the Composer checks it against its own
+ * `product_requirements` snapshot before accepting the row.
+ */
+export interface TestExecution {
+  id: string;
+  requirementVersionId: string;
+  testSuite: string;
+  testCase: string;
+  status: TestExecutionStatus;
+  executedAt: Date;
+  executionArtifactUrl?: string;
+  /** The ingesting operation. See NXD-065 and NXD-066. */
+  correlationId: string;
+  createdBy: string;
+  createdAt: Date;
+}
+
+/** What a coverage row shows about one test case, newest run only. */
+export interface TestExecutionSummary {
+  id: string;
+  testSuite: string;
+  testCase: string;
+  status: TestExecutionStatus;
+  executedAt: Date;
+  executionArtifactUrl?: string;
+}
+
+/**
+ * The newest run of each `(testSuite, testCase)` pair.
+ *
+ * Pure, so the verification rule can be read and tested without a database.
+ * Ties on `executedAt` fall to the later element, which is the insertion
+ * order the repository returns — two runs of one case recorded at the same
+ * instant is a CI quirk, and taking the one that arrived second is the
+ * closest thing to "latest" the data supports.
+ */
+export function latestExecutionPerCase<
+  T extends { testSuite: string; testCase: string; executedAt: Date },
+>(executions: T[]): T[] {
+  const newest = new Map<string, T>();
+  for (const execution of executions) {
+    const key = `${execution.testSuite}\u0000${execution.testCase}`;
+    const held = newest.get(key);
+    if (
+      !held ||
+      execution.executedAt.getTime() >= held.executedAt.getTime()
+    ) {
+      newest.set(key, execution);
+    }
+  }
+  return [...newest.values()];
+}
+
+/**
  * Where a Product Requirement came from.
  *
  * Only `PRODUCT` is produced today — a requirement inherited from the approved
@@ -1255,7 +1369,9 @@ export function validateProduct(product: {
 }
 
 export function validateTraceabilityLink(link: {
+  sourceType?: string;
   sourceId?: string;
+  targetType?: string;
   targetId?: string;
   relationshipType?: string;
 }): string[] {
@@ -1268,7 +1384,123 @@ export function validateTraceabilityLink(link: {
   }
   if (!link.relationshipType?.trim()) {
     issues.push('Traceability link relationshipType is required');
+  } else if (
+    !(TRACEABILITY_RELATIONSHIP_TYPES as readonly string[]).includes(
+      link.relationshipType,
+    )
+  ) {
+    issues.push(
+      `Unsupported relationshipType: ${link.relationshipType}. ` +
+        `Expected one of ${TRACEABILITY_RELATIONSHIP_TYPES.join(', ')}`,
+    );
   }
+  // The type fields were never checked, so they drifted into three spellings
+  // of "a URS requirement" and two of "a component". Checking them is what
+  // makes the referent resolvable — a link whose kind is unknown cannot be
+  // verified to point at anything.
+  if (!link.sourceType?.trim()) {
+    issues.push('Traceability link sourceType is required');
+  } else if (!isTraceabilitySourceType(link.sourceType)) {
+    issues.push(
+      `Unsupported sourceType: ${link.sourceType}. ` +
+        `Expected one of ${TRACEABILITY_SOURCE_TYPES.join(', ')}`,
+    );
+  }
+  if (!link.targetType?.trim()) {
+    issues.push('Traceability link targetType is required');
+  } else if (!isTraceabilityTargetType(link.targetType)) {
+    issues.push(
+      `Unsupported targetType: ${link.targetType}. ` +
+        `Expected one of ${TRACEABILITY_TARGET_TYPES.join(', ')}`,
+    );
+  }
+  return issues;
+}
+
+/**
+ * Presence and grammar checks on an ingested test result.
+ *
+ * Follows `validateReleaseProvenance`: issues are returned, the service joins
+ * them into one `InputError`, and the router never builds the error itself.
+ * Existence of the requirement is **not** checked here — that needs the
+ * database, and it belongs to the service.
+ */
+export function validateTestExecution(request: {
+  requirementVersionId?: unknown;
+  testSuite?: unknown;
+  testCase?: unknown;
+  status?: unknown;
+  executedAt?: unknown;
+  executionArtifactUrl?: unknown;
+  correlationId?: unknown;
+}): string[] {
+  const issues: string[] = [];
+
+  const required: [string, unknown][] = [
+    ['requirementVersionId', request.requirementVersionId],
+    ['testSuite', request.testSuite],
+    ['testCase', request.testCase],
+  ];
+  for (const [name, value] of required) {
+    if (typeof value !== 'string' || !value.trim()) {
+      issues.push(`${name} is required and must be a non-empty string`);
+    }
+  }
+
+  if (typeof request.status !== 'string' || !request.status.trim()) {
+    issues.push('status is required and must be a non-empty string');
+  } else if (
+    !(TEST_EXECUTION_STATUSES as readonly string[]).includes(request.status)
+  ) {
+    issues.push(
+      `Unsupported status: ${request.status}. ` +
+        `Expected one of ${TEST_EXECUTION_STATUSES.join(', ')}`,
+    );
+  }
+
+  if (request.executedAt !== undefined) {
+    const parsed = new Date(request.executedAt as string);
+    if (Number.isNaN(parsed.getTime())) {
+      issues.push('executedAt must be a valid ISO-8601 timestamp');
+    }
+  }
+
+  // A relative path or a `file:` URL is not evidence anyone else can open.
+  // Absent is allowed — some pipelines have nowhere to publish an artifact —
+  // but present and unreachable is a promise the record cannot keep.
+  if (request.executionArtifactUrl !== undefined) {
+    const raw = request.executionArtifactUrl;
+    if (typeof raw !== 'string' || !raw.trim()) {
+      issues.push('executionArtifactUrl, when present, must be a non-empty string');
+    } else {
+      let parsed: URL | undefined;
+      try {
+        parsed = new URL(raw);
+      } catch {
+        parsed = undefined;
+      }
+      if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) {
+        issues.push(
+          'executionArtifactUrl must be an absolute http(s) URL',
+        );
+      }
+    }
+  }
+
+  // Optional, but an empty string is not "absent" — it is a caller that
+  // meant to supply one and computed nothing. Refusing it is what stops a
+  // whole CI run correlating on "".
+  if (request.correlationId !== undefined) {
+    if (
+      typeof request.correlationId !== 'string' ||
+      !request.correlationId.trim()
+    ) {
+      issues.push(
+        'correlationId, when present, must be a non-empty string',
+      );
+    }
+  }
+
   return issues;
 }
 
