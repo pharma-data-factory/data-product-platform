@@ -124,7 +124,7 @@ Cross-plugin relationships are HTTP resolvers, **not** foreign keys:
 | Baseline created, submitted, chain walked (ordered, role-gated, SoD) | **WORKING**                     |
 | UAS → Product, snapshot bind, verified APPROVED in three places      | **WORKING**                     |
 | Repository provisioning via Scaffolder                               | **WORKING** as a mechanism      |
-| Product ↔ Repository join                                            | **PARTIAL** — 2 of 10 templates |
+| Product ↔ Repository join                                            | **WORKING** — 9 of 9 publishing |
 | Components added on DRAFT version                                    | **WORKING**                     |
 | Requirement → Component link                                         | **PARTIAL** — manual, no FK     |
 | Product baseline created and approved, SoD-enforced                  | **WORKING**                     |
@@ -228,7 +228,7 @@ unauditable. No AI Test Coordinator, no AI GMP Impact Agent.
 | ---------------------------------------------------------------- | ----------- | --------- | ------------------------------------ |
 | UAS creation / classification / approval / baseline / versioning | WORKING     | KEEP      | —                                    |
 | Product creation                                                 | WORKING     | REFACTOR  | four doors, unequal completeness     |
-| UAS → Product                                                    | WORKING     | KEEP      | 5 of 10 templates verify             |
+| UAS → Product                                                    | WORKING     | KEEP      | 9 of 9 publishing templates verify   |
 | Product versioning                                               | WORKING     | KEEP      | —                                    |
 | Product Composer                                                 | PARTIAL     | REFACTOR  | name collision                       |
 | Product Components                                               | PARTIAL     | EXTEND    | no versioning / repo / test link     |
@@ -328,7 +328,13 @@ mechanism · release-readiness gate.
 
 Required to complete a coherent MVP1, in dependency order:
 
-1. `nexora:product:create` in every publishing template
+1. ~~`nexora:product:create` in every publishing template~~ — **closed
+   2026-09-27: all nine publishing templates create the governed record, and
+   all nine offer the URS baseline on their first parameter page.
+   `templates/aas-asset` is excluded and stays excluded — it publishes
+   nothing, so there is no repository and no entity for a record to join.
+   `templateContract.test.ts` now fails a template that skips the step;
+   it used to report the passing shape.**
 2. **a Test / TestExecution entity with evidence ingestion**
 3. **automated `VERIFIED_BY` production from ingested results**
 4. **validated references on `traceability_links`**

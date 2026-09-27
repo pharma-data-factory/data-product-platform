@@ -157,7 +157,7 @@ requirement and design.
 URS RequirementVersion  --FK-->  Baseline           IMPLEMENTED
 Baseline  --HTTP snapshot-->  ProductRequirement    IMPLEMENTED
 ProductRequirement  --link-->  ProductComponent     PARTIAL  (manual, no FK)
-ProductComponent  -->  Repository                   PARTIAL  (2 of 10 templates)
+ProductComponent  -->  Repository                   IMPLEMENTED  (9 of 9 publishing templates)
 Implementation  -->  Test                           MISSING
 Test  -->  Evidence                                 MISSING
 Implementation  -->  Evidence (commit + digest)     INDIRECT

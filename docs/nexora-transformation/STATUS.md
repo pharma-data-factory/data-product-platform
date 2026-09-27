@@ -135,16 +135,53 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   substituted — at `UrsBaselineResolver`, the real boundary, because the two
   plugins own separate databases and cannot share a process in production.
   **Closes audit item 12.**
+- **Seven templates that published two thirds of a product** (`b1b60f0`,
+  `a3f26b2`, `7f6a559`, `139f493`). Audit completion item 1, the last
+  non-critical-path item with code behind it. `nexora:product:create` reached
+  the catalog from two templates out of nine; from the other seven a task
+  produced a repository and a Catalog entity and no governed row, so
+  `/products` could not find them and the release gate had nothing to gate.
+
+  Two tiers. `aas-data-product`, `machine-state-consumer` and
+  `mqtt-temperature-product` already asked for a baseline and verified it, so
+  they needed only the step and the task link. `mqtt-connector`,
+  `node-service`, `python-service` and `unified-namespace` had none of it and
+  gained the whole chain — parameter, `verify-urs`, the `urs-baseline` and
+  `policy-version` annotations, and the record — because half is what created
+  this problem on the data-product side.
+
+  **Three choices worth not rediscovering.** `templates/aas-asset` is
+  excluded, permanently: one `debug:log` step, no repository, no entity, and
+  its own description says it creates no Data Product, so "the remaining
+  eight" was always seven. `productType` is `SERVICE` for all four
+  service/infra templates — `PRODUCT_TYPES` has no platform-component member
+  and `PLATFORM_PRODUCT` is the Nexora-manages-Nexora singleton, so
+  `unified-namespace` is a SERVICE whose Catalog entity stays a
+  platform-component; the join is by `catalogEntityRef`, not by type, so the
+  two coexist, but anything that later infers product type from entity kind
+  will disagree. And the URS parameter is asserted to be on the **first**
+  parameter page behind `UrsBaselinePicker`, because a binding the author
+  pages forward to find is one that does not get set.
+
+  **What the gate was doing meanwhile.** The contract assertion was written so
+  that a template *without* the step reported the passing shape — which is why
+  seven templates could stay open under a green suite — and the URS assertion
+  compared a value against itself. Both are binding now and both were
+  mutation-checked. Two further gaps fell out: `aas-data-product` was
+  registered in development, absent from production and in no contract test,
+  and its generated health endpoint answered `{"status": "healthy"}` with no
+  `service` field against a platform contract of `UP`/`DOWN` — and pinned
+  `service_name` to the template's own name, so every product built from it
+  reported the wrong identity. **Closes audit item 1.**
 
 **The MVP1-B critical path (Slices B-1 through B-4) is COMPLETE.** All four
 items the audit names as the critical path — 2, 3, 4 and 5 — are closed, and
 the end-to-end spec that proves them as one journey is closed with them.
 
-**Eight of the twelve MVP1 completion items are now closed**: 2, 3, 4, 5, 7,
-9, 10 and 12. Still open, and none of them on the critical path:
-`nexora:product:create` in the remaining eight templates (1), persisted AI
-spec drafts (6), the `memory` persistence default (8), and a minimal Stage 3
-FS derived from UAS (11).
+**Nine of the twelve MVP1 completion items are now closed**: 1, 2, 3, 4, 5,
+7, 9, 10 and 12. Still open, and none of them on the critical path:
+persisted AI spec drafts (6), the `memory` persistence default (8), and a
+minimal Stage 3 FS derived from UAS (11).
 
 **What a 2026-09-27 target-architecture audit found beyond that list**, so
 it is written down rather than rediscovered:
@@ -1168,6 +1205,19 @@ the end-to-end spec (item 12) that drives them as one journey. See the
 MVP1-B notes under [Current Vertical Slice](#current-vertical-slice). Step 2
 — "one door" — landed in `9d80d16`.
 
+Item 1 — `nexora:product:create` in every publishing template — is closed
+too, and with it the last MVP1 item that was a matter of wiring rather than
+of building something new. What that unblocks is worth naming: every
+scaffolded product now has a governed row joined to its repository and its
+Catalog entity at birth, which is the precondition the `Development` tab
+([`NXD-056`](DECISIONS.md)) was specified against and left unbuilt for,
+because it would otherwise have had nothing to display for seven of the nine
+templates.
+
+The three MVP1 items still open — persisted AI spec drafts (6), the `memory`
+persistence default (8), and a minimal Stage 3 FS derived from UAS (11) —
+each need new behaviour, not a step added to a template.
+
 ## Next
 
 **Sequencing now lives in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md)**
@@ -1253,7 +1303,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of the MVP1-B critical path.
+via `docker-compose.test.yml`), at the close of MVP1 audit item 1.
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1261,7 +1311,7 @@ via `docker-compose.test.yml`), at the close of the MVP1-B critical path.
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 231 suites, 2063 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 231 suites, 2066 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
 the split is 11/8 and not 10/9. The eight remaining warnings are all
@@ -1274,9 +1324,17 @@ The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
 
-Earlier figures, for the trend: 229 / 2051 at `34c9a6c` earlier on
-2026-09-27, 226 / 2008 at `15ea5e7` the same day, 222 / 1961 on 2026-09-25,
-221 / 1958 for Batch 1 alone, 215 / 1909 on 2026-09-24.
+Earlier figures, for the trend: 231 / 2063 at `fab5b0a` earlier on
+2026-09-27, 229 / 2051 at `34c9a6c` the same day, 226 / 2008 at `15ea5e7`,
+222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone, 215 / 1909 on
+2026-09-24.
+
+**No suite was added for audit item 1**, which is why the count moved by
+three tests and no suites: the work was templates and the gates that were
+already supposed to check them. The three are `templateContract.test.ts`
+running its per-template cases over a ninth template. Removing the escape
+hatch added no test at all — it made an existing one capable of failing,
+which the count cannot show.
 
 The two suites added since `34c9a6c` are `errorMapping.test.ts` (11 tests,
 commit `3857589` — the typed-error item, which landed after that figure was
