@@ -35,8 +35,48 @@ the shipped `memory` persistence default, the missing `reason` on
 `composer_audit_events`, un-persisted AI spec drafts, and the disabled
 Community RBAC.
 
-`guard:platform` now runs **ten** checks; the tenth is documentation link
+`guard:platform` now runs **eleven** checks; the eleventh is documentation link
 integrity (`scripts/check-doc-links.mjs`).
+
+**MVP1-B (2026-09-26 / 2026-09-27).** The completion list this series works
+against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+§11 — twelve items, of which **2–5 are named the critical path**. Landed so far:
+
+- **B-1 — three routes that answered 200 for an id that does not exist.** A
+  private `assertRequirementSetExists` now precedes `getRequirements`,
+  `getCurrentVersions` and `advanceRequirementSetVersions`, so all four URS
+  set-id paths answer 404 alike. The second half of the finding it closes did
+  not survive checking: there was one identifier and three missing guards, not
+  two identifiers. See [`NXD-059`](DECISIONS.md) item 6. `updateProduct`'s
+  vocabulary refusal became an `InputError` in the same commit.
+- **B-2 — a client type that promised three fields the server never sent.**
+  `ApprovalInstance` in `plugins/urs-composer/src/api/types.ts` declared
+  `currentStepId`, `createdAt` and `createdBy`; the backend sends
+  `currentStepSequence`, `startedAt` and `startedBy`. Two of the three
+  phantoms were non-optional, so the type asserted a value that was
+  `undefined` on every response the server has ever returned. The two
+  workspaces cannot import each other, so they declared the shape twice and
+  drifted; the fix is a third declaration in `@internal/platform-common` that
+  both check against, listing what a client may rely on rather than
+  everything the server emits.
+- **B-3 — one operation, one correlation id.** `audit_events.correlation_id`
+  had existed since the table was created and **every row was NULL** across 35
+  write sites. `AuditEvent.correlationId` is required now, supplied from an
+  `AuditContext` opened at the service entry point. See
+  [`NXD-065`](DECISIONS.md). Scope is `urs-composer-backend` only — the
+  product side has no such mechanism yet, and cross-plugin threading was
+  explicitly left open.
+- **Quality pre-work (`15ea5e7`).** `docs/subsystem-status.md` still carried
+  the Composer row under its retired third name; renamed per
+  [`NXD-063`](DECISIONS.md). `CROSS_PLUGIN_BOUNDARY` reported one violation in
+  `validation-context-integration.test.ts` and there were five — the guard
+  matches its private-import pattern with a non-global regex and stops at the
+  first hit per file. The per-suite PostgreSQL driver moved to
+  `packages/backend-test-utils` as `createTestSchema(suite, {migrate, seed})`,
+  the URS test-database helper became a wrapper keeping its exact signature,
+  and what the cross-plugin suite needs from URS is published from the package
+  index instead of reached for through `src/`. The coupling is a declared API
+  now rather than a path into someone else's source.
 
 **Batch 1 — the journey the platform describes can be walked.** Committed
 2026-09-25 (`b7378b0` and the four commits that follow it) and green on all
@@ -992,7 +1032,8 @@ actor` so the `owner-declared` platform policy obligation is met at apply
 Nothing in flight. Batch 1 is committed (`b7378b0`) and the live walk that
 followed it is recorded in [`NXD-059`](DECISIONS.md).
 
-**Open from the walk, in the order they matter** — none of these is fixed:
+**From the walk, in the order they matter.** Four of the five are closed; the
+strikethroughs stay so the record shows what was found, not only what remains:
 
 1. ~~**Approval order is not enforced.**~~ **Closed 2026-09-25** — a step is
    refused while any required step with a lower `sequence` is still open, and
@@ -1002,15 +1043,28 @@ followed it is recorded in [`NXD-059`](DECISIONS.md).
    covers the baseline too.
 3. Approval steps carry no `stepNumber` over the API, so no client can number
    the chain.
-4. Three refusals answer 500 instead of 409/400: re-approving an approved step,
-   binding an unapproved URS baseline, and (before the walk) the product
-   governance vocabulary.
-5. An unknown requirement-set id answers 200 with an empty list on two routes
-   and 404 on a third, which also disagree about which identifier they take.
+4. ~~Three refusals answer 500 instead of 409/400.~~ **Closed 2026-09-26**
+   (`ae62aa4`, Slice B-1). Each sat one layer away from where the note placed
+   it: the 500s were four untyped approval *lookups*, not the status check,
+   and five plain `Error`s in `urs-baseline-resolver.ts` — the cross-plugin
+   HTTP boundary — rather than in `bindUrsBaseline`. The resolver's failures
+   are now typed by cause, not uniformly: upstream 404 → `NotFoundError`, not
+   APPROVED → `ConflictError` naming the actual status, a partially resolved
+   requirement list → `ConflictError`, and anything else left untyped so a
+   genuinely broken upstream still reads as 500.
+5. ~~An unknown requirement-set id answers 200 with an empty list.~~
+   **Closed 2026-09-26** (Slice B-1) — see the MVP1-B notes under
+   `## Current Vertical Slice`. The second half of this item was wrong: all
+   four paths take `requirement_sets.id`, so there was one identifier and
+   three missing guards, not two identifiers.
 
-Next planned step is unchanged: **Step 2 — "one door"**, a
-`nexora:product:create` scaffolder action writing the repo, the Catalog entity
-and the `products` row in one act.
+Next is the **MVP1-B core phase**: a TestExecution entity with evidence
+ingestion, automated `VERIFIED_BY` production, validated references on
+`traceability_links`, and a release gate that consumes
+`getRequirementCoverage` — items 2–5 of
+[`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §11,
+the four it names as the critical path. Step 2 — "one door" — landed in
+`9d80d16` and is no longer the next step.
 
 ## Next
 
@@ -1096,24 +1150,40 @@ Phase 4 needs the whole first-class model in one designed migration — see
 
 ## Test Status
 
-**GREEN.** Verified on 2026-09-25 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), after the walk fixes.
+**GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
+via `docker-compose.test.yml`), at `15ea5e7`.
 
-| Gate       | Command               | Result                                       |
-| ---------- | --------------------- | -------------------------------------------- |
-| Guardrails | `yarn guard:platform` | PASS (9 pass, 9 documented warnings, 0 fail) |
-| Typecheck  | `yarn tsc`            | PASS                                         |
-| Lint       | `yarn lint:all`       | PASS                                         |
-| Unit tests | `CI=true yarn test`   | PASS — 222 suites, 1961 tests, **0 skipped** |
+| Gate       | Command                           | Result                                        |
+| ---------- | --------------------------------- | --------------------------------------------- |
+| Guardrails | `yarn guard:platform`             | PASS (11 pass, 8 documented warnings, 0 fail) |
+| Typecheck  | `yarn tsc:full`                   | PASS                                          |
+| Lint       | `yarn lint:all`                   | PASS                                          |
+| Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
+| Unit tests | `CI=true yarn test`               | PASS — 226 suites, 2008 tests, **0 skipped**  |
 
-Eight suites are new today: the governance vocabulary, the product update path,
-release-gate progress, the approval-workflow seed in both persistence modes, the
-approval-instance column, the review chain, the guest role, and the transaction
-boundary. Batch 1 alone measured 221 suites / 1958 tests; the 2026-09-24 figures
-were 215 and 1909.
+`CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
+the split is 11/8 and not 10/9. The eight remaining warnings are all
+documented and deliberately held: five `/alpha` API imports, the
+`@types/react-dom` wildcard, and the two legacy resolutions
+(`@backstage/plugin-permission-react@^0.5.2` against a backend declaring
+`^0.7.2`, and the Material UI lab alpha baseline).
 
-**The gate did not catch the defect that mattered most today**, and it is worth
-being plain about why. Signing a requirement version was impossible on a real
+The doc-link checker is listed separately because it has no yarn script — it
+runs standalone as above and again inside `guard:platform` as
+`DOC_LINK_INTEGRITY`.
+
+Earlier figures, for the trend: 222 suites / 1961 tests on 2026-09-25,
+221 / 1958 for Batch 1 alone, 215 / 1909 on 2026-09-24.
+
+The four suites added since 2026-09-25 come from the MVP1-B slices: the
+unknown-identifier guards (B-1), the approval-instance client contract on both
+sides (B-2) and audit correlation (B-3). The eight added on 2026-09-25 were the
+governance vocabulary, the product update path, release-gate progress, the
+approval-workflow seed in both persistence modes, the approval-instance column,
+the review chain, the guest role, and the transaction boundary.
+
+**The gate did not catch the defect that mattered most on 2026-09-25**, and it
+is worth being plain about why. Signing a requirement version was impossible on a real
 connection pool for as long as the feature has existed, and every suite passed
 throughout, because they drive the service with an in-memory repository and a
 stub catalog where the two offending calls cost nothing. See
@@ -1513,9 +1583,9 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"docs(status): the record matches the repository again", 2026-09-26, on
-`ms/composer-ai-spec-and-ci-quality-gate` — the closing commit of the
-governance consolidation series described under `## Current Vertical Slice`.
+"chore(quality): one name for the Composer, one door into URS", 2026-09-27, on
+`ms/composer-ai-spec-and-ci-quality-gate` — two pre-work items ahead of the
+MVP1-B core phase, described under `## Current Vertical Slice`.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
@@ -1523,10 +1593,10 @@ first — which is then itself unnamed. This entry was wrong for three days for
 exactly that reason: it said `beeab2a` while HEAD was `164039f`. `git log -1`
 is authoritative; this section carries the subject and the date.
 
-As of 2026-09-26 the branch is well ahead of its remote and **nothing since
-`f054b3c` has been pushed** — this container has no `gh` CLI and no git
-credential helper, so every commit of the governance consolidation series is
-local. The working tree is clean.
+As of 2026-09-27 the branch is **134 commits ahead of `main` and 18 ahead of
+its own remote** — this container has no `gh` CLI and no git credential
+helper, so the governance consolidation series and everything MVP1-B has
+landed since are local only. The working tree is clean.
 
 For historical reference, Phase 0 landed as three commits: the transformation
 memory, "fix(test): restore a green baseline and stop the jest resolver
