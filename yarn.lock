@@ -6042,6 +6042,7 @@ __metadata:
     "@backstage/plugin-scaffolder-node": "npm:^0.13.5"
     "@internal/backend-test-utils": "npm:^0.1.0"
     "@internal/platform-common": "workspace:^"
+    "@internal/plugin-urs-composer-backend": "workspace:^"
     "@types/express": "npm:^4.17.21"
     express: "npm:^4.22.0"
     express-promise-router: "npm:^4.1.1"

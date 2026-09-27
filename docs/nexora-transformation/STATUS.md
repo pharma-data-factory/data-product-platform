@@ -100,12 +100,51 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   `UNTRACED_COMPONENT`. A later failing run of a test case revokes the
   verification. **Closes audit items 2, 3 and 5 — the critical path.**
 
-**Six of the twelve MVP1 completion items are now closed**: 2, 3, 4, 5, 9 and
-10 — including all four the audit names as the critical path. Still open:
+- **Seventeen refusals that answered "Internal server error"** (`3857589`).
+  Audit completion item 7. `service.ts` threw seventeen bare `Error`s and
+  `respondError` has no branch for one, so a correct refusal reached the
+  caller as 500 — the same wording problem `ae62aa4` fixed on the URS side.
+  Typed by what happened, not uniformly: `NotFoundError` 404 (6 sites),
+  `ConflictError` 409 (4), `NotImplementedError` 501 (3, the AI capabilities
+  that are off by default — "won't", not "broken"), `InputError` 400 (1),
+  and `ServiceUnavailableError` 503 (1, an absent URS baseline resolver —
+  deliberately distinct from 501 because nobody chose it and an operator has
+  to fix it). `respondError` gained the 501 and 503 branches. Three route
+  handlers had been matching on message text
+  (`err.message.includes('not enabled')`) to answer 501 themselves, so the
+  mapping was held together by string comparisons against prose in three
+  places; `respondError` does it once now. `errorMapping.test.ts` asserts
+  status codes over HTTP rather than the type of a thrown object, because
+  every service-level test would keep passing if a branch were lost.
+  **Closes audit item 7.** Noted
+  and deliberately not changed: the segregation-of-duties refusal in
+  `transitionProductVersionStatus` is an `InputError`, so a correct
+  authorization refusal answers 400 where 403 would say it better. It is
+  already typed, so it falls outside "type the bare throws" — it wants its
+  own decision.
+- **B-4d — the whole journey, driven once**
+  (`e2eProductReleaseFlow.test.ts`). Audit completion item 12. Every other
+  suite proves one joint; nothing had ever walked the full path, which is how
+  four defects shipped under a green suite ([`NXD-053`](DECISIONS.md),
+  [`NXD-059`](DECISIONS.md)). The suite drives a real `URSService` on a real
+  PostgreSQL schema through authoring, the three-step advance, QA signatures
+  and baseline approval, binds the resulting baseline to a product, watches
+  the release gate refuse on `INCOMPLETE_TRACEABILITY`, posts passing
+  evidence over HTTP to `POST /test-executions`, and sees the gate open and
+  the version reach `RELEASED`. The cross-plugin HTTP hop is the one thing
+  substituted — at `UrsBaselineResolver`, the real boundary, because the two
+  plugins own separate databases and cannot share a process in production.
+  **Closes audit item 12.**
+
+**The MVP1-B critical path (Slices B-1 through B-4) is COMPLETE.** All four
+items the audit names as the critical path — 2, 3, 4 and 5 — are closed, and
+the end-to-end spec that proves them as one journey is closed with them.
+
+**Eight of the twelve MVP1 completion items are now closed**: 2, 3, 4, 5, 7,
+9, 10 and 12. Still open, and none of them on the critical path:
 `nexora:product:create` in the remaining eight templates (1), persisted AI
-spec drafts (6), typed errors as a whole (7), the `memory` persistence
-default (8), a minimal Stage 3 FS derived from UAS (11), and one E2E spec
-for URS → Product → Release (12).
+spec drafts (6), the `memory` persistence default (8), and a minimal Stage 3
+FS derived from UAS (11).
 
 **What a 2026-09-27 target-architecture audit found beyond that list**, so
 it is written down rather than rediscovered:
@@ -1119,13 +1158,15 @@ strikethroughs stay so the record shows what was found, not only what remains:
    four paths take `requirement_sets.id`, so there was one identifier and
    three missing guards, not two identifiers.
 
-Next is the **MVP1-B core phase**: a TestExecution entity with evidence
-ingestion, automated `VERIFIED_BY` production, validated references on
+The **MVP1-B core phase** — a TestExecution entity with evidence ingestion,
+automated `VERIFIED_BY` production, validated references on
 `traceability_links`, and a release gate that consumes
-`getRequirementCoverage` — items 2–5 of
+`getRequirementCoverage` — is **done**. Those are items 2–5 of
 [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §11,
-the four it names as the critical path. Step 2 — "one door" — landed in
-`9d80d16` and is no longer the next step.
+the four it names as the critical path; all four are closed, together with
+the end-to-end spec (item 12) that drives them as one journey. See the
+MVP1-B notes under [Current Vertical Slice](#current-vertical-slice). Step 2
+— "one door" — landed in `9d80d16`.
 
 ## Next
 
@@ -1212,7 +1253,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), after the MVP1-B B-4 slices.
+via `docker-compose.test.yml`), at the close of the MVP1-B critical path.
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1220,7 +1261,7 @@ via `docker-compose.test.yml`), after the MVP1-B B-4 slices.
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 229 suites, 2051 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 231 suites, 2063 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
 the split is 11/8 and not 10/9. The eight remaining warnings are all
@@ -1233,18 +1274,30 @@ The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
 
-Earlier figures, for the trend: 226 / 2008 at `15ea5e7` earlier on
-2026-09-27, 222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone,
-215 / 1909 on 2026-09-24.
+Earlier figures, for the trend: 229 / 2051 at `34c9a6c` earlier on
+2026-09-27, 226 / 2008 at `15ea5e7` the same day, 222 / 1961 on 2026-09-25,
+221 / 1958 for Batch 1 alone, 215 / 1909 on 2026-09-24.
 
-The three suites added since `15ea5e7` are the B-4 ones: product-side audit
-correlation, traceability link integrity, and test evidence ingestion — the
-last being the first router-level suite in `composer-backend`. The four
-before them came from B-1 to B-3: the unknown-identifier guards, the
-approval-instance client contract on both sides, and URS audit correlation. The eight added on 2026-09-25 were the
+The two suites added since `34c9a6c` are `errorMapping.test.ts` (11 tests,
+commit `3857589` — the typed-error item, which landed after that figure was
+written and is why the table moved by more than the end-to-end spec alone)
+and `e2eProductReleaseFlow.test.ts` (1 test, the whole URS → Product →
+Release journey). The three before them were the B-4 ones: product-side
+audit correlation, traceability link integrity, and test evidence
+ingestion — the last being the first router-level suite in
+`composer-backend`. The four before *them* came from B-1 to B-3: the
+unknown-identifier guards, the approval-instance client contract on both
+sides, and URS audit correlation. The eight added on 2026-09-25 were the
 governance vocabulary, the product update path, release-gate progress, the
 approval-workflow seed in both persistence modes, the approval-instance column,
 the review chain, the guest role, and the transaction boundary.
+
+**One test is worth a caveat.** `e2eProductReleaseFlow.test.ts` contributes a
+single test to that count and covers more ground than any other line in it,
+so the totals understate it. It was mutation-checked rather than trusted:
+posting `FAILED` instead of `PASSED` evidence fails it at
+`verifiedByLinkId`, which is the assertion that would otherwise let a
+silently broken ingestion path pass as green.
 
 **The gate did not catch the defect that mattered most on 2026-09-25**, and it
 is worth being plain about why. Signing a requirement version was impossible on a real

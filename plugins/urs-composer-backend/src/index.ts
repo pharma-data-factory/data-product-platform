@@ -18,6 +18,19 @@ export { SignaturePinReAuth } from './domain/reauth';
 export { SolutionType } from './types';
 
 /**
+ * The requirement vocabulary `createRequirement` takes.
+ *
+ * Both enums are owned here rather than by `@internal/platform-common`,
+ * unlike `URSStatus` and `SignatureMeaning`, so a caller outside this
+ * package has nowhere else to get them. Published for
+ * `composer-backend`'s `e2eProductReleaseFlow.test.ts`, which authors a
+ * real requirement set on its way to a real approved baseline; without them
+ * it would be passing bare strings into enum parameters, which is the kind
+ * of untyped coupling this file exists to prevent.
+ */
+export { GxPRelevance, RequirementPriority } from './types';
+
+/**
  * How the URS schema is built. Exported for suites that need a real database;
  * the plugin itself migrates through its own startup path.
  */
