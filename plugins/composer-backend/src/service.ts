@@ -27,6 +27,8 @@ import {
   ProductRequirement,
   ProductRequirementCoverage,
   ProductRequirementCoverageRow,
+  FunctionalSpecification,
+  FunctionalSpecificationTraceRow,
   ProductVersion,
   QualityRule,
   ReleaseProvenance,
@@ -966,6 +968,195 @@ export class ComposerService {
     productVersionId: string,
   ): Promise<ProductRequirement[]> {
     return this.repository.listProductRequirements(productVersionId);
+  }
+
+  // ==========================================================================
+  // Stage 3 — Functional Specifications (MVP1 item 11)
+  // ==========================================================================
+
+  async listFunctionalSpecifications(
+    productVersionId: string,
+  ): Promise<FunctionalSpecification[]> {
+    return this.repository.listFunctionalSpecifications(productVersionId);
+  }
+
+  /**
+   * Derives one functional specification item per bound requirement.
+   *
+   * `TARGET_OPERATING_MODEL.md` §Stage 3: "an approved UAS produces a
+   * Functional Specification whose items each trace to at least one
+   * requirement". Derived, not authored, because the input already exists —
+   * `bindUrsBaseline` has copied every pinned requirement into
+   * `product_requirements`, and an FS item is the statement of what the system
+   * must do to satisfy one of them.
+   *
+   * **It derives from the snapshot, never from the live URS.** The product
+   * keeps the wording it was built against (§1.7 requirement provenance), so an
+   * FS generated from a later revision would describe a product nobody
+   * released.
+   *
+   * **Idempotent, and additive only.** Re-running after a rebind writes items
+   * for requirements that have none and leaves the rest untouched: an existing
+   * item may have been edited by a human, and silently overwriting a reviewed
+   * specification is the opposite of what Stage 3 is for. The unique index on
+   * (product_version_id, urs_requirement_version_id) is the same rule in the
+   * database, per NXD-009 — the service check cannot close the race between two
+   * concurrent derivations.
+   *
+   * **Refused on a version with no baseline.** There is nothing to derive from,
+   * and an empty FS would read as "specified, nothing required" rather than
+   * "not specified yet".
+   */
+  async deriveFunctionalSpecifications(
+    productVersionId: string,
+    actor: string,
+    inheritedAudit?: AuditContext,
+  ): Promise<FunctionalSpecification[]> {
+    const audit = this.beginAudit(actor, inheritedAudit);
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    if (!version.ursBaselineId) {
+      throw new ConflictError(
+        `Product version ${productVersionId} has no URS baseline bound. ` +
+          'A functional specification is derived from the requirements the ' +
+          'version was built against, so there is nothing to derive from yet.',
+      );
+    }
+
+    const requirements =
+      await this.repository.listProductRequirements(productVersionId);
+    const existing =
+      await this.repository.listFunctionalSpecifications(productVersionId);
+    const alreadySpecified = new Set(
+      existing.map(spec => spec.ursRequirementVersionId),
+    );
+
+    const created: FunctionalSpecification[] = [];
+    for (const requirement of requirements) {
+      if (alreadySpecified.has(requirement.ursRequirementVersionId)) {
+        continue;
+      }
+      const spec: FunctionalSpecification = {
+        id: randomUUID(),
+        productVersionId,
+        ursRequirementVersionId: requirement.ursRequirementVersionId,
+        fsCode: functionalSpecCode(requirement.requirementRef),
+        title: requirement.title,
+        // The requirement's own statement is the honest starting point. It is
+        // not yet a functional specification and this does not pretend
+        // otherwise — it is the derivation the audit item asks for, with the
+        // requirement it must satisfy named in the text so an author editing it
+        // can see what they are specifying against.
+        description:
+          `Functional specification for ${requirement.requirementRef}.\n\n` +
+          `${requirement.statement ?? requirement.title}`,
+        createdBy: actor,
+        createdAt: new Date(),
+      };
+      await this.repository.createFunctionalSpecification(spec);
+      created.push(spec);
+    }
+
+    if (created.length > 0) {
+      await this.audit(
+        audit,
+        'FUNCTIONAL_SPEC',
+        productVersionId,
+        'FUNCTIONAL_SPECIFICATION_DERIVED',
+        {
+          newValue: JSON.stringify({
+            ursBaselineId: version.ursBaselineId,
+            derived: created.length,
+            alreadyPresent: existing.length,
+            fsCodes: created.map(spec => spec.fsCode),
+          }),
+        },
+      );
+    }
+
+    return created;
+  }
+
+  /**
+   * Resolves URS ↔ FS ↔ Component for one product version.
+   *
+   * The chain the audit's G-7 names as missing, made answerable: for each FS
+   * item, which requirement it specifies and which components implement that
+   * requirement.
+   *
+   * **Computed, not stored.** The requirement end is a column on the FS row;
+   * the component end is the existing `IMPLEMENTS` link from the requirement.
+   * Materialising FS→Component links as a third copy of the same fact would let
+   * the copies disagree the moment a component link changed — and the direct
+   * requirement→component link has to stay regardless, because
+   * `getRequirementCoverage` and the release gate read it. Stage 3 is additive
+   * here: it does not become a mandatory hop in this slice, which would flip
+   * every coverage row to UNMAPPED.
+   *
+   * An explicitly written `FUNCTIONAL_SPEC → PRODUCT_COMPONENT` link is
+   * honoured too, and unioned in — the vocabulary admits one so that a designer
+   * can state a mapping the requirement does not already imply.
+   */
+  async getFunctionalSpecTrace(
+    productVersionId: string,
+  ): Promise<FunctionalSpecificationTraceRow[]> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+
+    const [specs, requirements, components, allLinks] = await Promise.all([
+      this.repository.listFunctionalSpecifications(productVersionId),
+      this.repository.listProductRequirements(productVersionId),
+      this.repository.listProductComponents(productVersionId),
+      this.repository.listTraceabilityLinks(),
+    ]);
+
+    const componentIds = new Set(components.map(component => component.id));
+    const byVersionId = new Map(
+      requirements.map(requirement => [
+        requirement.ursRequirementVersionId,
+        requirement,
+      ]),
+    );
+
+    return specs.map(spec => {
+      const requirement = byVersionId.get(spec.ursRequirementVersionId);
+      // Both keys, for the same reason coverage joins on both: links written
+      // before the snapshot existed carry whichever id the author had to hand.
+      const keys = new Set(
+        [spec.ursRequirementVersionId, requirement?.requirementRef].filter(
+          (key): key is string => Boolean(key),
+        ),
+      );
+      const viaRequirement = allLinks.filter(
+        link =>
+          keys.has(link.sourceId) &&
+          link.relationshipType === 'IMPLEMENTS' &&
+          componentIds.has(link.targetId),
+      );
+      const viaSpec = allLinks.filter(
+        link =>
+          link.sourceType === 'FUNCTIONAL_SPEC' &&
+          link.sourceId === spec.id &&
+          componentIds.has(link.targetId),
+      );
+
+      return {
+        fsCode: spec.fsCode,
+        functionalSpecId: spec.id,
+        title: spec.title,
+        requirementRef: requirement?.requirementRef,
+        ursRequirementVersionId: spec.ursRequirementVersionId,
+        componentIds: [
+          ...new Set(
+            [...viaRequirement, ...viaSpec].map(link => link.targetId),
+          ),
+        ],
+      };
+    });
   }
 
   /**
@@ -2327,6 +2518,7 @@ export class ComposerService {
       );
 
     let componentVersionId: string | undefined;
+    let specVersionId: string | undefined;
 
     for (const [end, type, id] of [
       ['source', request.sourceType, request.sourceId],
@@ -2343,7 +2535,34 @@ export class ComposerService {
         if (!execution) {
           throw missing(end, type, id, 'no such test execution');
         }
+      } else if (type === 'FUNCTIONAL_SPEC') {
+        // Stage 3. This row is ours, so it is checked like a component rather
+        // than like a URS reference — there is no cross-plugin boundary to
+        // excuse a softer rule, and NXD-067's third mechanism is the one that
+        // runs on both dialects.
+        const spec = await this.repository.getFunctionalSpecification(id);
+        if (!spec) {
+          throw missing(end, type, id, 'no such functional specification');
+        }
+        // A specification and the component it maps to must belong to the same
+        // product version. Without this an FS could claim a component from
+        // another product, and the trace would resolve to something the
+        // reviewer never approved.
+        specVersionId = spec.productVersionId;
       }
+    }
+
+    if (
+      specVersionId &&
+      componentVersionId &&
+      specVersionId !== componentVersionId
+    ) {
+      throw new InputError(
+        `Traceability link joins functional specification on product version ` +
+          `${specVersionId} to a component on ${componentVersionId}. ` +
+          'A specification and the component that implements it belong to the ' +
+          'same product version.',
+      );
     }
 
     // A link has at most one requirement end. The source is by far the
@@ -2952,4 +3171,25 @@ export class ComposerService {
       totalAffected: unique.length,
     };
   }
+}
+
+/**
+ * The FS code for a requirement, derived from the requirement's own ref.
+ *
+ * `URS-WD-001` becomes `FS-WD-001`, so the two halves of a trace read as
+ * obviously paired and a reviewer can say the pair out loud. No convention was
+ * documented; this one is chosen because it carries the requirement's domain
+ * and ordinal rather than inventing a second numbering that would have to be
+ * cross-referenced.
+ *
+ * A ref that does not start with `URS-` is prefixed instead of rewritten — the
+ * URS side generates set keys from a timestamp when no stable key is
+ * configured, and mangling one of those would produce a code that traces to
+ * nothing recognisable.
+ */
+export function functionalSpecCode(requirementRef: string): string {
+  const trimmed = requirementRef.trim();
+  return /^URS-/i.test(trimmed)
+    ? `FS-${trimmed.slice(4)}`
+    : `FS-${trimmed}`;
 }

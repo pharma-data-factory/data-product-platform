@@ -591,7 +591,69 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // MVP1 item 11: a minimal Stage 3. The left arm of the V-model.
+  //
+  // Traceability ran UAS → Baseline → ProductRequirement → Component with
+  // nothing between requirement and design (G-7 in
+  // docs/compliance/traceability-and-gmp.md). A requirement says what the
+  // business needs; a component is a thing that was built. The functional
+  // specification is the statement of what the system must *do* to satisfy the
+  // requirement, and it is the artefact a GxP reviewer looks for between them.
+  //
+  // One FS per bound requirement, which is what makes derivation possible and
+  // what `minimal` means here — this slice does not model an FS that spans two
+  // requirements or a requirement that needs two. The unique index on
+  // (product_version_id, urs_requirement_version_id) is that rule, and it is
+  // also what makes `deriveFunctionalSpecifications` idempotent.
+  //
+  // `urs_requirement_version_id` is a value, not a foreign key: the URS
+  // Composer owns its own database (AGENTS.md, PLUGIN BOUNDARIES), the same
+  // treatment product_requirements and test_executions give the identifier.
+  // `product_version_id` is a real foreign key — that table is ours.
+  if (!(await knex.schema.hasTable('functional_specifications'))) {
+    await knex.schema.createTable('functional_specifications', table => {
+      table.string('id', 255).primary();
+      table.string('product_version_id', 255).notNullable();
+      table.string('urs_requirement_version_id', 255).notNullable();
+      table.string('fs_code', 100).notNullable();
+      table.string('title', 512).notNullable();
+      table.text('description').notNullable();
+      table.string('created_by', 255).notNullable();
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+
+      table.index(['product_version_id']);
+      table.index(['urs_requirement_version_id']);
+      table
+        .foreign('product_version_id')
+        .references('id')
+        .inTable('product_versions');
+    });
+  }
+
+  await createFunctionalSpecIndexes(knex);
   await addTraceabilityIntegrity(knex);
+}
+
+/**
+ * The two rules that make a functional specification identifiable.
+ *
+ * Expression indexes, so raw SQL with `if not exists` — the form that works on
+ * both dialects, as `createIdentityIndexes` does for versions and baselines.
+ * `lower(fs_code)` because `FS-OEE-014` and `fs-oee-014` are the same code
+ * said twice, and a traceability chain with two of them is not a chain.
+ */
+async function createFunctionalSpecIndexes(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('functional_specifications'))) {
+    return;
+  }
+  await knex.raw(
+    'create unique index if not exists functional_specifications_code_unique ' +
+      'on functional_specifications (product_version_id, lower(fs_code))',
+  );
+  await knex.raw(
+    'create unique index if not exists functional_specifications_requirement_unique ' +
+      'on functional_specifications (product_version_id, urs_requirement_version_id)',
+  );
 }
 
 /**
@@ -671,16 +733,63 @@ async function addTraceabilityIntegrity(knex: Knex): Promise<void> {
     ],
   ];
 
+  // Rebuilt when the vocabulary moves, not merely created when absent.
+  //
+  // This used to `continue` on any existing constraint of the right name. That
+  // is correct exactly once. Adding FUNCTIONAL_SPEC for Stage 3 (item 11) is
+  // the first time either array has grown since the constraint was introduced,
+  // and on a database that already had it the old CHECK would have survived
+  // untouched — so every FS link would be refused in production while a fresh
+  // test schema, which builds the constraint from the current array, passed.
+  // A guard that only agrees with the code on an empty database is worse than
+  // no guard, because it is trusted.
+  //
+  // Comparing the rendered definition rather than tracking a version: the
+  // question is whether the constraint in the database says what the array
+  // says, and `pg_get_constraintdef` answers it directly.
   for (const [name, column, values] of constraints) {
+    const list = values.map(value => `'${value}'`).join(', ');
+
+    // Scoped to the table. `conname` is unique per relation, not per database,
+    // so the previous unscoped lookup would have been satisfied by a
+    // same-named constraint on any other table — and then skipped creating
+    // this one.
     const existing = await knex
-      .select('conname')
+      .select(knex.raw('pg_get_constraintdef(oid) as def'))
       .from('pg_constraint')
       .where({ conname: name })
+      .andWhere('conrelid', '=', knex.raw('?::regclass', ['traceability_links']))
       .first();
+
     if (existing) {
-      continue;
+      // The admitted set, not the rendered text. PostgreSQL prints a CHECK
+      // with its own casts and parentheses, and that spelling is a function of
+      // the column type and the server version — comparing it literally would
+      // rebuild the constraint on every start after a Postgres upgrade.
+      // Comparing the values answers the actual question.
+      const admitted = new Set(
+        Array.from(
+          (existing as { def: string }).def.matchAll(/'([^']*)'/g),
+          match => match[1],
+        ),
+      );
+      const current = new Set<string>(values);
+      const unchanged =
+        admitted.size === current.size &&
+        [...current].every(value => admitted.has(value));
+      if (unchanged) {
+        continue;
+      }
+      // The vocabulary moved. Dropping and re-adding revalidates every
+      // existing row against the new list, so a value that is no longer
+      // admitted fails the migration here rather than silently persisting —
+      // the same refuse-do-not-guess posture as assertTraceabilityVocabulary.
+      await knex.raw('alter table ?? drop constraint ??', [
+        'traceability_links',
+        name,
+      ]);
     }
-    const list = values.map(value => `'${value}'`).join(', ');
+
     await knex.raw(
       `alter table ?? add constraint ?? check (?? in (${list}))`,
       ['traceability_links', name, column],
@@ -929,6 +1038,9 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('ai_spec_drafts');
+  // Before product_versions: functional_specifications carries a foreign key
+  // into it.
+  await knex.schema.dropTableIfExists('functional_specifications');
   await knex.schema.dropTableIfExists('schema_snapshots');
   await knex.schema.dropTableIfExists('upgrade_notifications');
   await knex.schema.dropTableIfExists('contract_subscriptions');

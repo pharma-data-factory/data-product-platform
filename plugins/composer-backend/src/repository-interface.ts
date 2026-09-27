@@ -13,6 +13,7 @@ import {
   ProductRequirement,
   AISpecDraft,
   AISpecDraftStatus,
+  FunctionalSpecification,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -146,6 +147,13 @@ export interface IComposerRepository {
   getProductBaseline(id: string): Promise<ProductBaseline | null>;
   listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
   updateProductBaseline(baseline: ProductBaseline): Promise<void>;
+
+  // Functional Specifications — Stage 3 (MVP1 item 11)
+  createFunctionalSpecification(spec: FunctionalSpecification): Promise<void>;
+  getFunctionalSpecification(id: string): Promise<FunctionalSpecification | null>;
+  listFunctionalSpecifications(
+    productVersionId: string,
+  ): Promise<FunctionalSpecification[]>;
 
   // AI Spec Drafts (MVP1 item 6 / NXD-064 C-3)
   createSpecDraft(draft: AISpecDraft): Promise<void>;

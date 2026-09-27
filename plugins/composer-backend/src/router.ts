@@ -724,6 +724,62 @@ export async function createRouter(
     },
   );
 
+  // Stage 3 — functional specifications (MVP1 item 11).
+  router.get(
+    '/versions/:versionId/functional-specifications',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({
+          items: await service.listFunctionalSpecifications(
+            req.params.versionId,
+          ),
+        });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // Deriving writes rows, so it is a create, not a read.
+  router.post(
+    '/versions/:versionId/functional-specifications/derive',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          productCreatePermission,
+        );
+        const created = await service.deriveFunctionalSpecifications(
+          req.params.versionId,
+          actor,
+        );
+        // 200, not 201: the call is idempotent and a second run legitimately
+        // creates nothing. `derived` says how many rows this run wrote.
+        res.json({ derived: created.length, items: created });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  // The chain G-7 named as missing: URS ↔ FS ↔ Component, resolved.
+  router.get(
+    '/versions/:versionId/functional-spec-trace',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({
+          items: await service.getFunctionalSpecTrace(req.params.versionId),
+        });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get(
     '/versions/:versionId/requirement-coverage',
     async (req: express.Request, res: express.Response) => {

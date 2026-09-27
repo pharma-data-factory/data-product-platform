@@ -125,6 +125,10 @@ export const TRACEABILITY_SOURCE_TYPES = [
   'URS_REQUIREMENT_VERSION',
   'URS_REQUIREMENT',
   'PRODUCT_COMPONENT',
+  // Stage 3 (MVP1 item 11). The left arm of the V-model: a functional
+  // specification sits between the requirement and the design, so it is both
+  // a target (from the requirement) and a source (to the component).
+  'FUNCTIONAL_SPEC',
 ] as const;
 
 export type TraceabilitySourceType =
@@ -135,6 +139,7 @@ export const TRACEABILITY_TARGET_TYPES = [
   'PRODUCT_COMPONENT',
   'TEST_EXECUTION',
   'URS_REQUIREMENT_VERSION',
+  'FUNCTIONAL_SPEC',
 ] as const;
 
 export type TraceabilityTargetType =
@@ -769,6 +774,57 @@ export interface ProductRequirement {
   position: number;
   createdBy: string;
   createdAt: Date;
+}
+
+/**
+ * A functional specification item — Stage 3, the left arm of the V-model.
+ *
+ * `TARGET_OPERATING_MODEL.md` §Stage 3: "an approved UAS produces a Functional
+ * Specification whose items each trace to at least one requirement; the FS
+ * informs the component architecture; stories and tasks live in GitHub, not in
+ * Nexora." So an item is the statement of what the system must *do* to satisfy
+ * one requirement, and it is the artefact that was missing between a
+ * requirement (what the business needs) and a component (a thing that was
+ * built) — G-7 in `docs/compliance/traceability-and-gmp.md`.
+ *
+ * Derived from `product_requirements`, not from the live URS: the product keeps
+ * the wording it was built against, and an FS derived from a later revision
+ * would describe a product nobody released. Same reasoning as §1.7 requirement
+ * provenance.
+ *
+ * Deliberately not modelled here: TDS, stories and tasks. Nexora owns the FS
+ * and its traceability, not a backlog.
+ */
+export interface FunctionalSpecification {
+  id: string;
+  productVersionId: string;
+  /** The pinned requirement version this item specifies. One per item. */
+  ursRequirementVersionId: string;
+  /** Human-facing code, derived from the requirement ref: `URS-WD-001` → `FS-WD-001`. */
+  fsCode: string;
+  title: string;
+  description: string;
+  createdBy: string;
+  createdAt: Date;
+}
+
+/**
+ * One resolved link of the URS ↔ FS ↔ Component chain.
+ *
+ * The reason this is a computed view rather than a stored one: the requirement
+ * end is a column on the FS row, and the component end is the existing
+ * `IMPLEMENTS` link from the requirement. Materialising a third copy of the
+ * same fact would let the copies disagree.
+ */
+export interface FunctionalSpecificationTraceRow {
+  fsCode: string;
+  functionalSpecId: string;
+  title: string;
+  /** Absent when the FS outlived the binding it was derived from. */
+  requirementRef?: string;
+  ursRequirementVersionId: string;
+  /** Components the requirement this item specifies is mapped to. */
+  componentIds: string[];
 }
 
 /** One row of the requirement coverage report. */

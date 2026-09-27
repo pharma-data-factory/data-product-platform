@@ -303,6 +303,133 @@ describe('composer migration on PostgreSQL', () => {
     await expect(up(database)).resolves.toBeUndefined();
   }, 60000);
 
+  // MVP1 item 11. The stale-constraint defect, which no SQLite suite can see:
+  // the CHECK is PostgreSQL-only, and `up()` used to skip any constraint of the
+  // right name without reading it. So a database created before FUNCTIONAL_SPEC
+  // joined the vocabulary would have kept the old CHECK, and every Stage 3 link
+  // would have been refused in production while a fresh test schema — which
+  // builds the constraint from the current array — passed.
+  //
+  // Simulated by rewriting the constraint to a pre-Stage-3 value list, which is
+  // exactly what such a database holds, then re-running the migration.
+  it('rebuilds a type CHECK whose vocabulary has fallen behind', async () => {
+    if (!available) {
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+
+    await database.raw('alter table ?? drop constraint ??', [
+      'traceability_links',
+      'traceability_links_source_type_check',
+    ]);
+    await database.raw(
+      "alter table traceability_links add constraint " +
+        "traceability_links_source_type_check check (source_type in " +
+        "('URS_REQUIREMENT_VERSION', 'URS_REQUIREMENT', 'PRODUCT_COMPONENT'))",
+    );
+
+    const stale = await database
+      .select(database.raw('pg_get_constraintdef(oid) as def'))
+      .from('pg_constraint')
+      .where({ conname: 'traceability_links_source_type_check' })
+      .first();
+    expect((stale as { def: string }).def).not.toContain('FUNCTIONAL_SPEC');
+
+    await up(database);
+
+    const rebuilt = await database
+      .select(database.raw('pg_get_constraintdef(oid) as def'))
+      .from('pg_constraint')
+      .where({ conname: 'traceability_links_source_type_check' })
+      .first();
+    expect((rebuilt as { def: string }).def).toContain('FUNCTIONAL_SPEC');
+
+    // Re-running again must not churn: the definition now matches the array,
+    // so the migration leaves it alone rather than dropping and re-adding a
+    // constraint on every backend start.
+    await up(database);
+    const settled = await database
+      .select(database.raw('pg_get_constraintdef(oid) as def'))
+      .from('pg_constraint')
+      .where({ conname: 'traceability_links_source_type_check' })
+      .first();
+    expect((settled as { def: string }).def).toBe(
+      (rebuilt as { def: string }).def,
+    );
+  }, 60000);
+
+  it('stores a functional specification and enforces its two identities', async () => {
+    if (!available) {
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+
+    await database('products').insert(
+      row({
+        id: 'p-fs',
+        name: 'FS Probe',
+        product_type: 'DATA_PRODUCT',
+        lifecycle: 'EXPERIMENTAL',
+        status: 'ACTIVE',
+      }),
+    );
+    await database('product_versions').insert(
+      row({
+        id: 'v-fs',
+        product_id: 'p-fs',
+        version: '1.0',
+        version_number: 1,
+        status: 'DRAFT',
+      }),
+    );
+
+    const spec = {
+      id: 'fs-1',
+      product_version_id: 'v-fs',
+      urs_requirement_version_id: 'urs-version-fs-pg',
+      fs_code: 'FS-PG-001',
+      title: 'Weighing events are captured',
+      description: 'The system shall capture every weighing event.',
+      created_by: 'user:default/architect',
+      created_at: new Date(),
+    };
+    await database('functional_specifications').insert(spec);
+
+    // One item per requirement per version — the rule that makes derivation
+    // idempotent, held in the database and not only in the service (NXD-009).
+    await expect(
+      database('functional_specifications').insert({
+        ...spec,
+        id: 'fs-2',
+        fs_code: 'FS-PG-002',
+      }),
+    ).rejects.toThrow(/functional_specifications_requirement_unique/);
+
+    // Case-folded: FS-PG-001 and fs-pg-001 are the same code said twice.
+    await expect(
+      database('functional_specifications').insert({
+        ...spec,
+        id: 'fs-3',
+        urs_requirement_version_id: 'urs-version-fs-pg-other',
+        fs_code: 'fs-pg-001',
+      }),
+    ).rejects.toThrow(/functional_specifications_code_unique/);
+
+    // The product version end is a real foreign key; the URS end deliberately
+    // is not, because that table lives in another plugin's database.
+    await expect(
+      database('functional_specifications').insert({
+        ...spec,
+        id: 'fs-4',
+        product_version_id: 'no-such-version',
+        fs_code: 'FS-PG-009',
+        urs_requirement_version_id: 'urs-version-fs-pg-2',
+      }),
+    ).rejects.toThrow();
+  }, 60000);
+
   // MVP1 item 6 / NXD-064 C-3. The suites that exercise drafts run on SQLite,
   // where `text` accepts anything and a missing NOT NULL costs nothing. The
   // provenance columns are the point of the table, so their notNullable is

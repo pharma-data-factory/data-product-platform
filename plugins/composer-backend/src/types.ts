@@ -31,6 +31,8 @@ export type {
   ProductRequirementCoverage,
   ProductRequirementCoverageRow,
   RequirementOrigin,
+  FunctionalSpecification,
+  FunctionalSpecificationTraceRow,
 } from '@internal/platform-common';
 
 /** Body of `POST /versions/:versionId/urs-baseline`. */

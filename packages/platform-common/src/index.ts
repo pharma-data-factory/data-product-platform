@@ -713,6 +713,8 @@ export type {
   ProductRequirement,
   ProductRequirementCoverage,
   ProductRequirementCoverageRow,
+  FunctionalSpecification,
+  FunctionalSpecificationTraceRow,
   RequirementOrigin,
   RequirementMappingState,
   ReleaseProvenance,

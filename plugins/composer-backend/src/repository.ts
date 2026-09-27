@@ -22,6 +22,7 @@ import {
   ProductRequirement,
   AISpecDraft,
   AISpecDraftStatus,
+  FunctionalSpecification,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -583,6 +584,42 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToTraceabilityLink(r));
   }
 
+  // ── Functional Specifications — Stage 3 (MVP1 item 11) ────────────────────
+
+  async createFunctionalSpecification(
+    spec: FunctionalSpecification,
+  ): Promise<void> {
+    await this.db('functional_specifications').insert({
+      id: spec.id,
+      product_version_id: spec.productVersionId,
+      urs_requirement_version_id: spec.ursRequirementVersionId,
+      fs_code: spec.fsCode,
+      title: spec.title,
+      description: spec.description,
+      created_by: spec.createdBy,
+      created_at: spec.createdAt,
+    });
+  }
+
+  async getFunctionalSpecification(
+    id: string,
+  ): Promise<FunctionalSpecification | null> {
+    const row = await this.db('functional_specifications')
+      .where({ id })
+      .first();
+    return row ? this.rowToFunctionalSpecification(row) : null;
+  }
+
+  async listFunctionalSpecifications(
+    productVersionId: string,
+  ): Promise<FunctionalSpecification[]> {
+    const rows = await this.db('functional_specifications')
+      .where({ product_version_id: productVersionId })
+      .orderBy('fs_code', 'asc')
+      .select();
+    return rows.map((r: any) => this.rowToFunctionalSpecification(r));
+  }
+
   // ── AI Spec Drafts (MVP1 item 6 / NXD-064 C-3) ────────────────────────────
 
   async createSpecDraft(draft: AISpecDraft): Promise<void> {
@@ -874,6 +911,19 @@ export class ComposerRepository implements IComposerRepository {
       correlationId: row.correlation_id ?? '',
       reason: row.reason || undefined,
       entityVersion: row.entity_version ?? undefined,
+    };
+  }
+
+  private rowToFunctionalSpecification(row: any): FunctionalSpecification {
+    return {
+      id: row.id,
+      productVersionId: row.product_version_id,
+      ursRequirementVersionId: row.urs_requirement_version_id,
+      fsCode: row.fs_code,
+      title: row.title,
+      description: row.description,
+      createdBy: row.created_by,
+      createdAt: new Date(row.created_at),
     };
   }
 
