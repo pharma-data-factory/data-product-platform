@@ -77,6 +77,67 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   and what the cross-plugin suite needs from URS is published from the package
   index instead of reached for through `src/`. The coupling is a declared API
   now rather than a path into someone else's source.
+- **Audit correlation on the product side** ([`NXD-066`](DECISIONS.md)). B-3
+  fixed the URS trail; `composer_audit_events` had no `correlation_id`
+  column at all and `audit()` minted a fresh UUID per event at 22 sites, so
+  applying an AI spec draft wrote eight or more unjoinable rows for one
+  reviewer's act. `reason` and `entity_version` landed with it, which closes
+  audit item 9 and `NXD-064` C-2.
+- **B-4a — validated references on `traceability_links`**
+  ([`NXD-067`](DECISIONS.md)). `source_type`/`target_type` were free strings
+  nobody checked and had drifted into three spellings of "a requirement";
+  `relationshipType` had a closed vocabulary since Phase 1 that the
+  validator never consulted. Closed vocabulary now, a real foreign key for
+  the one endpoint in this schema, CHECK constraints on PostgreSQL, and
+  existence checks in the service scoped to the bound version's snapshot.
+  `test_executions` arrived with it, append-only. **Closes audit item 4.**
+- **B-4b / B-4c — evidence reaches the gate**
+  ([`NXD-068`](DECISIONS.md), [`NXD-069`](DECISIONS.md)).
+  `POST /api/composer/test-executions` under a service token; a passing run
+  derives its own `VERIFIED_BY` link. `checkReleaseGate` now consumes
+  `getRequirementCoverage`: `INCOMPLETE_TRACEABILITY` means
+  `verified < total` and names the refs, and the old component check became
+  `UNTRACED_COMPONENT`. A later failing run of a test case revokes the
+  verification. **Closes audit items 2, 3 and 5 — the critical path.**
+
+**Six of the twelve MVP1 completion items are now closed**: 2, 3, 4, 5, 9 and
+10 — including all four the audit names as the critical path. Still open:
+`nexora:product:create` in the remaining eight templates (1), persisted AI
+spec drafts (6), typed errors as a whole (7), the `memory` persistence
+default (8), a minimal Stage 3 FS derived from UAS (11), and one E2E spec
+for URS → Product → Release (12).
+
+**What a 2026-09-27 target-architecture audit found beyond that list**, so
+it is written down rather than rediscovered:
+
+- **There are two V-models in this repository and they are easy to
+  conflate.** `validation/**` is the platform's own GAMP package —
+  hand-authored markdown, read-only, parsed by `validation-expert-backend`,
+  covering Nexora itself. The Validation Expert UI renders *that*. It is not
+  a live traceability over customer products, and its automated runners
+  match hard-coded platform test ids (`IQ-001`, `IQ-016`, `OQ-CI-003/004`).
+- **FS, TDS, user stories and task backlogs do not exist in code** — zero
+  symbols. The AI spec draft proposes components and contracts, which is an
+  architecture proposal, not a functional specification. This is the largest
+  gap against the seven-phase target.
+- **The two named AI agents are not started.** No Test Coordinator, no GMP
+  Impact Agent — no stub, no interface. The change-request impact assessment
+  is a human typing `gxpImpact` and `affectedVersionIds` into a request body.
+- **No Kubernetes, no platform observability.** Deployment is Docker Compose
+  plus Portainer; `"Kubernetes"` appears once, as a vocabulary string.
+- **Product-side change control does not exist.** `ChangeRequest` has no
+  occurrences in `composer-backend`; the workflow is URS-side only.
+- **No evidence-package export.** There is no endpoint that produces an
+  audit-ready package for a product.
+- **`GXP_RELEVANCE_LEVELS` is `NONE | INDIRECT | DIRECT`** — there is no
+  `HYBRID`, which the target model names. The conformance audit already
+  excludes Hybrid from MVP1; the vision text does not.
+
+None of this contradicts
+[`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §11,
+which excludes the agents, Marketplace install, runtime operation and Hybrid
+GMP from MVP1 explicitly. The divergence is between the **vision documents**
+and the code, not between the code and its own record.
 
 **Batch 1 — the journey the platform describes can be walked.** Committed
 2026-09-25 (`b7378b0` and the four commits that follow it) and green on all
@@ -1151,7 +1212,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at `15ea5e7`.
+via `docker-compose.test.yml`), after the MVP1-B B-4 slices.
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1159,7 +1220,7 @@ via `docker-compose.test.yml`), at `15ea5e7`.
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 226 suites, 2008 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 229 suites, 2051 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
 the split is 11/8 and not 10/9. The eight remaining warnings are all
@@ -1172,12 +1233,15 @@ The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
 
-Earlier figures, for the trend: 222 suites / 1961 tests on 2026-09-25,
-221 / 1958 for Batch 1 alone, 215 / 1909 on 2026-09-24.
+Earlier figures, for the trend: 226 / 2008 at `15ea5e7` earlier on
+2026-09-27, 222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone,
+215 / 1909 on 2026-09-24.
 
-The four suites added since 2026-09-25 come from the MVP1-B slices: the
-unknown-identifier guards (B-1), the approval-instance client contract on both
-sides (B-2) and audit correlation (B-3). The eight added on 2026-09-25 were the
+The three suites added since `15ea5e7` are the B-4 ones: product-side audit
+correlation, traceability link integrity, and test evidence ingestion — the
+last being the first router-level suite in `composer-backend`. The four
+before them came from B-1 to B-3: the unknown-identifier guards, the
+approval-instance client contract on both sides, and URS audit correlation. The eight added on 2026-09-25 were the
 governance vocabulary, the product update path, release-gate progress, the
 approval-workflow seed in both persistence modes, the approval-instance column,
 the review chain, the guest role, and the transaction boundary.
@@ -1583,9 +1647,10 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"chore(quality): one name for the Composer, one door into URS", 2026-09-27, on
-`ms/composer-ai-spec-and-ci-quality-gate` — two pre-work items ahead of the
-MVP1-B core phase, described under `## Current Vertical Slice`.
+"feat(mvp1-b/b-4b,b-4c): CI writes verification, and the gate finally reads
+it", 2026-09-27, on `ms/composer-ai-spec-and-ci-quality-gate` — the closing
+commit of the MVP1-B critical path, described under
+`## Current Vertical Slice`.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
