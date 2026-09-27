@@ -11,3 +11,10 @@ export {
   listenOnFetchablePort,
 } from './listen';
 export type { Listenable, ListeningServer } from './listen';
+
+export { createTestSchema } from './postgresSchema';
+export type {
+  TestSchema,
+  TestSchemaConnection,
+  TestSchemaOptions,
+} from './postgresSchema';

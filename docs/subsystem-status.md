@@ -1,9 +1,9 @@
 # Subsystem status and GxP position
 
 Owner: Platform Team  
-Last reviewed: 2026-09-09  
+Last reviewed: 2026-09-27  
 Audience: INTERNAL ENGINEERING / PRODUCT / PILOT  
-Version: 1.0.0
+Version: 1.1.0
 
 Authoritative status for **Control Plane product subsystems** that are not
 Golden Paths or Wave 1 components. Use the four dimensions from
@@ -31,12 +31,20 @@ CERTIFIED (implementation) never implies GxP VALIDATED.
 | Platform Core (Catalog, Create, Marketplace, Data Products, RBAC, TechDocs, Developer Hub) | `packages/app`, `packages/backend`, `plugins/data-products*`, `plugins/marketplace`, `plugins/entitlements-backend`, … | CERTIFIED (MVP 1.0 technical baseline) | RELEASED for pilot under conditions | Legal distribution **BLOCKED** | **NOT VALIDATED** | [mvp-1.0-baseline](mvp-1.0-baseline.md) |
 | URS Composer | `plugins/urs-composer`, `plugins/urs-composer-backend` | **TESTED** | **DRAFT** — not a released customer module | **FUTURE** (no SKU) | **NOT VALIDATED** | Requirements, baselines, approval chain, e-sign *mechanism*. Outside MVP 1.0 value proposition. |
 | Validation Expert | `plugins/validation-expert`, `plugins/validation-expert-backend` | **TESTED** | **DRAFT** | **FUTURE** | **NOT VALIDATED** | IQ/OQ/UAT run tooling and URS baseline HTTP seam. Not a validated CSV system. |
-| Solution / Composition Builder | `packages/app` Compose UI, `plugins/composer-backend` | **TESTED** | **DRAFT** | n/a | **NOT VALIDATED** | Composition drafts and presets; not a Golden Path. |
+| Product Composer | `packages/app` Compose UI, `plugins/composer-backend` | **TESTED** | **DRAFT** | n/a | **NOT VALIDATED** | Composition drafts and presets; not a Golden Path. |
 | Model Company | `plugins/model-company`, `plugins/model-company-backend` | **TESTED** | **DRAFT** (demo) | n/a | **NOT VALIDATED** | Demonstration / scenario plant only. |
 | Plugin Directory | `plugins/plugin-directory`, `plugins/plugin-directory-backend` | **TESTED** | **DRAFT** | n/a | **NOT VALIDATED** | Internal inventory UI. |
 | Users admin API | `plugins/users-backend` | **DEVELOPMENT** | **DRAFT** | n/a | **NOT VALIDATED** | Thin admin surface; not a complete IAM product. |
 | AAS Control Plane adapter | `plugins/aas-backend`, Assets UI | **DEVELOPMENT** (in-memory prototype) | **DRAFT** | n/a | **NOT VALIDATED** | Not BaSyx; not a certified fourth Golden Path in this freeze. See ROADMAP. |
 | Unified Namespace | `uns/`, related templates | **DEVELOPMENT** | **DRAFT** | n/a | **NOT VALIDATED** | Outside MVP 1.0 value proposition. |
+
+### Naming
+
+**Product Composer** is the canonical name for the `/compose` UI and
+`plugins/composer-backend`. This table previously called it "Solution /
+Composition Builder"; there is no Solution domain in this platform. See
+[`NXD-063`](nexora-transformation/DECISIONS.md). The status columns are
+unchanged by the rename.
 
 ### AAS honesty
 

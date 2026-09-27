@@ -14,15 +14,16 @@ import {
   FileValidationRunRepository,
   MemoryValidationRunRepository,
 } from './repository';
-/* eslint-disable @backstage/no-mixed-plugin-imports, @backstage/no-forbidden-package-imports -- cross-plugin PostgreSQL integration test uses URS test helpers */
+import { createTestSchema, type TestSchema } from '@internal/backend-test-utils';
+/* eslint-disable @backstage/no-mixed-plugin-imports -- this suite proves the URS → Validation entry gate and drives both sides; it uses the URS package's published API, not its private source */
 import {
-  createTestDatabase,
-  type TestDatabase,
-} from '@internal/plugin-urs-composer-backend/src/__testUtils__/testDatabase';
-import { URSService } from '@internal/plugin-urs-composer-backend/src/service';
-import { PostgresURSRepository } from '@internal/plugin-urs-composer-backend/src/postgres-repository';
-import { SignaturePinReAuth } from '@internal/plugin-urs-composer-backend/src/domain/reauth';
-import { SolutionType } from '@internal/plugin-urs-composer-backend/src/types';
+  URSService,
+  PostgresURSRepository,
+  SignaturePinReAuth,
+  SolutionType,
+  applyUrsMigrations,
+  seedUrsDatabase,
+} from '@internal/plugin-urs-composer-backend';
 import {
   ValidationExpertService,
   type UrsBaselineResolver,
@@ -258,12 +259,13 @@ describe('URS → Validation integration against real PostgreSQL', () => {
     }),
   };
 
-  let testDb: TestDatabase;
+  let testDb: TestSchema;
   let dbAvailable = false;
 
   beforeAll(async () => {
-    testDb = await createTestDatabase('validation-context-integration', {
-      seed: true,
+    testDb = await createTestSchema('validation-context-integration', {
+      migrate: applyUrsMigrations,
+      seed: seedUrsDatabase,
     });
     dbAvailable = testDb.available;
   }, 60000);
