@@ -6,6 +6,16 @@ const ROOT = path.resolve(__dirname, '../../..');
 const TEMPLATE_DIR = path.join(ROOT, 'templates/python-service');
 const CONTENT_DIR = path.join(TEMPLATE_DIR, 'content');
 
+/**
+ * Steps are addressed by id, never by position. Inserting `verify-urs` ahead of
+ * `publish` moved every index by one, and the resulting failures read as if
+ * publish had lost its repoUrl rather than as if the test had counted wrong.
+ */
+const stepById = (
+  entity: { spec: { steps: { id: string; input: Record<string, unknown> }[] } },
+  id: string,
+) => entity.spec.steps.find(step => step.id === id)!;
+
 const REQUIRED_FILES = [
   'app/main.py',
   'app/config.py',
@@ -59,10 +69,14 @@ describe('Python Microservice general service template', () => {
     expect(entity.kind).toBe('Template');
     expect(entity.metadata.name).toBe('python-microservice');
     expect(entity.metadata.title).toBe('Python Microservice');
+    // Order matters as well as membership: ursBaselineId sits with the other
+    // identity fields, above the repository, because a binding the author has
+    // to scroll past is a binding that does not get set.
     expect(Object.keys(entity.spec.parameters[0].properties)).toEqual([
       'name',
       'description',
       'owner',
+      'ursBaselineId',
       'repoUrl',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe('Service Name');
@@ -81,12 +95,18 @@ describe('Python Microservice general service template', () => {
     );
     expect(JSON.stringify(entity.spec.parameters)).not.toContain('secrets');
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
-      ['fetch:template', 'publish:github', 'catalog:register'],
+      [
+        'fetch:template',
+        'nexora:urs:verify-baseline',
+        'publish:github',
+        'catalog:register',
+        'nexora:product:create',
+      ],
     );
-    expect(entity.spec.steps[1].input.repoUrl).toBe(
+    expect(stepById(entity, 'publish').input.repoUrl).toBe(
       'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
     );
-    expect(entity.spec.steps[1].input.token).toBeUndefined();
+    expect(stepById(entity, 'publish').input.token).toBeUndefined();
     expect(entity.spec.steps[0].input.values.destination).toEqual({
       host: 'github.com',
       owner: 'pharma-data-factory',
@@ -128,7 +148,7 @@ describe('Python Microservice general service template', () => {
     const entity = yaml.parse(
       fs.readFileSync(path.join(TEMPLATE_DIR, 'template.yaml'), 'utf8'),
     );
-    const repoUrl = String(entity.spec.steps[1].input.repoUrl).replace(
+    const repoUrl = String(stepById(entity, 'publish').input.repoUrl).replace(
       '${{ parameters.name }}',
       'temperature-service-test',
     );

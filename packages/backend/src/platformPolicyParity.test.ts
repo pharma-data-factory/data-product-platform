@@ -47,15 +47,23 @@ describe('shared platform policy', () => {
       ),
     );
 
-    const dataProductTemplates = [
+    // Every publishing template, not only the data products: the four
+    // service and platform-component templates pin the same literal since they
+    // gained the URS binding, and a policy bump that skipped them would leave
+    // them claiming a version nobody checked.
+    const templatesPinningPolicyVersion = [
       'oee-data-product',
       'rest-equipment-product',
       'mqtt-temperature-product',
       'machine-state-consumer',
       'aas-data-product',
+      'mqtt-connector',
+      'node-service',
+      'python-service',
+      'unified-namespace',
     ];
 
-    for (const template of dataProductTemplates) {
+    for (const template of templatesPinningPolicyVersion) {
       const source = fs.readFileSync(
         path.join(ROOT, 'templates', template, 'template.yaml'),
         'utf8',

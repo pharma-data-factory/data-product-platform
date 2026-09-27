@@ -53,17 +53,29 @@ describe('GitHub Golden Path integration', () => {
         'utf8',
       ),
     );
+    // Addressed by id, never by position: inserting `verify-urs` ahead of
+    // `publish` moved every index by one, and the resulting failures read as if
+    // publish had lost its repoUrl rather than as if the test had counted wrong.
+    const stepById = (id: string) =>
+      template.spec.steps.find((step: { id: string }) => step.id === id);
+
     expect(template.spec.steps.map((step: { action: string }) => step.action)).toEqual(
-      ['fetch:template', 'publish:github', 'catalog:register'],
+      [
+        'fetch:template',
+        'nexora:urs:verify-baseline',
+        'publish:github',
+        'catalog:register',
+        'nexora:product:create',
+      ],
     );
-    expect(template.spec.steps[1].input.repoUrl).toBe(
+    expect(stepById('publish').input.repoUrl).toBe(
       'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
     );
-    expect(template.spec.steps[1].input.token).toBeUndefined();
+    expect(stepById('publish').input.token).toBeUndefined();
     expect(JSON.stringify(template.spec.parameters)).not.toContain(
       'requestUserCredentials',
     );
-    expect(template.spec.steps[2].input.catalogInfoPath).toBe(
+    expect(stepById('register').input.catalogInfoPath).toBe(
       '/catalog-info.yaml',
     );
   });

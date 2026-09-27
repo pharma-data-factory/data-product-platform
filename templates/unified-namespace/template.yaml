@@ -49,6 +49,15 @@ spec:
               kind:
                 - Group
                 - User
+        ursBaselineId:
+          title: URS Baseline
+          type: string
+          description: >-
+            Approved URS baseline this product is built against. Leave empty
+            to create the product without one — it can then be built and tested,
+            but the release gate will refuse to release it until it references an
+            approved baseline.
+          ui:field: UrsBaselinePicker
         rootNamespace:
           title: Root Namespace
           type: string
@@ -96,6 +105,22 @@ spec:
             repo: ${{ parameters.name }}
           templateName: unified-namespace
           templateVersion: 1.0.0
+          # Always emitted, so an unbound product is explicit in the catalog and
+          # can be found rather than merely missing an annotation.
+          ursBaselineId: ${{ parameters.ursBaselineId or 'unbound' }}
+          # Pinned at creation: a later policy version makes this product
+          # visibly outdated instead of silently non-compliant.
+          policyVersion: '1'
+
+    # Before anything is published: a URS claim that does not hold must not
+    # reach the catalog. Fails the task unless the baseline is APPROVED.
+    # "unbound" passes — creating without a URS is allowed, releasing is not.
+    - id: verify-urs
+      name: Verify URS baseline
+      action: nexora:urs:verify-baseline
+      input:
+        ursBaselineId: ${{ parameters.ursBaselineId or 'unbound' }}
+
     - id: publish
       name: Publish to GitHub
       action: publish:github
@@ -112,6 +137,32 @@ spec:
       input:
         repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
+
+    # The third thing a product is made of: the governed record that versions,
+    # baselines, requirements and the release gate hang off. Last on purpose —
+    # the repository and the entity are the expensive artifacts, so they are
+    # proven before this is written, and a failure here is fixed by re-running
+    # (the action is idempotent on the entity ref). It runs as whoever started
+    # the task, so it is refused if they may not create products.
+    #
+    # SERVICE, although the Catalog entity is a platform-component: PRODUCT_TYPES
+    # has no platform-component member, and PLATFORM_PRODUCT is reserved for the
+    # Nexora-manages-Nexora singleton. The join is by catalogEntityRef, not by
+    # type, so the two descriptions coexist — see STATUS.md, where this is
+    # recorded as a choice rather than left to be rediscovered as a bug.
+    - id: product
+      name: Create the product record
+      action: nexora:product:create
+      input:
+        name: ${{ parameters.name }}
+        productType: SERVICE
+        # This template has no domain parameter. The literal is the one the
+        # fetch step pins into the Catalog entity, so the governed record and
+        # the entity cannot disagree about which domain this product is in.
+        domain: integration
+        description: ${{ parameters.description }}
+        repositoryUrl: ${{ steps['publish'].output.remoteUrl }}
+        catalogEntityRef: ${{ steps['register'].output.entityRef }}
   output:
     links:
       - title: Repository
@@ -119,3 +170,5 @@ spec:
       - title: Open in catalog
         icon: catalog
         entityRef: ${{ steps['register'].output.entityRef }}
+      - title: Governance and release
+        url: ${{ steps['product'].output.productUrl }}
