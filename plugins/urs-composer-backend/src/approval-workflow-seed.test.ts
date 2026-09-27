@@ -4,10 +4,10 @@
  * `submitBaseline` resolves `standard-gxp-urs` or `non-gxp-urs` by a fixed id,
  * and `createApprovalInstance` throws `Workflow not found` when the lookup
  * misses. Only `db/seeds.ts` ever created those rows and only
- * `postgres-repository.ts` runs it, so in the persistence mode `app-config.yaml`
- * ships (`ursComposer.persistence.mode: memory`) submitting a baseline for
- * approval failed — with no way round it from the UI, which has no screen for
- * creating a workflow.
+ * `postgres-repository.ts` runs it, so in memory mode — which `app-config.yaml`
+ * shipped as the default until MVP1 item 8 moved it to
+ * `app-config.memory.yaml` — submitting a baseline for approval failed, with
+ * no way round it from the UI, which has no screen for creating a workflow.
  *
  * Every other suite in this plugin calls `createApprovalWorkflow` in its own
  * setup, which is exactly why the gap survived: the tests supplied the thing

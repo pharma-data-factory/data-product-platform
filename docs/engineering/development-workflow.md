@@ -71,10 +71,35 @@ Use the local-only `demo` provider (`auth.providers.demo.users`); it is inert
 unless users are named and refused outright when `auth.environment` is
 production.
 
-**Persistence.** The shipped default is `ursComposer.persistence.mode: memory`,
-which disables the PostgreSQL GxP invariants and the durable audit trail. Use
-PostgreSQL for anything touching requirements, approvals, signatures or
-baselines — otherwise you are testing a different system.
+**Persistence.** The shipped default is PostgreSQL, for local development as
+well as production. `yarn start` needs a database:
+
+```bash
+cp .env.example .env          # POSTGRES_* match the compose db service
+docker compose up -d db       # publishes 5432
+yarn start
+```
+
+**This changed on 2026-09-27** (MVP1 item 8 / `NXD-064` C-1). The default used
+to be file-backed SQLite with `ursComposer.persistence.mode: memory`, so a
+plain `yarn start` ran without the controls that exist only in the Postgres
+schema — no single-open-version index, no content immutability trigger, no
+durable audit trail. If your stack stopped starting after pulling this, the
+database is what is missing.
+
+To work without one, layer the overlay that says what it costs:
+
+```bash
+yarn start --config app-config.yaml --config app-config.memory.yaml
+```
+
+That file turns permissions off, and has to: the backend refuses to start in
+memory mode while `permission.enabled` is true, because an authorization
+decision about who may approve or sign is only meaningful if the record of it
+survives. So role and authorization work cannot be done in memory mode — use
+the default. Neither can anything touching requirements, approvals,
+signatures, baselines or releases; there you would be testing a different
+system.
 
 ---
 

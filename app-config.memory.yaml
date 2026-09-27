@@ -1,0 +1,47 @@
+# Volatile local development. Nothing here is a regulated store.
+#
+#   yarn start --config app-config.yaml --config app-config.memory.yaml
+#
+# Layer this on top of app-config.yaml when you want to run without a database
+# at all — a quick UI change, a frontend-only task, a machine with no Docker.
+# It exists so that "I do not want to start Postgres" is a sentence you write
+# down rather than a default you inherit.
+#
+# MVP1 item 8 / NXD-064 C-1. Until 2026-09-27 this was the shipped default:
+# `app-config.yaml` set `ursComposer.persistence.mode: memory`, and any overlay
+# that did not mention the key inherited it. That is how production once came to
+# run the URS audit trail in process memory. The default is Postgres now, and
+# memory lives here, where the cost of choosing it is written next to it.
+#
+# What you give up, precisely:
+#   - The durable audit trail. Every event is lost on restart.
+#   - The PostgreSQL GxP controls, which exist only in that schema: the
+#     single-open-version index, the content immutability trigger, the
+#     append-only constraints. `applyGxpConstraints` is guarded on the `pg`
+#     dialect and simply does not run elsewhere.
+#   - Transactions. The in-memory repository has none.
+#   - A second process seeing anything you wrote.
+#
+# Do not use this for anything touching requirements, approvals, signatures,
+# baselines or releases. You would be testing a different system — see
+# `docs/engineering/development-workflow.md`.
+
+backend:
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+ursComposer:
+  persistence:
+    mode: memory
+
+# Required, not incidental. `getPersistenceMode` refuses to start in memory mode
+# while permissions are enabled, because an authorization decision about who may
+# approve or sign is only meaningful if the record of it survives — and here it
+# does not. Turning permissions off is the honest consequence of choosing this
+# file, not a workaround for the check.
+#
+# This is also why role and authorization work cannot be done in memory mode:
+# use the default Postgres config for that.
+permission:
+  enabled: false

@@ -116,10 +116,31 @@ describe('Backstage foundation', () => {
     expect(appConfig).toContain("'http://*:3000'");
   });
 
-  it('uses file-backed SQLite so DevDataStore IPC is not required', () => {
-    expect(appConfig).toContain('client: better-sqlite3');
-    expect(appConfig).toContain('directory: .sqlite');
-    expect(appConfig).not.toContain("connection: ':memory:'");
+  it('ships PostgreSQL as the default persistence, not SQLite or memory', () => {
+    // MVP1 item 8 / NXD-064 C-1. The shipped default used to be file-backed
+    // SQLite with ursComposer.persistence.mode: memory, so the default stack
+    // ran without the GxP controls that exist only in the Postgres schema.
+    // Asserted on the base file, because a default that is only safe once an
+    // overlay is layered is what C-1 objects to.
+    // Matched as settings at the start of a line, not as substrings: both
+    // spellings appear in the comment above them explaining what changed.
+    expect(appConfig).toMatch(/^\s+client: pg$/m);
+    expect(appConfig).toMatch(/^\s+mode: postgres$/m);
+    expect(appConfig).not.toMatch(/^\s+client: better-sqlite3$/m);
+    expect(appConfig).not.toMatch(/^\s+mode: memory$/m);
+  });
+
+  it('keeps memory mode available as a file you have to ask for', () => {
+    // Removing the mode was never the position — NXD-064 C-1 and audit item 8
+    // both say default or refuse, not delete. It moved to an overlay whose
+    // first lines state what it costs, and it turns permissions off because
+    // getPersistenceMode refuses the combination.
+    const memoryConfig = fs.readFileSync(
+      path.resolve(__dirname, '../../../app-config.memory.yaml'),
+      'utf8',
+    );
+    expect(memoryConfig).toContain('mode: memory');
+    expect(memoryConfig).toMatch(/permission:\s*\n\s*enabled: false/);
   });
 
   it('keeps GitHub credentials in environment substitution', () => {

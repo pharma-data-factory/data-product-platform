@@ -42,21 +42,35 @@ backend:
       - 'http://*:3000'
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
-  # File-backed SQLite for local development. `:memory:` is restored through
-  # DevDataStore IPC during `repo start` (5s timeout). That IPC saturates when
-  # the CLI parent is also compiling the frontend, especially on Windows/OneDrive,
-  # and then `core.auth` fails while Search is starting. Production uses Postgres.
+  # PostgreSQL, including for local development. MVP1 item 8 / NXD-064 C-1: the
+  # shipped default used to be file-backed SQLite, and with it
+  # `ursComposer.persistence.mode: memory`, so the default stack ran without the
+  # GxP controls that exist only in the Postgres schema — no single-open-version
+  # index, no content immutability trigger, no durable audit trail. A default
+  # that disables the invariants is the wrong default, however well the override
+  # is documented.
+  #
+  # Start the database with `docker compose up -d db`; it publishes 5432 and its
+  # credentials are the POSTGRES_* values in `.env.example`.
+  #
+  # To work without a database, run with `--config app-config.memory.yaml`,
+  # which says in one place what you are giving up.
   database:
-    client: better-sqlite3
+    client: pg
     connection:
-      directory: .sqlite
+      host: ${POSTGRES_HOST}
+      port: ${POSTGRES_PORT}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+      database: ${POSTGRES_DATABASE}
   # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
 
-# URS Composer runs in-memory for local development (matches the SQLite dev DB).
-# Production must set mode: postgres.
+# Postgres everywhere, including local development. Stated explicitly rather
+# than left to the plugin default, so a reader of this file can see which store
+# the shipped stack uses without knowing the fallback.
 ursComposer:
   persistence:
-    mode: memory
+    mode: postgres
   ai:
     enabled: false
     provider: openai

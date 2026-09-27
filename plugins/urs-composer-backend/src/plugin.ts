@@ -8,9 +8,12 @@
  * ursComposer:
  *   persistence:
  *     mode: postgres  # 'postgres' or 'memory'
- * 
- * Default: postgres (production)
- * Never silently falls back to volatile memory
+ *
+ * Default: postgres, and since MVP1 item 8 that is also what `app-config.yaml`
+ * ships rather than only what the code falls back to. Memory is an opt-in you
+ * have to write down — `app-config.memory.yaml` is the supported way — and it
+ * is refused outright when `auth.environment` is production or when
+ * `permission.enabled` is true. Never silently falls back to volatile memory.
  */
 
 import {
@@ -43,18 +46,35 @@ export function getPersistenceMode(config: Config): PersistenceMode {
   }
 
   if (mode === 'memory') {
-    // The safe default above is not enough on its own. app-config.yaml sets
-    // memory for local development and is layered first, so an overlay that
-    // simply omits the key inherits it. That is how production came to run
-    // the audit trail in process memory, with none of the immutability
-    // triggers, which exist only in the Postgres schema. Refused here rather
-    // than left to each overlay to remember.
+    // The safe default above is not enough on its own. An overlay that simply
+    // omits the key inherits whatever was layered first. That is how production
+    // came to run the audit trail in process memory, with none of the
+    // immutability triggers, which exist only in the Postgres schema. Refused
+    // here rather than left to each overlay to remember.
     if (config.getOptionalString('auth.environment') === 'production') {
       throw new Error(
         "ursComposer.persistence.mode is 'memory' while auth.environment is " +
           "'production'. In-memory storage has no audit trail, no immutability " +
           'triggers and no transactions, and loses every record on restart. ' +
           "Set ursComposer.persistence.mode: postgres in the production config.",
+      );
+    }
+
+    // The second half of NXD-064 C-1, and the one that does not depend on
+    // remembering to set auth.environment. Permissions on means the platform is
+    // deciding who may approve, sign and release — decisions that are only
+    // meaningful if the record of them survives. Authorizing against a store
+    // with no audit trail produces a decision nobody can later evidence, which
+    // is worse than refusing to start.
+    if (config.getOptionalBoolean('permission.enabled') === true) {
+      throw new Error(
+        "ursComposer.persistence.mode is 'memory' while permission.enabled is " +
+          'true. Authorization decisions about approvals, signatures and ' +
+          'releases would be enforced against a store that has no audit trail, ' +
+          'no immutability triggers and loses every record on restart. Either ' +
+          'set ursComposer.persistence.mode: postgres (the default), or run ' +
+          'with app-config.memory.yaml, which turns permissions off and says ' +
+          'why.',
       );
     }
     return 'memory';
