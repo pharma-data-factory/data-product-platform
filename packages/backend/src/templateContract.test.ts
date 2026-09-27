@@ -4,6 +4,12 @@ import yaml from 'yaml';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
+// Every template any app-config registers. Two `kind: Template` files in the
+// repository are deliberately absent and must stay absent: `templates/aas-asset`
+// publishes nothing — one `debug:log` step, and its own description says it
+// creates no GitHub repository and no Data Product — and `examples/template` is
+// the stock Backstage sample, which no app-config registers. The assertions
+// below are binding, so adding either one here fails rather than explains.
 const TEMPLATES = [
   {
     id: 'python-microservice',
@@ -44,6 +50,11 @@ const TEMPLATES = [
     id: 'oee-data-product',
     dir: 'templates/oee-data-product',
     title: 'OEE Data Product',
+  },
+  {
+    id: 'aas-data-product',
+    dir: 'templates/aas-data-product',
+    title: 'AAS Asset Administration Shell Data Product',
   },
 ];
 
@@ -86,6 +97,10 @@ const SAMPLE_VALUES: Record<string, unknown> = {
   topicPattern: 'pharma/+/+/+/+/machine/state',
   templateName: 'contract-test',
   templateVersion: '1.0.0',
+  // Every publishing template writes both, so an unrendered value here would
+  // show up as a YAML null rather than as the string the catalog expects.
+  ursBaselineId: 'unbound',
+  policyVersion: '1',
   destination: { owner: 'acme', repo: 'demo-service' },
 };
 
@@ -172,12 +187,11 @@ describe('template registration and generation contract', () => {
       // Every template fetches its base content first, then publishes the
       // repository and registers the result in the Catalog, in that order.
       //
-      // No longer asserted as "the last two steps": Step 2 adds
-      // `nexora:product:create` after them on the templates that carry it, and
-      // deliberately last — the repository and the entity are the expensive
-      // artifacts, so they are proven before the governed record is written.
-      // What has to hold is the relative order, which is what the offsets
-      // check.
+      // Not asserted as "the last two steps": `nexora:product:create` comes
+      // after them, deliberately last — the repository and the entity are the
+      // expensive artifacts, so they are proven before the governed record is
+      // written. What has to hold is the relative order, which is what the
+      // offsets check.
       expect(stepIds[0]).toBe('fetch-base');
       expect(actionById.get('fetch-base')).toBe('fetch:template');
       expect(stepIds).toContain('publish');
@@ -186,41 +200,51 @@ describe('template registration and generation contract', () => {
       expect(actionById.get('publish')).toBe('publish:github');
       expect(actionById.get('register')).toBe('catalog:register');
 
-      // A template that creates the product record must do it after the
-      // Catalog entity exists, because the entity ref is what joins the two.
-      // Collapsed into one unconditional assertion: a template without the
-      // step reports the passing shape, so the rule reads the same whether or
-      // not this template carries it.
+      // Every publishing template creates the governed product record, and
+      // creates it after the Catalog entity exists, because the entity ref is
+      // what joins the two.
+      //
+      // Binding since audit item 1 closed. This used to report the passing
+      // shape when the step was absent, so seven templates that published a
+      // repository and an entity and no record passed it by construction.
+      // `indexOf` returning -1 now leaves `action` undefined and
+      // `afterRegister` false, and the template id is in the payload so the
+      // diff names which one.
       const productIndex = stepIds.indexOf('product');
-      expect(
-        productIndex === -1
-          ? { action: 'nexora:product:create', afterRegister: true }
-          : {
-              action: actionById.get('product'),
-              afterRegister: productIndex > stepIds.indexOf('register'),
-            },
-      ).toEqual({ action: 'nexora:product:create', afterRegister: true });
+      expect({
+        template: template.id,
+        action: actionById.get('product'),
+        afterRegister: productIndex > stepIds.indexOf('register'),
+      }).toEqual({
+        template: template.id,
+        action: 'nexora:product:create',
+        afterRegister: true,
+      });
 
-      // A template that asks the author for an approved URS baseline must also
-      // verify that baseline before it publishes anything. The two always ship
+      // Every publishing template asks the author for an approved URS baseline
+      // and verifies it before it publishes anything. The two always ship
       // together; a parameter without the gate would let an unapproved
       // baseline reach a generated Product repository.
-      const asksForUrsBaseline = entity.spec.parameters.some(
-        (group: { properties?: Record<string, unknown> }) =>
-          Boolean(group.properties?.ursBaselineId),
-      );
+      //
+      // The field is checked on the FIRST parameter page and behind
+      // UrsBaselinePicker, which is the half of this that is about the UI: a
+      // binding on page two, or in a free-text box expecting a UUID, is one
+      // that in practice never gets set. This is what stops that regressing.
+      const firstPage = entity.spec.parameters[0] as {
+        properties?: Record<string, { 'ui:field'?: string }>;
+      };
       expect({
-        asksForUrsBaseline,
+        template: template.id,
+        field: firstPage.properties?.ursBaselineId?.['ui:field'],
         verifyAction: actionById.get('verify-urs'),
         verifiesBeforePublish:
           stepIds.includes('verify-urs') &&
           stepIds.indexOf('verify-urs') < stepIds.indexOf('publish'),
       }).toEqual({
-        asksForUrsBaseline,
-        verifyAction: asksForUrsBaseline
-          ? 'nexora:urs:verify-baseline'
-          : undefined,
-        verifiesBeforePublish: asksForUrsBaseline,
+        template: template.id,
+        field: 'UrsBaselinePicker',
+        verifyAction: 'nexora:urs:verify-baseline',
+        verifiesBeforePublish: true,
       });
     }
   });

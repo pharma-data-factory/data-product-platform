@@ -125,6 +125,10 @@ catalog:
       target: ./templates/oee-data-product/template.yaml
       rules:
         - allow: [Template]
+    - type: file
+      target: ./templates/aas-data-product/template.yaml
+      rules:
+        - allow: [Template]
 
 # Technical-pilot commercial profile. LocalEntitlementProvider is intentional
 # until an AWS Marketplace listing exists. This is NOT AWS production.

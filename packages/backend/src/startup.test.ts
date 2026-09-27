@@ -10,6 +10,31 @@ const guestConfig = fs.readFileSync(
   path.resolve(__dirname, '../../../app-config.guest.yaml'),
   'utf8',
 );
+const productionConfig = fs.readFileSync(
+  path.resolve(__dirname, '../../../app-config.production.yaml'),
+  'utf8',
+);
+
+/**
+ * The template directories both configs must register, kept as one list
+ * because keeping two let them drift: `aas-data-product` was registered in
+ * development and not in production, so a template that existed, was
+ * contract-tested and appeared locally could not be used by anyone.
+ *
+ * Deliberately absent, matching `templateContract.test.ts`: `aas-asset`
+ * publishes nothing, and `examples/` is the stock Backstage sample.
+ */
+const REGISTERED_TEMPLATE_DIRS = [
+  'python-service',
+  'node-service',
+  'mqtt-connector',
+  'mqtt-temperature-product',
+  'rest-equipment-product',
+  'unified-namespace',
+  'machine-state-consumer',
+  'oee-data-product',
+  'aas-data-product',
+];
 
 describe('Backstage foundation', () => {
   it('starts the current backend architecture with required plugins', () => {
@@ -41,15 +66,23 @@ describe('Backstage foundation', () => {
   });
 
   it('registers official templates in catalog configuration', () => {
-    expect(appConfig).toContain('../../templates/python-service/template.yaml');
-    expect(appConfig).toContain('../../templates/node-service/template.yaml');
-    expect(appConfig).toContain('../../templates/mqtt-connector/template.yaml');
-    expect(appConfig).toContain('../../templates/mqtt-temperature-product/template.yaml');
-    expect(appConfig).toContain('../../templates/rest-equipment-product/template.yaml');
-    expect(appConfig).toContain('../../templates/unified-namespace/template.yaml');
-    expect(appConfig).toContain('../../templates/machine-state-consumer/template.yaml');
-    expect(appConfig).toContain('../../templates/oee-data-product/template.yaml');
-    expect(appConfig).toContain('../../templates/aas-data-product/template.yaml');
+    // Asserted against both configs from one list, and reported per directory
+    // so the diff names the template and the environment that is missing it
+    // rather than only that some string was absent. The two paths differ
+    // because the configs resolve from different working directories.
+    expect(
+      REGISTERED_TEMPLATE_DIRS.map(dir => ({
+        dir,
+        development: appConfig.includes(`../../templates/${dir}/template.yaml`),
+        production: productionConfig.includes(`./templates/${dir}/template.yaml`),
+      })),
+    ).toEqual(
+      REGISTERED_TEMPLATE_DIRS.map(dir => ({
+        dir,
+        development: true,
+        production: true,
+      })),
+    );
     expect(appConfig).toContain('allow: [Component, System, API, Resource, Location, Template, Domain]');
   });
 
