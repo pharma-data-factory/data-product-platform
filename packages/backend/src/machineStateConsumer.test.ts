@@ -138,6 +138,7 @@ describe('Machine State Consumer Data Product', () => {
         'nexora:urs:verify-baseline',
         'publish:github',
         'catalog:register',
+        'nexora:product:create',
       ],
     );
   });

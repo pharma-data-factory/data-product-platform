@@ -125,8 +125,11 @@ describe('MQTT Temperature Data Product Golden Path', () => {
     expect(entity.spec.parameters[0].description).toMatch(/Quality Gate/);
     expect(entity.spec.parameters[0].description).toMatch(/CI\/CD/);
     expect(entity.spec.parameters[0].description).toMatch(/TechDocs/);
+    // Three links, not two: the governed record is the third thing the task
+    // produces, and a product page nobody can reach from the task is the same
+    // as not having written one.
     expect(entity.spec.output.links.map((link: { title: string }) => link.title)).toEqual(
-      ['Repository', 'View Data Product'],
+      ['Repository', 'View Data Product', 'Governance and release'],
     );
     expect(JSON.stringify(entity.spec.parameters)).not.toMatch(/Scaffolder|Backstage catalog/i);
     expect(entity.spec.parameters[0].properties.mqttTopic.default).toBe(
@@ -145,6 +148,7 @@ describe('MQTT Temperature Data Product Golden Path', () => {
         'nexora:urs:verify-baseline',
         'publish:github',
         'catalog:register',
+        'nexora:product:create',
       ],
     );
     const stepById = (id: string) =>
