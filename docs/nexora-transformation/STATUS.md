@@ -202,14 +202,44 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   hashed rather than stored — it embeds requirement text the URS Composer
   owns. **Closes audit items 6 and 8.**
 
+- **Stage 3, the left arm of the V-model** (`82a8867`). Audit completion item
+  11, the last of the twelve — see [`NXD-071`](DECISIONS.md).
+  `functional_specifications` derives one item per bound requirement from the
+  `product_requirements` snapshot, and `getFunctionalSpecTrace` resolves
+  URS ↔ FS ↔ Component. Scope is an FS bridge only: TDS, stories and tasks
+  stay out, because `TARGET_OPERATING_MODEL.md` already said Nexora owns the FS
+  and not a backlog, and nothing in the platform reads a TDS.
+
+  **The FS is additive, and that limit matters more than the feature.**
+  `getRequirementCoverage` joins requirement straight to component and the
+  release gate reads it, so making FS a mandatory hop would have flipped every
+  coverage row to `UNMAPPED` and blocked every release. The chain is resolved,
+  not rewritten; a test asserts coverage is unchanged across a derivation.
+
+  **It also exposed a guard that only agreed with the code on an empty
+  database.** The PostgreSQL CHECK constraints on the traceability vocabulary
+  were created when absent and never rebuilt — correct exactly once, and this
+  was the first growth of either array since they landed. An existing database
+  would have refused every FS link in production while a fresh test schema
+  passed. Fixed and mutation-checked. Worth generalising: in a migration file
+  that is one idempotent `up()` with no version table, "create if absent" means
+  "never correct again". **Closes audit item 11.**
+
 **The MVP1-B critical path (Slices B-1 through B-4) is COMPLETE.** All four
 items the audit names as the critical path — 2, 3, 4 and 5 — are closed, and
 the end-to-end spec that proves them as one journey is closed with them.
 
-**Eleven of the twelve MVP1 completion items are now closed**: 1, 2, 3, 4, 5,
-6, 7, 8, 9, 10 and 12. One remains, and it is not on the critical path: a
-minimal Stage 3 FS derived from UAS (11). It is also the only one that is
-unbuilt capability rather than a gap in something that exists.
+**MVP1 is COMPLETE — twelve of twelve completion items closed**: 1, 2, 3, 4,
+5, 6, 7, 8, 9, 10, 11 and 12. Nothing on the audit's MVP1 list remains open.
+
+Read that for what it is. It means the twelve items
+[`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §11
+named as "required to complete a coherent MVP1" are done, each with tests and
+each recorded. It does not mean the platform matches the vision documents —
+the list below is unchanged by it, and `NEXORA_VISION.md` still describes a
+target state that does not exist. The audit's own §12 open decisions are also
+not all closed: the Composer name collision remains, and so do the Hybrid GMP
+classification and the Community RBAC deviation.
 
 **What a 2026-09-27 target-architecture audit found beyond that list**, so
 it is written down rather than rediscovered:
@@ -220,10 +250,13 @@ it is written down rather than rediscovered:
   covering Nexora itself. The Validation Expert UI renders *that*. It is not
   a live traceability over customer products, and its automated runners
   match hard-coded platform test ids (`IQ-001`, `IQ-016`, `OQ-CI-003/004`).
-- **FS, TDS, user stories and task backlogs do not exist in code** — zero
-  symbols. The AI spec draft proposes components and contracts, which is an
-  architecture proposal, not a functional specification. This is the largest
-  gap against the seven-phase target.
+- **FS exists since item 11; TDS, user stories and task backlogs do not, and
+  will not.** `functional_specifications` derives one item per bound
+  requirement and the URS ↔ FS ↔ Component chain resolves. The backlog is
+  GitHub's by [`NXD-071`](DECISIONS.md), and TDS is omitted because nothing
+  reads one. Still true, and still the honest caveat: the AI spec draft
+  proposes components and contracts, which is an architecture proposal, not a
+  functional specification — the two are separate paths.
 - **The two named AI agents are not started.** No Test Coordinator, no GMP
   Impact Agent — no stub, no interface. The change-request impact assessment
   is a human typing `gxpImpact` and `affectedVersionIds` into a request body.
@@ -1242,9 +1275,9 @@ Catalog entity at birth, which is the precondition the `Development` tab
 because it would otherwise have had nothing to display for seven of the nine
 templates.
 
-Items 6 and 8 closed with it, so the one MVP1 item still open is a minimal
-Stage 3 FS derived from UAS (11) — the only one of the twelve that is
-capability nobody has built, rather than a gap in something that exists.
+Items 6, 8 and 11 closed after it, which completes the audit's MVP1 list.
+What follows MVP1 is sequenced in
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), not here.
 
 ## Next
 
@@ -1331,7 +1364,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of MVP1 audit items 1, 6 and 8.
+via `docker-compose.test.yml`), at the close of MVP1 — all twelve items.
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1339,7 +1372,7 @@ via `docker-compose.test.yml`), at the close of MVP1 audit items 1, 6 and 8.
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 231 suites, 2074 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 232 suites, 2088 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
 the split is 11/8 and not 10/9. The eight remaining warnings are all
@@ -1356,6 +1389,12 @@ Earlier figures, for the trend: 231 / 2066 at `1a3bafe` earlier on
 2026-09-27, 231 / 2063 at `fab5b0a`, 229 / 2051 at `34c9a6c`, 226 / 2008 at
 `15ea5e7`, 222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone,
 215 / 1909 on 2026-09-24.
+
+Item 11 added one suite and fourteen tests: `functionalSpecification.test.ts`
+(12 — derivation, idempotence, the two refusals, the chain resolved four ways,
+and the assertion that coverage is unchanged) and two PostgreSQL proofs, the
+constraint rebuild and the table's two unique identities. The rebuild proof was
+mutation-checked: restoring the old skip-if-exists behaviour fails it.
 
 Items 6 and 8 added eight tests and no suites: two on `getPersistenceMode`
 for the new refusal and its consequence, two in `startup.test.ts` pinning the

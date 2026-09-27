@@ -144,11 +144,16 @@ has both.
 `validation-expert-backend/src/coverage.ts` labels its own output: _"Lite join
 … Not a GxP validation claim."_ Treat it accordingly.
 
-### G-7 — No FS, no TDS
+### G-7 — ~~No FS, no TDS~~ — FS closed 2026-09-27, TDS out of scope
 
-The left arm of the V-model does not exist. Traceability runs
-UAS → Baseline → ProductRequirement → Component, with nothing between
-requirement and design.
+`functional_specifications` derives one item per bound requirement and
+`getFunctionalSpecTrace` resolves UAS → Baseline → ProductRequirement → FS →
+Component. Two limits, stated rather than implied: the FS is **additive** —
+the requirement→component link remains the coverage join the release gate
+reads, so an FS item is not yet a mandatory hop — and **TDS is not modelled at
+all**, by the scope decision in
+[`NXD-071`](../nexora-transformation/DECISIONS.md). A reviewer looking for a
+technical design specification will not find one here.
 
 ---
 
@@ -164,7 +169,8 @@ Test  -->  Evidence                                 MISSING
 Implementation  -->  Evidence (commit + digest)     INDIRECT
 Baseline  --HTTP-->  ValidationDecision             IMPLEMENTED
 everything  -->  Release gate                       IMPLEMENTED
-UAS -> FS -> TDS -> Component                       MISSING
+UAS -> FS -> Component                              IMPLEMENTED  (FS additive, not a mandatory hop)
+FS -> TDS -> Component                              OUT OF SCOPE (NXD-071)
 ```
 
 `traceability_links` carries **no foreign keys** — source and target are

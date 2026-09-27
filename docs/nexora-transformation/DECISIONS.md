@@ -2933,3 +2933,80 @@ tests. The stubs were fixed; the cast remains and will hide the next one.
   `repository-interface.ts`, `service.ts`, `types.ts`, `llm-client.ts`,
   `router.ts`), `app-config.yaml`, `app-config.memory.yaml`, `.env.example`,
   and `docs/engineering/development-workflow.md`.
+
+---
+
+### NXD-071 — Stage 3 is an FS bridge, and the FS is additive
+
+- Date: 2026-09-27
+- Slice: MVP1 completion, item 11 — the last of the twelve
+- Closes: `TARGET_CONFORMANCE_AUDIT.md` §12 open decision 10, and G-7 in
+  `docs/compliance/traceability-and-gmp.md` for the FS half
+
+Open decision 10 asked: "Stage 3 scope — full FS+TDS+Stories+Tasks, or an
+FS-only bridge?" It is an FS-only bridge, and the documents had already
+answered it. `TARGET_OPERATING_MODEL.md` §Stage 3: "Nexora owns FS and its
+traceability. It does not own a backlog." `NEXORA_VISION.md` lists an issue
+tracker or backlog among the things Nexora does not intend to build. Building
+stories and tasks would have contradicted both and duplicated GitHub.
+
+TDS is the genuinely arguable omission. It is left out because nothing in the
+platform consumes one: the release gate reads requirement coverage, the
+Validation Expert reads its own hand-authored package, and a TDS with no
+reader would be a table that is written and never asked a question. When
+something needs it, it can be added beside the FS rather than beneath it.
+
+**The FS is derived, not authored.** The input already existed —
+`bindUrsBaseline` copies every pinned requirement into `product_requirements`
+— and an FS item is the statement of what the system must do to satisfy one of
+them. Deriving from the snapshot rather than the live URS follows §1.7
+requirement provenance: the product keeps the wording it was built against, so
+an FS generated from a later revision would describe a product nobody
+released.
+
+Derivation is **additive and idempotent**. A re-run writes items for
+requirements that have none and leaves the rest untouched, because an existing
+item may have been reviewed and edited and silently regenerating it is the
+opposite of what a specification is for. A version with no baseline is refused
+rather than given an empty FS — "specified, nothing required" and "not
+specified yet" are different claims and only one of them would be true.
+
+**The FS is not a mandatory hop, and that is the significant limitation.**
+`getRequirementCoverage` joins the requirement straight to the component, and
+the release gate reads it. Rewriting `URS → COMPONENT` into
+`URS → FS → COMPONENT` would have flipped every coverage row to `UNMAPPED` and
+blocked every release. So the chain is **resolved** rather than rewritten: the
+requirement end is a column on the FS row, the component end is the existing
+`IMPLEMENTS` link, and `getFunctionalSpecTrace` computes the join.
+Materialising FS→Component as a third copy of the same fact would let the
+copies disagree the moment a component link changed. A test asserts coverage
+is unchanged across a derivation. Making the FS load-bearing in the gate is a
+later decision with a release-blocking blast radius; it is not this one.
+
+`FUNCTIONAL_SPEC` joins the traceability vocabulary with all three mechanisms
+`NXD-067` requires, so a designer may also state a mapping the requirement does
+not imply, and the trace unions it in. A specification and the component
+implementing it must share a product version.
+
+**A guard that only agreed with the code on an empty database.** Adding to the
+vocabulary exposed this: the PostgreSQL CHECK constraints were created when
+absent and never compared or rebuilt. Correct exactly once — and this is the
+first time either array has grown since they were introduced. An existing
+database would have kept the pre-Stage-3 CHECK and refused every FS link in
+production, while a fresh test schema built the constraint from the current
+array and passed. The migration now compares the admitted set (not the
+rendered text, which varies with column type and server version) and rebuilds
+on divergence, revalidating existing rows as it goes. The `pg_constraint`
+lookup was also unscoped, so a same-named constraint on any other table would
+have suppressed creation; it is scoped to the table now.
+
+That defect is worth naming beyond its fix. The repository's pattern is a
+single idempotent `up()` with no version table, which is well suited to
+additive change and quietly wrong for any guard whose *content* can drift. Any
+future check written as "create if absent" should be read as "create if absent
+and never correct again".
+
+- Affected components: `packages/platform-common` (`product.ts`, `index.ts`),
+  `plugins/composer-backend` (`db/migrations.ts`, `repository.ts`,
+  `repository-interface.ts`, `service.ts`, `types.ts`, `router.ts`), and the
+  suites `functionalSpecification.test.ts` and `db/migrations.postgres.test.ts`.

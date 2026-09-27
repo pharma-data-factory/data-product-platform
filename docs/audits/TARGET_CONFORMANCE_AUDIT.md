@@ -35,18 +35,20 @@ empty in the other.**
 > in the codebase**. There is no test entity, no execution record, no evidence
 > ingestion for products.
 
-**Where the lifecycle stops:** Stage 3 (Design & Planning) is entirely absent
-— no FS, no TDS, no user story, no task, zero source references. The evidence
-half of Stage 7 is not captured.
+**Where the lifecycle stops:** Stage 3 (Design & Planning) has an FS and its
+traceability since item 11; TDS, user stories and tasks remain absent, and
+that is now a scope decision rather than a gap — Nexora owns the FS, not a
+backlog. The evidence half of Stage 7 is captured since item 2.
 
 **Strongest foundations:** the URS domain; the `product_requirements` snapshot
 design; HTTP-only plugin boundaries; `verify-platform-guardrails.mjs`; and the
 decision-record discipline (59 NXD records).
 
-**Largest risks:** two unrelated systems are both called "Composer" · Stage 3
-is absent. `VERIFIED_BY` gained a producer (item 3), the shipped default is
-PostgreSQL (item 8) and AI spec drafts are a table (item 6), so three of the
-four risks this audit opened with are closed.
+**Largest risks:** two unrelated systems are both called "Composer". All four
+risks this audit opened with are closed: `VERIFIED_BY` gained a producer
+(item 3), the shipped default is PostgreSQL (item 8), AI spec drafts are a
+table (item 6), and Stage 3 has an FS with a resolvable URS ↔ FS ↔ Component
+chain (item 11). The name collision is the one that remains.
 
 ---
 
@@ -184,7 +186,13 @@ from the other, which is the missing link for reuse.
 webhook handling** (`events-backend` is registered; no GitHub events module).
 Hard-coded organisation in 6 templates and in `ComposePage`.
 
-**FS / TDS / Stories / Tasks — MISSING.** Zero source references.
+**FS — WORKING and minimal. TDS / Stories / Tasks — out of scope.**
+`functional_specifications` derives one item per bound requirement from the
+`product_requirements` snapshot, and `getFunctionalSpecTrace` resolves
+URS ↔ FS ↔ Component. Additive: the requirement→component link stays the
+coverage join, so the release gate is unaffected. TDS, stories and tasks are
+not modelled — `TARGET_OPERATING_MODEL.md` §Stage 3 puts the backlog in
+GitHub. See open decision 10, now closed.
 
 **Testing — WORKING for the platform, MISSING for products.** 1,988 platform
 tests. The Validation Expert is a controlled workbench for **Nexora itself**:
@@ -234,7 +242,8 @@ was applied. No AI Test Coordinator, no AI GMP Impact Agent.
 | Product versioning                                               | WORKING     | KEEP      | —                                    |
 | Product Composer                                                 | PARTIAL     | REFACTOR  | name collision                       |
 | Product Components                                               | PARTIAL     | EXTEND    | no versioning / repo / test link     |
-| FS · TDS · Stories · Tasks                                       | MISSING     | BUILD     | entire stage                         |
+| FS                                                               | WORKING     | KEEP      | minimal; derived, not authored       |
+| TDS · Stories · Tasks                                            | ABSENT      | —         | out of scope: the backlog is GitHub  |
 | Architecture view                                                | PARTIAL     | EXTEND    | graph view, not a design artefact    |
 | Repository provisioning                                          | WORKING     | KEEP      | hard-coded org                       |
 | GitHub integration                                               | PARTIAL     | EXTEND    | no webhooks                          |
@@ -306,8 +315,9 @@ Defects 2–4 share one root cause: roughly 25 plain `Error` throws in
 referential integrity on `traceability_links` (item 4), persisted AI drafts
 (item 6) and typed errors (item 7).
 
-**Lifecycle** — Stage 3 absent · four unequal creation doors · no deployment ·
-`/compose` cannot generate custom compositions · the Composer name collision.
+**Lifecycle** — four unequal creation doors · no deployment · `/compose`
+cannot generate custom compositions · the Composer name collision. Stage 3 has
+its FS (item 11); TDS and the backlog are out of scope, not missing.
 
 **Traceability** — `VERIFIED_BY` has no producer · the gate ignores
 `getRequirementCoverage` · no GitHub webhooks · no Component→Repository map.
@@ -351,7 +361,10 @@ Required to complete a coherent MVP1, in dependency order:
    `app-config.memory.yaml`. Closes `NXD-064` C-1.**
 9. `reason` and `entity_version` on `composer_audit_events`
 10. the Composer name collision resolved
-11. a minimal Stage 3 — FS derived from UAS, linked to components
+11. ~~a minimal Stage 3 — FS derived from UAS, linked to components~~ —
+    **closed 2026-09-27: `functional_specifications`, derived from the bound
+    requirement snapshot, with URS ↔ FS ↔ Component resolvable. FS only; TDS,
+    stories and tasks are out of scope by `NXD-071`.**
 12. one E2E spec for URS → Product → Release
 
 Items **2–5 are the critical path**.
@@ -378,4 +391,8 @@ runtime operation, OIDC step-up, Hybrid GMP classification.
 7. Should `ProductComponent` become instantiable from an `Artifact`?
 8. Is a `Hybrid`/`Shared` GMP classification required?
 9. The four open defects — fold into the evidence work, or fix as one batch?
-10. Stage 3 scope — full FS+TDS+Stories+Tasks, or an FS-only bridge?
+10. ~~Stage 3 scope~~ — **closed 2026-09-27: an FS-only bridge.**
+    `TARGET_OPERATING_MODEL.md` §Stage 3 already says Nexora owns the FS and
+    its traceability and does not own a backlog, and `NEXORA_VISION.md` lists
+    an issue tracker among the things Nexora will not build. Recorded as
+    `NXD-071`.
