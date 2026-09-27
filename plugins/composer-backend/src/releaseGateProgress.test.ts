@@ -128,16 +128,23 @@ describe('Release gate, as a user can reach it', () => {
     expect(codesOf(after)).not.toContain('NO_APPROVED_BASELINE');
     expect(codesOf(after)).not.toContain('INVALID_STATUS');
 
-    // Left standing, deliberately. Each names a later batch:
+    // Left standing, deliberately:
     //
-    //  - INCOMPLETE_TRACEABILITY — the component implements no requirement.
-    //    Linking is manual today; Batch 4 makes it evidence-driven.
+    //  - UNTRACED_COMPONENT — the component implements no requirement. This
+    //    was called INCOMPLETE_TRACEABILITY until MVP1-B B-4c, which gave
+    //    that name to the question it always sounded like it was asking.
     //  - NO_URS_BASELINE — the version is bound to no URS baseline, so the
     //    baseline inherited none. Binding works (Requirements tab); this
     //    product deliberately skipped it, which is what the gate is for.
+    //
+    // INCOMPLETE_TRACEABILITY is *absent* here and that is the point: it
+    // reports requirement coverage now, and a version bound to no baseline
+    // has no requirements to cover. NO_URS_BASELINE already says so, and
+    // two blockers for one cause is what makes a gate unreadable. The bound
+    // case is walked end to end in testEvidenceIngestion.test.ts.
     expect(codesOf(after)).toEqual([
-      'INCOMPLETE_TRACEABILITY',
       'NO_URS_BASELINE',
+      'UNTRACED_COMPONENT',
     ]);
   });
 

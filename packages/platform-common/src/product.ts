@@ -786,6 +786,18 @@ export interface ProductRequirementCoverageRow {
    * the Validation Expert has executed against this requirement id.
    */
   verified: boolean;
+  /**
+   * The newest run of each test case linked to this requirement (MVP1-B).
+   *
+   * Present so a reviewer sees *why* `verified` says what it says. A boolean
+   * alone cannot distinguish "no test has ever run" from "the last run
+   * failed", and those call for different actions.
+   *
+   * Empty when no execution evidence is linked — in which case `verified`
+   * falls back to a `VERIFIED_BY` link to a component or to Validation
+   * Expert test ids, as it did before evidence ingestion existed.
+   */
+  executions: TestExecutionSummary[];
   /** Protocol test ids from the Validation Context, when one is resolvable. */
   testIds: string[];
   runIds: string[];

@@ -177,3 +177,62 @@ jobs:
           elif [ "${status}" != "200" ]; then
             echo "::warning::Provenance was not recorded (HTTP ${status})."
           fi
+
+      # MVP1-B (Slice B-4b): test evidence reaches the requirement.
+      #
+      # The companion to the provenance step above and the same bargain:
+      # `continue-on-error`, because an unreachable Composer must not redden
+      # a build whose tests actually passed. A missing record surfaces at the
+      # release gate as INCOMPLETE_TRACEABILITY, where a human is already
+      # looking — the fail-visible placement 5-R1 chose for policy
+      # resolution and Slice 3 chose for provenance.
+      #
+      # `NEXORA_EVIDENCE_MAP` is the join this platform cannot make for you:
+      # only the pipeline knows which of its test cases exercises which URS
+      # requirement version. One `requirementVersionId=suite::case` per line.
+      # Unconfigured means inert, and it says so rather than pretending.
+      #
+      # One correlation id for the whole run, so the trail can answer "what
+      # did this build verify" as one operation rather than N unrelated ones.
+      # That is the cross-plugin thread NXD-065 left open.
+      - name: Record test evidence against URS requirements
+        continue-on-error: true
+        env:
+          COMPOSER_URL: ${{ secrets.NEXORA_COMPOSER_URL }}
+          PROVENANCE_TOKEN: ${{ secrets.NEXORA_PROVENANCE_TOKEN }}
+          EVIDENCE_MAP: ${{ vars.NEXORA_EVIDENCE_MAP }}
+        run: |
+          set -u
+          if [ -z "${COMPOSER_URL}" ] || [ -z "${PROVENANCE_TOKEN}" ] || [ -z "${EVIDENCE_MAP}" ]; then
+            echo "Test evidence reporting not configured (NEXORA_COMPOSER_URL / NEXORA_PROVENANCE_TOKEN / NEXORA_EVIDENCE_MAP)."
+            echo "Skipping. The release gate will report INCOMPLETE_TRACEABILITY for requirements with no evidence."
+            exit 0
+          fi
+          correlation="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          executed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          artifact="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          echo "${EVIDENCE_MAP}" | while IFS= read -r line; do
+            [ -z "${line}" ] && continue
+            requirement="${line%%=*}"
+            locator="${line#*=}"
+            suite="${locator%%::*}"
+            case_name="${locator#*::}"
+            # The unit-test job is a dependency of this job, so reaching here
+            # at all means it passed. A failed build never posts PASSED.
+            status=$(curl --silent --show-error --location \
+              --output /tmp/evidence-response.json \
+              --write-out '%{http_code}' \
+              --max-time 30 \
+              --request POST "${COMPOSER_URL}/api/composer/test-executions" \
+              --header "Authorization: Bearer ${PROVENANCE_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --data "$(printf '{"requirementVersionId":"%s","testSuite":"%s","testCase":"%s","status":"PASSED","executedAt":"%s","executionArtifactUrl":"%s","correlationId":"%s"}' \
+                "${requirement}" "${suite}" "${case_name}" "${executed_at}" "${artifact}" "${correlation}")")
+            if [ "${status}" = "201" ]; then
+              echo "Recorded ${requirement} (${suite}::${case_name})"
+            else
+              echo "::warning::Evidence for ${requirement} was not recorded (HTTP ${status})."
+              cat /tmp/evidence-response.json || true
+              echo
+            fi
+          done

@@ -168,13 +168,21 @@ describe('Phase 1: Versioning Foundation', () => {
       expect(result.blockers.some(b => b.code === 'NO_COMPONENTS')).toBe(true);
     });
 
-    it('fails with INCOMPLETE_TRACEABILITY when component has no link', async () => {
+    // Renamed in MVP1-B (B-4c). This check never asked about requirement
+    // coverage — it asks whether a component traces to anything at all —
+    // and carrying the name INCOMPLETE_TRACEABILITY meant one link anywhere
+    // satisfied a blocker readers took for the regulated question.
+    // INCOMPLETE_TRACEABILITY now means `coverage.verified < coverage.total`
+    // and fires only for a version bound to a URS baseline, which this
+    // product is not.
+    it('fails with UNTRACED_COMPONENT when component has no link', async () => {
       const { version } = await createFullSetup();
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
       const result = await service.checkReleaseGate(version.id);
       expect(result.passed).toBe(false);
-      expect(result.blockers.some(b => b.code === 'INCOMPLETE_TRACEABILITY')).toBe(true);
+      expect(result.blockers.some(b => b.code === 'UNTRACED_COMPONENT')).toBe(true);
+      expect(result.blockers.some(b => b.code === 'INCOMPLETE_TRACEABILITY')).toBe(false);
     });
 
     it('fails with NO_APPROVED_BASELINE when no approved baseline exists', async () => {

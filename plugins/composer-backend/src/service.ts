@@ -45,6 +45,8 @@ import {
   validateNameSegment,
   validateVersionLabel,
   validateTraceabilityLink,
+  validateTestExecution,
+  latestExecutionPerCase,
   evaluateContractCompatibility,
   type ContractCompatReport,
   type ContractExchange,
@@ -68,6 +70,7 @@ import {
   TransitionProductVersionRequest,
   AISpecDraft,
   AuditContext,
+  TestExecution,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type { CatalogComponentLoader } from './catalog-component-loader';
@@ -994,6 +997,32 @@ export class ComposerService {
     const componentIds = new Set(components.map(component => component.id));
     const allLinks = await this.repository.listTraceabilityLinks();
 
+    // MVP1-B (B-4c). Evidence rows for every key this version's requirements
+    // answer to. Both keys, because `ingestTestExecution` accepts either and
+    // the links below join on either — asking for only one would make
+    // evidence invisible depending on which id CI had to hand.
+    const requirementKeys = requirements.flatMap(requirement => [
+      requirement.ursRequirementVersionId,
+      requirement.requirementRef,
+    ]);
+    const executions = await this.repository.listTestExecutions(
+      requirementKeys,
+    );
+    // Grouped by the key CI posted against, not by link. A failing run
+    // produces no VERIFIED_BY link — that would be a contradiction in terms —
+    // so a coverage rule that reached the evidence only through links could
+    // never see a failure, and the revocation below would never fire. The
+    // link remains the traceability artefact; the *decision* reads the rows.
+    const executionsByKey = new Map<string, TestExecution[]>();
+    for (const execution of executions) {
+      const held = executionsByKey.get(execution.requirementVersionId);
+      if (held) {
+        held.push(execution);
+      } else {
+        executionsByKey.set(execution.requirementVersionId, [execution]);
+      }
+    }
+
     // Slice 1b: ask the Validation Expert once, not once per requirement.
     let validation: ValidationCoverageSummary | undefined;
     if (version.ursBaselineId && this.validationDecisionResolver?.getValidationCoverage) {
@@ -1019,21 +1048,44 @@ export class ComposerService {
           requirement.requirementRef,
           requirement.ursRequirementVersionId,
         ]);
-        const linked = allLinks.filter(
-          link =>
-            keys.has(link.sourceId) && componentIds.has(link.targetId),
+        const fromThisRequirement = allLinks.filter(link =>
+          keys.has(link.sourceId),
+        );
+        const linked = fromThisRequirement.filter(link =>
+          componentIds.has(link.targetId),
         );
         const implementing = linked.filter(
           link => link.relationshipType === 'IMPLEMENTS',
         );
-        const verifyingLinks = linked.filter(
+        const verifyingComponentLinks = linked.filter(
           link => link.relationshipType === 'VERIFIED_BY',
         );
+
+        // B-4c. Every run recorded against either key for this
+        // requirement, reduced to the newest per test case.
+        const requirementRuns = [...keys].flatMap(
+          key => executionsByKey.get(key) ?? [],
+        );
+        const currentRuns = latestExecutionPerCase(requirementRuns);
+        const allCurrentPassed =
+          currentRuns.length > 0 &&
+          currentRuns.every(run => run.status === 'PASSED');
 
         const validationRow = validation?.byRequirement.get(
           requirement.requirementRef,
         );
         const testIds = validationRow?.testIds ?? [];
+
+        // Where there is execution evidence it decides, and a newer FAILED
+        // run revokes the verification — including one a component link or
+        // the Validation Expert would otherwise have granted. That is the
+        // conservative reading and the one a QA reviewer expects: the
+        // question is not "did this ever pass" but "does it pass now".
+        // Where there is none, the two older sources still answer.
+        const verified =
+          currentRuns.length > 0
+            ? allCurrentPassed
+            : verifyingComponentLinks.length > 0 || testIds.length > 0;
 
         return {
           requirementRef: requirement.requirementRef,
@@ -1043,7 +1095,15 @@ export class ComposerService {
           origin: requirement.origin,
           mapping: implementing.length > 0 ? 'MAPPED' : 'UNMAPPED',
           componentIds: implementing.map(link => link.targetId),
-          verified: verifyingLinks.length > 0 || testIds.length > 0,
+          verified,
+          executions: currentRuns.map(run => ({
+            id: run.id,
+            testSuite: run.testSuite,
+            testCase: run.testCase,
+            status: run.status,
+            executedAt: run.executedAt,
+            executionArtifactUrl: run.executionArtifactUrl,
+          })),
           testIds,
           runIds: validationRow?.runIds ?? [],
           findingIds: validationRow?.findingIds ?? [],
@@ -1192,11 +1252,50 @@ export class ComposerService {
     );
     for (const comp of components) {
       if (!linkedComponentIds.has(comp.id)) {
+        // MVP1-B (B-4c): this check kept its behaviour and lost its name.
+        // It asks whether a component traces to anything at all, which is a
+        // real question but not the regulated one, and calling it
+        // INCOMPLETE_TRACEABILITY meant a single link anywhere satisfied a
+        // blocker a reader took for requirement coverage.
         blockers.push({
-          code: 'INCOMPLETE_TRACEABILITY',
+          code: 'UNTRACED_COMPONENT',
           message: `Component ${comp.name} (${comp.id}) has no traceability link`,
         });
         break;
+      }
+    }
+
+    // The regulated question: is every requirement this version implements
+    // actually verified? The coverage report has answered it since Slice 1b
+    // and the gate never asked. A product could therefore reach RELEASED
+    // with a verification count of zero.
+    //
+    // Only when a URS baseline is bound. Unbound is already answered by
+    // NO_URS_BASELINE below, and two blockers for one cause is what makes a
+    // gate unreadable.
+    if (version.ursBaselineId) {
+      const coverage = await this.getRequirementCoverage(versionId);
+      if (coverage.verified < coverage.total) {
+        const unverified = coverage.byRequirement
+          .filter(row => !row.verified)
+          .map(row => row.requirementRef);
+        // Naming them is the difference between a blocker someone can act on
+        // and one they have to go and investigate. Capped, because a large
+        // baseline would otherwise produce a message nobody reads.
+        const named = unverified.slice(0, 10).join(', ');
+        const rest =
+          unverified.length > 10
+            ? ` and ${unverified.length - 10} more`
+            : '';
+        blockers.push({
+          code: 'INCOMPLETE_TRACEABILITY',
+          message:
+            `${coverage.verified} of ${coverage.total} requirements are ` +
+            `verified. Unverified: ${named}${rest}. A requirement is ` +
+            'verified by a passing test execution, a VERIFIED_BY link to a ' +
+            'component, or an executed Validation Expert protocol test — and ' +
+            'a later failing run of the same test case revokes it.',
+        });
       }
     }
     const baselines = await this.repository.listProductBaselines(versionId);
@@ -1641,6 +1740,127 @@ export class ComposerService {
       newValue: JSON.stringify(provenance),
     });
     return { ...updated, revision: (baseline.revision || 1) + 1 };
+  }
+
+  /**
+   * Record one test result and, if it passed, say so in the trace.
+   *
+   * MVP1-B (Slice B-4b), audit items 2 and 3. Until now the only thing that
+   * could mark a requirement verified was a hand-written `VERIFIED_BY` link
+   * or the Validation Expert — so on the normal path a product reached the
+   * release gate with a verification count of zero and no way to raise it.
+   * This is the door CI writes through.
+   *
+   * Shaped after `recordBaselineProvenance`: a service principal, a
+   * validator in `platform-common`, one `InputError` for the whole body. It
+   * differs in one way that matters — provenance is write-once and a second
+   * differing POST is a conflict, while a second test run is **not** a
+   * conflict. It is the next run, and it is appended.
+   *
+   * The link is derived rather than requested. A caller that could post a
+   * result and separately assert a `VERIFIED_BY` link could assert one
+   * without the result; deriving it means the claim and the evidence are
+   * written in the same operation or neither is.
+   */
+  async ingestTestExecution(
+    request: {
+      requirementVersionId?: unknown;
+      testSuite?: unknown;
+      testCase?: unknown;
+      status?: unknown;
+      executedAt?: unknown;
+      executionArtifactUrl?: unknown;
+      correlationId?: unknown;
+    },
+    actor: string,
+  ): Promise<{ execution: TestExecution; verifiedByLinkId?: string }> {
+    const issues = validateTestExecution(request);
+    if (issues.length > 0) {
+      throw new InputError(issues.join('; '));
+    }
+
+    // A CI run posting results for twelve requirements is one operation, and
+    // adopting the caller's id is what makes it one in the trail. This is the
+    // cross-plugin thread NXD-065 left open: the id is generated at a service
+    // boundary and nothing carried it across. Validated as non-empty above,
+    // so an empty string cannot become the correlation for a whole run.
+    const supplied =
+      typeof request.correlationId === 'string'
+        ? request.correlationId.trim()
+        : '';
+    const audit = this.beginAudit(
+      actor,
+      supplied ? { correlationId: supplied, actor } : undefined,
+    );
+
+    const requirementVersionId = String(request.requirementVersionId).trim();
+    const known =
+      await this.repository.requirementReferenceExists(requirementVersionId);
+    if (!known) {
+      throw new NotFoundError(
+        `Requirement ${requirementVersionId} is in no product version's bound ` +
+          'URS baseline snapshot. Bind the baseline that contains it before ' +
+          'posting evidence against it.',
+      );
+    }
+
+    const execution: TestExecution = {
+      id: randomUUID(),
+      requirementVersionId,
+      testSuite: String(request.testSuite).trim(),
+      testCase: String(request.testCase).trim(),
+      status: String(request.status) as TestExecution['status'],
+      // CI knows when the test ran; the platform only knows when it heard.
+      // Prefer the former, fall back to the latter rather than refusing —
+      // the timestamp orders the runs, and an absent one is not a reason to
+      // drop evidence on the floor.
+      executedAt: request.executedAt
+        ? new Date(request.executedAt as string)
+        : new Date(),
+      executionArtifactUrl: request.executionArtifactUrl
+        ? String(request.executionArtifactUrl).trim()
+        : undefined,
+      correlationId: audit.correlationId,
+      createdBy: actor,
+      createdAt: new Date(),
+    };
+    await this.repository.createTestExecution(execution);
+    await this.audit(
+      audit,
+      'TEST_EXECUTION',
+      execution.id,
+      'TEST_EXECUTION_INGESTED',
+      {
+        newValue: JSON.stringify({
+          requirementVersionId: execution.requirementVersionId,
+          testSuite: execution.testSuite,
+          testCase: execution.testCase,
+          status: execution.status,
+        }),
+      },
+    );
+
+    if (execution.status !== 'PASSED') {
+      // No link, and no deletion of an earlier one. The run that passed
+      // yesterday genuinely passed; erasing its link would rewrite history to
+      // make today's failure tidier. The gate reads current status through
+      // the links instead — see `getRequirementCoverage`.
+      return { execution };
+    }
+
+    const link = await this.createTraceabilityLink(
+      {
+        sourceType: 'URS_REQUIREMENT_VERSION',
+        sourceId: execution.requirementVersionId,
+        relationshipType: 'VERIFIED_BY',
+        targetType: 'TEST_EXECUTION',
+        targetId: execution.id,
+      },
+      actor,
+      audit,
+    );
+
+    return { execution, verifiedByLinkId: link.id };
   }
 
   async getProductBaseline(id: string): Promise<ProductBaseline | null> {

@@ -2711,3 +2711,144 @@ the three refusals B-1 corrected.
   `repository.ts`, `service.ts`, `types.ts`), and the suites
   `traceabilityIntegrity.test.ts`, `db/migrations.postgres.test.ts`,
   `productRequirements.test.ts`, `versioning.test.ts`.
+
+---
+
+### NXD-068 — Evidence the platform derives rather than accepts
+
+- Date: 2026-09-27
+- Slice: MVP1-B / B-4b
+- Closes: conformance audit §11 items 2 and 3
+- Builds on: `NXD-067` (the table and the link vocabulary), `NXD-066`
+
+`POST /api/composer/test-executions` is the door CI writes verification
+through. Before it, the only things that could mark a requirement verified
+were a hand-written `VERIFIED_BY` link and the Validation Expert — so on the
+normal path `coverage.verified` was zero for every product, and the number
+stayed zero no matter how many tests passed.
+
+**Shaped after `/baselines/:id/provenance`, and different in one way that
+matters.** Same authorization (`authorizeService`, the external-access token,
+no permission object, for the reason written out on that helper: a service
+principal has no catalog identity, so the permission policy would compare
+against an empty role set and deny). Same validator-in-`platform-common`
+pattern. But provenance is **write-once** and a second differing POST is a
+`ConflictError`, while a second test run is **not** a conflict — it is the
+next run. It is appended, and the endpoint answers `201` rather than `200`
+because a row is always created.
+
+**The link is derived, not requested.** The body cannot carry a
+`VERIFIED_BY` assertion. A caller that could post a result and separately
+assert a link could assert the link without the result, which is the thing
+the whole slice exists to prevent. Deriving it means the claim and the
+evidence are written in one operation or neither is.
+
+**A FAILED run creates no link and deletes none.** The run that passed
+yesterday genuinely passed; deleting its link would rewrite history to make
+today's failure tidier. How the gate nonetheless refuses is `NXD-069`.
+
+**The caller may supply the correlation id, and that is the point.** NXD-065
+closed with a named gap: the id is minted at a service boundary and no HTTP
+header carried one, so a single act crossing plugins produced unrelated
+correlations. A CI run posting twelve results under one id is now one
+operation in the trail. An empty string is refused rather than accepted —
+otherwise a whole run would correlate on `''`, which is worse than twelve
+separate ids because it looks like an answer.
+
+**`executedAt` is optional and falls back to now.** CI knows when the test
+ran; the platform only knows when it heard. Preferring the former and
+falling back rather than refusing is deliberate: the timestamp orders runs of
+one test case, and an absent one is not a reason to drop evidence.
+
+**CI step, same bargain as Slice 3.** `continue-on-error`, because an
+unreachable Composer must not redden a build whose tests passed; a missing
+record surfaces at the gate where a human is already looking.
+`NEXORA_EVIDENCE_MAP` carries the join the platform cannot make for itself —
+only the pipeline knows which test case exercises which requirement version.
+Unconfigured means inert and says so.
+
+- Affected components: `plugins/composer-backend` (`service.ts`, `router.ts`),
+  `packages/platform-common` (`product.ts`), `.github/workflows/ci.yml`,
+  `plugins/composer-backend/src/testEvidenceIngestion.test.ts`.
+
+---
+
+### NXD-069 — The gate reads coverage, and a failing re-run takes verification back
+
+- Date: 2026-09-27
+- Slice: MVP1-B / B-4c
+- Closes: conformance audit §11 item 5
+
+Two defects, one of which had been true since Phase 1.
+
+**The gate did not read coverage.** `getRequirementCoverage` has answered
+"is every requirement implemented, verified and validated?" since Slice 1b.
+`checkReleaseGate` never called it. Its `INCOMPLETE_TRACEABILITY` asked
+whether every *component* had *any* link — a single link anywhere satisfied
+it. **A product could reach `RELEASED` with zero requirements verified**, and
+the blocker's name made that look impossible.
+
+So the name moved to the question it always sounded like it was asking.
+`INCOMPLETE_TRACEABILITY` now fires when `coverage.verified < coverage.total`
+and **names the unverified refs** — capped at ten with a count, because a
+large baseline otherwise produces a message nobody reads. The old check keeps
+its behaviour under `UNTRACED_COMPONENT`. Renaming rather than deleting: "a
+component traces to nothing" is a real defect, just not the regulated one.
+
+**It fires only for a bound version.** Unbound is already answered by
+`NO_URS_BASELINE`, and two blockers for one cause is what makes a gate
+unreadable.
+
+**Coverage could not see the new evidence.** The verifying-link filter
+required `componentIds.has(link.targetId)`, so a `VERIFIED_BY` link pointing
+at a test execution was written, stored, and silently ignored by the only
+reader that mattered. B-4b would have been inert without this.
+
+**The first fix for that was wrong, and the test caught it.** Reading the
+evidence *through the links* looked natural and cannot work: a failing run
+produces no link — that would be a contradiction in terms — so failures were
+invisible and the revocation below could never fire. Coverage now groups the
+execution rows by requirement key and reads them directly. The link remains
+the traceability artefact; the **decision** reads the rows.
+
+**The verification rule.** A requirement is verified when, for every
+`(testSuite, testCase)` recorded against it, the newest run by `executedAt`
+is `PASSED`. Consequences, stated because each is a choice:
+
+- A later failing run **revokes** verification, including one a `VERIFIED_BY`
+  link to a component or a Validation Expert test id would otherwise have
+  granted. Where execution evidence exists it decides. The question a
+  reviewer asks is not "did this ever pass" but "does it pass now".
+- A subsequent passing re-run restores it. Evidence is current, not one-way.
+- Where no execution evidence exists at all, the two older sources still
+  answer, so nothing that was verified before this slice became unverified
+  by it.
+
+`latestExecutionPerCase` is a pure function in `platform-common` precisely
+because it decides whether the gate blocks — too important to be reachable
+only through four layers of setup.
+
+**`ProductRequirementCoverageRow.executions` exists so a reviewer can see
+why.** A boolean cannot distinguish "no test has ever run" from "the last run
+failed", and those call for different actions.
+
+**Two existing suites changed, and that is them working.**
+`versioning.test.ts` asserted `INCOMPLETE_TRACEABILITY` for an unbound
+product with an unlinked component — now `UNTRACED_COMPONENT`.
+`releaseGateProgress.test.ts` recorded the two deliberate remainders as
+`INCOMPLETE_TRACEABILITY` and `NO_URS_BASELINE`; they are `NO_URS_BASELINE`
+and `UNTRACED_COMPONENT`, and the absence of the coverage blocker on an
+unbound version is now asserted rather than assumed.
+
+**`testEvidenceIngestion.test.ts` is the first router-level suite in this
+plugin.** Every other one calls the service directly with a hard-coded actor
+string, which `docs/engineering/definition-of-done.md` (NXD-053) names as the
+reason four defects shipped green. It found two here: a stubbed auth error
+with the right `name` but the wrong type answered 500 where the real
+`AuthenticationError` answers 401, and the evidence-through-links defect
+above. Both were invisible from the service.
+
+- Affected components: `plugins/composer-backend` (`service.ts`),
+  `packages/platform-common` (`product.ts`), and the suites
+  `testEvidenceIngestion.test.ts`, `releaseGateProgress.test.ts`,
+  `versioning.test.ts`.

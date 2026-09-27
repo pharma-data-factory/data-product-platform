@@ -901,6 +901,36 @@ export async function createRouter(
     },
   );
 
+  /**
+   * POST /test-executions — CI records what it verified.
+   *
+   * MVP1-B (Slice B-4b), audit items 2 and 3. Same shape and the same
+   * authorization as `/baselines/:id/provenance`: a service principal
+   * holding the external-access token, no permission object. The reasoning
+   * is unchanged and is written out on `authorizeService` — a service
+   * principal has no catalog identity, so asking the permission policy about
+   * it would compare against an empty role set and deny.
+   *
+   * 201, not 200. Provenance is write-once and answers 200 because a re-post
+   * may be a no-op; a test execution is always a new row, so the status code
+   * should say a resource was created.
+   */
+  router.post(
+    '/test-executions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorizeService(httpAuth, req);
+        const result = await service.ingestTestExecution(
+          (req.body ?? {}) as Record<string, unknown>,
+          actor,
+        );
+        res.status(201).json(result);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get(
     '/baselines/:id/delta',
     async (req: express.Request, res: express.Response) => {

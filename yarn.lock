@@ -5937,7 +5937,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@internal/backend-test-utils@workspace:^, @internal/backend-test-utils@workspace:packages/backend-test-utils":
+"@internal/backend-test-utils@npm:^0.1.0, @internal/backend-test-utils@workspace:^, @internal/backend-test-utils@workspace:packages/backend-test-utils":
   version: 0.0.0-use.local
   resolution: "@internal/backend-test-utils@workspace:packages/backend-test-utils"
   dependencies:
@@ -6040,6 +6040,7 @@ __metadata:
     "@backstage/errors": "npm:^1.3.1"
     "@backstage/plugin-permission-common": "npm:^0.9.9"
     "@backstage/plugin-scaffolder-node": "npm:^0.13.5"
+    "@internal/backend-test-utils": "npm:^0.1.0"
     "@internal/platform-common": "workspace:^"
     "@types/express": "npm:^4.17.21"
     express: "npm:^4.22.0"
