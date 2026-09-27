@@ -2520,3 +2520,84 @@ and no HTTP header supplies one, so a single user action that crosses
 plugins — Product Composer binding a URS baseline, say — still produces two
 unrelated correlations. Threading it from the request is the natural next
 step and belongs with the cross-plugin evidence work, not with this slice.
+
+---
+
+### NXD-066 — The product side of the audit trail had no operation at all
+
+- Date: 2026-09-27
+- Slice: MVP1-B / B-4 pre-work
+- Extends: `NXD-065` (the same mechanism, on `urs-composer-backend`)
+- Closes: `NXD-064` C-2
+
+`NXD-065` found `audit_events.correlation_id` NULL in every row across 35
+write sites and made the field required. It named its scope honestly: the URS
+side only. This record is what happened when the same question was asked of
+`composer_audit_events`.
+
+**It was a worse answer.** There was no column. `ComposerService.audit()`
+built an event with `id: randomUUID()` and nothing else joining it to
+anything, at 22 call sites. So the question NXD-065 answered for requirements
+— what happened in this one operation — could not even be asked of products.
+
+**One operation genuinely spans many entities here, and it is the regulated
+one.** `applySpecDraft` creates a product, creates a version, binds a URS
+baseline, adds each suggested component, creates an `IMPLEMENTS` link for
+each requirement the model referenced, creates a baseline, and marks the
+draft applied. That is one reviewer accepting one AI proposal, and it wrote
+eight or more rows that no query could gather.
+
+**The port is deliberately not a refactor.** `beginAudit(actor, inherited?)`
+and the context type are the URS shapes, named the same, so a reader who
+knows one recognises the other. The two plugins own their own persistence and
+cannot share the type across that boundary — `AGENTS.md` §PLUGIN BOUNDARIES —
+so it is declared twice on purpose, with a comment in each saying so. That is
+a cost accepted rather than a duplication overlooked.
+
+**Where it differs from the URS implementation, and why.** URS has
+`writeAudit(ctx, repo, event: Omit<AuditEvent, 'correlationId'>)`, taking the
+repository handle explicitly because half its write sites are inside a
+transaction. Composer has one transaction (`bindUrsBaseline`) and it writes no
+audit events from inside it, so there is no handle to thread. What survives is
+the guarantee, reached differently: `audit(ctx, entityType, entityId,
+eventType, options?)` has **no parameter for a correlation id**, so a caller
+cannot state one. Wanting a different correlation means opening a different
+context. The actor comes from the context too, which removes a second way to
+get an event wrong.
+
+**`inherited` is the whole mechanism, not a convenience.** Six methods are
+reachable both directly and from `applySpecDraft` — `createProduct`,
+`createProductVersion`, `bindUrsBaseline`, `addProductComponent`,
+`createTraceabilityLink`, `createProductBaseline`. Without the parameter each
+would open its own context and the apply would produce eight correlations
+instead of one, which is the defect restated rather than fixed.
+
+**The compiler did the finding.** Making `correlationId` required on
+`ComposerAuditEvent` produced 22 errors, one per write site, and a 23rd in
+`dispatchUpgradeNotifications`, whose actor arrives as `input.actor` rather
+than `actor` and which a mechanical rewrite got wrong. Reading the call graph
+would have found the 22.
+
+**`reason` and `entity_version` land here rather than in a slice of their
+own.** `NXD-064` C-2 recorded the position that a requirement change carries
+its rationale and a product change does not, and said the fix was additive,
+low risk, and "scheduled with the evidence work". This is the evidence work,
+and the migration was already open on that table. Both columns are optional:
+most events are mechanical consequences of one another, and forcing a reason
+onto them would produce ceremony, not information.
+
+**The column is nullable and the type is not.** Deliberate, and the same
+asymmetry NXD-065 chose. Historic rows have no correlation and never will;
+backfilling would mean inventing one for events that were never part of a
+recorded operation. A legacy row reads back as the empty string, which says
+"not part of an operation" instead of pretending otherwise, and
+`audit-correlation.test.ts` pins that too — otherwise a later `?? randomUUID()`
+in the mapper would look like a tidy-up.
+
+**Mutation-checked.** Making `beginAudit` ignore `inherited` fails the first
+assertion and nothing else, which is the test measuring the mechanism rather
+than the plumbing around it.
+
+- Affected components: `plugins/composer-backend`
+  (`db/migrations.ts`, `repository-interface.ts`, `repository.ts`,
+  `service.ts`, `types.ts`, `audit-correlation.test.ts`).

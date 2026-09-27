@@ -22,6 +22,36 @@ export interface ComposerAuditEvent {
   metadata?: Record<string, unknown>;
   oldValue?: string;
   newValue?: string;
+  /**
+   * The operation this event belongs to. **Required, and that is the point.**
+   *
+   * The URS side learned this the expensive way (NXD-065): a nullable column
+   * plus an optional field meant 35 write sites and not one of them set it.
+   * Here the column did not even exist — `ComposerService.audit()` minted a
+   * fresh `randomUUID()` per event, so approving a baseline wrote events for
+   * the baseline, the version and each requirement it pins with nothing
+   * joining them.
+   *
+   * Required means a new write site cannot compile without one, and
+   * `ComposerService.writeAudit` supplies it from the `AuditContext` opened at
+   * the service entry point. Callers cannot state one: `writeAudit` takes
+   * `Omit<ComposerAuditEvent, 'correlationId'>`, so wanting a different
+   * correlation means opening a different context — a deliberate act rather
+   * than a slip.
+   */
+  correlationId: string;
+  /**
+   * Why the change was made. Optional because most events are mechanical
+   * consequences of one another; the ones a reviewer asks "why" about are the
+   * ones a human initiated. Closes half of NXD-064 C-2.
+   */
+  reason?: string;
+  /**
+   * The entity's revision at the time of the event, where the entity carries
+   * one. Lets this trail be joined to the URS trail by version rather than
+   * only by timestamp. The other half of NXD-064 C-2.
+   */
+  entityVersion?: number;
 }
 
 export interface IComposerRepository {

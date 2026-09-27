@@ -144,9 +144,15 @@ export async function up(knex: Knex): Promise<void> {
       table.timestamp('timestamp').notNullable().defaultTo(knex.fn.now());
       table.text('old_value');
       table.text('new_value');
+      // MVP1-B. See the note on the retrofit branch below for why these three
+      // are nullable in the schema and required in the type.
+      table.string('correlation_id', 255);
+      table.text('reason');
+      table.integer('entity_version');
 
       table.index(['entity_id']);
       table.index(['timestamp']);
+      table.index(['correlation_id']);
     });
   } else {
     if (!(await knex.schema.hasColumn('composer_audit_events', 'old_value'))) {
@@ -157,6 +163,38 @@ export async function up(knex: Knex): Promise<void> {
     if (!(await knex.schema.hasColumn('composer_audit_events', 'new_value'))) {
       await knex.schema.alterTable('composer_audit_events', table => {
         table.text('new_value');
+      });
+    }
+    // MVP1-B: the product-side audit trail gains what the URS one already had.
+    //
+    // `correlation_id` stays nullable here on purpose, and the reasoning is
+    // NXD-065's: rows written before this migration were never part of a
+    // recorded operation, and inventing a correlation for them would be worse
+    // than an honest gap in an append-only trail. The guarantee is on new
+    // writes, and it is enforced by the type — `ComposerAuditEvent.correlationId`
+    // is required, so a write site cannot compile without one.
+    //
+    // `reason` and `entity_version` close NXD-064 C-2: a requirement change
+    // carried its rationale and a product change did not, and the two stores
+    // could not be correlated by version.
+    if (
+      !(await knex.schema.hasColumn('composer_audit_events', 'correlation_id'))
+    ) {
+      await knex.schema.alterTable('composer_audit_events', table => {
+        table.string('correlation_id', 255);
+        table.index(['correlation_id']);
+      });
+    }
+    if (!(await knex.schema.hasColumn('composer_audit_events', 'reason'))) {
+      await knex.schema.alterTable('composer_audit_events', table => {
+        table.text('reason');
+      });
+    }
+    if (
+      !(await knex.schema.hasColumn('composer_audit_events', 'entity_version'))
+    ) {
+      await knex.schema.alterTable('composer_audit_events', table => {
+        table.integer('entity_version');
       });
     }
   }

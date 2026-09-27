@@ -544,6 +544,12 @@ export class ComposerRepository implements IComposerRepository {
       timestamp: event.timestamp,
       old_value: event.oldValue || null,
       new_value: event.newValue || null,
+      // Deliberately no `?? null` fallback. The type requires a correlation
+      // id; an event that somehow evades the type must fail the insert rather
+      // than add another unattributable row to an append-only trail.
+      correlation_id: event.correlationId,
+      reason: event.reason ?? null,
+      entity_version: event.entityVersion ?? null,
     });
   }
 
@@ -737,6 +743,12 @@ export class ComposerRepository implements IComposerRepository {
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
       oldValue: row.old_value || undefined,
       newValue: row.new_value || undefined,
+      // Historic rows carry NULL and always will — see the migration. Reading
+      // one back as the empty string is honest: it says "this event was not
+      // part of a recorded operation", which is exactly what happened.
+      correlationId: row.correlation_id ?? '',
+      reason: row.reason || undefined,
+      entityVersion: row.entity_version ?? undefined,
     };
   }
 

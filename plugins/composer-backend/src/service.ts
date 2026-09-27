@@ -67,6 +67,7 @@ import {
   DataContract,
   TransitionProductVersionRequest,
   AISpecDraft,
+  AuditContext,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type { CatalogComponentLoader } from './catalog-component-loader';
@@ -199,7 +200,9 @@ export class ComposerService {
   async createProduct(
     request: CreateProductRequest,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<Product> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const issues = [
       ...validateProduct(request),
       ...this.identityIssues(request),
@@ -242,7 +245,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createProduct(product);
-    await this.audit('PRODUCT', product.id, 'PRODUCT_CREATED', actor);
+    await this.audit(audit, 'PRODUCT', product.id, 'PRODUCT_CREATED');
     return product;
   }
 
@@ -326,6 +329,7 @@ export class ComposerService {
     request: Partial<CreateProductRequest>,
     actor: string,
   ): Promise<Product> {
+    const audit = this.beginAudit(actor);
     const existing = await this.repository.getProduct(id);
     if (!existing) {
       throw new NotFoundError(`Product ${id} not found`);
@@ -381,7 +385,7 @@ export class ComposerService {
       revision: existing.revision + 1,
     };
     await this.repository.updateProduct(updated);
-    await this.audit('PRODUCT', id, 'PRODUCT_UPDATED', actor);
+    await this.audit(audit, 'PRODUCT', id, 'PRODUCT_UPDATED');
     return updated;
   }
 
@@ -389,7 +393,9 @@ export class ComposerService {
     productId: string,
     request: CreateProductVersionRequest,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<ProductVersion> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const product = await this.repository.getProduct(productId);
     if (!product) {
       throw new Error(`Product ${productId} not found`);
@@ -443,7 +449,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createProductVersion(version);
-    await this.audit('PRODUCT_VERSION', version.id, 'PRODUCT_VERSION_CREATED', actor);
+    await this.audit(audit, 'PRODUCT_VERSION', version.id, 'PRODUCT_VERSION_CREATED');
     return version;
   }
 
@@ -459,7 +465,9 @@ export class ComposerService {
     versionId: string,
     request: CreateProductComponentRequest,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<ProductComponent> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
       throw new Error(`Product version ${versionId} not found`);
@@ -483,7 +491,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createProductComponent(component);
-    await this.audit('PRODUCT_COMPONENT', component.id, 'PRODUCT_COMPONENT_CREATED', actor);
+    await this.audit(audit, 'PRODUCT_COMPONENT', component.id, 'PRODUCT_COMPONENT_CREATED');
     return component;
   }
 
@@ -504,6 +512,7 @@ export class ComposerService {
     request: CreateDataContractRequest,
     actor: string,
   ): Promise<DataContract> {
+    const audit = this.beginAudit(actor);
     // Slice 1 of the phase-closure plan: a contract is identified by
     // namespace/name@version, not by the component that declares it. Both
     // segments follow the same grammar as an Artifact coordinate so a
@@ -628,7 +637,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createDataContract(contract);
-    await this.audit('DATA_CONTRACT', contract.id, 'DATA_CONTRACT_CREATED', actor);
+    await this.audit(audit, 'DATA_CONTRACT', contract.id, 'DATA_CONTRACT_CREATED');
     return contract;
   }
 
@@ -670,6 +679,7 @@ export class ComposerService {
     request: CreateProductDependencyRequest,
     actor: string,
   ): Promise<ProductDependency> {
+    const audit = this.beginAudit(actor);
     const contractId = String(request.contractId ?? '').trim();
     if (!contractId) {
       throw new InputError('productDependency.contractId is required');
@@ -698,7 +708,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createProductDependency(dep);
-    await this.audit('PRODUCT_DEPENDENCY', dep.id, 'PRODUCT_DEPENDENCY_ADDED', actor, {
+    await this.audit(audit, 'PRODUCT_DEPENDENCY', dep.id, 'PRODUCT_DEPENDENCY_ADDED', {
       newValue: JSON.stringify({ versionId, contractId }),
     });
     return dep;
@@ -709,12 +719,13 @@ export class ComposerService {
   }
 
   async removeProductDependency(id: string, actor: string): Promise<void> {
+    const audit = this.beginAudit(actor);
     const dep = await this.repository.getProductDependency(id);
     if (!dep) {
       throw new InputError(`ProductDependency ${id} not found`);
     }
     await this.repository.deleteProductDependency(id);
-    await this.audit('PRODUCT_DEPENDENCY', id, 'PRODUCT_DEPENDENCY_REMOVED', actor);
+    await this.audit(audit, 'PRODUCT_DEPENDENCY', id, 'PRODUCT_DEPENDENCY_REMOVED');
   }
 
   /**
@@ -838,7 +849,9 @@ export class ComposerService {
     productVersionId: string,
     ursBaselineId: string,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<{ version: ProductVersion; requirements: ProductRequirement[] }> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const trimmed = String(ursBaselineId ?? '').trim();
     if (!trimmed) {
       throw new InputError('ursBaselineId is required');
@@ -925,11 +938,7 @@ export class ComposerService {
       requirements,
     );
 
-    await this.audit(
-      'PRODUCT_VERSION',
-      productVersionId,
-      'URS_BASELINE_BOUND',
-      actor,
+    await this.audit(audit, 'PRODUCT_VERSION', productVersionId, 'URS_BASELINE_BOUND',
       {
         newValue: JSON.stringify({
           ursBaselineId: context.baselineId,
@@ -1061,7 +1070,9 @@ export class ComposerService {
   async createTraceabilityLink(
     request: CreateTraceabilityLinkRequest,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<TraceabilityLink> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const issues = validateTraceabilityLink(request);
     if (issues.length > 0) {
       throw new Error(issues.join('; '));
@@ -1081,13 +1092,14 @@ export class ComposerService {
       createdAt: new Date(),
     };
     await this.repository.createTraceabilityLink(link);
-    await this.audit('TRACEABILITY_LINK', link.id, 'TRACEABILITY_LINK_CREATED', actor);
+    await this.audit(audit, 'TRACEABILITY_LINK', link.id, 'TRACEABILITY_LINK_CREATED');
     return link;
   }
 
   async deleteTraceabilityLink(id: string, actor: string): Promise<void> {
+    const audit = this.beginAudit(actor);
     await this.repository.deleteTraceabilityLink(id);
-    await this.audit('TRACEABILITY_LINK', id, 'TRACEABILITY_LINK_DELETED', actor);
+    await this.audit(audit, 'TRACEABILITY_LINK', id, 'TRACEABILITY_LINK_DELETED');
   }
 
   async transitionProductVersionStatus(
@@ -1095,6 +1107,7 @@ export class ComposerService {
     request: TransitionProductVersionRequest,
     actor: string,
   ): Promise<ProductVersion> {
+    const audit = this.beginAudit(actor);
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
       throw new Error(`Product version ${versionId} not found`);
@@ -1138,7 +1151,7 @@ export class ComposerService {
       updated.approvedAt = new Date();
     }
     await this.repository.updateProductVersion(updated);
-    await this.audit('PRODUCT_VERSION', versionId, 'STATUS_TRANSITION', actor, {
+    await this.audit(audit, 'PRODUCT_VERSION', versionId, 'STATUS_TRANSITION', {
       oldValue: oldStatus,
       newValue: request.targetStatus,
     });
@@ -1359,7 +1372,9 @@ export class ComposerService {
     productVersionId: string,
     request: CreateProductBaselineRequest,
     actor: string,
+    inheritedAudit?: AuditContext,
   ): Promise<ProductBaseline> {
+    const audit = this.beginAudit(actor, inheritedAudit);
     const version = await this.repository.getProductVersion(productVersionId);
     if (!version) {
       throw new Error(`Product version ${productVersionId} not found`);
@@ -1495,7 +1510,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createProductBaseline(baseline);
-    await this.audit('PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', actor, {
+    await this.audit(audit, 'PRODUCT_BASELINE', baseline.id, 'BASELINE_CREATED', {
       newValue: JSON.stringify({ snapshotChecksum: `sha256:${snapshotChecksum}` }),
     });
     return baseline;
@@ -1505,6 +1520,7 @@ export class ComposerService {
     baselineId: string,
     actor: string,
   ): Promise<ProductBaseline> {
+    const audit = this.beginAudit(actor);
     const baseline = await this.repository.getProductBaseline(baselineId);
     if (!baseline) {
       throw new NotFoundError(`Product baseline ${baselineId} not found`);
@@ -1540,7 +1556,7 @@ export class ComposerService {
       approvedAt: new Date(),
     };
     await this.repository.updateProductBaseline(approved);
-    await this.audit('PRODUCT_BASELINE', baselineId, 'BASELINE_APPROVED', actor);
+    await this.audit(audit, 'PRODUCT_BASELINE', baselineId, 'BASELINE_APPROVED');
     return approved;
   }
 
@@ -1571,6 +1587,7 @@ export class ComposerService {
     request: { releaseCommitSha?: unknown; artifactDigest?: unknown },
     actor: string,
   ): Promise<ProductBaseline> {
+    const audit = this.beginAudit(actor);
     const baseline = await this.repository.getProductBaseline(baselineId);
     if (!baseline) {
       throw new NotFoundError(`Product baseline ${baselineId} not found`);
@@ -1617,7 +1634,7 @@ export class ComposerService {
     };
     const updated: ProductBaseline = { ...baseline, provenance };
     await this.repository.updateProductBaseline(updated);
-    await this.audit('PRODUCT_BASELINE', baselineId, 'PROVENANCE_RECORDED', actor, {
+    await this.audit(audit, 'PRODUCT_BASELINE', baselineId, 'PROVENANCE_RECORDED', {
       newValue: JSON.stringify(provenance),
     });
     return { ...updated, revision: (baseline.revision || 1) + 1 };
@@ -1785,6 +1802,7 @@ export class ComposerService {
     availableComponents: AvailableComponentSummary[],
     actor: string,
   ) {
+    const audit = this.beginAudit(actor);
     if (!this.llmClient) {
       throw new Error('AI suggestions are not enabled');
     }
@@ -1803,7 +1821,7 @@ export class ComposerService {
       systemPrompt,
     );
 
-    await this.audit('composition', 'ai-suggestion', 'AI_SUGGEST_COMPONENTS', actor, {
+    await this.audit(audit, 'composition', 'ai-suggestion', 'AI_SUGGEST_COMPONENTS', {
       newValue: JSON.stringify({ productName, suggestionCount: suggestions.length }),
     });
 
@@ -1814,6 +1832,7 @@ export class ComposerService {
     ursBaselineId: string,
     actor: string,
   ): Promise<AISpecDraft> {
+    const audit = this.beginAudit(actor);
     if (!this.llmClient) {
       throw new Error('AI product spec generation is not enabled');
     }
@@ -1851,7 +1870,7 @@ export class ComposerService {
 
     this.specDrafts.set(draft.id, draft);
 
-    await this.audit('AI_SPEC_DRAFT', draft.id, 'AI_PRODUCT_SPEC_GENERATED', actor, {
+    await this.audit(audit, 'AI_SPEC_DRAFT', draft.id, 'AI_PRODUCT_SPEC_GENERATED', {
       newValue: JSON.stringify({
         ursBaselineId,
         productName: draft.productName,
@@ -1871,6 +1890,7 @@ export class ComposerService {
     draftId: string,
     actor: string,
   ): Promise<Product> {
+    const audit = this.beginAudit(actor);
     const draft = this.specDrafts.get(draftId);
     if (!draft) {
       throw new Error(`AI spec draft ${draftId} not found`);
@@ -1893,12 +1913,14 @@ export class ComposerService {
         owner: actor,
       },
       actor,
+      audit,
     );
 
     const version = await this.createProductVersion(
       product.id,
       { changelog: `Generated from URS baseline ${draft.ursBaselineId} via AI spec draft ${draftId}` },
       actor,
+      audit,
     );
 
     // The changelog above is prose. Bind the baseline properly so the origin
@@ -1910,6 +1932,7 @@ export class ComposerService {
       version.id,
       draft.ursBaselineId,
       actor,
+      audit,
     );
     const requirementByRef = new Map(
       requirements.map(requirement => [requirement.requirementRef, requirement]),
@@ -1924,6 +1947,7 @@ export class ComposerService {
           description: comp.reason,
         },
         actor,
+        audit,
       );
 
       // The prompt demands every suggested component reference at least one
@@ -1954,19 +1978,20 @@ export class ComposerService {
             targetId: component.id,
           },
           actor,
+          audit,
         );
       }
     }
 
     // Inherits `ursBaselineIds` from the version binding above. The baseline
     // stays DRAFT — approving it is a human act.
-    await this.createProductBaseline(version.id, {}, actor);
+    await this.createProductBaseline(version.id, {}, actor, audit);
 
     draft.status = 'APPLIED';
     draft.appliedBy = actor;
     draft.appliedAt = new Date().toISOString();
 
-    await this.audit('AI_SPEC_DRAFT', draftId, 'AI_SPEC_APPLIED', actor, {
+    await this.audit(audit, 'AI_SPEC_DRAFT', draftId, 'AI_SPEC_APPLIED', {
       newValue: JSON.stringify({ productId: product.id, versionId: version.id }),
     });
 
@@ -1977,6 +2002,7 @@ export class ComposerService {
     draftId: string,
     actor: string,
   ): Promise<void> {
+    const audit = this.beginAudit(actor);
     const draft = this.specDrafts.get(draftId);
     if (!draft) {
       throw new Error(`AI spec draft ${draftId} not found`);
@@ -1987,7 +2013,7 @@ export class ComposerService {
 
     draft.status = 'REJECTED';
 
-    await this.audit('AI_SPEC_DRAFT', draftId, 'AI_SPEC_REJECTED', actor);
+    await this.audit(audit, 'AI_SPEC_DRAFT', draftId, 'AI_SPEC_REJECTED');
   }
 
   private async loadCatalogComponents(): Promise<AvailableComponentSummary[]> {
@@ -2000,25 +2026,61 @@ export class ComposerService {
     return [];
   }
 
+  /**
+   * Open the audit context for one service operation.
+   *
+   * Pass `inherited` when the method can also be reached from another
+   * auditing method. `applySpecDraft` is the case that exists today: it
+   * creates a product, a version, components, traceability links and a
+   * baseline, each of which audits on its own, and all of those events belong
+   * to the one act of applying the draft — not to five unrelated operations.
+   *
+   * Generating the id here rather than per event is the whole mechanism: one
+   * operation, one id, however many events and however deep the call. This is
+   * NXD-065's design, ported to the product side where `audit()` previously
+   * minted a fresh `randomUUID()` per event and joined nothing.
+   */
+  private beginAudit(actor: string, inherited?: AuditContext): AuditContext {
+    return inherited ?? { correlationId: randomUUID(), actor };
+  }
+
+  /**
+   * Write one audit event within an operation.
+   *
+   * The correlation id comes from the context and cannot be passed in — there
+   * is no parameter for it. A site that wants a different correlation has to
+   * open a different context, which is a deliberate act rather than a slip.
+   * The actor comes from the context too, so an event cannot be attributed to
+   * someone other than the operation's actor by accident.
+   */
   private async audit(
+    ctx: AuditContext,
     entityType: string,
     entityId: string,
     eventType: string,
-    actor: string,
-    options?: { oldValue?: string; newValue?: string },
+    options?: {
+      oldValue?: string;
+      newValue?: string;
+      reason?: string;
+      entityVersion?: number;
+    },
   ): Promise<void> {
     this.logger.info(
-      `[composer] ${eventType} ${entityType}:${entityId} by ${actor}`,
+      `[composer] ${eventType} ${entityType}:${entityId} by ${ctx.actor} ` +
+        `(operation ${ctx.correlationId})`,
     );
     const event: ComposerAuditEvent = {
       id: randomUUID(),
       entityType,
       entityId,
       eventType,
-      actor,
+      actor: ctx.actor,
       timestamp: new Date(),
       oldValue: options?.oldValue,
       newValue: options?.newValue,
+      correlationId: ctx.correlationId,
+      reason: options?.reason,
+      entityVersion: options?.entityVersion,
     };
     await this.repository.createAuditEvent(event);
   }
@@ -2038,6 +2100,7 @@ export class ComposerService {
     productContext: Record<string, unknown>,
     actor: string,
   ): Promise<string> {
+    const audit = this.beginAudit(actor);
     if (!this.llmClient) {
       throw new Error('AI product analysis is not enabled');
     }
@@ -2046,7 +2109,7 @@ export class ComposerService {
       throw new InputError('question is required');
     }
     const answer = await this.llmClient.analyzeProduct(trimmed, productContext);
-    await this.audit('AI_ANALYST', String(productContext.entityRef ?? 'unknown'), 'PRODUCT_ANALYZED', actor, {
+    await this.audit(audit, 'AI_ANALYST', String(productContext.entityRef ?? 'unknown'), 'PRODUCT_ANALYZED', {
       newValue: JSON.stringify({ question: trimmed }),
     });
     return answer;
@@ -2096,6 +2159,7 @@ export class ComposerService {
     breaking: boolean;
     actor: string;
   }): Promise<{ dispatched: number }> {
+    const audit = this.beginAudit(input.actor);
     const contract = await this.repository.getDataContract(input.contractId);
     if (!contract) throw new InputError(`DataContract ${input.contractId} not found`);
     const subscribers = await this.repository.listSubscriptionsByContract(input.contractId);
@@ -2115,7 +2179,7 @@ export class ComposerService {
       };
       await this.repository.createUpgradeNotification(notif);
     }
-    await this.audit('UPGRADE_NOTIFICATION', input.contractId, 'NOTIFICATIONS_DISPATCHED', input.actor, {
+    await this.audit(audit, 'UPGRADE_NOTIFICATION', input.contractId, 'NOTIFICATIONS_DISPATCHED', {
       newValue: JSON.stringify({ dispatched: active.length, newVersion: input.newVersion }),
     });
 
@@ -2155,6 +2219,7 @@ export class ComposerService {
     request: CreateSubscriptionRequest,
     actor: string,
   ): Promise<ContractSubscription> {
+    const audit = this.beginAudit(actor);
     const contract = await this.repository.getDataContract(request.contractId);
     if (!contract) throw new InputError(`DataContract ${request.contractId} not found`);
     const consumerRef = String(request.consumerRef ?? '').trim();
@@ -2180,7 +2245,7 @@ export class ComposerService {
       revision: 1,
     };
     await this.repository.createSubscription(sub);
-    await this.audit('CONTRACT_SUBSCRIPTION', sub.id, 'SUBSCRIPTION_CREATED', actor, {
+    await this.audit(audit, 'CONTRACT_SUBSCRIPTION', sub.id, 'SUBSCRIPTION_CREATED', {
       newValue: JSON.stringify({ contractId: request.contractId, consumerRef }),
     });
     return sub;
@@ -2199,13 +2264,14 @@ export class ComposerService {
     status: string,
     actor: string,
   ): Promise<void> {
+    const audit = this.beginAudit(actor);
     if (!(SUBSCRIPTION_STATUSES as readonly string[]).includes(status)) {
       throw new InputError(`Invalid status "${status}". Expected: ${SUBSCRIPTION_STATUSES.join(', ')}`);
     }
     const existing = await this.repository.getSubscription(id);
     if (!existing) throw new InputError(`Subscription ${id} not found`);
     await this.repository.updateSubscriptionStatus(id, status as ContractSubscription['status']);
-    await this.audit('CONTRACT_SUBSCRIPTION', id, 'SUBSCRIPTION_STATUS_CHANGED', actor, {
+    await this.audit(audit, 'CONTRACT_SUBSCRIPTION', id, 'SUBSCRIPTION_STATUS_CHANGED', {
       oldValue: existing.status, newValue: status,
     });
   }

@@ -231,3 +231,23 @@ export interface AISpecDraft {
 export interface GenerateProductSpecRequest {
   ursBaselineId: string;
 }
+
+/**
+ * What one service operation shares across every audit event it writes.
+ *
+ * Opened once at the service entry point by `ComposerService.beginAudit` and
+ * passed down; never created inside a helper, or the events of one operation
+ * would carry different correlation ids and the join this exists for would
+ * silently return one row.
+ *
+ * Deliberately the same shape as `urs-composer-backend`'s `AuditContext`
+ * (NXD-065) rather than a richer one. The two plugins own their own
+ * persistence and cannot share a type across that boundary, but a reader who
+ * knows one should recognise the other.
+ */
+export interface AuditContext {
+  /** Shared by every event of one operation. Never empty. */
+  correlationId: string;
+  /** Entity ref of the authenticated actor, e.g. `user:default/qa`. */
+  actor: string;
+}
