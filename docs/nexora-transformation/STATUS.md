@@ -30,10 +30,12 @@ the code. What changed, and where the current answer now lives:
 
 Compliance positions that are held rather than fixed are written down in
 `NXD-064` and in
-[`docs/compliance/traceability-and-gmp.md`](../compliance/traceability-and-gmp.md):
-the shipped `memory` persistence default, the missing `reason` on
-`composer_audit_events`, un-persisted AI spec drafts, and the disabled
-Community RBAC.
+[`docs/compliance/traceability-and-gmp.md`](../compliance/traceability-and-gmp.md).
+Three of the four are now closed: the missing `reason` on
+`composer_audit_events` ([`NXD-066`](DECISIONS.md)), and the shipped `memory`
+persistence default together with un-persisted AI spec drafts
+([`NXD-070`](DECISIONS.md)). Community RBAC stays disabled and is re-evaluated
+at each Backstage upgrade gate.
 
 `guard:platform` now runs **eleven** checks; the eleventh is documentation link
 integrity (`scripts/check-doc-links.mjs`).
@@ -174,14 +176,40 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   `service_name` to the template's own name, so every product built from it
   reported the wrong identity. **Closes audit item 1.**
 
+- **The last two in-memory volatilities** (`6acd589`, `afb857c`). Audit
+  completion items 8 and 6, and `NXD-064` C-1 and C-3 with them — see
+  [`NXD-070`](DECISIONS.md).
+
+  Item 8 was never about the fallback. The code had defaulted to postgres
+  since P1A and refused memory in a production auth environment; none of it
+  helped, because `app-config.yaml` shipped `mode: memory` and is layered
+  first, so an overlay that merely omitted the key inherited it. The default
+  moved rather than the fallback: `app-config.yaml` now sets `mode: postgres`
+  and `client: pg`, and memory lives in `app-config.memory.yaml`, which states
+  what it costs and turns permissions off — because `getPersistenceMode` also
+  refuses memory while `permission.enabled` is true now, which is the half of
+  C-1 that does not depend on remembering to set `auth.environment`.
+  **This changes how the stack starts**: `yarn start` needs
+  `docker compose up -d db`. See
+  [`development-workflow.md`](../engineering/development-workflow.md).
+
+  Item 6 made AI proposals durable. The subtle part is that persisting the
+  *parsed* draft would not have closed C-3: `parseProductSpecResponse` drops
+  requirement refs the model invented and falls back to `PROCESSING` for an
+  unknown component type, so the parsed spec records what was accepted, never
+  what was said. `ai_spec_drafts` carries `model_id`, `prompt_hash` and
+  `raw_response`, all `notNullable`, proven on real PostgreSQL. The prompt is
+  hashed rather than stored — it embeds requirement text the URS Composer
+  owns. **Closes audit items 6 and 8.**
+
 **The MVP1-B critical path (Slices B-1 through B-4) is COMPLETE.** All four
 items the audit names as the critical path — 2, 3, 4 and 5 — are closed, and
 the end-to-end spec that proves them as one journey is closed with them.
 
-**Nine of the twelve MVP1 completion items are now closed**: 1, 2, 3, 4, 5,
-7, 9, 10 and 12. Still open, and none of them on the critical path:
-persisted AI spec drafts (6), the `memory` persistence default (8), and a
-minimal Stage 3 FS derived from UAS (11).
+**Eleven of the twelve MVP1 completion items are now closed**: 1, 2, 3, 4, 5,
+6, 7, 8, 9, 10 and 12. One remains, and it is not on the critical path: a
+minimal Stage 3 FS derived from UAS (11). It is also the only one that is
+unbuilt capability rather than a gap in something that exists.
 
 **What a 2026-09-27 target-architecture audit found beyond that list**, so
 it is written down rather than rediscovered:
@@ -1214,9 +1242,9 @@ Catalog entity at birth, which is the precondition the `Development` tab
 because it would otherwise have had nothing to display for seven of the nine
 templates.
 
-The three MVP1 items still open — persisted AI spec drafts (6), the `memory`
-persistence default (8), and a minimal Stage 3 FS derived from UAS (11) —
-each need new behaviour, not a step added to a template.
+Items 6 and 8 closed with it, so the one MVP1 item still open is a minimal
+Stage 3 FS derived from UAS (11) — the only one of the twelve that is
+capability nobody has built, rather than a gap in something that exists.
 
 ## Next
 
@@ -1303,7 +1331,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of MVP1 audit item 1.
+via `docker-compose.test.yml`), at the close of MVP1 audit items 1, 6 and 8.
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1311,7 +1339,7 @@ via `docker-compose.test.yml`), at the close of MVP1 audit item 1.
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 231 suites, 2066 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 231 suites, 2074 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
 the split is 11/8 and not 10/9. The eight remaining warnings are all
@@ -1324,10 +1352,17 @@ The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
 
-Earlier figures, for the trend: 231 / 2063 at `fab5b0a` earlier on
-2026-09-27, 229 / 2051 at `34c9a6c` the same day, 226 / 2008 at `15ea5e7`,
-222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone, 215 / 1909 on
-2026-09-24.
+Earlier figures, for the trend: 231 / 2066 at `1a3bafe` earlier on
+2026-09-27, 231 / 2063 at `fab5b0a`, 229 / 2051 at `34c9a6c`, 226 / 2008 at
+`15ea5e7`, 222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone,
+215 / 1909 on 2026-09-24.
+
+Items 6 and 8 added eight tests and no suites: two on `getPersistenceMode`
+for the new refusal and its consequence, two in `startup.test.ts` pinning the
+shipped default and the opt-out file, four in `ai-spec-draft.test.ts` for
+durability and provenance, and one in `migrations.postgres.test.ts` — the
+`notNullable` columns are proven on the dialect that enforces them, because
+the draft suites run on SQLite where a missing NOT NULL costs nothing.
 
 **No suite was added for audit item 1**, which is why the count moved by
 three tests and no suites: the work was templates and the gates that were

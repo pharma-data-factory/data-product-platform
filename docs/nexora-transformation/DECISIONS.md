@@ -2852,3 +2852,84 @@ above. Both were invisible from the service.
   `packages/platform-common` (`product.ts`), and the suites
   `testEvidenceIngestion.test.ts`, `releaseGateProgress.test.ts`,
   `versioning.test.ts`.
+
+---
+
+### NXD-070 — A default that disabled the invariants, and a proposal nobody kept
+
+- Date: 2026-09-27
+- Slice: MVP1 completion, items 8 and 6
+- Closes: `NXD-064` C-1 and C-3
+
+Two of the four compliance positions `NXD-064` recorded rather than fixed.
+They are taken together because they are the same failure in two places: a
+record the platform behaved as if it had, and did not.
+
+**C-1 was not about the fallback.** The code had defaulted to postgres since
+P1A and had refused memory in a production auth environment since well before
+this. None of it helped, because `app-config.yaml` shipped `mode: memory` and
+is layered first, so an overlay that merely omitted the key inherited it.
+That is how production once came to run the URS audit trail in process
+memory. A safe fallback under an unsafe default is a safety net under a
+trapdoor that is already open.
+
+So the default moved rather than the fallback. `app-config.yaml` sets
+`mode: postgres` and `backend.database.client: pg`; memory moved to
+`app-config.memory.yaml`, an overlay whose opening lines state what choosing
+it costs.
+
+**Both remedies, not either.** `NXD-064` offered "default postgres, **or**
+refuse when `permission.enabled` is true". The second is now also in
+`getPersistenceMode`, because the existing `auth.environment` guard only fires
+if someone remembered to set `auth.environment` — and the configs that get
+mis-layered are exactly the ones that forget. Enforcing who may approve, sign
+or release against a store with no audit trail produces a decision nobody can
+later evidence, which is worse than refusing to start. `app-config.memory.yaml`
+therefore disables permissions; that is the consequence of the choice, not a
+workaround for the check, and it means role and authorization work cannot be
+done in memory mode.
+
+**Removing memory mode was never the position** — `NXD-064`, audit item 8 and
+open decision 4 all say default-or-refuse. Twenty-one URS suites construct
+`URSRepository` directly and are untouched: they instantiate the class, they
+do not read config.
+
+**This changes how the stack starts**, which is why `NXD-064` called it a
+slice with a migration note. `yarn start` needs `docker compose up -d db`.
+`.env.example` pointed at `dpp/pharma_data_factory` while the compose `db`
+service serves `nexora/nexora`, so the documented path did not actually work;
+it does now.
+
+**C-3 — the parsed result is not the proposal.** `AISpecDraft` lived in an
+in-process `Map`: lost on restart, invisible to a second instance. The subtler
+half is that even a persisted *parsed* draft would not have closed it.
+`parseProductSpecResponse` is deliberately forgiving — it drops requirement
+refs the model invented and falls back to `PROCESSING` for a component type
+outside the vocabulary — so the parsed spec records what was accepted, never
+what was said. `ai_spec_drafts.raw_response` is the only column that can answer
+a reviewer asking whether the proposal was altered before a human applied it.
+`model_id`, `prompt_hash` and `raw_response` are all `notNullable`: they are
+the point of the table, and a field that may be omitted is a field that will
+be.
+
+**The prompt is hashed, not stored.** The user prompt embeds requirement text,
+which the URS Composer owns. Copying it into a second plugin's database to
+satisfy an audit requirement would create a second uncontrolled copy of
+regulated content. A hash answers the question actually asked — was this
+generated from the same ask as that one.
+
+**Rejection stores rather than deletes**, and only the outcome columns are
+ever updated. The proposal a human declined is exactly the record C-3 says was
+missing, and a draft that could be edited after the fact would not be evidence
+of anything.
+
+**A cast hid the contract change.** Both LLM test stubs are
+`as unknown as ComposerLLMClient`. Adding a required field to
+`generateProductSpec`'s return compiled cleanly and failed at runtime in nine
+tests. The stubs were fixed; the cast remains and will hide the next one.
+
+- Affected components: `plugins/urs-composer-backend` (`plugin.ts`),
+  `plugins/composer-backend` (`db/migrations.ts`, `repository.ts`,
+  `repository-interface.ts`, `service.ts`, `types.ts`, `llm-client.ts`,
+  `router.ts`), `app-config.yaml`, `app-config.memory.yaml`, `.env.example`,
+  and `docs/engineering/development-workflow.md`.

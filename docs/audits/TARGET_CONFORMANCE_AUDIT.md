@@ -43,9 +43,10 @@ half of Stage 7 is not captured.
 design; HTTP-only plugin boundaries; `verify-platform-guardrails.mjs`; and the
 decision-record discipline (59 NXD records).
 
-**Largest risks:** `VERIFIED_BY` has no producer · the shipped default
-disables the GxP invariants · two unrelated systems are both called "Composer"
-· AI spec drafts live in an in-process `Map`.
+**Largest risks:** two unrelated systems are both called "Composer" · Stage 3
+is absent. `VERIFIED_BY` gained a producer (item 3), the shipped default is
+PostgreSQL (item 8) and AI spec drafts are a table (item 6), so three of the
+four risks this audit opened with are closed.
 
 ---
 
@@ -216,9 +217,10 @@ immutable coordinates and trust levels. No install, configure or update.
 **AI — WORKING and narrow, off by default.** Anthropic and OpenAI clients,
 schema-constrained output, prompt templates with tests. The spec-draft path
 creates a real Product with a real URS binding and traceability links,
-skipping requirement refs the model invented. **Drafts are held in an
-in-process `Map`** — lost on restart, invisible to a second instance, and
-unauditable. No AI Test Coordinator, no AI GMP Impact Agent.
+skipping requirement refs the model invented. Drafts are rows in
+`ai_spec_drafts` since item 6 closed, carrying the model id, the prompt hash
+and the raw response, so what was proposed is auditable separately from what
+was applied. No AI Test Coordinator, no AI GMP Impact Agent.
 
 ---
 
@@ -245,7 +247,7 @@ unauditable. No AI Test Coordinator, no AI GMP Impact Agent.
 | Test evidence                                                    | PARTIAL     | BUILD     | no product ingestion                 |
 | **Requirement → Test traceability**                              | **PARTIAL** | **BUILD** | **no `VERIFIED_BY` producer**        |
 | GMP classification / workflow                                    | WORKING     | KEEP      | no Hybrid level                      |
-| Audit trail                                                      | PARTIAL     | EXTEND    | no `reason`; memory default          |
+| Audit trail                                                      | WORKING     | KEEP      | —                                    |
 | RBAC                                                             | WORKING     | REFACTOR  | 3 registries, fail-open deny-list    |
 | Quality Gate                                                     | WORKING     | EXTEND    | ignores coverage and test results    |
 | Release                                                          | PARTIAL     | EXTEND    | status, not an entity                |
@@ -300,8 +302,9 @@ Defects 2–4 share one root cause: roughly 25 plain `Error` throws in
 
 ## 10. Gap classification
 
-**Foundation** — no test/evidence entity · `traceability_links` without
-referential integrity · AI drafts not persisted · untyped errors.
+**Foundation** — all four closed: the TestExecution entity (item 2),
+referential integrity on `traceability_links` (item 4), persisted AI drafts
+(item 6) and typed errors (item 7).
 
 **Lifecycle** — Stage 3 absent · four unequal creation doors · no deployment ·
 `/compose` cannot generate custom compositions · the Composer name collision.
@@ -309,9 +312,9 @@ referential integrity · AI drafts not persisted · untyped errors.
 **Traceability** — `VERIFIED_BY` has no producer · the gate ignores
 `getRequirementCoverage` · no GitHub webhooks · no Component→Repository map.
 
-**Compliance** — `memory` is the shipped default · no `reason` on the product
-audit · product test evidence not captured · no Hybrid GMP level · Community
-RBAC disabled.
+**Compliance** — no Hybrid GMP level · Community RBAC disabled. The shipped
+`memory` default (item 8), the missing `reason` on the product audit
+(`NXD-066`) and uncaptured product test evidence (item 2) are closed.
 
 **Experience** — hard-coded GitHub org · unnumberable approval steps ·
 200 on unknown ids · documentation sprawl.
@@ -339,9 +342,13 @@ Required to complete a coherent MVP1, in dependency order:
 3. **automated `VERIFIED_BY` production from ingested results**
 4. **validated references on `traceability_links`**
 5. **the release gate consuming `getRequirementCoverage`**
-6. persisted AI spec drafts
+6. ~~persisted AI spec drafts~~ — **closed 2026-09-27: `ai_spec_drafts`, with
+   model id, prompt hash and raw response. Closes `NXD-064` C-3.**
 7. typed errors
-8. PostgreSQL by default, or a loud refusal in memory mode
+8. ~~PostgreSQL by default, or a loud refusal in memory mode~~ — **closed
+   2026-09-27: both. `app-config.yaml` ships postgres; memory is refused when
+   permissions are enabled or the auth environment is production, and lives in
+   `app-config.memory.yaml`. Closes `NXD-064` C-1.**
 9. `reason` and `entity_version` on `composer_audit_events`
 10. the Composer name collision resolved
 11. a minimal Stage 3 — FS derived from UAS, linked to components
@@ -360,7 +367,11 @@ runtime operation, OIDC step-up, Hybrid GMP classification.
 1. ~~Backstage's role~~ — **closed 2026-09-26: Backstage remains the kernel.**
 2. Community RBAC — ratify the deviation, or open a Backstage-side workstream?
 3. "Composer" — rename `/compose`, rename the domain, or merge?
-4. `memory` default — change it, or refuse to boot with permissions enabled?
+4. ~~`memory` default~~ — **closed 2026-09-27: both.** `app-config.yaml` ships
+   `postgres`, and `getPersistenceMode` refuses memory when `permission.enabled`
+   is true as well as in a production auth environment. Memory moved to
+   `app-config.memory.yaml`, which turns permissions off and states what it
+   costs.
 5. Where does test evidence come from — webhook, CI push, or artefact upload?
 6. Does the Validation Expert generalise from the platform to customer
    products, or does a second product-scoped subsystem belong beside it?

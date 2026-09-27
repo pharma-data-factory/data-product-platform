@@ -125,13 +125,14 @@ The regulated question — _"is every requirement implemented, verified and
 validated?"_ — is computed correctly by `getRequirementCoverage` and **the
 gate does not consume it**.
 
-### G-4 — The shipped default disables the invariants
+### G-4 — ~~The shipped default disables the invariants~~ — closed 2026-09-27
 
-`app-config.yaml` sets `ursComposer.persistence.mode: memory`. In memory mode
-none of §1.3 exists and the audit trail is process-local.
-`app-config.production.yaml` overrides it explicitly, with a comment warning
-that config layering would otherwise let `memory` survive the merge. The
-safety net exists; the default is the unsafe one.
+`app-config.yaml` sets `ursComposer.persistence.mode: postgres` and
+`backend.database.client: pg`. Memory moved to `app-config.memory.yaml`, an
+explicit opt-in that states what it costs and disables permissions, because
+the backend now refuses to start in memory mode while `permission.enabled` is
+true as well as in a production auth environment. See
+[`NXD-070`](../nexora-transformation/DECISIONS.md).
 
 ### G-5 — The product-side audit cannot answer "why"
 
