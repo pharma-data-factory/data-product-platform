@@ -302,4 +302,59 @@ describe('composer migration on PostgreSQL', () => {
     await database('traceability_links').where({ id: 'tl-legacy' }).del();
     await expect(up(database)).resolves.toBeUndefined();
   }, 60000);
+
+  // MVP1 item 6 / NXD-064 C-3. The suites that exercise drafts run on SQLite,
+  // where `text` accepts anything and a missing NOT NULL costs nothing. The
+  // provenance columns are the point of the table, so their notNullable is
+  // proven on the dialect that actually enforces it.
+  it('stores a draft with its provenance and refuses one without', async () => {
+    if (!available) {
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+
+    const draft = {
+      id: 'draft-pg-1',
+      urs_baseline_id: 'urs-baseline-probe',
+      status: 'PENDING_REVIEW',
+      product_name: 'Probe Product',
+      description: 'Generated for the migration proof.',
+      domain: 'manufacturing',
+      suggested_components: JSON.stringify([{ name: 'c', reason: 'r' }]),
+      suggested_contracts: JSON.stringify([]),
+      model_id: 'claude-haiku-4-5',
+      prompt_hash: `sha256:${'a'.repeat(64)}`,
+      raw_response: '{"productName":"Probe Product"}',
+      generated_by: 'user:default/probe',
+      generated_at: new Date().toISOString(),
+    };
+
+    await database('ai_spec_drafts').insert(draft);
+
+    const stored = await database('ai_spec_drafts')
+      .where({ id: 'draft-pg-1' })
+      .first();
+    expect(stored.raw_response).toBe('{"productName":"Probe Product"}');
+    // Nullable, and null while the draft is pending: the difference between a
+    // proposal and a decision.
+    expect(stored.applied_by).toBeNull();
+    expect(stored.product_id).toBeNull();
+
+    await expect(
+      database('ai_spec_drafts').insert({
+        ...draft,
+        id: 'draft-pg-2',
+        raw_response: null,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      database('ai_spec_drafts').insert({
+        ...draft,
+        id: 'draft-pg-3',
+        model_id: null,
+      }),
+    ).rejects.toThrow();
+  }, 60000);
 });

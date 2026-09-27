@@ -1141,7 +1141,7 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         await authorize(permissions, httpAuth, req, productReadPermission);
-        const draft = service.getSpecDraft(req.params.id);
+        const draft = await service.getSpecDraft(req.params.id);
         if (!draft) {
           res.status(404).json({ error: 'AI spec draft not found' });
           return;

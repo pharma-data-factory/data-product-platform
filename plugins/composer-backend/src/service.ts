@@ -193,7 +193,6 @@ export class ComposerService {
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly policyResolverClient?: PolicyResolverClient;
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
-  private readonly specDrafts = new Map<string, AISpecDraft>();
 
   constructor(options: ComposerServiceOptions) {
     this.logger = options.logger;
@@ -2107,11 +2106,19 @@ export class ComposerService {
       domain: result.domain,
       suggestedComponents: result.components,
       suggestedContracts: result.contracts,
+      modelId: result.provenance.modelId,
+      promptHash: result.provenance.promptHash,
+      rawResponse: result.provenance.rawResponse,
       generatedBy: actor,
       generatedAt: new Date().toISOString(),
     };
 
-    this.specDrafts.set(draft.id, draft);
+    // Written before the audit event, and before the caller ever sees the id.
+    // NXD-064 C-3 asks for drafts to be persisted *before they can be applied*;
+    // a failure here must mean no draft rather than a draft the store does not
+    // know about, which is what the in-process Map amounted to on every
+    // restart.
+    await this.repository.createSpecDraft(draft);
 
     await this.audit(audit, 'AI_SPEC_DRAFT', draft.id, 'AI_PRODUCT_SPEC_GENERATED', {
       newValue: JSON.stringify({
@@ -2119,14 +2126,16 @@ export class ComposerService {
         productName: draft.productName,
         componentCount: draft.suggestedComponents.length,
         contractCount: draft.suggestedContracts.length,
+        modelId: draft.modelId,
+        promptHash: draft.promptHash,
       }),
     });
 
     return draft;
   }
 
-  getSpecDraft(id: string): AISpecDraft | undefined {
-    return this.specDrafts.get(id);
+  async getSpecDraft(id: string): Promise<AISpecDraft | undefined> {
+    return (await this.repository.getSpecDraft(id)) ?? undefined;
   }
 
   async applySpecDraft(
@@ -2134,7 +2143,7 @@ export class ComposerService {
     actor: string,
   ): Promise<Product> {
     const audit = this.beginAudit(actor);
-    const draft = this.specDrafts.get(draftId);
+    const draft = await this.repository.getSpecDraft(draftId);
     if (!draft) {
       throw new NotFoundError(`AI spec draft ${draftId} not found`);
     }
@@ -2230,9 +2239,17 @@ export class ComposerService {
     // stays DRAFT — approving it is a human act.
     await this.createProductBaseline(version.id, {}, actor, audit);
 
-    draft.status = 'APPLIED';
-    draft.appliedBy = actor;
-    draft.appliedAt = new Date().toISOString();
+    // Persisted, not mutated in place. The Map held the same object the
+    // caller had, so assigning to it was the whole update; against a store the
+    // decision has to be written, and the product it produced is recorded with
+    // it so a draft can say what it became.
+    await this.repository.updateSpecDraftOutcome({
+      id: draftId,
+      status: 'APPLIED',
+      appliedBy: actor,
+      appliedAt: new Date().toISOString(),
+      productId: product.id,
+    });
 
     await this.audit(audit, 'AI_SPEC_DRAFT', draftId, 'AI_SPEC_APPLIED', {
       newValue: JSON.stringify({ productId: product.id, versionId: version.id }),
@@ -2246,7 +2263,7 @@ export class ComposerService {
     actor: string,
   ): Promise<void> {
     const audit = this.beginAudit(actor);
-    const draft = this.specDrafts.get(draftId);
+    const draft = await this.repository.getSpecDraft(draftId);
     if (!draft) {
       throw new NotFoundError(`AI spec draft ${draftId} not found`);
     }
@@ -2254,7 +2271,10 @@ export class ComposerService {
       throw new ConflictError(`Cannot reject draft in status ${draft.status}`);
     }
 
-    draft.status = 'REJECTED';
+    await this.repository.updateSpecDraftOutcome({
+      id: draftId,
+      status: 'REJECTED',
+    });
 
     await this.audit(audit, 'AI_SPEC_DRAFT', draftId, 'AI_SPEC_REJECTED');
   }

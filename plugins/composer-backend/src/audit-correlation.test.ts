@@ -85,6 +85,11 @@ function stubLlmClient(): ComposerLLMClient {
         },
       ],
       contracts: [],
+      provenance: {
+        modelId: 'stub-model',
+        promptHash: `sha256:${'0'.repeat(64)}`,
+        rawResponse: '{"stub":true}',
+      },
     })),
   } as unknown as ComposerLLMClient;
 }

@@ -225,10 +225,28 @@ export interface AISpecDraft {
   domain: string;
   suggestedComponents: AISuggestedComponent[];
   suggestedContracts: AISuggestedContract[];
+  /**
+   * What produced this, and what it actually said.
+   *
+   * Required, not optional — `NXD-064` C-3 asks for drafts to be persisted
+   * *with* model id, prompt hash and raw response, and a field that may be
+   * omitted is a field that will be. A draft that cannot name the model that
+   * proposed it is the gap, not a row with a hole in it. `modelId` is `mock`
+   * when AI is disabled, which is an answer rather than an absence.
+   */
+  modelId: string;
+  promptHash: string;
+  rawResponse: string;
   generatedBy: string;
   generatedAt: string;
   appliedBy?: string;
   appliedAt?: string;
+  /**
+   * The product this draft became, once it was applied. Absent while the draft
+   * is pending and on a rejected one — which is the difference between a
+   * proposal and a decision, and is worth being able to query.
+   */
+  productId?: string;
 }
 
 export interface GenerateProductSpecRequest {

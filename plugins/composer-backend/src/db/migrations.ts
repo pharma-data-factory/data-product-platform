@@ -537,6 +537,60 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // MVP1 item 6 / NXD-064 C-3: what the model proposed becomes durable.
+  //
+  // `AISpecDraft` lived in an in-process `Map`. A draft was lost on restart,
+  // invisible to a second instance, and left no record of what the model
+  // proposed — only of what a human then applied. NEXORA_STRATEGY.md requires
+  // that "AI may implement and propose, but controlled approvals remain
+  // human", and an approval whose subject was never stored is not a
+  // controlled approval.
+  //
+  // `model_id`, `prompt_hash` and `raw_response` are notNullable because they
+  // are the point. Parsing is lossy on purpose here — `parseProductSpecResponse`
+  // drops requirement refs the model invented and falls back to PROCESSING for
+  // an unknown component type — so the parsed columns record what was accepted
+  // and `raw_response` records what was said. Only the second can answer a
+  // reviewer asking whether the proposal was altered before it was applied.
+  //
+  // The prompt itself is deliberately not stored, only its hash: the user
+  // prompt embeds requirement text, which the URS Composer owns, and copying
+  // it here would put regulated content in a second plugin's database.
+  //
+  // `urs_baseline_id` is a value, not a foreign key, for the same reason
+  // `product_versions` and `test_executions` treat it that way — AGENTS.md
+  // PLUGIN BOUNDARIES.
+  //
+  // `generated_by`/`generated_at` rather than `created_by`/`created_at`: the
+  // same fact under the name the domain type already uses, as
+  // `schema_snapshots` does with `captured_by`. `applied_by`/`applied_at` and
+  // `product_id` are nullable because a pending or rejected draft never
+  // acquires them, which is the difference between a proposal and a decision.
+  if (!(await knex.schema.hasTable('ai_spec_drafts'))) {
+    await knex.schema.createTable('ai_spec_drafts', table => {
+      table.string('id', 255).primary();
+      table.string('urs_baseline_id', 255).notNullable();
+      table.string('status', 32).notNullable().defaultTo('PENDING_REVIEW');
+      table.string('product_name', 255).notNullable();
+      table.text('description').notNullable();
+      table.string('domain', 255).notNullable();
+      table.text('suggested_components').notNullable();
+      table.text('suggested_contracts').notNullable();
+      table.string('model_id', 255).notNullable();
+      table.string('prompt_hash', 128).notNullable();
+      table.text('raw_response').notNullable();
+      table.string('generated_by', 255).notNullable();
+      table.string('generated_at', 64).notNullable();
+      table.string('applied_by', 255);
+      table.string('applied_at', 64);
+      table.string('product_id', 255);
+
+      table.index(['urs_baseline_id']);
+      table.index(['status']);
+      table.index(['generated_at']);
+    });
+  }
+
   await addTraceabilityIntegrity(knex);
 }
 
@@ -874,6 +928,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('ai_spec_drafts');
   await knex.schema.dropTableIfExists('schema_snapshots');
   await knex.schema.dropTableIfExists('upgrade_notifications');
   await knex.schema.dropTableIfExists('contract_subscriptions');

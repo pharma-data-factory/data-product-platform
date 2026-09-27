@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import {
   COMPONENT_TYPES,
   isComponentType,
@@ -39,20 +40,62 @@ export interface SuggestedComponent {
   priority: SuggestionPriority;
 }
 
+/**
+ * How a product spec was produced, carried out of the client so it can be
+ * stored with the draft.
+ *
+ * `NXD-064` C-3: a draft that records only the parsed result leaves no evidence
+ * of what the model actually said. Parsing is lossy and the parsers here are
+ * deliberately forgiving — they drop requirement refs the model invented and
+ * fall back to `PROCESSING` for a component type outside the vocabulary. So the
+ * parsed spec cannot answer "what was proposed", only "what we accepted".
+ */
+export interface ProductSpecProvenance {
+  /** The model as configured, or `mock` when AI is off. */
+  modelId: string;
+  /**
+   * sha256 over the system and user prompt.
+   *
+   * The hash rather than the prompt itself: the user prompt embeds requirement
+   * text, which belongs in the URS store and should not be duplicated into a
+   * second plugin's database. A hash still answers the question a reviewer
+   * actually asks — was this generated from the same ask as that one.
+   */
+  promptHash: string;
+  /** The model's response verbatim, before parsing. */
+  rawResponse: string;
+}
+
+/**
+ * A generated product spec together with its provenance.
+ *
+ * Named rather than repeated inline, which it was at all four call sites.
+ */
+export interface ProductSpecResult {
+  productName: string;
+  description: string;
+  domain: string;
+  components: AISuggestedComponent[];
+  contracts: AISuggestedContract[];
+  provenance: ProductSpecProvenance;
+}
+
+/**
+ * The one place the prompt hash is computed, so the three clients cannot
+ * disagree about what was hashed.
+ */
+export function hashPrompt(systemPrompt: string, userPrompt: string): string {
+  return `sha256:${createHash('sha256')
+    .update(`${systemPrompt}\n\n${userPrompt}`)
+    .digest('hex')}`;
+}
+
 export interface ComposerLLMClient {
   suggestComponents(
     context: ComponentSuggestionContext,
     systemPrompt: string,
   ): Promise<SuggestedComponent[]>;
-  generateProductSpec(
-    context: ProductSpecContext,
-  ): Promise<{
-    productName: string;
-    description: string;
-    domain: string;
-    components: AISuggestedComponent[];
-    contracts: AISuggestedContract[];
-  }>;
+  generateProductSpec(context: ProductSpecContext): Promise<ProductSpecResult>;
   /**
    * Answer a governance-bounded question about a data product.
    *
@@ -129,13 +172,7 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
 
   async generateProductSpec(
     context: ProductSpecContext,
-  ): Promise<{
-    productName: string;
-    description: string;
-    domain: string;
-    components: AISuggestedComponent[];
-    contracts: AISuggestedContract[];
-  }> {
+  ): Promise<ProductSpecResult> {
     const systemPrompt = buildProductSpecSystemPrompt();
     const userPrompt = buildProductSpecUserPrompt(context);
 
@@ -170,7 +207,14 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
       throw new Error('LLM returned empty response');
     }
 
-    return parseProductSpecResponse(raw);
+    return {
+      ...parseProductSpecResponse(raw),
+      provenance: {
+        modelId: this.model,
+        promptHash: hashPrompt(systemPrompt, userPrompt),
+        rawResponse: raw,
+      },
+    };
   }
 
   async analyzeProduct(
@@ -452,13 +496,7 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
 
   async generateProductSpec(
     context: ProductSpecContext,
-  ): Promise<{
-    productName: string;
-    description: string;
-    domain: string;
-    components: AISuggestedComponent[];
-    contracts: AISuggestedContract[];
-  }> {
+  ): Promise<ProductSpecResult> {
     const systemPrompt = buildProductSpecSystemPrompt();
     const userPrompt = buildProductSpecUserPrompt(context);
     const raw = await this.callAnthropicApi(
@@ -466,7 +504,14 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
       userPrompt,
       PRODUCT_SPEC_SCHEMA,
     );
-    return parseProductSpecResponse(raw);
+    return {
+      ...parseProductSpecResponse(raw),
+      provenance: {
+        modelId: this.model,
+        promptHash: hashPrompt(systemPrompt, userPrompt),
+        rawResponse: raw,
+      },
+    };
   }
 
   async analyzeProduct(
@@ -505,13 +550,7 @@ export class MockComposerLLMClient implements ComposerLLMClient {
 
   async generateProductSpec(
     context: ProductSpecContext,
-  ): Promise<{
-    productName: string;
-    description: string;
-    domain: string;
-    components: AISuggestedComponent[];
-    contracts: AISuggestedContract[];
-  }> {
+  ): Promise<ProductSpecResult> {
     const reqIds = context.requirements.map(r => r.id);
     const components: AISuggestedComponent[] = context.availableComponents
       .slice(0, 4)
@@ -542,12 +581,28 @@ export class MockComposerLLMClient implements ComposerLLMClient {
       },
     ];
 
-    return {
+    const spec = {
       productName: context.solutionName.replace(/\s+/g, '-').toLowerCase(),
       description: `Auto-generated product spec for: ${context.businessNeed}`,
       domain: 'manufacturing',
       components,
       contracts,
+    };
+
+    // Provenance is filled in here too, not left undefined. A draft produced
+    // with AI switched off is still a stored draft, and `modelId: 'mock'` is
+    // the answer to "which model proposed this" — a null would read as "we did
+    // not record it", which is a different and worse claim.
+    return {
+      ...spec,
+      provenance: {
+        modelId: 'mock',
+        promptHash: hashPrompt(
+          buildProductSpecSystemPrompt(),
+          buildProductSpecUserPrompt(context),
+        ),
+        rawResponse: JSON.stringify(spec),
+      },
     };
   }
 

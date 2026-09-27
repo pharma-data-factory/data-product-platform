@@ -11,6 +11,8 @@ import {
   TestExecution,
   ProductBaseline,
   ProductRequirement,
+  AISpecDraft,
+  AISpecDraftStatus,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -144,6 +146,23 @@ export interface IComposerRepository {
   getProductBaseline(id: string): Promise<ProductBaseline | null>;
   listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
   updateProductBaseline(baseline: ProductBaseline): Promise<void>;
+
+  // AI Spec Drafts (MVP1 item 6 / NXD-064 C-3)
+  createSpecDraft(draft: AISpecDraft): Promise<void>;
+  getSpecDraft(id: string): Promise<AISpecDraft | null>;
+  listSpecDraftsForBaseline(ursBaselineId: string): Promise<AISpecDraft[]>;
+  /**
+   * Records the outcome of a review. Only the fields a decision can change:
+   * the proposal itself is immutable once written, because a draft that can be
+   * edited after the fact is not evidence of what the model proposed.
+   */
+  updateSpecDraftOutcome(outcome: {
+    id: string;
+    status: AISpecDraftStatus;
+    appliedBy?: string;
+    appliedAt?: string;
+    productId?: string;
+  }): Promise<void>;
 
   createAuditEvent(event: ComposerAuditEvent): Promise<void>;
   getEntityAuditTrail(entityType: string, entityId: string): Promise<ComposerAuditEvent[]>;

@@ -96,6 +96,11 @@ function stubLlmClient(): ComposerLLMClient {
         },
       ],
       contracts: [],
+      provenance: {
+        modelId: 'stub-model',
+        promptHash: `sha256:${'0'.repeat(64)}`,
+        rawResponse: '{"stub":true}',
+      },
     })),
   } as unknown as ComposerLLMClient;
 }
@@ -129,6 +134,77 @@ describe('AI spec draft: approved URS baseline -> product', () => {
     expect(draft.suggestedComponents.length).toBeGreaterThan(0);
   });
 
+  // MVP1 item 6 / NXD-064 C-3. The draft used to live in a Map on the service
+  // instance, so it was lost on restart and invisible to a second one. A
+  // second ComposerService over the same database is what "a second instance"
+  // means here — if the draft were still in process memory this reads
+  // undefined.
+  it('survives the service that generated it', async () => {
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+
+    const secondInstance = new ComposerService({
+      logger: mockLogger,
+      repository: await ComposerRepository.create({ getClient: () => db }),
+      ursBaselineResolver: stubResolver(),
+      llmClient: stubLlmClient(),
+    });
+
+    const readBack = await secondInstance.getSpecDraft(draft.id);
+    expect(readBack).toMatchObject({
+      id: draft.id,
+      status: 'PENDING_REVIEW',
+      ursBaselineId: URS_BASELINE_ID,
+      productName: draft.productName,
+    });
+    expect(readBack?.suggestedComponents).toEqual(draft.suggestedComponents);
+  });
+
+  // The provenance C-3 asks for by name: "persist drafts with model id, prompt
+  // hash and raw response before they can be applied". Parsing is lossy on
+  // purpose — invented requirement refs are dropped, unknown component types
+  // fall back to PROCESSING — so only rawResponse can answer whether the
+  // proposal was altered before a human applied it.
+  it('records which model proposed it and what it actually said', async () => {
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+    const stored = await service.getSpecDraft(draft.id);
+
+    expect(stored?.modelId).toBeTruthy();
+    expect(stored?.promptHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(stored?.rawResponse).toBeTruthy();
+    expect(JSON.parse(stored!.rawResponse)).toBeDefined();
+  });
+
+  it('records the product an applied draft became, and refuses to apply twice', async () => {
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+    const product = await service.applySpecDraft(draft.id, actor);
+
+    const applied = await service.getSpecDraft(draft.id);
+    expect(applied?.productId).toBe(product.id);
+    expect(applied?.appliedBy).toBe(actor);
+
+    // The status guard now reads from the store rather than from an object the
+    // caller happens to hold, so it still holds across instances.
+    await expect(service.applySpecDraft(draft.id, actor)).rejects.toThrow(
+      /Cannot apply draft in status APPLIED/,
+    );
+  });
+
+  it('keeps a rejected draft, and keeps it rejected', async () => {
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+    await service.rejectSpecDraft(draft.id, actor);
+
+    const rejected = await service.getSpecDraft(draft.id);
+    // Rejected, not deleted: what the model proposed and a human declined is
+    // exactly the record C-3 says was missing.
+    expect(rejected?.status).toBe('REJECTED');
+    expect(rejected?.rawResponse).toBeTruthy();
+    expect(rejected?.productId).toBeUndefined();
+
+    await expect(service.rejectSpecDraft(draft.id, actor)).rejects.toThrow(
+      /Cannot reject draft in status REJECTED/,
+    );
+  });
+
   // U1 (fixed) — applySpecDraft used to pass productType: 'data-product';
   // validateProduct requires PRODUCT_TYPES = ['DATA_PRODUCT', 'SERVICE'].
   it('applies the draft, creates the product, and sets the actor as owner', async () => {
@@ -142,7 +218,7 @@ describe('AI spec draft: approved URS baseline -> product', () => {
     // The reviewer/approver becomes the product owner, satisfying the
     // `owner-declared` platform policy obligation at apply time.
     expect(product.owner).toBe(actor);
-    expect(service.getSpecDraft(draft.id)?.status).toBe('APPLIED');
+    expect((await service.getSpecDraft(draft.id))?.status).toBe('APPLIED');
   });
 
   // U2 — the applied draft records its origin only in the version changelog,

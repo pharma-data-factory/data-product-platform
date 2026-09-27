@@ -20,6 +20,8 @@ import {
   TestExecution,
   ProductBaseline,
   ProductRequirement,
+  AISpecDraft,
+  AISpecDraftStatus,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -581,6 +583,63 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToTraceabilityLink(r));
   }
 
+  // ── AI Spec Drafts (MVP1 item 6 / NXD-064 C-3) ────────────────────────────
+
+  async createSpecDraft(draft: AISpecDraft): Promise<void> {
+    await this.db('ai_spec_drafts').insert({
+      id: draft.id,
+      urs_baseline_id: draft.ursBaselineId,
+      status: draft.status,
+      product_name: draft.productName,
+      description: draft.description,
+      domain: draft.domain,
+      suggested_components: JSON.stringify(draft.suggestedComponents),
+      suggested_contracts: JSON.stringify(draft.suggestedContracts),
+      model_id: draft.modelId,
+      prompt_hash: draft.promptHash,
+      raw_response: draft.rawResponse,
+      generated_by: draft.generatedBy,
+      generated_at: draft.generatedAt,
+      applied_by: draft.appliedBy || null,
+      applied_at: draft.appliedAt || null,
+      product_id: draft.productId || null,
+    });
+  }
+
+  async getSpecDraft(id: string): Promise<AISpecDraft | null> {
+    const row = await this.db('ai_spec_drafts').where({ id }).first();
+    return row ? this.rowToSpecDraft(row) : null;
+  }
+
+  async listSpecDraftsForBaseline(
+    ursBaselineId: string,
+  ): Promise<AISpecDraft[]> {
+    const rows = await this.db('ai_spec_drafts')
+      .where({ urs_baseline_id: ursBaselineId })
+      .orderBy('generated_at', 'desc')
+      .select();
+    return rows.map((r: any) => this.rowToSpecDraft(r));
+  }
+
+  async updateSpecDraftOutcome(outcome: {
+    id: string;
+    status: AISpecDraftStatus;
+    appliedBy?: string;
+    appliedAt?: string;
+    productId?: string;
+  }): Promise<void> {
+    // Only the outcome columns. The proposal — product name, components,
+    // contracts, model id, prompt hash, raw response — is never updated, so
+    // there is no path by which a stored draft stops matching what the model
+    // returned.
+    await this.db('ai_spec_drafts').where({ id: outcome.id }).update({
+      status: outcome.status,
+      applied_by: outcome.appliedBy || null,
+      applied_at: outcome.appliedAt || null,
+      product_id: outcome.productId || null,
+    });
+  }
+
   async createAuditEvent(event: ComposerAuditEvent): Promise<void> {
     await this.db('composer_audit_events').insert({
       id: event.id,
@@ -815,6 +874,27 @@ export class ComposerRepository implements IComposerRepository {
       correlationId: row.correlation_id ?? '',
       reason: row.reason || undefined,
       entityVersion: row.entity_version ?? undefined,
+    };
+  }
+
+  private rowToSpecDraft(row: any): AISpecDraft {
+    return {
+      id: row.id,
+      ursBaselineId: row.urs_baseline_id,
+      status: row.status,
+      productName: row.product_name,
+      description: row.description,
+      domain: row.domain,
+      suggestedComponents: JSON.parse(row.suggested_components),
+      suggestedContracts: JSON.parse(row.suggested_contracts),
+      modelId: row.model_id,
+      promptHash: row.prompt_hash,
+      rawResponse: row.raw_response,
+      generatedBy: row.generated_by,
+      generatedAt: toIsoString(row.generated_at),
+      appliedBy: row.applied_by || undefined,
+      appliedAt: row.applied_at ? toIsoString(row.applied_at) : undefined,
+      productId: row.product_id || undefined,
     };
   }
 
