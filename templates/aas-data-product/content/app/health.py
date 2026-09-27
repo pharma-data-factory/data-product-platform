@@ -5,19 +5,31 @@ from datetime import datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.config import Settings
+
+settings = Settings()
+
 
 class HealthStatus(str, Enum):
-    """Health status values."""
+    """
+    Health status values.
 
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
+    UP and DOWN are the platform health contract (docs/engineering-contract.md
+    and the vendored pdf_health component, whose HealthStatus is
+    Literal["UP", "DOWN"]). DEGRADED is not part of that contract and is only
+    ever reported per component in the `components` map, never as `status`.
+    """
+
+    HEALTHY = "UP"
+    DEGRADED = "DEGRADED"
+    UNHEALTHY = "DOWN"
 
 
 class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str
+    service: str
     timestamp: str
     version: str
     components: dict = {}
@@ -42,8 +54,9 @@ async def health_check() -> HealthResponse:
     """
     return HealthResponse(
         status=HealthStatus.HEALTHY,
+        service=settings.service_name,
         timestamp=datetime.utcnow().isoformat() + "Z",
-        version="1.0.0",
+        version=settings.service_version,
         components={
             "aas-repository": "operational",
             "aas-registry": "operational",
@@ -67,8 +80,9 @@ async def readiness() -> HealthResponse:
     """
     return HealthResponse(
         status=HealthStatus.HEALTHY,
+        service=settings.service_name,
         timestamp=datetime.utcnow().isoformat() + "Z",
-        version="1.0.0",
+        version=settings.service_version,
         components={
             "aas-repository": "ready",
             "aas-registry": "ready",

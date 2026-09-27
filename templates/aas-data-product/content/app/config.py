@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     """Application settings from environment variables."""
 
     # Service Configuration
-    service_name: str = "aas-data-product"
-    service_version: str = "1.0.0"
+    service_name: str = "${{ values.name }}"
+    service_version: str = "${{ values.version }}"
     host: str = "0.0.0.0"
     port: int = 8080
     debug: bool = False

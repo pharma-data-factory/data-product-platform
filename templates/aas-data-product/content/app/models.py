@@ -98,7 +98,7 @@ class AssetResponse(BaseModel):
 class HealthResponse(BaseModel):
     """Health check response."""
 
-    status: str = Field(..., description="Overall health status (healthy, degraded, unhealthy)")
+    status: str = Field(..., description="Overall health status (UP, DOWN)")
     timestamp: str = Field(..., description="Check timestamp")
     components: Dict[str, str] = Field(
         default_factory=dict, description="Component health status"
