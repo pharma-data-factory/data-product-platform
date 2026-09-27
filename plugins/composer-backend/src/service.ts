@@ -6,7 +6,13 @@
  */
 
 import { LoggerService } from '@backstage/backend-plugin-api';
-import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotFoundError,
+  NotImplementedError,
+  ServiceUnavailableError,
+} from '@backstage/errors';
 import { createHash, randomUUID } from 'crypto';
 import {
   ContractSubscription,
@@ -401,7 +407,7 @@ export class ComposerService {
     const audit = this.beginAudit(actor, inheritedAudit);
     const product = await this.repository.getProduct(productId);
     if (!product) {
-      throw new Error(`Product ${productId} not found`);
+      throw new NotFoundError(`Product ${productId} not found`);
     }
     const versions = await this.repository.listProductVersions(productId);
 
@@ -473,10 +479,10 @@ export class ComposerService {
     const audit = this.beginAudit(actor, inheritedAudit);
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
-      throw new Error(`Product version ${versionId} not found`);
+      throw new NotFoundError(`Product version ${versionId} not found`);
     }
     if (!request.name?.trim()) {
-      throw new Error('Component name is required');
+      throw new InputError('Component name is required');
     }
     const component: ProductComponent = {
       id: randomUUID(),
@@ -1173,18 +1179,21 @@ export class ComposerService {
     const audit = this.beginAudit(actor);
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
-      throw new Error(`Product version ${versionId} not found`);
+      throw new NotFoundError(`Product version ${versionId} not found`);
     }
     const allowed = VALID_TRANSITIONS[version.status] ?? [];
     if (!allowed.includes(request.targetStatus)) {
-      throw new Error(
+      throw new ConflictError(
         `Invalid transition from ${version.status} to ${request.targetStatus}`,
       );
     }
     if (request.targetStatus === 'RELEASED') {
       const gate = await this.checkReleaseGate(versionId);
       if (!gate.passed) {
-        throw new Error(
+        // A blocked gate is the platform working, not failing. 409 says
+        // "the version is not in a state that permits this", which is
+        // exactly what a standing blocker means.
+        throw new ConflictError(
           `Release gate failed: ${gate.blockers.map(b => b.code).join(', ')}`,
         );
       }
@@ -1228,7 +1237,7 @@ export class ComposerService {
     const blockers: ReleaseGateBlocker[] = [];
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
-      throw new Error(`Product version ${versionId} not found`);
+      throw new NotFoundError(`Product version ${versionId} not found`);
     }
     if (version.status !== 'RELEASE_CANDIDATE') {
       blockers.push({
@@ -1479,7 +1488,7 @@ export class ComposerService {
     const audit = this.beginAudit(actor, inheritedAudit);
     const version = await this.repository.getProductVersion(productVersionId);
     if (!version) {
-      throw new Error(`Product version ${productVersionId} not found`);
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
     }
     const existing = await this.repository.listProductBaselines(productVersionId);
 
@@ -1879,7 +1888,7 @@ export class ComposerService {
   ): Promise<ProductBaselineDelta> {
     const baseline = await this.repository.getProductBaseline(baselineId);
     if (!baseline) {
-      throw new Error(`Product baseline ${baselineId} not found`);
+      throw new NotFoundError(`Product baseline ${baselineId} not found`);
     }
 
     const allBaselines = await this.repository.listProductBaselines(
@@ -2027,7 +2036,10 @@ export class ComposerService {
   ) {
     const audit = this.beginAudit(actor);
     if (!this.llmClient) {
-      throw new Error('AI suggestions are not enabled');
+      // Switched off by configuration, not broken. 501 says "this server
+      // does not offer that", which a caller can act on; 500 said "the
+      // platform is broken", which is the wording ae62aa4 went after.
+      throw new NotImplementedError('AI suggestions are not enabled');
     }
 
     const context = {
@@ -2057,10 +2069,18 @@ export class ComposerService {
   ): Promise<AISpecDraft> {
     const audit = this.beginAudit(actor);
     if (!this.llmClient) {
-      throw new Error('AI product spec generation is not enabled');
+      throw new NotImplementedError(
+        'AI product spec generation is not enabled',
+      );
     }
     if (!this.ursBaselineResolver) {
-      throw new Error('URS baseline resolver is not configured');
+      // Distinct from the three above on purpose: nobody chose this. A
+      // dependency this deployment was meant to have is absent, so it is
+      // 503 and it is logged — an operator has to fix it, and a caller
+      // retrying later is not unreasonable.
+      throw new ServiceUnavailableError(
+        'URS baseline resolver is not configured',
+      );
     }
 
     const ctx = await this.ursBaselineResolver.resolveBaselineContext(ursBaselineId);
@@ -2116,10 +2136,10 @@ export class ComposerService {
     const audit = this.beginAudit(actor);
     const draft = this.specDrafts.get(draftId);
     if (!draft) {
-      throw new Error(`AI spec draft ${draftId} not found`);
+      throw new NotFoundError(`AI spec draft ${draftId} not found`);
     }
     if (draft.status !== 'PENDING_REVIEW') {
-      throw new Error(`Cannot apply draft in status ${draft.status}`);
+      throw new ConflictError(`Cannot apply draft in status ${draft.status}`);
     }
 
     // The actor who reviewed and applied the draft becomes the product owner.
@@ -2228,10 +2248,10 @@ export class ComposerService {
     const audit = this.beginAudit(actor);
     const draft = this.specDrafts.get(draftId);
     if (!draft) {
-      throw new Error(`AI spec draft ${draftId} not found`);
+      throw new NotFoundError(`AI spec draft ${draftId} not found`);
     }
     if (draft.status !== 'PENDING_REVIEW') {
-      throw new Error(`Cannot reject draft in status ${draft.status}`);
+      throw new ConflictError(`Cannot reject draft in status ${draft.status}`);
     }
 
     draft.status = 'REJECTED';
@@ -2443,7 +2463,7 @@ export class ComposerService {
   ): Promise<string> {
     const audit = this.beginAudit(actor);
     if (!this.llmClient) {
-      throw new Error('AI product analysis is not enabled');
+      throw new NotImplementedError('AI product analysis is not enabled');
     }
     const trimmed = question.trim();
     if (!trimmed) {

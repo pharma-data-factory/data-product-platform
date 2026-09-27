@@ -14,6 +14,8 @@ import {
   InputError,
   NotAllowedError,
   NotFoundError,
+  NotImplementedError,
+  ServiceUnavailableError,
 } from '@backstage/errors';
 import {
   HttpAuthService,
@@ -136,6 +138,24 @@ function respondError(
   // as "the platform is broken" rather than "no such contract".
   if (error instanceof NotFoundError) {
     res.status(404).json({ error: String(error) });
+    return;
+  }
+  // A capability this deployment does not offer. The AI endpoints are off by
+  // default (`composer.ai.enabled: false`), and a caller hitting one was
+  // told "Internal server error" — which reads as a fault to be reported
+  // rather than a feature to be switched on. 501 says "won't", and unlike a
+  // 500 it is not worth paging anyone about, so it is not logged as an error.
+  if (error instanceof NotImplementedError) {
+    res.status(501).json({ error: String(error) });
+    return;
+  }
+  // A dependency that was meant to be here and is not. 503 says "can't, for
+  // now" — distinct from 501 because nobody chose this, and logged because
+  // an operator has to act on it. Same reasoning the NotAllowedError branch
+  // above already applies to a misconfigured permission service.
+  if (error instanceof ServiceUnavailableError) {
+    logger.error(`Dependency unavailable: ${error.message}`);
+    res.status(503).json({ error: String(error) });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -1084,10 +1104,6 @@ export async function createRouter(
 
         res.json({ suggestions });
       } catch (err) {
-        if (err instanceof Error && err.message === 'AI suggestions are not enabled') {
-          res.status(501).json({ error: 'AI suggestions are not enabled' });
-          return;
-        }
         respondError(res, logger, err);
       }
     },
@@ -1115,10 +1131,6 @@ export async function createRouter(
         const draft = await service.generateProductSpec(ursBaselineId, actor);
         res.status(201).json(draft);
       } catch (err) {
-        if (err instanceof Error && err.message.includes('not enabled')) {
-          res.status(501).json({ error: err.message });
-          return;
-        }
         respondError(res, logger, err);
       }
     },
@@ -1203,10 +1215,6 @@ export async function createRouter(
         const answer = await service.analyzeProduct(question, productContext, actor);
         res.json({ answer });
       } catch (err) {
-        if (err instanceof Error && err.message.includes('not enabled')) {
-          res.status(501).json({ error: err.message });
-          return;
-        }
         respondError(res, logger, err);
       }
     },
