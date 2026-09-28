@@ -62,8 +62,15 @@ export const artifactRegistryPlugin = createBackendPlugin({
           config.getOptionalString('artifactRegistry.manifests.directory') ??
             DEFAULT_MANIFEST_DIRECTORY,
         );
+        // Further sources are resolved by whichever provider claims them —
+        // a URL by the HTTP provider, anything else as a directory. The
+        // filesystem stays the default and needs no configuration; this is
+        // what makes it one provider rather than the only path. NXD-076.
+        const sources =
+          config.getOptionalStringArray('artifactRegistry.manifests.sources') ??
+          [];
         try {
-          await loadManifestsFromDisk({ directory, service, logger });
+          await loadManifestsFromDisk({ directory, sources, service, logger });
         } catch (error) {
           logger.warn(
             `Artifact manifest load failed; the registry keeps whatever it ` +

@@ -23,14 +23,18 @@
  */
 
 import { existsSync } from 'fs';
-import { readdir, readFile } from 'fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'path';
-import { parse as parseYaml } from 'yaml';
+import { dirname, isAbsolute, resolve } from 'path';
 import {
   ARTIFACT_MANIFEST_API_VERSION,
   isArtifactSegment,
 } from '@internal/platform-common';
 import type { ArtifactRegistryService } from './service';
+import {
+  defaultContentProviders,
+  providerFor,
+  type ArtifactContentProvider,
+  type LoadedDocument,
+} from './contentProviders';
 
 /** The `kind` a publisher declaration carries. Not an ArtifactKind. */
 export const PUBLISHER_MANIFEST_KIND = 'Publisher';
@@ -53,8 +57,14 @@ export interface ManifestLoadResult {
   publishersSkipped: number;
   versionsRegistered: number;
   versionsSkipped: number;
-  /** One entry per document that could not be loaded, with the reason. */
-  failures: { path: string; reason: string }[];
+  /**
+   * One entry per document that could not be loaded, with the reason.
+   *
+   * `ref` is the provider's portable reference — `file:nexora/x.yaml` or a
+   * URL — not an absolute path. It used to be `path`, which named a location
+   * on one machine. NXD-076.
+   */
+  failures: { ref: string; reason: string }[];
 }
 
 const EMPTY_RESULT: ManifestLoadResult = {
@@ -72,11 +82,17 @@ export interface ManifestLoaderLogger {
 }
 
 export interface LoadManifestsOptions {
+  /** The filesystem source. Kept as its own option: it has a default and the
+   * others do not, and every existing caller passes it. */
   directory: string;
+  /** Further sources, each resolved by whichever provider claims it. */
+  sources?: readonly string[];
   service: ArtifactRegistryService;
   logger: ManifestLoaderLogger;
   /** Recorded as `createdBy` on everything this loader creates. */
   actor?: string;
+  /** Injected by tests; defaults to filesystem + HTTP. */
+  providers?: readonly ArtifactContentProvider[];
 }
 
 export const MANIFEST_LOADER_ACTOR = 'system:artifact-manifest-loader';
@@ -120,53 +136,75 @@ export function resolveManifestDirectory(
   return resolve(from, configured);
 }
 
-interface LoadedDocument {
-  path: string;
-  document: unknown;
-}
-
 /**
- * Registers every manifest under `directory`.
+ * Registers every manifest at every configured source.
  *
- * A missing directory is not an error — an installation that ships no
- * manifests is a legitimate installation, and requiring the directory to exist
- * would make the loader a configuration burden for every test and every
- * deployment that does not use it.
+ * A missing source is not an error — an installation that ships no manifests
+ * is a legitimate installation, and requiring the directory to exist would
+ * make the loader a configuration burden for every test and every deployment
+ * that does not use it. The HTTP provider gives the same answer for a 404, so
+ * a URL that has not been published yet reads the same as a directory that is
+ * not there.
+ *
+ * The name is now a slight lie — it loads from providers, of which disk is
+ * one. Kept because it is the exported entry point every caller already names,
+ * and renaming it is churn with no reader. NXD-076.
  */
 export async function loadManifestsFromDisk(
   options: LoadManifestsOptions,
 ): Promise<ManifestLoadResult> {
   const { directory, service, logger } = options;
   const actor = options.actor ?? MANIFEST_LOADER_ACTOR;
-
-  const files = await listYamlFiles(directory);
-  if (files === undefined) {
-    logger.info(
-      `Artifact manifest directory ${directory} does not exist; nothing to load`,
-    );
-    return { ...EMPTY_RESULT };
-  }
+  const providers = options.providers ?? defaultContentProviders();
+  const sources = [directory, ...(options.sources ?? [])];
 
   const result: ManifestLoadResult = { ...EMPTY_RESULT, failures: [] };
   const publishers: LoadedDocument[] = [];
   const artifacts: LoadedDocument[] = [];
 
-  for (const path of files) {
-    let document: unknown;
+  for (const source of sources) {
+    const provider = providerFor(providers, source);
+    if (!provider) {
+      result.failures.push({
+        ref: source,
+        reason: 'No content provider handles this source',
+      });
+      continue;
+    }
+
+    let loaded;
     try {
-      document = parseYaml(await readFile(path, 'utf8'));
+      loaded = await provider.load(source);
     } catch (error) {
-      result.failures.push({ path, reason: describe(error) });
+      // One unreachable source must not cost the others. A shared mirror being
+      // down is not a reason for a backend to start with an empty registry.
+      result.failures.push({ ref: source, reason: describe(error) });
       continue;
     }
-    if (!isMapping(document)) {
-      result.failures.push({ path, reason: 'Manifest must be a YAML mapping' });
+
+    if (loaded === undefined) {
+      logger.info(
+        `Artifact manifest source ${source} does not exist; nothing to load ` +
+          `from it (${provider.name})`,
+      );
       continue;
     }
-    if ((document as Record<string, unknown>).kind === PUBLISHER_MANIFEST_KIND) {
-      publishers.push({ path, document });
-    } else {
-      artifacts.push({ path, document });
+
+    result.failures.push(...loaded.failures);
+    for (const entry of loaded.documents) {
+      if (!isMapping(entry.document)) {
+        result.failures.push({
+          ref: entry.ref,
+          reason: 'Manifest must be a YAML mapping',
+        });
+        continue;
+      }
+      const kind = (entry.document as Record<string, unknown>).kind;
+      if (kind === PUBLISHER_MANIFEST_KIND) {
+        publishers.push(entry);
+      } else {
+        artifacts.push(entry);
+      }
     }
   }
 
@@ -185,7 +223,7 @@ export async function loadManifestsFromDisk(
   );
   for (const failure of result.failures) {
     logger.warn(
-      `Artifact manifest ${failure.path} was not loaded: ${failure.reason}`,
+      `Artifact manifest ${failure.ref} was not loaded: ${failure.reason}`,
     );
   }
 
@@ -200,7 +238,7 @@ async function loadPublisher(
 ): Promise<void> {
   const issues = validatePublisherManifest(entry.document);
   if (issues.length > 0) {
-    result.failures.push({ path: entry.path, reason: issues.join('; ') });
+    result.failures.push({ ref: entry.ref, reason: issues.join('; ') });
     return;
   }
   const manifest = entry.document as PublisherManifest;
@@ -223,7 +261,7 @@ async function loadPublisher(
     );
     result.publishersCreated += 1;
   } catch (error) {
-    result.failures.push({ path: entry.path, reason: describe(error) });
+    result.failures.push({ ref: entry.ref, reason: describe(error) });
   }
 }
 
@@ -263,7 +301,7 @@ async function loadArtifacts(
         result.versionsRegistered += 1;
       } catch (error) {
         deferred.push(entry);
-        errors.set(entry.path, describe(error));
+        errors.set(entry.ref, describe(error));
       }
     }
 
@@ -271,8 +309,8 @@ async function loadArtifacts(
       // No progress this pass, so another one cannot help.
       for (const entry of deferred) {
         result.failures.push({
-          path: entry.path,
-          reason: errors.get(entry.path) ?? 'unknown error',
+          ref: entry.ref,
+          reason: errors.get(entry.ref) ?? 'unknown error',
         });
       }
       return;
@@ -353,29 +391,6 @@ export function validatePublisherManifest(input: unknown): string[] {
 }
 
 /** Every `.yaml` under `directory`, sorted, or undefined if it is absent. */
-async function listYamlFiles(directory: string): Promise<string[] | undefined> {
-  let entries;
-  try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return undefined;
-    }
-    throw error;
-  }
-
-  const files: string[] = [];
-  for (const entry of entries) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...((await listYamlFiles(path)) ?? []));
-    } else if (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml')) {
-      files.push(path);
-    }
-  }
-  // Sorted so a load is reproducible and a failure list is stable.
-  return files.sort();
-}
 
 function isMapping(value: unknown): boolean {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

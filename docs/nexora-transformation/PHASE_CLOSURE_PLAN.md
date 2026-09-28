@@ -137,9 +137,9 @@ historical; each stale one is marked.
 | 4 — Exchange / Contracts | **Closed** | None. Closed by Slices 1 and 2. |
 | 5 — Verification / Validation | **Closed** | None. Closed by Slice 3. |
 | 6 — Consumer / Analytics | **Closed** | None. |
-| 7 — Ecosystem / Scale | **Open** | **Package/source providers — the last phase-level gap in the repository.** Editions and Federation are Wave 3 and belong to no phase. |
+| 7 — Ecosystem / Scale | **Closed 2026-09-28** | None. Package/source providers closed by Slice 6 (`NXD-076`). Editions and Federation are Wave 3 and belong to no phase. |
 
-**Seven of eight are closed. Slice 6 closes the eighth.**
+**All eight are closed** as of 2026-09-28. What remains is ranked in §9 on merit, not on phase membership.
 
 ### Evidence
 
@@ -492,7 +492,7 @@ Both are executable today and need no decision.
 
 | # | Item | Size |
 | --- | --- | --- |
-| 2.1 | **Slice 6 — package and source providers. Closes Phase 7, the last one.** | M |
+| 2.1 | **Done 2026-09-28** (`NXD-076`). **Slice 6 — package and source providers. Closed Phase 7, the last one.** HTTP(S) is the second provider; OCI was declined because it would have triggered the unapproved-dependency stop condition. | M |
 
 Two constraints, both learned from this plan's own history:
 

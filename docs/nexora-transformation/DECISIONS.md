@@ -3521,3 +3521,96 @@ test.
   `artifact.test.ts`), `plugins/artifact-registry-backend` (`service.ts`,
   `router.ts`, `service.test.ts`),
   `catalog/artifacts/nexora/gxp-data-product-policy.yaml`.
+
+### NXD-076 — Content has a provider now, and the filesystem is one of them. Phase 7 closes
+
+- Date: 2026-09-28
+- Slice: 6 of `PHASE_CLOSURE_PLAN.md`, via §9.3 · **closes Phase 7, the eighth
+  and last**
+- Closes: the final phase-level gap in `IMPLEMENTATION_PLAN.md`
+
+Phase 7 names "multiple source/package providers". There was one, and it was
+not written down anywhere: the loader called `readFile`.
+`ArtifactVersion.sourceRef` existed as the intended seam and was **never
+dereferenced** — a declared field, a plan, and no mechanism.
+
+**A provider answers one question: what manifest documents are at this source,
+and what does each one say.** Enumeration and reading are deliberately one
+operation. A directory can be walked and a URL cannot, and an interface that
+pretends otherwise forces every caller to know which kind it is holding.
+
+Two implementations ship, because one is not an abstraction — the closure plan
+says so itself. The filesystem provider is the behaviour that already existed,
+moved behind the seam unchanged. **HTTP(S) is the second**, chosen over an OCI
+registry for one reason worth recording: OCI would almost certainly have
+triggered `AGENTS.md`'s unapproved-dependency stop condition, and a dependency
+negotiation is the most expensive possible way to prove that a seam is real.
+`fetch` is already used across this repository. If OCI is wanted it is a third
+provider, not a change to this one.
+
+**One URL, one manifest. Deliberately not an index format.** A directory can be
+walked because the filesystem answers "what is in here"; HTTP does not.
+Inventing a Nexora-specific index would be a second manifest schema nobody
+asked for. Listing URLs in configuration is explicit and reviewable, and it is
+enough to prove the seam.
+
+**Refs are portable**, which is the constraint `NXD-074` attached to this slice
+before it started. A document's ref is `file:<path relative to the configured
+root>` or the URL itself — never an absolute path off this machine.
+`/workspaces/…/catalog/artifacts/x.yaml` means nothing anywhere else, and an
+installation that federates content must be able to say where something came
+from in terms the receiver can also resolve. The loader's failure list is keyed
+on `ref` rather than `path` for the same reason.
+
+**A missing source is not a failure, and the two providers agree on what
+missing means.** An absent directory and a URL answering 404 both yield "not
+there": an operator who configures a mirror that has not been published yet
+gets a log line, not a failed startup. Any other non-OK status *is* a failure,
+because it means the source exists and something went wrong. One unreachable
+source costs only itself — a shared mirror being down is not a reason for a
+backend to start with an empty registry.
+
+**One design change came out of writing the test rather than the code.** The
+filesystem provider began as a catch-all: anything not `http://` was a
+directory. That swallowed `ftp://legacy/x.yaml` as a directory name, found
+nothing, and reported "not there" — so a mistyped scheme did nothing at all and
+said nothing about it. It now declines anything carrying a URI scheme, so an
+unknown scheme reaches the no-provider branch and is reported as the
+configuration error it is.
+
+**Explicit non-goals**, both recorded so they are decisions rather than
+oversights:
+
+- `RUNTIME_PACKAGE_SOURCE_PATHS` does not migrate. Checked: `sourcePath` is
+  read at exactly two sites and only *displayed* — nothing opens the path. The
+  suspected overlap between Slices 6 and 7 is nominal and they are independent.
+  Without stating this, Slice 6 would have built an abstraction for a consumer
+  that never arrives, which is the Editions failure mode repeated.
+- `spec.sourceRef` is untouched. It is authored data carrying values like
+  `template:default/mqtt-temperature-data-product`, which resolve against
+  whoever reads them and are therefore not portable. Making them so is a change
+  to what manifests mean, not to how they are fetched. It is the remaining
+  portability problem and belongs to the topology track's T6.
+
+The exported entry point is still called `loadManifestsFromDisk`, which is now
+a slight lie — it loads from providers, of which disk is one. Kept because it
+is the name every caller already uses and renaming it is churn with no reader.
+
+**Verified live**, not only in tests. A manifest served by a local HTTP mirror,
+configured as `artifactRegistry.manifests.sources`:
+
+- first start — `Artifact manifests: 1 registered, 21 already present, 0 failed`
+  (21 from disk, 1 over the network), with the mirror's access log showing the
+  `GET /remote.yaml 200`;
+- `GET /artifacts/nexora/nxd076-over-http` returns it with
+  `createdBy: system:artifact-manifest-loader`, and it appears in
+  `GET /artifacts?includeVersions=true` at `version=1.0.0 lifecycle=DRAFT`,
+  indistinguishable from `nexora/oee-data-product` loaded from a file;
+- second start — `0 registered, 22 already present`, so idempotence holds
+  across providers and not merely within the filesystem one.
+
+Mutation-checked: making the loader ignore its extra sources fails five tests.
+
+- Affected components: `plugins/artifact-registry-backend`
+  (`contentProviders.ts` — new, `manifestLoader.ts`, `plugin.ts`,
+  `config.d.ts`, `manifestLoader.test.ts`).

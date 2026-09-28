@@ -22,6 +22,10 @@ import {
   MANIFEST_LOADER_ACTOR,
   PUBLISHER_MANIFEST_KIND,
 } from './manifestLoader';
+import {
+  createFilesystemProvider,
+  createHttpProvider,
+} from './contentProviders';
 
 function recordingLogger() {
   const info: string[] = [];
@@ -185,7 +189,7 @@ describe('loadManifestsFromDisk', () => {
 
     expect(result.versionsRegistered).toBe(1);
     expect(result.failures).toHaveLength(1);
-    expect(result.failures[0].path).toContain('bad.yaml');
+    expect(result.failures[0].ref).toContain('bad.yaml');
     expect(result.failures[0].reason).toContain('NOT_A_KIND');
   });
 
@@ -196,7 +200,7 @@ describe('loadManifestsFromDisk', () => {
     const result = await load();
 
     expect(result.failures).toHaveLength(1);
-    expect(result.failures[0].path).toContain('broken.yaml');
+    expect(result.failures[0].ref).toContain('broken.yaml');
   });
 
   it('refuses an artifact whose namespace no publisher owns', async () => {
@@ -279,6 +283,148 @@ describe('loadManifestsFromDisk', () => {
 
     expect(result.failures).toEqual([]);
     expect(result.versionsRegistered).toBe(0);
+  });
+
+  /**
+   * Slice 6. Content resolved from somewhere other than this filesystem.
+   *
+   * The executed path the closure plan names: register an artifact whose
+   * content comes from the second provider and read it back through the same
+   * API as a filesystem one. If these pass only because both providers happen
+   * to be the filesystem, the abstraction is an interface with one
+   * implementation — so the HTTP provider is driven with an injected fetch and
+   * never touches disk.
+   */
+  describe('a second content provider', () => {
+    function fetchReturning(
+      responses: Record<string, { status?: number; body?: string }>,
+    ) {
+      return (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const hit = responses[url];
+        if (!hit) {
+          throw new Error(`fetch: no stub for ${url}`);
+        }
+        const status = hit.status ?? 200;
+        return {
+          ok: status >= 200 && status < 300,
+          status,
+          statusText: String(status),
+          text: async () => hit.body ?? '',
+        } as Response;
+      }) as unknown as typeof fetch;
+    }
+
+    const url = 'https://registry.example/acme/remote.yaml';
+
+    function loadWith(fetchImpl: typeof fetch, sources: string[] = [url]) {
+      return loadManifestsFromDisk({
+        directory,
+        sources,
+        service,
+        logger: recordingLogger(),
+        providers: [
+          createFilesystemProvider(),
+          createHttpProvider({ fetchImpl }),
+        ],
+      });
+    }
+
+    it('registers an artifact fetched over HTTP, indistinguishable from a local one', async () => {
+      // The publisher comes from disk, the artifact from the network — so the
+      // two providers are proved to compose, not merely to coexist.
+      await writeFile(join(directory, 'publisher.yaml'), PUBLISHER_YAML);
+
+      const result = await loadWith(
+        fetchReturning({ [url]: { body: artifactYaml({ name: 'remote' }) } }),
+      );
+
+      expect(result.failures).toEqual([]);
+      expect(result.publishersCreated).toBe(1);
+      expect(result.versionsRegistered).toBe(1);
+
+      const stored = await service.getArtifactByCoordinate('acme', 'remote');
+      expect(stored?.namespace).toBe('acme');
+      const versions = await service.listArtifactVersions(stored!.id);
+      expect(versions.map(v => [v.version, v.lifecycle])).toEqual([
+        ['1.0.0', 'DRAFT'],
+      ]);
+    });
+
+    it('is idempotent across providers, like the filesystem one', async () => {
+      await writeFile(join(directory, 'publisher.yaml'), PUBLISHER_YAML);
+      const stub = fetchReturning({
+        [url]: { body: artifactYaml({ name: 'remote' }) },
+      });
+
+      await loadWith(stub);
+      const second = await loadWith(stub);
+
+      expect(second.versionsRegistered).toBe(0);
+      expect(second.versionsSkipped).toBe(1);
+    });
+
+    it('treats a 404 as "not there", the same answer a missing directory gives', async () => {
+      const result = await loadWith(fetchReturning({ [url]: { status: 404 } }));
+
+      // Not a failure: a URL that has not been published yet must not stop a
+      // backend from starting, exactly as an absent directory does not.
+      expect(result.failures).toEqual([]);
+      expect(result.versionsRegistered).toBe(0);
+    });
+
+    it('reports any other non-OK status as a failure against the URL', async () => {
+      const result = await loadWith(fetchReturning({ [url]: { status: 503 } }));
+
+      expect(result.failures).toEqual([
+        { ref: url, reason: 'HTTP 503 503' },
+      ]);
+    });
+
+    it('lets one unreachable source cost only itself', async () => {
+      // A shared mirror being down is not a reason to start with an empty
+      // registry, so the local artifacts still land.
+      await writeFile(join(directory, 'publisher.yaml'), PUBLISHER_YAML);
+      await writeFile(join(directory, 'local.yaml'), artifactYaml({ name: 'local' }));
+
+      const result = await loadWith(
+        (async () => {
+          throw new Error('getaddrinfo ENOTFOUND registry.example');
+        }) as unknown as typeof fetch,
+      );
+
+      expect(result.versionsRegistered).toBe(1);
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0].ref).toBe(url);
+      expect(result.failures[0].reason).toMatch(/ENOTFOUND/);
+    });
+
+    it('refuses a source no provider claims', async () => {
+      const result = await loadWith(fetchReturning({}), ['ftp://legacy/x.yaml']);
+
+      // Deliberately not silent. A source nobody handles is a configuration
+      // error, and skipping it quietly would leave an operator waiting for
+      // content that is never coming.
+      expect(result.failures).toEqual([
+        {
+          ref: 'ftp://legacy/x.yaml',
+          reason: 'No content provider handles this source',
+        },
+      ]);
+    });
+
+    it('names a filesystem failure portably, not by absolute path', async () => {
+      // NXD-074's constraint: a ref has to mean the same thing on another
+      // machine. An absolute path under a temp directory does not.
+      await mkdir(join(directory, 'nested'), { recursive: true });
+      await writeFile(join(directory, 'nested', 'bad.yaml'), 'key: [unclosed');
+
+      const result = await loadWith(fetchReturning({ [url]: { status: 404 } }));
+
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0].ref).toBe('file:nested/bad.yaml');
+      expect(result.failures[0].ref).not.toContain(directory);
+    });
   });
 });
 

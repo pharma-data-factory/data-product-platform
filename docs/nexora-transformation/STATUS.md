@@ -437,7 +437,9 @@ _deferred, not part of Phase 2_; GP-7 is a component registry, not the
 "hard-coded domain composition" Phase 3 names; and Editions and Federation
 appear in no phase text at all — they are Wave 3, post-plan. Counting those
 against phases made five phases look open when three were. The remaining
-phase-level gap is **Phase 7** (no multiple source/package providers). Phase 5's
+phase-level gap is ~~**Phase 7** (no multiple source/package providers)~~ —
+**closed 2026-09-28 by Slice 6, [`NXD-076`](DECISIONS.md). All eight phases
+are now closed.** Phase 5's
 gap — CI does not write baseline evidence — was closed by closure Slice 3.
 
 The gate went red after the 2026-09-21 evening commits — 50 type errors, 9 lint
@@ -1425,7 +1427,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 
 **GREEN.** Verified on 2026-09-28 the way CI runs it (`CI=true`, PostgreSQL up
 via `docker-compose.test.yml`), at the close of `PHASE_CLOSURE_PLAN.md` §9.2
-([`NXD-075`](DECISIONS.md)).
+([`NXD-076`](DECISIONS.md)) — **all eight phases closed**.
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1433,7 +1435,7 @@ via `docker-compose.test.yml`), at the close of `PHASE_CLOSURE_PLAN.md` §9.2
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2122 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2129 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`. The nine
 warnings are all documented and deliberately held: five `/alpha` API imports,
