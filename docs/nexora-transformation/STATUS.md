@@ -1424,8 +1424,8 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-28 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of the correctness batch
-([`NXD-072`](DECISIONS.md)).
+via `docker-compose.test.yml`), at the close of `PHASE_CLOSURE_PLAN.md` §9.2
+([`NXD-075`](DECISIONS.md)).
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1433,7 +1433,7 @@ via `docker-compose.test.yml`), at the close of the correctness batch
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2116 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2122 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`. The nine
 warnings are all documented and deliberately held: five `/alpha` API imports,

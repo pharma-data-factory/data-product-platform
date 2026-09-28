@@ -12,7 +12,10 @@ import {
   validateArtifactManifest,
   type ArtifactManifest,
 } from './artifact';
-import { GOLDEN_PATH_LIFECYCLE_STATES } from './releases';
+import {
+  DISTRIBUTION_CHANNELS,
+  GOLDEN_PATH_LIFECYCLE_STATES,
+} from './releases';
 
 function manifest(overrides: Record<string, unknown> = {}): unknown {
   return {
@@ -211,5 +214,43 @@ describe('artifact manifest', () => {
         manifest({ spec: { brokerUrl: 'tcp://x', qos: 2, nested: { a: 1 } } }),
       ),
     ).toEqual([]);
+  });
+
+  // NXD-075. `spec.distribution` feeds `ArtifactVersion.distribution`, which is
+  // typed to the closed DistributionChannel vocabulary. Checking only the shape
+  // let `distribution: [life-sciences]` — a value from the *edition* axis — be
+  // cast through and stored. Nobody noticed because nothing reads the persisted
+  // field: every consumer of `.distribution` reads it off `GoldenPathRelease`,
+  // a different object.
+  describe('spec.distribution is a closed vocabulary', () => {
+    it('accepts every declared channel', () => {
+      expect(
+        validateArtifactManifest(
+          manifest({ spec: { distribution: [...DISTRIBUTION_CHANNELS] } }),
+        ),
+      ).toEqual([]);
+    });
+
+    it('refuses a value from the edition axis, and says where it belongs', () => {
+      const issues = validateArtifactManifest(
+        manifest({ spec: { distribution: ['life-sciences'] } }),
+      );
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatch(/"life-sciences" is not a distribution channel/);
+      expect(issues[0]).toMatch(/catalog\/editions\.yaml/);
+    });
+
+    it('still refuses a non-list', () => {
+      expect(
+        validateArtifactManifest(manifest({ spec: { distribution: 'INTERNAL' } })),
+      ).toEqual(['spec.distribution must be a list of strings']);
+    });
+
+    it('names every offending entry, not just the first', () => {
+      const issues = validateArtifactManifest(
+        manifest({ spec: { distribution: ['INTERNAL', 'nope', 'also-nope'] } }),
+      );
+      expect(issues).toHaveLength(2);
+    });
   });
 });

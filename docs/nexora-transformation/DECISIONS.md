@@ -3442,3 +3442,82 @@ channel of `TARGET_OPERATING_MODEL.md` §6.3 — a larger, separate thing.
 - Affected components: none in code. `docs/architecture/TARGET_OPERATING_MODEL.md`
   (new §6), `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9 ranking),
   `docs/nexora-transformation/STATUS.md` (the corrected federation claim).
+
+### NXD-075 — A discriminator nobody checked, and a restriction that held for two acts out of five
+
+- Date: 2026-09-28
+- Slice: `PHASE_CLOSURE_PLAN.md` §9.2 — the two defects buried inside slices
+- Closes: §9.2 items 1.1 and 1.2
+
+Two defects, both surfaced by re-reading slices rather than by a failing test,
+and both of a kind the phase frame had ranked far below their cost.
+
+**A value from the wrong axis, already persisted.** The GxP policy pack's
+manifest declared `distribution: [life-sciences]` under a comment reading
+"which Nexora editions pre-load this policy pack". `spec.distribution` is not
+that axis: it feeds `ArtifactVersion.distribution`, typed to the closed
+`DistributionChannel` vocabulary — `INTERNAL`, `TEMPLATE_EDITION`,
+`PLATFORM_EDITION`, `SAAS`. Validation checked only that the field was a list
+of strings, and the registry then cast it through unchecked, so the value was
+stored as though it were a channel. The edition is not even spelled that way;
+it is `nexora-life-sciences`.
+
+It went unnoticed for a reason worth recording: **nothing reads the persisted
+field.** Every consumer of `.distribution` reads it off `GoldenPathRelease`, a
+different object entirely. A discriminator that nothing validates and nothing
+reads is two problems wearing one name, and only the first is visible.
+
+Three changes. `validateArtifactManifest` checks membership and names the
+offending entry, pointing at the axis the value belongs to. The registry
+narrows instead of casting, so a caller that bypasses validation still cannot
+store a non-member. And the manifest line is **removed rather than corrected**,
+because the fact is already recorded on the right axis and in the right
+direction: `catalog/editions.yaml` declares
+`gxpPolicy: "nexora/gxp-data-product-policy@1.0.0"` under
+`nexora-life-sciences`. An edition names the packs it pre-loads; a pack does
+not name its editions.
+
+**A restriction that held for the last two acts of a lifecycle and not the
+first three.** `P7-S2` added per-namespace membership checking and wired it to
+`certify` and `publish`, passing the actor explicitly. The other three
+transitions went through a shared `transitionRoute` helper that **discarded the
+actor `authorize` had already returned**, so `submit`, `review` and `deprecate`
+reached the service knowing only an id. `deprecateArtifactVersion` did not take
+an actor parameter at all — withdrawing a released artifact from recommended
+use was an anonymous act.
+
+The service side compounded it: `actor` was optional, guarded by `if (actor)`.
+An absent actor did not fail; it skipped the check.
+
+All five transitions now resolve the namespace, and **`actor` is required**, so
+a route that forgets it fails to compile rather than silently opting out — the
+same reasoning `NXD-072` applied to the `refusal` parameter. This needed no new
+framework ground: the `memberGroups` check `P7-S2` built was already there,
+called from two places instead of five.
+
+Worth stating plainly, because the closure plan ranked this as half of an
+**L**-sized slice behind a `BACKSTAGE_CORE_PROTECTION_BLOCKED` stop condition:
+a mutating registry operation that does not know who invoked it is a hole in
+the audit trail, not a gap in the permission framework. It needed no
+conditional permissions and no `ResourcePermission`. What remains behind that
+stop condition is list filtering, which is a genuinely different problem.
+
+**Verified live** against PostgreSQL, not only in tests:
+
+- `POST /artifacts` with `distribution: ["life-sciences"]` → **400**, naming the
+  entry and pointing at `catalog/editions.yaml`; the same call with
+  `["INTERNAL"]` → 201.
+- A namespace whose publisher lists a different member: `submit` as a member →
+  200; then, with the member list changed, `review` → **403** `Actor
+  "user:default/guest" is not a member of publisher "nxd075locked" and cannot
+  review artifacts in that namespace.` `review` is one of the three that
+  resolved nothing before.
+
+Both mutation-checked: restoring the manifest value fails the on-disk manifest
+suite, and removing the three new membership calls fails the five-transition
+test.
+
+- Affected components: `packages/platform-common` (`artifact.ts`,
+  `artifact.test.ts`), `plugins/artifact-registry-backend` (`service.ts`,
+  `router.ts`, `service.test.ts`),
+  `catalog/artifacts/nexora/gxp-data-product-policy.yaml`.

@@ -341,8 +341,8 @@ describe('ArtifactRegistryService', () => {
       );
 
       const outcomes = await Promise.allSettled([
-        service.submitArtifactVersion(version.id),
-        service.submitArtifactVersion(version.id),
+        service.submitArtifactVersion(version.id, actor),
+        service.submitArtifactVersion(version.id, actor),
       ]);
 
       expect(outcomes.map(o => o.status).sort()).toEqual([
@@ -357,6 +357,72 @@ describe('ArtifactRegistryService', () => {
       // The winner's write stands, and the revision advanced exactly once.
       const stored = await service.getArtifactVersionById(version.id);
       expect([stored?.lifecycle, stored?.revision]).toEqual(['TESTING', 2]);
+    });
+  });
+
+  // NXD-075. P7-S2 wired the namespace check to certify and publish only, with
+  // an optional `actor` and an `if (actor)` guard — so submit, review and
+  // deprecate reached the service with no actor and resolved no namespace. A
+  // restriction that holds for the last two acts of a lifecycle and not the
+  // first three is not a restriction.
+  describe('every lifecycle transition resolves the namespace', () => {
+    const member = 'user:default/acme-release-manager';
+    const outsider = 'user:default/someone-else';
+
+    /** A publisher that has restricted who may act, and one version in it. */
+    async function restrictedNamespace() {
+      await service.createPublisher(
+        {
+          namespace: 'locked',
+          displayName: 'Locked Namespace',
+          memberGroups: [member],
+        },
+        actor,
+      );
+      const { version } = await service.registerArtifactVersion(
+        manifest({ namespace: 'locked', name: 'thing' }),
+        member,
+      );
+      return version;
+    }
+
+    it('refuses each of the five transitions to a non-member', async () => {
+      const version = await restrictedNamespace();
+
+      // Walked in order by the member, with the outsider refused at each step.
+      // A single-step test would pass against the old code for certify and
+      // publish and tell us nothing about the other three.
+      const steps: Array<[string, (actor: string) => Promise<unknown>]> = [
+        ['submit', a => service.submitArtifactVersion(version.id, a)],
+        ['review', a => service.reviewArtifactVersion(version.id, a)],
+        ['certify', a => service.certifyArtifactVersion(version.id, a)],
+        ['publish', a => service.publishArtifactVersion(version.id, a)],
+        ['deprecate', a => service.deprecateArtifactVersion(version.id, a)],
+      ];
+
+      for (const [name, act] of steps) {
+        await expect(act(outsider)).rejects.toThrow(
+          new RegExp(`is not a member of publisher "locked".*cannot ${name}`),
+        );
+        // The member may proceed, which is what makes the refusal a
+        // restriction rather than a block.
+        await expect(act(member)).resolves.toBeDefined();
+      }
+
+      const stored = await service.getArtifactVersionById(version.id);
+      expect(stored?.lifecycle).toBe('DEPRECATED');
+    });
+
+    it('lets anyone authorised act when the publisher declares no members', async () => {
+      // `acme` is created in beforeEach with no memberGroups. An unrestricted
+      // namespace must stay unrestricted — the check is opt-in.
+      const { version } = await service.registerArtifactVersion(
+        manifest(),
+        actor,
+      );
+      await expect(
+        service.submitArtifactVersion(version.id, outsider),
+      ).resolves.toBeDefined();
     });
   });
 });

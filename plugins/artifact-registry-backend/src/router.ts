@@ -452,15 +452,26 @@ export async function createRouter(
    * call; writing each handler out by hand would invite the copy where the
    * permission and the act stop matching.
    */
+  /**
+   * Every lifecycle transition, with the actor.
+   *
+   * `authorize` has always returned the actor; this helper used to discard it,
+   * so `submit`, `review` and `deprecate` reached the service with no idea who
+   * had called them — and therefore resolved no namespace. P7-S2 passed the
+   * actor for `certify` and `publish` only, which left a namespace restriction
+   * that held for the last two acts of the lifecycle and not the first three.
+   * A mutating registry operation that does not know who invoked it is a hole
+   * in the audit trail. NXD-075.
+   */
   function transitionRoute(
     path: string,
     permission: BasicPermission,
-    act: (id: string) => Promise<unknown>,
+    act: (id: string, actor: string) => Promise<unknown>,
   ) {
     router.post(path, async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, permission);
-        res.json(await act(req.params.id));
+        const actor = await authorize(permissions, httpAuth, req, permission);
+        res.json(await act(req.params.id, actor));
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -470,41 +481,27 @@ export async function createRouter(
   transitionRoute(
     '/artifact-versions/:id/submit',
     artifactSubmitPermission,
-    id => service.submitArtifactVersion(id),
+    (id, actor) => service.submitArtifactVersion(id, actor),
   );
   transitionRoute(
     '/artifact-versions/:id/review',
     artifactReviewPermission,
-    id => service.reviewArtifactVersion(id),
+    (id, actor) => service.reviewArtifactVersion(id, actor),
   );
-  // Phase 7 (P7-S2): certify and publish pass the actor so the service can
-  // enforce per-namespace membership when publisher.memberGroups is set.
-  router.post(
+  transitionRoute(
     '/artifact-versions/:id/certify',
-    async (req: express.Request, res: express.Response) => {
-      try {
-        const actor = await authorize(permissions, httpAuth, req, artifactCertifyPermission);
-        res.json(await service.certifyArtifactVersion(req.params.id, actor));
-      } catch (err) {
-        respondError(res, logger, err);
-      }
-    },
+    artifactCertifyPermission,
+    (id, actor) => service.certifyArtifactVersion(id, actor),
   );
-  router.post(
+  transitionRoute(
     '/artifact-versions/:id/publish',
-    async (req: express.Request, res: express.Response) => {
-      try {
-        const actor = await authorize(permissions, httpAuth, req, artifactPublishPermission);
-        res.json(await service.publishArtifactVersion(req.params.id, actor));
-      } catch (err) {
-        respondError(res, logger, err);
-      }
-    },
+    artifactPublishPermission,
+    (id, actor) => service.publishArtifactVersion(id, actor),
   );
   transitionRoute(
     '/artifact-versions/:id/deprecate',
     artifactDeprecatePermission,
-    id => service.deprecateArtifactVersion(id),
+    (id, actor) => service.deprecateArtifactVersion(id, actor),
   );
 
   // ── Policy Pack Resolver (W3-6) ────────────────────────────────────────────

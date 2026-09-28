@@ -14,6 +14,7 @@ import {
   isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
+  DISTRIBUTION_CHANNELS,
   PUBLISHER_TRUST_LEVELS,
   type Artifact,
   type ArtifactCertificationStatus,
@@ -225,9 +226,16 @@ export class ArtifactRegistryService {
       lifecycle: 'DRAFT',
       sourceRef: manifest.spec?.sourceRef,
       manifest,
-      distribution: manifest.spec?.distribution as
-        | DistributionChannel[]
-        | undefined,
+      // Narrowed, not cast. The cast that used to be here is what let
+      // `distribution: [life-sciences]` — a value from the edition axis — be
+      // stored as a DistributionChannel. `validateArtifactManifest` now checks
+      // the vocabulary, so anything reaching this line is already a member;
+      // the guard keeps that true if a caller ever bypasses validation.
+      // NXD-075.
+      distribution: manifest.spec?.distribution?.filter(
+        (channel): channel is DistributionChannel =>
+          (DISTRIBUTION_CHANNELS as readonly string[]).includes(channel),
+      ),
       dependencies,
       createdBy: actor,
       createdAt: new Date(),
@@ -356,9 +364,13 @@ export class ArtifactRegistryService {
    * review and certification. Callers that ask for an out-of-order step get a
    * ConflictError naming where the version actually is.
    */
-  async submitArtifactVersion(id: string): Promise<ArtifactVersion> {
+  async submitArtifactVersion(
+    id: string,
+    actor: string,
+  ): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'DRAFT', 'submitted');
+    await this.assertPublisherMembership(version, actor, 'submit');
     return this.applyTransition(version, { lifecycle: 'TESTING' });
   }
 
@@ -369,9 +381,13 @@ export class ArtifactRegistryService {
    * the review is evidence, and certifying on the strength of it is a
    * separate, separately-permissioned act.
    */
-  async reviewArtifactVersion(id: string): Promise<ArtifactVersion> {
+  async reviewArtifactVersion(
+    id: string,
+    actor: string,
+  ): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'TESTING', 'reviewed');
+    await this.assertPublisherMembership(version, actor, 'review');
     return this.applyTransition(version, { certificationStatus: 'TESTED' });
   }
 
@@ -382,7 +398,10 @@ export class ArtifactRegistryService {
    * never backed by an uncertified record — the same rule
    * `validateGoldenPathRelease` enforces on releases.
    */
-  async certifyArtifactVersion(id: string, actor?: string): Promise<ArtifactVersion> {
+  async certifyArtifactVersion(
+    id: string,
+    actor: string,
+  ): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'TESTING', 'certified');
     if (version.certificationStatus !== 'TESTED') {
@@ -391,7 +410,7 @@ export class ArtifactRegistryService {
           `${version.certificationStatus ?? 'unset'}, must be TESTED (review it first)`,
       );
     }
-    if (actor) await this.assertPublisherMembership(version, actor, 'certify');
+    await this.assertPublisherMembership(version, actor, 'certify');
     return this.applyTransition(version, {
       lifecycle: 'CERTIFIED',
       certificationStatus: 'CERTIFIED',
@@ -399,17 +418,24 @@ export class ArtifactRegistryService {
   }
 
   /** Makes a certified version available to consumers. */
-  async publishArtifactVersion(id: string, actor?: string): Promise<ArtifactVersion> {
+  async publishArtifactVersion(
+    id: string,
+    actor: string,
+  ): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'CERTIFIED', 'published');
-    if (actor) await this.assertPublisherMembership(version, actor, 'publish');
+    await this.assertPublisherMembership(version, actor, 'publish');
     return this.applyTransition(version, { lifecycle: 'RELEASED' });
   }
 
   /** Withdraws a released version from recommended use. */
-  async deprecateArtifactVersion(id: string): Promise<ArtifactVersion> {
+  async deprecateArtifactVersion(
+    id: string,
+    actor: string,
+  ): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'RELEASED', 'deprecated');
+    await this.assertPublisherMembership(version, actor, 'deprecate');
     return this.applyTransition(version, { lifecycle: 'DEPRECATED' });
   }
 
@@ -421,6 +447,14 @@ export class ArtifactRegistryService {
    * not restricted who may act. If it is non-empty, the actor's entity ref must
    * appear in the list. This is the per-namespace scoping that NXD-014 deferred
    * until Phase 7. Phase 7 (P7-S2).
+   *
+   * Called from **all five** lifecycle transitions since NXD-075. P7-S2 wired
+   * it to certify and publish only, and `actor` was optional with an `if
+   * (actor)` guard — so `submit`, `review` and `deprecate` reached the service
+   * with no actor at all and resolved no namespace. A restriction that holds
+   * for the last two acts of a lifecycle and not the first three is not a
+   * restriction. `actor` is required now, so a route that forgets it fails to
+   * compile rather than silently skipping the check.
    *
    * Note: memberGroups entries are direct entity refs (user or group). A full
    * implementation would resolve group memberships via the Catalog; this

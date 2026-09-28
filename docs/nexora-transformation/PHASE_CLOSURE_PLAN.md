@@ -485,8 +485,8 @@ Both are executable today and need no decision.
 
 | # | Item | Size |
 | --- | --- | --- |
-| 1.1 | **A value from the wrong axis, already persisted.** `gxp-data-product-policy.yaml` declares `distribution: [life-sciences]`; the registry service casts it unchecked into `DistributionChannel[]`, whose members are `INTERNAL`/`TEMPLATE_EDITION`/`PLATFORM_EDITION`/`SAAS`. The value belongs to the `PlatformEdition` axis, where it is spelled `nexora-life-sciences`. Reject it or map it; fail loudly. | S |
-| 1.2 | **Three registry transitions check nothing.** `submit`, `review` and `deprecate` run through the shared transition helper with no actor and no namespace resolution; `deprecateArtifactVersion` takes no actor at all. This needs no conditional permissions — the service-level `memberGroups` check from `P7-S2` already exists. A mutating registry operation that does not know who invoked it is a hole in the audit trail, not a framework gap. | M |
+| 1.1 | **Done 2026-09-28** (`NXD-075`). **A value from the wrong axis, already persisted.** `gxp-data-product-policy.yaml` declares `distribution: [life-sciences]`; the registry service casts it unchecked into `DistributionChannel[]`, whose members are `INTERNAL`/`TEMPLATE_EDITION`/`PLATFORM_EDITION`/`SAAS`. The value belongs to the `PlatformEdition` axis, where it is spelled `nexora-life-sciences`. Reject it or map it; fail loudly. | S |
+| 1.2 | **Done 2026-09-28** (`NXD-075`) — and it was five, not three, once `actor` stopped being optional. **Three registry transitions check nothing.** `submit`, `review` and `deprecate` run through the shared transition helper with no actor and no namespace resolution; `deprecateArtifactVersion` takes no actor at all. This needs no conditional permissions — the service-level `memberGroups` check from `P7-S2` already exists. A mutating registry operation that does not know who invoked it is a hole in the audit trail, not a framework gap. | M |
 
 ### 9.3 The eighth phase
 

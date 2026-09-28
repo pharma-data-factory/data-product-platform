@@ -25,9 +25,17 @@ metadata:
     - governance
 
 spec:
-  # Distribution: which Nexora editions pre-load this policy pack.
-  distribution:
-    - life-sciences
+  # `distribution: [life-sciences]` stood here and was wrong on two counts.
+  # `spec.distribution` is the DistributionChannel axis — INTERNAL,
+  # TEMPLATE_EDITION, PLATFORM_EDITION, SAAS — and "life-sciences" is not a
+  # member of it; the edition is also spelled `nexora-life-sciences`. The
+  # registry cast the value through unchecked and stored it.
+  #
+  # Removed rather than corrected, because the fact is already recorded on the
+  # right axis and in the right direction: catalog/editions.yaml declares
+  # `gxpPolicy: "nexora/gxp-data-product-policy@1.0.0"` under
+  # nexora-life-sciences. An edition names the packs it pre-loads; a pack does
+  # not name its editions. See NXD-075.
 
   policyDocument:
     version: 1

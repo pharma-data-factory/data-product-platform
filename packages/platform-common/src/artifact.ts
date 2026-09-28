@@ -15,6 +15,7 @@
  */
 
 import {
+  DISTRIBUTION_CHANNELS,
   GOLDEN_PATH_LIFECYCLE_STATES,
   type DistributionChannel,
   type GoldenPathCertificationStatus,
@@ -474,8 +475,29 @@ function validateSpec(spec: Record<string, unknown>, kind: string): string[] {
     }
   }
 
-  if (spec.distribution !== undefined && !isStringArray(spec.distribution)) {
-    issues.push('spec.distribution must be a list of strings');
+  // Checked against the vocabulary, not merely for shape. `ArtifactVersion
+  // .distribution` is typed `DistributionChannel[]` and the registry used to
+  // cast a manifest's strings into it unchecked — so `distribution:
+  // [life-sciences]`, a value from the *edition* axis, was stored as though it
+  // were a distribution channel. It went unnoticed because nothing reads the
+  // persisted field: every consumer of `.distribution` reads it off
+  // `GoldenPathRelease`, a different object. A discriminator nobody checks and
+  // nobody reads is two problems, not one. NXD-075.
+  if (spec.distribution !== undefined) {
+    if (!isStringArray(spec.distribution)) {
+      issues.push('spec.distribution must be a list of strings');
+    } else {
+      for (const channel of spec.distribution) {
+        if (!(DISTRIBUTION_CHANNELS as readonly string[]).includes(channel)) {
+          issues.push(
+            `spec.distribution entry "${channel}" is not a distribution ` +
+              `channel. Expected one of ${DISTRIBUTION_CHANNELS.join(', ')}. ` +
+              'Which editions ship an artifact is a different axis and is ' +
+              'declared in catalog/editions.yaml, not here.',
+          );
+        }
+      }
+    }
   }
 
   // W2-4: validate spec.policies and spec.requirements
