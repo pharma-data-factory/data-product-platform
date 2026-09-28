@@ -3010,3 +3010,208 @@ and never correct again".
   `plugins/composer-backend` (`db/migrations.ts`, `repository.ts`,
   `repository-interface.ts`, `service.ts`, `types.ts`, `router.ts`), and the
   suites `functionalSpecification.test.ts` and `db/migrations.postgres.test.ts`.
+
+### NXD-072 — The server now refuses what the page refused, and names the step it is waiting on
+
+- Date: 2026-09-28
+- Slice: correctness batch — not a `PHASE_CLOSURE_PLAN.md` slice. Answers
+  `TARGET_CONFORMANCE_AUDIT.md` §12 open decision 9 ("the four open defects —
+  fold into the evidence work, or fix as one batch?") with: as one batch.
+- Closes: `STATUS.md` §Next item 0, the deferral paragraph at `STATUS.md`
+  §Current Vertical Slice ("it wants its own decision"), `NXD-059` findings 2
+  and 3, and the note `ArchitectureTab.tsx` had been carrying since NXD-056.
+
+Three defects with one shape: the platform holds a rule but states it in the
+wrong place, with the wrong status, or with the wrong number.
+
+**A rule that lived in the page.** `ArchitectureTab.tsx` disabled the
+add-component form outside DRAFT and said so in a doc comment — "The rule
+belongs in the service; until it is there, the page at least does not offer
+it." It was never moved. An API client could change the architecture of a
+RELEASED product version, which is the one thing a version status exists to
+prevent. Five methods are guarded now: `addProductComponent`,
+`addDataContract`, `addProductDependency`, `removeProductDependency` and
+`deriveFunctionalSpecifications`, alongside `bindUrsBaseline`, which had the
+guard already and supplied the pattern.
+
+**Why a helper, and why it takes its refusal as an argument.**
+`requireDraftVersion(versionId, refusal)` follows the precedent slice B-1 set
+with `assertRequirementSetExists` — one helper so the next method that needs
+the rule has an obvious thing to call. The `refusal` parameter is required
+rather than defaulted because the five reasons are genuinely different: what a
+version is built from, is made of, publishes, consumes and specifies. A shared
+sentence would have stated none of them, and a required parameter makes the
+compiler ask the next author for theirs. `bindUrsBaseline`'s wording survives
+byte for byte; a test asserts that, because the refactor is the only thing that
+could have quietly reworded it.
+
+**Three of the five were missing a 404 as well, and on PostgreSQL that was a
+500.** `addDataContract` never loaded the component and `addProductDependency`
+never loaded the version, but `data_contracts` and
+`product_version_dependencies` both carry real foreign keys — so the database
+refused what the service had not checked, and the driver error reached the
+caller as "Internal server error". SQLite does not enforce foreign keys unless
+`PRAGMA foreign_keys=ON`, which nothing in this repository sets, so every test
+wrote the row happily and only production ever saw the 500. That is the same
+wording problem `3857589` went after, hiding one dialect deeper.
+
+**What is deliberately not guarded.** `createTraceabilityLink` and
+`ingestTestExecution` keep working on a released version, because evidence
+legitimately arrives after release: a passing CI run derives its own
+`VERIFIED_BY` link ([`NXD-068`](DECISIONS.md)) and the release gate reads it
+([`NXD-069`](DECISIONS.md)). `createProductBaseline` is allowed across statuses
+by design. `versionStatusGuards.test.ts` asserts all three still succeed on a
+`RELEASE_CANDIDATE` version, so the exemption lives in a test rather than only
+in this paragraph — someone "completing the family" later meets a red suite
+instead of a plausible-looking change.
+
+**A delete that reported success for an id that never existed.**
+`deleteTraceabilityLink` issued the `DELETE` with no lookup, answered 204 for
+anything, and wrote a `TRACEABILITY_LINK_DELETED` audit event for the deletion
+that had not happened. The 204 half is the same shape as the three URS routes
+slice B-1 closed. The audit half is worse: a missing entry is a gap in the
+record, while an entry describing an act nobody performed is a false one, and
+an append-only trail exists precisely to make that impossible.
+
+**400 became 403 for segregation of duties.** The refusal in
+`transitionProductVersionStatus` and `approveProductBaseline` is a statement
+about who the caller is, not about what they sent — there is no correction to
+the request body that makes it succeed, and a 400 invites the author to go
+looking for one. `respondError` already had the `NotAllowedError` branch, so
+nothing in the router changed.
+
+The third occurrence of the same rule, in `validation-expert-backend`
+(`service.ts:661`), is **deliberately left as an `InputError`**. That plugin's
+`respondError` answers `403 {"error":"Not allowed"}` and discards the message,
+so converting it would trade a 400 that explains itself for a 403 that does
+not. It waits on that router learning to pass the message through.
+
+**A field that named the step just approved.** `currentStepSequence` is
+documented as "the step currently due". It was initialised to `0` — a sequence
+no step has — and then *incremented* on each advance rather than set to the
+step the advance had just activated, which was itself found by array position
+rather than by lowest sequence.
+
+The two errors partly cancelled, which is worth recording because it is why
+neither was noticed and why fixing only one would have looked like a
+regression: with a dense, all-required workflow starting from `0`, incrementing
+lands on the right number from the second advance onwards while being off by
+one on the first. Fixing the initialisation alone makes the increment
+coincidentally correct for every seeded workflow. Only a sparse or
+out-of-order workflow separates them, which is why
+`approval-chain.test.ts` now drives one with sequences 10/20/30 written out of
+order. Both halves were mutation-checked independently.
+
+It survived because nothing exercised it: the frontend assertion compares two
+hand-written numbers in a fixture, and the backend contract test stopped at
+`submitBaseline`, before the first approval. The contract test now performs an
+approval.
+
+**The UI numbered by array position and lost the number on decision.** MUI's
+`Stepper` supplies an index icon when `StepLabel` is given none, and
+`approvalStepIcon` returns one only for decided steps — so an undecided step
+showed its position in the array, a decided step showed a tick and no number,
+and neither was the `sequence` the server enforces against. The server already
+refuses in those terms ("step 3 cannot be approved while step 2 is still
+PENDING") while the page could not show the reviewer which row was step 2.
+
+**And that exposed the more serious defect: step one was unapprovable from the
+browser.** `ApprovalStepStatus.ACTIVE` is assigned in exactly one place in the
+backend, inside the *advance* branch of an approval. Every step of a fresh
+instance is `PENDING`, so the page's `findIndex(s => s.status === 'ACTIVE')`
+returned `-1` and the per-step Approve/Reject buttons, gated on the same flag,
+rendered on no step at all. Only steps 2..n were ever actionable — on a chain
+that cannot reach step 2 without step 1.
+
+**The position taken, rather than the larger change avoided:** `ACTIVE` stays a
+lazily-applied display status; the authority for "which step is due" is
+`currentStepSequence` together with the lower-sequence-blocking rule
+`approveApprovalStep` already enforces, and the UI now reads the authority.
+Activating the first step at creation would also have worked and is arguably
+tidier, but it changes the wording of the `NXD-059` ordering-guard test from
+"still PENDING" to "still ACTIVE" — editing a guard test's expectation is a
+question rather than a formality, and this defect does not require it.
+
+**No field was added to the wire contract.** `sequence` and
+`currentStepSequence` were already in `APPROVAL_STEP_REQUIRED_FIELDS` and
+`APPROVAL_INSTANCE_REQUIRED_FIELDS`. `NXD-059` finding 2 recorded that "every
+step comes back with `stepNumber: undefined`", which was a search for a name
+that has never existed rather than a missing capability — the data was on the
+wire the whole time, unrendered. Nothing named `stepNumber` was introduced;
+`approval-wire-contract.ts` says adding a field there is a promise, and there
+was no new promise to make. `ApprovalStepInstance.required` became
+non-optional, which is the reverse of B-2: the contract lists it as a field
+every response carries and both repositories default it rather than omitting
+it, so declaring it optional invited handling for an `undefined` the server
+never sends.
+
+**A unique index on `(approval_instance_id, sequence)`**, PostgreSQL only, with
+the duplicate pre-check the neighbouring invariant uses so that pre-existing
+violations are reported with their instance ids instead of failing the index
+creation with a message nobody can act on. The page now addresses a step by
+that number and prints it, so two steps sharing one would make "step 2"
+ambiguous in a Part 11 approval chain. The in-memory repository also sorts an
+instance's steps by sequence now, as the PostgreSQL one always did — insertion
+order happens to agree today, which is exactly why the two stores would have
+started disagreeing silently the first time a workflow was authored out of
+order.
+
+**Deferred, and named so they are decisions rather than oversights:**
+
+- `remainingAfterThis` treats only `APPROVED` as settled while the ordering
+  guard also accepts `SKIPPED`, so a skipped required step would make an
+  instance uncompletable. Unreachable today — only `cancelApprovalInstance`
+  sets `SKIPPED`, and that terminates the instance — and the fix is a
+  governance question ("does a skipped required step satisfy the chain?")
+  rather than a correctness one.
+- A status guard on `deleteTraceabilityLink`. Removing a `VERIFIED_BY` link
+  from a released version does erase evidence, but the right rule there is
+  about evidence — append-only, or supersede — not about version status, and a
+  DRAFT gate would also block removing a link created in error. Same family as
+  `NXD-068`'s reason for keeping every run.
+- The `validation-expert-backend` segregation-of-duties refusal, above.
+
+**One consequence worth not rediscovering:**
+`deriveFunctionalSpecifications` is DRAFT-only now, so a version already
+APPROVED or RELEASED in an existing database can never gain a functional
+specification. Nothing is blocked by that — the FS is deliberately additive and
+not gate-bearing ([`NXD-071`](DECISIONS.md)) — but a version that predates
+Stage 3 will stay without one.
+
+**Verified live, not only in tests.** `yarn start:demo` against PostgreSQL, as
+two demo identities:
+
+- A component added to a DRAFT version → 201; the same call once the version is
+  APPROVED → **409** `Product version 1.0 is APPROVED. A component can only be
+  added while the version is DRAFT — the architecture of a version is part of
+  what was approved.` A dependency on that version → **409** naming
+  consumption.
+- `demo-author` approving their own version → **403** with the segregation-of-
+  duties text intact, which also shows the `"not configured"` downgrade in
+  `respondError` does not fire; `demo-reviewer` on the same call → 200.
+- A dependency on an unknown version and a contract on an unknown component →
+  **404** each. That both used to be 500 was confirmed rather than inferred: a
+  direct `INSERT` into `product_version_dependencies` with a dangling
+  `product_version_id` is refused by
+  `product_version_dependencies_product_version_id_foreign`, and `respondError`
+  has no branch for a driver error.
+- `DELETE /traceability-links/no-such-link` → **404**, not 204.
+- A freshly submitted baseline answered `"currentStepSequence": 1` with both
+  steps `PENDING` — it was `0` before, a sequence no step has. After
+  `demo-reviewer` approved step 1: `"currentStepSequence": 2`, step 1
+  `APPROVED`, step 2 `ACTIVE`.
+
+**What was not walked in a browser:** the stepper's rendering. The rule it now
+follows is covered by `approvalStepper.test.ts`, and the field it reads was
+confirmed over HTTP above, but nobody looked at the page.
+
+- Affected components: `plugins/composer-backend` (`service.ts`,
+  `repository.ts`, `repository-interface.ts`), `plugins/urs-composer-backend`
+  (`service.ts`, `repository.ts`, `domain/workflow.ts`, `db/migrations.ts`),
+  `plugins/urs-composer` (`pages/approvalStepper.ts`,
+  `pages/URSRequirementSetPage.tsx`, `api/types.ts`), `packages/app`
+  (`modules/products/tabs/ArchitectureTab.tsx`), and the suites
+  `versionStatusGuards.test.ts`, `approvalStepper.test.ts`,
+  `errorMapping.test.ts`, `traceabilityIntegrity.test.ts`,
+  `productBaselineIdentity.test.ts`, `approval-chain.test.ts`,
+  `approval-contract.test.ts` and `gxp-invariants.test.ts`.

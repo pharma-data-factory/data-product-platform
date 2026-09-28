@@ -631,6 +631,34 @@ async function applyGxpConstraints(knex: Knex): Promise<void> {
       WHERE status IN ('DRAFT', 'IN_REVIEW', 'REVIEWED', 'IN_APPROVAL')
   `);
 
+  // A sequence identifies a step within its chain. The ordering guard in
+  // `approveApprovalStep` refuses a step while a lower-sequence required one
+  // is open, and since NXD-072 `currentStepSequence` addresses the due step by
+  // that number and the page renders it — so two steps sharing a sequence in
+  // one instance would make "step 2" ambiguous in a 21 CFR Part 11 approval
+  // chain. Same pre-check shape as the invariant above: report the offenders
+  // rather than let the index creation fail with a message nobody can act on.
+  const duplicateSequences = await knex('approval_steps')
+    .groupBy('approval_instance_id', 'sequence')
+    .havingRaw('count(*) > 1')
+    .select('approval_instance_id');
+
+  if (duplicateSequences.length > 0) {
+    const ids = [
+      ...new Set(duplicateSequences.map(r => r.approval_instance_id)),
+    ].join(', ');
+    throw new Error(
+      `Cannot enforce one step per sequence: these approval instances already ` +
+        `have more than one step sharing a sequence: ${ids}. ` +
+        `Resolve the duplicates (renumber or remove the stale steps) and restart.`,
+    );
+  }
+
+  await knex.raw(`
+    CREATE UNIQUE INDEX IF NOT EXISTS approval_steps_instance_sequence
+      ON approval_steps (approval_instance_id, sequence)
+  `);
+
   // Invariant 1: content is frozen once a version leaves DRAFT, and a released
   // version may only change its status (to superseded or obsolete).
   await knex.raw(`

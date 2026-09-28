@@ -9,6 +9,7 @@
 
 import {
   ApprovalInstance,
+  ApprovalStep,
   ApprovalStepStatus,
   AuditEvent,
   Baseline,
@@ -17,6 +18,42 @@ import {
   SignatureMeaning,
   URSStatus,
 } from '../types';
+
+/**
+ * The step an approval chain is waiting on: the lowest-sequence *required*
+ * step that is not settled.
+ *
+ * One definition, used by both the creation of an instance and its advance,
+ * because they disagreed. `approveApprovalStep` found the next step with
+ * `steps.find(s => s.required && s.status === 'PENDING')` — array position,
+ * not sequence — and then set `currentStepSequence` by incrementing it rather
+ * than by reading the step it had just found. Those two agree only while the
+ * sequences are dense 1..n and every step is required, and even then the
+ * increment is off by one from the first advance: approve step 1 of the
+ * seeded three-step GxP workflow and the field reads 1 while the step now due
+ * is 2. It named the step just approved. See NXD-072.
+ *
+ * "Settled" matches the ordering guard in `approveApprovalStep`: APPROVED and
+ * SKIPPED are decisions, and a REJECTED instance is terminal. Optional steps
+ * are never due — the workflow says they may be left out, and treating one as
+ * a barrier would make it mandatory by the back door.
+ *
+ * Returns undefined when nothing is outstanding, which is how a completed
+ * chain is recognised. Callers must not invent a sequence for that case.
+ */
+export function dueApprovalStep(
+  steps: readonly ApprovalStep[],
+): ApprovalStep | undefined {
+  return steps
+    .filter(
+      step =>
+        step.required &&
+        step.status !== ApprovalStepStatus.APPROVED &&
+        step.status !== ApprovalStepStatus.SKIPPED &&
+        step.status !== ApprovalStepStatus.REJECTED,
+    )
+    .sort((a, b) => a.sequence - b.sequence)[0];
+}
 
 export enum WorkflowStage {
   CREATED = 'CREATED',

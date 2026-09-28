@@ -575,6 +575,11 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((row: any) => this.rowToTestExecution(row));
   }
 
+  async getTraceabilityLink(id: string): Promise<TraceabilityLink | null> {
+    const row = await this.db('traceability_links').where({ id }).first();
+    return row ? this.rowToTraceabilityLink(row) : null;
+  }
+
   async deleteTraceabilityLink(id: string): Promise<void> {
     await this.db('traceability_links').where({ id }).del();
   }

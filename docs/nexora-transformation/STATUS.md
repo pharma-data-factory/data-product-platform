@@ -119,11 +119,14 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   status codes over HTTP rather than the type of a thrown object, because
   every service-level test would keep passing if a branch were lost.
   **Closes audit item 7.** Noted
-  and deliberately not changed: the segregation-of-duties refusal in
-  `transitionProductVersionStatus` is an `InputError`, so a correct
+  and deliberately not changed at the time: the segregation-of-duties refusal
+  in `transitionProductVersionStatus` is an `InputError`, so a correct
   authorization refusal answers 400 where 403 would say it better. It is
   already typed, so it falls outside "type the bare throws" — it wants its
-  own decision.
+  own decision. **That decision was taken on 2026-09-28 and it is now a
+  `NotAllowedError`** — see [`NXD-072`](DECISIONS.md) and the correctness
+  batch below. The original note stays because the sequence is the point:
+  noticed, deferred with a reason, then closed.
 - **B-4d — the whole journey, driven once**
   (`e2eProductReleaseFlow.test.ts`). Audit completion item 12. Every other
   suite proves one joint; nothing had ever walked the full path, which is how
@@ -224,6 +227,48 @@ against is [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md
   passed. Fixed and mutation-checked. Worth generalising: in a migration file
   that is one idempotent `up()` with no version table, "create if absent" means
   "never correct again". **Closes audit item 11.**
+
+- **The correctness batch** (2026-09-28). Not a slice from
+  `PHASE_CLOSURE_PLAN.md`; it answers
+  [`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §12
+  open decision 9 — the loose defects, fixed as one batch rather than folded
+  into later work. See [`NXD-072`](DECISIONS.md).
+
+  **A rule that lived in the page.** `ArchitectureTab.tsx` disabled the
+  add-component form outside DRAFT and its doc comment said the rule belonged
+  in the service. It never got there, so an API client could change the
+  architecture of a RELEASED version. Five methods are guarded now, each with
+  its own sentence — what a version is built from, is made of, publishes,
+  consumes and specifies — through a `requireDraftVersion(id, refusal)` helper
+  whose refusal argument is required so the next author has to state theirs.
+  Three of the five were missing a 404 as well, and because `data_contracts`
+  and `product_version_dependencies` carry real foreign keys, **on PostgreSQL
+  that was a 500**: the database refused what the service had not checked, and
+  SQLite let every test write the row. `createTraceabilityLink`,
+  `ingestTestExecution` and `createProductBaseline` are deliberately exempt —
+  evidence arrives after release — and a test asserts that, so the exemption
+  cannot be "completed" by accident.
+
+  `deleteTraceabilityLink` deleted blind: 204 for an id that never existed,
+  **and an audit event for the deletion that had not happened**. A trail
+  claiming an act nobody performed is worse than a missing entry.
+
+  **Segregation of duties answers 403.** Two sites; `respondError` already had
+  the branch. The third occurrence, in `validation-expert-backend`, stays a 400
+  on purpose — that router discards the message, so 403 would say less.
+
+  **The approval chain is numbered, and the numbering exposed something
+  worse.** `currentStepSequence` started at `0` and was *incremented* rather
+  than set to the step the advance had activated, which was itself found by
+  array position. The two errors partly cancel on the dense seeded workflows,
+  so only a sparse out-of-order chain separates them; both halves are
+  mutation-checked. Then the real finding: **step one of every chain was
+  unapprovable from the browser.** `ACTIVE` is set only when advancing, every
+  step of a fresh instance is `PENDING`, and the Approve button was gated on
+  that flag — so it rendered on no step at all. The page reads
+  `currentStepSequence` now, which is what the backend enforces against.
+  Nothing was added to the wire contract: `sequence` was on the wire all along,
+  and `NXD-059`'s "no `stepNumber`" was a search for a name that never existed.
 
 **The MVP1-B critical path (Slices B-1 through B-4) is COMPLETE.** All four
 items the audit names as the critical path — 2, 3, 4 and 5 — are closed, and
@@ -1239,8 +1284,13 @@ strikethroughs stay so the record shows what was found, not only what remains:
 2. ~~**A Product baseline can be approved by whoever created it.**~~
    **Closed 2026-09-25** — the rule P5-S2 put on the version transition now
    covers the baseline too.
-3. Approval steps carry no `stepNumber` over the API, so no client can number
-   the chain.
+3. ~~**Approval steps carry no `stepNumber` over the API.**~~ **Closed
+   2026-09-28** — and the finding was misdiagnosed. There is no `stepNumber`
+   anywhere and there never was; the ordinal is `sequence`, and it was already
+   in the database, the service, the wire contract and the client type. What
+   was missing is that the page never rendered it. Rendering it surfaced the
+   defect that mattered: step one of every chain was unapprovable from the
+   browser. See [`NXD-072`](DECISIONS.md).
 4. ~~Three refusals answer 500 instead of 409/400.~~ **Closed 2026-09-26**
    (`ae62aa4`, Slice B-1). Each sat one layer away from where the note placed
    it: the 500s were four untyped approval *lookups*, not the status check,
@@ -1291,12 +1341,10 @@ CI-evidence chain is also not automated. The nine slices, their order and the
 Definition of Done are in that document; the notes below remain accurate as
 context.
 
-**0 — `addProductComponent` does not check the version status.** The service
-(`plugins/composer-backend/src/service.ts:351`) will add a component to a
-`RELEASED` version. NXD-056's slice closed this in the UI — the form refuses
-outside `DRAFT` and says why — but a UI refusal is not a platform rule, and an
-API client can still change the architecture of a released version. The guard
-belongs next to the one `bindUrsBaseline` already has.
+**0 — ~~`addProductComponent` does not check the version status.~~ Done
+2026-09-28.** The guard went next to the one `bindUrsBaseline` already had —
+and it was a family of five, not one method. See [`NXD-072`](DECISIONS.md) and
+the correctness batch under `## Current Vertical Slice`.
 
 **1 — ~~Restore the green gate.~~ Done 2026-09-22.** All four gates pass again;
 see `## Test Status` for what was wrong and what each fix was. One item was
@@ -1363,8 +1411,9 @@ Phase 4 needs the whole first-class model in one designed migration — see
 
 ## Test Status
 
-**GREEN.** Verified on 2026-09-27 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of MVP1 — all twelve items.
+**GREEN.** Verified on 2026-09-28 the way CI runs it (`CI=true`, PostgreSQL up
+via `docker-compose.test.yml`), at the close of the correctness batch
+([`NXD-072`](DECISIONS.md)).
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1372,7 +1421,7 @@ via `docker-compose.test.yml`), at the close of MVP1 — all twelve items.
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 232 suites, 2088 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2116 tests, **0 skipped**  |
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
 the split is 11/8 and not 10/9. The eight remaining warnings are all
@@ -1385,10 +1434,42 @@ The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
 
-Earlier figures, for the trend: 231 / 2066 at `1a3bafe` earlier on
-2026-09-27, 231 / 2063 at `fab5b0a`, 229 / 2051 at `34c9a6c`, 226 / 2008 at
-`15ea5e7`, 222 / 1961 on 2026-09-25, 221 / 1958 for Batch 1 alone,
-215 / 1909 on 2026-09-24.
+**`plugins/urs-composer` is not in that figure, and never has been.** The
+workspace runs `BACKSTAGE_OLD_TESTS=true` through its own `bin/test.js`
+wrapper, so `backstage-cli repo test` skips it entirely — zero of its files
+appear in a root run. Its suite is green on its own (`CI=true yarn test` from
+the workspace: 9 suites, 79 tests) **except for `CreateWizard.test.tsx`, where
+9 tests fail with "A component suspended while responding to synchronous
+input".** That failure is **pre-existing** — verified against a stashed tree on
+2026-09-28, not introduced by this batch — but it means the frontend plugin
+that owns the URS authoring journey is outside the gate the rest of the
+repository is measured by. Worth its own slice; recorded here so the 233/2116
+figure is not read as covering it.
+
+Earlier figures, for the trend: 232 / 2088 at `4599234` on 2026-09-27,
+231 / 2066 at `1a3bafe` earlier the same day, 231 / 2063 at `fab5b0a`,
+229 / 2051 at `34c9a6c`, 226 / 2008 at `15ea5e7`, 222 / 1961 on 2026-09-25,
+221 / 1958 for Batch 1 alone, 215 / 1909 on 2026-09-24.
+
+The correctness batch added one suite and 28 tests to the root figure:
+`versionStatusGuards.test.ts` (12 — the five refusals on their wording, the
+DRAFT accept path, the 404s, and the three exemptions that must keep working
+after release), plus additions to `errorMapping.test.ts` (403 over HTTP for
+both SoD sites, 409 for the three guarded writes, 404 for the blind delete and
+the two dangling references, and five new rows in the never-500 table),
+`traceabilityIntegrity.test.ts`, `approval-chain.test.ts` (including a
+sparse 10/20/30 workflow), `approval-contract.test.ts` and
+`gxp-invariants.test.ts`. A further suite, `approvalStepper.test.ts` (10
+tests), lives in `urs-composer` and therefore does not move the figure.
+
+Four mutation checks, each confirmed to fail on the restored defect:
+reinstating the `+ 1` breaks the sparse-sequence assertion; removing the
+`currentStepSequence` initialisation breaks four assertions across two suites;
+removing the `deleteTraceabilityLink` lookup breaks four; and dropping the
+`(approval_instance_id, sequence)` index breaks the PostgreSQL proof. The
+first two are worth stating together: the old initialisation to `0` and the
+increment **partly cancelled**, so either fix alone looks correct on every
+seeded workflow. Only the out-of-order sparse chain separates them.
 
 Item 11 added one suite and fourteen tests: `functionalSpecification.test.ts`
 (12 — derivation, idempotence, the two refusals, the chain resolved four ways,

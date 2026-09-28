@@ -28,10 +28,11 @@ interface ArchitectureTabProps {
  * Same shape as the baseline binding's helper text: state the refusal before
  * the user fills a form that cannot be submitted.
  *
- * DRAFT-only is a UI rule for now — `addProductComponent` on the server does
- * not check the version status, so a released version's architecture could
- * still be changed by an API client. The rule belongs in the service; until it
- * is there, the page at least does not offer it.
+ * DRAFT-only is no longer a UI rule: `addProductComponent` refuses a non-DRAFT
+ * version with a 409 since NXD-072, so an API client can no longer change a
+ * released version's architecture behind the page's back. This text stays
+ * anyway — the server saying no is the invariant, and saying it before the
+ * form is filled in is the courtesy. They are not substitutes for each other.
  */
 function componentHelperText(version?: ProductVersion): string | undefined {
   if (!version) {

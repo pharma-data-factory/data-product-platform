@@ -610,13 +610,32 @@ export class URSRepository implements IURSRepository {
   }
 
   async getApprovalInstance(id: string): Promise<ApprovalInstance | null> {
-    return this.approvalInstances.get(id) || null;
+    const instance = this.approvalInstances.get(id);
+    return instance ? this.withOrderedSteps(instance) : null;
   }
 
   async listApprovalInstances(baselineId: string): Promise<ApprovalInstance[]> {
-    return Array.from(this.approvalInstances.values()).filter(
-      i => i.baselineId === baselineId,
-    );
+    return Array.from(this.approvalInstances.values())
+      .filter(i => i.baselineId === baselineId)
+      .map(i => this.withOrderedSteps(i));
+  }
+
+  /**
+   * Hand out the steps in sequence order, as the Postgres repository does with
+   * its `orderBy('sequence')`. In memory they came back in insertion order,
+   * which happens to match today because the seeded workflows are written in
+   * order — so the two stores would have started disagreeing the first time a
+   * workflow was authored out of order, and the page renders the stepper in
+   * array order. NXD-072.
+   *
+   * Sorted on a copy: the in-memory store hands out live references and the
+   * service mutates the steps it is given.
+   */
+  private withOrderedSteps(instance: ApprovalInstance): ApprovalInstance {
+    return {
+      ...instance,
+      steps: [...instance.steps].sort((a, b) => a.sequence - b.sequence),
+    };
   }
 
   async updateApprovalInstance(instance: ApprovalInstance): Promise<void> {

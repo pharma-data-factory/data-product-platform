@@ -13,6 +13,7 @@ import { URSService } from './service';
 import { URSRepository } from './repository';
 import { SignaturePinReAuth } from './domain/reauth';
 import {
+  ApprovalInstance,
   ApprovalRole,
   ApprovalInstanceStatus,
   ApprovalStepStatus,
@@ -350,6 +351,147 @@ describe('Approval steps', () => {
     ).rejects.toThrow(
       /Step 3 \(QUALITY_REVIEWER\) cannot be approved while step 1 \(BUSINESS_REVIEWER\) is still PENDING/,
     );
+  });
+});
+
+/**
+ * `currentStepSequence` names the step the chain is waiting on.
+ *
+ * It did not. `approveApprovalStep` incremented it instead of setting it to
+ * the step it had just activated, and picked that step by array position
+ * rather than by lowest sequence. The increment was off by one from the very
+ * first advance — approve step 1 of the three-step GxP workflow and the field
+ * read 1 while the step now due was 2, so it named the step just *approved*.
+ *
+ * Nothing caught it because the only assertion on the field compared two
+ * hand-written numbers in a frontend fixture, and the backend contract test
+ * stopped before the first approval. The page now reads this field to decide
+ * which step to offer a decision on, so it has to be right. NXD-072.
+ */
+describe('the sequence the chain is waiting on', () => {
+  const ALL_APPROVAL_GROUPS = [
+    'group:default/urs-business-reviewers',
+    'group:default/urs-product-managers',
+    'group:default/urs-quality-reviewers',
+  ];
+
+  async function approve(
+    service: any,
+    instanceId: string,
+    stepId: string,
+  ): Promise<ApprovalInstance> {
+    return service.approveApprovalStep(
+      instanceId,
+      stepId,
+      'user:default/reviewer',
+      undefined,
+      {} as any,
+      TEST_PIN,
+    );
+  }
+
+  test('points at the first step before anyone has approved anything', async () => {
+    const { service } = await setup(GxPRelevance.DIRECT, ALL_APPROVAL_GROUPS);
+
+    const instance = await service.submitBaseline(
+      'baseline-001',
+      'user:default/author',
+    );
+
+    // Was 0 — a sequence no step has — until the first approval moved it.
+    expect(instance.currentStepSequence).toBe(1);
+  });
+
+  test('advances to the step now due, not past it', async () => {
+    const { service } = await setup(GxPRelevance.DIRECT, ALL_APPROVAL_GROUPS);
+    const instance = await service.submitBaseline(
+      'baseline-001',
+      'user:default/author',
+    );
+
+    const afterFirst = await approve(
+      service,
+      instance.id,
+      instance.steps.find(s => s.sequence === 1)!.id,
+    );
+    // The mutation check: with the old `+ 1` this is 1, naming the step that
+    // was just approved.
+    expect(afterFirst.currentStepSequence).toBe(2);
+    expect(
+      afterFirst.steps.find(s => s.sequence === 2)!.status,
+    ).toBe(ApprovalStepStatus.ACTIVE);
+
+    const afterSecond = await approve(
+      service,
+      instance.id,
+      afterFirst.steps.find(s => s.sequence === 2)!.id,
+    );
+    expect(afterSecond.currentStepSequence).toBe(3);
+    expect(
+      afterSecond.steps.find(s => s.sequence === 3)!.status,
+    ).toBe(ApprovalStepStatus.ACTIVE);
+  });
+
+  test('the due step is the lowest open sequence, not the first in the array', async () => {
+    // The seeded workflows are dense 1..2..3 and written in order, so array
+    // position and sequence order agree and neither can distinguish a correct
+    // implementation from the old one. This workflow is neither dense nor
+    // written in order.
+    const { repository, service } = await setup(
+      GxPRelevance.DIRECT,
+      ALL_APPROVAL_GROUPS,
+    );
+    await repository.createApprovalWorkflow({
+      id: 'sparse-urs',
+      name: 'Sparse and out of order',
+      steps: [
+        { sequence: 30, role: ApprovalRole.QUALITY_REVIEWER, required: true },
+        { sequence: 10, role: ApprovalRole.BUSINESS_REVIEWER, required: true },
+        { sequence: 20, role: ApprovalRole.PRODUCT_MANAGER, required: true },
+      ],
+      createdAt: new Date(),
+    } as any);
+
+    const instance = await service.createApprovalInstance(
+      'baseline-001',
+      'sparse-urs',
+      'user:default/author',
+    );
+    expect(instance.currentStepSequence).toBe(10);
+
+    const advanced = await approve(
+      service,
+      instance.id,
+      instance.steps.find(s => s.sequence === 10)!.id,
+    );
+    // Array position would have given 30, the step written first.
+    expect(advanced.currentStepSequence).toBe(20);
+  });
+
+  test('an optional step is never the one the chain waits on', async () => {
+    const { repository, service } = await setup(
+      GxPRelevance.DIRECT,
+      ALL_APPROVAL_GROUPS,
+    );
+    await repository.createApprovalWorkflow({
+      id: 'optional-first-urs',
+      name: 'Optional first',
+      steps: [
+        { sequence: 1, role: ApprovalRole.BUSINESS_REVIEWER, required: false },
+        { sequence: 2, role: ApprovalRole.PRODUCT_MANAGER, required: true },
+      ],
+      createdAt: new Date(),
+    } as any);
+
+    const instance = await service.createApprovalInstance(
+      'baseline-001',
+      'optional-first-urs',
+      'user:default/author',
+    );
+
+    // The workflow says step 1 may be left out; making the chain wait on it
+    // would make it mandatory by the back door.
+    expect(instance.currentStepSequence).toBe(2);
   });
 });
 

@@ -51,6 +51,7 @@ import { SignaturePinReAuth } from './domain/reauth';
 import { computeReviewScopes } from './domain/baseline';
 import {
   baselineWorkflow,
+  dueApprovalStep,
   requirementVersionWorkflow,
   WorkflowView,
 } from './domain/workflow';
@@ -2832,6 +2833,16 @@ export class URSService {
       instance.steps.push(step);
     }
 
+    // The first required step is due from the moment the instance exists, so
+    // the field that names the due step has to say so. It was 0 — a sequence
+    // no step has — until the first approval moved it, which is why the page
+    // could not tell which step it was waiting on and offered the reviewer no
+    // decision at all. NXD-072.
+    const due = dueApprovalStep(instance.steps);
+    if (due) {
+      instance.currentStepSequence = due.sequence;
+    }
+
     await this.repository.createApprovalInstance(instance);
 
     await this.writeAudit(audit, this.repository, {
@@ -3210,17 +3221,26 @@ export class URSService {
           timestamp: new Date(),
         });
       } else {
-        // Activate next required step
-        const nextStep = instance.steps.find(
-          s => s.required && s.status === 'PENDING',
-        );
+        // Activate the step that is now due, and say which one it is.
+        //
+        // Both halves used to be wrong in the same way: the next step was
+        // found by array position rather than by lowest sequence, and
+        // `currentStepSequence` was incremented rather than set to the step
+        // just found. The increment named the step that had *just been
+        // approved*, from the very first advance — see `dueApprovalStep`.
+        // Nothing caught it because the only test of the field compares two
+        // hand-written numbers in a fixture, and the backend contract test
+        // stops before the first approval. NXD-072.
+        const nextStep = dueApprovalStep(instance.steps);
         if (nextStep) {
-          nextStep.status = ApprovalStepStatus.ACTIVE;
-          await repo.updateApprovalStep(nextStep);
+          if (nextStep.status === ApprovalStepStatus.PENDING) {
+            nextStep.status = ApprovalStepStatus.ACTIVE;
+            await repo.updateApprovalStep(nextStep);
+          }
+          instance.currentStepSequence = nextStep.sequence;
         }
 
         instance.status = ApprovalInstanceStatus.IN_PROGRESS;
-        instance.currentStepSequence = (instance.currentStepSequence || 0) + 1;
       }
 
       // Update approval instance
@@ -3268,7 +3288,13 @@ export class URSService {
     }
 
     if (step.status !== 'PENDING' && step.status !== 'ACTIVE') {
-      throw new Error(`Cannot reject step in ${step.status} status`);
+      // The approve twin forty lines up was typed as a ConflictError; this one
+      // was left as a bare Error, so the identical refusal answered 500 on the
+      // reject path and 409 on the approve path. Last remainder of NXD-059
+      // finding 3.
+      throw new ConflictError(
+        `Cannot reject step ${step.sequence} in ${step.status} status`,
+      );
     }
 
     // Role-based access: verify actor holds the step's required role.

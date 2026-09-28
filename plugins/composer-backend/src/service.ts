@@ -9,6 +9,7 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import {
   ConflictError,
   InputError,
+  NotAllowedError,
   NotFoundError,
   NotImplementedError,
   ServiceUnavailableError,
@@ -478,10 +479,11 @@ export class ComposerService {
     inheritedAudit?: AuditContext,
   ): Promise<ProductComponent> {
     const audit = this.beginAudit(actor, inheritedAudit);
-    const version = await this.repository.getProductVersion(versionId);
-    if (!version) {
-      throw new NotFoundError(`Product version ${versionId} not found`);
-    }
+    await this.requireDraftVersion(
+      versionId,
+      'A component can only be added while the version is DRAFT — the ' +
+        'architecture of a version is part of what was approved.',
+    );
     if (!request.name?.trim()) {
       throw new InputError('Component name is required');
     }
@@ -572,6 +574,27 @@ export class ComposerService {
     if (versionIssues.length > 0) {
       throw new InputError(versionIssues.join('; '));
     }
+
+    // The component, and through it the version, is resolved before anything
+    // is written. This method used to load neither — `data_contracts` has a
+    // foreign key to `product_components`, so an unknown component id was
+    // refused by the database rather than by the service, and the driver error
+    // reached the caller as 500 "Internal server error". SQLite does not
+    // enforce foreign keys unless `PRAGMA foreign_keys=ON`, which nothing here
+    // sets, so the tests wrote the row and only PostgreSQL ever complained.
+    // NXD-072.
+    const component = await this.repository.getProductComponent(componentId);
+    if (!component) {
+      throw new NotFoundError(
+        `Product component ${componentId} not found. A DataContract is ` +
+          'published by a component, so there is nothing for it to belong to.',
+      );
+    }
+    await this.requireDraftVersion(
+      component.productVersionId,
+      'A data contract can only be added while the version is DRAFT — what a ' +
+        'version publishes is part of what was approved.',
+    );
 
     // Uniqueness is checked once the whole coordinate is known, because the
     // version is part of it: `orders@1.0` and `orders@2.0` are two contracts,
@@ -701,6 +724,15 @@ export class ComposerService {
         `DataContract ${contractId} not found. A ProductDependency must reference an existing contract.`,
       );
     }
+    // The other end was never checked at all. `product_version_dependencies`
+    // has a foreign key to `product_versions`, so on PostgreSQL an unknown
+    // version id came back as 500 rather than 404 — see the note in
+    // `addDataContract`. NXD-072.
+    await this.requireDraftVersion(
+      versionId,
+      'A dependency can only be declared while the version is DRAFT — what a ' +
+        'version consumes is part of what was approved.',
+    );
     // Uniqueness: a version may only declare one dependency per contract.
     const existing = await this.repository.findProductDependency(versionId, contractId);
     if (existing) {
@@ -732,8 +764,15 @@ export class ComposerService {
     const audit = this.beginAudit(actor);
     const dep = await this.repository.getProductDependency(id);
     if (!dep) {
-      throw new InputError(`ProductDependency ${id} not found`);
+      // Was an InputError, so a dependency that is not there answered 400.
+      // Asking for something absent is a 404; the caller sent nothing wrong.
+      throw new NotFoundError(`ProductDependency ${id} not found`);
     }
+    await this.requireDraftVersion(
+      dep.productVersionId,
+      'A dependency can only be removed while the version is DRAFT — what a ' +
+        'version consumes is part of what was approved.',
+    );
     await this.repository.deleteProductDependency(id);
     await this.audit(audit, 'PRODUCT_DEPENDENCY', id, 'PRODUCT_DEPENDENCY_REMOVED');
   }
@@ -867,17 +906,11 @@ export class ComposerService {
       throw new InputError('ursBaselineId is required');
     }
 
-    const version = await this.repository.getProductVersion(productVersionId);
-    if (!version) {
-      throw new NotFoundError(`Product version ${productVersionId} not found`);
-    }
-    if (version.status !== 'DRAFT') {
-      throw new ConflictError(
-        `Product version ${version.version} is ${version.status}. A URS ` +
-          `baseline can only be bound while the version is DRAFT — the ` +
-          `requirements a version implements are part of what was approved.`,
-      );
-    }
+    const version = await this.requireDraftVersion(
+      productVersionId,
+      `A URS baseline can only be bound while the version is DRAFT — the ` +
+        `requirements a version implements are part of what was approved.`,
+    );
     if (version.ursBaselineId) {
       throw new ConflictError(
         `Product version ${version.version} is already bound to URS baseline ` +
@@ -1013,10 +1046,15 @@ export class ComposerService {
     inheritedAudit?: AuditContext,
   ): Promise<FunctionalSpecification[]> {
     const audit = this.beginAudit(actor, inheritedAudit);
-    const version = await this.repository.getProductVersion(productVersionId);
-    if (!version) {
-      throw new NotFoundError(`Product version ${productVersionId} not found`);
-    }
+    // Not-found, then status, then domain state — the same order
+    // `bindUrsBaseline` uses. A version that is not DRAFT gets the status
+    // refusal even if it also has no baseline, because that is the first thing
+    // the caller has to fix.
+    const version = await this.requireDraftVersion(
+      productVersionId,
+      'A functional specification can only be derived while the version is ' +
+        'DRAFT — what a version specifies is part of what was approved.',
+    );
     if (!version.ursBaselineId) {
       throw new ConflictError(
         `Product version ${productVersionId} has no URS baseline bound. ` +
@@ -1357,6 +1395,17 @@ export class ComposerService {
 
   async deleteTraceabilityLink(id: string, actor: string): Promise<void> {
     const audit = this.beginAudit(actor);
+    // This deleted blind: no lookup, 204 for an id that never existed, and an
+    // audit event recording a deletion that did not happen. The 200-for-an-
+    // unknown-id half is the same shape as the three URS routes slice B-1
+    // closed; the audit half is worse, because a trail that claims an act
+    // nobody performed is not a gap in the record but a false entry in it.
+    // No status guard on purpose — see NXD-072. The right rule for removing a
+    // link on a released version is about evidence, not about version status.
+    const existing = await this.repository.getTraceabilityLink(id);
+    if (!existing) {
+      throw new NotFoundError(`Traceability link ${id} not found`);
+    }
     await this.repository.deleteTraceabilityLink(id);
     await this.audit(audit, 'TRACEABILITY_LINK', id, 'TRACEABILITY_LINK_DELETED');
   }
@@ -1393,8 +1442,12 @@ export class ComposerService {
     // The person who approves a version must not be the same person who
     // created it. Approval by the author of a version is self-approval and
     // is not admissible in a GxP context.
+    //
+    // 403, not 400 (NXD-072). This is a statement about who the caller is, not
+    // about what they sent: there is no correction to the request body that
+    // makes it succeed, and a 400 invites the author to go looking for one.
     if (request.targetStatus === 'APPROVED' && actor === version.createdBy) {
-      throw new InputError(
+      throw new NotAllowedError(
         `Segregation of Duties violation: the author of a product version ` +
           `cannot approve it. Actor "${actor}" created version ${versionId}. ` +
           `A different person must perform the approval.`,
@@ -1841,9 +1894,10 @@ export class ComposerService {
     // A ProductBaseline is the controlled snapshot the release gate reads. An
     // approval the author can grant themselves is a record of one person's
     // opinion, not of a review, and it is exactly what an inspector would look
-    // for. See NXD-059, finding 2.
+    // for. See NXD-059, finding 2. 403 rather than 400 since NXD-072, for the
+    // reason given at the version transition above.
     if (actor === baseline.createdBy) {
-      throw new InputError(
+      throw new NotAllowedError(
         `Segregation of Duties violation: the author of a product baseline ` +
           `cannot approve it. Actor "${actor}" created baseline ${baselineId}. ` +
           `A different person must perform the approval.`,
@@ -2509,6 +2563,41 @@ export class ComposerService {
    * `applySpecDraft` already declines to write — without refusing a
    * provisional link on a version that has bound nothing yet.
    */
+  /**
+   * Load a product version and refuse unless it is still DRAFT.
+   *
+   * The rule is older than this helper; what is new is that the *server* holds
+   * it. `ArchitectureTab.tsx` disabled the add-component form outside DRAFT and
+   * said so in a doc comment — "The rule belongs in the service; until it is
+   * there, the page at least does not offer it." An API client walked straight
+   * past that, so the architecture of a RELEASED version could still be
+   * changed. See NXD-072.
+   *
+   * `refusal` is required rather than defaulted on purpose. Five call sites
+   * refuse for five different reasons — what a version is built from, what it
+   * is made of, what it publishes, what it consumes, what it specifies — and a
+   * single shared sentence would state none of them. Making it a parameter
+   * means the next method that needs the guard has to say why, instead of
+   * inheriting a sentence written for a different operation.
+   *
+   * Returns the version because every caller needs it anyway.
+   */
+  private async requireDraftVersion(
+    versionId: string,
+    refusal: string,
+  ): Promise<ProductVersion> {
+    const version = await this.repository.getProductVersion(versionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${versionId} not found`);
+    }
+    if (version.status !== 'DRAFT') {
+      throw new ConflictError(
+        `Product version ${version.version} is ${version.status}. ${refusal}`,
+      );
+    }
+    return version;
+  }
+
   private async assertTraceabilityEndpointsExist(
     request: CreateTraceabilityLinkRequest,
   ): Promise<void> {

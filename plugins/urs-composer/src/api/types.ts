@@ -333,7 +333,13 @@ export interface ApprovalStepInstance {
   sequence: number;
   role: string;
   status: ApprovalStatus | string;
-  required?: boolean;
+  /**
+   * Not optional: `APPROVAL_STEP_REQUIRED_FIELDS` lists it as a field every
+   * response carries, and both repositories default a missing column to true
+   * rather than omitting it. Declaring it optional was B-2 in reverse — it
+   * invited handling for an `undefined` the server never sends.
+   */
+  required: boolean;
   assignedTo?: string;
   decision?: 'APPROVED' | 'REJECTED' | 'SKIPPED';
   comment?: string;

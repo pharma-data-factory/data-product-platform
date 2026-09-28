@@ -62,15 +62,30 @@ trail may not depend on application code being correct"_
 - partial unique index: a requirement has at most one open version
   (`DRAFT`/`IN_REVIEW`/`REVIEWED`/`IN_APPROVAL`);
 - row trigger: content is frozen once a version leaves `DRAFT`; a released
-  version may only change status.
+  version may only change status;
+- unique index: one approval step per `(instance, sequence)`, so the step a
+  reviewer is shown as "step 2" is unambiguous (closed 2026-09-28).
 
 ### 1.4 Segregation of duties beyond signatures
+
+Both product-side refusals answer **403** since 2026-09-28
+([`NXD-072`](../nexora-transformation/DECISIONS.md)); they answered 400 before,
+which reads as a malformed request rather than as a refusal of the actor.
 
 - Product version `APPROVED`: the author may not approve
   (`composer-backend/src/service.ts`).
 - Product baseline approval: the creator may not approve (closed 2026-09-25).
 - URS approval chain: a step is refused while any required lower-sequence
   step is open (closed 2026-09-25).
+
+### 1.4a What a released version stops accepting
+
+A product version outside `DRAFT` refuses new components, data contracts,
+dependencies and derived functional specifications
+([`NXD-072`](../nexora-transformation/DECISIONS.md)). Until then the rule was
+enforced only by the UI, so an API client could change the architecture of a
+released version. Test evidence and traceability links are deliberately
+exempt: a passing run legitimately arrives after release.
 
 ### 1.5 Audit
 

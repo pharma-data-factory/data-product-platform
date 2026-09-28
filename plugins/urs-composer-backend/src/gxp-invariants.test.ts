@@ -495,4 +495,110 @@ describeWhenPg('GxP invariants enforced by the database', () => {
       });
     });
   });
+
+  // A sequence identifies a step within its chain: the ordering guard refuses
+  // a step while a lower-sequence one is open, and since NXD-072 the page
+  // addresses the due step by that number and prints it. Two steps sharing a
+  // sequence would make "step 2" ambiguous in a Part 11 approval chain.
+  describe('one step per sequence within an approval instance', () => {
+    let instanceSeq = 0;
+
+    // `approval_instances` has foreign keys to `approval_workflows` and
+    // `baselines`, and a baseline needs a requirement set — so the chain is
+    // built through the repository. Only the step insert below bypasses it,
+    // which is the write under test.
+    async function anInstance(): Promise<string> {
+      instanceSeq += 1;
+      const suffix = `INV-APPROVAL-${instanceSeq}`;
+
+      await repo.createRequirementSet({
+        id: `${suffix}-set`,
+        requirementSetId: suffix,
+        versionNumber: 1,
+        businessCapabilityRefs: [],
+        businessNeed: 'Sequence uniqueness',
+        solutionType: 'COMPONENT',
+        solutionName: 'Probe',
+        gxpRelevance: 'DIRECT',
+        status: URSStatus.DRAFT,
+        createdBy: 'author',
+        createdAt: new Date(),
+      } as any);
+      await repo.createBaseline({
+        id: `${suffix}-baseline`,
+        requirementSetId: `${suffix}-set`,
+        baselineVersion: '1.0',
+        status: URSStatus.DRAFT,
+        requirementVersionIds: [],
+        createdBy: 'author',
+        createdAt: new Date(),
+        revision: 1,
+      } as any);
+      await repo.createApprovalWorkflow({
+        id: `${suffix}-workflow`,
+        name: 'Sequence probe',
+        steps: [{ sequence: 1, role: 'BUSINESS_REVIEWER', required: true }],
+        createdAt: new Date(),
+      } as any);
+
+      await db('approval_instances').insert({
+        id: suffix,
+        workflow_id: `${suffix}-workflow`,
+        baseline_id: `${suffix}-baseline`,
+        status: 'NOT_STARTED',
+        current_step_sequence: 1,
+        started_by: 'author',
+        started_at: new Date(),
+        revision: 1,
+      });
+      return suffix;
+    }
+
+    test('a second step with the same sequence is rejected', async () => {
+      const instanceId = await anInstance();
+      await db('approval_steps').insert({
+        id: `${instanceId}-a`,
+        approval_instance_id: instanceId,
+        sequence: 1,
+        role: 'BUSINESS_REVIEWER',
+        status: 'PENDING',
+        required: true,
+      });
+
+      await expect(
+        db('approval_steps').insert({
+          id: `${instanceId}-b`,
+          approval_instance_id: instanceId,
+          sequence: 1,
+          role: 'PRODUCT_MANAGER',
+          status: 'PENDING',
+          required: true,
+        }),
+      ).rejects.toThrow();
+    });
+
+    test('the same sequence in a different instance is fine', async () => {
+      const first = await anInstance();
+      const second = await anInstance();
+      await db('approval_steps').insert({
+        id: `${first}-only`,
+        approval_instance_id: first,
+        sequence: 1,
+        role: 'BUSINESS_REVIEWER',
+        status: 'PENDING',
+        required: true,
+      });
+
+      await expect(
+        db('approval_steps').insert({
+          id: `${second}-only`,
+          approval_instance_id: second,
+          sequence: 1,
+          role: 'BUSINESS_REVIEWER',
+          status: 'PENDING',
+          required: true,
+        }),
+      ).resolves.toBeDefined();
+    });
+  });
 });

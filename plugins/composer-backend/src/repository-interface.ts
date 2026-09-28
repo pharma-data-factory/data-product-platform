@@ -123,6 +123,12 @@ export interface IComposerRepository {
   listProductRequirements(productVersionId: string): Promise<ProductRequirement[]>;
 
   createTraceabilityLink(link: TraceabilityLink): Promise<TraceabilityLink>;
+  /**
+   * Resolve one link by id. Added so `deleteTraceabilityLink` can refuse an id
+   * that does not exist instead of reporting success for it — `listTraceability
+   * Links()` is an unbounded full-table read and is not a substitute. NXD-072.
+   */
+  getTraceabilityLink(id: string): Promise<TraceabilityLink | null>;
   deleteTraceabilityLink(id: string): Promise<void>;
   listTraceabilityLinks(): Promise<TraceabilityLink[]>;
 

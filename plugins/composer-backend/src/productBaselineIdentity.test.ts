@@ -17,7 +17,7 @@
  */
 
 import knex, { Knex } from 'knex';
-import { InputError } from '@backstage/errors';
+import { NotAllowedError } from '@backstage/errors';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
 
@@ -141,9 +141,11 @@ describe('ProductBaseline identity', () => {
       actor,
     );
 
+    // NotAllowedError, so the caller is told 403 rather than 400: this is a
+    // statement about who they are, not about what they sent. NXD-072.
     await expect(
       service.approveProductBaseline(baseline.id, actor),
-    ).rejects.toBeInstanceOf(InputError);
+    ).rejects.toBeInstanceOf(NotAllowedError);
     await expect(
       service.approveProductBaseline(baseline.id, actor),
     ).rejects.toThrow(/Segregation of Duties/);

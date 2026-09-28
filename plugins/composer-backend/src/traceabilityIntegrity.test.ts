@@ -69,6 +69,7 @@ function resolver(): UrsBaselineResolver {
 describe('traceability link integrity', () => {
   let db: Knex;
   let service: ComposerService;
+  let repo: ComposerRepository;
   let seq = 0;
 
   beforeAll(async () => {
@@ -79,6 +80,7 @@ describe('traceability link integrity', () => {
     });
     await db.raw('select 1');
     const repository = await ComposerRepository.create({ getClient: () => db });
+    repo = repository;
     service = new ComposerService({
       logger: mockLogger,
       repository,
@@ -112,6 +114,50 @@ describe('traceability link integrity', () => {
     }
     return { version, component };
   }
+
+  describe('deletion', () => {
+    // The route answered 204 for an id that never existed and wrote an audit
+    // event for the deletion. A trail claiming an act nobody performed is
+    // worse than a missing entry — it is the one thing an append-only trail
+    // exists to make impossible. NXD-072.
+    it('refuses to delete a link that does not exist', async () => {
+      await expect(
+        service.deleteTraceabilityLink('no-such-link', ACTOR),
+      ).rejects.toThrow(/Traceability link no-such-link not found/);
+    });
+
+    it('writes no audit event for a deletion that did not happen', async () => {
+      await expect(
+        service.deleteTraceabilityLink('phantom-link', ACTOR),
+      ).rejects.toThrow();
+
+      const trail = await repo.getEntityAuditTrail(
+        'TRACEABILITY_LINK',
+        'phantom-link',
+      );
+      expect(trail).toHaveLength(0);
+    });
+
+    it('still deletes a link that is there, and audits that', async () => {
+      const { component } = await setup(true);
+      const link = await service.createTraceabilityLink(
+        {
+          sourceType: 'PRODUCT_COMPONENT',
+          sourceId: component.id,
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'PRODUCT_COMPONENT',
+          targetId: component.id,
+        },
+        ACTOR,
+      );
+
+      await expect(
+        service.deleteTraceabilityLink(link.id, ACTOR),
+      ).resolves.toBeUndefined();
+      const trail = await repo.getEntityAuditTrail('TRACEABILITY_LINK', link.id);
+      expect(trail.map(e => e.eventType)).toContain('TRACEABILITY_LINK_DELETED');
+    });
+  });
 
   describe('vocabulary', () => {
     it('refuses a source type outside the vocabulary', async () => {

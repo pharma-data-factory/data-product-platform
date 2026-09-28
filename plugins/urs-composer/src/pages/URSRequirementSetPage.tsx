@@ -87,6 +87,10 @@ import {
   statusCounts,
   versionsAwaitingSignature,
 } from './reviewChain';
+import {
+  activeApprovalStepIndex,
+  isApprovalStepDue,
+} from './approvalStepper';
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
 import { ESignatureDialog } from '../components/ESignatureDialog/ESignatureDialog';
 import { SigningPinDialog } from '../components/SigningPinDialog/SigningPinDialog';
@@ -1323,16 +1327,21 @@ export const URSRequirementSetPage: FC = () => {
                       {approvalInstance.startedBy}
                     </Typography>
                     <Stepper
-                      activeStep={approvalInstance.steps.findIndex(
-                        (s: ApprovalStepInstance) =>
-                          String(s.status) === 'ACTIVE',
-                      )}
+                      activeStep={activeApprovalStepIndex(approvalInstance)}
                       orientation="vertical"
                     >
                       {approvalInstance.steps.map(
                         (step: ApprovalStepInstance) => {
                           const stepStatus = String(step.status);
-                          const isActive = stepStatus === 'ACTIVE';
+                          // Due-ness comes from the instance's
+                          // `currentStepSequence`, not from the step's own
+                          // ACTIVE flag — the backend sets that flag only when
+                          // advancing, so on a fresh chain no step carried it
+                          // and these buttons rendered nowhere. NXD-072.
+                          const isActive = isApprovalStepDue(
+                            step,
+                            approvalInstance,
+                          );
                           const isApproved = stepStatus === 'APPROVED';
                           const isRejected = stepStatus === 'REJECTED';
                           const isSkipped = stepStatus === 'SKIPPED';
@@ -1345,11 +1354,17 @@ export const URSRequirementSetPage: FC = () => {
                               active={isActive}
                             >
                               <StepLabel
-                                icon={approvalStepIcon(
-                                  isApproved,
-                                  isRejected,
-                                  isSkipped,
-                                )}
+                                // The sequence, not MUI's array index. Without
+                                // the fallback the circle numbers by position,
+                                // which is a different number from the one the
+                                // server refuses against.
+                                icon={
+                                  approvalStepIcon(
+                                    isApproved,
+                                    isRejected,
+                                    isSkipped,
+                                  ) ?? step.sequence
+                                }
                                 StepIconProps={{
                                   style: {
                                     color: approvalStepColor(
@@ -1367,6 +1382,7 @@ export const URSRequirementSetPage: FC = () => {
                                   style={{ gap: 8 }}
                                 >
                                   <Typography variant="subtitle2">
+                                    Step {step.sequence} ·{' '}
                                     {step.role || 'Reviewer'}
                                   </Typography>
                                   <Chip

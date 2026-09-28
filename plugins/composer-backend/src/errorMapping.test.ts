@@ -84,7 +84,11 @@ describe('error mapping, as the caller sees it', () => {
     await db?.destroy();
   });
 
-  async function call(method: 'POST' | 'GET', urlPath: string, body?: unknown) {
+  async function call(
+    method: 'POST' | 'GET' | 'DELETE',
+    urlPath: string,
+    body?: unknown,
+  ) {
     const server = await listenOnFetchablePort(app);
     try {
       const response = await fetch(`${server.url}${urlPath}`, {
@@ -115,11 +119,67 @@ describe('error mapping, as the caller sees it', () => {
     return { product, version };
   }
 
+  /** A version the author can no longer edit, approved by someone else. */
+  async function approvedVersion() {
+    const { product, version } = await draftVersion();
+    const component = await service.addProductComponent(
+      version.id,
+      { componentType: 'API', name: 'probe' },
+      ACTOR,
+    );
+    await service.transitionProductVersionStatus(
+      version.id,
+      { targetStatus: 'APPROVED' },
+      APPROVER,
+    );
+    return { product, version, component };
+  }
+
   describe('404 — the entity is not there', () => {
     it('answers 404 for a version of a product that does not exist', async () => {
       const response = await call('POST', '/products/no-such-product/versions', {});
       expect(response.status).toBe(404);
       expect(response.body.error).toMatch(/Product no-such-product not found/);
+    });
+
+    // NXD-072. This deleted blind — 204 for an id that never existed, and an
+    // audit event for a deletion that did not happen.
+    it('answers 404 for a traceability link that does not exist', async () => {
+      const response = await call('DELETE', '/traceability-links/no-such-link');
+      expect(response.status).toBe(404);
+      expect(response.body.error).toMatch(/Traceability link no-such-link not found/);
+    });
+
+    // The version was never loaded here. `product_version_dependencies` has a
+    // foreign key, so on PostgreSQL this answered 500 — the driver refused
+    // what the service should have.
+    it('answers 404 for a dependency on a version that does not exist', async () => {
+      const { version } = await draftVersion();
+      const component = await service.addProductComponent(
+        version.id,
+        { componentType: 'API', name: 'provider' },
+        ACTOR,
+      );
+      const contract = await service.addDataContract(
+        component.id,
+        { namespace: 'probe', name: 'dangling', schemaType: 'JSON_SCHEMA' },
+        ACTOR,
+      );
+      const response = await call('POST', '/versions/no-such-version/dependencies', {
+        contractId: contract.id,
+      });
+      expect(response.status).toBe(404);
+      expect(response.body.error).toMatch(/Product version no-such-version not found/);
+    });
+
+    it('answers 404 for a contract on a component that does not exist', async () => {
+      const response = await call('POST', '/components/no-such-component/contracts', {
+        namespace: 'probe',
+        name: 'orphan',
+        schemaType: 'JSON_SCHEMA',
+      });
+      expect(response.status).toBe(404);
+      expect(response.body.error).toMatch(/Product component no-such-component not found/);
     });
 
     it('answers 404 for a component on a version that does not exist', async () => {
@@ -191,6 +251,79 @@ describe('error mapping, as the caller sees it', () => {
       expect(response.status).toBe(409);
       expect(response.body.error).toMatch(/Release gate failed/);
     });
+
+    // NXD-072. The page refused these outside DRAFT and the server did not,
+    // so an API client could change the architecture of an approved version.
+    // Each refusal names its own reason, which is why they are asserted
+    // separately rather than as one loop over three URLs.
+    it('answers 409 for a component added to an approved version', async () => {
+      const { version } = await approvedVersion();
+      const response = await call('POST', `/versions/${version.id}/components`, {
+        componentType: 'API',
+        name: 'late-arrival',
+      });
+      expect(response.status).toBe(409);
+      expect(response.body.error).toMatch(/is APPROVED/);
+      expect(response.body.error).toMatch(/architecture of a version/);
+    });
+
+    it('answers 409 for a contract added to an approved version', async () => {
+      const { component } = await approvedVersion();
+      const response = await call('POST', `/components/${component.id}/contracts`, {
+        namespace: 'probe',
+        name: 'late-contract',
+        schemaType: 'JSON_SCHEMA',
+      });
+      expect(response.status).toBe(409);
+      expect(response.body.error).toMatch(/what a version publishes/);
+    });
+
+    it('answers 409 for a dependency declared on an approved version', async () => {
+      const { version } = await approvedVersion();
+      const other = await draftVersion();
+      const provider = await service.addProductComponent(
+        other.version.id,
+        { componentType: 'API', name: 'provider' },
+        ACTOR,
+      );
+      const contract = await service.addDataContract(
+        provider.id,
+        { namespace: 'probe', name: 'shared', schemaType: 'JSON_SCHEMA' },
+        ACTOR,
+      );
+      const response = await call('POST', `/versions/${version.id}/dependencies`, {
+        contractId: contract.id,
+      });
+      expect(response.status).toBe(409);
+      expect(response.body.error).toMatch(/what a version consumes/);
+    });
+  });
+
+  // NXD-072. A refusal about *who* the caller is, not about what they sent:
+  // no correction to the body makes either of these succeed, and a 400 invites
+  // the author to go looking for one.
+  describe('403 — the refusal is about who, not about what', () => {
+    it('answers 403 when the author approves their own version', async () => {
+      // `draftVersion` creates as ACTOR, and ACTOR is the HTTP identity.
+      const { version } = await draftVersion();
+      const response = await call('POST', `/versions/${version.id}/transition`, {
+        targetStatus: 'APPROVED',
+      });
+      expect(response.status).toBe(403);
+      expect(response.body.error).toMatch(/Segregation of Duties/);
+    });
+
+    it('answers 403 when the author approves their own baseline', async () => {
+      const { version } = await draftVersion();
+      const baseline = await service.createProductBaseline(
+        version.id,
+        { baselineVersion: '1.0' },
+        ACTOR,
+      );
+      const response = await call('POST', `/baselines/${baseline.id}/approve`, {});
+      expect(response.status).toBe(403);
+      expect(response.body.error).toMatch(/Segregation of Duties/);
+    });
   });
 
   describe('501 — the capability is switched off', () => {
@@ -221,6 +354,7 @@ describe('error mapping, as the caller sees it', () => {
   // platform failed, and none of the above is a platform failure.
   it('never answers 500 for a refusal a caller caused', async () => {
     const { version } = await draftVersion();
+    const approved = await approvedVersion();
     const attempts = [
       ['POST', '/products/no-such-product/versions', {}],
       ['POST', '/versions/no-such-version/components', { componentType: 'API', name: 'x' }],
@@ -231,6 +365,19 @@ describe('error mapping, as the caller sees it', () => {
       ['POST', `/versions/${version.id}/transition`, { targetStatus: 'RELEASED' }],
       ['POST', '/ai/suggest-components', {
         productName: 'X', description: 'Y', domain: 'd', availableComponents: [],
+      }],
+      // NXD-072. The first two are 500 on PostgreSQL before this change: the
+      // foreign key refuses what the service never checked, and a driver error
+      // has no branch in `respondError`. SQLite let them through instead,
+      // which is why no test saw either.
+      ['POST', '/versions/no-such-version/dependencies', { contractId: 'x' }],
+      ['POST', '/components/no-such-component/contracts', {
+        namespace: 'probe', name: 'orphan', schemaType: 'JSON_SCHEMA',
+      }],
+      ['DELETE', '/traceability-links/no-such-link', undefined],
+      ['POST', `/versions/${version.id}/transition`, { targetStatus: 'APPROVED' }],
+      ['POST', `/versions/${approved.version.id}/components`, {
+        componentType: 'API', name: 'late',
       }],
     ] as const;
 
