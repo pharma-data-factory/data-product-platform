@@ -989,8 +989,15 @@ no decision records yet.
     `policyResolver.ts` reads the typed field instead of a duplicated inline
     type.
   - `GET /artifacts?includeVersions=true&includeFederated=true` merges remote
-    registries into the local list, local coordinates winning. The Marketplace
-    query passes the flag.
+    registries into the local list, local coordinates winning. ~~The Marketplace
+    query passes the flag.~~ **It does not, and never did** — corrected
+    2026-09-28. `artifactRegistryApi.ts` fetches
+    `?includeVersions=true` only, so federated results are unreachable from
+    every screen. Two further facts found with it: the federated response
+    carries **no manifest** (the client reads one field off it and discards
+    the rest), and `marketplaceOfferingsFromRegistry` skips any entry without
+    a manifest — so a federated artifact would be dropped even if the flag
+    were passed. See [`NXD-074`](DECISIONS.md).
   - `schema_snapshots` persists the A-2 workflow (below).
   - `bootstrapPlatformProduct` wrote lifecycle `'production'`, which is not a
     member of the `ProductLifecycle` union — corrected to `'PRODUCTION'`.

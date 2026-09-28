@@ -518,10 +518,9 @@ Two constraints, both learned from this plan's own history:
 | 4 | **Product-side change control.** The URS implementation is complete and largely liftable; `ChangeRequestStatus` and `SignatureTargetType.CHANGE_REQUEST` are already in `platform-common`. | L | rank 3, and the signature decision below |
 | 5 | **URS→Product steps 3 → 4 → 5.** Step 2 landed in `9d80d16`. | M each | 3: an ordering decision · 4: step 3 · 5: rank 4 |
 | 6 | **Slice 7 — GP-7 out of Core.** Last open row of `HARDCODED_DOMAIN_INVENTORY.md`. | M | nothing |
-| 7 | **Slice 4 remainder** — load the editions, resolve the three naming axes | S–M | nothing |
-| 8 | **Slice 5 — Federation.** Needs `config.d.ts` extended before any config is writable, a second port, a second database, and an answer to whether a second Backstage instance accepts the raw bearer the client sends. Zero tests. The most expensive executed path in the backlog. | L | nothing |
-| 9 | **Return `urs-composer` to the gate**, with its 9 pre-existing `CreateWizard` failures | ? | unknown cost |
-| 10 | **Slice 8 spike** — conditional permissions | L | stop condition |
+| 7 | ~~Slice 4 remainder~~ · ~~Slice 5 — Federation~~ | — | **Re-ranked 2026-09-28 — moved to §9.6** |
+| 8 | **Return `urs-composer` to the gate**, with its 9 pre-existing `CreateWizard` failures | ? | unknown cost |
+| 9 | **Slice 8 spike** — conditional permissions | L | stop condition |
 
 Out of scope here, as §7 already implies: the AI Test Coordinator, the AI GMP
 Impact Agent, Kubernetes and platform observability, Marketplace
@@ -561,3 +560,39 @@ invites precisely the question one does not want asked in an audit.
 already-signed content and needs the explicit invariant *no signed row changes
 level*. Never schedule the signature decision and Hybrid GMP adjacently: that
 is two simultaneous changes to the same invariant.
+
+### 9.6 The topology track
+
+Added 2026-09-28 with [`NXD-074`](DECISIONS.md). Slices 4 and 5 left §9.4 for
+this section: they are not loose backlog items but consecutive steps of one
+capability — an installation that can consume from upstream and publish
+downstream. The target picture is `TARGET_OPERATING_MODEL.md` §6.
+
+Strictly ordered; each step is unusable without the one before it.
+
+| # | Step | Size | Why it cannot move earlier |
+| --- | --- | --- | --- |
+| T1 | **Slice 6 — portable artifact content** (already §9.3) | M | A consumer cannot obtain what it does not have. One added constraint from the target picture: the provider seam must yield a **portable** coordinate. `sourceRef: "template:default/x"` and `documentation: "/create/..."` resolve against whoever reads them, so federating them today ships a 404. |
+| T2 | **Installation identity + the Editions loader** | M | Two instances collide on the platform product `nexora-core`, on `organizationId: internal`, on catalog namespace `default`, and on artifact coordinates — a local fork silently shadows an upstream version. "Which edition am I" is part of the same answer, which is why the Editions loader lands here rather than at rank 7. |
+| T3 | **Consumer credentials and the read routes** | S | One `externalAccess` array entry per consuming installation — no code. The code is widening the registry's read routes from `{ allow: ['user'] }` to also accept a service principal, reusing `authorizeReadOrService`. Until this lands every federated read is a 401, so T4 cannot be tested at all. |
+| T4 | **Federation that carries content and origin** | L | Today: six scalar fields per artifact, the manifest fetched and discarded, nothing persisted, no screen requesting it, no config key in the schema, zero tests. Needs all of that plus origin attribution, so an upstream artifact is distinguishable from a local one. |
+| T5 | **The consumer registry and its view** | M | An append-only store owned by `artifact-registry-backend` recording which installation read what and when — the first audited *read* in the repository. The topology view reuses `SVGGraph`/`GraphNode`/`GraphEdge` from `LineageDAGView.tsx`. |
+| T6 | **A verb for taking an artifact up** | M | There is no install action anywhere, and its absence is a tested invariant. Needs T1's portable coordinate to have anything to act on. |
+
+**Not in this track, by decision:** deployment and runtime operation. GitHub
+deploys; Nexora governs and records (`NXD-074`,
+`TARGET_OPERATING_MODEL.md` §6.3). The audit's "Deployment — MISSING" stays
+closed rather than worked off.
+
+**Relation to §9.4.** T1 is already ranked there and closes Phase 7; the rest is
+new work that did not exist as a plan. Whether the topology track runs before,
+after or interleaved with the §9.4 backlog is a product decision — it is stated
+here as a coherent sequence, not as a claim on the next slot.
+
+Two small defects found while scoping this, both unranked and both cheap:
+
+- `@backstage/plugin-catalog-graph` is a declared dependency that is never
+  registered in `createApp`, so the `/catalog-graph?rootEntityRefs=…` links the
+  code already builds point at an unrouted path.
+- `GET /versions/:id/lineage/dag` has no frontend consumer; the richer endpoint
+  is advertised in placeholder text on the page that would render it.

@@ -3305,3 +3305,140 @@ done for three days.
   (`TEST_GATE_COVERAGE`), `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md`
   (§3.2, §4, §6, the Slice 4/5/7/8 headings, the new §9),
   `docs/nexora-transformation/STATUS.md`.
+
+### NXD-074 — One edge, many installations; scope is an Edition; Nexora does not deploy
+
+- Date: 2026-09-28
+- Slice: target-architecture record. No behaviour — the sequence is
+  `PHASE_CLOSURE_PLAN.md` §9, the target picture is
+  `TARGET_OPERATING_MODEL.md` §6.
+- Closes: the open question of how multiple installations relate, and the
+  false claim in `STATUS.md` that the Marketplace passes `includeFederated`
+
+The question was posed as a choice: a Nexora platform with a marketplace for
+customers, **or** an operator platform that takes templates from Nexora,
+authors its own, and offers both to its sites. Plus: does every site need a
+full platform, or is a reduced one enough?
+
+**They are not alternatives.** The second contains the first. An operator is a
+consumer facing Nexora and a publisher facing its sites — one relationship,
+applied twice. Choosing between them would build the same mechanism twice, in
+two incompatible ways. Nexora is an open platform (`CLAUDE.md`, first line), so
+the model names no privileged participant: an installation may consume from
+upstream and publish downstream, the chain has no fixed length, and nothing
+privileges the namespace `nexora`.
+
+**Scope is an Edition, never a second build.** `NEXORA_STRATEGY.md`'s first
+mandatory principle is "One Platform: Producer and Consumer are capabilities,
+not separate applications or global modes", and a reduced consumer variant is
+precisely that. `catalog/editions.yaml` is the sanctioned lever and states its
+own rule: "Adding a new edition does NOT require changing Core."
+
+A site edition keeps the governing half — catalog, marketplace read, product
+registry, validation, release gate, audit trail, and *reading* URS baselines —
+and drops the authoring half. The decisive argument is regulatory rather than
+technical: every installation must be qualified, and a declared edition makes
+"what can this installation do" an auditable fact instead of an assumption,
+which bounds the per-site qualification scope and makes that bound defensible.
+
+**Nexora governs; it does not deploy.** Microservice deployment is GitHub's.
+This is recorded as a boundary so that "Deployment — MISSING" in
+`TARGET_CONFORMANCE_AUDIT.md` stops reading as an open item to be worked off.
+The return channel is already built and is the right shape: CI posts release
+provenance (`NXD-052`) and test executions under a service token, which is
+exactly how a site installation would learn of a GitHub deployment.
+
+**What the investigation found, because it changes the plan's ranking.** The
+publishing half is real: publisher self-registration, namespaced artifacts, the
+five-act lifecycle, trust tiers — all permissioned server code needing no
+repository edit, though with no UI and no tests on the self-registration route.
+The consuming half does not exist in any form:
+
+- Federation transfers **six scalar fields** per artifact. The client fetches
+  the manifest, reads one field off it for the artifact kind, and discards the
+  rest. Nothing is persisted; the "sync scheduler" counts results into the log.
+- **No screen requests federated results.** `STATUS.md` claimed the Marketplace
+  passes `includeFederated`; it fetches `?includeVersions=true` only. And even
+  with the flag, `marketplaceOfferingsFromRegistry` drops any entry without a
+  manifest — which the merge has already stripped. Two independent reasons the
+  feature could not have worked.
+- **There is no install verb**, and its absence is a tested invariant. The only
+  call to action links to a *local* scaffolder template, which a consuming
+  installation would not have.
+- **There is no installation identity.** Two instances collide on the platform
+  product `nexora-core`, on `organizationId: internal`, on the catalog
+  namespace `default`, and on artifact coordinates — a local fork silently
+  shadows an upstream version with no signal.
+
+**Consequence for the sequence.** Editions moves from rank 7 to a precondition:
+"which edition am I" is part of installation identity, and two instances must
+not talk before they can be told apart. Federation moves from rank 8 and grows
+— content, origin attribution, persistence, a config schema, a service
+principal instead of a raw bearer, and the tests it has never had. Slice 6
+gains one design constraint that would otherwise surface far too late: **the
+provider seam must yield a portable coordinate, not an installation-relative
+one.** `sourceRef: "template:default/x"` and `documentation: "/create/..."`
+resolve against whoever reads them.
+
+Nothing already planned is discarded. Federation needs Slice 6 regardless, so
+the framework work and the topology work are the same work in the same order.
+
+**A publishing installation must know its consumers, and the credential is the
+registry.** Added to this record on the same day, because it is the same
+decision seen from the other end. Requirement: see which customer installations
+consume from this one, show it as a topology, and have each consumer
+authenticate.
+
+Those are one mechanism, not three features. `backend.auth.externalAccess` is
+already an **array** whose entries each carry a `token` *and* a `subject`, and
+Backstage's static handler returns that subject verbatim into
+`credentials.principal.subject` — it already reaches durable storage today, in
+`composer_audit_events.actor`, whenever CI posts provenance. One entry per
+consuming installation therefore needs **no code**, and the unused per-entry
+`accessRestrictions` is the scoping knob.
+
+Three consequences worth recording rather than rediscovering:
+
+- **One route change unblocks the whole thing.** No read route accepts a service
+  principal — `GET /artifacts` is `{ allow: ['user'] }`, so a consuming
+  installation presenting a token is refused 401 before anything else can be
+  tried. `authorizeReadOrService` in the same router is the pattern; it exists
+  for `POST /policies/resolve`.
+- **The publishing side records nothing today.** No read route anywhere writes
+  an audit event, and the one usage counter that exists keeps timestamps in
+  memory and deliberately discards the caller. The new store belongs to
+  `artifact-registry-backend`, which serves the catalogue and has no audit store
+  of its own; `user_sign_in_events` is the shape to copy. Putting it in
+  `composer_audit_events` would be the cross-plugin database access `AGENTS.md`
+  forbids and `NXD-052` already refused.
+- **Auditing a read is a new principle here.** Everything audited today is a
+  mutation. This is a deliberate extension, and it should be stated as one.
+
+The graph reuses what exists: `LineageDAGView.tsx` hand-rolls `GraphNode` /
+`GraphEdge`, a rank layout and drag-to-pan with no graph library. Found while
+looking: `@backstage/plugin-catalog-graph` is a declared dependency that is
+never registered, so the `/catalog-graph` links the code already builds point at
+an unrouted path.
+
+Two limits stated plainly. There is **no username/password anywhere** — the
+platform supports GitHub OAuth for humans and static bearer tokens for services,
+and for installation-to-installation traffic a token is correct regardless. And
+this records who **asked**, not who **deployed**: a consumer that draws an
+artifact and shelves it is indistinguishable from one that rolls it out. Showing
+adoption rather than contact means the consumer reporting back over the CI
+channel of `TARGET_OPERATING_MODEL.md` §6.3 — a larger, separate thing.
+
+**Deliberately left open**, because they are not technical:
+
+- whether an operator runs Nexora itself or obtains it as a product — this does
+  not change the mechanism, but it does decide the commercial axis
+  (`COMMERCIAL_EDITIONS`, entitlements) and who defines the site edition;
+- whether sites need visibility of each other — the chain is a tree; site-to-site
+  would be a mesh and a different problem;
+- which validation evidence travels with an artifact. The local IT/OT team owns
+  validation, but whether it starts from nothing or builds on upstream evidence
+  is a QA decision with a large effect on scope.
+
+- Affected components: none in code. `docs/architecture/TARGET_OPERATING_MODEL.md`
+  (new §6), `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9 ranking),
+  `docs/nexora-transformation/STATUS.md` (the corrected federation claim).

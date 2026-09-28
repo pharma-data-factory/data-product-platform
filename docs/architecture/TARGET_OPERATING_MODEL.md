@@ -187,3 +187,157 @@ automated step produces an approval.**
 - Grant approval rights through platform seniority.
 - Build a second RBAC engine, test runner, backlog or certification store.
 - Treat GitHub, an LLM provider or an analytics platform as domain truth.
+
+---
+
+## 6. Topology — one platform, many installations
+
+Added 2026-09-28. **Target state: none of this exists yet.** See
+[`NXD-074`](../nexora-transformation/DECISIONS.md) for the decisions and
+`PHASE_CLOSURE_PLAN.md` §9 for the sequence.
+
+Nexora is an open platform, so the model below names no privileged participant.
+Roche appears only as a worked example; substitute any operator.
+
+### 6.1 The edge, not the chain
+
+An installation may **consume** artifacts from upstream registries and
+**publish** artifacts to downstream ones. That is one relationship, and it
+composes:
+
+```
+Nexora  ──publishes──▶  an operator  ──publishes──▶  a site
+        ◀──consumes──               ◀──consumes──
+```
+
+The chain has no fixed length and no privileged position. An operator who takes
+templates from Nexora, authors its own, and offers both to its sites is running
+the same edge twice — once as consumer, once as publisher. Modelling "vendor
+platform" and "customer platform" as two different things would build one
+mechanism twice.
+
+This is already the shape the publisher model assumes: a namespace per
+publisher, `INTERNAL | PARTNER | COMMUNITY` trust tiers, and self-registration
+that lets a team claim a namespace without an admin bottleneck. Nothing
+privileges the namespace `nexora`.
+
+### 6.2 Scope is an Edition, never a separate build
+
+Installations differ in *what they do*, not in *what they are*. A site that only
+consumes runs the same software as the operator that publishes; it enables fewer
+capabilities.
+
+This follows from `NEXORA_STRATEGY.md`: _"One Platform: Producer and Consumer
+are capabilities, not separate applications or global modes."_ A reduced
+"consumer build" would be exactly the forbidden thing. `catalog/editions.yaml`
+is the sanctioned lever and says so itself — _"Adding a new edition does NOT
+require changing Core."_
+
+A site edition carries the governing half and drops the authoring half:
+
+| Capability | At a site | Why |
+| --- | --- | --- |
+| Catalog, Marketplace (read), Product Registry | **yes** | otherwise the site cannot know what it may deploy |
+| Validation, release gate, audit trail | **yes** | the local IT/OT team owns validation, so the evidence lives there |
+| URS **read** — resolving a baseline binding | **yes** | a product must show which requirements it implements |
+| URS authoring, Composition Engine, Product Studio | **no** | requirements and templates are authored upstream |
+| External publishers, commercial marketplace | **no** | that is the operator tier — `nexora-enterprise` |
+
+The regulatory argument is the stronger one: **every installation must be
+qualified.** A declared edition turns "what can this installation do" into an
+auditable fact rather than an assumption, which bounds the qualification scope
+per site and makes that bound defensible.
+
+### 6.3 Nexora governs; it does not deploy
+
+Microservice deployment is GitHub's. Nexora records what was approved, what was
+verified, what was validated, and refuses a release that cannot show it.
+
+This is a boundary, not a gap. `TARGET_CONFORMANCE_AUDIT.md` lists "Deployment —
+MISSING" and excludes runtime operation from MVP1; §6.3 is the reason that entry
+should stay closed rather than be worked off.
+
+The return channel already exists and is the right shape: CI posts release
+provenance (`POST /baselines/:id/provenance`, `NXD-052`) and test executions
+(`POST /test-executions`) under a service token. A site installation learns about
+a GitHub deployment the same way the platform's own repository does.
+
+### 6.4 What this costs, stated plainly
+
+Four things must exist before the edge works, and none does today:
+
+1. **Portable artifact content.** Content resolves from the local filesystem
+   only; `ArtifactVersion.sourceRef` is the intended seam and is never
+   dereferenced. A site cannot obtain what it does not already have.
+2. **Installation identity.** There is none. Two instances collide on the
+   platform product `nexora-core`, on `organizationId: internal`, on the catalog
+   namespace `default`, and on artifact coordinates — a local fork silently
+   shadows an upstream version.
+3. **Federation that carries content.** It transfers six scalar fields per
+   artifact; the manifest is fetched, read for one field, and discarded. Nothing
+   is persisted, no screen requests federated results, there are no tests, and
+   the config key is absent from the schema.
+4. **A verb for taking something up.** There is no install action anywhere, and
+   the only call to action links to a *local* scaffolder template — at a site,
+   a 404.
+
+### 6.5 Knowing who consumes: the credential is the registry
+
+An installation that publishes must be able to answer "who consumes from me",
+show it, and refuse anyone it does not know. Those are not three features. Issue
+one credential per consuming installation and all three fall out of it.
+
+**Identity is already carried and already free.** `backend.auth.externalAccess`
+is an **array**; each entry has a `token` *and* a `subject`, and Backstage's
+static handler returns that subject verbatim into
+`credentials.principal.subject`. Today there is exactly one entry —
+`subject: release-pipeline`, so CI can post provenance — and adding one per
+consuming installation requires **no code at all**. Backstage also supports
+per-entry `accessRestrictions` (plugin, permission, permission attribute); the
+repository does not use them yet, and they are the scoping knob for "this
+consumer may read the catalogue and nothing else".
+
+**On credential shape:** the platform supports two, GitHub OAuth for humans and
+a static bearer token for services. There is no username/password anywhere, and
+for installation-to-installation traffic a token is the right answer regardless.
+A human at a customer who wants to browse the marketplace is a *different*
+question — that is user authentication on the publishing installation, not a
+consumer credential.
+
+**One route change unblocks it.** No read route admits a service principal
+today: `GET /artifacts` is `{ allow: ['user'] }`, so a consuming installation
+presenting its token gets 401. The fix is not new ground — the same router
+already has `authorizeReadOrService`, used by `POST /policies/resolve`, whose
+rule is written out there: a service principal carries no catalog identity, so
+possession of the token *is* the authorisation.
+
+**The registry is then a record of reads, not a second table to maintain.**
+Nothing on the publishing side records who asked: no read route in any plugin
+writes an audit event, and the one access counter that exists
+(`data-products-backend`) keeps timestamps in memory and deliberately discards
+the caller. So the new piece is an append-only store owned by
+`artifact-registry-backend` — the plugin that serves the catalogue and today has
+no audit store of its own. `user_sign_in_events` in `users-backend`
+(`id, timestamp, actor, provider`) is almost exactly the right shape and the
+only access-style record in the repository. Ownership matters here: writing into
+another plugin's store is the cross-plugin database access `AGENTS.md` forbids,
+and `NXD-052` already rejected precisely that.
+
+This makes a read an auditable event for the first time. That is a deliberate
+change of principle, not an oversight being corrected — everything audited today
+is a mutation.
+
+**The picture.** A topology view over those records: publishing installation in
+the centre, each known consumer a node, the edge carrying last contact and what
+was drawn. `LineageDAGView.tsx` already hand-rolls exactly this —
+`GraphNode`/`GraphEdge`, a rank layout, drag-to-pan, hover highlight, bezier
+edges — with no graph library, and it is reusable as-is. Worth noting while
+here: `@backstage/plugin-catalog-graph` is a declared dependency that is **never
+registered**, so the `/catalog-graph?rootEntityRefs=…` links the code already
+builds point at an unrouted path.
+
+**What this does not do.** It records who *asked*, not who *deployed*. A
+consuming installation that draws an artifact and never installs it looks
+identical to one that rolls it out everywhere. If the reference line has to show
+adoption rather than contact, that is the CI return channel of §6.3, reported by
+the consumer — a separate and larger thing.
