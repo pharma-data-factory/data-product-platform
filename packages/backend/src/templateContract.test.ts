@@ -192,7 +192,12 @@ describe('template registration and generation contract', () => {
       // expensive artifacts, so they are proven before the governed record is
       // written. What has to hold is the relative order, which is what the
       // offsets check.
-      expect(stepIds[0]).toBe('fetch-base');
+      // `resolve-repo` runs first since NXD-079: the publish coordinate is
+      // the platform's setting, resolved server-side, and `fetch-base` needs
+      // its output for the generated catalog-info.
+      expect(stepIds[0]).toBe('resolve-repo');
+      expect(actionById.get('resolve-repo')).toBe('nexora:scm:resolve-repo');
+      expect(stepIds[1]).toBe('fetch-base');
       expect(actionById.get('fetch-base')).toBe('fetch:template');
       expect(stepIds).toContain('publish');
       expect(stepIds).toContain('register');

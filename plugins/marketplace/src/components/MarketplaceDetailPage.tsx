@@ -213,7 +213,13 @@ export function MarketplaceDetailPage() {
                       item.id.includes('equipment')
                         ? 'manufacturing'
                         : 'unassigned',
-                    'GitHub Repository': 'Created in pharma-data-factory',
+                    // The organisation is an installation setting
+                    // (`nexora.scm.organization`), not a property of the
+                    // offering. Naming one here made the Marketplace assert a
+                    // fact about the operator's GitHub account — and it was
+                    // the thirtieth copy of the same literal. NXD-079.
+                    'GitHub Repository':
+                      'Created in this installation\'s configured organisation',
                     Contract: item.contractName || 'Not registered',
                     'Contract version':
                       item.contractVersion || 'Not registered',

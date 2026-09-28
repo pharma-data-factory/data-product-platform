@@ -119,7 +119,6 @@ describe('Machine State Consumer Data Product', () => {
       'domain',
       'unsComponent',
       'topicPattern',
-      'repoUrl',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe(
       'Data Product Name',
@@ -134,6 +133,7 @@ describe('Machine State Consumer Data Product', () => {
     expect(entity.spec.parameters[0].description).not.toMatch(/OEE calculation/i);
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
       [
+        'nexora:scm:resolve-repo',
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',

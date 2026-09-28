@@ -61,6 +61,7 @@ describe('GitHub Golden Path integration', () => {
 
     expect(template.spec.steps.map((step: { action: string }) => step.action)).toEqual(
       [
+        'nexora:scm:resolve-repo',
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
@@ -69,7 +70,7 @@ describe('GitHub Golden Path integration', () => {
       ],
     );
     expect(stepById('publish').input.repoUrl).toBe(
-      'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
+      "${{ steps['resolve-repo'].output.repoUrl }}",
     );
     expect(stepById('publish').input.token).toBeUndefined();
     expect(JSON.stringify(template.spec.parameters)).not.toContain(

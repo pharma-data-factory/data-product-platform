@@ -72,17 +72,16 @@ spec:
             - development
             - test
             - production
-        repoUrl:
-          title: GitHub Organization and Repository
-          type: string
-          description: Repository created in pharma-data-factory. Enter only the repository name.
-          ui:field: RepoUrlPicker
-          ui:options:
-            allowedHosts:
-              - github.com
-            allowedOwners:
-              - pharma-data-factory
   steps:
+    # The organisation is the platform's, not the template's and not the
+    # browser's. Resolved server-side so a caller driving the scaffolder over
+    # the API cannot publish somewhere else. NXD-079.
+    - id: resolve-repo
+      name: Resolve the repository coordinate
+      action: nexora:scm:resolve-repo
+      input:
+        repo: ${{ parameters.name }}
+
     - id: fetch-base
       name: Fetch Unified Namespace skeleton
       action: fetch:template
@@ -100,8 +99,8 @@ spec:
           rootNamespace: ${{ parameters.rootNamespace }}
           environment: ${{ parameters.environment }}
           destination:
-            host: github.com
-            owner: pharma-data-factory
+            host: ${{ steps['resolve-repo'].output.host }}
+            owner: ${{ steps['resolve-repo'].output.owner }}
             repo: ${{ parameters.name }}
           templateName: unified-namespace
           templateVersion: 1.0.0
@@ -126,7 +125,7 @@ spec:
       action: publish:github
       input:
         description: ${{ parameters.description }}
-        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        repoUrl: ${{ steps['resolve-repo'].output.repoUrl }}
         defaultBranch: main
         repoVisibility: private
         gitAuthorName: Data Product Platform

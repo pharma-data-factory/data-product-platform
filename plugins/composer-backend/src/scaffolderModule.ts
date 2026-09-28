@@ -34,6 +34,81 @@ import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 /** Value a template writes when the author chose no baseline. */
 export const UNBOUND = 'unbound';
 
+/**
+ * Resolves the repository coordinate a scaffolded product is published to.
+ *
+ * The organisation was written into seven templates as a literal —
+ * `github.com?owner=pharma-data-factory&repo=...` — in four places each, plus
+ * once in the Compose page. A framework that bakes in its operator's GitHub
+ * organisation is not a framework: every product any other operator scaffolds
+ * would be published to the wrong address.
+ *
+ * Resolved here rather than in the template for the reason this file already
+ * states about the URS binding: the picker runs in the browser, `/compose`
+ * bypasses it entirely, and `scaffolder.task.create` can be called over the
+ * API with any value at all. A configured organisation that a caller can
+ * override is not configuration, it is a default. This action reads the
+ * platform's setting inside the task, where the rule actually holds.
+ *
+ * The seven templates also *collected* a `repoUrl` from a RepoUrlPicker and
+ * then discarded it — the publish step rebuilt the URL from
+ * `parameters.name`. So the field asked the user a question whose answer was
+ * thrown away. It is gone.
+ *
+ * Fails the task when nothing is configured, rather than falling back. A
+ * silent default is how the literal survived this long. NXD-079.
+ */
+export function createScmResolveRepoAction(options: {
+  config: {
+    getOptionalString(key: string): string | undefined;
+  };
+}) {
+  return createTemplateAction({
+    id: 'nexora:scm:resolve-repo',
+    description:
+      'Builds the publish coordinate from the platform\'s configured SCM host ' +
+      'and organisation, so no template carries an operator\'s organisation.',
+    schema: {
+      input: {
+        repo: z =>
+          z.string().describe('Repository name, without host or organisation.'),
+      },
+      output: {
+        repoUrl: z =>
+          z
+            .string()
+            .describe('Coordinate for publish:github, host?owner=..&repo=..'),
+        host: z => z.string().describe('Configured SCM host.'),
+        owner: z => z.string().describe('Configured organisation.'),
+      },
+    },
+    async handler(ctx) {
+      const repo = ctx.input.repo?.trim();
+      if (!repo) {
+        throw new Error('A repository name is required.');
+      }
+
+      const host = options.config.getOptionalString('nexora.scm.host');
+      const owner = options.config.getOptionalString('nexora.scm.organization');
+      if (!host || !owner) {
+        throw new Error(
+          'No SCM target is configured. Set nexora.scm.host and ' +
+            'nexora.scm.organization in app-config. This is deliberately not ' +
+            'defaulted: a fallback organisation is how a hard-coded one ' +
+            'survives unnoticed.',
+        );
+      }
+
+      ctx.logger.info(
+        `Publishing to ${host}/${owner}/${repo} (from platform configuration).`,
+      );
+      ctx.output('repoUrl', `${host}?owner=${owner}&repo=${repo}`);
+      ctx.output('host', host);
+      ctx.output('owner', owner);
+    },
+  });
+}
+
 export function createUrsVerifyBaselineAction(options: {
   discovery: { getBaseUrl(pluginId: string): Promise<string> };
   auth: Parameters<typeof createHttpUrsBaselineResolver>[0]['auth'];
@@ -293,9 +368,11 @@ export const scaffolderModuleUrsBinding = createBackendModule({
         scaffolder: scaffolderActionsExtensionPoint,
         discovery: coreServices.discovery,
         auth: coreServices.auth,
+        config: coreServices.rootConfig,
       },
-      async init({ scaffolder, discovery, auth }) {
+      async init({ scaffolder, discovery, auth, config }) {
         scaffolder.addActions(
+          createScmResolveRepoAction({ config }),
           createUrsVerifyBaselineAction({
             discovery,
             auth: auth as never,

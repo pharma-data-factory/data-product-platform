@@ -107,7 +107,6 @@ describe('REST Equipment Data Product Golden Path', () => {
       'owner',
       'ursBaselineId',
       'domain',
-      'repoUrl',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe(
       'Data Product Name',
@@ -119,15 +118,12 @@ describe('REST Equipment Data Product Golden Path', () => {
     expect(entity.spec.parameters[0].properties.domain.default).toBe(
       'manufacturing',
     );
-    expect(entity.spec.parameters[0].properties.repoUrl['ui:options']).toEqual({
-      allowedHosts: ['github.com'],
-      allowedOwners: ['pharma-data-factory'],
-    });
     expect(JSON.stringify(entity.spec.parameters)).not.toContain(
       'requestUserCredentials',
     );
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
       [
+        'nexora:scm:resolve-repo',
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
@@ -140,12 +136,12 @@ describe('REST Equipment Data Product Golden Path', () => {
     const stepById = (id: string) =>
       entity.spec.steps.find((step: { id: string }) => step.id === id);
     expect(stepById('publish').input.repoUrl).toBe(
-      'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
+      "${{ steps['resolve-repo'].output.repoUrl }}",
     );
     expect(stepById('publish').input.token).toBeUndefined();
     expect(stepById('fetch-base').input.values.destination).toEqual({
-      host: 'github.com',
-      owner: 'pharma-data-factory',
+      host: "${{ steps['resolve-repo'].output.host }}",
+      owner: "${{ steps['resolve-repo'].output.owner }}",
       repo: '${{ parameters.name }}',
     });
   });

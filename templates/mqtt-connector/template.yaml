@@ -100,16 +100,17 @@ spec:
           description: Demonstration topic. Override later with MQTT_TOPIC.
     - title: GitHub repository
       required:
-        - repoUrl
       properties:
-        repoUrl:
-          title: Repository Location
-          type: string
-          ui:field: RepoUrlPicker
-          ui:options:
-            allowedHosts:
-              - github.com
   steps:
+    # The organisation is the platform's, not the browser's. Resolved
+    # server-side so a caller driving the scaffolder over the API cannot
+    # publish somewhere else. NXD-079.
+    - id: resolve-repo
+      name: Resolve the repository coordinate
+      action: nexora:scm:resolve-repo
+      input:
+        repo: ${{ parameters.name }}
+
     - id: fetch-base
       name: Fetch MQTT connector skeleton
       action: fetch:template
@@ -129,7 +130,10 @@ spec:
           dataContracts: ${{ parameters.dataContracts }}
           dependsOn: ${{ parameters.dependsOn }}
           defaultTopic: ${{ parameters.defaultTopic }}
-          destination: ${{ parameters.repoUrl | parseRepoUrl }}
+          destination:
+            host: ${{ steps['resolve-repo'].output.host }}
+            owner: ${{ steps['resolve-repo'].output.owner }}
+            repo: ${{ parameters.name }}
           templateName: mqtt-data-connector
           # Always emitted, so an unbound product is explicit in the catalog and
           # can be found rather than merely missing an annotation.
@@ -152,7 +156,7 @@ spec:
       action: publish:github
       input:
         description: ${{ parameters.description }}
-        repoUrl: ${{ parameters.repoUrl }}
+        repoUrl: ${{ steps['resolve-repo'].output.repoUrl }}
         defaultBranch: main
         repoVisibility: private
         gitAuthorName: Data Product Platform

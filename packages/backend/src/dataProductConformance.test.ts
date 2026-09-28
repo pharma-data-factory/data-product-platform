@@ -143,9 +143,13 @@ describe('Data Product conformance', () => {
       expect(
         templateEntity.metadata.annotations['dataprod.platform/templateVersion'],
       ).toBe('1.0.0');
-      expect(templateEntity.spec.steps[0].input.values.templateVersion).toBe(
-        '1.0.0',
+      // Located by action. `nexora:scm:resolve-repo` became the first step
+      // when the GitHub organisation left the templates (NXD-079), and an
+      // assertion pinned to an index says nothing about the step it meant.
+      const fetchStep = templateEntity.spec.steps.find(
+        (step: { action?: string }) => step.action === 'fetch:template',
       );
+      expect(fetchStep?.input.values.templateVersion).toBe('1.0.0');
     },
   );
 });

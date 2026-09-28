@@ -267,6 +267,20 @@ rbac:
 # Nexora industrial providers. mock uses in-memory fixtures for local
 # development. Remote base URLs are server-side only. Never put credentials here.
 nexora:
+  # Where scaffolded product repositories are published.
+  #
+  # This was written into seven templates as a literal, four times each, plus
+  # once in the Compose page — so every product any operator other than Nexora
+  # scaffolded would have gone to the wrong organisation. Resolved server-side
+  # by `nexora:scm:resolve-repo`, because a value the browser supplies is a
+  # suggestion and this one is a platform decision. NXD-079.
+  #
+  # Deliberately not defaulted in code: an unconfigured installation fails the
+  # task and says so, rather than quietly publishing somewhere.
+  scm:
+    host: github.com
+    organization: pharma-data-factory
+
   providers:
     mode: mock
     connectivity:

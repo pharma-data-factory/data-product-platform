@@ -490,7 +490,11 @@ export function ComposePage() {
           counterTopic: 'pharma/oee/+/count',
           mqttTopic: 'pharma/oee/+/+',
           contextUrlRef: 'SOURCE_API_URL',
-          repoUrl: `github.com?owner=pharma-data-factory&repo=${name}`,
+          // No repoUrl. This page bypasses the RepoUrlPicker entirely, so it
+          // used to build the coordinate itself — and baked the organisation
+          // into the frontend, where an operator cannot change it. The
+          // templates resolve it server-side now via `nexora:scm:resolve-repo`,
+          // from `nexora.scm.*`. NXD-079.
         },
       });
       setNotice(

@@ -1688,7 +1688,7 @@ export const FIRST_DAY_STEPS: FirstDayStep[] = [
     title: 'Configure Data Product',
     why: 'Name, owner, and repository identity become Catalog metadata.',
     action: 'Fill Data Product Name, Owner, and GitHub Repository. Keep the default contract version unless you are changing a contract.',
-    expected: 'Review step lists repo owner pharma-data-factory and catalog registration.',
+    expected: "Review step lists the installation's configured repository owner and catalog registration.",
     commonError: 'Invalid names fail template validation before GitHub is called.',
     learnMoreId: 'howto-mqtt',
     platformRoute: '/create',

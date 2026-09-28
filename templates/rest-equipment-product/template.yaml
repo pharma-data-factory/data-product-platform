@@ -65,17 +65,16 @@ spec:
           type: string
           description: Business domain for this data product.
           default: manufacturing
-        repoUrl:
-          title: GitHub Repository
-          type: string
-          description: The repository is created in the pharma-data-factory organization by the backend GitHub App. Enter only the repository name. Guest login is enough; no GitHub OAuth token is requested.
-          ui:field: RepoUrlPicker
-          ui:options:
-            allowedHosts:
-              - github.com
-            allowedOwners:
-              - pharma-data-factory
   steps:
+    # The organisation is the platform's, not the template's and not the
+    # browser's. Resolved server-side so a caller driving the scaffolder over
+    # the API cannot publish somewhere else. NXD-079.
+    - id: resolve-repo
+      name: Resolve the repository coordinate
+      action: nexora:scm:resolve-repo
+      input:
+        repo: ${{ parameters.name }}
+
     - id: fetch-base
       name: Fetch REST equipment data product skeleton
       action: fetch:template
@@ -93,8 +92,8 @@ spec:
           lifecycle: experimental
           version: 1.0.0
           destination:
-            host: github.com
-            owner: pharma-data-factory
+            host: ${{ steps['resolve-repo'].output.host }}
+            owner: ${{ steps['resolve-repo'].output.owner }}
             repo: ${{ parameters.name }}
           templateName: rest-equipment-data-product
           templateVersion: 1.0.0
@@ -118,7 +117,7 @@ spec:
       action: publish:github
       input:
         description: ${{ parameters.description }}
-        repoUrl: github.com?owner=pharma-data-factory&repo=${{ parameters.name }}
+        repoUrl: ${{ steps['resolve-repo'].output.repoUrl }}
         defaultBranch: main
         repoVisibility: private
         gitAuthorName: Data Product Platform

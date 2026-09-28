@@ -171,7 +171,6 @@ describe('OEE Data Product Golden Path', () => {
       'counterTopic',
       'mqttTopic',
       'contextUrlRef',
-      'repoUrl',
     ]);
     expect(entity.spec.parameters[0].properties.defaultWindow.enum).toEqual([
       'HOUR',
@@ -193,6 +192,7 @@ describe('OEE Data Product Golden Path', () => {
     expect(JSON.stringify(entity.spec.parameters)).not.toContain('requestUserCredentials');
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
       [
+        'nexora:scm:resolve-repo',
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',

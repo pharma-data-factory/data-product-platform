@@ -106,15 +106,14 @@ describe('MQTT Temperature Data Product Golden Path', () => {
       'owner',
       'ursBaselineId',
       'mqttTopic',
-      'repoUrl',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe(
       'Data Product Name',
     );
     expect(entity.spec.parameters[0].properties.owner.title).toBe('Owner');
-    expect(entity.spec.parameters[0].properties.repoUrl.title).toBe(
-      'GitHub Repository',
-    );
+    // No repoUrl field. It collected a value the publish step then discarded,
+    // and the organisation is a platform setting now. NXD-079.
+    expect(entity.spec.parameters[0].properties.repoUrl).toBeUndefined();
     expect(entity.spec.parameters[0].description).toMatch(
       /Certified Golden Path/,
     );
@@ -135,15 +134,12 @@ describe('MQTT Temperature Data Product Golden Path', () => {
     expect(entity.spec.parameters[0].properties.mqttTopic.default).toBe(
       'pharma/temperature/+',
     );
-    expect(entity.spec.parameters[0].properties.repoUrl['ui:options']).toEqual({
-      allowedHosts: ['github.com'],
-      allowedOwners: ['pharma-data-factory'],
-    });
     expect(JSON.stringify(entity.spec.parameters)).not.toContain(
       'requestUserCredentials',
     );
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
       [
+        'nexora:scm:resolve-repo',
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
@@ -157,12 +153,12 @@ describe('MQTT Temperature Data Product Golden Path', () => {
       "${{ parameters.ursBaselineId or 'unbound' }}",
     );
     expect(stepById('publish').input.repoUrl).toBe(
-      'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
+      "${{ steps['resolve-repo'].output.repoUrl }}",
     );
     expect(stepById('publish').input.token).toBeUndefined();
     expect(stepById('fetch-base').input.values.destination).toEqual({
-      host: 'github.com',
-      owner: 'pharma-data-factory',
+      host: "${{ steps['resolve-repo'].output.host }}",
+      owner: "${{ steps['resolve-repo'].output.owner }}",
       repo: '${{ parameters.name }}',
     });
   });

@@ -42,7 +42,11 @@ describe('MVP developer journey', () => {
     );
     expect(template).toContain('title: Data Product Name');
     expect(template).toContain('title: Owner');
-    expect(template).toContain('title: GitHub Repository');
+    // No "GitHub Repository" field: the create form stopped asking for a
+    // repository coordinate when the organisation became a platform setting
+    // resolved server-side. The field it replaced collected a value the
+    // publish step discarded. NXD-079.
+    expect(template).not.toContain('title: GitHub Repository');
     expect(template).toContain('Certified Golden Path');
     expect(template).toContain('title: View Data Product');
     expect(template).not.toMatch(/Open in catalog|Catalog Owner/);

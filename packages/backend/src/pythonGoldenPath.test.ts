@@ -77,25 +77,18 @@ describe('Python Microservice general service template', () => {
       'description',
       'owner',
       'ursBaselineId',
-      'repoUrl',
     ]);
     expect(entity.spec.parameters[0].properties.name.title).toBe('Service Name');
     expect(entity.spec.parameters[0].properties.owner.title).toBe(
       'Catalog Owner',
     );
-    expect(entity.spec.parameters[0].properties.repoUrl.title).toBe(
-      'GitHub Organization and Repository',
-    );
-    expect(entity.spec.parameters[0].properties.repoUrl['ui:options']).toEqual({
-      allowedHosts: ['github.com'],
-      allowedOwners: ['pharma-data-factory'],
-    });
     expect(JSON.stringify(entity.spec.parameters)).not.toContain(
       'requestUserCredentials',
     );
     expect(JSON.stringify(entity.spec.parameters)).not.toContain('secrets');
     expect(entity.spec.steps.map((step: { action: string }) => step.action)).toEqual(
       [
+        'nexora:scm:resolve-repo',
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
@@ -104,12 +97,17 @@ describe('Python Microservice general service template', () => {
       ],
     );
     expect(stepById(entity, 'publish').input.repoUrl).toBe(
-      'github.com?owner=pharma-data-factory&repo=${{ parameters.name }}',
+      "${{ steps['resolve-repo'].output.repoUrl }}",
     );
     expect(stepById(entity, 'publish').input.token).toBeUndefined();
-    expect(entity.spec.steps[0].input.values.destination).toEqual({
-      host: 'github.com',
-      owner: 'pharma-data-factory',
+    // By action, not by index: `resolve-repo` is step 0 now, and a test that
+    // depends on step order breaks every time a step is inserted.
+    expect(
+      (stepById(entity, 'fetch-base').input.values as Record<string, unknown>)
+        .destination,
+    ).toEqual({
+      host: "${{ steps['resolve-repo'].output.host }}",
+      owner: "${{ steps['resolve-repo'].output.owner }}",
       repo: '${{ parameters.name }}',
     });
   });
@@ -144,19 +142,29 @@ describe('Python Microservice general service template', () => {
     expect(rendered).toContain('settings.service_version');
   });
 
-  it('dry-runs publish:github repoUrl for a guest-created service', () => {
-    const entity = yaml.parse(
-      fs.readFileSync(path.join(TEMPLATE_DIR, 'template.yaml'), 'utf8'),
+  it('takes its publish coordinate from the platform, not from the template', () => {
+    // This used to substitute a name into a hard-coded literal and parse the
+    // result, asserting the organisation was `pharma-data-factory` and not the
+    // guest's own login. There is no literal to parse now: the coordinate is
+    // resolved server-side from `nexora.scm.*` by `nexora:scm:resolve-repo`,
+    // so what the template can promise is that it asks for it and hard-codes
+    // nothing. Where the value comes from is the action's business. NXD-079.
+    const raw = fs.readFileSync(
+      path.join(TEMPLATE_DIR, 'template.yaml'),
+      'utf8',
     );
-    const repoUrl = String(stepById(entity, 'publish').input.repoUrl).replace(
-      '${{ parameters.name }}',
-      'temperature-service-test',
+    const entity = yaml.parse(raw);
+
+    expect(
+      entity.spec.steps.find((s: { id: string }) => s.id === 'resolve-repo')
+        ?.action,
+    ).toBe('nexora:scm:resolve-repo');
+    expect(stepById(entity, 'publish').input.repoUrl).toBe(
+      "${{ steps['resolve-repo'].output.repoUrl }}",
     );
-    const parsed = new URL(`https://${repoUrl}`);
-    expect(parsed.hostname).toBe('github.com');
-    expect(parsed.searchParams.get('owner')).toBe('pharma-data-factory');
-    expect(parsed.searchParams.get('repo')).toBe('temperature-service-test');
-    expect(parsed.searchParams.get('owner')).not.toBe('user:default/guest');
+    // No organisation, and no host, anywhere in the file.
+    expect(raw).not.toMatch(/owner=\w/);
+    expect(raw).not.toContain('github.com');
   });
 
   it('runs lint, tests, and Docker build in CI', () => {

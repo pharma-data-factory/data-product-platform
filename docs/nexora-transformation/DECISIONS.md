@@ -3796,3 +3796,76 @@ assume otherwise.
   (`installation.ts` — new, `service.ts`, `router.ts`, `plugin.ts`,
   `config.d.ts`), `catalog/editions.yaml`,
   `catalog/artifacts/nexora/gxp-data-product-policy.yaml`.
+
+### NXD-079 — The operator's GitHub organisation leaves the templates
+
+- Date: 2026-09-28
+- Slice: `PHASE_CLOSURE_PLAN.md` §9.4 rank 1
+- Closes: rank 1, and the "hard-coded GitHub org" Experience gap in
+  `TARGET_CONFORMANCE_AUDIT.md` §10
+
+`github.com?owner=pharma-data-factory&repo=…` was written into the templates as
+a literal, four times each, plus once in the Compose page and once more as a
+Marketplace display string. **A framework that bakes in its operator's GitHub
+organisation is not a framework**: every product any other operator scaffolded
+would have been published to the wrong address, and nothing in the platform
+would have said so.
+
+**Resolved server-side, because that is the only place the rule holds.** This
+file's own docblock already argued it for the URS binding: the picker runs in
+the browser, `/compose` bypasses it entirely, and `scaffolder.task.create` can
+be called over the API with any value at all. A configured organisation a
+caller can override is not configuration, it is a default.
+`nexora:scm:resolve-repo` reads `nexora.scm.host` and
+`nexora.scm.organization` inside the task and outputs the coordinate.
+
+**It fails when nothing is configured, rather than defaulting.** A silent
+fallback is how the literal survived this long. `app-config.yaml` carries
+today's values, so behaviour is unchanged — but they are now one setting rather
+than twenty-nine literals.
+
+**Seven templates were asking a question and discarding the answer.** Each
+declared a `repoUrl` RepoUrlPicker parameter with `allowedOwners:
+[pharma-data-factory]`, and not one of them read `parameters.repoUrl` — the
+publish step rebuilt the URL from `parameters.name`. The field is gone. The
+create form is one question shorter and the question it lost was a fiction.
+
+**All nine publishing templates converted, not seven.** `node-service` and
+`mqtt-connector` did it "properly" with `${{ parameters.repoUrl }}`, letting
+the user choose. Under a platform-configured organisation that is the *other*
+policy, and leaving two templates on it would have meant two rules in one
+repository — exactly the inconsistency being removed. The contract test that
+caught this is the reason it was noticed: asserting `resolve-repo` runs first
+failed on precisely those two.
+
+Also corrected: `ComposePage.tsx` built the coordinate in the frontend, where
+an operator cannot change it; and `MarketplaceDetailPage` told every reader
+`'GitHub Repository': 'Created in pharma-data-factory'` — an offering asserting
+a fact about the operator's GitHub account, and the thirtieth copy of the same
+string.
+
+**One test improved rather than merely updated.** `dataProductConformance`
+asserted on `spec.steps[0]`, which happened to be `fetch:template`; it now finds
+the step by action. An assertion pinned to an index says nothing about the step
+it meant, and it broke the moment a step was inserted. The python golden path's
+dry-run test changed shape for a deeper reason: it used to substitute a name
+into the literal and parse the result. There is no literal to parse now, so it
+asserts what the template can actually promise — that it asks the platform and
+hard-codes nothing, `expect(raw).not.toContain('github.com')`.
+
+**Gates:** guard:platform 11/9/0, tsc:full, lint:all, check-doc-links PASS,
+`CI=true yarn test` 233 suites / 2129 tests / 0 skipped.
+
+**Not executed live.** The four gates are green and the templates parse, but the
+scaffolder path itself — a task run end to end against a real GitHub App — has
+not been walked for this change. DoD point 2 is therefore **not met**, and this
+is a deliberate exception rather than an oversight: work was frozen mid-slice at
+the product owner's request. The first thing the next session should do is run
+one template and watch the repository land in the configured organisation.
+
+- Affected components: `plugins/composer-backend/src/scaffolderModule.ts`
+  (`nexora:scm:resolve-repo`), all nine publishing templates,
+  `packages/app/src/modules/composer/ComposePage.tsx`,
+  `plugins/marketplace/src/components/MarketplaceDetailPage.tsx`,
+  `app-config.yaml`, `plugins/nexora-backend/config.d.ts`,
+  `packages/platform-common/src/documentation.ts`, and eight contract suites.
