@@ -3699,3 +3699,100 @@ this record says so rather than leaving a reader to discover it.
 - Affected components: `plugins/composer-backend` (`service.ts` —
   `ProductEvidencePackage`, `EVIDENCE_PACKAGE_LIMITS`, `buildEvidencePackage`;
   `router.ts` — the route).
+
+### NXD-078 — An installation knows what it is, and editions stop being a declaration
+
+- Date: 2026-09-28
+- Slice: T2 of the topology track, `PHASE_CLOSURE_PLAN.md` §9.6 — absorbs what
+  was Slice 4
+- Closes: the `catalog/editions.yaml` dormancy, the false claim in its header,
+  and the false claim in `editionHasCapability`'s doc comment
+
+**Two claims were false, and both made dormant code read as live.**
+`catalog/editions.yaml` has declared four editions since W3-8 under a header
+saying "Core reads this file at startup" — nothing read it, by any route; it
+was not even a registered catalog location. And `editionHasCapability`
+promised to check "a given edition (or any parent)" while doing a flat
+`includes` on one edition's own list, which under-reports three of the four
+shipped editions: `nexora-enterprise` would have denied holding
+`artifact-marketplace`, which it inherits from core through two hops.
+
+**Resolution is the substance, not the loading.** `editions.ts` in
+`platform-common` parses, validates and flattens the `extends` chain into a
+`ResolvedEdition` — a separate type from `PlatformEdition` on purpose, because
+conflating what an author wrote with what an installation runs is exactly how
+the flat-lookup bug happened. Anything deciding behaviour takes the resolved
+form, so inheritance cannot be forgotten. Dangling parents, self-extension and
+cycles are all reported, each cycle once rather than once per member.
+
+**A malformed catalogue fails startup.** Degrading to "no editions" would
+silently ship everything everywhere, which is the precise failure an edition
+exists to prevent: an operator with a broken catalogue would get a working
+installation with none of the scoping they asked for and no sign of it. A
+*missing* file is different and is not an error. A configured edition the
+catalogue does not declare also throws — it is almost always a typo, and the
+fallback would hand out an unrestricted installation to someone who believed
+otherwise.
+
+**Installation identity.** An instance had no id, no name and no notion of
+which edition it ran. Tolerable with one instance; a defect with two, which
+collide on the platform product `nexora-core`, on `organizationId: internal`,
+on catalog namespace `default`, and on artifact coordinates — where a local
+fork silently shadows an upstream version with no signal. `GET /installation`
+answers it now, and it is what T4's origin attribution will consume.
+
+**The scoping is real, which is the point.** Building identity that nothing
+reads would have repeated exactly the failure being corrected. An artifact
+declares `spec.editions`; the registry filters by the installation's resolved
+edition, inheritance included — an artifact scoped to `nexora-core` is
+available to `nexora-life-sciences`, because the narrower edition is a superset
+of the broader one rather than a sibling.
+
+Permissive in one direction only. An artifact declaring no editions is
+available everywhere: requiring every manifest to opt in would empty the
+marketplace of everything written before editions existed, and an artifact with
+no stated audience is not a secret. An installation on no configured edition
+sees everything, which is the honest reading of "the operator has not asked to
+be restricted".
+
+Filtering is applied to both list forms, not only the one the Marketplace
+calls. One HTTP route answering two different questions depending on a query
+parameter is worse than the cost — and there is no cost until an edition is
+configured, because the unscoped path reads no manifests and behaves exactly as
+before.
+
+**A circle closes.** `NXD-075` removed `distribution: [life-sciences]` from the
+GxP policy pack: right intent, wrong axis, and an id that did not even match.
+The axis exists now, and the manifest says `editions: [nexora-life-sciences]`.
+
+**Verified live**, two installations against one database:
+
+- `nexora-hub` on `nexora-life-sciences` — lineage
+  `[nexora-life-sciences, nexora-core]`, **8 capabilities** where the edition
+  declares 4 of its own, `gxpPolicy` resolved, 4 editions in the catalogue;
+  21 artifacts visible, the GxP pack among them.
+- `plant-basel` on `nexora-core` — lineage `[nexora-core]`, 4 capabilities;
+  **20 artifacts visible, the GxP pack absent.**
+
+That is the executed path the closure plan named for Slice 4, reached from T2.
+
+**One operational constraint re-encountered, worth naming twice.** The first
+run showed the pack visible under both editions. The registry already held the
+coordinate from an earlier load, so the *stored* manifest was the old one
+without `spec.editions` — `NXD-030` exactly: editing a manifest without bumping
+its version does not reach a registry that already holds it. The proof required
+dropping the row and reloading. Anyone testing edition scoping against a
+long-lived registry will meet this.
+
+**Shipped without unit tests**, at the product owner's direction; new test
+coverage is deferred to a later end-to-end pass. The four gates stay green on
+the existing suite and the behaviour is proven by the live walk above, but the
+resolver's edge cases — cycles, dangling parents, the permissive defaults —
+are covered by neither, and this record says so rather than leaving a reader to
+assume otherwise.
+
+- Affected components: `packages/platform-common` (`editions.ts` — new,
+  `artifact.ts`, `index.ts`), `plugins/artifact-registry-backend`
+  (`installation.ts` — new, `service.ts`, `router.ts`, `plugin.ts`,
+  `config.d.ts`), `catalog/editions.yaml`,
+  `catalog/artifacts/nexora/gxp-data-product-policy.yaml`.

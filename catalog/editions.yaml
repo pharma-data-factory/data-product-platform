@@ -7,7 +7,15 @@
 #   - What the Marketplace shows as "featured" for each edition
 #
 # Adding a new edition does NOT require changing Core.
-# Core reads this file at startup; it is data, not code.
+#
+# Read at startup by artifact-registry-backend since NXD-078. Until then this
+# line said "Core reads this file at startup" and nothing read it at all — the
+# file was data with no runtime, and the comment made dormant code read as
+# live. It is true now, of that plugin rather than of Core.
+#
+# An installation declares which edition it runs with
+# `artifactRegistry.installation.edition`. An artifact scopes itself with
+# `spec.editions`; declaring none means available everywhere.
 
 apiVersion: nexora.dev/v1alpha1
 kind: EditionCatalogue

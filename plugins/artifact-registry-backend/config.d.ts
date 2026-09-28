@@ -25,5 +25,39 @@ export interface Config {
        */
       sources?: string[];
     };
+    /**
+     * Who this installation is. Federation attributes content to an origin by
+     * it, so the id must be unique across installations that talk to each
+     * other — not merely within one deployment.
+     */
+    installation?: {
+      /** @visibility frontend */
+      id?: string;
+      /** @visibility frontend */
+      displayName?: string;
+      /**
+       * The edition this installation runs, by id from the edition catalogue.
+       *
+       * Absent means no edition scoping: every artifact is visible, which is
+       * the behaviour every installation had before editions were loaded. A
+       * value the catalogue does not declare fails startup rather than
+       * falling back — it is almost always a typo, and the fallback would
+       * hand an operator an unrestricted installation while they believed
+       * they had a scoped one.
+       *
+       * @visibility frontend
+       */
+      edition?: string;
+    };
+    editions?: {
+      /**
+       * Edition catalogue, relative to the working directory. Defaults to
+       * `catalog/editions.yaml`. A missing file is not an error; a malformed
+       * one fails startup.
+       *
+       * @visibility backend
+       */
+      file?: string;
+    };
   };
 }

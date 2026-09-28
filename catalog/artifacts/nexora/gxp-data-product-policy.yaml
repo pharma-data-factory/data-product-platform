@@ -36,6 +36,14 @@ spec:
   # `gxpPolicy: "nexora/gxp-data-product-policy@1.0.0"` under
   # nexora-life-sciences. An edition names the packs it pre-loads; a pack does
   # not name its editions. See NXD-075.
+  #
+  # The statement it was reaching for now has an axis that exists. `editions`
+  # scopes an artifact to the installations that ship it, and the id is the
+  # catalogue's own — `nexora-life-sciences`, not `life-sciences`. Inheritance
+  # counts, so `nexora-enterprise`, which extends life sciences, gets it too.
+  # NXD-078.
+  editions:
+    - nexora-life-sciences
 
   policyDocument:
     version: 1

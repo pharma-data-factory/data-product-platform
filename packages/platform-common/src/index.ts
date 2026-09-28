@@ -598,6 +598,9 @@ export {
   isArtifactManifest,
   isArtifactSegment,
   editionHasCapability,
+  resolveEditions,
+  validateEditionCatalogue,
+  artifactAvailableInEdition,
   isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
@@ -614,6 +617,7 @@ export type {
   ArtifactVersion,
   EditionCatalogue,
   PlatformEdition,
+  ResolvedEdition,
   Publisher,
   PublisherTrustLevel,
 } from './artifact';

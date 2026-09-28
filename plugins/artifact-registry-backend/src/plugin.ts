@@ -17,8 +17,14 @@ import {
 } from './manifestLoader';
 import { ArtifactRegistryRepository } from './repository';
 import { ArtifactRegistryService } from './service';
+import {
+  loadEditionCatalogue,
+  resolveInstallation,
+  type InstallationIdentity,
+} from './installation';
 
 export const DEFAULT_MANIFEST_DIRECTORY = 'catalog/artifacts';
+export const DEFAULT_EDITIONS_FILE = 'catalog/editions.yaml';
 
 export const artifactRegistryPlugin = createBackendPlugin({
   pluginId: 'artifact-registry',
@@ -41,10 +47,50 @@ export const artifactRegistryPlugin = createBackendPlugin({
         config,
       }) {
         const repository = await ArtifactRegistryRepository.create(database);
-        const service = new ArtifactRegistryService(repository);
+
+        // Who this installation is, and what it runs. Both were unanswerable
+        // before NXD-078: an instance had no id and no edition, which is
+        // tolerable while exactly one exists and a defect the moment two do.
+        //
+        // Deliberately not wrapped in a try/catch, unlike the manifest load
+        // below. A manifest that fails to parse costs one artifact; an edition
+        // catalogue that fails to parse would cost the scoping itself, and an
+        // installation that silently ships everything everywhere is worse than
+        // one that refuses to start and says why.
+        const editionsPath = resolveManifestDirectory(
+          config.getOptionalString('artifactRegistry.editions.file') ??
+            DEFAULT_EDITIONS_FILE,
+        );
+        const installation: InstallationIdentity = resolveInstallation({
+          id: config.getOptionalString('artifactRegistry.installation.id'),
+          displayName: config.getOptionalString(
+            'artifactRegistry.installation.displayName',
+          ),
+          editionId: config.getOptionalString(
+            'artifactRegistry.installation.edition',
+          ),
+          catalogue: await loadEditionCatalogue(editionsPath),
+        });
+        logger.info(
+          `Installation ${installation.id} (${installation.displayName}), ` +
+            `edition ${installation.edition?.id ?? 'unscoped'}, ` +
+            `${installation.availableEditions.length} declared in the catalogue`,
+        );
+
+        const service = new ArtifactRegistryService(
+          repository,
+          installation.edition,
+        );
 
         httpRouter.use(
-          await createRouter({ logger, httpAuth, permissions, service, config }),
+          await createRouter({
+            logger,
+            httpAuth,
+            permissions,
+            service,
+            config,
+            installation,
+          }),
         );
         httpRouter.addAuthPolicy({
           path: '/health',

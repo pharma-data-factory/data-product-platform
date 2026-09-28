@@ -269,6 +269,19 @@ export interface ArtifactManifest {
     builtFrom?: string;
     dependencies?: string[];
     distribution?: string[];
+    /**
+     * Platform editions this artifact ships with.
+     *
+     * The axis `distribution` was mistaken for. An edition is an installation
+     * shape — `nexora-core`, `nexora-life-sciences` — and a distribution
+     * channel is a commercial packaging tier. NXD-075 removed a manifest that
+     * declared `distribution: [life-sciences]`; this is where that statement
+     * belongs, spelled with the edition's real id.
+     *
+     * Absent means available everywhere. An artifact with no stated audience
+     * is not a secret.
+     */
+    editions?: string[];
     standardVersion?: string;
     components?: ArtifactCompositionComponent[];
     usage?: ArtifactCompositionUsage;
@@ -500,6 +513,14 @@ function validateSpec(spec: Record<string, unknown>, kind: string): string[] {
     }
   }
 
+  // Editions are validated for shape only. Whether an id names a declared
+  // edition is a question for the installation that loads the catalogue, not
+  // for a manifest read in isolation — a vendor's artifact may legitimately
+  // name an edition this installation has never heard of.
+  if (spec.editions !== undefined && !isStringArray(spec.editions)) {
+    issues.push('spec.editions must be a list of strings');
+  }
+
   // W2-4: validate spec.policies and spec.requirements
   if (spec.policies !== undefined) {
     if (!isStringArray(spec.policies)) {
@@ -616,44 +637,18 @@ export function artifactCoordinateOf(
 }
 
 // ── Platform Editions (W3-8) ──────────────────────────────────────────────────
+//
+// Moved to ./editions.ts, where they gained the `extends` resolution this file
+// only claimed to do. Re-exported so existing importers keep working. NXD-078.
 
-/**
- * A Platform Edition defines a named combination of Core + Artifacts + Capabilities.
- * They are data, not code — a new edition does not require a Core change.
- *
- * NOT YET LOADED. `catalog/editions.yaml` declares four editions and this type
- * describes them, but nothing in the repository reads that file: no loader, no
- * startup hook, no consumer. An earlier version of this comment claimed the
- * editions were "read at startup", which was never true and made dormant code
- * read as live. Closure Slice 4 of `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md`
- * is where the loader lands; until then, treat these types as a declared shape
- * with no runtime behind it.
- */
-export interface PlatformEdition {
-  id: string;
-  displayName: string;
-  description?: string;
-  /** Edition this one extends (inherits capabilities and artifacts). */
-  extends?: string;
-  /** Capability identifiers enabled by this edition. */
-  capabilities: string[];
-  /** Artifact coordinates featured in the Marketplace for this edition. */
-  featuredArtifacts: string[];
-  /** Optional GxP policy pack coordinate (for Life Sciences edition). */
-  gxpPolicy?: string;
-}
-
-export interface EditionCatalogue {
-  editions: PlatformEdition[];
-}
-
-/**
- * Checks whether a capability is enabled in a given edition (or any parent).
- * Performs a simple capability lookup without deep extends resolution.
- */
-export function editionHasCapability(
-  edition: PlatformEdition,
-  capability: string,
-): boolean {
-  return edition.capabilities.includes(capability);
-}
+export type {
+  PlatformEdition,
+  EditionCatalogue,
+  ResolvedEdition,
+} from './editions';
+export {
+  editionHasCapability,
+  resolveEditions,
+  validateEditionCatalogue,
+  artifactAvailableInEdition,
+} from './editions';

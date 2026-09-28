@@ -37,6 +37,7 @@ import {
   publisherManagePermission,
   type Artifact,
 } from '@internal/platform-common';
+import type { InstallationIdentity } from './installation';
 import { ArtifactRegistryService, CreatePublisherRequest } from './service';
 // Static, not `await import('./policyResolver')`. The dynamic form destructured
 // to `undefined` in the running backend — the plugin transpiles to CJS, where
@@ -54,6 +55,8 @@ export interface RouterOptions {
   service: ArtifactRegistryService;
   /** Backstage config for federation (optional — federation disabled when absent). */
   config?: { getOptionalConfig?(key: string): unknown };
+  /** Who this installation is. Absent in tests that do not exercise it. */
+  installation?: InstallationIdentity;
 }
 
 async function authorize(
@@ -163,8 +166,37 @@ function respondError(
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, service, config } = options;
+  const { logger, httpAuth, permissions, service, config, installation } =
+    options;
   const router = Router();
+
+  /**
+   * GET /installation — who this installation is and what it runs.
+   *
+   * The answer that did not exist. A federating peer needs it to attribute
+   * content to an origin, and an operator needs it to tell a publishing
+   * installation from a consuming one at a glance. Read permission: stating
+   * your own name is not a privileged act.
+   *
+   * Returns the resolved edition, so `capabilities` is the flattened set
+   * including everything inherited through `extends` — not the edition's own
+   * list, which is what `editionHasCapability` used to answer and why three of
+   * the four shipped editions under-reported themselves.
+   */
+  router.get('/installation', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, artifactReadPermission);
+      res.json(
+        installation ?? {
+          id: 'unknown',
+          displayName: 'unknown',
+          availableEditions: [],
+        },
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
   router.use(express.json());
 
   /**

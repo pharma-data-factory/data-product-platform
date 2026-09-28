@@ -14,6 +14,7 @@ import {
   isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
+  artifactAvailableInEdition,
   DISTRIBUTION_CHANNELS,
   PUBLISHER_TRUST_LEVELS,
   type Artifact,
@@ -23,6 +24,7 @@ import {
   type ArtifactManifest,
   type ArtifactVersion,
   type DistributionChannel,
+  type ResolvedEdition,
   type Publisher,
 } from '@internal/platform-common';
 import type { ArtifactRegistryRepository } from './repository';
@@ -51,7 +53,33 @@ export interface RegisterArtifactVersionResult {
 }
 
 export class ArtifactRegistryService {
-  constructor(private readonly repository: ArtifactRegistryRepository) {}
+  /**
+   * @param edition This installation's resolved edition, when one is
+   *   configured. Absent means no edition scoping — everything is visible,
+   *   which is the honest reading of "the operator has not asked to be
+   *   restricted" and the behaviour every installation had before NXD-078.
+   */
+  constructor(
+    private readonly repository: ArtifactRegistryRepository,
+    private readonly edition?: ResolvedEdition,
+  ) {}
+
+  /**
+   * The versions of an artifact this installation may see.
+   *
+   * Scoping is per version, because the manifest is where `spec.editions` is
+   * declared and a manifest belongs to a version. An artifact whose every
+   * version is scoped elsewhere disappears entirely — it has nothing to show.
+   */
+  private visibleVersions(versions: ArtifactVersion[]): ArtifactVersion[] {
+    if (!this.edition) return versions;
+    return versions.filter(version =>
+      artifactAvailableInEdition(
+        (version.manifest as ArtifactManifest | undefined)?.spec?.editions,
+        this.edition,
+      ),
+    );
+  }
 
   // -- publishers ----------------------------------------------------------
 
@@ -280,7 +308,19 @@ export class ArtifactRegistryService {
     kind?: Artifact['kind'];
     namespace?: string;
   }): Promise<Artifact[]> {
-    return this.repository.listArtifacts(filter);
+    const artifacts = await this.repository.listArtifacts(filter);
+    // Fast path, and the only path before an edition is configured: no
+    // manifests are read, so this costs exactly what it always did. An
+    // installation that has opted into edition scoping pays for the versions
+    // it must read to apply it — the alternative is one HTTP route answering
+    // two different questions depending on a query parameter.
+    if (!this.edition) return artifacts;
+    const visible: Artifact[] = [];
+    for (const artifact of artifacts) {
+      const versions = await this.repository.listArtifactVersions(artifact.id);
+      if (this.visibleVersions(versions).length > 0) visible.push(artifact);
+    }
+    return visible;
   }
 
   /**
@@ -298,12 +338,14 @@ export class ArtifactRegistryService {
     namespace?: string;
   }): Promise<(Artifact & { versions: ArtifactVersion[]; publisherTrustLevel: string; externalPublisher: boolean })[]> {
     const artifacts = await this.repository.listArtifacts(filter);
-    return Promise.all(
+    const withVersions = await Promise.all(
       artifacts.map(async artifact => {
         const publisher = await this.repository.getPublisherByNamespace(artifact.namespace);
         return {
           ...artifact,
-          versions: await this.repository.listArtifactVersions(artifact.id),
+          versions: this.visibleVersions(
+            await this.repository.listArtifactVersions(artifact.id),
+          ),
           // Phase 7 (P7-S3): include publisher trust so the Marketplace can show
           // trust badges and disclaimers without an extra per-artifact round-trip.
           publisherTrustLevel: publisher?.trustLevel ?? 'INTERNAL',
@@ -311,6 +353,10 @@ export class ArtifactRegistryService {
         };
       }),
     );
+    // An artifact with no visible version has nothing to show, so it is not
+    // shown. Dropping it here rather than returning an empty `versions` array
+    // keeps the Marketplace from rendering a card with no content behind it.
+    return withVersions.filter(artifact => artifact.versions.length > 0);
   }
 
   async getArtifactByCoordinate(
