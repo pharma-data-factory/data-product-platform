@@ -11,6 +11,8 @@
  *   - root resolutions are classified
  *   - no node_modules mutation scripts
  *   - app/backend thinness + cross-plugin boundaries (warning only)
+ *   - every workspace with tests is inside the repo-wide test gate, or its
+ *     exclusion is declared with a reason
  *
  * Node.js standard library only. Exit 0 = no hard violations, exit 1 = FAIL.
  * Run from repository root: yarn guard:platform
@@ -717,6 +719,98 @@ function checkDocumentationLinks() {
 }
 
 // ---------------------------------------------------------------------------
+// CHECK L — which workspaces the repo-wide test gate actually covers
+// ---------------------------------------------------------------------------
+
+/**
+ * Workspaces the repo-wide test run does not cover, each with the reason.
+ *
+ * A workspace whose `test` script is not `backstage-cli package test` runs
+ * under its own runner, and `backstage-cli repo test` — which is what
+ * `yarn test` and CI's `yarn test:all` invoke — does not reach it. Its tests
+ * are then absent from the number every gate report quotes.
+ *
+ * That is tolerable when it is deliberate and visible. It was neither: the
+ * 2026-09-28 gate reported "233 suites, 2116 tests, 0 skipped" while zero
+ * files from `plugins/urs-composer` appeared in the run at all — the plugin
+ * that owns the URS authoring journey. The figure was true as written and
+ * narrower than it read, which is the same class of over-claim the closure
+ * plan exists to prevent.
+ *
+ * Entries here are a promise that someone decided this, not a place to park an
+ * inconvenient workspace. An undeclared deviation FAILS, and so does a stale
+ * entry — if a workspace returns to the standard runner the exemption must go
+ * with it, or the list starts describing a repository that no longer exists.
+ */
+const TEST_GATE_EXEMPT_WORKSPACES = {
+  'plugins/urs-composer':
+    'Runs jest through bin/test.js with BACKSTAGE_OLD_TESTS=true; the current ' +
+    'repo runner cannot execute this package. Its own `yarn test` is green ' +
+    'except for 9 pre-existing CreateWizard failures ("A component suspended ' +
+    'while responding to synchronous input"). Re-inclusion is ranked work, ' +
+    'not a forgotten exclusion.',
+};
+
+const STANDARD_TEST_SCRIPT = 'backstage-cli package test';
+
+function checkTestGateCoverage() {
+  const CHECK = 'TEST_GATE_COVERAGE';
+  const deviating = [];
+
+  for (const pj of collectWorkspacePackageJsons()) {
+    const dir = rel(path.dirname(pj));
+    if (dir === '' || dir === '.') continue; // the root package is the runner
+    const manifest = readJson(pj);
+    const script = manifest?.scripts?.test;
+    if (!script) continue; // nothing to run, nothing to miss
+    if (script.trim() !== STANDARD_TEST_SCRIPT) {
+      deviating.push({ dir, script: script.trim() });
+    }
+  }
+
+  const declared = Object.keys(TEST_GATE_EXEMPT_WORKSPACES);
+  const found = deviating.map(d => d.dir);
+  const undeclared = deviating.filter(d => !(d.dir in TEST_GATE_EXEMPT_WORKSPACES));
+  const stale = declared.filter(d => !found.includes(d));
+
+  if (undeclared.length > 0) {
+    fail(
+      CHECK,
+      `${undeclared.length} workspace(s) run outside the repo-wide test gate ` +
+        `without a declared reason: ${undeclared
+          .map(d => `${d.dir} (test: "${d.script}")`)
+          .join(', ')}. ` +
+        'Either restore `backstage-cli package test` or add an entry to ' +
+        'TEST_GATE_EXEMPT_WORKSPACES stating why the exclusion is deliberate.',
+    );
+    return;
+  }
+
+  if (stale.length > 0) {
+    fail(
+      CHECK,
+      `${stale.length} stale exemption(s) in TEST_GATE_EXEMPT_WORKSPACES: ` +
+        `${stale.join(', ')} now use the standard runner and are covered. ` +
+        'Remove the entry — an exemption list that outlives its reason ' +
+        'understates the gate.',
+    );
+    return;
+  }
+
+  if (deviating.length === 0) {
+    pass(CHECK, 'every workspace with tests runs inside the repo-wide gate');
+    return;
+  }
+
+  warn(
+    CHECK,
+    `the repo-wide test figure excludes ${deviating.length} declared ` +
+      `workspace(s): ${found.join(', ')}. ` +
+      'A green gate means green for everything else.',
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -736,6 +830,7 @@ checkNodeModulesMutation();
 checkCompositionThinness();
 checkCrossPluginBoundaries();
 checkDocumentationLinks();
+checkTestGateCoverage();
 
 console.log('==============================================================');
 console.log('SUMMARY');

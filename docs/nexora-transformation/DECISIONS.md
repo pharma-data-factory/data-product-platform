@@ -3215,3 +3215,93 @@ confirmed over HTTP above, but nobody looked at the page.
   `errorMapping.test.ts`, `traceabilityIntegrity.test.ts`,
   `productBaselineIdentity.test.ts`, `approval-chain.test.ts`,
   `approval-contract.test.ts` and `gxp-invariants.test.ts`.
+
+### NXD-073 — The phase frame retires; the plan that carried it does not
+
+- Date: 2026-09-28
+- Slice: Stage 0 of the re-founded `PHASE_CLOSURE_PLAN.md` — record change, no
+  behaviour, plus one new guardrail check
+- Closes: the stale phase attribution in `PHASE_CLOSURE_PLAN.md` §4/§6, the two
+  `STATUS.md` paragraphs overtaken by `9d80d16`, and the unstated exclusion of
+  `plugins/urs-composer` from the repo-wide test gate
+
+**A plan outlived its organising axis by four days and nobody noticed.**
+`PHASE_CLOSURE_PLAN.md` was written 2026-09-22 to close the eight phases of
+`IMPLEMENTATION_PLAN.md`. On 2026-09-26 `STATUS.md` re-read the literal exit
+criteria and repudiated three of its attributions: per-namespace scoping is
+deferred scope rather than a Phase 2 criterion, GP-7 is a component registry
+rather than the composition hard-coding Phase 3 names, and Editions and
+Federation appear in no phase text at all. Phases 4 and 5 had already been
+closed by Slices 2 and 3.
+
+The document was never updated to match. It therefore continued to present a
+sequence in which **four of the five remaining slices close nothing**, two of
+them ahead of the only one that closes the last phase, justified by a rule
+("highest uncertainty last, so if Slice 8 stalls, seven of eight phases are
+already closed") whose premise was satisfied before any of them began.
+
+**Retiring the document was considered and rejected.** `CLAUDE.md` §1 forbids
+adding a document that claims authority and requires extending #2–#9 instead —
+and this plan *is* #7. More practically, its §2 is the reason it worked: the
+Definition of Done, and in particular point 2, "one real path executed once",
+which is the only DoD item that would have caught Federation and Editions being
+marked complete without ever being configured. That section is independent of
+the phase frame and had to survive. So the frame retires and the document is
+re-founded around a backlog ranked on merit.
+
+**What the frame was hiding.** Two items were mis-ranked by an order of
+magnitude, and in both cases the frame is why:
+
+- **Slice 4's only defect is not a slice at all.** An artifact manifest
+  declares `distribution: [life-sciences]` and the registry casts it unchecked
+  into `DistributionChannel[]`, whose members are `INTERNAL`, `TEMPLATE_EDITION`,
+  `PLATFORM_EDITION`, `SAAS`. The value belongs to a different axis, where it
+  is spelled `nexora-life-sciences`. It is already persisted. That is a
+  validation fix of minutes that sat behind an S-sized loader for a feature
+  nobody has asked to exist.
+- **Half of Slice 8 needs none of Slice 8.** Three of the five registry
+  lifecycle transitions — `submit`, `review`, `deprecate` — resolve no
+  namespace at all, and `deprecateArtifactVersion` takes no actor. Both are
+  reachable with the service-level `memberGroups` check `P7-S2` already added.
+  They sat at position nine of nine, behind an **L** label and a
+  `BACKSTAGE_CORE_PROTECTION_BLOCKED` stop condition that has nothing to do
+  with them. A mutating registry operation that does not know who invoked it is
+  a hole in the audit trail, not a framework gap.
+
+**A gate that was true as written and narrower than it read.** On 2026-09-28
+the four gates reported "233 suites, 2116 tests, 0 skipped" while **zero files
+from `plugins/urs-composer` appeared in the run**. The workspace drives jest
+through its own `bin/test.js` with `BACKSTAGE_OLD_TESTS=true`, so
+`backstage-cli repo test` — which is what `yarn test` and CI's `yarn test:all`
+invoke — never reaches it. The plugin that owns the URS authoring journey was
+outside the number every gate report quotes, including this plan's own DoD
+point 1.
+
+The exclusion is not itself wrong; leaving it unstated was. `TEST_GATE_COVERAGE`
+compares every workspace's `test` script against `backstage-cli package test`
+and requires a named reason for each deviation. It fails in **both**
+directions: an undeclared deviation fails, and so does a stale entry for a
+workspace that has returned to the standard runner — an exemption list that
+outlives its reason understates the gate exactly as silence did. Both
+directions were mutation-checked. The check warns rather than passes while any
+exemption stands, so the exclusion is printed in every run.
+
+Deliberately **not** re-included here: the workspace itself, and the nine
+pre-existing `CreateWizard` failures ("A component suspended while responding
+to synchronous input") that re-inclusion would turn red. The shim exists
+because the current runner cannot execute that package; taking that on at
+position zero is an unbounded React-concurrency investigation, and it is ranked
+in §9.4 instead. Making the omission visible and fixing it are separate acts,
+and only the first is cheap.
+
+**Also corrected, and worth naming because both read as open work:**
+`STATUS.md` still said the `Development` tab "is not built" and that the four
+URS→Product steps were unstarted with step 2 "now the next one". Step 2 landed
+in `9d80d16` on 2026-09-25 and shipped `DevelopmentTab.tsx` with it; the tab set
+has been seven since. Two paragraphs describing work as pending that had been
+done for three days.
+
+- Affected components: `scripts/verify-platform-guardrails.mjs`
+  (`TEST_GATE_COVERAGE`), `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md`
+  (§3.2, §4, §6, the Slice 4/5/7/8 headings, the new §9),
+  `docs/nexora-transformation/STATUS.md`.

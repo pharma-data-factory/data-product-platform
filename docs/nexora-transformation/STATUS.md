@@ -387,10 +387,13 @@ Slices 1 and 2), CI build provenance on the ProductBaseline (closure Slice 3),
 and the verification/validation axes per requirement (Slice 1b). No new
 endpoint was needed for any of them.
 
-**`Development` is not built** — the seventh tab NXD-056 names. `Product` has
-no repository field, no entity reference and no scaffolder bearing, so the tab
-would hold only an explanation of what is missing. It lands with Step 2, which
-creates that identity. Two defects were fixed in passing: the add-component
+**`Development` was not built at the time of this slice** — the seventh tab
+NXD-056 names. `Product` had no repository field, no entity reference and no
+scaffolder bearing, so the tab would have held only an explanation of what was
+missing. It was to land with Step 2, which creates that identity. **It did:
+`DevelopmentTab.tsx` shipped in `9d80d16` together with Step 2, and the tab
+set has been seven since 2026-09-25** (`ProductDetailPage.tsx`). Two defects
+were fixed in passing here: the add-component
 form wrote against the _latest_ version while the picker selected any version
 (the write-path twin of the bug NXD-055 fixed on the read path), and every
 `TextField` on the page was unlabelled because Material UI v4 generates no
@@ -405,13 +408,15 @@ This is not from `PHASE_CLOSURE_PLAN.md`; it came out of a 2026-09-23 analysis
 of the URS → Product Development handoff, which found the journey broken at one
 joint and everything downstream blocked by it. The product side held no
 requirements at all, so there was nothing to map, count, show coverage against
-or hand to a developer. Four further steps are planned on top of it (one door
+or hand to a developer. Four further steps were planned on top of it (one door
 for product creation, export into the generated repo, CI coverage feedback,
-then mandatory binding with change control); none is started. **Step 2 — "one
-door", a `nexora:product:create` scaffolder action writing the repo, the
-Catalog entity and the `products` row in one act — is now the next one**, and
-two deferred items wait on it: the `Development` tab and the cross-link
-between `/products` and `/data-products`.
+then mandatory binding with change control). **Step 2 — "one door", a
+`nexora:product:create` scaffolder action writing the repo, the Catalog entity
+and the `products` row in one act — landed in `9d80d16`**, together with the
+`Development` tab that was waiting on it. Steps 3, 4 and 5 are not started;
+they are ranked in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9 rather
+than here. The other item this paragraph deferred — the cross-link between
+`/products` and `/data-products` — is still open.
 
 One side effect is worth naming: the release gate's `NO_URS_BASELINE` check and
 the `urs-baseline-bound` policy obligation have existed and been tested since
@@ -1417,18 +1422,19 @@ via `docker-compose.test.yml`), at the close of the correctness batch
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
-| Guardrails | `yarn guard:platform`             | PASS (11 pass, 8 documented warnings, 0 fail) |
+| Guardrails | `yarn guard:platform`             | PASS (11 pass, 9 documented warnings, 0 fail) |
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
 | Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2116 tests, **0 skipped**  |
 
-`CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`, which is why
-the split is 11/8 and not 10/9. The eight remaining warnings are all
-documented and deliberately held: five `/alpha` API imports, the
-`@types/react-dom` wildcard, and the two legacy resolutions
+`CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`. The nine
+warnings are all documented and deliberately held: five `/alpha` API imports,
+the `@types/react-dom` wildcard, the two legacy resolutions
 (`@backstage/plugin-permission-react@^0.5.2` against a backend declaring
-`^0.7.2`, and the Material UI lab alpha baseline).
+`^0.7.2`, and the Material UI lab alpha baseline), and — new on 2026-09-28 —
+`TEST_GATE_COVERAGE`, which names the one workspace the repo-wide run does not
+reach. See [`NXD-073`](DECISIONS.md).
 
 The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
@@ -1443,8 +1449,12 @@ the workspace: 9 suites, 79 tests) **except for `CreateWizard.test.tsx`, where
 input".** That failure is **pre-existing** — verified against a stashed tree on
 2026-09-28, not introduced by this batch — but it means the frontend plugin
 that owns the URS authoring journey is outside the gate the rest of the
-repository is measured by. Worth its own slice; recorded here so the 233/2116
-figure is not read as covering it.
+repository is measured by. **The omission is now enforced rather than merely
+recorded**: `TEST_GATE_COVERAGE` in `guard:platform` requires a named reason
+for any workspace outside the repo-wide run, and fails both on an undeclared
+exclusion and on a stale exemption ([`NXD-073`](DECISIONS.md)). Re-including
+the workspace, and the nine failures that would come with it, is ranked in
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.4.
 
 Earlier figures, for the trend: 232 / 2088 at `4599234` on 2026-09-27,
 231 / 2066 at `1a3bafe` earlier the same day, 231 / 2063 at `fab5b0a`,

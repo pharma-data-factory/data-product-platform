@@ -65,21 +65,58 @@ failing guard test is a question, not an obstacle.
 ## 3. Sequencing principle
 
 Strictly sequential. One slice at a time, each landing green before the next
-starts. No parallel tracks.
+starts. No parallel tracks. **That rule survives everything below and is the
+one thing in this section that has not changed.**
 
-The order is driven by three rules:
+### 3.1 The original three rules, and why two of them are spent
 
-1. **Structural before decorative.** The `DataContract` model is load-bearing
-   for exchange definitions, subscriptions and impact analysis. It moves first,
-   in one designed migration, because a half-migrated contract model would
-   force every later slice to handle both shapes.
-2. **Dormant code before new code.** Editions and Federation already exist and
-   do nothing. Making them work is cheaper than building anything new, and it
-   removes the misleading signal that they are done.
-3. **Highest uncertainty last, with a stop condition.** Per-namespace
-   permission scoping needs Backstage machinery this repository has never used.
-   It goes last so that if it stalls, seven of eight phases are already closed
-   rather than none.
+1. **Structural before decorative.** Spent: `DataContract` moved in Slices 1
+   and 2.
+2. **Dormant code before new code.** Its cheapness argument survives; its real
+   argument — "it removes the misleading signal that they are done" — has been
+   satisfied for free. `STATUS.md` now records Editions and Federation as
+   inert Wave-3 scaffolding, so the signal is gone at the cost of a paragraph.
+3. **Highest uncertainty last.** Its justification is dead text. It read "if
+   Slice 8 stalls, seven of eight phases are already closed rather than none" —
+   and seven of eight are closed *now*, before any remaining slice begins.
+
+### 3.2 Re-founded 2026-09-28: the phase frame retires, the plan does not
+
+This document was organised around closing the eight phases of
+`IMPLEMENTATION_PLAN.md`. That axis is exhausted, and keeping it produced a
+measurably wrong order.
+
+`STATUS.md` repudiated this plan's phase attribution on 2026-09-26, four days
+after it was written: per-namespace scoping is *"deferred, not part of Phase
+2"*; GP-7 is *"a component registry, not the hard-coded domain composition
+Phase 3 names"*; Editions and Federation *"appear in no phase text at all —
+they are Wave 3, post-plan"*. So of the five slices that remained, **exactly
+one — Slice 6 — closes a phase**, and the order in §6 placed two Wave-3 slices
+that close nothing in front of the last phase gate.
+
+Two consequences were buried by that frame and are now surfaced:
+
+- **Slice 4's only real defect is not a slice.** An artifact manifest declares
+  `distribution: [life-sciences]`, and the registry casts it unchecked into
+  `DistributionChannel[]` — a value from a different axis, already persisted,
+  under an id that does not even match the edition's. That is a validation fix
+  of minutes, ranked behind an S-sized loader.
+- **Half of Slice 8 needs none of Slice 8's machinery.** Three of the five
+  registry lifecycle transitions perform no namespace check at all, and
+  `deprecateArtifactVersion` takes no actor. Both are fixable with the
+  service-level `memberGroups` check `P7-S2` already added. They sat at
+  position nine behind an **L** and a stop condition they have nothing to do
+  with.
+
+**What this document keeps:** §2 — the Definition of Done and the stop
+conditions. Those are why the plan worked, and they are independent of the
+phase frame. Point 2 ("one real path executed once") continues to apply to
+every item in §9.
+
+**What it loses:** the phase labels on Slices 4, 5, 7 and 8, and their
+inherited position. §9 ranks them against everything else on merit.
+
+See `NXD-073`.
 
 ---
 
@@ -87,20 +124,29 @@ The order is driven by three rules:
 
 What each phase still owes, with the evidence.
 
+**Corrected 2026-09-28.** The table below is the current state. The evidence
+paragraphs that follow it were written 2026-09-22 and several are now
+historical; each stale one is marked.
+
 | Phase | Status | Open gaps |
 | --- | --- | --- |
 | 0 — Stabilize | **Closed** | None. `.github/workflows/ci.yml` runs all four gates. |
 | 1 — Core Domain | **Closed** | None. One `Product` model repo-wide. |
-| 2 — Registry / Marketplace | **Open** | Per-namespace permission scoping |
-| 3 — Product Studio / AI | **Open** | GP-7 |
-| 4 — Exchange / Contracts | **Open** | Contract identity; provider-neutral exchange |
-| 5 — Verification / Validation | **Open** | CI evidence → ProductBaseline not automated |
+| 2 — Registry / Marketplace | **Closed** | None. Per-namespace scoping is deferred scope, not a Phase 2 criterion — see §3.2. |
+| 3 — Product Studio / AI | **Closed** | None. GP-7 is inventory debt, not the composition hard-coding Phase 3 names. |
+| 4 — Exchange / Contracts | **Closed** | None. Closed by Slices 1 and 2. |
+| 5 — Verification / Validation | **Closed** | None. Closed by Slice 3. |
 | 6 — Consumer / Analytics | **Closed** | None. |
-| 7 — Ecosystem / Scale | **Open** | Editions; Federation; package/source providers |
+| 7 — Ecosystem / Scale | **Open** | **Package/source providers — the last phase-level gap in the repository.** Editions and Federation are Wave 3 and belong to no phase. |
+
+**Seven of eight are closed. Slice 6 closes the eighth.**
 
 ### Evidence
 
-**P2 — per-namespace scoping.** All eight registry permissions are
+**P2 — per-namespace scoping.** _[Not a Phase 2 criterion — deferred scope per
+§3.2. Two line references below have drifted: `router.ts:433` is now `:486`,
+and the gap is wider than described — `submit`, `review` and `deprecate`
+resolve no namespace at all.]_ All eight registry permissions are
 `BasicPermission`. `packages/backend/src/permission/policy.ts` returns a plain
 `AuthorizeResult.ALLOW | DENY` — no conditional decision anywhere in the
 repository. `router.ts:433` authorizes `artifactCertifyPermission` before
@@ -109,38 +155,51 @@ service-level `memberGroups` membership check, so the plumbing exists; what is
 missing is framework-level scoping and list filtering. See
 [`NXD-014`](DECISIONS.md).
 
-**P3 — GP-7.** `RUNTIME_PACKAGE_COMPONENT_NAMES`,
+**P3 — GP-7.** _[Not a Phase 3 criterion — inventory debt per §3.2. The
+sub-task "correct the GP-8 row" is done: the table now reads "GP-7 is the only
+open row".]_ `RUNTIME_PACKAGE_COMPONENT_NAMES`,
 `RUNTIME_PACKAGE_SOURCE_PATHS` and `CATALOG_ONLY_COMPONENT_NAMES` in
 `platform-component-library.ts` are still a fixed component registry in Core.
 Last open row of `HARDCODED_DOMAIN_INVENTORY.md`.
 
-**P4 — contract identity.** `DataContract.productComponentId` is still the key.
+**P4 — contract identity.** _[Historical — closed by Slice 1.]_
+`DataContract.productComponentId` is still the key.
 Its own doc comment at `product.ts:192` says "Phase 4 later slices will promote
 contracts to a first-class namespace so they can be referenced across
 products". Those slices never happened. A contract cannot be referenced by a
 stable coordinate from outside its component.
 
-**P4 — provider-neutral exchange.** The Phase 0 audit listed the target fields:
+**P4 — provider-neutral exchange.** _[Historical — closed by Slice 2.]_
+The Phase 0 audit listed the target fields:
 semantics, SLA, classification, access policy, delivery mechanism. The shipped
 `DataContract` has `name`, `owner?`, `schemaType`, `schemaRef`, `contractSpec`,
 `status`, `version`, `qualityRules`. None of the exchange fields exist.
 `grep -E 'deliveryMechanism|accessPolicy|exchangeType'` over `product.ts`
 returns nothing.
 
-**P5 — CI evidence chain.** `ProductBaseline.snapshot` carries
+**P5 — CI evidence chain.** _[Historical — closed by Slice 3; CI now posts to
+`POST /baselines/:id/provenance`.]_ `ProductBaseline.snapshot` carries
 `releaseCommitSha` and `artifactDigest` (P5-S5), and the service threads them
 through. Nothing populates them: the only writers are the request body and a
 copy from the version row. `.github/workflows/ci.yml` never calls the Composer.
 The chain the phase specifies — CI evidence → ProductBaseline — is a manual
 field, not an automated link.
 
-**P7 — Editions.** `catalog/editions.yaml` declares four editions with an
+**P7 — Editions.** _[Wave 3, in no phase text. Two corrections: the
+`artifact.ts` "read at startup" claim was already fixed in `f054b3c`, though
+`catalog/editions.yaml:10` still carries the same lie; and there are **three**
+axes using the word, not two — `PlatformEdition`, `COMMERCIAL_EDITIONS` and
+`DistributionChannel`, the last of which `ArtifactVersion.distribution` is
+already typed against.]_ `catalog/editions.yaml` declares four editions with an
 `extends` hierarchy; `PlatformEdition` and `EditionCatalogue` are exported.
 Nothing reads the file. `artifact.ts:593` claims editions are "read at
 startup"; they are not. Separately, `COMMERCIAL_EDITIONS` in
 `commercial-products.ts` uses the same word for a different axis.
 
-**P7 — Federation.** Client, scheduler and `?includeFederated=true` are wired.
+**P7 — Federation.** _[Wave 3, in no phase text. Understated: there are also
+**zero tests**, and `plugins/artifact-registry-backend/config.d.ts` declares no
+`federation` key — so no configuration can be written until the type is
+extended.]_ Client, scheduler and `?includeFederated=true` are wired.
 `grep federation app-config*.yaml` returns nothing. Never executed against a
 remote.
 
@@ -242,7 +301,7 @@ the SHA that CI produced.
 
 ---
 
-### Slice 4 — Editions load and gate distribution — S · Phase 7
+### Slice 4 — Editions load and gate distribution — S · Wave 3, closes no phase
 
 The cheapest dormant-code kill, and it forces the naming collision open.
 
@@ -260,7 +319,7 @@ manifest already claims and nothing currently enforces.
 
 ---
 
-### Slice 5 — Federation runs against a real registry — M · Phase 7
+### Slice 5 — Federation runs against a real registry — L · Wave 3, closes no phase
 
 - Configure `artifactRegistry.federation` and point it at a second registry.
   A second local instance is sufficient and is the honest test: the client's
@@ -290,7 +349,7 @@ provider and read it back through the same API as a filesystem artifact.
 
 ---
 
-### Slice 7 — GP-7 out of Core — M · closes Phase 3
+### Slice 7 — GP-7 out of Core — M · inventory debt, closes no phase
 
 - `RUNTIME_PACKAGE_COMPONENT_NAMES`, `RUNTIME_PACKAGE_SOURCE_PATHS` and
   `CATALOG_ONLY_COMPONENT_NAMES` become registry-resolved rather than a Core
@@ -303,7 +362,7 @@ see it appear in the library.
 
 ---
 
-### Slice 8 — Per-namespace permission scoping — L · closes Phase 2
+### Slice 8 — Per-namespace permission scoping — L · deferred scope, closes no phase
 
 Last, and the only slice that needs Backstage ground the repository has never
 used. Begin with a **timeboxed spike** before committing to an approach.
@@ -340,20 +399,20 @@ Slice 2  Exchange definitions (M)   ══ PHASE 4 CLOSED
    │
 Slice 3  CI evidence (M)            ══ PHASE 5 CLOSED
    │
-Slice 4  Editions loader (S)
-   │
-Slice 5  Federation operational (M)
-   │
-Slice 6  Package providers (M)      ══ PHASE 7 CLOSED
-   │
-Slice 7  GP-7 out of Core (M)       ══ PHASE 3 CLOSED
-   │
-Slice 8  Namespace scoping (L)      ══ PHASE 2 CLOSED  (stop condition applies)
+Slice 6  Package providers (M)      ══ PHASE 7 CLOSED — the eighth and last
 ```
 
-Only Slice 1 → Slice 2 is a hard dependency. The rest is a priority order, so
-a slice can be re-prioritised without breaking the ones after it — but only one
-runs at a time.
+**Re-founded 2026-09-28 (§3.2).** Slices 4, 5, 7 and 8 were here, in that
+order, each annotated with a phase it does not in fact close. Those
+annotations were wrong — Phases 2 and 3 were already closed, and Editions and
+Federation belong to no phase — and the order they implied put two Wave-3
+slices in front of the last phase gate. They have been moved to §9 and ranked
+on merit. Two things that were buried inside them come first instead, because
+both are defects rather than features: the wrong-axis `distribution` cast, and
+the three registry transitions that resolve no namespace at all.
+
+Only Slice 1 → Slice 2 was a hard dependency. Within §9 the dependencies are
+stated per item; the one-at-a-time rule from §3 still holds.
 
 ---
 
@@ -390,3 +449,115 @@ robust.
    2026-09-22 were catching real regressions. Treat a red guard as a question.
 4. **Slices land faster than `DECISIONS.md` grows.** That is the 2026-09-21
    failure in miniature: thirty commits, two decision records.
+
+---
+
+## 9. After the phases — the backlog, ranked on merit
+
+Added 2026-09-28 with the re-founding in §3.2. Everything below competes on
+merit; nothing here holds a position it inherited from the phase frame. Sizes
+use §5's vocabulary: **S** one or two files, **M** a plugin, **L** a schema
+migration or new framework ground.
+
+§2's Definition of Done applies unchanged, with one clarification forced by
+these items: **batch by executed path, not by category.** Point 2 asks for
+*one* real path per unit of work, so a batch of unrelated small fixes either
+violates it or staples three unconnected `curl` outputs into one commit body.
+Items with no executable path — a rename, a config default, a corrected
+paragraph — are labelled as record or configuration changes and exempted
+explicitly, rather than smuggled under point 2.
+
+### 9.1 Before anything else
+
+| # | Item | Size |
+| --- | --- | --- |
+| 0.1 | **Make the test gate's coverage visible.** `plugins/urs-composer` runs its own runner, so `backstage-cli repo test` never reaches it and every "four gates green" claim is narrower than it reads. `TEST_GATE_COVERAGE` in `verify-platform-guardrails.mjs` now compares each workspace's `test` script against the standard one and requires a named reason for any deviation. **Done 2026-09-28.** | S |
+| 0.2 | **Correct the record.** This section, §3.2, §4's table, §6, and the two `STATUS.md` paragraphs overtaken by `9d80d16`. **Done 2026-09-28** (`NXD-073`). Record change — exempt from DoD point 2. | S |
+
+Deliberately *not* in 0.2: `catalog/editions.yaml:10`, which still claims
+"Core reads this file at startup". That line belongs to whichever slice decides
+whether a loader is ever coming; correcting it now means writing an interim
+statement that is immediately replaced.
+
+### 9.2 Two defects buried inside slices
+
+Both are executable today and need no decision.
+
+| # | Item | Size |
+| --- | --- | --- |
+| 1.1 | **A value from the wrong axis, already persisted.** `gxp-data-product-policy.yaml` declares `distribution: [life-sciences]`; the registry service casts it unchecked into `DistributionChannel[]`, whose members are `INTERNAL`/`TEMPLATE_EDITION`/`PLATFORM_EDITION`/`SAAS`. The value belongs to the `PlatformEdition` axis, where it is spelled `nexora-life-sciences`. Reject it or map it; fail loudly. | S |
+| 1.2 | **Three registry transitions check nothing.** `submit`, `review` and `deprecate` run through the shared transition helper with no actor and no namespace resolution; `deprecateArtifactVersion` takes no actor at all. This needs no conditional permissions — the service-level `memberGroups` check from `P7-S2` already exists. A mutating registry operation that does not know who invoked it is a hole in the audit trail, not a framework gap. | M |
+
+### 9.3 The eighth phase
+
+| # | Item | Size |
+| --- | --- | --- |
+| 2.1 | **Slice 6 — package and source providers. Closes Phase 7, the last one.** | M |
+
+Two constraints, both learned from this plan's own history:
+
+- **Decide the second provider before starting.** §5 already says an interface
+  with one implementation is not an abstraction. Expect a possible
+  `DEPENDENCY_CHANGE_REQUIRED` — an OCI provider almost certainly triggers
+  `AGENTS.md`'s unapproved-dependency stop condition, and that signal is worth
+  having early rather than late.
+- **Explicit non-goal: `RUNTIME_PACKAGE_SOURCE_PATHS` does not migrate with
+  it.** Checked 2026-09-28: `sourcePath` is read at exactly two sites, both in
+  `PlatformComponentDetailPage.tsx`, and both only *display* it — nothing opens
+  the path. Slices 6 and 7 therefore do not overlap. Without stating this,
+  Slice 6 would build an abstraction for a consumer that never arrives, which
+  is the Editions failure mode repeated.
+
+### 9.4 The ranked backlog
+
+| Rank | Item | Size | Blocked by |
+| --- | --- | --- | --- |
+| 1 | **Remove the hard-coded GitHub org.** 29 source sites (7 templates × 4, plus `ComposePage.tsx`) and ~16 test assertions. The reference implementation is already in the repository: `node-service` and `mqtt-connector` use `${{ parameters.repoUrl }}`, and the 7 offending templates already *collect* the picker value and discard it. First because it clears the same seven files rank 5 must edit. | M | one decision |
+| 2 | **Evidence-package aggregator**, read-only over the ~15 endpoints that already return every piece. `validation-expert-backend`'s `buildOverview()` is the reusable assembly shape, including its pattern of merging static and runtime sources. | M | nothing |
+| 3 | **Hybrid GMP**, if wanted at all | M | one decision |
+| 4 | **Product-side change control.** The URS implementation is complete and largely liftable; `ChangeRequestStatus` and `SignatureTargetType.CHANGE_REQUEST` are already in `platform-common`. | L | rank 3, and the signature decision below |
+| 5 | **URS→Product steps 3 → 4 → 5.** Step 2 landed in `9d80d16`. | M each | 3: an ordering decision · 4: step 3 · 5: rank 4 |
+| 6 | **Slice 7 — GP-7 out of Core.** Last open row of `HARDCODED_DOMAIN_INVENTORY.md`. | M | nothing |
+| 7 | **Slice 4 remainder** — load the editions, resolve the three naming axes | S–M | nothing |
+| 8 | **Slice 5 — Federation.** Needs `config.d.ts` extended before any config is writable, a second port, a second database, and an answer to whether a second Backstage instance accepts the raw bearer the client sends. Zero tests. The most expensive executed path in the backlog. | L | nothing |
+| 9 | **Return `urs-composer` to the gate**, with its 9 pre-existing `CreateWizard` failures | ? | unknown cost |
+| 10 | **Slice 8 spike** — conditional permissions | L | stop condition |
+
+Out of scope here, as §7 already implies: the AI Test Coordinator, the AI GMP
+Impact Agent, Kubernetes and platform observability, Marketplace
+install/update. `TARGET_CONFORMANCE_AUDIT.md` §11 excludes them from MVP1
+explicitly. They need their own plans, not ranks in this one.
+
+### 9.5 The decisions that gate ranks
+
+**Does the product side need an electronic signature?** Recorded here because
+it was nearly planned as a prerequisite slice, and should not be:
+
+- `docs/compliance/traceability-and-gmp.md` §1.2 scopes electronic signatures
+  to `urs-composer-backend`. Its gap list G-1…G-7 does **not** include
+  "product-side approvals are unsigned". §4 rule 2 — nobody approves their own
+  work — already holds, through permission plus segregation of duties, and
+  answers 403 since `NXD-072`.
+- "Lift the signature service into `platform-common`" is not a lift. It is 465
+  lines importing seven URS domain types and a repository handle, and
+  `signature_credentials` lives in the URS plugin's own database.
+  `AGENTS.md` §PLUGIN BOUNDARIES forbids the cross-plugin reach, and
+  `NXD-066` already met this exact wall and chose duplication.
+
+So it is **a decision to record, not a slice to land** — and it must be taken
+before rank 2 ships. An evidence package that prints "URS baseline: signed by
+X, QA role, second factor, hash-bound" beside "Product baseline: approved by Y"
+invites precisely the question one does not want asked in an audit.
+
+| Decision | Gates |
+| --- | --- |
+| Is the GitHub org user-chosen (adopt the `node-service` idiom — no new machinery) or platform-configured (a new config key, plus a way to reach static template YAML *and* `ComposePage.tsx`, neither of which reads config today)? | rank 1 |
+| Hybrid GMP: does it count as GxP-relevant, and which approval workflow does it select? **The two incompatible idioms must be reconciled first** — allow-list (`=== DIRECT \|\| === INDIRECT`) against deny-list (`!== 'NONE'`) — or the fourth level behaves differently in the release gate than in the policy evaluator. Three parallel enum declarations, 11 edit sites. | rank 3 |
+| Step 3 ordering: read the URS baseline at `fetch-base` time, or make a second commit after `publish:github`? `nexora:product:create` runs **last**, so at repo-content time no product version exists yet. | rank 5 |
+| Which second content provider? | §9.3 |
+
+**One pairing to avoid.** `gxpRelevance` is a hashed field in
+`content-hash.ts`, so a fourth level is a migration question about
+already-signed content and needs the explicit invariant *no signed row changes
+level*. Never schedule the signature decision and Hybrid GMP adjacently: that
+is two simultaneous changes to the same invariant.
