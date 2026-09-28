@@ -513,7 +513,7 @@ Two constraints, both learned from this plan's own history:
 | Rank | Item | Size | Blocked by |
 | --- | --- | --- | --- |
 | 1 | **Remove the hard-coded GitHub org.** 29 source sites (7 templates × 4, plus `ComposePage.tsx`) and ~16 test assertions. The reference implementation is already in the repository: `node-service` and `mqtt-connector` use `${{ parameters.repoUrl }}`, and the 7 offending templates already *collect* the picker value and discard it. First because it clears the same seven files rank 5 must edit. | M | one decision |
-| 2 | **Evidence-package aggregator**, read-only over the ~15 endpoints that already return every piece. `validation-expert-backend`'s `buildOverview()` is the reusable assembly shape, including its pattern of merging static and runtime sources. | M | nothing |
+| 2 | **Done 2026-09-28** (`NXD-077`). **Evidence-package aggregator**, read-only over the ~15 endpoints that already return every piece. `validation-expert-backend`'s `buildOverview()` is the reusable assembly shape, including its pattern of merging static and runtime sources. | M | nothing |
 | 3 | **Hybrid GMP**, if wanted at all | M | one decision |
 | 4 | **Product-side change control.** The URS implementation is complete and largely liftable; `ChangeRequestStatus` and `SignatureTargetType.CHANGE_REQUEST` are already in `platform-common`. | L | rank 3, and the signature decision below |
 | 5 | **URS→Product steps 3 → 4 → 5.** Step 2 landed in `9d80d16`. | M each | 3: an ordering decision · 4: step 3 · 5: rank 4 |

@@ -148,6 +148,84 @@ export interface ReleaseGateBlocker {
 }
 
 /**
+ * Everything the platform can attest about one product version, assembled.
+ *
+ * Every field below was already readable — through some fifteen separate
+ * endpoints. Nothing composed them, so demonstrating that a product had been
+ * governed meant a human making fifteen calls and stapling the answers
+ * together, which is exactly the task an inspector asks for and exactly the
+ * one the platform made hardest.
+ *
+ * Read-only and derived. It writes nothing, stores nothing, and holds no
+ * opinion the underlying records do not already hold — re-running it after a
+ * change yields the new answer rather than a stale snapshot. A frozen,
+ * signed export is a different artifact and would need its own content hash;
+ * this is the aggregation that has to exist first.
+ *
+ * Modelled on `buildOverview` in `validation-expert-backend`, including the
+ * part that matters most: `limits`. A package that does not say what it fails
+ * to prove invites the reader to assume it proves everything.
+ */
+export interface ProductEvidencePackage {
+  generatedAt: Date;
+  product: Product;
+  version: ProductVersion;
+  /** The URS baseline this version implements, if one is bound. */
+  ursBaselineId?: string;
+  requirements: ProductRequirement[];
+  coverage: ProductRequirementCoverage;
+  functionalSpecifications: FunctionalSpecification[];
+  functionalSpecTrace: FunctionalSpecificationTraceRow[];
+  components: ProductComponent[];
+  contracts: DataContract[];
+  traceabilityLinks: TraceabilityLink[];
+  baselines: ProductBaseline[];
+  releaseGate: { passed: boolean; blockers: ReleaseGateBlocker[] };
+  /** Append-only trail for the version and for the product that owns it. */
+  auditTrail: ComposerAuditEvent[];
+  /**
+   * What this package does not establish. Written into the document rather
+   * than into documentation, because the reader of an evidence package is
+   * rarely the reader of a repository.
+   */
+  limits: readonly string[];
+}
+
+/**
+ * What an evidence package does not establish.
+ *
+ * Carried in the document rather than left to documentation. The reader of an
+ * evidence package is rarely the reader of this repository, and a package that
+ * states no limits invites the reader to assume there are none — which is the
+ * failure mode a regulated record is least able to afford.
+ *
+ * Each line is a position the platform holds and can defend, not a gap it is
+ * embarrassed by. They are recorded in `NXD-077`.
+ */
+const EVIDENCE_PACKAGE_LIMITS: readonly string[] = [
+  // NXD-074 asked whether the product side needs electronic signatures and
+  // answered no: traceability-and-gmp.md scopes them to the URS side, its gap
+  // list does not name product approvals, and "nobody approves their own work"
+  // already holds through permission plus segregation of duties. But the
+  // asymmetry becomes visible exactly here, printed beside a URS baseline that
+  // *is* signed — so it is stated rather than left for a reader to notice.
+  'Product-side approvals are authorised and attributed, not electronically ' +
+    'signed. A URS baseline carries a 21 CFR Part 11 signature bound to a ' +
+    'content hash; a product baseline approval carries the actor, the ' +
+    'timestamp and a segregation-of-duties refusal if the approver authored ' +
+    'it. The two are not equivalent and this package does not present them as ' +
+    'equivalent.',
+  'Deployment is not recorded. Nexora governs and attests; the microservice ' +
+    'itself is deployed by GitHub. A released version here means the release ' +
+    'gate passed, not that anything is running.',
+  'Events are correlated within this plugin, not across plugins. Acts on the ' +
+    'URS side and acts on the product side cannot yet be joined into one ' +
+    'operation — see NXD-066.',
+  'This is a derived reading, not a frozen export. It reflects the records as ' +
+    'they stand when it is generated, and carries no content hash of its own.',
+];
+
+/**
  * Page size `getArtifactChangeImpact` reads the product table with. Impact
  * analysis is only correct if it sees every product, so this has to exceed the
  * real product count; it is a bound against an unbounded scan, not a page the
@@ -2236,6 +2314,90 @@ export class ComposerService {
     entityId: string,
   ): Promise<ComposerAuditEvent[]> {
     return this.repository.getEntityAuditTrail(entityType, entityId);
+  }
+
+  /**
+   * Assembles the evidence package for one product version.
+   *
+   * Composition only — every call below is an existing read, and this method
+   * adds no query the platform could not already answer. What it adds is that
+   * the answers arrive together.
+   *
+   * The release gate is included deliberately, passing or not. A package that
+   * omitted its blockers would be a sales document; the interesting case for
+   * an inspector is a version that is *not* releasable and can say precisely
+   * why.
+   *
+   * Two audit trails are merged, `PRODUCT_VERSION` and `PRODUCT`. Only the
+   * former had a route; the acts that created and governed the product itself
+   * were recorded and unreachable.
+   */
+  async buildEvidencePackage(
+    productVersionId: string,
+  ): Promise<ProductEvidencePackage> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(
+        `Product version ${productVersionId} not found`,
+      );
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product) {
+      // A version without its product is a broken record, not an empty one.
+      throw new NotFoundError(
+        `Product ${version.productId} not found for version ${productVersionId}`,
+      );
+    }
+
+    const components = await this.repository.listProductComponents(
+      productVersionId,
+    );
+    const contracts: DataContract[] = [];
+    for (const component of components) {
+      contracts.push(...(await this.repository.listDataContracts(component.id)));
+    }
+
+    const componentIds = new Set(components.map(c => c.id));
+    const specs = await this.repository.listFunctionalSpecifications(
+      productVersionId,
+    );
+    const specIds = new Set(specs.map(s => s.id));
+    const allLinks = await this.repository.listTraceabilityLinks();
+
+    return {
+      generatedAt: new Date(),
+      product,
+      version,
+      ursBaselineId: version.ursBaselineId,
+      requirements: await this.repository.listProductRequirements(
+        productVersionId,
+      ),
+      coverage: await this.getRequirementCoverage(productVersionId),
+      functionalSpecifications: specs,
+      functionalSpecTrace: await this.getFunctionalSpecTrace(productVersionId),
+      components,
+      contracts,
+      // Scoped to this version's own entities. `getProductTraceability` spans
+      // every version of a product, which is the right answer for a lineage
+      // view and the wrong one for a package about a single version.
+      traceabilityLinks: allLinks.filter(
+        link =>
+          componentIds.has(link.sourceId) ||
+          componentIds.has(link.targetId) ||
+          specIds.has(link.sourceId) ||
+          specIds.has(link.targetId),
+      ),
+      baselines: await this.repository.listProductBaselines(productVersionId),
+      releaseGate: await this.checkReleaseGate(productVersionId),
+      auditTrail: [
+        ...(await this.repository.getEntityAuditTrail(
+          'PRODUCT_VERSION',
+          productVersionId,
+        )),
+        ...(await this.repository.getEntityAuditTrail('PRODUCT', product.id)),
+      ].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()),
+      limits: EVIDENCE_PACKAGE_LIMITS,
+    };
   }
 
   async getProductTraceability(productId: string): Promise<{

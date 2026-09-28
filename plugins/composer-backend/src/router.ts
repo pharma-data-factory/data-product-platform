@@ -1069,6 +1069,32 @@ export async function createRouter(
     },
   );
 
+  // ── Evidence package ───────────────────────────────────────────────────────
+  /**
+   * GET /versions/:versionId/evidence-package
+   *
+   * Everything the platform can attest about one version, in one document:
+   * requirements, coverage across both axes, functional specifications and
+   * their trace, components, contracts, traceability, baselines with CI
+   * provenance, the release gate with its blockers, and the merged audit
+   * trail — plus an explicit statement of what it does not prove.
+   *
+   * Read permission, not manage: assembling an attestation changes nothing.
+   * Every part was already readable through some fifteen separate endpoints;
+   * what was missing is that they arrive together.
+   */
+  router.get(
+    '/versions/:versionId/evidence-package',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.buildEvidencePackage(req.params.versionId));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   // ── Multi-hop Lineage DAG (W3-1) ───────────────────────────────────────────
   /** GET /versions/:id/lineage/dag?depth=N — full multi-hop lineage graph */
   router.get('/versions/:id/lineage/dag', async (req, res) => {

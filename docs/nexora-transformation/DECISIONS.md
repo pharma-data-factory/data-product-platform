@@ -3614,3 +3614,88 @@ Mutation-checked: making the loader ignore its extra sources fails five tests.
 - Affected components: `plugins/artifact-registry-backend`
   (`contentProviders.ts` — new, `manifestLoader.ts`, `plugin.ts`,
   `config.d.ts`, `manifestLoader.test.ts`).
+
+### NXD-077 — The evidence package, and the signature asymmetry it makes visible
+
+- Date: 2026-09-28
+- Slice: `PHASE_CLOSURE_PLAN.md` §9.4 rank 2
+- Closes: rank 2, and the open question `NXD-074` attached to it — whether the
+  product side needs electronic signatures
+
+**Fifteen endpoints already answered every part of the question. Nothing asked
+it.** Requirements, coverage across both axes, functional specifications and
+their trace, components, contracts, traceability, baselines with CI
+provenance, the release gate, the audit trail — all readable, none composed.
+Demonstrating that a product had been governed therefore meant a human making
+fifteen calls and stapling the answers together, which is precisely the task an
+inspector asks for and precisely the one the platform made hardest.
+
+`GET /versions/:versionId/evidence-package` assembles them. It is composition
+only: no new query, no new table, and it adds no fact the records did not
+already hold. Read permission rather than manage, because assembling an
+attestation changes nothing.
+
+Three choices worth not rediscovering.
+
+**The release gate is included whether it passes or not.** A package that
+omitted its blockers would be a sales document. The case an inspector cares
+about is the version that *cannot* be released and can say exactly why — the
+live run below reports five blockers and is more useful for it.
+
+**Two audit trails are merged.** `getEntityAuditTrail` was generic all along,
+but only `PRODUCT_VERSION` had a route: the acts that created and governed the
+product itself were recorded and unreachable. Both are included, sorted.
+
+**Traceability is scoped to the version.** `getProductTraceability` spans every
+version of a product, which is right for a lineage view and wrong for a
+document about one version.
+
+**The signature question, answered.** `NXD-074` said the decision had to be
+recorded before this shipped, because the asymmetry becomes visible exactly
+here — a URS baseline that *is* signed printed beside a product approval that
+is not. The answer is that the product side does **not** get electronic
+signatures:
+
+- `docs/compliance/traceability-and-gmp.md` §1.2 scopes them to the URS side,
+  and its gap list G-1…G-7 does not name product approvals;
+- §4 rule 2, "nobody approves their own work", already holds through permission
+  plus segregation of duties, answering 403 since `NXD-072`;
+- lifting the URS signature service is not a lift — 465 lines importing seven
+  URS domain types and a repository handle, with credentials in that plugin's
+  own database. `AGENTS.md` forbids the cross-plugin reach and `NXD-066`
+  already met this wall and chose duplication.
+
+So the asymmetry is **held, not closed** — and therefore stated. The package
+carries a `limits` array, and the first entry says in plain words that a URS
+baseline carries a Part 11 signature bound to a content hash while a product
+approval carries an actor, a timestamp and an SoD refusal, and that the two are
+not equivalent.
+
+That idea is borrowed from `buildOverview` in `validation-expert-backend`,
+which ends with `notes` saying what it is and is not. It is the most reusable
+thing in that file: **a document that does not say what it fails to prove
+invites the reader to assume it proves everything**, and the reader of an
+evidence package is rarely the reader of this repository. The other three
+limits record that deployment is not Nexora's (`NXD-074`), that cross-plugin
+correlation is still open (`NXD-066`), and that this is a derived reading with
+no content hash of its own rather than a frozen export.
+
+**A frozen, signed export is deliberately not this.** It would need its own
+hash and its own lifecycle; the aggregation has to exist first, and it is
+useful on its own.
+
+**Verified live.** One call returned all fourteen fields for a DRAFT version:
+product and version identity, one component, `coverage.total 0`,
+`releaseGate.passed false` with `INVALID_STATUS, UNTRACED_COMPONENT,
+NO_APPROVED_BASELINE, POLICY_OBLIGATION_UNMET ×2`, two merged audit events, and
+the four limits.
+
+**Shipped without tests, deliberately.** New test coverage is deferred to a
+later end-to-end pass at the product owner's direction; the four gates stay
+green on the existing suite. The aggregator is composition over methods that
+are themselves covered, which bounds the risk — but it is untested code and
+this record says so rather than leaving a reader to discover it.
+
+- Affected components: `plugins/composer-backend` (`service.ts` —
+  `ProductEvidencePackage`, `EVIDENCE_PACKAGE_LIMITS`, `buildEvidencePackage`;
+  `router.ts` — the route).
