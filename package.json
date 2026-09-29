@@ -45,6 +45,16 @@
     "packages/*",
     "plugins/*"
   ],
+  "jest": {
+    "coverageThreshold": {
+      "global": {
+        "statements": 65,
+        "branches": 55,
+        "functions": 55,
+        "lines": 65
+      }
+    }
+  },
   "devDependencies": {
     "@backstage/cli": "^0.36.4",
     "@backstage/cli-defaults": "^0.1.4",

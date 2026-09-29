@@ -27,6 +27,41 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**Maturity-audit remediation, wave 1 (2026-09-29).** A product-maturity audit
+run against the running code placed the platform at the upper end of stage 2
+of 5 — construction quality at 3–4, operability at 1–2 — and this closes the
+low-effort half of it. Outbound LLM calls get a deadline, a startup assertion
+refuses an AWS Marketplace integration whose customer links would only live in
+memory, `/metrics` exposes the prom-client registry the catalog has been
+writing to all along, Backstage's own rate limiter is switched on, and CodeQL,
+Trivy, `yarn npm audit`, SBOM and a coverage ratchet enter CI. See
+[`NXD-088`](DECISIONS.md).
+
+Three of the audit's own findings did not survive contact with the code, and
+those are the part worth carrying forward:
+
+- **"No helmet" was wrong.** `rootHttpRouterServiceFactory` has always applied
+  it. What the same reading did find is that its `rateLimit()` is a
+  pass-through while `backend.rateLimit` is unset — so the only rate limiting
+  in the repository guarded entitlement registration, in one process.
+- **"No code splitting" was a grep artifact.** The audit searched for
+  `React.lazy`; this app is on the new frontend system, where splitting is
+  `loader: () => import(…)` in a page extension. All 28 have one.
+- **"Replace the catalog scans with `getEntityByRef`" was too optimistic, and
+  the correction makes the defect worse.** Only one of seven detail pages
+  converts safely. Five compute cross-entity relationships in the browser, so
+  resolving one entity by ref would have returned empty consumers and
+  `UNKNOWN` compatibility — silently wrong rather than loudly broken. The real
+  defect is relationship computation living in the client. **Open decision:**
+  whether to answer it from the catalog's own reverse relations
+  (`apiConsumedBy`, `dependencyOf` — already used a few lines away in the same
+  file, and populated by every Golden Path template) or from a new backend
+  endpoint. The first is possible only if the legacy
+  `dataprod.platform/providesContract` annotation path may stop feeding
+  relationship computation; nothing in the repository currently emits it.
+
+## Previous Vertical Slice
+
 **T3 — a consuming installation can read (2026-09-29).** Wave 4 of
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.4a. Six artifact-registry
 read routes moved from `authorize` to `authorizeReadOrService`, the helper

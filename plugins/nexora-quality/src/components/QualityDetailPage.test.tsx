@@ -21,6 +21,20 @@ const product = {
   spec: { type: 'data-product' },
 };
 
+/**
+ * Records what the page asked the catalog for.
+ *
+ * The page used to fetch every Component and pick one out of the result with
+ * a client-side `.find`. It now resolves the single entity by ref, so the
+ * request it makes is worth pinning: a regression here is not visible in the
+ * rendered output, only in how much of the catalog crossed the wire.
+ */
+let requestedRefs: string[] = [];
+
+beforeEach(() => {
+  requestedRefs = [];
+});
+
 function renderQuality(quality: unknown, connectivity: unknown) {
   return act(async () => {
     render(
@@ -28,7 +42,17 @@ function renderQuality(quality: unknown, connectivity: unknown) {
       <MemoryRouter initialEntries={['/quality/filler-01-oee']}>
         <TestApiProvider
           apis={[
-            [catalogApiRef, { getEntities: async () => ({ items: [product] }) } as never],
+            [
+              catalogApiRef,
+              {
+                getEntityByRef: async (ref: string) => {
+                  requestedRefs.push(ref);
+                  return ref === 'component:default/filler-01-oee'
+                    ? product
+                    : undefined;
+                },
+              } as never,
+            ],
             [nexoraDataQualityApiRef, { getQuality: async () => quality } as never],
             [
               nexoraConnectivityApiRef,
@@ -66,6 +90,15 @@ describe('Data Quality & Connectivity', () => {
     expect(screen.getByText('Freshness')).toBeInTheDocument();
     expect(screen.getByText('99.8 %')).toBeInTheDocument();
     expect(screen.getByLabelText('connectivity status CONNECTED')).toBeInTheDocument();
+  });
+
+  it('resolves the product by ref instead of scanning the catalog', async () => {
+    await renderQuality(
+      { status: 'unconfigured' },
+      { status: 'unconfigured' },
+    );
+
+    expect(requestedRefs).toEqual(['component:default/filler-01-oee']);
   });
 
   it('renders warning and error checks', async () => {

@@ -77,6 +77,12 @@ ursComposer:
     baseUrl: https://api.openai.com
     apiKey: ${URS_AI_API_KEY}
     model: gpt-4o-mini
+    # Deadline for one provider call. Omit for the 60000ms default; a
+    # non-positive value is refused at startup rather than aborting every
+    # request instantly. Before this existed the call had no deadline at all,
+    # so a provider that went quiet held an Express handler and its database
+    # connection until the process restarted.
+    timeoutMs: 60000
 
 composer:
   ai:
@@ -85,6 +91,8 @@ composer:
     baseUrl: https://api.openai.com
     apiKey: ${COMPOSER_AI_API_KEY}
     model: gpt-4o-mini
+    # See ursComposer.ai.timeoutMs above.
+    timeoutMs: 60000
 
 integrations:
   github:

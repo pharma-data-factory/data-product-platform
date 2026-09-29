@@ -222,6 +222,7 @@ describe('test-marketplace runtime', () => {
           awsMarketplace: {
             region: 'us-east-1',
             productCode: 'example',
+            linkStorePath: '/tmp/nexora-test-marketplace-links.json',
           },
         },
       }),

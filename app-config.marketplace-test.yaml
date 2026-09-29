@@ -20,7 +20,11 @@ commercial:
   awsMarketplace:
     region: ${AWS_MARKETPLACE_REGION}
     productCode: ${AWS_MARKETPLACE_PRODUCT_CODE}
-    linkStorePath: ${AWS_MARKETPLACE_LINK_STORE:-}
+    # Was `${AWS_MARKETPLACE_LINK_STORE:-}`, which resolves to an empty string
+    # and then to `undefined` — so this overlay ran a live AWS integration
+    # against a store that silently discarded every write. Startup now refuses
+    # that combination, so the default has to be a real path.
+    linkStorePath: ${AWS_MARKETPLACE_LINK_STORE:-.runtime/marketplace-links.test.json}
     organizationLinks:
       - organizationId: internal
         customerAwsAccountId: ${AWS_MARKETPLACE_CUSTOMER_ACCOUNT:-}

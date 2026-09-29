@@ -22,6 +22,7 @@ import {
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { Config } from '@backstage/config';
+import { readLLMTimeoutMs } from '@internal/platform-common';
 import { createRouter } from './router';
 import { URSService } from './service';
 import { URSRepository } from './repository';
@@ -106,13 +107,19 @@ function createLLMClient(config: Config, logger: any): LLMClient {
     config.getOptionalString('ursComposer.ai.baseUrl') ?? 'https://api.openai.com';
   const model =
     config.getOptionalString('ursComposer.ai.model') ?? 'gpt-4o-mini';
+  // See the composer plugin: an unbounded call holds a request handler and a
+  // database connection for as long as the provider stays silent.
+  const timeoutMs = readLLMTimeoutMs(config, 'ursComposer.ai.timeoutMs');
 
-  logger.info(`URS Composer AI enabled: provider=openai, model=${model}`);
+  logger.info(
+    `URS Composer AI enabled: provider=openai, model=${model}, timeout=${timeoutMs}ms`,
+  );
 
   return new OpenAILLMClient({
     baseUrl,
     apiKey,
     model,
+    timeoutMs,
     fetchApi: globalThis.fetch.bind(globalThis),
   });
 }

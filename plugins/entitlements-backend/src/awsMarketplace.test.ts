@@ -56,6 +56,7 @@ describe('commercial runtime', () => {
           awsMarketplace: {
             region: 'us-east-1',
             productCode: 'example',
+            linkStorePath: '/tmp/nexora-test-marketplace-links.json',
           },
         },
       }),
@@ -201,6 +202,9 @@ describe('AWS Marketplace adapter', () => {
           awsMarketplace: {
             region: 'us-east-1',
             productCode: 'example',
+            // Required once AWS is live: startup refuses a configuration
+            // whose customer links would only ever live in memory.
+            linkStorePath: '/tmp/nexora-test-marketplace-links.json',
             organizationLinks: [restLink],
           },
         },
@@ -241,6 +245,9 @@ describe('AWS Marketplace adapter', () => {
           awsMarketplace: {
             region: 'us-east-1',
             productCode: 'example',
+            // Required once AWS is live: startup refuses a configuration
+            // whose customer links would only ever live in memory.
+            linkStorePath: '/tmp/nexora-test-marketplace-links.json',
             organizationLinks: [restLink],
           },
         },

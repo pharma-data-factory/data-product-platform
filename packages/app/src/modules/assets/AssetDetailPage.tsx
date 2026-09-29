@@ -67,7 +67,14 @@ export function AssetDetailPage() {
       .then(setAsset)
       .catch(err => setError(err instanceof Error ? err.message : 'Not found'));
     catalogApi
-      .getEntities({ filter: { kind: 'Component' } })
+      .getEntities({
+        filter: { kind: 'Component' },
+        // This is a reverse-dependency lookup, so it does need every
+        // Component — but it reads exactly three fields off each one. Without
+        // the projection the whole catalog crossed the wire, annotations,
+        // relations, status and all, to compute a list of titles.
+        fields: ['metadata.name', 'metadata.title', 'spec.dependsOn'],
+      })
       .then(response => {
         setUsedBy(
           response.items

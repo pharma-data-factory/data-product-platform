@@ -8,6 +8,24 @@ backend:
     origin: ${APP_BASE_URL}
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
+  # Backstage's own rate limiter, which `rootHttpRouterServiceFactory` already
+  # applies to every request — but only as a pass-through while this key is
+  # absent, which it was. Until now the only limiting anywhere in the
+  # repository was the in-process one guarding entitlement registration.
+  #
+  # The limit is per client IP, per window, and covers the served app bundle
+  # as well as /api, so it is set well above what browsing costs: it is here
+  # to stop a runaway script, not to shape traffic. Localhost is exempt by
+  # default, which is what the container healthcheck uses.
+  #
+  # Behind a load balancer, set `backend.trustProxy` as well — otherwise
+  # `req.ip` is the proxy for every caller and they all share one bucket.
+  # Deliberately not defaulted here: the correct value depends on how many
+  # proxies are in front, and guessing it wrong silently trusts a spoofable
+  # X-Forwarded-For.
+  rateLimit:
+    window: { minutes: 1 }
+    incomingRequestLimit: ${BACKEND_RATE_LIMIT_PER_MINUTE:-1200}
   auth:
     keys:
       - secret: ${BACKEND_SECRET}
@@ -150,3 +168,10 @@ commercial:
   awsMarketplace:
     region: ${AWS_MARKETPLACE_REGION:-}
     productCode: ${AWS_MARKETPLACE_PRODUCT_CODE:-}
+    # Customer entitlement links. Must sit on the mounted volume: the default
+    # below is cwd-relative and would otherwise land in the image layer and be
+    # lost on redeploy. `assertLinkStoreDurability` refuses to start an AWS
+    # Marketplace integration that has no path at all, but it cannot tell a
+    # durable path from an ephemeral one — that is what the volume mount in
+    # docker-compose.production.yml is for.
+    linkStorePath: ${AWS_MARKETPLACE_LINK_STORE_PATH:-.runtime/marketplace-links.json}

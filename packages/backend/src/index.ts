@@ -2,10 +2,15 @@ import { createBackend } from '@backstage/backend-defaults';
 import { catalogModuleCertificationOverlay } from '@internal/plugin-data-products-backend';
 import { scaffolderModuleUrsBinding } from '@internal/plugin-composer-backend';
 import { permissionModulePlatformPolicy } from './permission/module';
+import { rootModuleMetrics } from './metrics/module';
 import { authModuleDemoIdentities } from '@internal/plugin-users-backend';
 import { aasPlugin } from '@internal/plugin-aas-backend';
 
 const backend = createBackend();
+
+// Exposes /metrics. Registered first so the endpoint exists even if a later
+// plugin fails to initialize — that is exactly when someone wants to look.
+backend.add(rootModuleMetrics);
 
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));

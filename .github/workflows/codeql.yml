@@ -1,0 +1,53 @@
+# CodeQL static analysis.
+#
+# Separate from Platform CI on purpose: this analyses the repository's own
+# TypeScript rather than its dependencies, it runs on a schedule as well as on
+# change (advisories for patterns already merged appear without anyone pushing),
+# and it must not sit in the path of the image build.
+#
+# Findings go to the Security tab. Promote them to a merge blocker through
+# branch protection once the first run's backlog is triaged — putting a gate in
+# before anyone has read the output only teaches people to bypass it.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Off the hour, and midweek: a Tuesday 04:17 UTC run is not competing with
+    # every other repository that asked for midnight Monday.
+    - cron: '17 4 * * 2'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze TypeScript
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # security-extended adds the lower-confidence security queries. Worth
+          # the extra noise on a platform that handles GxP records, and the
+          # results are reviewed rather than gating.
+          queries: security-extended
+
+      # No build step: the `javascript-typescript` extractor reads the sources
+      # directly. Running `yarn install` here would cost several minutes and
+      # change nothing about what CodeQL sees.
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript

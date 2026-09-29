@@ -71,6 +71,9 @@ services:
       POSTGRES_DATABASE: ${POSTGRES_DATABASE:?POSTGRES_DATABASE is required}
       LEGAL_DISTRIBUTION_STATUS: ${LEGAL_DISTRIBUTION_STATUS:-BLOCKED}
       CREATE_AUTHORIZATION_AUDIT_PATH: ${CREATE_AUTHORIZATION_AUDIT_PATH:-/app/.runtime/create-authorization-audit.jsonl}
+      # Absolute, and inside the mounted volume below. The app-config default
+      # is cwd-relative and would write into the container's own filesystem.
+      AWS_MARKETPLACE_LINK_STORE_PATH: ${AWS_MARKETPLACE_LINK_STORE_PATH:-/app/.runtime/marketplace-links.json}
     volumes:
       - create_authorization_audit:/app/.runtime
     healthcheck:

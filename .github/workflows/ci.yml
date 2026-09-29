@@ -70,13 +70,40 @@ jobs:
       - name: Install Python SDK
         run: python -m pip install pydantic 'jsonschema[format]' -e packages/data-product-sdk
 
+      # `test:all` already passes --coverage, so the coverageThreshold in the
+      # root package.json is enforced here. It is set just under the measured
+      # figures (statements 66.9%, branches 56.6%, functions 57.4%) — a ratchet
+      # against regression, not a target.
       - name: Unit tests
         run: yarn test:all --watchAll=false
+
+      # Deliberately not a hard gate yet, and that is a finding rather than an
+      # oversight. The tree already carries critical and high advisories, all
+      # of them transitive through Backstage's own dependencies — node-gyp ->
+      # tar, ajv -> fast-uri, @module-federation -> adm-zip. Clearing them
+      # means moving @backstage/* versions, which AGENTS.md routes through a
+      # dedicated Backstage upgrade gate rather than an ad-hoc bump.
+      #
+      # So this step does the part that is available today: it makes the list
+      # visible on every run, and Dependabot (.github/dependabot.yml) raises
+      # the PRs. Turn `continue-on-error` off once the backlog is empty —
+      # that is the moment it becomes a gate.
+      - name: Dependency audit (advisory)
+        continue-on-error: true
+        run: |
+          yarn npm audit --all --recursive --severity high || \
+            echo "::warning::Dependency advisories present. See the step log; remediation runs through the Backstage upgrade gate."
 
   image:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # Trivy uploads its findings to the Security tab rather than printing
+      # them into a log nobody reads after the run is green.
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,6 +149,33 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.mvp_tag }}
+          # A GxP release needs to be able to answer "what was in this image"
+          # years later. Both are attached to the image in the registry, so
+          # the answer travels with the artifact instead of living in a CI log
+          # that ages out.
+          sbom: true
+          provenance: mode=max
+
+      # Reports rather than blocks, for the same reason as the dependency
+      # audit: the base image and the Backstage tree carry advisories that
+      # cannot be cleared from this pipeline. Findings land in the Security
+      # tab, where they accumulate visibly instead of scrolling past.
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Upload image scan results
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-image
 
       # Phase 5 closure (Slice 3): CI evidence reaches the ProductBaseline.
       #

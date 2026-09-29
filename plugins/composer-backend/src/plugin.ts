@@ -12,6 +12,7 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { Config } from '@backstage/config';
+import { readLLMTimeoutMs } from '@internal/platform-common';
 import { createRouter } from './router';
 import { ComposerService } from './service';
 import { ComposerRepository } from './repository';
@@ -66,13 +67,21 @@ function createLLMClient(config: Config, logger: any): ComposerLLMClient {
   const provider =
     config.getOptionalString('composer.ai.provider') ?? 'openai';
 
+  // A provider that accepts the connection and then stops answering would
+  // otherwise hold the request handler, and its database connection, for the
+  // life of the process.
+  const timeoutMs = readLLMTimeoutMs(config, 'composer.ai.timeoutMs');
+
   if (provider === 'anthropic') {
     const model =
       config.getOptionalString('composer.ai.model') ?? 'claude-haiku-4-5';
-    logger.info(`Composer AI enabled: provider=anthropic, model=${model}`);
+    logger.info(
+      `Composer AI enabled: provider=anthropic, model=${model}, timeout=${timeoutMs}ms`,
+    );
     return new AnthropicComposerLLMClient({
       apiKey,
       model,
+      timeoutMs,
       fetchApi: globalThis.fetch.bind(globalThis),
     });
   }
@@ -82,11 +91,14 @@ function createLLMClient(config: Config, logger: any): ComposerLLMClient {
     config.getOptionalString('composer.ai.baseUrl') ?? 'https://api.openai.com';
   const model =
     config.getOptionalString('composer.ai.model') ?? 'gpt-4o-mini';
-  logger.info(`Composer AI enabled: provider=openai, model=${model}`);
+  logger.info(
+    `Composer AI enabled: provider=openai, model=${model}, timeout=${timeoutMs}ms`,
+  );
   return new OpenAIComposerLLMClient({
     baseUrl,
     apiKey,
     model,
+    timeoutMs,
     fetchApi: globalThis.fetch.bind(globalThis),
   });
 }

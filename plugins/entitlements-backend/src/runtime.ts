@@ -145,6 +145,40 @@ export function loadCommercialConfig(config: Config): CommercialRuntimeConfig {
   };
 }
 
+/**
+ * Refuses a live AWS Marketplace integration that has nowhere to write.
+ *
+ * `MarketplaceLinkStore.persist()` returns without writing when no path is
+ * configured, and returns successfully — so a deployment that resolves an AWS
+ * customer, records the link and answers 200 loses that link on the next
+ * restart, with nothing in the logs and nothing failed. The first symptom is a
+ * paying customer who cannot reach the product.
+ *
+ * `linkStorePath` is unset in every committed `app-config`, so this is not a
+ * hypothetical ordering of config keys: setting the two AWS variables was
+ * enough to reach it.
+ *
+ * Checked against `awsMarketplaceConfigured` rather than
+ * `entitlementProvider === 'aws'` on purpose — region plus product code is
+ * what makes real fulfillment reachable, and registrations arrive over an
+ * unauthenticated route that does not consult the provider setting.
+ */
+export function assertLinkStoreDurability(commercial: {
+  awsRegion?: string;
+  awsProductCode?: string;
+  linkStorePath?: string;
+}): void {
+  if (!awsMarketplaceConfigured(commercial) || commercial.linkStorePath) {
+    return;
+  }
+  throw new Error(
+    'AWS Marketplace is configured (commercial.awsMarketplace.region and ' +
+      '.productCode are set) but commercial.awsMarketplace.linkStorePath is ' +
+      'not. Customer entitlement links would be held in process memory and ' +
+      'lost on restart. Set linkStorePath to a path on durable storage.',
+  );
+}
+
 export function createEntitlementRuntime(options: {
   config: Config;
   awsClients?: AwsMarketplaceClients;
@@ -159,6 +193,11 @@ export function createEntitlementRuntime(options: {
   const mixed =
     commercial.environment === 'local' &&
     commercial.entitlementProvider === 'aws';
+  // Only when the runtime owns the store. An injected one is the caller's
+  // choice — the tests rely on that, and so would an in-memory harness.
+  if (!options.linkStore) {
+    assertLinkStoreDurability(commercial);
+  }
   const linkStore =
     options.linkStore ??
     new MarketplaceLinkStore(

@@ -120,8 +120,23 @@ export class MarketplaceLinkStore {
     }
   }
 
+  /**
+   * True when this store keeps its rows only in process memory.
+   *
+   * Not a failure in itself — a local stack with `entitlementProvider: local`
+   * has nothing worth keeping. It is a failure when AWS Marketplace
+   * fulfillment is live, because then these rows are paying customers'
+   * entitlements. `assertLinkStoreDurability` in `runtime.ts` is what
+   * separates the two cases, at startup rather than at first write.
+   */
+  get isVolatile(): boolean {
+    return !this.filePath;
+  }
+
   private persist() {
     if (!this.filePath) {
+      // Deliberate no-op, and safe only because startup already refused the
+      // combination where it would not be. See `isVolatile`.
       return;
     }
     mkdirSync(dirname(this.filePath), { recursive: true });

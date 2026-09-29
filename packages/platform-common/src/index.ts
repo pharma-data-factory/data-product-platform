@@ -831,3 +831,10 @@ export type {
   ProviderResult,
   ProviderResultStatus,
 } from './nexora-industrial';
+
+export {
+  DEFAULT_LLM_TIMEOUT_MS,
+  LLMTimeoutError,
+  fetchWithTimeout,
+  readLLMTimeoutMs,
+} from './llm-timeout';

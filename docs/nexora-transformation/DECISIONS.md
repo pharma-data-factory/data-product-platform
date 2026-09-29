@@ -4536,3 +4536,172 @@ edition; the write route refuses it with the same message it always did.
   `docs/engineering/development-workflow.md`,
   `docs/architecture/ARCHITECTURE_GUARDRAILS.md` (D-5 amended),
   `docs/architecture/TARGET_OPERATING_MODEL.md`.
+
+### NXD-088 — The platform becomes observable, and three audit findings were wrong
+
+- Date: 2026-09-29
+- Slice: maturity-audit remediation, wave 1 — the low-effort half of the
+  findings raised against the running code on 2026-09-29
+- Closes: nothing in `PHASE_CLOSURE_PLAN.md`. This is remediation of defects
+  found by reading and running the code, not a planned slice.
+
+A product-maturity audit of the running system placed it at the upper end of
+stage 2 of 5: construction quality at 3–4 (2,239 green tests, clean `tsc`,
+fail-closed permission layer, 41 tables with 94 indexes), operability at 1–2.
+Three findings blocked stage 3, and none of them was an architectural
+problem — all three were integration work that had not been done.
+
+**A provider that went quiet took the whole backend with it.** Five outbound
+LLM call sites across `composer-backend` and `urs-composer-backend` called
+`fetch` with no signal. That is not a slow-request problem: the handler waits
+on the socket forever, holding a connection from the plugin's knex pool, and
+enough of them stop the process answering anything at all — not just the AI
+feature that caused it. `fetchWithTimeout` in `@internal/platform-common` puts
+`AbortSignal.timeout` on all five, with `composer.ai.timeoutMs` /
+`ursComposer.ai.timeoutMs` defaulting to 60s. A caller-supplied signal is
+respected and a caller-driven abort is not relabelled as a timeout; a
+non-positive configured value is refused at startup, because `timeoutMs: 0`
+reads like "no timeout" but aborts instantly and would look like a provider
+outage.
+
+**Customer entitlements were being discarded, successfully.**
+`MarketplaceLinkStore.persist()` returned without writing when no path was
+configured, and returned *successfully*. `commercial.awsMarketplace.linkStorePath`
+was unset in every committed `app-config`, so setting the two AWS variables
+was enough to reach a deployment that resolved a customer, recorded the link,
+answered 200, and lost it on the next restart, with nothing logged and nothing
+failed. The first symptom is a paying customer who cannot reach the product.
+`assertLinkStoreDurability` now refuses that combination at startup.
+
+Keyed on `awsMarketplaceConfigured` (region **and** product code) rather than
+`entitlementProvider === 'aws'`, because region plus product code is what makes
+real fulfillment reachable, and registrations arrive over an unauthenticated
+route that never consults the provider setting. A store injected by a caller
+is left alone — that is a declared choice, and the tests depend on making it.
+
+`app-config.marketplace-test.yaml` is the proof the defect was live rather
+than theoretical: it set `linkStorePath: ${AWS_MARKETPLACE_LINK_STORE:-}`, an
+empty string that `loadCommercialConfig` turns into `undefined`. A committed
+overlay ran a real AWS integration against a store that silently threw away
+every write. Four existing tests encoded the same shape and failed the moment
+the assertion existed.
+
+**Nothing produced a number.** No metrics, no traces, no error tracking — the
+reason an operator could not tell a slow database from a slow LLM call, and
+why "what happens at ten times the load" had no answer that was not a guess.
+Almost all of the fix was already in the process: `prom-client` is a
+dependency of `plugin-catalog-backend` and `plugin-scaffolder-backend`, and
+both write to its *default* registry, so `catalog_processing_duration_seconds`
+and `catalog_processing_queue_delay_seconds` had been recorded all along with
+nothing able to read them. `rootModuleMetrics` adds the endpoint that exposes
+them plus `collectDefaultMetrics` for the process, including
+`nodejs_eventloop_lag_seconds`. The package moved the lockfile by one line.
+
+**Per-route RED metrics are deliberately absent.** They need a middleware
+ahead of every route, and `rootHttpRouter` appends handlers to one Express
+router in registration order — a middleware added by a module covers whatever
+registered after it, which is worse than no data because the gaps are
+invisible. That belongs to OpenTelemetry auto-instrumentation, which patches
+`http` itself and has no ordering to lose.
+
+## Three findings that did not survive contact with the code
+
+The audit was derived partly by grep, and three of its conclusions were wrong
+in the way grep is wrong: the signal searched for was absent, and the
+capability was present under another name.
+
+**1. "No helmet" — Backstage has always applied it.**
+`rootHttpRouterServiceFactory` runs `helmet → cors → compression → logging →
+rateLimit` on every request. The recommendation was to add a dependency the
+kernel already owns.
+
+What the same reading did find is that `rateLimit()` is a pass-through while
+`backend.rateLimit` is absent, and it was absent — so the only rate limiting
+anywhere in the repository was the in-process one guarding entitlement
+registration. Enabling it is configuration, not code, and Backstage supports
+a Redis store for it, which turns the "distributed rate limiting" long-term
+item into configuration too. `backend.trustProxy` is deliberately **not**
+defaulted: the correct value depends on how many proxies are in front, and
+guessing it wrong silently trusts a spoofable `X-Forwarded-For`.
+
+**2. "No code splitting" — every page is already lazy.** The audit grepped for
+`React.lazy` and `Suspense`, found zero, and concluded a 26,000-line app
+shipped as one bundle. This app is on the new frontend system, where splitting
+is `loader: () => import('./Page')` in a page extension. All 28 page
+extensions have one. The three eager component imports are app-shell elements
+— sidebar, cookie banner, a gate — rendered on every page and correctly eager.
+
+**3. "Replace the catalog full scans with `getEntityByRef`" — five of seven
+pages cannot.** This is the one worth keeping, because the correction makes the
+defect *worse* than reported, not better.
+
+Seven detail pages fetch every `Component` and `API` and pick one out with a
+client-side `.find`. Only `QualityDetailPage` converts safely:
+`toIndustrialDataProduct` reads nothing outside the entity it is given.
+`AssetDetailPage` keeps its full scan — it is a reverse-dependency lookup and
+genuinely needs every Component — but reads exactly three fields, so a `fields`
+projection is exhaustive and verifiable.
+
+The other five compute cross-entity relationships in the browser.
+`withCatalogRelationships` searches sibling products for contract consumers and
+providers; resolving one entity by ref would have returned `consumers: []` and
+`compatibilityStatus: 'UNKNOWN'` — an invisible behaviour regression, silently
+wrong rather than loudly broken. A `fields` projection saves nothing there
+either, because those transforms read `metadata`, `spec`, `relations` and
+`annotations` essentially in full.
+
+So the real defect is not "the wrong catalog call". It is **relationship
+computation living in the client**, which needs a backend endpoint. That is an
+architectural change and has been moved out of the low-effort wave. Caching
+the call first, as the audit's mid-term item proposed, would have put a cache
+in front of an O(n) fetch without making it smaller.
+
+## Scanning reports; it does not yet gate
+
+CodeQL, Trivy, `yarn npm audit`, SBOM and provenance attestation are added,
+and none of them fails a build. That is a decision, not an omission.
+
+The tree already carries critical and high advisories — `node-gyp → tar`,
+`ajv → fast-uri`, `@module-federation → adm-zip` — all transitive through
+Backstage's own dependencies. Clearing them means moving `@backstage/*`
+versions, which `AGENTS.md` routes through a dedicated Backstage upgrade gate
+rather than an ad-hoc bump. A hard gate would therefore have shipped a
+permanently red pipeline, and a red pipeline that everyone learns to ignore is
+worse than an honest report.
+
+What is available today is done: findings accumulate in the Security tab
+rather than scrolling past in a log, and Dependabot raises the PRs — with
+`@backstage/*` grouped into a single pull request, so the grouping itself
+enforces the guardrail against piecemeal upgrades. `continue-on-error` comes
+off when the backlog is empty; the workflow comments say so.
+
+The coverage threshold is set at statements 65 / branches 55 / functions 55,
+just under the measured 66.9 / 56.6 / 57.4. A ratchet against regression, not
+a target — and `test:all` already passed `--coverage`, so the gate was one
+config key away the whole time.
+
+- Deferred, with the reason: **error tracking**. `@sentry/node` is the only
+  item here that would have moved the controlled lockfile substantially, and
+  under `AGENTS.md` dependency governance that is a decision for a human, not
+  a convenience. `D-4` stays half-open until it is taken.
+
+- Affected components:
+  `packages/platform-common/src/llm-timeout.ts` (new),
+  `packages/platform-common/src/index.ts`,
+  `packages/backend/src/metrics/module.ts` (new),
+  `packages/backend/src/index.ts`,
+  `packages/backend/package.json`,
+  `plugins/composer-backend/src/llm-client.ts`,
+  `plugins/composer-backend/src/plugin.ts`,
+  `plugins/urs-composer-backend/src/llm-client.ts`,
+  `plugins/urs-composer-backend/src/plugin.ts`,
+  `plugins/entitlements-backend/src/linkStore.ts`,
+  `plugins/entitlements-backend/src/runtime.ts`,
+  `plugins/nexora-quality/src/components/QualityDetailPage.tsx`,
+  `packages/app/src/modules/assets/AssetDetailPage.tsx`,
+  `app-config.yaml`, `app-config.production.yaml`,
+  `app-config.marketplace-test.yaml`,
+  `docker-compose.production.yml`, `deploy/production.local.env.example`,
+  `.github/workflows/ci.yml`, `.github/workflows/codeql.yml` (new),
+  `.github/dependabot.yml` (new),
+  `package.json` (coverage threshold).

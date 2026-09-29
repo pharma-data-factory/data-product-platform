@@ -1,0 +1,55 @@
+# Dependabot keeps the advisory backlog moving.
+#
+# The CI dependency audit reports; this is what actually raises the PRs. The
+# two are a pair — a report nobody can act on is a list, not a control.
+#
+# Note the grouping below. AGENTS.md forbids ad-hoc movement of individual
+# @backstage/* packages: they must be reviewed together as one platform
+# upgrade. So Backstage is grouped into a single PR that a human takes through
+# the Backstage upgrade gate, rather than arriving as forty separate bumps
+# that invite exactly the piecemeal upgrade the guardrail prohibits.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: '04:43'
+    open-pull-requests-limit: 5
+    groups:
+      # One PR, reviewed as a platform upgrade. Never auto-merge this group.
+      backstage:
+        patterns:
+          - '@backstage/*'
+          - '@backstage-community/*'
+      # Everything else, split by risk so a patch sweep does not need the same
+      # scrutiny as a major.
+      non-backstage-minor-patch:
+        exclude-patterns:
+          - '@backstage/*'
+          - '@backstage-community/*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # React and Material UI generations are explicitly guardrailed in
+      # AGENTS.md ("never change React versions independently", "do not mix
+      # Material UI generations without explicit approval"). A Dependabot PR
+      # for a major here would be noise at best.
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+      - dependency-name: '@material-ui/*'
+      - dependency-name: '@mui/*'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: '04:51'
+    open-pull-requests-limit: 3

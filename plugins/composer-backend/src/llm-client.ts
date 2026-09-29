@@ -1,6 +1,8 @@
 import { createHash } from 'crypto';
 import {
   COMPONENT_TYPES,
+  DEFAULT_LLM_TIMEOUT_MS,
+  fetchWithTimeout,
   isComponentType,
   type ComponentType,
 } from '@internal/platform-common';
@@ -114,6 +116,8 @@ export interface OpenAILLMClientOptions {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** Deadline per request. Defaults to {@link DEFAULT_LLM_TIMEOUT_MS}. */
+  timeoutMs?: number;
   fetchApi: typeof fetch;
 }
 
@@ -121,12 +125,14 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
   private baseUrl: string;
   private apiKey: string;
   private model: string;
+  private timeoutMs: number;
   private fetchApi: typeof fetch;
 
   constructor(options: OpenAILLMClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
     this.model = options.model;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
     this.fetchApi = options.fetchApi;
   }
 
@@ -136,22 +142,27 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
   ): Promise<SuggestedComponent[]> {
     const userPrompt = buildUserPrompt(context);
 
-    const response = await this.fetchApi(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+    const response = await fetchWithTimeout(
+      this.fetchApi,
+      `${this.baseUrl}/v1/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.3,
+          response_format: { type: 'json_object' },
+        }),
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        response_format: { type: 'json_object' },
-      }),
-    });
+      this.timeoutMs,
+    );
 
     if (!response.ok) {
       const text = await response.text().catch(() => 'unknown error');
@@ -176,22 +187,27 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
     const systemPrompt = buildProductSpecSystemPrompt();
     const userPrompt = buildProductSpecUserPrompt(context);
 
-    const response = await this.fetchApi(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+    const response = await fetchWithTimeout(
+      this.fetchApi,
+      `${this.baseUrl}/v1/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.3,
+          response_format: { type: 'json_object' },
+        }),
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        response_format: { type: 'json_object' },
-      }),
-    });
+      this.timeoutMs,
+    );
 
     if (!response.ok) {
       const text = await response.text().catch(() => 'unknown error');
@@ -223,15 +239,20 @@ export class OpenAIComposerLLMClient implements ComposerLLMClient {
   ): Promise<string> {
     const systemPrompt = buildProductAnalystSystemPrompt();
     const userPrompt = buildProductAnalystUserPrompt(question, productContext);
-    const response = await this.fetchApi(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-        temperature: 0.4,
-      }),
-    });
+    const response = await fetchWithTimeout(
+      this.fetchApi,
+      `${this.baseUrl}/v1/chat/completions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+          temperature: 0.4,
+        }),
+      },
+      this.timeoutMs,
+    );
     if (!response.ok) {
       const text = await response.text().catch(() => 'unknown error');
       throw new Error(`LLM API error (${response.status}): ${text}`);
@@ -252,6 +273,8 @@ export interface AnthropicLLMClientOptions {
   model: string;
   /** Max tokens per response. Defaults to 4096 — sufficient for JSON outputs. */
   maxTokens?: number;
+  /** Deadline per request. Defaults to {@link DEFAULT_LLM_TIMEOUT_MS}. */
+  timeoutMs?: number;
   fetchApi: typeof fetch;
 }
 
@@ -392,12 +415,14 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly maxTokens: number;
+  private readonly timeoutMs: number;
   private readonly fetchApi: typeof fetch;
 
   constructor(options: AnthropicLLMClientOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.maxTokens = options.maxTokens ?? 4096;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
     this.fetchApi = options.fetchApi;
   }
 
@@ -414,7 +439,8 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
     userContent: string,
     jsonSchema?: unknown,
   ): Promise<string> {
-    const response = await this.fetchApi(
+    const response = await fetchWithTimeout(
+      this.fetchApi,
       'https://api.anthropic.com/v1/messages',
       {
         method: 'POST',
@@ -437,6 +463,7 @@ export class AnthropicComposerLLMClient implements ComposerLLMClient {
             : {}),
         }),
       },
+      this.timeoutMs,
     );
 
     if (!response.ok) {

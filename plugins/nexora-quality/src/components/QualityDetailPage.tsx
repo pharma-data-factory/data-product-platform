@@ -39,19 +39,36 @@ export function QualityDetailPage() {
 
   useEffect(() => {
     if (!name) {
-      return;
+      return undefined;
     }
+    let active = true;
+    // Was `getEntities({ kind: ['Component'] })` followed by a client-side
+    // `.find(name)`: every Component in the catalog crossed the wire so one
+    // could be picked out of it. `toIndustrialDataProduct` reads nothing
+    // outside the entity it is given, so resolving by ref is the same answer
+    // for a payload that does not grow with the catalog.
+    //
+    // `default` matches how the rest of the app builds refs, and the route
+    // carries only a name, so a non-default namespace was never separately
+    // addressable here.
+    setLoading(true);
     catalogApi
-      .getEntities({ filter: { kind: ['Component'] } })
-      .then(response => {
-        setProduct(
-          response.items
-            .map(toIndustrialDataProduct)
-            .find(item => item?.name === name),
-        );
+      .getEntityByRef(`component:default/${name}`)
+      .then(entity => {
+        if (!active) {
+          return;
+        }
+        setProduct(entity ? toIndustrialDataProduct(entity) : undefined);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, [catalogApi, name]);
 
   if (loading) {
