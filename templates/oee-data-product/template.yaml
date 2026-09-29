@@ -60,7 +60,6 @@ spec:
         - machineStateTopic
         - counterTopic
         - contextUrlRef
-        - repoUrl
       properties:
         name:
           title: Data Product Name

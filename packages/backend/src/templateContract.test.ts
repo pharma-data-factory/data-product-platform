@@ -254,6 +254,44 @@ describe('template registration and generation contract', () => {
     }
   });
 
+  // Added after the NXD-079 live run, which is what found this: seven
+  // templates still listed `repoUrl` under `required` after the property
+  // itself was deleted. The scaffolder validates `required` against the
+  // submitted values before it runs a single step, so each of those templates
+  // answered 400 `requires property "repoUrl"` for any input at all — and the
+  // field no longer existed, so no caller could have satisfied it.
+  //
+  // Nothing caught it. The assertions above read `steps` and one named
+  // property; the golden-path suites build their values by hand and never go
+  // through the validated route. A required name with no property is not a
+  // style question, it is an unscaffoldable template.
+  it.each(TEMPLATES)(
+    'requires only properties it declares for $id',
+    template => {
+      const entity = yaml.parse(
+        fs.readFileSync(
+          path.join(ROOT, template.dir, 'template.yaml'),
+          'utf8',
+        ),
+      );
+      const pages = entity.spec.parameters as {
+        title?: string;
+        required?: string[];
+        properties?: Record<string, unknown>;
+      }[];
+
+      for (const page of pages) {
+        const declared = Object.keys(page.properties ?? {});
+        const undeclared = (page.required ?? []).filter(
+          name => !declared.includes(name),
+        );
+        expect({ template: template.id, page: page.title, undeclared }).toEqual(
+          { template: template.id, page: page.title, undeclared: [] },
+        );
+      }
+    },
+  );
+
   it.each(TEMPLATES)(
     'generates the standard contract for $id',
     template => {

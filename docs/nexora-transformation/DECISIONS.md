@@ -3863,9 +3863,82 @@ is a deliberate exception rather than an oversight: work was frozen mid-slice at
 the product owner's request. The first thing the next session should do is run
 one template and watch the repository land in the configured organisation.
 
+> **Walked 2026-09-29 — and the exception cost seven templates.** The first task
+> created against a running backend was refused before any step ran, because
+> this change left `repoUrl` in each `required` list after deleting the
+> property. See [`NXD-080`](#nxd-080--the-live-run-nxd-079-deferred-and-what-it-found).
+
 - Affected components: `plugins/composer-backend/src/scaffolderModule.ts`
   (`nexora:scm:resolve-repo`), all nine publishing templates,
   `packages/app/src/modules/composer/ComposePage.tsx`,
   `plugins/marketplace/src/components/MarketplaceDetailPage.tsx`,
   `app-config.yaml`, `plugins/nexora-backend/config.d.ts`,
   `packages/platform-common/src/documentation.ts`, and eight contract suites.
+
+### NXD-080 — The live run NXD-079 deferred, and what it found
+
+- Date: 2026-09-29
+- Slice: `PHASE_CLOSURE_PLAN.md` §9.4 rank 1, DoD point 2
+- Closes: the deliberate exception recorded in [`NXD-079`](#nxd-079--the-operators-github-organisation-leaves-the-templates)
+
+**Seven of the nine golden paths could not be scaffolded by anyone.** The first
+task posted to a running backend never reached a step:
+
+```
+POST /api/scaffolder/v2/tasks {"templateRef":"template:default/rest-equipment-data-product", …}
+HTTP 400 {"errors":[{"message":"requires property \"repoUrl\"", …}]}
+```
+
+`NXD-079` deleted the `repoUrl` property from the seven templates that had been
+collecting it and discarding it — and left the name standing in each
+`required` list. The scaffolder validates `required` against the submitted
+values before it runs anything, so those templates refused every input there
+is, and no input could have satisfied them: the field was gone, and the wizard
+renders no control for a required name with no property. `node-service` and
+`mqtt-connector`, which genuinely read the parameter, had both halves removed
+and were unaffected.
+
+**Nothing in the repository was positioned to catch it.** The contract test
+asserts on `steps` and on one named property. The golden-path suites build
+their values by hand and invoke actions directly; `/compose` builds its own
+payload. Not one automated path goes through the route that validates
+`required` — which is the first thing any actual user hits. Green gates and an
+unusable product are not in tension here; they were measuring different things.
+
+**What the run proved once the seven lists were corrected.** Same request,
+`status: failed` at `publish`, and the log is the point:
+
+```
+[resolve-repo] Publishing to github.com/pharma-data-factory/nxd079-live-check (from platform configuration).
+[fetch-base]   … input values {"destination":{"host":"github.com","owner":"pharma-data-factory", …}}
+[verify-urs]   No URS baseline given. The product will be created unbound …
+[publish]      InputError: No token available for host: github.com, with owner pharma-data-factory,
+               and repo nxd079-live-check.
+```
+
+The coordinate is built inside the task from `nexora.scm.*`, reaches
+`fetch:template` as the generated catalog-info's destination, and reaches
+`publish:github` as its `repoUrl` — which is exactly what `NXD-079` claimed and
+could not show. The catalog was then read back for all nine templates: every
+`required` name resolves to a declared property in the schema the scaffolder
+actually serves.
+
+**What is still not proven, stated plainly.** No repository was created. This
+container holds no GitHub App credential, so `publish:github` failed at the
+credential and the three steps after it were skipped. The failure names the
+resolved host, owner and repo, which is strong evidence the coordinate arrived
+intact — it is not evidence that GitHub accepted it. The remaining half of DoD
+point 2 for `NXD-079` needs a token this environment does not have.
+
+**The guard.** `requires only properties it declares for $id` in
+`templateContract.test.ts` checks every parameter page of every registered
+template. Mutation-checked: restoring `- repoUrl` to `python-service` fails it
+and names the template and the page.
+
+**The general lesson, since it was paid for.** A slice frozen before its live
+run is not "almost done". `NXD-079` had four green gates, 2129 passing tests
+and a careful record — while seven of nine templates were unscaffoldable. DoD
+point 2 exists because the other three points cannot see that.
+
+- Affected components: `templates/{aas-data-product,machine-state-consumer,mqtt-temperature-product,oee-data-product,python-service,rest-equipment-product,unified-namespace}/template.yaml`,
+  `packages/backend/src/templateContract.test.ts`.

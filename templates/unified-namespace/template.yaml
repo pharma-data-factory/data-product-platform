@@ -26,7 +26,6 @@ spec:
         - owner
         - rootNamespace
         - environment
-        - repoUrl
       properties:
         name:
           title: Name

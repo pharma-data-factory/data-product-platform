@@ -1847,6 +1847,15 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
 
 ## Migration Debt
 
+- **No automated test posts to `POST /api/scaffolder/v2/tasks`.** Added
+  2026-09-29 with [`NXD-080`](DECISIONS.md). The golden-path suites invoke
+  actions directly with hand-built values, and `/compose` builds its own
+  payload, so nothing exercises the route that validates a template's
+  `required` list against the submitted values — the first thing a real user
+  hits. That is how seven templates shipped unscaffoldable behind four green
+  gates. `templateContract.test.ts` now checks the schema's internal
+  consistency statically, which closes this particular hole but not the class:
+  a template can still be wrong in a way only the live route reveals.
 - ~~The GxP invariant suites never run in CI.~~ **Resolved in P0-S2.** 62
   tests across six files (`urs-composer-backend`: `gxp-invariants`,
   `runtime-postgres-proof`, `wd-seed-persistence`, `p1a-verification`,
@@ -1932,10 +1941,10 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"feat(mvp1-b/b-4b,b-4c): CI writes verification, and the gate finally reads
-it", 2026-09-27, on `ms/composer-ai-spec-and-ci-quality-gate` — the closing
-commit of the MVP1-B critical path, described under
-`## Current Vertical Slice`.
+"fix(nxd-080): the live run NXD-079 deferred, and the seven templates it found
+unscaffoldable", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` —
+the walk that closes rank 1 of `PHASE_CLOSURE_PLAN.md` §9.4 up to the GitHub
+credential. See [`NXD-080`](DECISIONS.md).
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
@@ -1943,7 +1952,7 @@ first — which is then itself unnamed. This entry was wrong for three days for
 exactly that reason: it said `beeab2a` while HEAD was `164039f`. `git log -1`
 is authoritative; this section carries the subject and the date.
 
-As of 2026-09-27 the branch is **134 commits ahead of `main` and 18 ahead of
+As of 2026-09-29 the branch is **159 commits ahead of `main` and 20 ahead of
 its own remote** — this container has no `gh` CLI and no git credential
 helper, so the governance consolidation series and everything MVP1-B has
 landed since are local only. The working tree is clean.

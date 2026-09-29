@@ -28,13 +28,12 @@ spec:
         Certified Golden Path · IEC 63278 / IDTA v3.0 · Asset Registry · MQTT/REST Ingest · Quality Gate · CI/CD · TechDocs
 
         Domain is manufacturing asset management and semantic integration. Enter Data Product Name, Description, Owner,
-        Asset Source (MQTT or REST), and GitHub Repository. The repository is created in the organisation this platform is configured with.
+        and Asset Source (MQTT or REST). The repository is created in the organisation this platform is configured with.
       required:
         - name
         - description
         - owner
         - assetSource
-        - repoUrl
       properties:
         name:
           title: Data Product Name

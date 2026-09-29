@@ -26,14 +26,13 @@ spec:
       description: |
         Certified Golden Path · MQTT · Data Contract · Quality Gate · CI/CD · TechDocs
 
-        Domain is manufacturing. Enter Data Product Name, Description, Owner,
-        and GitHub Repository. The repository is created in the organisation this platform is configured with.
+        Domain is manufacturing. Enter Data Product Name, Description, and
+        Owner. The repository is created in the organisation this platform is configured with.
       required:
         - name
         - description
         - owner
         - mqttTopic
-        - repoUrl
       properties:
         name:
           title: Data Product Name

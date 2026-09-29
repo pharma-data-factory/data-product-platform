@@ -23,7 +23,6 @@ spec:
         - name
         - description
         - owner
-        - repoUrl
       properties:
         name:
           title: Service Name

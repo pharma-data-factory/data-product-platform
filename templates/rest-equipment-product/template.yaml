@@ -28,7 +28,6 @@ spec:
         - description
         - owner
         - domain
-        - repoUrl
       properties:
         name:
           title: Data Product Name
