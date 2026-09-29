@@ -325,8 +325,15 @@ it is written down rather than rediscovered:
   plus Portainer; `"Kubernetes"` appears once, as a vocabulary string.
 - **Product-side change control does not exist.** `ChangeRequest` has no
   occurrences in `composer-backend`; the workflow is URS-side only.
-- **No evidence-package export.** There is no endpoint that produces an
-  audit-ready package for a product.
+- ~~**No evidence-package export.** There is no endpoint that produces an
+  audit-ready package for a product.~~ **Closed 2026-09-28** by rank 2 —
+  `GET /versions/:id/evidence-package` aggregates read-only over the endpoints
+  that already held every piece ([`NXD-077`](DECISIONS.md)), and it carries a
+  `limits` array that states the URS/product signature asymmetry in its own
+  words rather than letting a reader infer equivalence. It shipped untested and
+  threw for every version on any driver that does not return a `Date` for a
+  timestamp column; that was found and fixed on 2026-09-29
+  ([`NXD-083`](DECISIONS.md)).
 - **`GXP_RELEVANCE_LEVELS` is `NONE | INDIRECT | DIRECT`** — there is no
   `HYBRID`, which the target model names. The conformance audit already
   excludes Hybrid from MVP1; the vision text does not.
@@ -1454,9 +1461,15 @@ Phase 4 needs the whole first-class model in one designed migration — see
 
 ## Test Status
 
-**GREEN.** Verified on 2026-09-28 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of `PHASE_CLOSURE_PLAN.md` §9.2
-([`NXD-076`](DECISIONS.md)) — **all eight phases closed**.
+**GREEN.** Verified on 2026-09-29 the way CI runs it (`CI=true`, PostgreSQL up
+via `docker-compose.test.yml`), at the close of Welle 3 of
+`PHASE_CLOSURE_PLAN.md` §9.4a. The previous measurement was 2026-09-28 at the
+close of §9.2 ([`NXD-076`](DECISIONS.md)) — 233 suites and 2129 tests. The five
+suites added since are `editions.test.ts`, `installation.test.ts` and
+`evidencePackage.test.ts` from wave 1 ([`NXD-081`](DECISIONS.md),
+[`NXD-082`](DECISIONS.md), [`NXD-083`](DECISIONS.md)), plus
+`appRouting.test.ts` and `LineageDAGView.test.tsx` from wave 3
+([`NXD-085`](DECISIONS.md)).
 
 | Gate       | Command                           | Result                                        |
 | ---------- | --------------------------------- | --------------------------------------------- |
@@ -1464,7 +1477,19 @@ via `docker-compose.test.yml`), at the close of `PHASE_CLOSURE_PLAN.md` §9.2
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 233 suites, 2129 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 238 suites, 2213 tests, **0 skipped**  |
+
+**One local prerequisite that CI holds and a fresh container does not.**
+`compatibilityPolicyParity` runs the shared compatibility policy through the
+Python SDK, and under `CI=true` it *throws* rather than skipping when no
+interpreter can import `dataprod` — deliberately, because cross-language parity
+is the whole point of the test and a skip would report green for a check that
+never ran. CI installs the toolchain (`ci.yml`: `pip install pydantic
+'jsonschema[format]' -e packages/data-product-sdk`). A container without `pip`
+therefore reports one red suite that is not a defect. Install the SDK, or pass
+`PYTHON=` pointing at an interpreter that can import it. Worth stating here
+because the failure message names the cause but the gate table above did not
+name the prerequisite.
 
 `CROSS_PLUGIN_BOUNDARY` moved from WARNING to PASS in `15ea5e7`. The nine
 warnings are all documented and deliberately held: five `/alpha` API imports,

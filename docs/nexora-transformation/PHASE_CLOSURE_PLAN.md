@@ -539,7 +539,7 @@ Agreed with the product owner and executed in this order:
 | 0 | Rank 1's remaining live publish, and the push | **Blocked on a GitHub credential this environment does not hold** |
 | 1 | The three modules that shipped with no test: edition resolver, installation identity, evidence-package aggregator | **Done 2026-09-29** — `NXD-081`, `NXD-082`, `NXD-083`. One real defect |
 | 2 | Correct the record: this section, §9.5, `STATUS.md` §Current Phase / §Known Risks / §Next, `TARGET_CONFORMANCE_AUDIT.md` §1/§7/§9/§10 | **Done 2026-09-29.** Record change — exempt from DoD point 2. The four "missing" NXD records turned out to exist (`NXD-044`…`NXD-047`); the entry claiming they were missing was itself the stale thing |
-| 3 | Three small visible defects: the unrouted `catalog-graph`, the advertised-but-unwired lineage DAG, the two live product names. Three commits, not one | Open |
+| 3 | Three small visible defects: the unrouted `catalog-graph`, the advertised-but-unwired lineage DAG, the two live product names. Three commits, not one | **Done 2026-09-29** — and it took two commits, because one of the three was not a defect. `catalog-graph` routes itself through frontend feature discovery ([`NXD-085`](DECISIONS.md)); the lineage DAG's false "no lineage data" is fixed and its advertisement gone, but wiring the endpoint is a slice, not a line, and is deferred to §9.6 T5's neighbourhood; the image name was `data-product-platform` in two files and `pharma-data-factory:mvp-1.0` in three the old guard never read ([`NXD-086`](DECISIONS.md)) |
 | 4 | **T3** — consumer credentials and the read routes | Open |
 | 5 | **Rank 5** — URS→Product steps 3, 4, 5 | Open, after the ordering decision in §9.5 |
 | 6 | **Rank 6** — GP-7 out of Core | Open |
