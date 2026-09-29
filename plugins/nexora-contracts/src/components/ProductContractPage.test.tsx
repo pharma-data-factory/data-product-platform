@@ -35,7 +35,38 @@ const consumer = {
     type: 'data-product',
     dependsOn: ['component:default/filler-01-oee'],
   },
+  relations: [
+    { type: 'dependsOn', targetRef: 'component:default/filler-01-oee' },
+  ],
 };
+
+/**
+ * The reverse edge the catalog emits for `consumer.spec.dependsOn`.
+ *
+ * The page used to recompute this by reading every Component and matching on
+ * `spec.dependsOn`; it now reads the relation. The fixture models what the
+ * catalog actually stores rather than the raw YAML, which is why `oee` gains
+ * a relation it does not declare itself.
+ */
+const oeeWithConsumers = {
+  ...oee,
+  relations: [
+    { type: 'dependencyOf', targetRef: 'component:default/operations-dashboard' },
+  ],
+};
+
+/** Serves the two lookups the page makes, and nothing else. */
+function fakeCatalog(entities: Array<{ kind: string; metadata: { name: string } }>) {
+  const byRef = new Map(
+    entities.map(e => [`${e.kind.toLowerCase()}:default/${e.metadata.name}`, e]),
+  );
+  return {
+    getEntityByRef: async (ref: string) => byRef.get(ref),
+    getEntitiesByRefs: async ({ entityRefs }: { entityRefs: string[] }) => ({
+      items: entityRefs.map(ref => byRef.get(ref)),
+    }),
+  };
+}
 
 const contractApi = {
   getContract: async () => ({
@@ -73,7 +104,7 @@ describe('Data Product & Contract Explorer', () => {
             apis={[
               [
                 catalogApiRef,
-                { getEntities: async () => ({ items: [oee, consumer] }) } as never,
+                fakeCatalog([oeeWithConsumers, consumer]) as never,
               ],
               [nexoraContractApiRef, contractApi as never],
             ]}
@@ -104,7 +135,7 @@ describe('Data Product & Contract Explorer', () => {
         <MemoryRouter initialEntries={['/contracts/filler-01-oee']}>
           <TestApiProvider
             apis={[
-              [catalogApiRef, { getEntities: async () => ({ items: [oee] }) } as never],
+              [catalogApiRef, fakeCatalog([oee]) as never],
               [
                 nexoraContractApiRef,
                 {

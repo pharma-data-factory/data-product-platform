@@ -33,6 +33,7 @@ import {
   type PresentationCapability,
 } from '@internal/data-product-consumption';
 import { DataProduct, catalogClassLabel, toRelatedDataProducts } from '../model';
+import { fetchProductNeighbourhood } from '../catalogNeighbourhood';
 import { useGoverningProduct } from './useGoverningProduct';
 import { CertificationChip } from './CertificationChip';
 import { CompatibilityChip } from './CompatibilityChip';
@@ -112,10 +113,16 @@ export function DataProductDetailPage() {
       };
     }
     setCatalogLoading(true);
-    catalogApi
-      .getEntities({ filter: { kind: ['Component', 'API'] } })
-      .then(response => {
-        const products = toRelatedDataProducts(response.items);
+    // Was `getEntities({ kind: ['Component','API'] })` and a client-side
+    // `.find`: the whole catalog crossed the wire so one product could be
+    // read out of it. The neighbourhood walks relations instead — the
+    // product, its contracts, and the components on the other side of them —
+    // and `toRelatedDataProducts` is unchanged, so the relationships it
+    // derives are the same ones. A parity test measures that rather than
+    // asserting it. NXD-089.
+    fetchProductNeighbourhood(catalogApi, `component:default/${name}`)
+      .then(entities => {
+        const products = toRelatedDataProducts(entities);
         const match = products.find(item => item.name === name);
         if (!match) {
           throw new Error(`Data Product ${name} was not found`);

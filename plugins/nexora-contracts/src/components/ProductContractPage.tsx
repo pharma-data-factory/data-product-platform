@@ -67,33 +67,61 @@ export function ProductContractPage() {
 
   useEffect(() => {
     if (!name) {
-      return;
+      return undefined;
     }
+    let active = true;
+    // Was `getEntities({ kind: ['Component'] })` followed by a scan for
+    // entities whose `spec.dependsOn` mentioned this product. That is the
+    // reverse of a `dependsOn` edge, and the catalog already materializes it
+    // as `dependencyOf` — so the answer was one relation away and was being
+    // recomputed over every Component instead.
+    //
+    // The relation is also *more* correct than what it replaces. The scan
+    // matched with `ref.includes(name)`, so a product called `filler-01`
+    // collected the consumers of `filler-01-extended` as its own. The
+    // relation is an exact edge. NXD-089.
+    setLoading(true);
     catalogApi
-      .getEntities({ filter: { kind: ['Component'] } })
-      .then(response => {
-        const match = response.items
-          .map(toIndustrialDataProduct)
-          .find(item => item?.name === name);
-        setProduct(match);
+      .getEntityByRef(`component:default/${name}`)
+      .then(async entity => {
+        if (!active) {
+          return;
+        }
+        setProduct(entity ? toIndustrialDataProduct(entity) : undefined);
+
+        const consumerRefs = (entity?.relations ?? [])
+          .filter(relation => relation.type === 'dependencyOf')
+          .map(relation => relation.targetRef);
+        if (consumerRefs.length === 0) {
+          setConsumers([]);
+          setLoading(false);
+          return;
+        }
+
+        const { items } = await catalogApi.getEntitiesByRefs({
+          entityRefs: consumerRefs,
+        });
+        if (!active) {
+          return;
+        }
         setConsumers(
-          response.items
-            .filter(entity =>
-              (entity.spec?.dependsOn as string[] | undefined)?.some(
-                ref =>
-                  ref.includes(name) ||
-                  ref.includes(match?.entityRef || ''),
-              ),
-            )
-            .filter(entity => entity.metadata.name !== name)
-            .map(entity => ({
-              label: entity.metadata.title || entity.metadata.name,
-              to: `/data-products/${entity.metadata.name}`,
+          items
+            .filter(item => item && item.metadata.name !== name)
+            .map(item => ({
+              label: String(item!.metadata.title || item!.metadata.name),
+              to: `/data-products/${item!.metadata.name}`,
             })),
         );
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, [catalogApi, name]);
 
   if (loading) {

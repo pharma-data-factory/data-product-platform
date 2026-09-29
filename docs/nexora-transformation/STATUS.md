@@ -27,6 +27,30 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**Maturity-audit remediation, wave 2 (2026-09-29).** Closes the finding wave 1
+could not: relationship computation moves out of the browser. Backstage
+already materializes `apiConsumedBy`, `apiProvidedBy` and `dependencyOf` as
+reverse edges, and `model.ts` already used one of them sixty lines from a
+full-catalog scan asking the same question. `fetchProductNeighbourhood` walks
+those edges and hands the bounded result to the *existing*
+`toRelatedDataProducts`, so the logic is not reimplemented — a parity test
+compares both paths with `toEqual` rather than assuming they agree.
+`ContractRelationProcessor` makes the graph trustworthy for entities that
+carry only the legacy `dataprod.platform/providesContract` annotation, by
+copying it into `spec.*Apis` so the catalog emits the relation itself. See
+[`NXD-089`](DECISIONS.md).
+
+`ProductContractPage` turned out to be wrong as well as slow: it matched
+consumers with `ref.includes(name)`, so `filler-01` collected the consumers of
+`filler-01-extended`. The `dependencyOf` relation is an exact edge.
+
+Three pages still scan, and are untouched rather than half-converted:
+`PlatformComponentDetailPage`, `EquipmentDetailPage`,
+`MarketplaceDetailPage`. Each needs its own neighbourhood shape; the pattern
+is now proven.
+
+## Previous Vertical Slices
+
 **Maturity-audit remediation, wave 1 (2026-09-29).** A product-maturity audit
 run against the running code placed the platform at the upper end of stage 2
 of 5 — construction quality at 3–4, operability at 1–2 — and this closes the
@@ -60,7 +84,7 @@ those are the part worth carrying forward:
   `dataprod.platform/providesContract` annotation path may stop feeding
   relationship computation; nothing in the repository currently emits it.
 
-## Previous Vertical Slice
+## Previous Vertical Slices
 
 **T3 — a consuming installation can read (2026-09-29).** Wave 4 of
 [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.4a. Six artifact-registry

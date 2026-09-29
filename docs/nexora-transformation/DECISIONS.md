@@ -4705,3 +4705,102 @@ config key away the whole time.
   `.github/workflows/ci.yml`, `.github/workflows/codeql.yml` (new),
   `.github/dependabot.yml` (new),
   `package.json` (coverage threshold).
+
+### NXD-089 — The relationship graph moves out of the browser, and the annotation keeps working
+
+- Date: 2026-09-29
+- Slice: maturity-audit remediation, wave 2 — the finding `NXD-088` could not
+  close
+- Closes: nothing planned. Continues the remediation `NXD-088` opened.
+
+`NXD-088` reported that seven detail pages fetched every `Component` and `API`
+in the catalog and picked their subject out with a client-side `.find`, and
+that only one of them could be converted to `getEntityByRef`. The reason is
+the part worth recording: `withCatalogRelationships` derives a product's
+consumers, its provider and its compatibility status **from its siblings**.
+Given one entity it returns `consumers: []` and `UNKNOWN` — silently wrong,
+which is worse than slow. The defect was never "the wrong catalog call". It
+was relationship computation living in the client.
+
+**The catalog already answers this, and the file already knew.** Backstage
+materializes `apiConsumedBy`, `apiProvidedBy` and `dependencyOf` as the
+reverse of `spec.consumesApis`, `spec.providesApis` and `spec.dependsOn`.
+`usedByFromCatalogRelations` in `model.ts:329` uses `apiConsumedBy` to do a
+reverse lookup in O(1). Sixty lines later `withCatalogRelationships` scans the
+whole catalog for the same answer. Two implementations of one question, one of
+them O(n), side by side in one file.
+
+**The chosen fix resolves a neighbourhood, and does not touch the logic.**
+`fetchProductNeighbourhood` walks the relations — the product by ref, the API
+entities it provides or consumes, the components on the other side of those,
+and its `dependsOn`/`dependencyOf` peers — and hands the result to the
+*existing* `toRelatedDataProducts`, unchanged. Three round trips,
+O(neighbours) instead of O(catalog). The relationship logic is not
+reimplemented; it is given a smaller input, so behaviour is preserved by
+construction rather than by inspection.
+
+That claim is measured, not asserted. `catalogNeighbourhood.test.ts` runs both
+paths over the same fixture and compares the resulting `DataProduct` objects
+with `toEqual`, for the provider and the consumer sides, and separately pins
+the two values a naive `getEntityByRef` would have lost: `usedBy` and a
+`compatibilityStatus` that is not `UNKNOWN`.
+
+**The neighbourhood is complete for its subject, not for its neighbours.**
+`toRelatedDataProducts` maps every entity in the set, so neighbours in the
+output carry relationships computed against a partial catalog. Callers take
+the subject and disregard the rest. Stated here because the type does not say
+it and the next reader will otherwise assume the whole result is usable.
+
+## The processor is what makes the graph trustworthy
+
+`toDataProduct` resolves contracts through a three-tier cascade: relations,
+then `spec.*Apis`, then the `dataprod.platform/providesContract` annotation.
+Only the first tier has a reverse edge, so an annotation-only product cannot
+be asked "who consumes you" without a scan. Converting the pages without
+addressing that would have silently emptied the consumer list for exactly
+those entities — the same class of invisible regression the audit's original
+recommendation would have caused.
+
+`ContractRelationProcessor` copies the annotation into `spec.providesApis` /
+`spec.consumesApis` in `preProcessEntity`, and `BuiltinKindsEntityProcessor`
+then emits both directions of the relation in its own `postProcessEntity`,
+exactly as for a product that declared the refs itself. The annotation keeps
+working **and** the graph becomes uniformly reliable. Backstage's own
+extension point, configured rather than replaced.
+
+It returns the entity by identity when it changes nothing. The catalog hashes
+processed entities to detect change, and rewriting `spec` with identical
+values on every refresh would churn the processing loop. It also declines to
+write an empty array: `providesApis: []` claims the product provides nothing,
+which is not what a missing annotation means.
+
+Nothing in this repository emits those annotations today — all four Golden
+Path templates write real `spec.providesApis` and ship real `kind: API`
+entities. The processor is for entities registered by hand or imported from
+elsewhere, which is precisely the population that would otherwise have lost
+its consumers quietly.
+
+## A scan that was also wrong, not merely slow
+
+`ProductContractPage` found its consumers by reading every Component and
+testing `spec.dependsOn` with `ref.includes(name)`. A substring test: a
+product named `filler-01` collected the consumers of `filler-01-extended` as
+its own. The `dependencyOf` relation is an exact edge, so replacing the scan
+fixed a correctness defect that nobody had reported and the scan's cost had
+been hiding.
+
+- Converted: `DataProductDetailPage` (neighbourhood), `ProductContractPage`
+  (`dependencyOf`). `QualityDetailPage` and `AssetDetailPage` were already
+  done under `NXD-088`.
+- Still scanning, and honestly so: `PlatformComponentDetailPage`,
+  `EquipmentDetailPage`, `MarketplaceDetailPage`. Each needs its own
+  neighbourhood shape — component library usage, related Resources and
+  Systems, marketplace composition — and the pattern is now proven rather
+  than speculative. Not started rather than half-done.
+
+- Affected components:
+  `plugins/data-products-backend/src/contractRelationProcessor.ts` (new),
+  `plugins/data-products-backend/src/catalogModule.ts`,
+  `plugins/data-products/src/catalogNeighbourhood.ts` (new),
+  `plugins/data-products/src/components/DataProductDetailPage.tsx`,
+  `plugins/nexora-contracts/src/components/ProductContractPage.tsx`.

@@ -6,6 +6,7 @@ import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node'
 
 import { FileCertificationOverlay, certificationOverlayPath } from './certificationOverlay';
 import { CertificationOverlayProcessor } from './certificationProcessor';
+import { ContractRelationProcessor } from './contractRelationProcessor';
 
 export const catalogModuleCertificationOverlay = createBackendModule({
   pluginId: 'catalog',
@@ -23,6 +24,9 @@ export const catalogModuleCertificationOverlay = createBackendModule({
         catalogProcessing.addProcessor(
           new CertificationOverlayProcessor(overlay),
         );
+        // Must reach the catalog before BuiltinKindsEntityProcessor emits
+        // relations — it works in preProcessEntity for exactly that reason.
+        catalogProcessing.addProcessor(new ContractRelationProcessor());
       },
     });
   },
