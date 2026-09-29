@@ -628,10 +628,24 @@ new work that did not exist as a plan. Whether the topology track runs before,
 after or interleaved with the §9.4 backlog is a product decision — it is stated
 here as a coherent sequence, not as a claim on the next slot.
 
-Two small defects found while scoping this, both unranked and both cheap:
+Two small defects found while scoping this, both unranked and both cheap.
+**Both examined 2026-09-29 ([`NXD-085`](DECISIONS.md)); one of them was not a
+defect:**
 
-- `@backstage/plugin-catalog-graph` is a declared dependency that is never
+- ~~`@backstage/plugin-catalog-graph` is a declared dependency that is never
   registered in `createApp`, so the `/catalog-graph?rootEntityRefs=…` links the
-  code already builds point at an unrouted path.
-- `GET /versions/:id/lineage/dag` has no frontend consumer; the richer endpoint
-  is advertised in placeholder text on the page that would render it.
+  code already builds point at an unrouted path.~~ **Wrong.** Opened in a
+  browser against the running app with `App.tsx` exactly as it ships,
+  `/catalog-graph` renders the Catalog Graph page. `createApp` from
+  `@backstage/frontend-defaults` **discovers** frontend features from
+  `package.json` dependencies; naming one in `features` configures or overrides
+  it, it does not switch it on. The finding was derived by reading `App.tsx`.
+- ~~`GET /versions/:id/lineage/dag` has no frontend consumer; the richer
+  endpoint is advertised in placeholder text on the page that would render
+  it.~~ **Real, and half fixed.** The advertisement is gone. The endpoint still
+  has no consumer, and wiring it is a slice rather than a line: it is keyed by
+  *product version* id while the component holds a product *name*, so it needs
+  entity ref → product → versions → one version, plus an answer to which
+  version's lineage a consumer is asking about. Fixed alongside it: the view
+  rendered "no lineage data" for a failed request, so a statement about the
+  platform was being read as a statement about the product.

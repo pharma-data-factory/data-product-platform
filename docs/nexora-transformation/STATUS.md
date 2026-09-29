@@ -2016,12 +2016,11 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"docs(nxd-084): the record catches up with the code, in both directions",
-2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — the correction
-sweep over this file, `PHASE_CLOSURE_PLAN.md` and
-`TARGET_CONFORMANCE_AUDIT.md`, plus the execution order in
-`PHASE_CLOSURE_PLAN.md` §9.4a. Record change, exempt from DoD point 2. See
-[`NXD-084`](DECISIONS.md).
+"fix(nxd-085): one of the two small defects was not a defect", 2026-09-29, on
+`ms/composer-ai-spec-and-ci-quality-gate` — both unranked items from
+`PHASE_CLOSURE_PLAN.md` §9.6. The catalog-graph route was never broken;
+`createApp` discovers features from `package.json` dependencies. The lineage
+view's two unsupported claims are fixed. See [`NXD-085`](DECISIONS.md).
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the

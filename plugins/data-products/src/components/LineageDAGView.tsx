@@ -11,7 +11,19 @@
  *   contract nodes: positioned midway between their producer and consumer
  *
  * Users can pan by dragging and see node details on hover.
- * The data comes from GET /api/composer/impact/artifact?name=X.
+ * The data comes from GET /api/composer/impact/artifact?name=X — one hop, by
+ * product name.
+ *
+ * **What this view is not, stated because the empty state used to claim
+ * otherwise.** `GET /api/composer/versions/:id/lineage/dag` returns the full
+ * multi-hop graph and has no frontend consumer at all; until `NXD-085` this
+ * component advertised that endpoint in its own placeholder text, on the very
+ * page that would render it. Wiring it is not a cosmetic change: the endpoint
+ * is keyed by *product version* id and this component is given a product
+ * *name*, so reaching it means resolving entity ref → product → versions →
+ * one version, and answering which version's lineage a consumer is looking at.
+ * That is a slice, not a line, and until someone takes it the honest thing is
+ * to not promise it here.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -176,11 +188,17 @@ export function LineageDAGView({ productName }: { productName: string }) {
   const discoveryApi = useApi(discoveryApiRef);
   const [graph, setGraph] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null);
   const [loading, setLoading] = useState(false);
+  // "Nothing to show" and "the request failed" used to render identically:
+  // every failure path fell through to the same empty state, which told a
+  // reader that this product has no lineage. That is a claim, and it was being
+  // made on no evidence. NXD-085.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!productName) return undefined;
     let active = true;
     setLoading(true);
+    setFailed(false);
     discoveryApi.getBaseUrl('composer').then(async base => {
       try {
         const res = await fetch(`${base}/composer/impact/artifact?name=${encodeURIComponent(productName)}`);
@@ -188,14 +206,29 @@ export function LineageDAGView({ productName }: { productName: string }) {
         if (res.ok) {
           const impact = await res.json() as ImpactResult;
           setGraph(buildGraph(productName, impact));
+        } else {
+          setFailed(true);
         }
-      } catch { /* silent */ }
+      } catch {
+        if (active) setFailed(true);
+      }
       if (active) setLoading(false);
-    }).catch(() => { if (active) setLoading(false); });
+    }).catch(() => { if (active) { setFailed(true); setLoading(false); } });
     return () => { active = false; };
   }, [discoveryApi, productName]);
 
   if (loading) return <CircularProgress size={24} />;
+
+  if (failed) {
+    return (
+      <Box>
+        <Typography variant="body2" color="textSecondary">
+          Lineage could not be loaded. This is not a statement that the product
+          has none — the Composer did not answer.
+        </Typography>
+      </Box>
+    );
+  }
 
   if (!graph || graph.nodes.length <= 1) {
     return (
@@ -205,9 +238,6 @@ export function LineageDAGView({ productName }: { productName: string }) {
           Composer populate this graph. Use{' '}
           <code>POST /api/composer/subscriptions</code> and{' '}
           <code>POST /api/composer/versions/:id/dependencies</code> to build the lineage.
-        </Typography>
-        <Typography variant="caption" color="textSecondary" style={{ marginTop: 8, display: 'block' }}>
-          Full multi-hop DAG: <code>GET /api/composer/versions/:id/lineage/dag</code>
         </Typography>
       </Box>
     );

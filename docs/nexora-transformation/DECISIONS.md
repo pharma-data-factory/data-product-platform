@@ -4236,3 +4236,82 @@ no such check exists for claims. Worth knowing before adding the next note.
 - Affected components: `docs/nexora-transformation/STATUS.md`,
   `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.4a new, §9.5
   corrected), `docs/audits/TARGET_CONFORMANCE_AUDIT.md`. No code changed.
+
+### NXD-085 — One of the two small defects was not a defect
+
+- Date: 2026-09-29
+- Slice: Welle 3 of the programme plan, items 3.1 and 3.2
+- Closes: both unranked items in `PHASE_CLOSURE_PLAN.md` §9.6 — one by fixing
+  it, one by withdrawing it
+
+Taken as one unit because the pair only makes sense together: they were found
+in one scoping pass, examined in one session, and the outcomes point in
+opposite directions.
+
+**3.1 — the catalog-graph route was never broken.** §9.6 recorded that
+`@backstage/plugin-catalog-graph` is a declared dependency `App.tsx` never
+registers, so every `/catalog-graph?rootEntityRefs=…` link this repository
+builds lands on an unrouted path. Opened in a real browser against the running
+app — guest sign-in, client-side navigation, `App.tsx` at `HEAD` with no import
+and no `features` entry — the page renders: "Catalog Graph", its filter panel,
+and the plugin's own query defaults written back into the URL.
+
+`createApp` from `@backstage/frontend-defaults` **discovers** frontend features
+from `package.json` dependencies. Listing one in `features` is how you
+configure or override it, not how you turn it on.
+
+The finding was produced by reading `App.tsx` and comparing it against
+`package.json`. Every step of that reasoning was correct about the source and
+wrong about the product. **It is `NXD-080` in a mirror:** there, four green
+gates hid a broken product; here, a careful source reading invented a defect
+that does not exist. The same rule answers both, and it is DoD point 2 —
+open the thing.
+
+The change that remains from 3.1 is therefore a test, not a fix, and it guards
+a different invariant than the one assumed. Discovery keys off `dependencies`,
+so `yarn remove @backstage/plugin-catalog-graph` breaks every one of those
+links silently, with `App.tsx` untouched and no import to notice missing.
+`appRouting.test.ts` requires the dependency for as long as anything links to
+the path — and stops requiring it if the links go, which is the other
+legitimate fix.
+
+**A guard deliberately not written.** The general form — "every
+`@backstage/plugin-*` dependency exporting `./alpha` must be registered in
+`App.tsx`" — flags thirteen packages, and eleven are correct as they stand:
+`plugin-catalog-react` and `plugin-search-react` are libraries with no page,
+and `plugin-scaffolder`, `plugin-search` and `plugin-user-settings` arrive
+through this app's own modules. A guard that is wrong eleven times out of
+thirteen trains people to add exceptions, which leaves them worse off than no
+guard.
+
+**3.2 — the lineage view made two claims it could not support.** Both are
+about the same failing: saying more than the evidence allows.
+
+The empty state advertised `GET /api/composer/versions/:id/lineage/dag` —
+an endpoint with no frontend consumer anywhere in the repository — on the very
+page that would render it. The advertisement is gone. Wiring it is a slice, not
+a line: the endpoint is keyed by *product version* id while the component holds
+a product *name*, so reaching it means resolving entity ref → product →
+versions → one version, and answering which version's lineage a consumer is
+looking at. That question has an owner and it is not this commit.
+
+The second is the one that matters. Every failure path — a non-OK response, a
+rejected request, an unreachable discovery API — fell through a
+`catch { /* silent */ }` into the same empty state, so **"this product has no
+lineage" and "the Composer did not answer" rendered identically.** An empty
+graph is a statement about the product; a failed request is a statement about
+the platform. This is the UI form of a silent fail-open, which this repository
+has now met three times: `NXD-045`'s unlogged policy resolver, this `catch`,
+and `NXD-083`'s route that could not answer at all.
+
+**Live, per DoD point 2.** For 3.1 the executed path is the browser session
+above, including the negative control — the same navigation with the
+registration removed, which also renders, and is what proved the finding wrong
+rather than merely unconfirmed. For 3.2 it is four component cases, two of
+which drive the two distinct failure shapes; mutation-checked by restoring the
+silent `catch`.
+
+- Affected components: `plugins/data-products/src/components/LineageDAGView.tsx`
+  and its new test, `packages/app/src/appRouting.test.ts` (new),
+  `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` §9.6. `App.tsx` is
+  unchanged, which is the finding.
