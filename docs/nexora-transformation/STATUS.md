@@ -1856,6 +1856,20 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   gates. `templateContract.test.ts` now checks the schema's internal
   consistency statically, which closes this particular hole but not the class:
   a template can still be wrong in a way only the live route reveals.
+- **Three modules shipped with no test at all**, measured 2026-09-29: the
+  edition resolver (`platform-common/src/editions.ts`, `NXD-078`), the
+  installation identity (`artifact-registry-backend/src/installation.ts`,
+  `NXD-078`) and the evidence-package aggregator (`composer-backend`'s
+  `/versions/:id/evidence-package`, `NXD-077`). None of their exports was
+  called by any test file, and none has a frontend consumer. Being worked off
+  in order of damage on failure:
+  - ~~edition resolver~~ **Resolved 2026-09-29** ([`NXD-081`](DECISIONS.md)) —
+    34 cases, mutation-checked, and edition scoping walked live across two
+    installations. No defect found.
+  - installation identity — open.
+  - evidence-package aggregator — open, and its gating decision (does the
+    product side need an electronic signature, `PHASE_CLOSURE_PLAN.md` §9.5)
+    is overdue: §9.5 requires it *before* rank 2, which shipped 2026-09-28.
 - ~~The GxP invariant suites never run in CI.~~ **Resolved in P0-S2.** 62
   tests across six files (`urs-composer-backend`: `gxp-invariants`,
   `runtime-postgres-proof`, `wd-seed-persistence`, `p1a-verification`,
@@ -1941,10 +1955,11 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-080): the live run NXD-079 deferred, and the seven templates it found
-unscaffoldable", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` —
-the walk that closes rank 1 of `PHASE_CLOSURE_PLAN.md` §9.4 up to the GitHub
-credential. See [`NXD-080`](DECISIONS.md).
+"test(nxd-081): the edition resolver, proven, and its two permissive answers
+pinned", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — the first
+of the three modules that shipped untested, see `## Migration Debt`. No
+production code changed and no defect was found; what changed is that the
+claim is now checkable. See [`NXD-081`](DECISIONS.md).
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the

@@ -3942,3 +3942,95 @@ point 2 exists because the other three points cannot see that.
 
 - Affected components: `templates/{aas-data-product,machine-state-consumer,mqtt-temperature-product,oee-data-product,python-service,rest-equipment-product,unified-namespace}/template.yaml`,
   `packages/backend/src/templateContract.test.ts`.
+
+### NXD-081 — The edition resolver, proven, and its two permissive answers pinned
+
+- Date: 2026-09-29
+- Slice: Welle 1.1 of the programme plan; covers the gap `NXD-078` left
+- Closes: nothing new. This makes an existing claim checkable.
+
+**`NXD-078` shipped 251 lines and six exports with no test of any kind.** That
+is the state `NXD-079` was in the day before [`NXD-080`](#nxd-080--the-live-run-nxd-079-deferred-and-what-it-found)
+found seven templates unscaffoldable behind four green gates — and the stakes
+are higher here, because this code decides what an installation may see. A
+wrong "yes" hands an installation content it is not entitled to; a wrong "no"
+removes content it paid for. Neither is visible from outside the process.
+
+**No defect was found.** Stated first and plainly, because the honest result of
+a verification pass is often "it was right", and a record that only ever
+reports discoveries teaches the reader to expect them. Thirty-four cases across
+the six exports, and the resolver answered every one correctly.
+
+**What is now checkable rather than merely asserted.** The docblock made four
+promises that nothing enforced: every problem is reported rather than the
+first; a cycle is reported once per cycle rather than once per member; an
+invalid catalogue throws instead of resolving partially; inheritance is
+transitive. All four are tests now. So is the catalogue this repository ships —
+`validateEditionCatalogue` over `catalog/editions.yaml` is one assertion, and
+it is the one that fails if someone hand-edits the file badly.
+
+**Two permissive answers, pinned deliberately.** Both are correct and both look
+like bugs to a reader encountering them cold, which is exactly why they need a
+test naming them rather than a comment:
+
+- An artifact declaring **no** `editions` is available everywhere. Requiring
+  every manifest to opt in would empty the marketplace of everything written
+  before editions existed, and an artifact with no stated audience is not a
+  secret.
+- An installation on **no** edition sees everything. An operator who has not
+  chosen an edition has not asked to be restricted.
+
+The second is the riskier one, and the boundary that makes it safe is not in
+this module: an installation configured to an edition the catalogue does not
+declare **throws at startup** rather than degrading to "no edition". Without
+that, a typo would produce precisely the unrestricted installation the
+permissive default is supposed to be a choice. Walked live below.
+
+**A third case, pinned for the same reason:** an empty `editions: []` list is a
+valid catalogue. It resolves to no editions, which means any configured edition
+fails loudly — the permissiveness lives at the installation boundary, not in
+the validator.
+
+**Live, per DoD point 2.** One registry, two installations, same artifact
+content:
+
+```
+edition nexora-life-sciences  → GET /api/artifact-registry/installation
+  lineage ["nexora-life-sciences","nexora-core"]
+  capabilities include artifact-marketplace, product-registry, composition-engine,
+    governance-basic — all four inherited from core, none in its own list
+  GET /artifacts → 21, including nexora/gxp-data-product-policy
+
+edition nexora-manufacturing  → lineage ["nexora-manufacturing","nexora-core"]
+  GET /artifacts → 20; only nexora/gxp-data-product-policy is missing
+```
+
+`gxp-data-product-policy` declares `editions: [nexora-life-sciences]`, and it
+is the only shipped manifest that scopes itself at all — so the difference of
+exactly one artifact is the whole of edition scoping as this repository
+currently uses it. Small, and it now demonstrably works.
+
+The negative case, also live:
+
+```
+edition nexora-lifesciences (a typo)
+  Plugin 'artifact-registry' threw an error during startup:
+  Configured edition "nexora-lifesciences" is not declared in the edition
+  catalogue. Declared editions: nexora-core, nexora-life-sciences,
+  nexora-manufacturing, nexora-enterprise.
+```
+
+**Mutation-checked, twice.** Making `resolveEditions` stop walking `extends`
+fails seven cases including the shipped-catalogue one; making
+`artifactAvailableInEdition` compare `id` instead of `lineage` fails two.
+Both mutations reproduce real bugs this module was written to remove —
+the second is the flat lookup named in its own docblock.
+
+**Not covered here.** No frontend reads any of this; nothing displays which
+edition an installation runs. `installation.ts` in `artifact-registry-backend`
+is the next unit (Welle 1.2) and is tested separately, because its failure
+modes are file-shaped — missing file, malformed YAML — rather than
+resolution-shaped.
+
+- Affected components: `packages/platform-common/src/editions.test.ts` (new).
+  No production code changed.
