@@ -109,9 +109,16 @@ describe('Phase 1 brand separation', () => {
     expect(appConfig).not.toContain('clientIdMetadataDocuments:');
     // Local image names match the repository component of the GHCR path
     // production already publishes
-    // (ghcr.io/pharma-data-factory/data-product-platform). `nexora:latest` and
+    // (ghcr.io/<org>/data-product-platform). `nexora:latest` and
     // `pharma-data-factory:mvp-1.0` were two ad-hoc names for the same
-    // artifact; both are gone. See NXD-043.
+    // artifact. See NXD-043.
+    //
+    // **This assertion used to claim more than it checked.** It read exactly
+    // two files and its comment said both ad-hoc names were "gone" — while
+    // `pharma-data-factory:mvp-1.0` was still the default tag in
+    // `build-production-image.sh`, its PowerShell twin, and
+    // `deploy/production.local.env.example`, none of which it looked at. The
+    // production path is now covered below. NXD-086.
     expect(backendPackage.scripts['build-image']).toContain(
       '--tag data-product-platform',
     );
@@ -120,5 +127,45 @@ describe('Phase 1 brand separation', () => {
     );
     expect(compose).toMatch(/^\s*image: data-product-platform:/m);
     expect(compose).not.toMatch(/^\s*image: backstage/m);
+  });
+
+  it('builds and runs the same production image name', () => {
+    // Three files have to agree or `yarn docker:prod:up` runs an image
+    // `yarn docker:prod:build` never produced — and Docker's error for that is
+    // a failed pull from Docker Hub, which reads as a network problem rather
+    // than as a naming one.
+    const read = (rel: string) =>
+      fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+    const sh = /TAG="\$\{1:-([^}"]+)\}"/.exec(
+      read('scripts/build-production-image.sh'),
+    );
+    const ps1 = /\$Tag = "([^"]+)"/.exec(
+      read('scripts/build-production-image.ps1'),
+    );
+    const env = /^CONTROL_PLANE_IMAGE=(.+)$/m.exec(
+      read('deploy/production.local.env.example'),
+    );
+
+    expect({ sh: sh?.[1], ps1: ps1?.[1], env: env?.[1] }).toEqual({
+      sh: 'data-product-platform:mvp-1.0',
+      ps1: 'data-product-platform:mvp-1.0',
+      env: 'data-product-platform:mvp-1.0',
+    });
+  });
+
+  it('keeps the GHCR default on the published repository path', () => {
+    // `docker-compose.production.yml` is the hosted path and pulls rather than
+    // builds, so its default must be a full GHCR coordinate — not a bare local
+    // tag, which would silently resolve against Docker Hub.
+    const production = fs.readFileSync(
+      path.join(ROOT, 'docker-compose.production.yml'),
+      'utf8',
+    );
+    const image = /image: \$\{CONTROL_PLANE_IMAGE:-([^}]+)\}/.exec(production);
+
+    expect(image?.[1]).toMatch(
+      /^ghcr\.io\/[a-z0-9-]+\/data-product-platform:.+$/,
+    );
   });
 });

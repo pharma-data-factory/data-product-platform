@@ -4312,6 +4312,63 @@ which drive the two distinct failure shapes; mutation-checked by restoring the
 silent `catch`.
 
 - Affected components: `plugins/data-products/src/components/LineageDAGView.tsx`
-  and its new test, `packages/app/src/appRouting.test.ts` (new),
+  and its new test, `packages/backend/src/appRouting.test.ts` (new — it lives
+  there because `packages/app`'s ESLint config restricts `fs` and `path`,
+  correctly),
   `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` §9.6. `App.tsx` is
   unchanged, which is the finding.
+
+### NXD-086 — The name NXD-043 declared gone, and the guard that only read two files
+
+- Date: 2026-09-29
+- Slice: Welle 3 item 3.3
+- Closes: the `STATUS.md` §Migration Debt entry "two product names are live at once"
+
+**The question was posed on a false premise, and the answer it got does not
+apply.** The product owner was asked to choose between `nexora` and
+`pharma-data-factory` as the image name, and chose `nexora`. Neither was
+available: `NXD-043` had already retired both in favour of
+`data-product-platform`, which matches the repository component of the GHCR
+path this publishes to. The product is Nexora and always was — `CLAUDE.md`,
+the catalogue, the landing page, the PWA manifest. The *artifact* is named
+after the repository. Those are different axes, and conflating them is how the
+question came to be asked.
+
+**What was actually wrong.** `NXD-043` unified the two names it found in the
+two files its test happened to read — `packages/backend/package.json` and
+`docker-compose.yml` — and wrote in that test's comment that both ad-hoc names
+were "gone". They were not. `pharma-data-factory:mvp-1.0` remained the default
+tag in `scripts/build-production-image.sh`, in its PowerShell twin, and in
+`deploy/production.local.env.example`, none of which the test looked at. The
+name it declared gone outlived it by six days.
+
+It was self-consistent, so nothing broke: the build script tagged
+`pharma-data-factory:mvp-1.0` and the env example ran that tag. But it was one
+edit away from breaking in the way that reads worst — change either and
+`docker:prod:up` runs an image `docker:prod:build` never produced, and Docker's
+error for that is a failed pull from Docker Hub, which looks like a network
+problem rather than a naming one.
+
+**A guard that reads two files must not assert about all of them.** That is the
+transferable part. The old comment was not wrong about what it checked; it was
+wrong about what it claimed. The test now reads all three production-path files
+and asserts they agree, and separately that
+`docker-compose.production.yml`'s default stays a full GHCR coordinate — a bare
+local tag there would silently resolve against Docker Hub.
+
+**One name deliberately left alone.** `docker-compose.validation.yml` defaults
+to `platform-core:1.0-rc2`. It carries its own `build:` section, so it builds
+what it runs and cannot drift; and the tag is named in an executed Platform
+Core IQ re-test. Renaming a tag that appears in validation evidence is not a
+cleanup, it is an alteration of the record.
+
+**Record change plus a one-line default change — no executable path, and
+saying so rather than staging a `docker build` for appearances.** Building the
+production image here proves the tag string, which the test already does
+without a five-minute build. Exempt from DoD point 2 under the §9 preamble.
+
+- Affected components: `scripts/build-production-image.sh`,
+  `scripts/build-production-image.ps1`,
+  `deploy/production.local.env.example`,
+  `packages/backend/src/brandSeparation.test.ts`,
+  `docs/nexora-transformation/STATUS.md`.

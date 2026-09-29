@@ -3,7 +3,12 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-TAG="${1:-pharma-data-factory:mvp-1.0}"
+# Matches the repository component of the GHCR path this publishes to,
+# ghcr.io/<org>/data-product-platform — and the tag `yarn build-image`
+# produces. It used to be `pharma-data-factory:mvp-1.0`, which NXD-043 removed
+# from the two files its test happened to read and left standing here, so the
+# name it declared gone outlived it by six days. NXD-086.
+TAG="${1:-data-product-platform:mvp-1.0}"
 
 echo "==> Repo: $ROOT"
 echo "==> Image tag: $TAG"

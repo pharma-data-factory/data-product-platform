@@ -3,14 +3,16 @@
 #
 # Usage (repo root):
 #   .\scripts\build-production-image.ps1
-#   .\scripts\build-production-image.ps1 -Tag "pharma-data-factory:mvp-1.0"
+#   .\scripts\build-production-image.ps1 -Tag "data-product-platform:mvp-1.0"
 #
 # Then:
 #   copy deploy\production.local.env.example deploy\production.local.env
 #   docker compose -f docker-compose.production.yml --env-file deploy/production.local.env up -d
 
 param(
-  [string]$Tag = "pharma-data-factory:mvp-1.0",
+  # Kept in step with build-production-image.sh and with
+  # deploy/production.local.env.example. NXD-086.
+  [string]$Tag = "data-product-platform:mvp-1.0",
   [switch]$SkipInstall,
   [switch]$SkipTsc
 )

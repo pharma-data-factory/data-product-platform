@@ -1962,10 +1962,23 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   regressions hidden behind brittle assertions. String-matching a compose file
   is a poor way to state a deployment guarantee; parsing the YAML and asserting
   on the structure would survive a rewrite. Added 2026-09-22.
-- Two product names are live at once: `build-image` tags
+- ~~Two product names are live at once: `build-image` tags
   `pharma-data-factory:mvp-1.0`, `docker-compose.yml` tags `nexora:latest`.
   `brandSeparation.test.ts` accepts both until one is chosen. Added
-  2026-09-22.
+  2026-09-22.~~ **Stale in its specifics, closed 2026-09-29**
+  ([`NXD-086`](DECISIONS.md)). `NXD-043` picked `data-product-platform` and the
+  test stopped accepting both — but it only read `build-image` and
+  `docker-compose.yml`, so `pharma-data-factory:mvp-1.0` survived in
+  `build-production-image.sh`, its PowerShell twin and
+  `deploy/production.local.env.example`. All three now agree, and the guard
+  reads them. `docker-compose.validation.yml` keeps `platform-core:1.0-rc2`
+  deliberately: it builds what it runs, and the tag is named in an executed IQ
+  re-test.
+
+  **This is the third note in this file found describing a resolved state**,
+  after the GP-8 inventory row and the four "missing" NXD records. The pattern
+  is now worth naming: none was written carelessly, all three were simply never
+  re-read after the thing they described moved.
 
 ## Blocked Decisions
 
@@ -2016,11 +2029,10 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-085): one of the two small defects was not a defect", 2026-09-29, on
-`ms/composer-ai-spec-and-ci-quality-gate` — both unranked items from
-`PHASE_CLOSURE_PLAN.md` §9.6. The catalog-graph route was never broken;
-`createApp` discovers features from `package.json` dependencies. The lineage
-view's two unsupported claims are fixed. See [`NXD-085`](DECISIONS.md).
+"fix(nxd-086): the name NXD-043 declared gone, and the guard that only read two
+files", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — Welle 3
+item 3.3. `pharma-data-factory:mvp-1.0` survived in the three production-path
+files the old guard never read. See [`NXD-086`](DECISIONS.md).
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
