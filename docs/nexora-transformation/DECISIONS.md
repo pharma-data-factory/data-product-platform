@@ -4034,3 +4034,72 @@ resolution-shaped.
 
 - Affected components: `packages/platform-common/src/editions.test.ts` (new).
   No production code changed.
+
+### NXD-082 — The installation identity, and the asymmetry that makes the permissive default defensible
+
+- Date: 2026-09-29
+- Slice: Welle 1.2 of the programme plan; the second of the three untested modules
+- Closes: nothing new. Continues the pass [`NXD-081`](#nxd-081--the-edition-resolver-proven-and-its-two-permissive-answers-pinned) began.
+
+**One asymmetry carries this module, and it is easy to get backwards.** A
+*missing* edition catalogue is not an error — an installation that does not use
+editions is a legitimate installation. A *malformed* one is fatal. The reason is
+not tidiness: degrading to "no editions" would hand an operator an unrestricted
+installation while they believed they had a scoped one, and nothing in the logs
+would say so. Eighteen cases now hold both halves apart, so a later "let us be
+lenient about this" has to argue with one of them rather than quietly widen a
+`catch`.
+
+**No defect found here either.** `loadEditionCatalogue` distinguishes `ENOENT`
+from every other I/O failure correctly, and `resolveInstallation` trims, falls
+back and refuses exactly as documented.
+
+**What the tests pin that a reader would otherwise have to infer:**
+
+- An empty file is **not** a missing file. It parses to `null`, which is not a
+  catalogue, and it throws. Someone truncated that file, and truncation is not
+  a statement about editions.
+- A directory where a file is expected reads as `EISDIR`, not `ENOENT`, and
+  must not be swallowed. Only "not there" means "no editions".
+- The error names the path. An operator with several config files needs to know
+  which one is wrong.
+- A blank `id` and a blank `editionId` are absent, not empty — the difference
+  between `nexora-local` and a lookup for `""`.
+- The failure message says `Declared editions: none.` rather than an empty list
+  when no catalogue loaded at all, which is the case an operator is most likely
+  to hit.
+
+**Why the permissive default is a decision and not a hole.** `NXD-081` pinned
+that an installation on no edition sees everything. That is only defensible
+because *this* module refuses a configured edition the catalogue does not
+declare. Without the refusal, a single typo would produce precisely the
+unrestricted installation the permissive default is supposed to be a choice
+about. The two records are one argument; neither half is safe alone.
+
+**Live, per DoD point 2.** The third installation shape, after the two in
+`NXD-081`: no `artifactRegistry.installation` block at all.
+
+```
+GET /api/artifact-registry/installation
+  id                nexora-local          (DEFAULT_INSTALLATION_ID)
+  displayName       nexora-local          (falls back to the id)
+  edition           null
+  availableEditions nexora-core, nexora-life-sciences,
+                    nexora-manufacturing, nexora-enterprise
+
+GET /api/artifact-registry/artifacts → 21
+  including nexora/gxp-data-product-policy, which the manufacturing
+  installation could not see
+```
+
+An unconfigured installation knows every edition exists and runs none of them,
+and sees the artifact that edition scoping hides elsewhere. That is the
+permissive default, executed rather than asserted.
+
+**Mutation-checked twice.** Swallowing every read error instead of only
+`ENOENT` fails one case; removing the refusal for an undeclared edition fails
+two, including the message-shape one. Both mutations are the plausible
+"simplifications" a later reader would reach for.
+
+- Affected components: `plugins/artifact-registry-backend/src/installation.test.ts`
+  (new). No production code changed.

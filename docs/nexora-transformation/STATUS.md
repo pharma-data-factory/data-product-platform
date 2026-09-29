@@ -1866,7 +1866,9 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   - ~~edition resolver~~ **Resolved 2026-09-29** ([`NXD-081`](DECISIONS.md)) —
     34 cases, mutation-checked, and edition scoping walked live across two
     installations. No defect found.
-  - installation identity — open.
+  - ~~installation identity~~ **Resolved 2026-09-29**
+    ([`NXD-082`](DECISIONS.md)) — 18 cases, mutation-checked, and the
+    unconfigured installation walked live. No defect found.
   - evidence-package aggregator — open, and its gating decision (does the
     product side need an electronic signature, `PHASE_CLOSURE_PLAN.md` §9.5)
     is overdue: §9.5 requires it *before* rank 2, which shipped 2026-09-28.
@@ -1955,11 +1957,12 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"test(nxd-081): the edition resolver, proven, and its two permissive answers
-pinned", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — the first
-of the three modules that shipped untested, see `## Migration Debt`. No
-production code changed and no defect was found; what changed is that the
-claim is now checkable. See [`NXD-081`](DECISIONS.md).
+"test(nxd-082): the installation identity, and the asymmetry that makes the
+permissive default defensible", 2026-09-29, on
+`ms/composer-ai-spec-and-ci-quality-gate` — the second of the three modules
+that shipped untested, see `## Migration Debt`. No production code changed and
+no defect was found; what changed is that the claim is now checkable. See
+[`NXD-082`](DECISIONS.md).
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the
