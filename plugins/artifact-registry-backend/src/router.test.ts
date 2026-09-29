@@ -10,6 +10,7 @@
 
 import express from 'express';
 import knex, { Knex } from 'knex';
+import { AuthenticationError, NotAllowedError } from '@backstage/errors';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { listenOnFetchablePort as listen } from '@internal/backend-test-utils';
 import {
@@ -21,6 +22,12 @@ import { ArtifactRegistryService } from './service';
 import { createRouter } from './router';
 
 const actor = 'user:default/publisher';
+/**
+ * What a consuming installation's static `externalAccess` entry calls itself.
+ * Named after the installation rather than the mechanism, because the subject
+ * is what reaches durable storage and what T5's consumer registry will record.
+ */
+const SERVICE_SUBJECT = 'installation:plant-basel';
 
 function manifest(version = '1.0') {
   return {
@@ -37,6 +44,21 @@ describe('Artifact Registry router', () => {
   /** Permission names the router actually asked about, in order. */
   let checked: string[];
   let decision: (typeof AuthorizeResult)['ALLOW' | 'DENY'];
+  /**
+   * Flipped per test to exercise the user / service / anonymous branches.
+   *
+   * The stub this replaced returned a fixed user and ignored `opts.allow`
+   * entirely, so no test could present a service principal and no test could
+   * reach the 401 path — the two things NXD-087 is about were both
+   * inexpressible. `allow` is honoured here, and a disallowed kind throws the
+   * error Backstage actually throws.
+   */
+  let principal: 'user' | 'service' | 'none';
+  /** Every `opts` object the router passed to `httpAuth.credentials`. */
+  let credentialRequests: Array<{
+    allow?: string[];
+    allowLimitedAccess?: boolean;
+  }>;
 
   beforeEach(async () => {
     db = knex({
@@ -51,13 +73,34 @@ describe('Artifact Registry router', () => {
     service = new ArtifactRegistryService(repository);
     checked = [];
     decision = AuthorizeResult.ALLOW;
+    principal = 'user';
+    credentialRequests = [];
 
     const router = await createRouter({
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } as never,
       httpAuth: {
-        credentials: async () => ({
-          principal: { type: 'user', userEntityRef: actor },
-        }),
+        credentials: async (
+          _req: unknown,
+          opts?: { allow?: string[]; allowLimitedAccess?: boolean },
+        ) => {
+          credentialRequests.push(opts ?? {});
+          const allow = opts?.allow ?? [];
+          if (principal === 'none' || !allow.includes(principal)) {
+            // The real httpAuth distinguishes these two, and so does
+            // respondError: a caller presenting nothing is unauthenticated
+            // (401), a caller presenting the wrong *kind* of credential is
+            // refused (403). Collapsing them here would have let the route
+            // tests agree with a router that answered either one.
+            throw principal === 'none'
+              ? new AuthenticationError('No credentials presented')
+              : new NotAllowedError(
+                  `This endpoint does not allow '${principal}' credentials`,
+                );
+          }
+          return principal === 'service'
+            ? { principal: { type: 'service', subject: SERVICE_SUBJECT } }
+            : { principal: { type: 'user', userEntityRef: actor } };
+        },
       } as never,
       permissions: {
         authorize: async (queries: Array<{ permission: { name: string } }>) => {
@@ -182,7 +225,15 @@ describe('Artifact Registry router', () => {
       // deliberate: nobody is forbidden, the platform simply cannot say.
       const router = await createRouter({
         logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } as never,
-        httpAuth: { credentials: async () => ({}) } as never,
+        // A real principal, not `{}`. Once the read routes branch on
+        // `principal.type`, an empty object makes this route throw a
+        // TypeError — which is also a 500, so the assertion below would keep
+        // passing while testing something else entirely.
+        httpAuth: {
+          credentials: async () => ({
+            principal: { type: 'user', userEntityRef: actor },
+          }),
+        } as never,
         permissions: undefined,
         service,
       });
@@ -194,6 +245,103 @@ describe('Artifact Registry router', () => {
         expect(response.status).toBe(500);
       } finally {
         await unguarded.close();
+      }
+    });
+  });
+
+  describe('a consuming installation reads as a service principal', () => {
+    /**
+     * T3 / NXD-087. A downstream Nexora installation presents a static
+     * `backend.auth.externalAccess` token, which Backstage resolves to a
+     * service principal. Before this, every one of these routes refused it,
+     * so federation could not read a single field — the merge logic behind
+     * `?includeFederated=true` had never once been reached over a network.
+     */
+    const readRoutes: Array<[string, string]> = [
+      ['its own identity', '/installation'],
+      ['the publisher list', '/publishers'],
+      ['the artifact list', '/artifacts'],
+      ['one artifact', '/artifacts/acme/sap-odata'],
+      ['the version list', '/artifacts/acme/sap-odata/versions'],
+      ['one version', '/artifacts/acme/sap-odata/versions/1.0'],
+    ];
+
+    beforeEach(async () => {
+      await seedVersion();
+    });
+
+    it.each(readRoutes)('serves %s', async (_label, path) => {
+      principal = 'service';
+
+      const response = await request(path);
+
+      expect(response.status).toBe(200);
+      // Possession of the token IS the authorization. A service principal
+      // carries no catalog identity, so there is no PlatformRole to resolve
+      // and the permission framework must not be consulted at all. This
+      // assertion, not the 200, is the one that catches a later author
+      // "tidying up" by routing a service through `authorize`.
+      expect(checked).toEqual([]);
+    });
+
+    it.each(readRoutes)('asks for both kinds of principal on %s', async (_label, path) => {
+      principal = 'service';
+
+      await request(path);
+
+      expect(credentialRequests).toContainEqual({
+        allow: ['user', 'service'],
+      });
+    });
+
+    it.each(readRoutes)('answers 401 for %s with no credentials', async (_label, path) => {
+      principal = 'none';
+
+      const response = await request(path);
+
+      expect(response.status).toBe(401);
+    });
+
+    it.each(readRoutes)('still gates %s for a denied user', async (_label, path) => {
+      principal = 'user';
+      decision = AuthorizeResult.DENY;
+
+      const response = await request(path);
+
+      // Widening to service principals must not widen anything for people.
+      expect(response.status).toBe(403);
+      expect(checked).toEqual(['artifact.read']);
+    });
+
+    it('resolves policies for a service principal', async () => {
+      // The route the helper was originally written for (closure Slice 3),
+      // which had no test of any kind until now.
+      principal = 'service';
+
+      const response = await request('/policies/resolve', 'POST', {
+        policies: [],
+      });
+
+      expect(response.status).toBe(200);
+      expect(checked).toEqual([]);
+    });
+
+    it('admits no service principal to any write route', async () => {
+      // A consuming installation reads. The asymmetry is the whole design:
+      // widening reads says nothing about writes, and this pins that it
+      // stays that way.
+      principal = 'service';
+
+      const writes: Array<[string, unknown]> = [
+        ['/publishers', { namespace: 'other', displayName: 'Other' }],
+        ['/artifacts', manifest('2.0')],
+        ['/artifact-versions/some-id/submit', {}],
+        ['/artifact-versions/some-id/publish', {}],
+      ];
+
+      for (const [path, body] of writes) {
+        const response = await request(path, 'POST', body);
+        expect([path, response.status]).toEqual([path, 403]);
       }
     });
   });

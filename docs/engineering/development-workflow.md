@@ -101,6 +101,56 @@ the default. Neither can anything touching requirements, approvals,
 signatures, baselines or releases; there you would be testing a different
 system.
 
+### Calling a route from a shell
+
+Two kinds of caller reach a backend route, and they need different
+credentials. Getting this wrong reads as a bug in the route.
+
+**As a person** — a user principal, which is what nearly every route wants.
+Needs `AUTH_GUEST_ENABLED=true` in `.env`:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:7007/api/auth/guest/refresh \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["backstageIdentity"]["token"])')
+curl -H "Authorization: Bearer $TOKEN" http://localhost:7007/api/composer/products
+```
+
+Guest is a VIEWER, so writes answer 403 until you raise `AUTH_GUEST_ROLE`.
+
+**As another backend or another installation** — a service principal. Layer
+`app-config.service-token.yaml`, which is **not** auto-loaded and has to be
+named:
+
+```bash
+yarn start --config app-config.yaml \
+           --config app-config.local.yaml \
+           --config app-config.service-token.yaml
+
+curl -H "Authorization: Bearer dev-consumer-token-not-a-secret" \
+  http://localhost:7007/api/artifact-registry/artifacts
+```
+
+This half was undocumented until `NXD-087`, and the cost was not theoretical:
+every live verification of a service-principal route had to invent an
+uncommitted overlay, and none of them wrote down what it was — so the runs
+were not reproducible from the repository.
+
+**Which principal a route wants is not guessable from the outside**, and the
+two refusals differ:
+
+| You present | Route wants a user | Route wants a service | Route takes either |
+| --- | --- | --- | --- |
+| nothing | 401 | 401 | 401 |
+| user token | 200 / 403 by role | **403** | 200 / 403 by role |
+| service token | **403** | 200 | 200 |
+
+The 403s are `NotAllowedError` — *"This endpoint does not allow 'service'
+credentials"*. Backstage reserves 401 for a caller presenting nothing, and
+answers a disallowed *kind* of credential with 403. Worth knowing before
+debugging: an earlier version of `NXD-074` and of the `authorizeReadOrService`
+docblock both said this case was a 401, because both were written from reading
+the code rather than from calling the route.
+
 ---
 
 ## 5. The four gates

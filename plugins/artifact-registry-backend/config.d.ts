@@ -59,5 +59,90 @@ export interface Config {
        */
       file?: string;
     };
+    /**
+     * Upstream registries this installation reads from.
+     *
+     * `loadFederationConfig` has read these keys since W3-7, but no schema
+     * declared them — and Backstage rejects a config key no schema knows, so
+     * writing this block failed startup and the feature was unreachable by
+     * configuration rather than by code. Declared here with T3 (NXD-087),
+     * because opening the read routes to a service principal is pointless
+     * while the caller cannot be configured to use them.
+     *
+     * Reading is all this does. Nothing here publishes, and a federated
+     * result is not yet persisted or rendered — see T4.
+     */
+    federation?: {
+      /**
+       * Off unless set. An installation with no upstream is the normal case.
+       *
+       * @visibility backend
+       */
+      enabled?: boolean;
+      /**
+       * How often the sync scheduler fans out, in seconds. Defaults to 3600.
+       *
+       * @visibility backend
+       */
+      syncIntervalSeconds?: number;
+      registries?: Array<{
+        /**
+         * Stable id for this upstream, used in logs and in the `unreachable`
+         * list a federated search returns.
+         *
+         * @visibility backend
+         */
+        id: string;
+        /** @visibility backend */
+        displayName: string;
+        /**
+         * Base URL of the upstream registry's API, e.g.
+         * `https://nexora.example.com/api/artifact-registry`.
+         *
+         * @visibility backend
+         */
+        baseUrl: string;
+        /**
+         * Namespaces to accept from this upstream. An empty list accepts all
+         * of them.
+         *
+         * @visibility backend
+         */
+        namespaces: string[];
+        /** @visibility backend */
+        level?: 'READ_ONLY' | 'READ_WRITE';
+        /**
+         * Trust level stamped onto every artifact from this upstream. It is a
+         * property of the relationship, not a claim the upstream makes about
+         * itself — an artifact cannot federate its own trustworthiness.
+         *
+         * @visibility backend
+         */
+        defaultTrustLevel?:
+          | 'COMMUNITY'
+          | 'PARTNER'
+          | 'VERIFIED'
+          | 'NEXORA_CERTIFIED';
+        /** @visibility backend */
+        includeInMarketplace?: boolean;
+        /**
+         * Bearer token presented to the upstream. It must match a
+         * `backend.auth.externalAccess` entry there, which resolves it to a
+         * service principal — the credential IS the consumer registration
+         * (`TARGET_OPERATING_MODEL.md` §6.5).
+         *
+         * Server-side only. Never give this `@visibility frontend`.
+         *
+         * @visibility secret
+         */
+        apiKey?: string;
+        /**
+         * Set false to keep an upstream configured but silent.
+         *
+         * @visibility backend
+         */
+        enabled?: boolean;
+      }>;
+    };
   };
 }

@@ -4372,3 +4372,167 @@ without a five-minute build. Exempt from DoD point 2 under the §9 preamble.
   `deploy/production.local.env.example`,
   `packages/backend/src/brandSeparation.test.ts`,
   `docs/nexora-transformation/STATUS.md`.
+
+### NXD-087 — The consuming installation can read, and three claims about it were wrong
+
+- Date: 2026-09-29
+- Slice: T3 of the topology track, `PHASE_CLOSURE_PLAN.md` §9.6 — wave 4 of
+  §9.4a
+- Closes: the T3 row; the `TARGET_OPERATING_MODEL.md` §6.5 "one route change
+  unblocks it"
+
+The substance is four lines of code: six registry read routes move from
+`authorize` to `authorizeReadOrService`, the helper that has sat in the same
+file since closure Slice 3 and was wired to exactly one route. A consuming
+installation presents a static `backend.auth.externalAccess` token, Backstage
+resolves it to a service principal, and the routes answer.
+
+**Why all six and not just `GET /artifacts`.** Federation calls one route
+today, so one would have been enough to make it work. But `GET /installation`
+exists *for* a federating peer — its own doc comment says so — and it refused
+one, which is the sharper version of the same defect: the route written for
+that caller was the route that caller could not call. Splitting the six across
+two slices means arriving at the same argument twice.
+
+**No write route admits a service principal, and a test says so.** A consuming
+installation reads; it does not publish into its upstream. That asymmetry is
+the design, so it is pinned rather than left to be inferred from the absence
+of a change.
+
+**The two mutation checks are the load-bearing part.** Reverting one route to
+`authorize` fails exactly that route's two tests. Making the helper consult the
+permission framework for services fails all seven service tests — which is the
+assertion that matters, because the 200 alone would survive that mutation. The
+contract is *the framework is not consulted*, not *the call succeeds*.
+
+## Three claims that did not survive being executed
+
+The code was the easy half. What this slice is actually worth recording is
+that three separate statements in the repository about this exact change were
+wrong, and each was wrong in the same way: derived by reading, never run.
+
+**1. It was a 403, not a 401.** `NXD-074`, the T3 row, the
+`authorizeReadOrService` docblock and `TARGET_OPERATING_MODEL.md` §6.5 all
+said a consuming installation presenting its token gets 401. It gets **403**:
+Backstage answers a disallowed *kind* of credential with `NotAllowedError`
+("This endpoint does not allow 'service' credentials") and reserves 401 for a
+caller presenting none. Measured before changing anything — all six routes,
+403 for the service token, 401 only with no header at all.
+
+Nothing behaved differently for the error, which is why it survived four
+documents: both are refusals, and the federation client logs whichever status
+it gets. It matters anyway. Anyone debugging this by status code would have
+gone looking for a missing or malformed credential, which is what 401 means,
+rather than a credential of the wrong kind, which is what was happening.
+
+**2. The credential was unpresentable, not merely unissued.** §6.5 says adding
+a consumer "requires no code at all" — one `externalAccess` entry. True, and
+yet no committed configuration anywhere enabled a service principal outside
+the production image. Every previous live verification of a service-principal
+route (`NXD-052` most clearly) must have used an uncommitted overlay, and none
+of them wrote down what it was. So the runs were not reproducible from the
+repository, and the recipe existed only in whoever had last done it.
+
+`app-config.service-token.yaml` fixes that, and is deliberately **not**
+auto-loaded — `app-config.local.yaml` is, so a token placed there would
+quietly be live on every developer machine. A credential should take an
+explicit act to enable. The recipe is now in
+[`development-workflow.md`](../engineering/development-workflow.md) beside the
+guest-token one, with the 401/403 matrix, because "which principal does this
+route want" is not guessable from outside and the two refusals differ.
+
+**3. My own justification for touching the config schema was wrong.** The
+plan for this slice argued that `artifactRegistry.federation` had to be added
+to `config.d.ts` because `loadFederationConfig` reads keys no schema declares
+and "Backstage rejects undeclared keys, so the block cannot be written today".
+
+It can. A backend started with a full `federation` block against the
+unmodified schema comes up clean — no error, no warning. Backstage does not
+reject undeclared config keys at runtime; `backstage-cli config:check
+--strict` does, and it reports `additionalProperty=federation` alongside ten
+others (`composer`, `ursComposer`, `dataProducts`, `validationExpert`,
+`pluginDirectory`, `modelCompany`, `createAuthorizationAuditPath`…). That
+check is in no gate. So the schema addition is worth having — `apiKey` is
+marked `@visibility secret` rather than merely undeclared, the keys become
+discoverable, and one of eleven strict-check complaints goes away — but it was
+**not** the blocker the plan claimed, and T4 was never gated on it.
+
+Kept rather than reverted, with the reason restated accurately. The reason it
+is written down at this length is that it is the same failure as the other
+two, committed by the same person on the same day, one paragraph after
+describing the pattern. Reading is not running, including when what you are
+reading is your own plan.
+
+## Found in passing: `NXD-016`, for the third time
+
+The first full gate run after this change failed one suite in a plugin this
+slice does not touch. `evidencePackage.test.ts` — written the day before, by
+`NXD-083` — asserts that deleting a product is refused by a foreign key, using
+a bare `.rejects.toThrow(/FOREIGN KEY constraint failed/)`. It passed in
+isolation, passed a full run the day it landed, and failed the next one with
+"Received function did not throw".
+
+That is the exact signature [`NXD-016`](#nxd-016--assert-database-refusals-on-the-message-not-with-rejectstothrow)
+recorded: better-sqlite3 is a native module whose binding is loaded once per
+jest worker, so the `SqliteError` carries the `Error` intrinsic of whichever
+module realm loaded it first, and jest reports a non-`Error` rejection as "did
+not throw" while the constraint fired correctly. `NXD-016` banned the bare form
+for native-driver refusals and shipped `expectRefusedByDatabase`, whose own
+docblock warns that the mistake is easy to make again and names one earlier
+recurrence. This is the second.
+
+Changed to the helper. **Not reproduced deterministically**, and that is worth
+stating plainly rather than dressing up: `NXD-016` gives `--runInBand` as the
+repro, and under it the composer-backend suite passes both with and without
+the fix — the collision depends on which suite loads the binding first across
+26 projects, which `--runInBand` within one workspace does not recreate. A
+repeat full run was green. So the evidence is a matching signature and a
+prescribed remedy, not a caught-in-the-act reproduction.
+
+The helper is a strict improvement regardless: it asserts the same message and
+fails loudly with a written-out explanation if the write is *accepted*, which
+is the case that would actually matter. Deleting the test was never available
+— `PHASE_CLOSURE_PLAN.md` §2 names removing a guard test to make a gate pass as
+a stop condition, and a failing guard is a question.
+
+What this says about the gate: a suite can be written, reviewed, land green and
+still carry a known-and-recorded defect, because the defect is invisible in
+every run where the scheduling happens to be kind. The only defence that
+worked here was a full run on a different day.
+
+## What this does not do
+
+A federated read now returns 200. Nothing renders it. The merge in
+`router.ts` keys on `namespace/name` with no version, so an upstream artifact
+at a higher version than the local one is still discarded by construction; the
+manifest is still fetched and thrown away, so `marketplaceOfferingFromManifest`
+would produce no card even if it were asked; and no screen passes
+`includeFederated`. All of that is T4. The door is open and nobody has walked
+through it — one instance and a `curl` cannot show otherwise.
+
+**Verified live**, one backend on PostgreSQL, before and after the change,
+with a guest user token and a static service token side by side:
+
+| Route | service before | service after | guest | none |
+| --- | --- | --- | --- | --- |
+| `GET /installation` | 403 | **200** | 200 | 401 |
+| `GET /publishers` | 403 | **200** | 200 | 401 |
+| `GET /artifacts` | 403 | **200** | 200 | 401 |
+| `GET /artifacts/:ns/:name` | 403 | **200** | 200 | 401 |
+| `GET /artifacts/:ns/:name/versions` | 403 | **200** | 200 | 401 |
+| `GET /artifacts/:ns/:name/versions/:v` | 403 | **200** | 200 | 401 |
+| `POST /artifacts` | 403 | **403** | — | — |
+
+The service principal reads 21 artifacts and the installation's resolved
+edition; the write route refuses it with the same message it always did.
+
+- Affected components:
+  `plugins/artifact-registry-backend/src/router.ts`,
+  `plugins/artifact-registry-backend/src/router.test.ts`,
+  `plugins/artifact-registry-backend/config.d.ts`,
+  `plugins/composer-backend/src/evidencePackage.test.ts` (the `NXD-016`
+  recurrence, unrelated to the slice),
+  `app-config.service-token.yaml` (new),
+  `docs/engineering/development-workflow.md`,
+  `docs/architecture/ARCHITECTURE_GUARDRAILS.md` (D-5 amended),
+  `docs/architecture/TARGET_OPERATING_MODEL.md`.

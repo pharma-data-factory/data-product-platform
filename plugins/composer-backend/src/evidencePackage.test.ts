@@ -28,6 +28,7 @@ import { listenOnFetchablePort } from '@internal/backend-test-utils';
 import { ComposerRepository } from './repository';
 import { ComposerService } from './service';
 import { createRouter } from './router';
+import { expectRefusedByDatabase } from './__testUtils__/databaseRefusal';
 import type {
   UrsBaselineContext,
   UrsBaselineReference,
@@ -382,9 +383,19 @@ describe('evidence package', () => {
       // the source, and only one of them is fine to remove.
       const { product } = await furnishedVersion();
 
-      await expect(
+      // Through the helper, not `.rejects.toThrow()`. The refusal comes from
+      // better-sqlite3, a native module whose binding is loaded once per jest
+      // worker, so the SqliteError carries the Error intrinsic of whichever
+      // realm loaded it first and `toThrow` reports "Received function did
+      // not throw" while the constraint fired correctly. This suite was
+      // written with the bare form on 2026-09-29 and failed its first full
+      // run the next day, passing in isolation every time — the third
+      // recurrence of NXD-016, after identityConstraints and
+      // productRequirements.
+      await expectRefusedByDatabase(
         db('products').where({ id: product.id }).delete(),
-      ).rejects.toThrow(/FOREIGN KEY constraint failed/);
+        /FOREIGN KEY constraint failed/,
+      );
     });
   });
 

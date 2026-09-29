@@ -114,14 +114,42 @@ to every VIEWER by the read fallback.
 **Intended direction:** one registry; `isPrivilegedRead` replaced by an
 explicit allow-list so that forgetting an entry fails closed.
 
-### D-5 — One unauthenticated-by-design write path
+### D-5 — Routes that skip the permission framework
 
 `authorizeService()` (`plugins/composer-backend/src/router.ts`) accepts a
 service principal for CI release provenance and deliberately skips
 permission-framework authorization. Write-once and narrow.
 
-**Condition:** any new service-principal route must be write-once, idempotent,
-and documented here.
+`authorizeReadOrService()` (`plugins/artifact-registry-backend/src/router.ts`,
+and the same helper in `urs-composer-backend` and `validation-expert-backend`)
+does the same for reads, admitting either a user or a service. A service
+principal carries no catalog identity, so there is no `PlatformRole` to
+resolve and the framework has nothing to decide with — possession of the token
+is the authorization in both cases.
+
+**Condition, in two halves — the axis is read vs. write, not new vs.
+existing:**
+
+- A **write** route that admits a service principal must be write-once,
+  idempotent, and listed here. Today: `POST /baselines/:id/provenance` and
+  `POST /test-executions`, both in `composer-backend`.
+- A **read** route that admits one must be listed here and must return only
+  what that caller is entitled to see by installation-level scoping — the
+  edition filter is the scoping mechanism, not the permission framework.
+  Today: the artifact registry's six read routes plus `POST /policies/resolve`
+  (a read spelled as a POST because the coordinate list is a body), the URS
+  Composer's three, and the Validation Expert's two.
+
+**No registry write admits a service principal**, and a test asserts it
+(`router.test.ts`, "admits no service principal to any write route"). A
+consuming installation reads; it does not publish into its upstream.
+
+Widening a read route was previously unreachable under this guardrail's
+original wording, which required write-once and idempotency of *any* new
+service-principal route — conditions a read can neither meet nor need. The
+wording was amended with `NXD-087` rather than worked around with an
+exception, because six exceptions would have been the first sign the rule was
+wrong.
 
 ---
 

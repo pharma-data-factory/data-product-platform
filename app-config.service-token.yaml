@@ -1,0 +1,46 @@
+# Service-principal access — LOCAL DEVELOPMENT ONLY.
+#
+# Not auto-loaded. `yarn start` layers app-config.yaml and
+# app-config.local.yaml on its own; this file is reached only by naming it:
+#
+#   yarn start --config app-config.yaml \
+#              --config app-config.local.yaml \
+#              --config app-config.service-token.yaml
+#
+# That is deliberate. app-config.local.yaml IS auto-loaded, so putting a
+# known token there would quietly give every developer machine a live
+# credential that anything on localhost could present. A credential should
+# take an explicit act to enable.
+#
+# WHY THIS FILE EXISTS. Two kinds of caller reach a backend route: a person,
+# who signs in and carries a user principal, and another backend, which
+# carries a service principal. Only the first was reproducible locally — the
+# guest-token recipe in START.md. The service half was configured in
+# app-config.production.yaml and nowhere else, so every local verification of
+# a service-principal route had to invent an uncommitted overlay and none of
+# them wrote down what it was. See NXD-087.
+#
+# WHAT IT GRANTS. Possession of the token IS the authorization for a service
+# principal: it carries no catalog identity, so there is no PlatformRole to
+# resolve and the permission framework is not consulted. What a service may
+# therefore do is decided entirely by which routes accept `service` at all.
+# Today that is the artifact registry's six read routes, POST
+# /policies/resolve, and the Composer's two write-once CI routes. Nothing
+# here widens that set; this file only lets you present the credential.
+#
+# NEVER load this file in the production image, and never copy this token
+# into one. Production reads ${NEXORA_PROVENANCE_TOKEN} from the environment
+# (app-config.production.yaml), which is absent by default — unset disables
+# external access rather than enabling it with an empty secret.
+backend:
+  auth:
+    externalAccess:
+      # `subject` lands verbatim in credentials.principal.subject and reaches
+      # durable storage — composer_audit_events.actor already records
+      # `release-pipeline` this way. Naming the consuming installation rather
+      # than the mechanism is what makes the audit trail answer "which
+      # installation read this", which is what T5 will build on.
+      - type: static
+        options:
+          token: dev-consumer-token-not-a-secret
+          subject: installation:plant-basel

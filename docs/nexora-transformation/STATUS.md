@@ -27,6 +27,55 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**T3 — a consuming installation can read (2026-09-29).** Wave 4 of
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.4a. Six artifact-registry
+read routes moved from `authorize` to `authorizeReadOrService`, the helper
+that had sat in the same file since closure Slice 3 wired to one route. A
+downstream installation presents a static `backend.auth.externalAccess` token
+and reads; no write route admits one, and a test pins that. See
+[`NXD-087`](DECISIONS.md).
+
+Three claims the repository made about this change did not survive being
+executed, and they are the part worth carrying forward:
+
+- **The refusal was a 403, not a 401.** Four documents said 401 — `NXD-074`,
+  the T3 row, the helper's own docblock, `TARGET_OPERATING_MODEL.md` §6.5.
+  Backstage answers a disallowed *kind* of credential with `NotAllowedError`
+  and keeps 401 for a caller presenting none. Nothing behaved differently, so
+  it survived four readings; it would have sent anyone debugging by status
+  code after a malformed credential rather than a wrong-kind one.
+- **The credential was unpresentable, not merely unissued.** No committed
+  configuration enabled a service principal outside the production image, so
+  every earlier live check of such a route used an uncommitted overlay nobody
+  wrote down. `app-config.service-token.yaml` now exists — deliberately not
+  auto-loaded — and the recipe is in
+  [`development-workflow.md`](../engineering/development-workflow.md).
+- **The plan for this slice was itself wrong about one thing.** It argued the
+  `artifactRegistry.federation` config block had to be declared because
+  Backstage would reject the undeclared keys. It does not; a backend starts
+  clean with them. Only `config:check --strict` complains, it is in no gate,
+  and it already reports ten other undeclared blocks. The schema was added
+  anyway — `apiKey` is `@visibility secret` now rather than merely undeclared
+  — but with the reason restated rather than the original one kept.
+
+**Found in passing — [`NXD-016`](DECISIONS.md) recurred a third time.** The
+first full run after this change failed `evidencePackage.test.ts`, a suite
+this slice does not touch, with "Received function did not throw" on a
+foreign-key refusal — the native-driver realm crossing `NXD-016` recorded and
+banned the bare `.rejects.toThrow()` for. Written into the suite the day
+before by `NXD-083`, green on landing, red on the next full run, green in
+isolation. Changed to `expectRefusedByDatabase`. **Not reproduced
+deterministically** — `--runInBand` within the workspace passes either way —
+so this is a matching signature and the prescribed remedy, not a
+caught-in-the-act diagnosis. A suite can land green and still carry a
+known-and-recorded defect, because the defect is invisible whenever the
+scheduling is kind.
+
+**What it does not do:** nothing renders a federated result. The merge still
+keys on `namespace/name` without a version, so a higher upstream version is
+discarded by construction, and the manifest is still discarded, so no card
+could be built from one. That is T4.
+
 **Governance consolidation (2026-09-26).** No feature work. A read-only
 conformance audit was taken first
 ([`docs/audits/TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md),
@@ -1462,7 +1511,7 @@ Phase 4 needs the whole first-class model in one designed migration — see
 ## Test Status
 
 **GREEN.** Verified on 2026-09-29 the way CI runs it (`CI=true`, PostgreSQL up
-via `docker-compose.test.yml`), at the close of Welle 3 of
+via `docker-compose.test.yml`), at the close of Welle 4 of
 `PHASE_CLOSURE_PLAN.md` §9.4a. The previous measurement was 2026-09-28 at the
 close of §9.2 ([`NXD-076`](DECISIONS.md)) — 233 suites and 2129 tests. The five
 suites added since are `editions.test.ts`, `installation.test.ts` and
@@ -1477,7 +1526,7 @@ suites added since are `editions.test.ts`, `installation.test.ts` and
 | Typecheck  | `yarn tsc:full`                   | PASS                                          |
 | Lint       | `yarn lint:all`                   | PASS                                          |
 | Doc links  | `node scripts/check-doc-links.mjs`| PASS — 275 files, all relative links resolve  |
-| Unit tests | `CI=true yarn test`               | PASS — 238 suites, 2213 tests, **0 skipped**  |
+| Unit tests | `CI=true yarn test`               | PASS — 238 suites, 2239 tests, **0 skipped**  |
 
 **One local prerequisite that CI holds and a fresh container does not.**
 `compatibilityPolicyParity` runs the shared compatibility policy through the

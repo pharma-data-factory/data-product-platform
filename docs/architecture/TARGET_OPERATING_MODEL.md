@@ -304,12 +304,22 @@ A human at a customer who wants to browse the marketplace is a *different*
 question — that is user authentication on the publishing installation, not a
 consumer credential.
 
-**One route change unblocks it.** No read route admits a service principal
+**One route change unblocks it.** ~~No read route admits a service principal
 today: `GET /artifacts` is `{ allow: ['user'] }`, so a consuming installation
-presenting its token gets 401. The fix is not new ground — the same router
-already has `authorizeReadOrService`, used by `POST /policies/resolve`, whose
-rule is written out there: a service principal carries no catalog identity, so
-possession of the token *is* the authorisation.
+presenting its token gets 401.~~ **Done 2026-09-29** — all six registry read
+routes now use `authorizeReadOrService`, the helper `POST /policies/resolve`
+already used, whose rule is written out there: a service principal carries no
+catalog identity, so possession of the token *is* the authorisation. See
+[`NXD-087`](../nexora-transformation/DECISIONS.md).
+
+Two corrections the doing produced, kept because the reasoning above led to
+both. The refusal was a **403**, not a 401 — Backstage answers a disallowed
+*kind* of credential with `NotAllowedError` and reserves 401 for a caller
+presenting none. And the credential was not merely unissued but
+**unpresentable**: no committed configuration enabled a service principal
+outside the production image, so the mechanism this section describes as
+needing "no code at all" could not be exercised locally by anyone. Both were
+found by calling the route.
 
 **The registry is then a record of reads, not a second table to maintain.**
 Nothing on the publishing side records who asked: no read route in any plugin

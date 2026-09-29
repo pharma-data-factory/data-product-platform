@@ -79,25 +79,44 @@ async function authorize(
 }
 
 /**
- * Read authorization for a route another backend plugin calls.
+ * Read authorization for a route that is called by something other than a
+ * person: another backend plugin in this process, or another Nexora
+ * installation over the network.
  *
  * `authorize` above admits only `user` credentials, which is right for the
- * routes a person drives. `/policies/resolve` is not one of them: its only
- * caller is the Composer's release gate, which authenticates with a plugin
- * token. A plugin token is a *service* principal, so the user-only check threw
- * `AuthenticationError`, the route answered 401, and the Composer's client —
- * which fails open by design (NXD-045) — turned that into "no obligations".
+ * routes a person drives. Two kinds of caller are not a person.
  *
- * The effect was that 5-R1's Policy Pack enforcement never once ran in the
- * application: every gate check resolved nothing and reported nothing, which
- * reads exactly like a pass. Slice 2 found and fixed one cause of that
- * (`declaredPolicies` was never mapped on create); this was the second, and it
- * sat behind the first. Found by executing the path (closure Slice 3).
+ * **A sibling plugin.** `/policies/resolve`'s only caller is the Composer's
+ * release gate, which authenticates with a plugin token. A plugin token is a
+ * *service* principal, so the user-only check refused it and the Composer's
+ * client — which fails open by design (NXD-045) — turned the refusal into "no
+ * obligations". The effect was that 5-R1's Policy Pack enforcement never once
+ * ran in the application: every gate check resolved nothing and reported
+ * nothing, which reads exactly like a pass. Slice 2 found and fixed one cause
+ * of that (`declaredPolicies` was never mapped on create); this was the
+ * second, and it sat behind the first. Found by executing the path (closure
+ * Slice 3).
+ *
+ * **A consuming installation.** The six read routes below are how a downstream
+ * installation sees what an upstream one publishes. It presents a static
+ * `backend.auth.externalAccess` token, which is also a service principal. See
+ * NXD-087 and `TARGET_OPERATING_MODEL.md` §6.5.
+ *
+ * The refusal was a **403, not a 401** — Backstage answers a disallowed
+ * *kind* of credential with `NotAllowedError` ("This endpoint does not allow
+ * 'service' credentials"), and reserves 401 for a caller presenting none.
+ * Both are refusals and both were fatal to the caller, so the distinction
+ * never mattered until someone went looking by status code. It is stated here
+ * because an earlier version of this comment said 401, and so did the T3 row
+ * of `PHASE_CLOSURE_PLAN.md`; both were written from reading the code rather
+ * than from calling the route.
  *
  * A service principal carries no catalog identity, so there is no
  * `PlatformRole` to resolve and the permission framework is not consulted for
- * it — possession of a plugin token is the authorization, which is what
- * Backstage intends for backend-to-backend calls.
+ * it — possession of the token is the authorization, which is what Backstage
+ * intends for backend-to-backend calls. What a service may therefore do is
+ * decided entirely by which routes admit one: reads and the two write-once CI
+ * routes in the Composer, never a registry write.
  */
 async function authorizeReadOrService(
   permissions: PermissionsService | undefined,
@@ -178,6 +197,10 @@ export async function createRouter(
    * installation from a consuming one at a glance. Read permission: stating
    * your own name is not a privileged act.
    *
+   * The peer that needs it is a service principal, and until NXD-087 this
+   * route refused one — so the route written for a federating peer was the
+   * one a federating peer could not call.
+   *
    * Returns the resolved edition, so `capabilities` is the flattened set
    * including everything inherited through `extends` — not the edition's own
    * list, which is what `editionHasCapability` used to answer and why three of
@@ -185,7 +208,12 @@ export async function createRouter(
    */
   router.get('/installation', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, artifactReadPermission);
+      await authorizeReadOrService(
+        permissions,
+        httpAuth,
+        req,
+        artifactReadPermission,
+      );
       res.json(
         installation ?? {
           id: 'unknown',
@@ -335,7 +363,12 @@ export async function createRouter(
     '/publishers',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        await authorizeReadOrService(
+          permissions,
+          httpAuth,
+          req,
+          artifactReadPermission,
+        );
         res.json(await service.listPublishers());
       } catch (err) {
         respondError(res, logger, err);
@@ -369,7 +402,12 @@ export async function createRouter(
     '/artifacts',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        await authorizeReadOrService(
+          permissions,
+          httpAuth,
+          req,
+          artifactReadPermission,
+        );
         const kind = req.query.kind as string | undefined;
         // An unknown kind would otherwise filter to nothing and read as "no
         // such artifacts" rather than "no such kind".
@@ -427,7 +465,12 @@ export async function createRouter(
     '/artifacts/:namespace/:name',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        await authorizeReadOrService(
+          permissions,
+          httpAuth,
+          req,
+          artifactReadPermission,
+        );
         const artifact = await findArtifactOr404(req, res);
         if (artifact) {
           res.json(artifact);
@@ -442,7 +485,12 @@ export async function createRouter(
     '/artifacts/:namespace/:name/versions',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        await authorizeReadOrService(
+          permissions,
+          httpAuth,
+          req,
+          artifactReadPermission,
+        );
         const artifact = await findArtifactOr404(req, res);
         if (artifact) {
           res.json(await service.listArtifactVersions(artifact.id));
@@ -457,7 +505,12 @@ export async function createRouter(
     '/artifacts/:namespace/:name/versions/:version',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, artifactReadPermission);
+        await authorizeReadOrService(
+          permissions,
+          httpAuth,
+          req,
+          artifactReadPermission,
+        );
         const { namespace, name, version } = req.params;
         const resolved = await service.resolve({ namespace, name, version });
         if (!resolved) {
