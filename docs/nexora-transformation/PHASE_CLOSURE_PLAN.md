@@ -527,6 +527,36 @@ Impact Agent, Kubernetes and platform observability, Marketplace
 install/update. `TARGET_CONFORMANCE_AUDIT.md` §11 excludes them from MVP1
 explicitly. They need their own plans, not ranks in this one.
 
+### 9.4a The execution order across §9.4 and §9.6
+
+Added 2026-09-29. §9.4 ranks the backlog and §9.6 orders the topology track,
+but nothing said how the two interleave, or where the work that belongs to
+neither — untested modules, stale records, small defects — sits against them.
+Agreed with the product owner and executed in this order:
+
+| Wave | Contents | Status |
+| --- | --- | --- |
+| 0 | Rank 1's remaining live publish, and the push | **Blocked on a GitHub credential this environment does not hold** |
+| 1 | The three modules that shipped with no test: edition resolver, installation identity, evidence-package aggregator | **Done 2026-09-29** — `NXD-081`, `NXD-082`, `NXD-083`. One real defect |
+| 2 | Correct the record: this section, §9.5, `STATUS.md` §Current Phase / §Known Risks / §Next, `TARGET_CONFORMANCE_AUDIT.md` §1/§7/§9/§10 | **Done 2026-09-29.** Record change — exempt from DoD point 2. The four "missing" NXD records turned out to exist (`NXD-044`…`NXD-047`); the entry claiming they were missing was itself the stale thing |
+| 3 | Three small visible defects: the unrouted `catalog-graph`, the advertised-but-unwired lineage DAG, the two live product names. Three commits, not one | Open |
+| 4 | **T3** — consumer credentials and the read routes | Open |
+| 5 | **Rank 5** — URS→Product steps 3, 4, 5 | Open, after the ordering decision in §9.5 |
+| 6 | **Rank 6** — GP-7 out of Core | Open |
+| 7 | **Rank 3** — Hybrid GMP: reconcile the two idioms, then decide, then build | Open |
+| 8 | **Rank 4** — product-side change control | Open, after wave 7 |
+| 9 | **T4 → T5 → T6** — federation, the consumer registry, the install verb | Open |
+| 10 | Debt without a date: `supertest`, the durable scheduler, the cross-plugin import, the four string-matching deployment guards, `data-product-sdk`, rank 8, rank 9, the five open decisions in `TARGET_CONFORMANCE_AUDIT.md` §12 | Open |
+
+**Why proving came before building.** On 2026-09-28 `NXD-079` shipped with four
+green gates, 2129 passing tests and a careful record, and left seven of nine
+templates unscaffoldable — found the next morning by the live run it had
+deferred (`NXD-080`). Three modules were in exactly that state, and one of them
+was broken: the evidence-package route threw for every product version on any
+driver that does not return a `Date` for a timestamp column (`NXD-083`). That
+is §8's failure mode 1, measured twice in two days, which is why wave 1 outranks
+every feature below it.
+
 ### 9.5 The decisions that gate ranks
 
 **Does the product side need an electronic signature?** Recorded here because
@@ -548,12 +578,21 @@ before rank 2 ships. An evidence package that prints "URS baseline: signed by
 X, QA role, second factor, hash-bound" beside "Product baseline: approved by Y"
 invites precisely the question one does not want asked in an audit.
 
+> **Taken 2026-09-28, with rank 2** — [`NXD-077`](DECISIONS.md), section "The
+> signature question, answered". The asymmetry is **held, not closed**, and
+> therefore **stated**: the package's `limits` array says in its own words that
+> a URS baseline carries a Part 11 signature bound to a content hash while a
+> product approval carries the actor, the timestamp and a segregation-of-duties
+> refusal, and that the two are not equivalent. `NXD-083` makes that line a
+> failing test, so removing it is a decision rather than an edit. Nothing here
+> is outstanding.
+
 | Decision | Gates |
 | --- | --- |
-| Is the GitHub org user-chosen (adopt the `node-service` idiom — no new machinery) or platform-configured (a new config key, plus a way to reach static template YAML *and* `ComposePage.tsx`, neither of which reads config today)? | rank 1 |
+| ~~Is the GitHub org user-chosen or platform-configured?~~ **Answered: platform-configured** (`NXD-079`). `nexora:scm:resolve-repo` reads `nexora.scm.*` inside the task and fails when unconfigured; all nine publishing templates converted, including the two that had let the user choose. | ~~rank 1~~ |
 | Hybrid GMP: does it count as GxP-relevant, and which approval workflow does it select? **The two incompatible idioms must be reconciled first** — allow-list (`=== DIRECT \|\| === INDIRECT`) against deny-list (`!== 'NONE'`) — or the fourth level behaves differently in the release gate than in the policy evaluator. Three parallel enum declarations, 11 edit sites. | rank 3 |
 | Step 3 ordering: read the URS baseline at `fetch-base` time, or make a second commit after `publish:github`? `nexora:product:create` runs **last**, so at repo-content time no product version exists yet. | rank 5 |
-| Which second content provider? | §9.3 |
+| ~~Which second content provider?~~ **Answered: HTTP(S)** (`NXD-076`). OCI was declined because it would have triggered `AGENTS.md`'s unapproved-dependency stop condition; `fetch` is already used across the repository. OCI remains available as a third. | ~~§9.3~~ |
 
 **One pairing to avoid.** `gxpRelevance` is a hashed field in
 `content-hash.ts`, so a fourth level is a migration question about

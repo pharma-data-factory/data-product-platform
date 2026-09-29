@@ -2,12 +2,28 @@
 
 ## Current Phase
 
-Post-plan. All eight phases of `IMPLEMENTATION_PLAN.md` have met their exit
-criteria; Phase 7 closed on 2026-09-21. Work since then realizes
-`PRODUCT_STRATEGY.md` directly, in three Waves (Wave 1 = `P-EXT-S1..S5`,
-Wave 2 = `W2-1..4`, Wave 3 = `W3-1..8`) followed by a numbered remediation
-series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and a review-item series
-(items 1–9). These IDs are not phases and have no exit criteria of their own.
+Post-plan, and the phase frame is **retired** — see
+[`NXD-073`](DECISIONS.md). It meant three different things at once and carried
+orderings nobody could still justify. Work is ranked on merit in
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.
+
+All eight phases of `IMPLEMENTATION_PLAN.md` have met their exit criteria. The
+last to close was **Phase 7, on 2026-09-28**, through Slice 6 — package and
+source providers ([`NXD-076`](DECISIONS.md)).
+
+> **Corrected 2026-09-29.** This section said "Phase 7 closed on 2026-09-21"
+> for eight days. That was the belief before the code audit of 2026-09-22
+> written for `PHASE_CLOSURE_PLAN.md`, which found Phases 2, 3, 4 and 7 still
+> open against their own criteria; §4 of that document carries the verified
+> table. The date here was never re-checked against it, which is the ordinary
+> way a status document goes wrong — not by being written carelessly, but by
+> not being re-read after something else moved.
+
+Work since the plan realizes `PRODUCT_STRATEGY.md` directly, in three Waves
+(Wave 1 = `P-EXT-S1..S5`, Wave 2 = `W2-1..4`, Wave 3 = `W3-1..8`) followed by a
+numbered remediation series (`5-R1`, `6-R1..R3`, `7-R1..R6`, `A-2`, `A-3`) and
+a review-item series (items 1–9). These IDs are not phases and have no exit
+criteria of their own.
 
 ## Current Vertical Slice
 
@@ -1367,33 +1383,46 @@ left deliberately open: `build-image` tags `pharma-data-factory:mvp-1.0` while
 once. `brandSeparation.test.ts` now accepts either and says so in a comment.
 **Pick one name and tighten the assertion back to it.**
 
-**2 — `DECISIONS.md` stops at [`NXD-042`](DECISIONS.md).** Wave 1
-(`P-EXT-S1..S5`) never got a record, and neither did the whole remediation
-series — `5-R1` (fail-open policy resolution in the release gate), `7-R5`
-(`PLATFORM_PRODUCT` as a product type) and `A-3` (an in-process interval chosen
-over a durable job) are architecture decisions that currently exist only as
-commit messages.
+**2 — ~~`DECISIONS.md` stops at `NXD-042`; Wave 1 and the remediation series
+exist only as commit messages.~~ Wrong since `NXD-047`; corrected 2026-09-29.**
+Every item this entry named has a record, and has had one for some time:
+
+| Named as missing | Actually recorded in |
+| --- | --- |
+| Wave 1 (`P-EXT-S1..S5`) | [`NXD-044`](DECISIONS.md), item by item |
+| `5-R1` fail-open policy resolution | [`NXD-045`](DECISIONS.md) — including the fail-open as the deliberate part |
+| `7-R5` `PLATFORM_PRODUCT` | [`NXD-046`](DECISIONS.md) |
+| `A-3` in-process interval | [`NXD-047`](DECISIONS.md), titled "knowingly" |
+
+The entry was written when it was true and never re-read after the records
+landed. It is the second note in this document found doing that — see the GP-8
+correction below — and both sent a reader to do work that was already done.
 
 **3 — `A-3`'s scheduler is an in-process `setInterval`.** It dies with the
 process, runs once per replica, and has no retry or backoff. A durable job
 (pg-boss or the Backstage scheduler) is the intended upgrade and was named as
 such when it landed.
 
-**4 — Re-audit what Phase 3 still owes.** The previous text here listed
-dependency and compatibility resolution, configuration schemas, Product
-generation, Development Context and AI provider abstraction as "none of which
-exists". That is now wrong in four places: dependency and compatibility
-resolution landed in `P4-S3`/`P4-S5`, configuration schemas in `W2-2`/`6-R1`,
-Development Context in `P3-S8`, and the AI provider abstraction is partial
-after `P3-S4` (OpenAI and Anthropic clients behind `ComposerLLMClient`). What
-genuinely remains needs a fresh look at the code rather than a copy of the old
-list.
+**4 — ~~Re-audit what Phase 3 still owes.~~ Done 2026-09-28**, by the §4
+correction in [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md): Phase 3 is
+closed, and GP-7 is inventory debt rather than the composition hard-coding the
+phase was about. The four corrections this entry called for are already in that
+table — dependency and compatibility resolution landed in `P4-S3`/`P4-S5`,
+configuration schemas in `W2-2`/`6-R1`, Development Context in `P3-S8`, and the
+AI provider abstraction is partial after `P3-S4` (OpenAI and Anthropic clients
+behind `ComposerLLMClient`). Nothing further is owed here.
 
 GP-8 is **closed** — see the Completed entry. That leaves **GP-7** as the only
 open row in `HARDCODED_DOMAIN_INVENTORY.md`: `RUNTIME_PACKAGE_*` and
 `CATALOG_ONLY_COMPONENT_NAMES` in `platform-component-library.ts` are still a
-fixed component registry in Core, rated Medium. The inventory table itself has
-not been updated for the GP-8 closure and still shows the row as open.
+fixed component registry in Core, rated Medium.
+
+> **Corrected 2026-09-29.** This paragraph used to end "the inventory table
+> itself has not been updated for the GP-8 closure and still shows the row as
+> open". It does not: the table reads `~~GP-8~~ … **REMOVED 2026-09-21**` and
+> its own text says "GP-7 is now the only open row". The note outlived the
+> thing it was about — a stale correction is its own kind of wrong answer,
+> because it sends a reader to fix what is already fixed.
 
 Deferred, not part of Phase 2: **per-namespace permission scoping.** The eight
 registry permissions are platform-wide, so a DATA_PRODUCT_OWNER may certify in
@@ -1731,39 +1760,54 @@ contradicted deliberate, already-committed behaviour; one was a real defect.
   and 62 exports of manufacturing vocabulary in Core, larger than GP-1..GP-7
   combined and missed by the P0-S3 sweep, which looked for Golden Paths and
   composition lists rather than for a domain vocabulary.
-- URS/Validation lifecycle integration is incomplete. **The audit of
-  2026-09-17 found the gap is specifically at the end of the chain, and it is
-  the platform's largest:**
+- URS/Validation lifecycle integration. **Four of the five findings from the
+  2026-09-17 audit are closed; re-measured 2026-09-29.** The originals are
+  struck through rather than deleted, because this block was the platform's
+  largest stated risk and what happened to it is worth reading:
 
-  - `packages/platform-common/src/policy.ts:53-60` denies `validation.approve`,
-    `risk.accept` and `baseline.modify` to **every role, including
-    PLATFORM_ADMIN** — "Reserved Validation Expert controls, never
-    auto-granted in v0.1". The permissions are defined and unit-tested, and no
-    route or service authorizes against them. **There is no Validation
-    Decision step in the product.**
-  - `plugins/composer-backend/src/service.ts:378` sets
-    `updated.approvedBy = actor`. The actor requesting the transition becomes
-    the approver, with no check that they differ from the creator. **Product
-    release has no Segregation of Duties.** The URS side does enforce it,
-    through the approval chain and e-signature; the Product side does not.
-  - The release gate never consults validation. The only occurrence of
-    "validation" in `composer-backend/src/service.ts` is a comment. A Product
-    version can reach RELEASED with no ValidationContext, no executed protocol
-    and no evidence.
-  - `ProtocolType` is `'IQ' | 'OQ' | 'UAT'`; there is no PQ.
+  - ~~`policy.ts:53-60` denies `validation.approve`, `risk.accept` and
+    `baseline.modify` to every role including PLATFORM_ADMIN, and no route
+    authorizes against them.~~ **Half closed.** `validation.approve` is granted
+    to PLATFORM_ADMIN since `P5-S1` and is authorized by a real route
+    (`validation-expert-backend/src/router.ts:431`). **`risk.accept` and
+    `baseline.modify` are still denied to everyone**, PLATFORM_ADMIN included,
+    and still have no route. That half of the finding stands.
+  - ~~The actor requesting a transition becomes the approver, with no check
+    that they differ from the creator — product release has no Segregation of
+    Duties.~~ **Closed 2026-09-25 / `NXD-072`.** `transitionProductVersionStatus`
+    refuses `APPROVED` when `actor === version.createdBy`, and
+    `approveProductBaseline` refuses when `actor === baseline.createdBy`. Both
+    answer 403, not 400: there is no correction to the request body that makes
+    self-approval succeed.
+  - ~~The release gate never consults validation; the only occurrence of
+    "validation" in `composer-backend/src/service.ts` is a comment.~~
+    **Closed.** The word appears 31 times, and the gate reaches validation
+    through coverage: a requirement counts as verified by a passing test
+    execution, a `VERIFIED_BY` link, **or an executed Validation Expert
+    protocol test** — and a later failing run of the same test case revokes it.
+    `INCOMPLETE_TRACEABILITY` is a blocker, so a version can no longer reach
+    RELEASED with nothing verified.
+  - ~~`ProtocolType` is `'IQ' | 'OQ' | 'UAT'`; there is no PQ.~~ **Closed.**
+    `validation-expert-backend/src/types.ts:14` reads
+    `'IQ' | 'OQ' | 'UAT' | 'PQ'`.
 
-  These are Phase 5 and nothing blocks them today. They are recorded here
-  because the chain visibly does not close, and discovering that in Phase 5
-  rather than now would put the GxP positioning on a claim the code does not
-  support.
+  What remains of this risk is one line: **`risk.accept` and `baseline.modify`
+  are declared, unit-tested and unreachable.** That is a smaller and much more
+  specific statement than the block it replaces.
 
-- **`ProductBaseline` does not record what was built.**
-  `composer-backend/src/service.ts:546` snapshots the version, components
-  (id/name/type), contracts (id/schemaType/version) and traceability links —
-  and no Artifact versions, commit SHA, artifact digest, configuration or
-  policies. Exact Artifact version provenance therefore has no carrier, and
-  revalidation scope has nothing to diff against. Connecting the registry to
-  the baseline is the fix, which is why it waits on Phase 2 finishing.
+- **`ProductBaseline` records most of what was built.** Re-measured 2026-09-29;
+  the previous text said it recorded none of it. The snapshot carries the
+  version with its `releaseCommitSha` and `artifactDigest` when present
+  (`P5-S5` — absent rather than null, so "not yet built" is distinguishable
+  from "explicitly unknown"), components, contracts, traceability links,
+  declared data dependencies (`P4-S3`), and a SHA-256 checksum over the
+  canonical JSON with the taker and the timestamp (`P-EXT-S1`).
+
+  Still absent: **registry Artifact versions, configuration and policy
+  versions.** So exact Artifact-version provenance still has no carrier, and
+  revalidation scope can diff contracts and dependencies but not the artifacts
+  a version was composed from. Connecting the registry to the baseline remains
+  the fix.
 - Formal Validation approval and SoD require consolidation.
 - Data Exchange, Lineage and Analytics concepts are not yet unified.
 - ~~**Socket test flake.**~~ **Closed 2026-09-17.** `fetch` refuses the Fetch
@@ -1972,10 +2016,12 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-083): the evidence package threw for every version, and only off
-PostgreSQL", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — the
-last of the three modules that shipped untested, and the one that had a
-defect. See [`NXD-083`](DECISIONS.md) and `## Migration Debt`.
+"docs(nxd-084): the record catches up with the code, in both directions",
+2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — the correction
+sweep over this file, `PHASE_CLOSURE_PLAN.md` and
+`TARGET_CONFORMANCE_AUDIT.md`, plus the execution order in
+`PHASE_CLOSURE_PLAN.md` §9.4a. Record change, exempt from DoD point 2. See
+[`NXD-084`](DECISIONS.md).
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the

@@ -28,12 +28,20 @@ empty in the other.**
 - **Engineering half** — design, development context, test, evidence: the
   chain breaks at one identifiable joint, and everything else depends on it.
 
-> Nexora can prove that a product was **governed**.
-> It cannot prove that the product **works**.
->
-> `VERIFIED_BY` exists as a relationship type and has **no producer anywhere
-> in the codebase**. There is no test entity, no execution record, no evidence
+> **As measured 2026-09-26:** Nexora can prove that a product was
+> **governed**. It cannot prove that the product **works**. `VERIFIED_BY`
+> exists as a relationship type and has **no producer anywhere in the
+> codebase**. There is no test entity, no execution record, no evidence
 > ingestion for products.
+>
+> **Superseded 2026-09-27, re-checked 2026-09-29.** The joint is joined. MVP1
+> items 2–5 — the critical path this audit named — landed a `TestExecution`
+> entity with evidence ingestion, automated `VERIFIED_BY` production from
+> ingested results, validated references on `traceability_links`, and a release
+> gate that reads `getRequirementCoverage` and blocks on
+> `INCOMPLETE_TRACEABILITY`. The sentence above is kept because it is what this
+> audit was for and it is the reason the work happened — but a reader arriving
+> today must not take it as current. §10 and §11 carry the closures.
 
 **Where the lifecycle stops:** Stage 3 (Design & Planning) has an FS and its
 traceability since item 11; TDS, user stories and tasks remain absent, and
@@ -234,6 +242,24 @@ was applied. No AI Test Coordinator, no AI GMP Impact Agent.
 
 ## 7. Conformance matrix
 
+> **Measured 2026-09-26. Six rows have moved since; re-checked 2026-09-29.**
+> The table is left as measured, because that is what this document is for —
+> rewriting a dated measurement in place destroys the only thing it offers.
+> What has changed:
+>
+> | Row | Then | Now |
+> | --- | --- | --- |
+> | Repository provisioning | "hard-coded org" | Resolved server-side from `nexora.scm.*` (`NXD-079`), walked live (`NXD-080`) |
+> | Templates | "8 of 10 lack `product:create`" | All nine publishing templates write the record; `aas-asset` publishes nothing and is excluded |
+> | **Requirement → Test traceability** | **PARTIAL / BUILD**, "no `VERIFIED_BY` producer" | A producer exists — ingested test results mark requirements verified (MVP1 items 2–3) |
+> | Quality Gate | "ignores coverage and test results" | `INCOMPLETE_TRACEABILITY` is a blocker; the gate reads `getRequirementCoverage` (MVP1 item 5) |
+> | System tests | "no URS→Release E2E" | `e2eProductReleaseFlow` exists (MVP1 item 12) |
+> | FS | "minimal; derived, not authored" | Unchanged, and deliberately so — `NXD-071` scopes Nexora to the FS |
+>
+> Unchanged and still open: Deployment MISSING (by decision, `NXD-074`),
+> Marketplace install/update, the Composer name collision, no GitHub webhooks,
+> no Hybrid GMP level, Community RBAC disabled, UAT placeholder.
+
 | Capability                                                       | Status      | Action    | Principal gap                        |
 | ---------------------------------------------------------------- | ----------- | --------- | ------------------------------------ |
 | UAS creation / classification / approval / baseline / versioning | WORKING     | KEEP      | —                                    |
@@ -296,16 +322,31 @@ Reported, not removed: the deprecated `requirements` table ·
 the disabled Community RBAC dependency · the `aas-asset` template ·
 `pilot/oee/GITHUB_LIVE_PROOF_NOT_RUN`.
 
-**Four defects recorded and open** (`DECISIONS.md`, 2026-09-25; two of the
-original six were closed the same day):
+**~~Four defects recorded and open~~ — all four closed; re-checked 2026-09-29**
+(`DECISIONS.md`, recorded 2026-09-25; two of the original six were closed the
+same day):
 
-1. Approval steps carry no `stepNumber` over the API.
-2. Re-approving an approved step answers 500.
-3. Binding an unapproved URS baseline answers 500 rather than 409.
-4. An unknown requirement-set id answers 200.
+1. ~~Approval steps carry no `stepNumber` over the API.~~ **Closed 2026-09-28
+   (`NXD-072`), and misdiagnosed.** There is no `stepNumber` and never was; the
+   ordinal is `sequence`, and it was already in the database, the service, the
+   wire and the client type. What was missing is that the page never rendered
+   it — and rendering it exposed the defect that mattered: step one of every
+   chain was unapprovable from the browser.
+2. ~~Re-approving an approved step answers 500.~~ **Closed 2026-09-26**
+   (Slice B-1) — four untyped approval lookups, not the status check.
+3. ~~Binding an unapproved URS baseline answers 500 rather than 409.~~
+   **Closed 2026-09-26** (Slice B-1), in `urs-baseline-resolver.ts` rather than
+   in `bindUrsBaseline`: upstream 404 → `NotFoundError`, not APPROVED →
+   `ConflictError` naming the actual status, partial resolution →
+   `ConflictError`, anything else left untyped so a genuinely broken upstream
+   still reads as 500.
+4. ~~An unknown requirement-set id answers 200.~~ **Closed 2026-09-26**
+   (Slice B-1) — one identifier and three missing guards, not two identifiers
+   as this list assumed.
 
-Defects 2–4 share one root cause: roughly 25 plain `Error` throws in
+Defects 2–4 shared one root cause: roughly 25 plain `Error` throws in
 `urs-composer-backend/src/service.ts`, which `respondError` can only map to 500.
+Typing them by cause, rather than uniformly, is what closed them.
 
 ---
 
@@ -319,15 +360,24 @@ referential integrity on `traceability_links` (item 4), persisted AI drafts
 cannot generate custom compositions · the Composer name collision. Stage 3 has
 its FS (item 11); TDS and the backlog are out of scope, not missing.
 
-**Traceability** — `VERIFIED_BY` has no producer · the gate ignores
-`getRequirementCoverage` · no GitHub webhooks · no Component→Repository map.
+**Traceability** — ~~`VERIFIED_BY` has no producer~~ (closed, MVP1 item 3) ·
+~~the gate ignores `getRequirementCoverage`~~ (closed, MVP1 item 5) · no GitHub
+webhooks · no Component→Repository map. **This was the executive summary's
+headline gap — "Nexora can prove that a product was governed, it cannot prove
+that the product works" — and it is the part of this audit that has changed
+most. Re-checked 2026-09-29.**
 
-**Compliance** — no Hybrid GMP level · Community RBAC disabled. The shipped
-`memory` default (item 8), the missing `reason` on the product audit
+**Compliance** — no Hybrid GMP level · Community RBAC disabled ·
+`risk.accept` and `baseline.modify` declared, unit-tested and unreachable. The
+shipped `memory` default (item 8), the missing `reason` on the product audit
 (`NXD-066`) and uncaptured product test evidence (item 2) are closed.
 
-**Experience** — hard-coded GitHub org · unnumberable approval steps ·
-200 on unknown ids · documentation sprawl.
+**Experience** — ~~hard-coded GitHub org~~ (closed, `NXD-079`/`NXD-080`) ·
+~~unnumberable approval steps~~ (closed, `NXD-072`) · ~~200 on unknown ids~~
+(closed, Slice B-1) · ~~documentation sprawl~~ (addressed by the governance
+consolidation of 2026-09-26: one authority ranking, one decision log, 0 broken
+links, and a guardrail that keeps it there). **All four closed; re-checked
+2026-09-29.**
 
 **Future** — AI Test Coordinator · AI GMP Impact Agent · Marketplace
 install/update · artifact upgrades · OIDC step-up.

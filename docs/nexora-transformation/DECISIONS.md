@@ -4184,3 +4184,55 @@ fifteen cases.
 - Affected components: `plugins/composer-backend/src/repository.ts`
   (`rowToAuditEvent`), `plugins/composer-backend/src/evidencePackage.test.ts`
   (new).
+
+### NXD-084 — A dated measurement is corrected by annotation, and the execution order lives in the repository
+
+- Date: 2026-09-29
+- Slice: Welle 2 of the programme plan
+- Record change. **No executable path — exempt from DoD point 2** under the
+  §9 preamble, stated here rather than left to be inferred.
+
+Two durable positions came out of correcting three governing documents. The
+corrections themselves are in the commit; what belongs here is the pair of
+rules that decided *how* they were made.
+
+**1. A dated measurement is corrected by annotation, never by rewriting.**
+`TARGET_CONFORMANCE_AUDIT.md` records what was measured on 2026-09-26, and
+that is the only thing it offers — an audit whose findings are edited to match
+today is not an audit, it is a status page with a date on it. So §1's
+pull-quote keeps "Nexora cannot prove that the product works" verbatim and adds
+a superseding note beneath it; §7 keeps its matrix and gains a table of the six
+rows that moved; §9 and §10 strike through and say when. A reader can still
+answer "what did we know, and when".
+
+This cuts the other way for `STATUS.md` and `PHASE_CLOSURE_PLAN.md`, which
+describe the present rather than a moment. Those are corrected in place, with a
+dated note only where the old text is instructive.
+
+**2. The execution order belongs in `PHASE_CLOSURE_PLAN.md` §9, not in a
+conversation.** §9.4 ranked the backlog and §9.6 ordered the topology track,
+and nothing said how the two interleave or where work belonging to neither —
+untested modules, stale records, small defects — sits against them. That
+ordering existed only as an agreement in a session. New §9.4a states it, marks
+what is done, and says why proving came before building.
+
+**What the sweep actually found, and it is the part worth remembering.** The
+errors ran in *both* directions. Closed work listed as open is the cheaper
+error but not a free one: two notes had outlived their own resolution and each
+sent a reader to redo finished work — `STATUS.md` claimed the hardcoded-domain
+inventory still showed GP-8 open when the table reads "REMOVED 2026-09-21", and
+claimed Wave 1, `5-R1`, `7-R5` and `A-3` existed only as commit messages when
+all four are recorded as `NXD-044`…`NXD-047`. The second of those was on the
+wave-2 worklist as "write four missing records". The correct action was to
+delete the claim.
+
+**A note is not free maintenance.** Both stale notes were written accurately
+and never re-read after the thing they described changed. That is not
+carelessness, it is the ordinary failure mode of a cross-reference: the document
+that changes is not the document that mentions it. The only defence available
+is the one `guard:platform` already applies to links — a check that runs — and
+no such check exists for claims. Worth knowing before adding the next note.
+
+- Affected components: `docs/nexora-transformation/STATUS.md`,
+  `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.4a new, §9.5
+  corrected), `docs/audits/TARGET_CONFORMANCE_AUDIT.md`. No code changed.
