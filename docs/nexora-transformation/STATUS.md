@@ -1869,9 +1869,24 @@ wiring layer and should be watched as Phase 3/6 move UI into owned plugins.
   - ~~installation identity~~ **Resolved 2026-09-29**
     ([`NXD-082`](DECISIONS.md)) — 18 cases, mutation-checked, and the
     unconfigured installation walked live. No defect found.
-  - evidence-package aggregator — open, and its gating decision (does the
-    product side need an electronic signature, `PHASE_CLOSURE_PLAN.md` §9.5)
-    is overdue: §9.5 requires it *before* rank 2, which shipped 2026-09-28.
+  - ~~evidence-package aggregator~~ **Resolved 2026-09-29**
+    ([`NXD-083`](DECISIONS.md)) — 15 cases, mutation-checked, walked live on
+    PostgreSQL. **This one had a defect:** the route threw for every product
+    version on any driver that does not return a `Date` for a timestamp
+    column, which is every driver except `pg`. Harmless in production,
+    fatal in the test stack — and that is why nothing had caught it. Its
+    gating decision is **not** outstanding: `PHASE_CLOSURE_PLAN.md` §9.5
+    required the product-side signature question to be answered before rank 2
+    shipped, and [`NXD-077`](DECISIONS.md) answers it. §9.5 still reads as
+    though the decision were pending, which is a §9.5 correction, not a
+    decision.
+- **The composer repository is inconsistent about date coercion.** Added
+  2026-09-29 with [`NXD-083`](DECISIONS.md). Three row mappers convert with
+  `new Date(...)`; the rest return the driver's value under a type that
+  declares `Date`. `rowToAuditEvent` was one of the latter and it cost a
+  route. The remaining mappers are unproven either way — nothing calls a
+  `Date` method on their output yet, which is not the same as their being
+  right.
 - ~~The GxP invariant suites never run in CI.~~ **Resolved in P0-S2.** 62
   tests across six files (`urs-composer-backend`: `gxp-invariants`,
   `runtime-postgres-proof`, `wd-seed-persistence`, `p1a-verification`,
@@ -1957,12 +1972,10 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"test(nxd-082): the installation identity, and the asymmetry that makes the
-permissive default defensible", 2026-09-29, on
-`ms/composer-ai-spec-and-ci-quality-gate` — the second of the three modules
-that shipped untested, see `## Migration Debt`. No production code changed and
-no defect was found; what changed is that the claim is now checkable. See
-[`NXD-082`](DECISIONS.md).
+"fix(nxd-083): the evidence package threw for every version, and only off
+PostgreSQL", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — the
+last of the three modules that shipped untested, and the one that had a
+defect. See [`NXD-083`](DECISIONS.md) and `## Migration Debt`.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the

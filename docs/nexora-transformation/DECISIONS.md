@@ -4103,3 +4103,84 @@ two, including the message-shape one. Both mutations are the plausible
 
 - Affected components: `plugins/artifact-registry-backend/src/installation.test.ts`
   (new). No production code changed.
+
+### NXD-083 — The evidence package threw for every version, and only off PostgreSQL
+
+- Date: 2026-09-29
+- Slice: Welle 1.3 of the programme plan; the last of the three untested modules
+- Closes: the `STATUS.md` §Migration Debt entry "three modules shipped with no test at all"
+
+**The third module was the one with a defect.** `buildEvidencePackage` sorts
+its merged audit trail with `a.timestamp.getTime()`. `rowToAuditEvent` passes
+`row.timestamp` through unconverted while declaring the field as `Date`. On
+`better-sqlite3` the driver returns a number, so the call throws
+`TypeError: a.timestamp.getTime is not a function` — **for every product
+version, because every version has audit events from the act that created it.**
+The route could not answer 200 for anything.
+
+**And yet production was fine.** `pg` returns a real `Date` for a `timestamp`
+column — measured, not assumed:
+
+```
+knex('composer_audit_events').select('timestamp').limit(1)
+  typeof: object | instanceof Date: true | value: 2026-09-27T19:13:11.919Z
+```
+
+`app-config.yaml` ships `client: pg`, and `NXD-070` made memory mode refuse to
+start when permissions are enabled. So the blast radius is every installation
+**not** on PostgreSQL, which today is none.
+
+**That is the interesting part, and the reason this is a record rather than a
+line in a commit.** The defect was harmless where the product runs and fatal
+where the tests run. A module that cannot execute on the stack its own test
+suite uses is a module that will not be tested — the impossibility of testing it
+*was* the bug's camouflage. It would have survived indefinitely: green on
+Postgres, and nobody writes the SQLite test that fails.
+
+**Fixed at the boundary that makes the claim, not at the caller that believes
+it.** `rowToAuditEvent` now coerces. Fixing the `sort` instead would have left
+the type lying and moved the workaround to the next caller — which is how this
+class spreads. The repository is inconsistent about this generally: three
+mappers coerce with `new Date(...)`, the rest pass the column through. Recorded
+as debt rather than swept, because changing twenty mappers is a different slice
+with a different executed path.
+
+**What the tests pin, beyond the defect.** The aggregator computes nothing —
+every part was already readable through some fifteen endpoints — so the only
+ways it can be wrong are a part silently missing and a part quietly belonging to
+another version. Both are invisible to a reader with nothing to compare
+against, and both are now covered: the furnished-version case asserts all ten
+parts as one object rather than ten expectations, and two scope cases build a
+second version and assert its links and contracts stay out.
+
+The `limits` array has its own cases, including one that requires the
+signature-asymmetry line by name. `NXD-077` argued that position and chose to
+hold the asymmetry rather than close it; removing the line should be a decision,
+so it is now a failing test.
+
+**One test states an absence rather than a behaviour.** `buildEvidencePackage`
+refuses a version whose product is missing, with its own message. That branch is
+unreachable — the foreign key refuses the delete, so there is no orphan to find.
+Written down rather than deleted, because "defence in depth behind a constraint"
+and "dead code" look identical in the source and only one is safe to remove.
+
+**Live, per DoD point 2**, against PostgreSQL — the configuration where the bug
+did *not* reproduce, which is the point:
+
+```
+POST /api/composer/products            → 0c44b3ef-…
+POST /api/composer/products/…/versions → eb6ccb39-…
+GET  /api/composer/versions/eb6ccb39-…/evidence-package  HTTP 200
+  generatedAt 2026-09-29T08:10:19.002Z · version 1.0 DRAFT
+  requirements 0 · components 0 · contracts 0 · baselines 0
+  auditTrail 2  ["2026-09-29T08:10:10.704Z","2026-09-29T08:10:10.752Z"]
+  limits 4 · releaseGate passed=false, 5 blockers
+GET  /api/composer/versions/no-such-version/evidence-package  HTTP 404
+```
+
+**Mutation-checked.** Restoring `timestamp: row.timestamp` fails twelve of the
+fifteen cases.
+
+- Affected components: `plugins/composer-backend/src/repository.ts`
+  (`rowToAuditEvent`), `plugins/composer-backend/src/evidencePackage.test.ts`
+  (new).

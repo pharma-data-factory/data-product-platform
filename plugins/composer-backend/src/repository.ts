@@ -906,7 +906,15 @@ export class ComposerRepository implements IComposerRepository {
       entityId: row.entity_id,
       eventType: row.event_type,
       actor: row.actor,
-      timestamp: row.timestamp,
+      // Coerced, because the declared type says `Date` and on SQLite the
+      // driver hands back a number. `pg` returns a Date for a timestamp
+      // column, so this read as correct for as long as nobody called a Date
+      // method on it — and `buildEvidencePackage` was the first to try,
+      // throwing "a.timestamp.getTime is not a function" for every version
+      // that has any audit event at all, which is every version. The fix
+      // belongs at the boundary that makes the claim, not at each caller that
+      // believes it. NXD-083.
+      timestamp: new Date(row.timestamp),
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
       oldValue: row.old_value || undefined,
       newValue: row.new_value || undefined,
