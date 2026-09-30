@@ -484,4 +484,55 @@ describe('composer migration on PostgreSQL', () => {
       }),
     ).rejects.toThrow();
   }, 60000);
+
+  it('makes the product audit trail append-only (NXD-092)', async () => {
+    if (!available) {
+      console.warn('Skipping composer audit append-only test: no database.');
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+    // Re-running must replace the triggers, not fail on them.
+    await up(database);
+
+    await database('composer_audit_events').insert({
+      id: 'audit-pg-1',
+      entity_type: 'PRODUCT_VERSION',
+      entity_id: 'v-audit',
+      event_type: 'STATUS_TRANSITION',
+      actor: 'user:default/releaser',
+      correlation_id: 'corr-1',
+    });
+
+    await expect(
+      database('composer_audit_events')
+        .where({ id: 'audit-pg-1' })
+        .update({ actor: 'user:default/someone-else' }),
+    ).rejects.toThrow(/COMPOSER_APPEND_ONLY: composer_audit_events .* UPDATE/);
+    await expect(
+      database('composer_audit_events').where({ id: 'audit-pg-1' }).delete(),
+    ).rejects.toThrow(/COMPOSER_APPEND_ONLY: composer_audit_events .* DELETE/);
+    await expect(database.raw('truncate composer_audit_events')).rejects.toThrow(
+      /COMPOSER_APPEND_ONLY: composer_audit_events .* TRUNCATE/,
+    );
+
+    const stored = await database('composer_audit_events')
+      .where({ id: 'audit-pg-1' })
+      .first();
+    expect(stored.actor).toBe('user:default/releaser');
+
+    // Appending is still what the trail is for.
+    await database('composer_audit_events').insert({
+      id: 'audit-pg-2',
+      entity_type: 'PRODUCT_VERSION',
+      entity_id: 'v-audit',
+      event_type: 'STATUS_TRANSITION',
+      actor: 'user:default/releaser',
+      correlation_id: 'corr-2',
+    });
+    const count = await database('composer_audit_events')
+      .where({ entity_id: 'v-audit' })
+      .count<{ count: string }[]>({ count: '*' });
+    expect(Number(count[0].count)).toBe(2);
+  }, 60000);
 });

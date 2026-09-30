@@ -64,6 +64,48 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  await makeAuditTrailsAppendOnly(knex);
+}
+
+/**
+ * NXD-092. The comment above said "append-only"; until now only the
+ * repository's lack of an update method made it so. Row triggers refuse
+ * UPDATE and DELETE on both trails, and a statement trigger refuses
+ * TRUNCATE, which row triggers do not see. The sign-in trail is included:
+ * who signed in, and when, is the other half of attributing an action.
+ *
+ * PostgreSQL only; SQLite backs unit tests, not records.
+ */
+async function makeAuditTrailsAppendOnly(knex: Knex): Promise<void> {
+  if (knex.client.config.client !== 'pg') {
+    return;
+  }
+
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION users_append_only()
+    RETURNS trigger AS $fn$
+    BEGIN
+      RAISE EXCEPTION
+        'USERS_APPEND_ONLY: % is append-only; % is not permitted',
+        TG_TABLE_NAME, TG_OP USING ERRCODE = '23514';
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
+  // Dropped and recreated: CREATE TRIGGER has no IF NOT EXISTS before
+  // PostgreSQL 14, and this migration runs on every boot.
+  for (const table of ['user_audit_events', 'user_sign_in_events']) {
+    await knex.raw(`DROP TRIGGER IF EXISTS ${table}_append_only ON ${table}`);
+    await knex.raw(
+      `CREATE TRIGGER ${table}_append_only BEFORE UPDATE OR DELETE ON ${table} ` +
+        'FOR EACH ROW EXECUTE FUNCTION users_append_only()',
+    );
+    await knex.raw(`DROP TRIGGER IF EXISTS ${table}_no_truncate ON ${table}`);
+    await knex.raw(
+      `CREATE TRIGGER ${table}_no_truncate BEFORE TRUNCATE ON ${table} ` +
+        'FOR EACH STATEMENT EXECUTE FUNCTION users_append_only()',
+    );
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {

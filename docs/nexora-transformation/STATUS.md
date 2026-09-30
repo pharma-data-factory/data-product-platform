@@ -44,6 +44,11 @@ and one record each.
   allow-listed origin resolving to public addresses; operator configuration
   stays trusted, the rest path may not change the host, and redirects are
   refused. See [`NXD-091`](DECISIONS.md).
+- **D2 — the product and user trails become append-only in the database.**
+  `composer_audit_events`, `user_audit_events` and `user_sign_in_events`
+  refuse `UPDATE`, `DELETE` and `TRUNCATE` by trigger, as the URS trail has
+  refused the first two since `NXD-064`. Proven on PostgreSQL. See
+  [`NXD-092`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

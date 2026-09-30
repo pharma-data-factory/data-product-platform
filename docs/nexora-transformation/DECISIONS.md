@@ -4928,3 +4928,65 @@ so the sample keeps showing the annotation's shape.
   `plugins/data-products-backend/src/router.ts`,
   `plugins/data-products-backend/src/plugin.ts`, `app-config.yaml`,
   `docs/data-product-framework/DATA-PRODUCT-MODEL.md`.
+
+### NXD-092 — The product and user trails become append-only where it counts
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 3 — quick win D2 of the re-audit of
+  2026-09-30
+- Closes: re-audit finding D2 (product-side audit trail not append-only at
+  the database level).
+
+`urs-composer-backend` has refused `UPDATE` and `DELETE` on `audit_events`
+with a row trigger since `NXD-064`. `composer_audit_events` — the trail that
+records who transitioned, approved and released a product version — had no
+such trigger, and neither had `user_audit_events`, the trail that answers
+"who granted this role". Both were append-only only because their
+repositories happened to have no update method. The users migration said
+"append-only" in a comment. `docs/compliance/traceability-and-gmp.md` §1.5
+listed all three as "append-only stores". Neither was false about the code;
+both were false about the record, which is the thing an inspector asks
+about, and which a console session or a repair script does not reach
+through the repository.
+
+**The URS pattern, copied rather than shared.** Each plugin owns its schema
+(AGENTS.md, plugin boundaries), so `composer_append_only()` and
+`users_append_only()` are separate functions in separate migrations, the
+same shape as `urs_append_only()`: raise with `ERRCODE 23514`, naming the
+table and the operation. Dropped and recreated on every boot, because
+`CREATE TRIGGER` has no `IF NOT EXISTS` before PostgreSQL 14 and these
+migrations run on every start.
+
+**One step further than the model: `TRUNCATE`.** Row triggers do not fire
+for it, so a table protected against `DELETE … WHERE` could still be emptied
+in one statement. A `BEFORE TRUNCATE … FOR EACH STATEMENT` trigger closes
+that on the three new tables. `urs-composer-backend` is **not** changed in
+this record — its trail still accepts `TRUNCATE` — because widening the
+reference implementation belongs in its own change with its own proof, not
+as a side effect of this one. Stated in §1.5 of the compliance document so
+it cannot be read as covered.
+
+**`user_sign_in_events` is included.** The finding named the user audit
+trail; the sign-in trail is the other half of attributing an action, has no
+update or delete path either, and nothing would be gained by leaving it
+editable.
+
+**What is not affected.** `DROP TABLE` in each `down` migration: removing the
+schema is administrative, not an edit, and a trigger cannot and should not
+stop it. `platform_users` stays editable — the records the trail describes
+change; the trail does not. A test pins that distinction. No foreign key
+points into either audit table, so no cascade can collide with the triggers.
+
+**Proven on PostgreSQL, not SQLite.** SQLite backs the unit suites and has
+no equivalent. `composer-backend/src/db/migrations.postgres.test.ts` gains a
+case; `users-backend` gets its first PostgreSQL suite. Both apply the
+migration twice, then prove `UPDATE`, `DELETE` and `TRUNCATE` are refused by
+the trigger (matching its message, so a failure for any other reason does
+not pass) and that inserting still works.
+
+- Affected components:
+  `plugins/composer-backend/src/db/migrations.ts`,
+  `plugins/composer-backend/src/db/migrations.postgres.test.ts`,
+  `plugins/users-backend/src/db/migrations.ts`,
+  `plugins/users-backend/src/db/migrations.postgres.test.ts` (new),
+  `docs/compliance/traceability-and-gmp.md`.

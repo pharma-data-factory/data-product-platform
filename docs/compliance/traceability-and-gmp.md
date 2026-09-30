@@ -93,6 +93,15 @@ Three append-only stores — `audit_events` (URS), `composer_audit_events`
 (Product), `user_audit_events` / `user_sign_in_events` — plus a durable
 authorization-decision store for every Create decision.
 
+All three are append-only **in the database**, on PostgreSQL: row triggers
+refuse `UPDATE` and `DELETE`. Until 2026-09-30 only the URS store was; the
+Product and user trails were append-only because their repositories had no
+update path, which a console or repair script does not respect. The Product
+and user trails also refuse `TRUNCATE`, which row triggers do not see; the
+URS store does not yet. See
+[`NXD-092`](../nexora-transformation/DECISIONS.md). The Create
+authorization-decision store is a JSONL file and is not covered.
+
 ### 1.6 The release gate
 
 Eleven blocker codes, fail-closed, evaluated before any `RELEASED`

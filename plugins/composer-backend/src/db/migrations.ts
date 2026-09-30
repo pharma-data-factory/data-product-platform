@@ -632,6 +632,58 @@ export async function up(knex: Knex): Promise<void> {
 
   await createFunctionalSpecIndexes(knex);
   await addTraceabilityIntegrity(knex);
+  await makeAuditTrailAppendOnly(knex);
+}
+
+/**
+ * NXD-092. The product-side audit trail becomes append-only in the database,
+ * the way `urs-composer-backend` has made `audit_events` since NXD-064.
+ *
+ * The repository only ever inserts into `composer_audit_events`, but that
+ * was a property of this code, not of the record: a console, a repair script
+ * or a future plugin could rewrite who released what. Row triggers refuse
+ * UPDATE and DELETE; a statement trigger refuses TRUNCATE, which bypasses
+ * row triggers and is a delete of everything at once.
+ *
+ * PostgreSQL only, like every trigger in this repository. SQLite is used for
+ * unit tests, not regulated data; the triggers are proven in
+ * `db/migrations.postgres.test.ts`. The `down` migration's DROP TABLE is not
+ * affected — removing the schema is an administrative act, not an edit.
+ */
+async function makeAuditTrailAppendOnly(knex: Knex): Promise<void> {
+  if (knex.client.config.client !== 'pg') {
+    return;
+  }
+
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION composer_append_only()
+    RETURNS trigger AS $fn$
+    BEGIN
+      RAISE EXCEPTION
+        'COMPOSER_APPEND_ONLY: % is append-only; % is not permitted',
+        TG_TABLE_NAME, TG_OP USING ERRCODE = '23514';
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+
+  // CREATE TRIGGER has no IF NOT EXISTS before PostgreSQL 14, and this
+  // migration runs on every boot, so each trigger is dropped and recreated.
+  const triggers: Array<[string, string]> = [
+    [
+      'composer_audit_events_append_only',
+      'BEFORE UPDATE OR DELETE ON composer_audit_events FOR EACH ROW',
+    ],
+    [
+      'composer_audit_events_no_truncate',
+      'BEFORE TRUNCATE ON composer_audit_events FOR EACH STATEMENT',
+    ],
+  ];
+  for (const [name, definition] of triggers) {
+    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON composer_audit_events`);
+    await knex.raw(
+      `CREATE TRIGGER ${name} ${definition} EXECUTE FUNCTION composer_append_only()`,
+    );
+  }
 }
 
 /**
