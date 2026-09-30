@@ -172,6 +172,13 @@ catalog:
     - type: file
       target: ../../catalog/entities.yaml
 
+    # The platform's own documentation entity (TechDocs from the root
+    # mkdocs.yml). Every Developer Hub docs link, and every catalog entity that
+    # borrows its docs via backstage.io/techdocs-entity, resolves to it; it was
+    # never registered, so all of them answered 404 (NXD-102).
+    - type: file
+      target: ../../catalog-info.yaml
+
     - type: file
       target: ../../catalog/platform-apis.yaml
 

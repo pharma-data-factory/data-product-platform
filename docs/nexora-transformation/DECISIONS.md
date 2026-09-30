@@ -5524,3 +5524,73 @@ run against the unfixed client it fails, against the fixed one it passes.
   `packages/app/src/modules/products/api.ts`,
   `packages/app/src/modules/admin/UsersRolesPage.tsx`,
   `plugins/validation-expert/src/api.ts`.
+
+### NXD-102 — Every "Docs" link lands on documentation, and the entity they all needed was never registered
+
+- Date: 2026-09-30
+- Slice: frontend — defect reported by the user
+
+The **Docs** link beside a Data Product answered *"ERROR 404: PAGE NOT
+FOUND"*. Reproduced in a browser against a local stack: the TechDocs reader
+route matched (its "Documentation" header rendered) and the reader itself
+showed the not-found page, because the backend could not build anything.
+
+**Two causes, both configuration.**
+
+1. **References TechDocs refuses.** Eight sample entities carried
+   `backstage.io/techdocs-ref: dir:../../docs`; the UNS component
+   `dir:../uns`; two pilot entities `dir:.` beside a catalog file with no
+   `mkdocs.yml`. TechDocs does not build from outside the catalog file's own
+   directory — *"Relative path is not allowed to refer to a directory
+   outside its parent"* in the backend log — and cannot build a directory
+   without an `mkdocs.yml`. Eleven entities, none buildable.
+2. **The entity they should have used did not exist.** The platform's own
+   docs are the root `catalog-info.yaml` (`data-product-platform`,
+   `techdocs-ref: dir:.`, root `mkdocs.yml`). It was not in
+   `catalog.locations`, so `/docs/default/component/data-product-platform` —
+   the target of every Developer Hub documentation link — was a 404 as well.
+   `developerHubDocs.test.ts` asserted that the *file* contained the
+   annotation; nothing asserted the entity was *registered*.
+
+**The fix.** The root entity is registered in `app-config.yaml`. The eleven
+entities borrow its docs through `backstage.io/techdocs-entity`, the
+annotation Backstage provides for exactly this; the UNS component adds
+`techdocs-entity-path: /uns/`, where its pages already live in the platform
+nav. `catalogNativeTopology.test.ts` had pinned `dir:../../docs` as the
+correct value — it pinned the defect, and now asserts the borrowed entity.
+
+**The links, too.** `techDocsPath(entity)` in `platform-common` returns the
+reader route for `techdocs-entity` (with its optional path) or
+`techdocs-ref`, using the entity's real kind — the Data Products mapper had
+hard-coded `component`, so an API's link pointed at a component that does
+not exist — and returns nothing rather than a raw value; the
+platform-components mapper used to hand back `dir:.` itself as a link
+target.
+
+**A guard.** `techdocsReferences.test.ts` loads the catalog files the base
+configuration registers and fails on a `techdocs-ref` outside its file's
+directory or without an `mkdocs.yml`, on a `techdocs-entity` naming an entity
+the catalog does not load, and on a missing platform docs entity. Against
+the pre-change catalog it fails on two of its three checks.
+
+**Verified in a browser:** Data Products → **Docs** on *Machine State Consumer
+Data Product* opens *Nexora documentation* with its navigation; the UNS page
+opens under the platform docs. The build ran through the configured Docker
+generator.
+
+**Not fixed, and named.** Production cannot build TechDocs at all:
+`app-config.production.yaml` sets `generator.runIn: local`, and the
+production image copies `docs/` and `mkdocs.yml` but installs no MkDocs; it
+does not copy the root `catalog-info.yaml` either. Choosing between MkDocs
+in the image and building docs in CI with an external publisher — the
+recommended Backstage setup — is an infrastructure decision, not part of
+this fix.
+
+- Affected components: `app-config.yaml`, `catalog/entities.yaml`,
+  `catalog/samples/entities.yaml`,
+  `packages/platform-common/src/techdocs.ts` (+ test, new),
+  `packages/platform-common/src/platform-components.ts`,
+  `packages/platform-common/src/index.ts`,
+  `plugins/data-products/src/model.ts`,
+  `packages/backend/src/techdocsReferences.test.ts` (new),
+  `packages/backend/src/catalogNativeTopology.test.ts`.

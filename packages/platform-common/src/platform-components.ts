@@ -1,3 +1,4 @@
+import { techDocsPath, type TechDocsEntityLike } from './techdocs';
 import { parseSemverParts } from './releases';
 
 export const PLATFORM_COMPONENT_TYPE = 'platform-component';
@@ -207,7 +208,7 @@ export function toPlatformComponent(entity: CatalogEntityLike): PlatformComponen
   const documentation =
     annotationValue(entity, `${ANNOTATION_PREFIX}/documentation`) ||
     linkUrl(entity, 'Documentation') ||
-    annotationValue(entity, 'backstage.io/techdocs-ref');
+    techDocsPath(entity as TechDocsEntityLike);
   const repository =
     annotationValue(entity, 'github.com/project-slug') ||
     linkUrl(entity, 'Repository');

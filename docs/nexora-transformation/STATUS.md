@@ -73,6 +73,12 @@ four quick wins F1–F4, one commit and one record each.
   Backstage's nested error body was rendered as an object by the URS client;
   three more clients showed "[object Object]". One helper now reads both
   shapes, and an ended session says so. See [`NXD-101`](DECISIONS.md).
+- **Defect — every "Docs" link was a 404.** Eleven catalog entities pointed
+  TechDocs at directories it will not build, and the platform docs entity
+  they needed was never registered. They now borrow its docs via
+  `techdocs-entity`, links use the entity's real kind, and a guard checks
+  every reference. Production still cannot build TechDocs (no MkDocs in the
+  image) — named, not fixed. See [`NXD-102`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

@@ -1,3 +1,4 @@
+import { techDocsPath } from '@internal/platform-common';
 import {
   Entity,
   getEntitySourceLocation,
@@ -172,8 +173,6 @@ export function toDataProduct(entity: Entity): DataProduct {
     // Source location is optional for locally registered example entities.
   }
 
-  const namespace = entity.metadata.namespace ?? 'default';
-  const techdocsRef = annotations['backstage.io/techdocs-ref'];
 
   const providedApis = firstPresent(
     contractNames(relationTargets(entity, RELATION_PROVIDES_API)),
@@ -226,14 +225,10 @@ export function toDataProduct(entity: Entity): DataProduct {
     usedBy: relationTargets(entity, RELATION_DEPENDENCY_OF),
     compatibilityStatus: 'UNKNOWN',
     dependencies: dependsOn,
-    documentation:
-      documentationLink?.url ??
-      (techdocsRef
-        ? `/docs/${namespace}/component/${entity.metadata.name}`
-        : undefined),
-    techDocsUrl: techdocsRef
-      ? `/docs/${namespace}/component/${entity.metadata.name}`
-      : undefined,
+    // NXD-102: techdocs-entity as well as techdocs-ref, and the entity's
+    // real kind rather than a hard-coded `component`.
+    documentation: documentationLink?.url ?? techDocsPath(entity),
+    techDocsUrl: techDocsPath(entity),
     repository,
     deployment: annotations[`${ANNOTATION_PREFIX}/deployment`],
     certificationStatus: parseCertificationStatus(

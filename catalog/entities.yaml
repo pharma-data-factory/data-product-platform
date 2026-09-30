@@ -32,7 +32,10 @@ metadata:
     - mqtt
     - uns
   annotations:
-    backstage.io/techdocs-ref: dir:../uns
+    # NXD-102. The UNS pages are part of the platform docs; dir:../uns pointed
+    # outside this file's directory, which TechDocs refuses to build.
+    backstage.io/techdocs-entity: component:default/data-product-platform
+    backstage.io/techdocs-entity-path: /uns/
     dataprod.platform/kind: platform-component
     dataprod.platform/version: 1.0.0
     dataprod.platform/category: integration

@@ -842,3 +842,5 @@ export {
   fetchWithTimeout,
   readLLMTimeoutMs,
 } from './llm-timeout';
+export { techDocsPath } from './techdocs';
+export type { TechDocsEntityLike } from './techdocs';

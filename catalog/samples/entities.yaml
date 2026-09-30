@@ -14,7 +14,7 @@ metadata:
     - example
   annotations:
     dataprod.platform/catalog-class: SAMPLE
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     dataprod.platform/kind: data-product
     dataprod.platform/version: 1.0.0
     dataprod.platform/domain: commerce
@@ -53,7 +53,7 @@ metadata:
     - temperature
   annotations:
     dataprod.platform/catalog-class: SAMPLE
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     dataprod.platform/kind: data-product
     dataprod.platform/version: 1.0.0
     dataprod.platform/domain: manufacturing
@@ -102,7 +102,7 @@ metadata:
     - temperature
   annotations:
     dataprod.platform/catalog-class: SAMPLE
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     dataprod.platform/kind: data-product
     dataprod.platform/version: 1.0.0
     dataprod.platform/domain: manufacturing
@@ -140,7 +140,7 @@ metadata:
     dataprod.platform/contract: temperature-event
     dataprod.platform/contract-version: 1.1.0
     dataprod.platform/dataContract: contracts/temperature-event.schema.json
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     backstage.io/source-location: url:https://github.com/example/sample-mqtt-temperature-product
   links:
     - url: https://github.com/example/sample-mqtt-temperature-product
@@ -175,7 +175,7 @@ metadata:
     - equipment
   annotations:
     dataprod.platform/catalog-class: SAMPLE
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     dataprod.platform/kind: data-product
     dataprod.platform/version: 1.0.0
     dataprod.platform/domain: manufacturing
@@ -221,7 +221,7 @@ metadata:
     - equipment
   annotations:
     dataprod.platform/catalog-class: SAMPLE
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     dataprod.platform/kind: data-product
     dataprod.platform/version: 1.0.0
     dataprod.platform/domain: manufacturing
@@ -259,7 +259,7 @@ metadata:
     dataprod.platform/contract: equipment-event
     dataprod.platform/contract-version: 1.0.0
     dataprod.platform/dataContract: contracts/equipment-event.schema.json
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     backstage.io/source-location: url:https://github.com/example/sample-rest-equipment-product
   links:
     - url: https://github.com/example/sample-rest-equipment-product
@@ -376,7 +376,7 @@ metadata:
     - machine-state
   annotations:
     dataprod.platform/catalog-class: SAMPLE
-    backstage.io/techdocs-ref: dir:../../docs
+    backstage.io/techdocs-entity: component:default/data-product-platform
     dataprod.platform/kind: data-product
     dataprod.platform/version: 1.0.0
     dataprod.platform/domain: manufacturing
@@ -588,7 +588,7 @@ metadata:
     dataprod.platform/dataProductSdkVersion: 1.0.0
     dataprod.platform/template: oee-data-product
     dataprod.platform/templateVersion: 1.0.0
-    backstage.io/techdocs-ref: dir:.
+    backstage.io/techdocs-entity: component:default/data-product-platform
 spec:
   type: data-product
   lifecycle: experimental
@@ -619,7 +619,7 @@ metadata:
     dataprod.platform/contract: oee-result
     dataprod.platform/contract-version: 1.0.0
     dataprod.platform/dataContract: contracts/oee-result.schema.json
-    backstage.io/techdocs-ref: dir:.
+    backstage.io/techdocs-entity: component:default/data-product-platform
 spec:
   type: contract
   lifecycle: experimental

@@ -108,9 +108,11 @@ describe('sample catalog native topology', () => {
   });
 
   it('links the contract API to documentation and source', () => {
+    // Was pinned to techdocs-ref `dir:../../docs`, a directory TechDocs
+    // refuses to build from; the reader showed 404 (NXD-102).
     expect(
-      contract.metadata?.annotations?.['backstage.io/techdocs-ref'],
-    ).toBe('dir:../../docs');
+      contract.metadata?.annotations?.['backstage.io/techdocs-entity'],
+    ).toBe('component:default/data-product-platform');
     expect(
       contract.metadata?.annotations?.['backstage.io/source-location'],
     ).toContain('sample-mqtt-temperature-product');
