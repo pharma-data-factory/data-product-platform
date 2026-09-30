@@ -19,20 +19,39 @@ import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 type PersistenceMode = 'postgres' | 'file' | 'memory';
 
 export function getPersistenceMode(config: Config): PersistenceMode {
-  const mode = config
+  const raw = config
     .getOptionalString('validationExpert.persistence.mode')
     ?.toLowerCase();
+  const mode: string = raw ?? 'file';
 
-  if (!mode || mode === 'file') {
-    return 'file';
+  if (mode !== 'postgres' && mode !== 'file' && mode !== 'memory') {
+    throw new Error(
+      `Invalid validationExpert.persistence.mode: '${mode}'. ` +
+        `Allowed values: 'postgres', 'file', 'memory'`,
+    );
   }
-  if (mode === 'postgres' || mode === 'memory') {
-    return mode;
+
+  // NXD-090. The fallback to 'file' is kept for local development, where the
+  // runs store is a convenience. In production it wrote validation evidence
+  // to a JSON file inside the container — not on a volume, not copied into
+  // the image — so every redeploy discarded it, and the only signal was a
+  // warning in the log. Same refusal ursComposer has made since NXD-064:
+  // starting and silently losing regulated records is worse than not starting.
+  if (
+    mode !== 'postgres' &&
+    config.getOptionalString('auth.environment') === 'production'
+  ) {
+    throw new Error(
+      `validationExpert.persistence.mode is '${mode}'${
+        raw ? '' : ' (the default)'
+      } while auth.environment is 'production'. Validation runs are ` +
+        'regulated evidence; a file or in-memory store loses them on every ' +
+        'restart or redeploy. Set validationExpert.persistence.mode: postgres ' +
+        'in the production config.',
+    );
   }
-  throw new Error(
-    `Invalid validationExpert.persistence.mode: '${mode}'. ` +
-      `Allowed values: 'postgres', 'file', 'memory'`,
-  );
+
+  return mode;
 }
 
 export const validationExpertPlugin = createBackendPlugin({
@@ -71,7 +90,6 @@ export const validationExpertPlugin = createBackendPlugin({
           'validationExpert.healthBaseUrl',
         );
         const persistenceMode = getPersistenceMode(config);
-        const authEnvironment = config.getOptionalString('auth.environment');
 
         let repository: ValidationRunRepository;
 
@@ -102,12 +120,6 @@ export const validationExpertPlugin = createBackendPlugin({
           );
           repository = new MemoryValidationRunRepository();
         } else {
-          if (authEnvironment === 'production') {
-            logger.warn(
-              'validationExpert.persistence.mode is file while auth.environment is production. ' +
-                'File store is not suitable for regulated evidence. Prefer postgres for durable storage.',
-            );
-          }
           repository = new FileValidationRunRepository(storePath);
         }
 

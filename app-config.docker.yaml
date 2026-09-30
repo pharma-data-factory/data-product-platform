@@ -46,6 +46,13 @@ ursComposer:
   persistence:
     mode: postgres
 
+# Validation runs are regulated evidence. The base file leaves this unset for
+# local development, which falls back to a JSON file; the backend refuses that
+# fallback when auth.environment is production (NXD-090).
+validationExpert:
+  persistence:
+    mode: postgres
+
 catalog:
   locations:
     - type: file

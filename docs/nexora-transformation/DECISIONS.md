@@ -4804,3 +4804,56 @@ been hiding.
   `plugins/data-products/src/catalogNeighbourhood.ts` (new),
   `plugins/data-products/src/components/DataProductDetailPage.tsx`,
   `plugins/nexora-contracts/src/components/ProductContractPage.tsx`.
+
+### NXD-090 — Validation evidence stops living in the container
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 3 — quick win S1 of the re-audit of
+  2026-09-30
+- Closes: re-audit finding S1 (Validation Expert evidence not durable in
+  production).
+
+The re-audit of 2026-09-30, run against `958c00f`, found that the Validation
+Expert wrote its runs — test executions, results, the evidence a validation
+decision rests on — to `validation/runtime/runs-store.json` in production.
+Not because anyone chose it: `getPersistenceMode` falls back to `file` when
+`validationExpert.persistence.mode` is unset, and neither
+`app-config.production.yaml` nor `app-config.docker.yaml` set it. The path is
+not on the `/app/.runtime` volume and `packages/backend/Dockerfile` never
+copies `validation/`, so every redeploy discarded the store. The plugin knew:
+it logged a warning when `auth.environment` was production, and carried on.
+
+This is the defect `NXD-064` C-1 closed for `ursComposer` — an overlay that
+does not mention a key inherits whatever the base says — and the same
+refusal is applied here rather than a different one:
+
+- `getPersistenceMode` throws when `auth.environment` is `production` and the
+  mode is anything but `postgres`. That covers the explicit `file`, the
+  implicit default (the case that actually shipped, and the message says so),
+  and `memory`, which loses the same evidence faster. The warning is gone;
+  a warning nobody acts on was the defect.
+- Both production-auth overlays now set `validationExpert.persistence.mode:
+  postgres` explicitly. `app-config.docker.yaml` is included because it also
+  sets `auth.environment: production` and would otherwise have stopped
+  starting — the guard found its own second instance before it shipped.
+- `committedConfigIntegrity.test.ts` asserts the **merged** base + overlay
+  value, the way the container entrypoints layer them, next to the identical
+  assertion for `ursComposer`.
+
+**Deliberately not refused:** `file` under `permission.enabled`, which
+`ursComposer` also refuses for `memory`. The base `app-config.yaml` enables
+permissions for local development and leaves this key unset, so that second
+condition would stop every local start. Local runs are not evidence; the
+production condition is the one that protects a record someone later relies
+on.
+
+**Not changed:** the local default stays `file`. The runs store is a genuine
+convenience for a developer iterating on the validation package, and
+`PostgresValidationRunRepository` requires a database the local default does
+not always have.
+
+- Affected components:
+  `plugins/validation-expert-backend/src/plugin.ts`,
+  `plugins/validation-expert-backend/src/persistence-mode.test.ts` (new),
+  `app-config.production.yaml`, `app-config.docker.yaml`,
+  `packages/backend/src/config/committedConfigIntegrity.test.ts`.

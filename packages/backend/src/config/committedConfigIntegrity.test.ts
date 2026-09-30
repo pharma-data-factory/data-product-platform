@@ -104,6 +104,15 @@ describe('committed Control Plane configuration integrity', () => {
       );
     });
 
+    it('stores Validation Expert runs in Postgres, not in a file', () => {
+      // NXD-090. The base file leaves the key unset, which falls back to a
+      // JSON file inside the container; the plugin now refuses to start with
+      // that in production, so an overlay that forgets it fails loudly.
+      expect(
+        config.getOptionalString('validationExpert.persistence.mode'),
+      ).toBe('postgres');
+    });
+
     it('runs as a production auth environment with permissions enabled', () => {
       expect(config.getOptionalString('auth.environment')).toBe('production');
       expect(config.getOptionalBoolean('permission.enabled')).toBe(true);

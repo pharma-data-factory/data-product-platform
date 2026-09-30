@@ -27,6 +27,21 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**Maturity-audit remediation, wave 3 (2026-09-30).** A re-audit against
+`958c00f`, after waves 1 and 2, placed the platform at roughly 2.5 of 5: the
+GxP reference implementation in `urs-composer` is at 3–4, the product and
+release path in `composer-backend` and the operability story at 1–2. This
+wave takes the four quick wins that stand between it and stage 3, one commit
+and one record each.
+
+- **S1 — validation evidence stops living in the container.** Production fell
+  back to a JSON file for Validation Expert runs because no overlay set the
+  key; the backend now refuses anything but `postgres` when
+  `auth.environment` is production, and both production-auth overlays set it.
+  See [`NXD-090`](DECISIONS.md).
+
+## Previous Vertical Slices
+
 **Maturity-audit remediation, wave 2 (2026-09-29).** Closes the finding wave 1
 could not: relationship computation moves out of the browser. Backstage
 already materializes `apiConsumedBy`, `apiProvidedBy` and `dependencyOf` as
@@ -48,8 +63,6 @@ Three pages still scan, and are untouched rather than half-converted:
 `PlatformComponentDetailPage`, `EquipmentDetailPage`,
 `MarketplaceDetailPage`. Each needs its own neighbourhood shape; the pattern
 is now proven.
-
-## Previous Vertical Slices
 
 **Maturity-audit remediation, wave 1 (2026-09-29).** A product-maturity audit
 run against the running code placed the platform at the upper end of stage 2
