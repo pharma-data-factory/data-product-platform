@@ -1,3 +1,4 @@
+import { messageFromErrorBody } from '@internal/platform-common';
 import {
   fetchApiRef,
   discoveryApiRef,
@@ -127,7 +128,9 @@ export function useComposerClient(): ComposerClient {
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
       };
-      throw new Error(data.error || `Request failed (${response.status})`);
+      throw new Error(
+        messageFromErrorBody(data, `Request failed (${response.status})`),
+      );
     }
     if (response.status === 204) {
       return undefined;

@@ -437,4 +437,41 @@ describe('URSComposerApi', () => {
       );
     });
   });
+
+  describe('error bodies (NXD-101)', () => {
+    test('turns Backstage\'s nested error body into a string message', async () => {
+      // What the running backend answered for an expired session. The
+      // message used to be this object; a page rendered it and React threw
+      // error #31.
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: {
+            name: 'AuthenticationError',
+            message: 'Missing credentials',
+            stack: 'AuthenticationError: Missing credentials\n    at x (y.ts:1:1)',
+          },
+          response: { statusCode: 401 },
+        }),
+      });
+      const failure = (await createApi()
+        .listCapabilities()
+        .catch((error: unknown) => error)) as { status: number; message: unknown };
+      expect(failure).toMatchObject({ status: 401, message: 'Missing credentials' });
+      expect(typeof failure.message).toBe('string');
+    });
+
+    test('keeps the plugin\'s own string errors as they are', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'Requirement set not found' }),
+      });
+      await expect(createApi().getRequirementSet('nope')).rejects.toMatchObject({
+        status: 404,
+        message: 'Requirement set not found',
+      });
+    });
+  });
 });

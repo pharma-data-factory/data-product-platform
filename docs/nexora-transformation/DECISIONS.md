@@ -5479,3 +5479,48 @@ re-run the gate on every render; the page holds it in a ref.
   new), `.../tabs/OverviewTab.tsx`, `.../ProductDetailPage.tsx`,
   `.../ProductDetailPage.test.tsx`,
   `plugins/nexora-common/src/loading/useLoadable.ts` (+ test).
+
+### NXD-101 — An expired session crashed a page, because two error shapes were read as one
+
+- Date: 2026-09-30
+- Slice: frontend — defect reported by the user
+
+The user reported a blank page with *"Minified React error #31 … object with
+keys {name, message, stack}"* — React refusing to render an object as text.
+
+**Two shapes, one reader.** Nexora's routes answer
+`{ "error": "Requirement set not found" }`. Backstage's own middleware — every
+401 from `httpAuth.credentials`, every framework-level error — answers
+`{ "error": { "name", "message", "stack" }, "request", "response" }`. Probed
+against the running workspace: the URS routes' own 404s return the string,
+an unauthenticated `GET /api/urs-composer/requirement-sets` returns the
+object. The URS client built its error as `message: errorData.error`, so an
+expired session produced an error whose `message` was that object; pages
+store `err.message` for display and rendered it. After several server
+restarts in this session, an expired browser session is the likely trigger.
+Three more clients — products, users and roles, Validation Expert — read the
+field the same way and produced the message "[object Object]" instead of a
+crash.
+
+**One helper, four clients.** `messageFromErrorBody(body, fallback)` in
+`platform-common` returns the string error, the nested `error.message`, a
+top-level `message`, or the fallback — always a string, never the stack. The
+URS, products, users and Validation Expert clients use it.
+`formatJourneyError` and `isUnauthorizedError` now read a plain
+`{ status, message }` API error by its content rather than as
+`String(object)`, and an ended session ("Missing credentials", an expired
+token) reads *"Your session has ended. Sign in again to continue."* instead
+of the permission message, which sent users to an administrator for access
+they already had. The existing mapping of `"401 unauthorized"` to the
+permission message is pinned by a test and was kept.
+
+**Proof.** The URS client test uses the exact body the running backend sent;
+run against the unfixed client it fails, against the fixed one it passes.
+
+- Affected components:
+  `packages/platform-common/src/journeyErrors.ts` (+ tests),
+  `packages/platform-common/src/index.ts`,
+  `plugins/urs-composer/src/api/ursComposerApi.ts` (+ tests),
+  `packages/app/src/modules/products/api.ts`,
+  `packages/app/src/modules/admin/UsersRolesPage.tsx`,
+  `plugins/validation-expert/src/api.ts`.

@@ -210,7 +210,11 @@ export type {
   HubGoldenPathCard,
 } from './documentation';
 
-export { formatJourneyError, isUnauthorizedError } from './journeyErrors';
+export {
+  formatJourneyError,
+  isUnauthorizedError,
+  messageFromErrorBody,
+} from './journeyErrors';
 
 export {
   decideSignInAccess,

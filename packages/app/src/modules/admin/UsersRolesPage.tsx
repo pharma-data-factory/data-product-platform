@@ -23,6 +23,7 @@ import {
   URS_DOMAIN_GROUPS,
   GROUP_TO_ROLE,
   ROLE_LABELS,
+  messageFromErrorBody,
 } from '@internal/platform-common';
 import type { PlatformRole } from '@internal/platform-common';
 import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
@@ -104,7 +105,9 @@ export function UsersRolesPage() {
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
       };
-      throw new Error(data.error || `Request failed (${response.status})`);
+      throw new Error(
+        messageFromErrorBody(data, `Request failed (${response.status})`),
+      );
     }
     return response.json();
   };

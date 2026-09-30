@@ -1,3 +1,4 @@
+import { messageFromErrorBody } from '@internal/platform-common';
 /**
  * URS Composer API Client
  * 
@@ -99,7 +100,9 @@ export class URSComposerApi {
       const errorData = await response.json().catch(() => ({}));
       const error: URSApiError = {
         status: response.status,
-        message: errorData.error || `HTTP ${response.status}`,
+        // Backstage's own errors nest the message; a page rendered the
+        // object and crashed (NXD-101).
+        message: messageFromErrorBody(errorData, `HTTP ${response.status}`),
         code: errorData.code,
         details: errorData,
       };

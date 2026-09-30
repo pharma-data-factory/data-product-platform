@@ -69,6 +69,10 @@ four quick wins F1–F4, one commit and one record each.
   readable blockers, loaded automatically instead of at RELEASE_CANDIDATE
   on request. No invented "n of m checks"; validation shows *unknown* rather
   than zero; colours validated, not eyeballed. See [`NXD-100`](DECISIONS.md).
+- **Defect — an expired session crashed a page (React error #31).**
+  Backstage's nested error body was rendered as an object by the URS client;
+  three more clients showed "[object Object]". One helper now reads both
+  shapes, and an ended session says so. See [`NXD-101`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

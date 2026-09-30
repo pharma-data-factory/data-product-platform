@@ -1,3 +1,4 @@
+import { messageFromErrorBody } from '@internal/platform-common';
 import {
   createApiRef,
   DiscoveryApi,
@@ -235,7 +236,9 @@ export class ValidationExpertClient implements ValidationExpertApi {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new Error((body as { error?: string }).error ?? `Request failed (${response.status})`);
+      throw new Error(
+        messageFromErrorBody(body, `Request failed (${response.status})`),
+      );
     }
     return response.json();
   }
