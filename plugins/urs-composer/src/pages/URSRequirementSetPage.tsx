@@ -232,6 +232,10 @@ export const URSRequirementSetPage: FC = () => {
   const [baselinesLoadError, setBaselinesLoadError] = useState<Error | null>(
     null,
   );
+  // Bumped to re-run the baseline load: on retry, and after anything that
+  // changes the list. `reload()` does not cover it — baselines have their
+  // own effect — so creating one left "No baselines yet" and "Create
+  // Baseline" on screen until a page reload (NXD-097, found by the e2e test).
   const [baselinesAttempt, setBaselinesAttempt] = useState(0);
   const [stepComments, setStepComments] = useState<Record<string, string>>({});
   // Create Baseline dialog state
@@ -539,6 +543,7 @@ export const URSRequirementSetPage: FC = () => {
     try {
       const instance = await api.submitBaseline(baselineId);
       setApprovalInstance(instance);
+      setBaselinesAttempt(n => n + 1);
       await reload();
     } catch (err: any) {
       setActionError(err.message || 'Failed to submit baseline');
@@ -2109,6 +2114,7 @@ export const URSRequirementSetPage: FC = () => {
                 });
                 setBaselineDialogOpen(false);
                 setBaselineSuccess(true);
+                setBaselinesAttempt(n => n + 1);
                 await reload();
               } catch (err: any) {
                 setActionError(err.message || 'Failed to create baseline');

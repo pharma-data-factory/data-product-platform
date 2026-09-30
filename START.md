@@ -203,3 +203,31 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:7007/api/composer/produc
 ```
 
 Guest is a VIEWER, so writes return 403 until you raise `AUTH_GUEST_ROLE`.
+
+---
+
+## E — End-to-end test of the approval chain
+
+The URS approval chain needs three identities under Segregation of Duties, so
+it runs on the demo profile, on PostgreSQL, against the built frontend served
+by the backend. CI does this in the `e2e` job of `.github/workflows/ci.yml`;
+locally:
+
+```bash
+docker run -d --rm --name nexora-e2e-pg -e POSTGRES_USER=nexora \
+  -e POSTGRES_PASSWORD=e2e_pass -e POSTGRES_DB=nexora -p 5436:5432 postgres:16-alpine
+yarn workspace app build
+cd packages/backend && POSTGRES_HOST=localhost POSTGRES_PORT=5436 \
+  POSTGRES_USER=nexora POSTGRES_PASSWORD=e2e_pass POSTGRES_DATABASE=nexora \
+  BACKEND_SECRET=local-e2e node ../../node_modules/@backstage/cli/bin/backstage-cli \
+  package start --config ../../app-config.yaml --config ../../app-config.demo.yaml \
+  --config ../../app-config.e2e.yaml &
+cd ../.. && CI=true yarn playwright test packages/app/e2e-tests/urs-approval-chain.spec.ts
+```
+
+The project uses the `chrome` channel (`@backstage/e2e-test-utils`), so Google
+Chrome must be installed: `npx playwright install chrome`. If a dev server
+already holds port 7007, add `APP_CONFIG_backend_listen_port=7017`,
+`APP_CONFIG_backend_baseUrl`, `APP_CONFIG_app_baseUrl` and
+`APP_CONFIG_backend_cors_origin` pointing at `http://localhost:7017`, and run
+Playwright with `PLAYWRIGHT_URL=http://localhost:7017`.

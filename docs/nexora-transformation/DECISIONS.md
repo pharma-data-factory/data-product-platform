@@ -5233,3 +5233,91 @@ uses Backstage's `BrowserRouter`. Replacing the router is not a quick win.
   `.../CreateWizard/steps/RequirementsStep.tsx`,
   `.../CreateWizard/steps/AcceptanceCriteriaStep.tsx`,
   `.../CreateWizard/unsavedWork.test.tsx` (new).
+
+### NXD-097 — The approval chain is walked in a browser, and the walk found two defects no unit test could
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 4 (frontend) — F4
+- Closes: re-audit finding U8, for the regulated path (an end-to-end test
+  of URS → baseline → approval in CI). Accessibility checks with axe are not
+  included; see *Dependency* below.
+
+Every record from `NXD-055` on ended with the same sentence: *not verified
+against a running stack, because producing an approved URS baseline needs
+several identities under Segregation of Duties.* `NXD-057` added the demo
+identities that make the chain walkable. Nothing had walked it.
+`urs-approval-chain.spec.ts` does, in Chrome, against the built frontend
+served by the backend, on PostgreSQL — so the immutability and append-only
+triggers are live, not the SQLite fallback `app-config.demo.yaml` warns
+about.
+
+**Division of labour.** The API authors the set (create, two requirements,
+three review-chain transitions) and sets two PINs — data entry the wizard's
+own tests cover. The **browser** does every regulated act, each as the seat
+that must perform it and each through the e-signature dialog with a PIN:
+demo-author creates and submits the baseline; demo-reviewer approves steps 1
+and 2; demo-quality applies the APPROVED_QA signature to the versions and
+approves step 3. Between those, the author's attempt to take step 1 through
+the API is asserted to answer **403** — Segregation of Duties proven live,
+not only in unit tests. The test ends on the record, not the page: baseline,
+set and approval instance are APPROVED, and `actedBy` on the three steps is
+reviewer, reviewer, quality.
+
+**The first runs failed on two product defects, both fixed here.**
+
+1. **The demo sign-in buttons never rendered.** `auth.providers.demo.users`
+   carried `# @visibility frontend` in `app-config.demo.yaml`; a YAML comment
+   does not make a key visible, the config schema does, and no schema
+   declared it. The list was stripped from the frontend config, the sign-in
+   page offered only GitHub, and the chain `NXD-057` exists to demonstrate
+   could not be walked in a browser. `packages/app/config.d.ts` already
+   documents this exact trap for the Guest provider — it was fixed once and
+   repeated one provider later. The key is now declared there.
+2. **A created baseline did not appear until reload.** The create handler
+   called `reload()`, which refreshes the set, requirements, audit and
+   versions — not the baselines, which have their own effect. After
+   **Create**, the author still saw "No baselines yet" and **Create
+   Baseline**; **Submit for Approval** was unreachable without a page
+   reload. Create and submit now bump the baseline-load counter `NXD-094`
+   introduced for retry.
+
+Two test-side lessons, recorded because the next spec will hit them:
+`locator.isVisible()` does not wait, whatever `timeout` it is given, so a
+cookie-consent dialog that appears a moment late covered the Sign In
+button; and a heading can render before the submit that produced it has
+been answered — a repeated run caught the approval-instance read racing it,
+and the test now polls the record.
+
+**CI.** A separate `e2e` job, parallel to `test`: Postgres service, app
+build, backend started with `app-config.yaml` + `app-config.demo.yaml` +
+the new `app-config.e2e.yaml` (single origin on :7007), then only this spec
+— the model-company journeys need the simulator stack. The backend is
+started through the CLI rather than `yarn workspace backend start`, whose
+`--env-file=../../.env` fails where no `.env` exists; that exact invocation,
+without `.env` and without GitHub credentials, was run locally before
+committing. Report, traces and backend log are uploaded on failure.
+`app-config.e2e.yaml` joins the committed-config secret scan.
+
+**Verified locally:** 3 consecutive passes of about 30 s each, plus one
+against the CI-shaped backend. **Not verified:** the job on GitHub itself —
+the branch cannot be pushed until the token gains the `workflow` scope, the
+blocker already recorded for `NXD-088`.
+
+**Dependency.** axe was part of F4 as proposed and is not included: AGENTS.md
+requires an explicit approval for a new dependency, and
+`@axe-core/playwright` would be one. `axe-core` 4.13.0 is already in
+`yarn.lock`, transitively through `eslint-plugin-jsx-a11y`. The request is
+reported as `DEPENDENCY_CHANGE_REQUIRED` rather than installed.
+
+**Not done.** The existing `app.test.ts` e2e spec asserts a landing heading
+the page no longer shows; it is not in CI and was left alone. Product
+release (composer version bound to the approved baseline, through the
+release gate) is the next leg of the path and not in this spec.
+
+- Affected components:
+  `packages/app/e2e-tests/urs-approval-chain.spec.ts` (new),
+  `app-config.e2e.yaml` (new), `.github/workflows/ci.yml`,
+  `packages/app/config.d.ts`,
+  `plugins/urs-composer/src/pages/URSRequirementSetPage.tsx`,
+  `packages/backend/src/config/committedConfigIntegrity.test.ts`,
+  `START.md` (§E).

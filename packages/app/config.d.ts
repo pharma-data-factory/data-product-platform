@@ -36,6 +36,24 @@ export interface Config {
          */
         userEntityRef?: string;
       };
+      /**
+       * Named demo identities, local development only (NXD-057). Loaded by
+       * app-config.demo.yaml.
+       *
+       * The same trap the Guest note above describes, found again by the
+       * first end-to-end test of the approval chain (NXD-097): the
+       * `@visibility frontend` comment in app-config.demo.yaml did nothing,
+       * the list was stripped from the frontend config, and the sign-in page
+       * never offered a single "Continue as demo-…" button — so the chain
+       * NXD-057 exists to demonstrate could not be walked in a browser.
+       */
+      demo?: {
+        /**
+         * The closed allow-list of identities the sign-in page offers.
+         * @visibility frontend
+         */
+        users?: string[];
+      };
     };
   };
 }

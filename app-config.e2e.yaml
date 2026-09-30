@@ -1,0 +1,21 @@
+# End-to-end test profile — the URS approval chain in a browser (NXD-097).
+# LOCAL AND CI ONLY. Layered on top of the demo profile:
+#
+#   --config app-config.yaml --config app-config.demo.yaml --config app-config.e2e.yaml
+#
+# The demo profile supplies the three identities the chain needs
+# (demo-author, demo-reviewer, demo-quality); a single Guest cannot walk it,
+# by design. This file only makes the backend serve the built frontend from
+# its own origin, which is how the production image runs and what Playwright's
+# CI baseURL (http://localhost:7007) expects. The database comes from the
+# POSTGRES_* variables app-config.yaml already reads, so the chain runs on
+# real PostgreSQL with its immutability and append-only triggers — not on the
+# SQLite fallback the demo profile's own comment warns about.
+
+app:
+  baseUrl: http://localhost:7007
+
+backend:
+  baseUrl: http://localhost:7007
+  cors:
+    origin: http://localhost:7007

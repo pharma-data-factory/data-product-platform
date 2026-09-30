@@ -94,6 +94,93 @@ jobs:
           yarn npm audit --all --recursive --severity high || \
             echo "::warning::Dependency advisories present. See the step log; remediation runs through the Backstage upgrade gate."
 
+  # The URS approval chain, walked in a browser by three identities on real
+  # PostgreSQL (NXD-097). Every decision record from NXD-055 on ended "not
+  # verified against a running stack"; this is the job that verifies it. Its
+  # first local runs found two defects no unit test could: the demo sign-in
+  # buttons never rendered, and a created baseline did not appear until reload.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nexora
+          POSTGRES_PASSWORD: e2e_pass
+          POSTGRES_DB: nexora
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexora -d nexora"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: nexora
+      POSTGRES_PASSWORD: e2e_pass
+      POSTGRES_DATABASE: nexora
+      # Throwaway, per run: signs service tokens inside this job only.
+      BACKEND_SECRET: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install
+        run: yarn install --immutable
+
+      # The backend serves this bundle from its own origin, as the production
+      # image does; Playwright's CI baseURL is http://localhost:7007.
+      - name: Build frontend
+        run: yarn workspace app build
+
+      # Not `yarn workspace backend start`: that script reads ../../.env,
+      # which does not exist here, and node refuses a missing --env-file.
+      - name: Start backend (demo + e2e profile)
+        working-directory: packages/backend
+        run: |
+          node ../../node_modules/@backstage/cli/bin/backstage-cli package start \
+            --config ../../app-config.yaml \
+            --config ../../app-config.demo.yaml \
+            --config ../../app-config.e2e.yaml > ../../backend-e2e.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:7007/.backstage/health/v1/readiness >/dev/null; then
+              echo "backend ready after ~$((i * 5))s"; exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::backend did not become ready"; tail -100 ../../backend-e2e.log; exit 1
+
+      # Only this spec: the model-company journeys need the simulator stack.
+      # Google Chrome is preinstalled on ubuntu-latest, which is the channel
+      # @backstage/e2e-test-utils' generateProjects selects.
+      - name: URS approval chain (Playwright)
+        run: yarn playwright test packages/app/e2e-tests/urs-approval-chain.spec.ts
+
+      - name: Upload report and backend log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-urs-approval-chain
+          path: |
+            e2e-test-report/
+            node_modules/.cache/e2e-test-results/
+            backend-e2e.log
+          retention-days: 7
+
   image:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -16,6 +16,9 @@ const COMMITTED_APP_CONFIGS = [
   ...RBAC_DEPLOYMENT_CONFIGS,
   'app-config.github.yaml',
   'app-config.local.yaml',
+  // NXD-097. Committed and loaded by CI; its credentials come from the job's
+  // environment and must stay there.
+  'app-config.e2e.yaml',
 ] as const;
 
 const SECRET_ASSIGNMENT =

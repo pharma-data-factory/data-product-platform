@@ -48,6 +48,12 @@ four quick wins F1–F4, one commit and one record each.
   with unsaved changes asks first; deleting a requirement or a criterion
   offers Undo, which re-inserts into the current list. The criterion delete
   was writing into React state in place. See [`NXD-096`](DECISIONS.md).
+- **F4 — the approval chain is walked in a browser.** Three demo seats, real
+  PostgreSQL, every regulated act through the e-signature dialog, SoD
+  asserted live, a new `e2e` CI job. Its first runs found two defects: the
+  demo sign-in buttons never rendered (config schema), and a created
+  baseline stayed invisible until reload. axe awaits a dependency approval.
+  See [`NXD-097`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
