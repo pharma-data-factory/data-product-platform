@@ -116,15 +116,3 @@ export function fixtureStreamEvent(entity: Entity, context: Record<string, strin
     },
   };
 }
-
-export function resolveBaseUrl(
-  configMap: Record<string, string>,
-  entity: Entity,
-): string | undefined {
-  const name = entity.metadata.name;
-  return (
-    configMap[name] ||
-    configMap[entity.metadata.annotations?.['dataprod.platform/template'] ?? ''] ||
-    entity.metadata.annotations?.['dataprod.platform/consume-base-url']
-  );
-}

@@ -8,9 +8,9 @@ No duplicate custom Catalog kind is introduced.
 | Annotation | Purpose |
 | --- | --- |
 | `dataprod.platform/interfaces` | Declared interfaces (e.g. REST) |
-| `dataprod.platform/consume-rest-path` | Relative REST path |
+| `dataprod.platform/consume-rest-path` | Absolute path on the upstream origin; must start with `/` and may not change the host |
 | `dataprod.platform/consume-stream` | `sse` \| `websocket` |
-| `dataprod.platform/consume-base-url` | Optional product-level upstream hint |
+| `dataprod.platform/consume-base-url` | Optional upstream hint. Followed only if its origin is in `dataProducts.consume.allowedOrigins` and it resolves to public addresses; internal upstreams go in `dataProducts.consume.baseUrls` (NXD-091) |
 | `dataprod.platform/presentation-capabilities` | CSV of capabilities |
 | `dataprod.platform/presentation-extensions` | CSV of registered extension ids |
 | `dataprod.platform/validation-status` | Default `NOT_VALIDATED` |

@@ -44,14 +44,20 @@ describe('consume router', () => {
     });
   });
 
-  function app() {
+  function app(
+    consume: {
+      baseUrls?: Record<string, string>;
+      allowedOrigins?: string[];
+    } = {},
+  ) {
     const router = Router();
     mountConsumeRoutes(router, {
       logger: logger as any,
       catalog: catalog as any,
       httpAuth: httpAuth as any,
       permissions: permissions as any,
-      baseUrls: {},
+      baseUrls: consume.baseUrls ?? {},
+      allowedOrigins: consume.allowedOrigins,
     });
     const application = express();
     application.use(router);
@@ -95,5 +101,110 @@ describe('consume router', () => {
       `/consume/query?entityRef=${encodeURIComponent('component:default/sample-oee-data-product')}`,
     );
     expect(result.status).toBe(403);
+  });
+
+  describe('upstream resolution (NXD-091)', () => {
+    const queryPath = `/consume/query?entityRef=${encodeURIComponent(
+      'component:default/sample-oee-data-product',
+    )}`;
+    const upstreamCalls: string[] = [];
+    let upstreamServer: Awaited<ReturnType<typeof listenOnFetchablePort>>;
+
+    beforeAll(async () => {
+      const upstream = express();
+      upstream.get('/api/v1', (req, res) => {
+        upstreamCalls.push(req.url);
+        res.json([{ oee: 0.9 }]);
+      });
+      upstream.get('/redirect', (_req, res) => {
+        upstreamCalls.push('/redirect');
+        res.redirect('http://169.254.169.254/latest/meta-data/');
+      });
+      upstreamServer = await listenOnFetchablePort(upstream);
+    });
+
+    afterAll(async () => {
+      await upstreamServer.close();
+    });
+
+    beforeEach(() => {
+      upstreamCalls.length = 0;
+      // clearAllMocks keeps implementations; the 403 test above leaves DENY.
+      permissions.authorize.mockResolvedValue([
+        { result: AuthorizeResult.ALLOW },
+      ]);
+    });
+
+    function withAnnotations(annotations: Record<string, string>) {
+      catalog.getEntityByRef.mockResolvedValue({
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'Component',
+        metadata: { name: 'sample-oee-data-product', annotations },
+        spec: { type: 'data-product', owner: 'group:default/platform-team' },
+      });
+    }
+
+    it('proxies to an operator-configured loopback upstream', async () => {
+      const result = await get(
+        app({ baseUrls: { 'sample-oee-data-product': upstreamServer.url } }),
+        queryPath,
+      );
+      expect(result.body.source).toBe('upstream');
+      expect(result.body.rows).toEqual([{ oee: 0.9 }]);
+      expect(upstreamCalls).toEqual(['/api/v1']);
+    });
+
+    it('never contacts a loopback host named only by the annotation', async () => {
+      // The finding: whoever controls catalog-info.yaml chose the host.
+      withAnnotations({
+        'dataprod.platform/consume-base-url': upstreamServer.url,
+      });
+      const result = await get(
+        app({ allowedOrigins: [upstreamServer.url] }),
+        queryPath,
+      );
+      expect(result.body).toMatchObject({
+        source: 'unavailable',
+        detail: 'UPSTREAM_ADDRESS_NOT_PUBLIC',
+      });
+      expect(upstreamCalls).toEqual([]);
+    });
+
+    it('does not fall back to fixtures when the annotation was refused', async () => {
+      withAnnotations({
+        'dataprod.platform/consume-base-url': 'http://169.254.169.254',
+      });
+      const result = await get(app(), queryPath);
+      expect(result.body).toMatchObject({
+        source: 'unavailable',
+        detail: 'UPSTREAM_ORIGIN_NOT_ALLOWED',
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('UPSTREAM_ORIGIN_NOT_ALLOWED'),
+      );
+    });
+
+    it('refuses a rest path that would move a configured base to another host', async () => {
+      withAnnotations({ 'dataprod.platform/consume-rest-path': '@evil.example/x' });
+      const result = await get(
+        app({ baseUrls: { 'sample-oee-data-product': upstreamServer.url } }),
+        queryPath,
+      );
+      expect(result.body.detail).toBe('UPSTREAM_PATH_INVALID');
+      expect(upstreamCalls).toEqual([]);
+    });
+
+    it('does not follow an upstream redirect', async () => {
+      withAnnotations({ 'dataprod.platform/consume-rest-path': '/redirect' });
+      const result = await get(
+        app({ baseUrls: { 'sample-oee-data-product': upstreamServer.url } }),
+        queryPath,
+      );
+      expect(upstreamCalls).toEqual(['/redirect']);
+      expect(result.body).toMatchObject({
+        source: 'unavailable',
+        detail: 'UPSTREAM_UNAVAILABLE',
+      });
+    });
   });
 });

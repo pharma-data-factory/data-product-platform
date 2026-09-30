@@ -39,6 +39,11 @@ and one record each.
   key; the backend now refuses anything but `postgres` when
   `auth.environment` is production, and both production-auth overlays set it.
   See [`NXD-090`](DECISIONS.md).
+- **S2 — a catalog author no longer chooses where the Control Plane
+  connects.** The consume-base-url annotation is followed only for an
+  allow-listed origin resolving to public addresses; operator configuration
+  stays trusted, the rest path may not change the host, and redirects are
+  refused. See [`NXD-091`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

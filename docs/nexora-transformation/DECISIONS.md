@@ -4857,3 +4857,74 @@ not always have.
   `plugins/validation-expert-backend/src/persistence-mode.test.ts` (new),
   `app-config.production.yaml`, `app-config.docker.yaml`,
   `packages/backend/src/config/committedConfigIntegrity.test.ts`.
+
+### NXD-091 — A catalog author no longer chooses where the Control Plane connects
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 3 — quick win S2 of the re-audit of
+  2026-09-30
+- Closes: re-audit finding S2 (server-side request forgery through the
+  consume query).
+
+`GET /consume/query` proxied to an upstream and returned its JSON body to the
+caller. The upstream came from `resolveBaseUrl`: the operator's
+`dataProducts.consume.baseUrls` by product name or template, and failing
+that, the entity's `dataprod.platform/consume-base-url` annotation. The path
+came from `dataprod.platform/consume-rest-path`, also an annotation. Anyone
+who can register a `catalog-info.yaml` — a Golden Path repository registered
+through `catalog:register` is enough — could point the Control Plane at
+`169.254.169.254` or any service on its own network and read the answer.
+
+**Two sources, two trust levels, and the distinction is the decision.**
+`resolveUpstream` (`consume/upstream.ts`) replaces `resolveBaseUrl`, which is
+deleted rather than left beside it:
+
+- **Configuration is trusted as written, loopback included.** The only real
+  upstream in the repository is the Model Company's
+  `http://127.0.0.1:18080`, and a plant historian normally sits on a private
+  network. Applying an IP block to operator configuration would have broken
+  the one working integration and protected against nobody — the operator
+  already controls the process.
+- **The annotation is followed only if its origin is in the new
+  `dataProducts.consume.allowedOrigins`, and every address its host resolves
+  to is public.** Loopback, RFC 1918, CGNAT, link-local (the metadata
+  endpoint), `0.0.0.0/8`, multicast, and the IPv6 equivalents, via
+  `net.BlockList`, which also matches IPv4-mapped IPv6. The allow-list alone
+  would not be enough, because a listed hostname can resolve anywhere; the
+  address check alone would not be enough, because it cannot tell the
+  operator's intended partner from any other public host. The default list
+  is empty, so the annotation is inert until someone decides otherwise.
+- **The path is catalog-authored under both sources**, which the finding did
+  not say and which matters more than it looks: `@evil.example/x` appended
+  to the trusted `http://127.0.0.1:18080` parses as host `evil.example`. The
+  joined URL must keep the base's origin, and a leading `//` or any `\` is
+  refused before parsing can normalize it away.
+- **Redirects are refused** (`redirect: 'error'`). Following one would
+  re-open every check just made.
+- **A refusal is not a fixture.** A refused upstream answers
+  `source: 'unavailable'` with the reason code and a warning in the log, the
+  same shape as an unreachable one. Falling back to fixture data would show
+  a consumer invented numbers for a product that declared a real source.
+
+**Residual risk, stated.** The address check resolves the hostname and then
+`fetch` resolves it again, so a host that answers differently the second
+time (DNS rebinding) passes. Closing that requires pinning the resolved
+address in the connection, which means an HTTP agent `fetch` does not expose
+without `undici` as a direct dependency — an AGENTS.md dependency decision,
+not taken here. The window only exists for an origin the operator has
+explicitly allow-listed.
+
+`catalog/samples/industrial.yaml` still carries
+`consume-base-url: http://127.0.0.1:18080` on `checkweigher-01-oee`. It is
+now inert — configuration names that product and wins — and left in place
+so the sample keeps showing the annotation's shape.
+
+- Affected components:
+  `plugins/data-products-backend/src/consume/upstream.ts` (new),
+  `plugins/data-products-backend/src/consume/upstream.test.ts` (new),
+  `plugins/data-products-backend/src/consume/router.ts`,
+  `plugins/data-products-backend/src/consume/router.test.ts`,
+  `plugins/data-products-backend/src/consume/fixtures.ts`,
+  `plugins/data-products-backend/src/router.ts`,
+  `plugins/data-products-backend/src/plugin.ts`, `app-config.yaml`,
+  `docs/data-product-framework/DATA-PRODUCT-MODEL.md`.

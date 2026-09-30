@@ -45,6 +45,9 @@ export const dataProductsPlugin = createBackendPlugin({
             if (value) consumeBaseUrls[key] = value;
           }
         }
+        const consumeAllowedOrigins =
+          config.getOptionalStringArray('dataProducts.consume.allowedOrigins') ??
+          [];
         httpRouter.use(
           await createRouter({
             logger,
@@ -55,6 +58,7 @@ export const dataProductsPlugin = createBackendPlugin({
             certificationOverlay,
             releaseOverlay,
             consumeBaseUrls,
+            consumeAllowedOrigins,
           }),
         );
         httpRouter.addAuthPolicy({

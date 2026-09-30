@@ -36,6 +36,8 @@ export interface RouterOptions {
   releaseOverlay?: FileReleaseOverlay;
   /** Optional map of product name / template → upstream base URL */
   consumeBaseUrls?: Record<string, string>;
+  /** Origins a consume-base-url annotation may name (NXD-091). */
+  consumeAllowedOrigins?: readonly string[];
 }
 
 export async function createRouter(
@@ -50,6 +52,7 @@ export async function createRouter(
     certificationOverlay,
     releaseOverlay,
     consumeBaseUrls = {},
+    consumeAllowedOrigins = [],
   } = options;
   const router = Router();
   router.use(express.json());
@@ -60,6 +63,7 @@ export async function createRouter(
     httpAuth,
     permissions,
     baseUrls: consumeBaseUrls,
+    allowedOrigins: consumeAllowedOrigins,
   });
 
   router.get('/health', (_req, res) => {

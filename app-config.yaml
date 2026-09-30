@@ -307,6 +307,12 @@ dataProducts:
     baseUrls:
       # Customer Zero — CHECKWEIGHER-01 OEE on Model Company Mosquitto (:41884)
       checkweigher-01-oee: http://127.0.0.1:18080
+    # Origins a catalog entity's dataprod.platform/consume-base-url annotation
+    # may name. Empty: the annotation is never followed. Even when listed, an
+    # annotation host that resolves to a loopback, private or link-local
+    # address is refused — internal upstreams belong in baseUrls above, which
+    # only the operator writes (NXD-091).
+    allowedOrigins: []
 
 # Commercial entitlement foundation. AWS Marketplace is one possible
 # source. Local provider is the default and requires no secrets.

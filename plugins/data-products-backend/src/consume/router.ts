@@ -17,15 +17,21 @@ import {
   descriptorFromEntity,
   isDataProductComponent,
 } from '@internal/data-product-consumption/node';
-import { fixtureQuery, fixtureStreamEvent, resolveBaseUrl } from './fixtures';
+import { fixtureQuery, fixtureStreamEvent } from './fixtures';
+import { resolveUpstream } from './upstream';
 
 export interface ConsumeRouterOptions {
   logger: LoggerService;
   catalog: CatalogService;
   httpAuth: HttpAuthService;
   permissions?: PermissionsService;
-  /** Map of product name or template id → base URL */
+  /** Map of product name or template id → base URL. Operator-trusted. */
   baseUrls: Record<string, string>;
+  /**
+   * Origins a `dataprod.platform/consume-base-url` annotation may name.
+   * Empty means the annotation is never followed (NXD-091).
+   */
+  allowedOrigins?: readonly string[];
 }
 
 async function authorize(
@@ -63,7 +69,14 @@ export function mountConsumeRoutes(
   router: express.Router,
   options: ConsumeRouterOptions,
 ) {
-  const { logger, catalog, httpAuth, permissions, baseUrls } = options;
+  const {
+    logger,
+    catalog,
+    httpAuth,
+    permissions,
+    baseUrls,
+    allowedOrigins = [],
+  } = options;
 
   // Phase 6 (P6-S5): in-memory usage counter. Records the last N access
   // timestamps per product so the detail page can show recent usage activity.
@@ -127,14 +140,28 @@ export function mountConsumeRoutes(
         line: String(req.query.line ?? ''),
         equipment: String(req.query.equipment ?? ''),
       };
-      const baseUrl = resolveBaseUrl(baseUrls, entity);
-      if (baseUrl) {
-        const path =
-          entity.metadata.annotations?.['dataprod.platform/consume-rest-path'] ??
-          '/api/v1';
+      const resolution = await resolveUpstream(entity, {
+        baseUrls,
+        allowedOrigins,
+      });
+      if (resolution.kind === 'refused') {
+        logger.warn(
+          `Refused consume upstream for ${entityRef}: ${resolution.reason}`,
+        );
+        res.json({
+          source: 'unavailable',
+          detail: resolution.reason,
+          columns: [],
+          rows: [],
+        });
+        return;
+      }
+      if (resolution.kind === 'upstream') {
         try {
-          const upstream = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+          // A redirect would re-open every check resolveUpstream just made.
+          const upstream = await fetch(resolution.url, {
             signal: AbortSignal.timeout(5000),
+            redirect: 'error',
           });
           if (!upstream.ok) {
             res.json({
