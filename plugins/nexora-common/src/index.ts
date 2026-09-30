@@ -72,3 +72,6 @@ export {
 export { withAlpha } from './tokens';
 export type { NexoraToneName } from './tokens';
 export { IndustrialTestRoot } from './testUtils';
+export { LoadError } from './loading/LoadError';
+export { useLoadable } from './loading/useLoadable';
+export type { Loadable } from './loading/useLoadable';

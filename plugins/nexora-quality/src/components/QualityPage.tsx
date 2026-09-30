@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { Link, Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
@@ -14,8 +14,10 @@ import {
   NEXORA_CYAN,
   NEXORA_GREY,
   NEXORA_MUTED,
+  LoadError,
   NexoraSection,
   NexoraToolPage,
+  useLoadable,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -57,23 +59,19 @@ export function QualityPage() {
   const classes = useStyles();
   const tool = useNexoraToolStyles();
   const catalogApi = useApi(catalogApiRef);
-  const [products, setProducts] = useState<IndustrialDataProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    catalogApi
-      .getEntities({ filter: { kind: ['Component'] } })
-      .then(response => {
-        setProducts(
+  const load = useCallback(
+    () =>
+      catalogApi
+        .getEntities({ filter: { kind: ['Component'] } })
+        .then(response =>
           response.items
             .filter(isIndustrialDataProduct)
             .map(toIndustrialDataProduct)
             .filter((item): item is IndustrialDataProduct => Boolean(item)),
-        );
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [catalogApi]);
+        ),
+    [catalogApi],
+  );
+  const { value: products = [], loading, error, retry } = useLoadable(load);
 
   return (
     <NexoraToolPage
@@ -84,7 +82,10 @@ export function QualityPage() {
       secondary="Local development uses the mock industrial provider and does not expose production credentials or live plant telemetry."
     >
       {loading && <Progress />}
-      {!loading && products.length === 0 && (
+      {error && (
+        <LoadError error={error} what="Data Products" onRetry={retry} />
+      )}
+      {!loading && !error && products.length === 0 && (
         <Typography className={classes.empty}>
           No Data Products in the catalog yet.
         </Typography>

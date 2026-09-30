@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Link, Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
@@ -21,6 +21,7 @@ import {
   ConnectivityCard,
   ContextCard,
   EntityRelationshipCard,
+  LoadError,
   MetricCard,
   NEXORA_MUTED,
   NexoraSection,
@@ -31,6 +32,7 @@ import {
   nexoraConnectivityApiRef,
   nexoraEquipmentStateApiRef,
   nexoraMetricsApiRef,
+  useLoadable,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -47,6 +49,16 @@ const useStyles = makeStyles({
   },
 });
 
+interface EquipmentDetail {
+  asset: NexoraAsset;
+  products: ReturnType<typeof productItems>;
+  interfaces: string[];
+  systems: Array<{ label: string; to?: string }>;
+  metrics: ProviderResult<MetricValue[]>;
+  connectivity: ProviderResult<ConnectivityInterface[]>;
+  state: ProviderResult<{ state: string; updatedAt?: string }>;
+}
+
 export function EquipmentDetailPage() {
   const classes = useStyles();
   const tool = useNexoraToolStyles();
@@ -55,59 +67,46 @@ export function EquipmentDetailPage() {
   const metricsApi = useApi(nexoraMetricsApiRef);
   const connectivityApi = useApi(nexoraConnectivityApiRef);
   const stateApi = useApi(nexoraEquipmentStateApiRef);
-  const [asset, setAsset] = useState<NexoraAsset>();
-  const [products, setProducts] = useState(productItems([]));
-  const [systems, setSystems] = useState<Array<{ label: string; to?: string }>>([]);
-  const [interfaces, setInterfaces] = useState<string[]>([]);
-  const [metrics, setMetrics] = useState<ProviderResult<MetricValue[]>>();
-  const [connectivity, setConnectivity] =
-    useState<ProviderResult<ConnectivityInterface[]>>();
-  const [state, setState] = useState<ProviderResult<{ state: string; updatedAt?: string }>>();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+  const load = useCallback(async (): Promise<EquipmentDetail | undefined> => {
     if (!name) {
-      return;
+      return undefined;
     }
-    catalogApi
-      .getEntities({
-        filter: { kind: ['Component', 'API', 'Resource', 'System'] },
-      })
-      .then(async response => {
-        const match = response.items
-          .map(toNexoraAsset)
-          .find(item => item?.name === name);
-        if (!match) {
-          setLoading(false);
-          return;
-        }
-        const entity = response.items.find(item => item.metadata.name === name);
-        const related = entity ? relatedResources(entity, response.items) : [];
-        setAsset(match);
-        setProducts(productItems(relatedDataProducts(match, response.items)));
-        setInterfaces(interfaceLabels(related.filter(item => item.kind === 'Resource')));
-        setSystems(
-          related
-            .filter(item => item.kind === 'System')
-            .map(item => ({
-              label: item.metadata.title || item.metadata.name,
-              to: catalogEntityPath(
-                `system:${item.metadata.namespace || 'default'}/${item.metadata.name}`,
-              ),
-            })),
-        );
-        const [metricResult, connectivityResult, stateResult] = await Promise.all([
-          metricsApi.getMetrics(match.entityRef),
-          connectivityApi.getConnectivity(match.entityRef),
-          stateApi.getState(match.entityRef),
-        ]);
-        setMetrics(metricResult);
-        setConnectivity(connectivityResult);
-        setState(stateResult);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const response = await catalogApi.getEntities({
+      filter: { kind: ['Component', 'API', 'Resource', 'System'] },
+    });
+    const match = response.items
+      .map(toNexoraAsset)
+      .find(item => item?.name === name);
+    if (!match) {
+      return undefined;
+    }
+    const entity = response.items.find(item => item.metadata.name === name);
+    const related = entity ? relatedResources(entity, response.items) : [];
+    const [metrics, connectivity, state] = await Promise.all([
+      metricsApi.getMetrics(match.entityRef),
+      connectivityApi.getConnectivity(match.entityRef),
+      stateApi.getState(match.entityRef),
+    ]);
+    return {
+      asset: match,
+      products: productItems(relatedDataProducts(match, response.items)),
+      interfaces: interfaceLabels(
+        related.filter(item => item.kind === 'Resource'),
+      ),
+      systems: related
+        .filter(item => item.kind === 'System')
+        .map(item => ({
+          label: item.metadata.title || item.metadata.name,
+          to: catalogEntityPath(
+            `system:${item.metadata.namespace || 'default'}/${item.metadata.name}`,
+          ),
+        })),
+      metrics,
+      connectivity,
+      state,
+    };
   }, [catalogApi, connectivityApi, metricsApi, name, stateApi]);
+  const { value: detail, loading, error, retry } = useLoadable(load);
 
   if (loading) {
     return (
@@ -121,7 +120,17 @@ export function EquipmentDetailPage() {
     );
   }
 
-  if (!asset) {
+  // Before the not-found branch: a failed lookup is not evidence that the
+  // equipment does not exist, and saying so sent users to re-register it.
+  if (error) {
+    return (
+      <NexoraToolPage eyebrow="Industrial · Catalog" title="Equipment">
+        <LoadError error={error} what="this equipment" onRetry={retry} />
+      </NexoraToolPage>
+    );
+  }
+
+  if (!detail) {
     return (
       <NexoraToolPage
         eyebrow="Industrial · Catalog"
@@ -136,6 +145,9 @@ export function EquipmentDetailPage() {
       </NexoraToolPage>
     );
   }
+
+  const { asset, products, interfaces, systems, metrics, connectivity, state } =
+    detail;
 
   return (
     <NexoraToolPage

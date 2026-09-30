@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react';
-import { NEXORA_CARD, NEXORA_SECURITY_FG, NEXORA_TONE } from '@internal/plugin-nexora-common';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  NEXORA_CARD,
+  NEXORA_SECURITY_FG,
+  NEXORA_TONE,
+  useLoadable,
+} from '@internal/plugin-nexora-common';
 import { useParams } from 'react-router-dom';
 import {
   Content,
@@ -48,6 +53,8 @@ import { ValidationTab } from './tabs/ValidationTab';
  * except Overview reads version-scoped data, so a picker per tab would
  * recreate exactly the mismatch NXD-055 removed from the read path.
  */
+const NO_BASELINES: ApprovedBaselineOption[] = [];
+
 export function ProductDetailPage() {
   const { productId = '' } = useParams();
   const client = useComposerClient();
@@ -74,9 +81,6 @@ export function ProductDetailPage() {
   const [coverage, setCoverage] = useState<ProductRequirementCoverage | null>(
     null,
   );
-  const [approvedBaselines, setApprovedBaselines] = useState<
-    ApprovedBaselineOption[]
-  >([]);
   const [bindLoading, setBindLoading] = useState(false);
   const [bindError, setBindError] = useState<string | null>(null);
 
@@ -172,27 +176,20 @@ export function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
-  useEffect(() => {
-    // Approved baselines are product-independent and only needed to offer a
-    // binding. A failure here must not break the page: the rest of it works
-    // without the URS Composer, and the helper text says what is missing.
-    let mounted = true;
-    ursApi
-      .listApprovedBaselines()
-      .then(items => {
-        if (mounted) {
-          setApprovedBaselines(items);
-        }
-      })
-      .catch(() => {
-        if (mounted) {
-          setApprovedBaselines([]);
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [ursApi]);
+  // Approved baselines are product-independent and only needed to offer a
+  // binding. A failure here must not break the page — the rest of it works
+  // without the URS Composer — but it must not read as "none approved"
+  // either, which sent users to approve a baseline that already was
+  // (NXD-094).
+  const loadApprovedBaselines = useCallback(
+    () => ursApi.listApprovedBaselines(),
+    [ursApi],
+  );
+  const {
+    value: approvedBaselines = NO_BASELINES,
+    error: approvedBaselinesError,
+    retry: retryApprovedBaselines,
+  } = useLoadable(loadApprovedBaselines);
 
   useEffect(() => {
     // Lazy tab data. Guarded on `null` so reopening a tab does not refetch,
@@ -545,6 +542,8 @@ export function ProductDetailPage() {
               components={components}
               coverage={coverage}
               approvedBaselines={approvedBaselines}
+              approvedBaselinesError={approvedBaselinesError}
+              onRetryApprovedBaselines={retryApprovedBaselines}
               bindLoading={bindLoading}
               bindError={bindError}
               onBindBaseline={bindBaseline}

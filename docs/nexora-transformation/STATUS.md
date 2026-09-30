@@ -27,6 +27,21 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**Maturity-audit remediation, wave 4 — frontend (2026-09-30).** Waves 1–3
+barely touched the frontend, and a recount at `7fb817b` found it where the
+re-audit left it: six failed loads rendered as empty states, one retry
+affordance in the whole UI, no keyboard handling, 38 of 59 pages without a
+test, and no end-to-end test of the regulated path in CI. This wave takes the
+four quick wins F1–F4, one commit and one record each.
+
+- **F1 — a load that failed stops looking like an empty result.**
+  `useLoadable` and `LoadError` in `plugin-nexora-common`; six pages
+  converted. The approval page was worse than reported: a failed approval
+  lookup showed "No approval workflow active" and offered **Create
+  baseline**. See [`NXD-094`](DECISIONS.md).
+
+## Previous Vertical Slices
+
 **Maturity-audit remediation, wave 3 (2026-09-30).** A re-audit against
 `958c00f`, after waves 1 and 2, placed the platform at roughly 2.5 of 5: the
 GxP reference implementation in `urs-composer` is at 3–4, the product and
@@ -54,8 +69,6 @@ and one record each.
   unscoped form. The existing pair indexes lead with the type and could not
   serve an id-only lookup — `EXPLAIN` showed a sequential scan — so two
   single-column indexes were added. See [`NXD-093`](DECISIONS.md).
-
-## Previous Vertical Slices
 
 **Maturity-audit remediation, wave 2 (2026-09-29).** Closes the finding wave 1
 could not: relationship computation moves out of the browser. Backstage

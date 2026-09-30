@@ -57,6 +57,7 @@ import HistoryIcon from '@material-ui/icons/History';
 import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import { usePermission } from '@backstage/plugin-permission-react';
 import {
+  LoadError,
   NEXORA_SECURITY_FG,
   NEXORA_STATUS,
   NEXORA_TONE,
@@ -220,6 +221,18 @@ export const URSRequirementSetPage: FC = () => {
   // Approval Instance state
   const [approvalInstance, setApprovalInstance] =
     useState<ApprovalInstance | null>(null);
+  // NXD-094. Not knowing the approval state is not the same as there being
+  // none. While this is set, nothing on the page may act on "no workflow".
+  const [approvalLoadError, setApprovalLoadError] = useState<Error | null>(
+    null,
+  );
+  const [approvalAttempt, setApprovalAttempt] = useState(0);
+  // Same reasoning for the baseline list: an empty list offered "Create
+  // baseline" whether the set had none or the request had failed.
+  const [baselinesLoadError, setBaselinesLoadError] = useState<Error | null>(
+    null,
+  );
+  const [baselinesAttempt, setBaselinesAttempt] = useState(0);
   const [stepComments, setStepComments] = useState<Record<string, string>>({});
   // Create Baseline dialog state
   const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
@@ -395,6 +408,7 @@ export const URSRequirementSetPage: FC = () => {
       return undefined;
     }
     let mounted = true;
+    setBaselinesLoadError(null);
     api
       .listBaselines(id)
       .then(baselineItems => {
@@ -420,13 +434,19 @@ export const URSRequirementSetPage: FC = () => {
           }
         }
       })
-      .catch(() => {
-        // baselines may be unsupported/empty — not fatal
+      .catch((cause: unknown) => {
+        // Not fatal for the page, but not "no baselines" either — the route
+        // always exists, so a failure is a failure (NXD-094).
+        if (mounted) {
+          setBaselinesLoadError(
+            cause instanceof Error ? cause : new Error(String(cause)),
+          );
+        }
       });
     return () => {
       mounted = false;
     };
-  }, [id, api]);
+  }, [id, api, baselinesAttempt]);
 
   // Resolve the predecessor version when this set is a revision.
   const supersedesRef = set?.supersedesRef;
@@ -698,13 +718,33 @@ export const URSRequirementSetPage: FC = () => {
   // Load approval instance when a baseline has one
   useEffect(() => {
     const baselineWithApproval = baselines.find(b => b.approvalInstanceId);
-    if (baselineWithApproval && baselineWithApproval.approvalInstanceId) {
-      api
-        .getApprovalInstance(baselineWithApproval.approvalInstanceId)
-        .then(setApprovalInstance)
-        .catch(() => {});
+    if (!baselineWithApproval?.approvalInstanceId) {
+      return undefined;
     }
-  }, [baselines, api]);
+    let current = true;
+    setApprovalLoadError(null);
+    api
+      .getApprovalInstance(baselineWithApproval.approvalInstanceId)
+      .then(instance => {
+        if (current) setApprovalInstance(instance);
+      })
+      .catch((cause: unknown) => {
+        // Was `.catch(() => {})`: the section then said "No approval workflow
+        // active" and offered to start one, for a baseline already in
+        // approval.
+        if (current) {
+          setApprovalLoadError(
+            cause instanceof Error ? cause : new Error(String(cause)),
+          );
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [baselines, api, approvalAttempt]);
+  const approvalUnknown =
+    !approvalInstance &&
+    (approvalLoadError !== null || baselinesLoadError !== null);
 
   if (loading) {
     return (
@@ -1494,7 +1534,23 @@ export const URSRequirementSetPage: FC = () => {
                       </Box>
                     )}
                   </Box>
-                ) : (
+                ) : null}
+                {approvalUnknown && (
+                  <LoadError
+                    error={baselinesLoadError ?? approvalLoadError}
+                    what={
+                      baselinesLoadError
+                        ? 'the baselines, so the approval status is unknown'
+                        : 'the approval status'
+                    }
+                    onRetry={() =>
+                      baselinesLoadError
+                        ? setBaselinesAttempt(n => n + 1)
+                        : setApprovalAttempt(n => n + 1)
+                    }
+                  />
+                )}
+                {!approvalInstance && !approvalUnknown && (
                   <Typography color="textSecondary" paragraph>
                     No approval workflow active. Create a baseline and submit it
                     to start the approval process.
@@ -1508,6 +1564,7 @@ export const URSRequirementSetPage: FC = () => {
                 </Typography>
 
                 {!approvalInstance &&
+                  !approvalUnknown &&
                   manageAllowed.allowed &&
                   requirements.length > 0 && (
                     <Box style={{ marginTop: 8 }}>
@@ -1546,6 +1603,7 @@ export const URSRequirementSetPage: FC = () => {
 
                 {baselines.length > 0 &&
                   !approvalInstance &&
+                  !approvalUnknown &&
                   manageAllowed.allowed && (
                     <Box style={{ marginTop: 16 }}>
                       <Typography variant="subtitle2" gutterBottom>
@@ -1606,7 +1664,7 @@ export const URSRequirementSetPage: FC = () => {
                   </Box>
                 )}
 
-                {baselines.length === 0 && !approvalInstance && (
+                {baselines.length === 0 && !approvalInstance && !approvalUnknown && (
                   <Typography color="textSecondary" paragraph>
                     No baselines yet.
                   </Typography>

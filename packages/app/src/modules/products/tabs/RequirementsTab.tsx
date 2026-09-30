@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  LoadError,
   NEXORA_CARD,
   NEXORA_GREY,
   NEXORA_TONE,
@@ -26,6 +27,9 @@ interface RequirementsTabProps {
   components: ProductComponent[];
   coverage: ProductRequirementCoverage | null;
   approvedBaselines: ApprovedBaselineOption[];
+  /** Set when the list could not be loaded — distinct from an empty list. */
+  approvedBaselinesError?: Error;
+  onRetryApprovedBaselines?: () => void;
   bindLoading: boolean;
   bindError: string | null;
   /** The page owns the call and the reload that follows it. */
@@ -42,9 +46,13 @@ interface RequirementsTabProps {
 function bindHelperText(
   version: ProductVersion,
   approvedBaselines: ApprovedBaselineOption[],
+  loadFailed: boolean,
 ): string {
   if (version.status !== 'DRAFT') {
     return `Version is ${version.status}. A baseline can only be bound while the version is DRAFT.`;
+  }
+  if (loadFailed) {
+    return 'Approved URS baselines could not be loaded.';
   }
   if (approvedBaselines.length === 0) {
     return 'No approved URS baseline is available. Approve one in the URS Composer first.';
@@ -57,6 +65,8 @@ export function RequirementsTab({
   components,
   coverage,
   approvedBaselines,
+  approvedBaselinesError,
+  onRetryApprovedBaselines,
   bindLoading,
   bindError,
   onBindBaseline,
@@ -105,7 +115,11 @@ export function RequirementsTab({
                   approvedBaselines.length === 0
                 }
                 style={{ minWidth: 360 }}
-                helperText={bindHelperText(selectedVersion, approvedBaselines)}
+                helperText={bindHelperText(
+                  selectedVersion,
+                  approvedBaselines,
+                  Boolean(approvedBaselinesError),
+                )}
               >
                 <MenuItem value="">Select…</MenuItem>
                 {approvedBaselines.map(option => (
@@ -131,6 +145,15 @@ export function RequirementsTab({
                 {bindLoading ? 'Binding…' : 'Bind baseline'}
               </Button>
             </Box>
+            {approvedBaselinesError && selectedVersion.status === 'DRAFT' && (
+              <Box marginTop={2}>
+                <LoadError
+                  error={approvedBaselinesError}
+                  what="the approved URS baselines"
+                  onRetry={onRetryApprovedBaselines}
+                />
+              </Box>
+            )}
             {bindError && (
               <Box marginTop={2}>
                 <Typography color="error" variant="body2">

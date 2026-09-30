@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
@@ -13,6 +13,7 @@ import {
   uniqueValues,
 } from '@internal/platform-common';
 import {
+  LoadError,
   NEXORA_BORDER,
   NEXORA_GREY,
   NEXORA_MUTED,
@@ -20,6 +21,7 @@ import {
   NexoraSection,
   NexoraToolPage,
   filterChipSx,
+  useLoadable,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -44,31 +46,35 @@ const useStyles = makeStyles(theme => ({
   empty: { color: NEXORA_TEXT, fontSize: 14 },
 }));
 
+/** Stable, so the memoized filter below does not recompute every render. */
+const NO_PRODUCTS: IndustrialDataProduct[] = [];
+
 export function ContractExplorerPage() {
   const classes = useStyles();
   const tool = useNexoraToolStyles();
   const catalogApi = useApi(catalogApiRef);
-  const [products, setProducts] = useState<IndustrialDataProduct[]>([]);
   const [query, setQuery] = useState('');
   const [domain, setDomain] = useState<string>();
   const [productType, setProductType] = useState<string>();
   const [lifecycle, setLifecycle] = useState<string>();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    catalogApi
-      .getEntities({ filter: { kind: ['Component'] } })
-      .then(response => {
-        setProducts(
+  const load = useCallback(
+    () =>
+      catalogApi
+        .getEntities({ filter: { kind: ['Component'] } })
+        .then(response =>
           response.items
             .filter(isIndustrialDataProduct)
             .map(toIndustrialDataProduct)
             .filter((item): item is IndustrialDataProduct => Boolean(item)),
-        );
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [catalogApi]);
+        ),
+    [catalogApi],
+  );
+  const {
+    value: products = NO_PRODUCTS,
+    loading,
+    error,
+    retry,
+  } = useLoadable(load);
 
   const visible = useMemo(
     () =>
@@ -142,7 +148,10 @@ export function ContractExplorerPage() {
         ))}
       </div>
       {loading && <Progress />}
-      {!loading && visible.length === 0 && (
+      {error && (
+        <LoadError error={error} what="Data Products" onRetry={retry} />
+      )}
+      {!loading && !error && visible.length === 0 && (
         <Typography className={classes.empty}>
           No Data Products match the current filters.
         </Typography>

@@ -5045,3 +5045,79 @@ chains in lineage and artifact impact (re-audit W2) are untouched.
   `plugins/composer-backend/src/db/migrations.postgres.test.ts`,
   `plugins/composer-backend/src/traceabilityLookup.test.ts` (new),
   `plugins/composer-backend/src/evidencePackage.test.ts` (comment).
+
+### NXD-094 — A load that failed stops looking like an empty result
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 4 (frontend) — F1
+- Closes: re-audit findings U1 and U2 (failed loads rendered as empty
+  states).
+
+Six places caught a failed load and threw the error away — four with
+`.catch(() => setLoading(false))`, two with `.catch(() => {})` or by
+substituting `[]`. The page then rendered its empty state: "No Data Products
+in the catalog yet", "This equipment entity is not in the catalog", "No
+approved URS baseline is available — approve one in the URS Composer first".
+A 401, a 503 and a genuinely empty catalog were indistinguishable, and two
+of the messages told the user to do something that was already done.
+
+**Two were worse than the audit said.** On `URSRequirementSetPage`, a failed
+`getApprovalInstance` left `approvalInstance` null, and every branch gated on
+`!approvalInstance` then fired: "No approval workflow active" and the
+**Create baseline** button, for a set whose baseline was already in
+approval. A failed `listBaselines` did the same through "No baselines yet".
+The server would refuse a conflicting baseline; the page should not have
+offered one. Reading the page to fix the first finding is what found the
+second — it was not in the audit.
+
+**The shape of the fix.** `useLoadable(load)` in `plugin-nexora-common`
+returns `{ value, loading, error, retry }`, drops a result that arrives after
+unmount or after a newer attempt, and takes a `useCallback`-stable loader
+rather than a dependency list so `react-hooks/exhaustive-deps` still checks
+the call site. `LoadError` renders `role="alert"`, names *what* could not be
+loaded, uses `formatJourneyError` (which never echoes a stack or a
+credential), and offers **Try again** — except for a permission failure,
+where retrying cannot succeed and offering it suggests otherwise. No new
+dependency: `react-use`'s `useAsyncRetry` would have been one.
+
+- `QualityPage`, `EquipmentPage`, `ContractExplorerPage`: `useLoadable` +
+  `LoadError`. Empty-state defaults are module constants so the memoized
+  filters do not recompute on every render.
+- `EquipmentDetailPage`: the load is one function returning the whole detail
+  bundle, and the error branch sits **before** the not-found branch.
+- `URSRequirementSetPage`: `approvalUnknown` is true while the approval
+  instance or the baseline list failed to load. The approval section shows
+  the error with a retry, and every action gated on "no workflow" is hidden
+  until the state is known.
+- `ProductDetailPage` / `RequirementsTab`: a failed approved-baseline list
+  says so beside the picker, with a retry, instead of "none approved".
+
+**Deliberately left.** `CreateWizard` still swallows a failed capability-name
+lookup: the names only label chips in the wizard header, nothing acts on
+their absence, and the step that selects capabilities has its own load.
+`URSRequirementSetPage` still swallows the capability-name map (falls back to
+ids), the validation-context restore and the predecessor lookup — each
+degrades a label, none gates an action. The criterion applied throughout:
+an empty state is a claim, and a claim someone can act on must not be made
+without the data.
+
+**Proof.** Every converted page has a test that fails the load and asserts
+the alert *and* the absence of the empty-state wording, retries, and asserts
+recovery; each page also keeps a test for the honest empty state. The
+`URSRequirementSetPage` suite — the first render test that page has had — was
+run against the unfixed page and fails there on three of four cases; the
+fourth is the honest empty state, which must pass on both.
+
+- Affected components:
+  `plugins/nexora-common/src/loading/` (new: `useLoadable.ts`,
+  `LoadError.tsx`, `loading.test.tsx`), `plugins/nexora-common/src/index.ts`,
+  `plugins/nexora-quality/src/components/QualityPage.tsx` (+ new test),
+  `plugins/nexora-assets/src/components/EquipmentPage.tsx`,
+  `plugins/nexora-assets/src/components/EquipmentDetailPage.tsx`,
+  `plugins/nexora-assets/src/components/EquipmentPage.test.tsx`,
+  `plugins/nexora-contracts/src/components/ContractExplorerPage.tsx`
+  (+ new test), `plugins/urs-composer/src/pages/URSRequirementSetPage.tsx`,
+  `plugins/urs-composer/src/pages/URSRequirementSetPage.loadFailure.test.tsx`
+  (new), `packages/app/src/modules/products/ProductDetailPage.tsx`,
+  `packages/app/src/modules/products/tabs/RequirementsTab.tsx`,
+  `packages/app/src/modules/products/ProductDetailPage.test.tsx`.

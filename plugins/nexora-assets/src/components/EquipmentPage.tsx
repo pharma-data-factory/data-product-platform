@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
@@ -13,6 +13,7 @@ import {
   uniqueValues,
 } from '@internal/platform-common';
 import {
+  LoadError,
   NEXORA_BORDER,
   NEXORA_GREY,
   NEXORA_MUTED,
@@ -21,6 +22,7 @@ import {
   NexoraSection,
   NexoraToolPage,
   filterChipSx,
+  useLoadable,
   useNexoraToolStyles,
 } from '@internal/plugin-nexora-common';
 
@@ -80,31 +82,30 @@ const useStyles = makeStyles(theme => ({
   },
 }));
 
+/** Stable, so the memoized filters below do not recompute every render. */
+const NO_ASSETS: NexoraAsset[] = [];
+
 export function EquipmentPage() {
   const classes = useStyles();
   const tool = useNexoraToolStyles();
   const catalogApi = useApi(catalogApiRef);
-  const [assets, setAssets] = useState<NexoraAsset[]>([]);
   const [query, setQuery] = useState('');
   const [site, setSite] = useState<string>();
   const [area, setArea] = useState<string>();
   const [line, setLine] = useState<string>();
   const [equipmentType, setEquipmentType] = useState<string>();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    catalogApi
-      .getEntities({ filter: { kind: ['Component'] } })
-      .then(response => {
-        setAssets(
+  const load = useCallback(
+    () =>
+      catalogApi
+        .getEntities({ filter: { kind: ['Component'] } })
+        .then(response =>
           response.items
             .map(toNexoraAsset)
             .filter((item): item is NexoraAsset => Boolean(item)),
-        );
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [catalogApi]);
+        ),
+    [catalogApi],
+  );
+  const { value: assets = NO_ASSETS, loading, error, retry } = useLoadable(load);
 
   const visible = useMemo(
     () => filterAssets(assets, { query, site, area, line, equipmentType }),
@@ -164,7 +165,8 @@ export function EquipmentPage() {
         />
       </div>
       {loading && <Progress />}
-      {!loading && visible.length === 0 && (
+      {error && <LoadError error={error} what="equipment" onRetry={retry} />}
+      {!loading && !error && visible.length === 0 && (
         <Typography className={classes.empty}>
           No equipment entities match the current filters.
         </Typography>

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
@@ -107,14 +107,19 @@ const state = {
   }),
 };
 
-async function renderDetail(path: string, metricApi: unknown = metrics, stateApi: unknown = state) {
+async function renderDetail(
+  path: string,
+  metricApi: unknown = metrics,
+  stateApi: unknown = state,
+  catalogApi: unknown = catalog,
+) {
   await act(async () => {
     render(
       <IndustrialTestRoot>
       <MemoryRouter initialEntries={[path]}>
         <TestApiProvider
           apis={[
-            [catalogApiRef, catalog as never],
+            [catalogApiRef, catalogApi as never],
             [nexoraMetricsApiRef, metricApi as never],
             [nexoraConnectivityApiRef, connectivity as never],
             [nexoraEquipmentStateApiRef, stateApi as never],
@@ -179,5 +184,51 @@ describe('Asset & Equipment Explorer', () => {
     await renderDetail('/equipment/dispenser-01');
     expect(screen.getByRole('heading', { name: 'DISPENSER-01' })).toBeInTheDocument();
     expect(screen.getByText('Last Weight')).toBeInTheDocument();
+  });
+
+  describe('when the catalog cannot be read (NXD-094)', () => {
+    it('says the list failed instead of "no equipment", and recovers on retry', async () => {
+      const getEntities = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('Service Unavailable (503)'))
+        .mockResolvedValueOnce({ items: [filler] });
+      await act(async () => {
+        render(
+          <IndustrialTestRoot>
+            <MemoryRouter>
+              <TestApiProvider apis={[[catalogApiRef, { getEntities } as never]]}>
+                <EquipmentPage />
+              </TestApiProvider>
+            </MemoryRouter>
+          </IndustrialTestRoot>,
+        );
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Could not load equipment',
+      );
+      expect(
+        screen.queryByText('No equipment entities match the current filters.'),
+      ).not.toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      });
+      expect(screen.getByText('FILLER-01')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('does not tell the user an existing asset is missing from the catalog', async () => {
+      await renderDetail('/equipment/filler-01', metrics, state, {
+        getEntities: async () => {
+          throw new Error('HTTP 500');
+        },
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Could not load this equipment',
+      );
+      expect(
+        screen.queryByText('This equipment entity is not in the catalog.'),
+      ).not.toBeInTheDocument();
+    });
   });
 });

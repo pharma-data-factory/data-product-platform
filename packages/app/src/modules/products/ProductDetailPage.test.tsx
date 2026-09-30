@@ -634,3 +634,58 @@ describe('ProductDetailPage — Development tab', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('ProductDetailPage — approved baselines that could not be loaded (NXD-094)', () => {
+  const UNBOUND_DRAFT = { ...VERSION_DRAFT, ursBaselineId: undefined };
+
+  beforeEach(() => {
+    client.listProductVersions.mockResolvedValue([UNBOUND_DRAFT]);
+  });
+
+  afterEach(() => {
+    // Module-level mock; clearAllMocks keeps implementations.
+    ursApi.listApprovedBaselines.mockReset().mockResolvedValue([]);
+  });
+
+  it('says the list failed, not that nothing is approved, and recovers on retry', async () => {
+    ursApi.listApprovedBaselines
+      .mockReset()
+      .mockRejectedValueOnce(new Error('Service Unavailable (503)'))
+      .mockResolvedValueOnce([
+        {
+          baselineId: 'urs-b9',
+          requirementSetKey: 'URS-OEE',
+          baselineVersion: '1.0',
+          requirementCount: 3,
+        },
+      ]);
+    await renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: 'Requirements' }));
+
+    expect(
+      await screen.findByText('Could not load the approved URS baselines'),
+    ).toBeInTheDocument();
+    // The old wording sent users to approve a baseline that already was.
+    expect(
+      screen.queryByText(/No approved URS baseline is available/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(
+      await screen.findByText('Only approved baselines are listed.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Could not load the approved URS baselines'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the honest empty wording when the list really is empty', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: 'Requirements' }));
+
+    expect(
+      await screen.findByText(/No approved URS baseline is available/),
+    ).toBeInTheDocument();
+  });
+});
