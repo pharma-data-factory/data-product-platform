@@ -32,6 +32,7 @@ import {
   productReadPermission,
 } from '@internal/platform-common';
 import { ComposerService } from './service';
+import type { PublishReadiness } from './scm-publish-readiness';
 import type { AvailableComponentSummary } from './llm-client';
 import {
   BindUrsBaselineRequest,
@@ -52,6 +53,8 @@ export interface RouterOptions {
   permissions?: PermissionsService;
   service: ComposerService;
   llmEnabled?: boolean;
+  /** NXD-099. Whether a Golden Path could publish a repository here. */
+  publishReadiness?: PublishReadiness;
 }
 
 async function authorize(
@@ -173,7 +176,8 @@ function parsePagination(
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, service, llmEnabled } = options;
+  const { logger, httpAuth, permissions, service, llmEnabled, publishReadiness } =
+    options;
   const router = Router();
   router.use(express.json());
 
@@ -184,6 +188,25 @@ export async function createRouter(
       llmEnabled: llmEnabled ?? false,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // NXD-099. Asked by the frontend before a Golden Path is started, so a
+  // missing credential is said up front rather than discovered at the fourth
+  // step of a run. Any signed-in user: it names the configured organisation,
+  // which is not public, and nothing more.
+  router.get('/scm/publish-readiness', async (req, res) => {
+    try {
+      await httpAuth.credentials(req, { allow: ['user'] });
+      res.json(
+        publishReadiness ?? {
+          ready: false,
+          reason: 'NO_SCM_TARGET',
+          message: 'Publish readiness is not known for this installation.',
+        },
+      );
+    } catch (error) {
+      respondError(res, logger, error);
+    }
   });
 
   // ============================================================================

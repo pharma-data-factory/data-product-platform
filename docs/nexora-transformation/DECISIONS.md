@@ -5363,3 +5363,63 @@ Tasks.
 
 - Affected components: `app-config.production.yaml`,
   `packages/backend/src/config/committedConfigIntegrity.test.ts`.
+
+### NXD-099 — Sign-in stops blaming GitHub, and a Golden Path that cannot publish says so before it starts
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 4 (frontend) — follow-up, items 1
+  and 2 of the post-wave review
+
+Two messages a user met on the same afternoon, both saying something other
+than what had happened.
+
+**"GitHub is unavailable."** `formatAuthError` mapped every network-shaped
+failure — `Failed to fetch`, `ECONNREFUSED`, 502/503/504 — to that sentence.
+The user had clicked **Continue as Guest**, which never talks to GitHub; the
+browser could not reach Nexora's own backend, because the workspace served
+frontend and backend on different origins behind the Ona gateway (the
+configuration `START.md` warns against). The message sent them to check
+GitHub. Now a network failure reads *"Nexora could not be reached"*, GitHub
+is named only when the error names it, and the Guest path passes
+`provider: 'guest'` so no Guest failure is ever titled a GitHub one. The
+existing test that pinned `Failed to fetch → "unavailable"` pinned the
+defect, and was rewritten rather than kept green.
+
+**A Golden Path failed at step four.** The user's Tasks list showed a
+`failed` run: `resolve-repo`, `fetch-base` and `verify-urs` succeeded, then
+`publish:github` stopped with *"No token available for host: github.com"*.
+The environment has no GitHub credentials — `token: ${GITHUB_TOKEN}` with
+the variable unset drops the key — and that was knowable before the first
+step. `getPublishReadiness(config)` answers it from configuration:
+`nexora.scm.host`/`organization` set, and an `integrations.github` entry for
+that host (Backstage's github.com default for a missing host included) with
+a non-blank token, or a GitHub App with an app id and a private key.
+
+- `nexora:scm:resolve-repo`, the first step of all ten Golden Paths, throws
+  that message when not ready. **Verified against the running workspace**: a
+  real task for `rest-equipment-data-product` failed at `resolve-repo` with
+  the credential message, and every later step was skipped.
+- `GET /api/composer/scm/publish-readiness` returns the same answer to any
+  signed-in user (401 otherwise; it names the organisation).
+- The Build page shows a notice beside **Start Building** when publishing
+  cannot work, and a muted line when the check itself failed — the absence
+  of a warning must not read as "works" when nobody could check.
+
+**Deliberately not done.** The check reads configuration only. Whether a
+configured GitHub App is actually *installed* on the organisation needs
+`@backstage/integration`'s credentials provider, which is not a dependency
+of `composer-backend`; adding it is an AGENTS.md decision. The scaffolder's
+own template form is Backstage's page and was not modified; the notice sits
+on Nexora's Build page, and the backend refusal covers every other entry
+point.
+
+- Affected components:
+  `packages/app/src/modules/identity/authErrors.ts` (+ tests),
+  `packages/app/src/modules/identity/LandingSignInPage.tsx`,
+  `plugins/composer-backend/src/scm-publish-readiness.ts` (new),
+  `plugins/composer-backend/src/scaffolderModule.ts`,
+  `plugins/composer-backend/src/router.ts`,
+  `plugins/composer-backend/src/plugin.ts`,
+  `plugins/composer-backend/src/scmPublishReadiness.test.ts` (new),
+  `packages/app/src/modules/build/PublishReadinessNotice.tsx` (+ test, new),
+  `packages/app/src/modules/build/BuildLandingPage.tsx`.

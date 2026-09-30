@@ -3,6 +3,7 @@ import { Content, Link, Page } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import { Box, Chip, Grid, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
+import { PublishReadinessNotice } from './PublishReadinessNotice';
 import {
   PlatformRole,
   canExecuteScaffolder,
@@ -249,6 +250,7 @@ export function BuildLandingPage() {
               My Products
             </Link>
           </div>
+          {canCreate && <PublishReadinessNotice />}
         </section>
 
         <section className={classes.section} aria-label="Golden Paths">

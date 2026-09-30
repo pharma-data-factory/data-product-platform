@@ -5,6 +5,7 @@ import {
   isAccessDeniedError,
   isGithubOAuthConfigured,
   isUnapprovedGithubUserError,
+  PLATFORM_UNREACHABLE_MESSAGE,
 } from './authErrors';
 
 describe('GitHub login error handling', () => {
@@ -14,10 +15,42 @@ describe('GitHub login error handling', () => {
     );
   });
 
-  it('maps GitHub unavailability without exposing internals', () => {
-    expect(formatAuthError(new Error('Failed to fetch'))).toMatch(
-      /unavailable/i,
+  it('names the platform, not GitHub, when the browser cannot reach Nexora (NXD-099)', () => {
+    // "Failed to fetch" is the browser failing to reach Nexora's own backend
+    // — in a remote workspace most often because frontend and backend were
+    // served on different origins. It said "GitHub is unavailable".
+    expect(formatAuthError(new Error('Failed to fetch'))).toBe(
+      PLATFORM_UNREACHABLE_MESSAGE,
     );
+    expect(formatAuthError(new Error('HTTP 502 Bad Gateway'))).toBe(
+      PLATFORM_UNREACHABLE_MESSAGE,
+    );
+  });
+
+  it('names GitHub only when the failure names GitHub', () => {
+    expect(
+      formatAuthError(
+        new Error('connect ETIMEDOUT github.com:443 while exchanging the code'),
+      ),
+    ).toMatch(/GitHub is unavailable/);
+  });
+
+  it('never blames GitHub for a Guest sign-in (NXD-099)', () => {
+    expect(formatAuthError(new Error('Failed to fetch'), 'guest')).toBe(
+      PLATFORM_UNREACHABLE_MESSAGE,
+    );
+    expect(
+      formatAuthError(new Error('connect ETIMEDOUT github.com:443'), 'guest'),
+    ).toBe(PLATFORM_UNREACHABLE_MESSAGE);
+    expect(formatAuthError(new Error('boom'), 'guest')).toBe(
+      'Guest sign-in failed. Please try again.',
+    );
+    expect(
+      formatAuthError(new Error('Guest provider is not configured'), 'guest'),
+    ).toBe('Guest sign-in is not available in this environment.');
+    for (const message of ['Failed to fetch', 'boom', '401 expired']) {
+      expect(formatAuthError(new Error(message), 'guest')).not.toMatch(/GitHub/);
+    }
   });
 
   it('maps invalid callback errors', () => {

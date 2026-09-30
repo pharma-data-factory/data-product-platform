@@ -59,6 +59,11 @@ four quick wins F1–F4, one commit and one record each.
   `app-config.production.yaml`; the editor showed a 404 to every non-admin.
   The overlay repeats the base extension list, because a list overlay
   replaces rather than extends. See [`NXD-098`](DECISIONS.md).
+- **Follow-up — honest sign-in and publish messages.** A network failure
+  no longer reads "GitHub is unavailable" (it said so for Guest sign-ins
+  too); Golden Paths stop at their first step when the environment has no
+  GitHub credentials, and the Build page says so before anyone starts.
+  Verified with a live task. See [`NXD-099`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

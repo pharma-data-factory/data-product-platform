@@ -12,6 +12,7 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { Config } from '@backstage/config';
+import { getPublishReadiness } from './scm-publish-readiness';
 import { readLLMTimeoutMs } from '@internal/platform-common';
 import { createRouter } from './router';
 import { ComposerService } from './service';
@@ -156,7 +157,14 @@ export const composerPlugin = createBackendPlugin({
         });
 
         httpRouter.use(
-          await createRouter({ logger, httpAuth, permissions, service, llmEnabled }),
+          await createRouter({
+            logger,
+            httpAuth,
+            permissions,
+            service,
+            llmEnabled,
+            publishReadiness: getPublishReadiness(config),
+          }),
         );
         httpRouter.addAuthPolicy({
           path: '/health',

@@ -33,22 +33,54 @@ export function isAccessDeniedError(err: unknown): boolean {
   );
 }
 
-export function formatAuthError(err: unknown): string {
+/** Which sign-in the error came from; decides whose name the message may use. */
+export type SignInProvider = 'github' | 'guest';
+
+export const PLATFORM_UNREACHABLE_MESSAGE =
+  'Nexora could not be reached. Check your connection and try again in a moment.';
+
+const NETWORK_PATTERN =
+  /network|failed to fetch|unavailable|econnrefused|etimedout|enotfound|503|502|504/i;
+
+/**
+ * NXD-099. A network failure used to read "GitHub is unavailable" whatever
+ * had failed — including a Guest sign-in, which never talks to GitHub, and
+ * the common case of the browser not reaching Nexora's own backend. A user
+ * whose workspace served the frontend and backend on different origins was
+ * told to check GitHub. GitHub is named only when the error names it.
+ */
+function mentionsGithub(raw: string): boolean {
+  return /github/i.test(raw);
+}
+
+export function formatAuthError(
+  err: unknown,
+  provider: SignInProvider = 'github',
+): string {
   const raw = err instanceof Error ? err.message : String(err ?? '');
   const lower = raw.toLowerCase();
+  const failed =
+    provider === 'guest'
+      ? 'Guest sign-in failed. Please try again.'
+      : 'GitHub sign-in failed. Please try again.';
+
+  if (NETWORK_PATTERN.test(lower)) {
+    return provider === 'github' && mentionsGithub(raw)
+      ? 'GitHub is unavailable. Check your connection and try again.'
+      : PLATFORM_UNREACHABLE_MESSAGE;
+  }
+
+  if (provider === 'guest') {
+    if (/not configured|not enabled|disabled|production/i.test(lower)) {
+      return 'Guest sign-in is not available in this environment.';
+    }
+    return failed;
+  }
 
   if (
     /popup|cancel|closed by user|window was closed|user denied/i.test(lower)
   ) {
     return 'GitHub sign-in was cancelled. You can try again when you are ready.';
-  }
-
-  if (
-    /network|failed to fetch|unavailable|econnrefused|etimedout|503|502|504/i.test(
-      lower,
-    )
-  ) {
-    return 'GitHub is unavailable. Check your connection and try again.';
   }
 
   if (
@@ -73,11 +105,7 @@ export function formatAuthError(err: unknown): string {
     return ACCESS_DENIED_MESSAGE;
   }
 
-  if (SECRET_PATTERN.test(raw) || /stack|at\s+\S+\s+\(/i.test(raw)) {
-    return 'GitHub sign-in failed. Please try again.';
-  }
-
-  return 'GitHub sign-in failed. Please try again.';
+  return failed;
 }
 
 export function isGithubOAuthConfigured(

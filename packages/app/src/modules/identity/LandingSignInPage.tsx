@@ -174,7 +174,7 @@ export function LandingSignInPage(props: SignInPageProps) {
     } catch (err) {
       setError(
         err instanceof Error
-          ? formatAuthError(err)
+          ? formatAuthError(err, 'guest')
           : 'Guest sign-in is only available for local development',
       );
     }

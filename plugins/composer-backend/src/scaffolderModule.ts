@@ -29,7 +29,9 @@ import {
   scaffolderActionsExtensionPoint,
 } from '@backstage/plugin-scaffolder-node';
 
+import type { Config } from '@backstage/config';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
+import { getPublishReadiness } from './scm-publish-readiness';
 
 /** Value a template writes when the author chose no baseline. */
 export const UNBOUND = 'unbound';
@@ -58,11 +60,7 @@ export const UNBOUND = 'unbound';
  * Fails the task when nothing is configured, rather than falling back. A
  * silent default is how the literal survived this long. NXD-079.
  */
-export function createScmResolveRepoAction(options: {
-  config: {
-    getOptionalString(key: string): string | undefined;
-  };
-}) {
+export function createScmResolveRepoAction(options: { config: Config }) {
   return createTemplateAction({
     id: 'nexora:scm:resolve-repo',
     description:
@@ -97,6 +95,14 @@ export function createScmResolveRepoAction(options: {
             'defaulted: a fallback organisation is how a hard-coded one ' +
             'survives unnoticed.',
         );
+      }
+
+      // NXD-099. This is the first step of every Golden Path, so a missing
+      // credential stops the run here — in seconds, before the skeleton is
+      // rendered — instead of at publish:github three steps later.
+      const readiness = getPublishReadiness(options.config);
+      if (!readiness.ready) {
+        throw new Error(readiness.message);
       }
 
       ctx.logger.info(
