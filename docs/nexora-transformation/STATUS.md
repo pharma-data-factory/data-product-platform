@@ -79,6 +79,11 @@ four quick wins F1–F4, one commit and one record each.
   `techdocs-entity`, links use the entity's real kind, and a guard checks
   every reference. Production still cannot build TechDocs (no MkDocs in the
   image) — named, not fixed. See [`NXD-102`](DECISIONS.md).
+- **Navigation and in-page help.** Build holds the two ways to a new Data
+  Product (*New from Golden Path*, *Compose from components*); *Release &
+  Governance* is its own step; *Help & Docs* reaches the Developer Hub,
+  which had no nav entry. Build, Compose and Release show where they sit in
+  Build → Release → Operate and what comes next. See [`NXD-103`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

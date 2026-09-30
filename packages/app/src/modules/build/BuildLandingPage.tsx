@@ -1,3 +1,4 @@
+import { PageHelp } from '../help/PageHelp';
 import { useEffect, useMemo, useState } from 'react';
 import { Content, Link, Page } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
@@ -9,6 +10,7 @@ import {
   canExecuteScaffolder,
   releaseCatalogRows,
   resolvePlatformRole,
+  documentationHref,
 } from '@internal/platform-common';
 import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
 import {
@@ -235,6 +237,19 @@ export function BuildLandingPage() {
   return (
     <Page themeId="tool">
       <Content>
+        <PageHelp
+          step="build"
+          links={[
+            { label: 'Build your first Data Product', to: documentationHref('first-data-product') },
+            { label: 'Next: Release & Governance', to: '/products' },
+          ]}
+        >
+          Build turns a business need into a Data Product repository. There are
+          two ways in: <strong>New from Golden Path</strong> fills in a tested
+          template, <strong>Compose from components</strong> lets you pick the
+          building blocks first. Both run the same Golden Path. Releasing a
+          version happens afterwards, under Release.
+        </PageHelp>
         <section className={classes.hero} aria-label="Build a Data Product">
           <p className={classes.eyebrow}>BUILD · START HERE</p>
           <h1 className={classes.title}>Build a Data Product</h1>
@@ -244,8 +259,13 @@ export function BuildLandingPage() {
           </p>
           <div className={classes.actions}>
             <Link className={classes.action} to={canCreate ? '/create' : '/releases'}>
-              {canCreate ? 'Start Building' : 'Choose a Golden Path'}
+              {canCreate ? 'New from Golden Path' : 'Choose a Golden Path'}
             </Link>
+            {canCreate && (
+              <Link className={classes.ghostAction} to="/compose">
+                Compose from components
+              </Link>
+            )}
             <Link className={classes.ghostAction} to="/my-products">
               My Products
             </Link>

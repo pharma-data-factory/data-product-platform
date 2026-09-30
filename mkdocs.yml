@@ -185,6 +185,7 @@ nav:
   - Templates: templates.md
   - Marketplace: marketplace.md
   - Data Products: data-products.md
+  - Traceability, GxP and the release gate: compliance/traceability-and-gmp.md
   - Temperature Event Contract: contracts/temperature-event.md
   - Equipment Event Contract: contracts/equipment-event.md
   - Versioning policy: versioning-policy.md

@@ -5594,3 +5594,57 @@ this fix.
   `plugins/data-products/src/model.ts`,
   `packages/backend/src/techdocsReferences.test.ts` (new),
   `packages/backend/src/catalogNativeTopology.test.ts`.
+
+### NXD-103 — The menu says what each step does, and developers can find the help
+
+- Date: 2026-09-30
+- Slice: frontend — raised by the user: "Start Building vs Composer vs
+  Products is hard to explain", "do developers need help in the portal",
+  "is there a link to /developer"
+
+**Three peers that were not peers.** The Build menu listed *Start Building*,
+*Composer* and *Products* side by side. Reading the code: *Start Building*
+is the Backstage scaffolder form for a Golden Path; *Composer* lets you pick
+Platform Components and then starts **the same Golden Path run**, pre-filled
+(`scaffolderApi.scaffold` with the chosen template); *Products* is release
+governance — versions, bound URS requirements, baselines, the release gate —
+where nothing is built. Two ways to one result, and the step after it,
+presented as three alternatives.
+
+**No way to the help.** The Developer Hub (`/developer`) and the platform
+docs had no sidebar entry; the only path was a card low on the Build page.
+The old e2e smoke test still expects a "Developer Hub" nav link — the entry
+existed once and was lost. Its docs links were also dead until NXD-102.
+
+**What changed** (the option the user chose, "help + menu"):
+
+- **Build** holds the two ways, named for what they do: *New from Golden
+  Path* and *Compose from components (Advanced)*. The Build page hero offers
+  both.
+- **Release** is its own entry: *Release & Governance* (`/products`,
+  route unchanged so existing links hold). Page header, tab title and
+  subtitle say the same.
+- **Help & Docs** is a sidebar entry: Developer Hub, platform documentation,
+  all documentation.
+- **`PageHelp`** on Build, Compose and Release & Governance: a
+  *Build → Release → Operate* strip with the current step marked
+  (`aria-current="step"`), one or two sentences on what the page does — the
+  Compose one says plainly that Generate runs the same Golden Path — and
+  links to the next step and the matching docs. Release & Governance links
+  to §1.6 of `compliance/traceability-and-gmp.md`, which was in the docs
+  tree but in no navigation; it is now in `mkdocs.yml`.
+
+**Found by looking.** The first render of `PageHelp` was dark text on the
+near-black page background: Nexora pages sit on a dark surface while the
+theme's text colour is dark, and a translucent box inherited both. It now
+has its own card surface. The header still read "Products" because the
+page extension's own title had not been renamed. Both were visible only in
+the browser; the release-gate docs link was followed there and lands on the
+section heading.
+
+- Affected components: `packages/app/src/modules/nav/Sidebar.tsx`,
+  `packages/app/src/modules/help/PageHelp.tsx` (+ test, new),
+  `packages/app/src/modules/build/BuildLandingPage.tsx`,
+  `packages/app/src/modules/composer/ComposePage.tsx`,
+  `packages/app/src/modules/products/ProductsPage.tsx`,
+  `packages/app/src/modules/products/index.tsx`, `mkdocs.yml`.

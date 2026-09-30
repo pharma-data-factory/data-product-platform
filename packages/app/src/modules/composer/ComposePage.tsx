@@ -1,3 +1,4 @@
+import { PageHelp } from '../help/PageHelp';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -606,6 +607,19 @@ export function ComposePage() {
   return (
     <Page themeId="tool">
       <Content>
+        <PageHelp
+          step="build"
+          links={[
+            { label: 'How composition works', to: documentationHref('platform-component-composer') },
+            { label: 'Simpler: New from Golden Path', to: '/create' },
+            { label: 'Next: Release & Governance', to: '/products' },
+          ]}
+        >
+          Compose from components is the advanced way to build: choose approved
+          Platform Components and get a composition YAML. <strong>Generate</strong>{' '}
+          runs the same Golden Path as <strong>New from Golden Path</strong>,
+          pre-filled from your choices — it is not a separate kind of product.
+        </PageHelp>
         <section className={classes.hero} aria-label="Compose Data Product">
           <p className={classes.eyebrow}>Compose Data Product</p>
           <h1 className={classes.title}>Compose Data Product</h1>

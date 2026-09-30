@@ -20,6 +20,7 @@ import {
   canAdministerPlatform,
   hasApprovedPlatformAccess,
   resolvePlatformRole,
+  PLATFORM_DOCS_BASE,
 } from '@internal/platform-common';
 import { SidebarLogo } from './SidebarLogo';
 import { UserProfileMenu } from './UserProfileMenu';
@@ -40,6 +41,7 @@ import StorefrontIcon from '@material-ui/icons/Storefront';
 import BusinessIcon from '@material-ui/icons/Business';
 import ExtensionIcon from '@material-ui/icons/Extension';
 import AdminIcon from '@material-ui/icons/Security';
+import HelpIcon from '@material-ui/icons/HelpOutline';
 import VerifiedUserIcon from '@material-ui/icons/VerifiedUser';
 import GroupIcon from '@material-ui/icons/Group';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
@@ -149,28 +151,40 @@ function PlatformSidebar() {
             </SidebarSubmenu>
           </SidebarItem>
 
+          {/*
+            NXD-103. Build holds the two ways to a new Data Product, named by
+            what they do. Both end in the same Golden Path run; the Composer
+            only pre-fills it from chosen components.
+          */}
           <SidebarItem icon={BuildIcon} to="/build" text="Build">
             <SidebarSubmenu title="Build">
               <SidebarSubmenuItem
                 icon={AddCircleIcon}
                 to="/create"
-                title="Start Building"
+                title="New from Golden Path"
               />
               <SidebarSubmenuItem
                 icon={DeviceHubIcon}
                 to="/compose"
-                title="Composer"
+                title="Compose from components"
                 subtitle="Advanced"
               />
-              {/*
-                The end of the Build journey. /products holds the release
-                governance — versions, requirements, the release gate — and
-                until NXD-056 it could not be navigated to at all.
-              */}
+            </SidebarSubmenu>
+          </SidebarItem>
+
+          {/*
+            NXD-103. /products was listed under Build as "Products", although
+            nothing is built there: it holds release governance — versions,
+            requirements, baselines, the release gate (NXD-056 made it
+            reachable at all). It is the step after building, so it is its
+            own entry, named for that.
+          */}
+          <SidebarItem icon={LayersIcon} to="/products" text="Release">
+            <SidebarSubmenu title="Release">
               <SidebarSubmenuItem
                 icon={LayersIcon}
                 to="/products"
-                title="Products"
+                title="Release & Governance"
               />
             </SidebarSubmenu>
           </SidebarItem>
@@ -250,6 +264,32 @@ function PlatformSidebar() {
       <SidebarSpace />
       {hasAccess && (
         <>
+          <SidebarDivider />
+          {/*
+            NXD-103. The Developer Hub had no entry of its own; it was
+            reachable only from a card low on the Build page, so developers
+            did not find it. The old e2e smoke test still expects a
+            "Developer Hub" link in this nav.
+          */}
+          <SidebarItem icon={HelpIcon} to="/developer" text="Help & Docs">
+            <SidebarSubmenu title="Help & Docs">
+              <SidebarSubmenuItem
+                icon={HelpIcon}
+                to="/developer"
+                title="Developer Hub"
+              />
+              <SidebarSubmenuItem
+                icon={DescriptionIcon}
+                to={PLATFORM_DOCS_BASE}
+                title="Platform documentation"
+              />
+              <SidebarSubmenuItem
+                icon={ViewListIcon}
+                to="/docs"
+                title="All documentation"
+              />
+            </SidebarSubmenu>
+          </SidebarItem>
           <SidebarDivider />
           <NotificationsSidebarItem />
           <SidebarDivider />

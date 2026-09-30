@@ -13,7 +13,7 @@ const productsPage = PageBlueprint.make({
   params: {
     path: '/products',
     routeRef: productsRouteRef,
-    title: 'Products',
+    title: 'Release & Governance',
     icon: <DeviceHubIcon />,
     loader: () => import('./ProductsPage').then(m => <m.ProductsPage />),
   },

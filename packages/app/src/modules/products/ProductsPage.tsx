@@ -9,7 +9,8 @@ import {
   Progress,
 } from '@backstage/core-components';
 import { Button, MenuItem, TextField, Typography } from '@material-ui/core';
-import { PRODUCT_TYPES } from '@internal/platform-common';
+import { PRODUCT_TYPES, documentationUrl } from '@internal/platform-common';
+import { PageHelp } from '../help/PageHelp';
 import type { Product } from '@internal/platform-common';
 import { useComposerClient } from './api';
 import {
@@ -72,12 +73,31 @@ export function ProductsPage() {
 
   return (
     <Page themeId="service">
+      {/* NXD-103: named for what happens here, not for what is listed. */}
       <Header
-        title="Products"
-        subtitle="Data Products and Services defined as a Blackbox"
+        title="Release & Governance"
+        subtitle="Versions, requirements, baselines and the release gate of every product"
       />
       <Content>
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 0' }}>
+          <PageHelp
+            step="release"
+            links={[
+              {
+                label: 'How the release gate decides',
+                to: documentationUrl(
+                  '/compliance/traceability-and-gmp#16-the-release-gate',
+                ),
+              },
+              { label: 'Back: Build', to: '/build' },
+              { label: 'Next: Operate', to: '/my-products' },
+            ]}
+          >
+            Nothing is built here. A product built under Build appears in this
+            list; open it to bind approved URS requirements, add a baseline and
+            take a version through the release gate. <strong>Create product</strong>{' '}
+            registers a product record by hand, without a repository.
+          </PageHelp>
           {/*
             Both sections sit on an InfoCard surface rather than on the app
             canvas. index.html paints html/body/#root navy for the marketing
