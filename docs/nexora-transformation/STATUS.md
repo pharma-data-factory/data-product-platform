@@ -44,6 +44,10 @@ four quick wins F1–F4, one commit and one record each.
   clickable card). Clickable table rows gain real links, icon-only buttons
   get names, the footer status stops being colour-only, and a guard test
   keeps two of those rules from regressing. See [`NXD-095`](DECISIONS.md).
+- **F3 — the wizard stops discarding typed work without asking.** Cancel
+  with unsaved changes asks first; deleting a requirement or a criterion
+  offers Undo, which re-inserts into the current list. The criterion delete
+  was writing into React state in place. See [`NXD-096`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

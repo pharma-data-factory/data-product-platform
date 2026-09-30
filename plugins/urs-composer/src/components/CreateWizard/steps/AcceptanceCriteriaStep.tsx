@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 import {
   Box,
   Typography,
@@ -15,6 +15,7 @@ import AddIcon from '@material-ui/icons/Add';
 import DeleteIcon from '@material-ui/icons/Delete';
 import WarningIcon from '@material-ui/icons/Warning';
 import { URSWizardState, AcceptanceCriteriaDraft } from '../wizardState';
+import { UndoSnackbar } from '../UndoSnackbar';
 
 function createTempId(): string {
   return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -51,6 +52,11 @@ export const AcceptanceCriteriaStep: FC<AcceptanceCriteriaStepProps> = ({
   onStateChange,
 }) => {
   const classes = useStyles();
+  const [removed, setRemoved] = useState<{
+    reqIndex: number;
+    acIndex: number;
+    item: AcceptanceCriteriaDraft;
+  } | null>(null);
 
   const handleAddCriteria = (reqIndex: number) => {
     const updated = [...state.requirements];
@@ -76,11 +82,35 @@ export const AcceptanceCriteriaStep: FC<AcceptanceCriteriaStepProps> = ({
   };
 
   const handleDeleteCriteria = (reqIndex: number, acIndex: number) => {
-    const updated = [...state.requirements];
-    updated[reqIndex].acceptanceCriteria = updated[reqIndex].acceptanceCriteria!.filter(
-      (_, i) => i !== acIndex,
-    );
-    onStateChange({ requirements: updated });
+    const criteria = state.requirements[reqIndex].acceptanceCriteria ?? [];
+    setRemoved({ reqIndex, acIndex, item: criteria[acIndex] });
+    // Copies rather than assigning into the requirement: the old version
+    // mutated the object held in state, which an undo would then have read
+    // back already changed.
+    onStateChange({
+      requirements: state.requirements.map((requirement, i) =>
+        i === reqIndex
+          ? {
+              ...requirement,
+              acceptanceCriteria: criteria.filter((_, j) => j !== acIndex),
+            }
+          : requirement,
+      ),
+    });
+  };
+
+  // NXD-096. Re-inserted into the current criteria at the old position.
+  const handleUndoDelete = () => {
+    if (!removed) return;
+    onStateChange({
+      requirements: state.requirements.map((requirement, i) => {
+        if (i !== removed.reqIndex) return requirement;
+        const next = [...(requirement.acceptanceCriteria ?? [])];
+        next.splice(Math.min(removed.acIndex, next.length), 0, removed.item);
+        return { ...requirement, acceptanceCriteria: next };
+      }),
+    });
+    setRemoved(null);
   };
 
   const incompleteCount = state.requirements.filter(
@@ -193,6 +223,17 @@ export const AcceptanceCriteriaStep: FC<AcceptanceCriteriaStepProps> = ({
           <strong>Then</strong> the new state shall be displayed within 500ms
         </Typography>
       </Box>
+      <UndoSnackbar
+        message={
+          removed
+            ? `Acceptance criterion ${removed.acIndex + 1} of requirement ${
+                removed.reqIndex + 1
+              } deleted`
+            : null
+        }
+        onUndo={handleUndoDelete}
+        onClose={() => setRemoved(null)}
+      />
     </Box>
   );
 };

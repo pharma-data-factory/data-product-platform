@@ -22,6 +22,11 @@ import {
   Typography,
   CircularProgress,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
 } from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
 import { makeStyles } from '@material-ui/core/styles';
@@ -121,6 +126,18 @@ export const CreateWizard: FC<CreateWizardProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [capabilityNames, setCapabilityNames] = useState<Map<string, string>>(new Map());
+  const [discardOpen, setDiscardOpen] = useState(false);
+
+  // NXD-096. Cancel navigated away at once, discarding every unsaved step.
+  // `beforeunload` below covers closing the tab, not an in-app navigation,
+  // so the question is asked here, where the navigation starts.
+  const handleCancel = useCallback(() => {
+    if (state.dirty) {
+      setDiscardOpen(true);
+      return;
+    }
+    onCancel?.();
+  }, [state.dirty, onCancel]);
 
   useEffect(() => {
     if (!state.dirty) {
@@ -428,7 +445,7 @@ export const CreateWizard: FC<CreateWizardProps> = ({
 
               {isLastStep && (
                 <>
-                  <Button onClick={onCancel} disabled={isSaving}>
+                  <Button onClick={handleCancel} disabled={isSaving}>
                     Cancel
                   </Button>
                   <Button
@@ -452,6 +469,37 @@ export const CreateWizard: FC<CreateWizardProps> = ({
           </Box>
         </Box>
       </Content>
+      <Dialog
+        open={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        aria-labelledby="discard-urs-draft-title"
+      >
+        <DialogTitle id="discard-urs-draft-title">
+          Discard unsaved changes?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Changes since the last saved draft will be lost. Save Draft keeps
+            them and lets you continue later.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          {/* The safe choice comes first. The dialog takes focus itself, not
+              either button, so Enter does not discard work. */}
+          <Button onClick={() => setDiscardOpen(false)}>
+            Keep editing
+          </Button>
+          <Button
+            color="secondary"
+            onClick={() => {
+              setDiscardOpen(false);
+              onCancel?.();
+            }}
+          >
+            Discard changes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   );
 };

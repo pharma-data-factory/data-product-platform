@@ -5185,3 +5185,51 @@ the ones found while fixing them.
   `plugins/marketplace/src/components/MarketplacePage.tsx`,
   `packages/app/src/modules/nav/PlatformFooter.tsx` (+ new test),
   `packages/backend/src/frontendAccessibility.test.ts` (new).
+
+### NXD-096 — The wizard stops discarding typed work without asking
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 4 (frontend) — F3
+- Closes: re-audit finding U6, partially (cancel and delete; field-level
+  error placement is not addressed).
+
+Two ways the URS wizard lost work. **Cancel** navigated away at once,
+whether or not anything was unsaved; the `beforeunload` guard covers closing
+the tab, not an in-app navigation. **Delete** on a requirement or an
+acceptance criterion was immediate and final — one click on a trash icon
+removed a requirement with its statement and every criterion.
+
+**Cancel asks when there is something to lose.** With `state.dirty` set, a
+dialog — *Discard unsaved changes?* — offers **Keep editing** first and
+**Discard changes** second, and says Save Draft is the way to keep them.
+With nothing unsaved it leaves at once; a question with only one sensible
+answer is friction. An attempt to give **Keep editing** initial focus met
+`jsx-a11y/no-autofocus`; MUI's dialog focuses its own container rather
+than either button, so Enter cannot discard, and the attribute was dropped.
+
+**Delete gets undo, not a confirmation.** Deleting is usually intended, and
+a dialog on every delete trains people to click through it. `UndoSnackbar`
+names what was deleted and offers **Undo** for eight seconds; a click
+elsewhere does not dismiss it. Undo **re-inserts the item into the current
+list at its old position** rather than restoring a snapshot, so an edit made
+between delete and undo survives.
+
+**A mutation the undo would have exposed.** `handleDeleteCriteria` assigned
+the filtered list into `updated[reqIndex].acceptanceCriteria` — `updated`
+was a shallow copy, so this wrote into the requirement object held in React
+state. It worked because the next render read the same object; an undo that
+kept a reference to the old requirement would have read it back already
+changed. The delete now copies, and a test asserts the original state
+object is untouched. The step's add and edit handlers use the same pattern
+and were **not** changed here.
+
+**Not done.** In-app navigation through the sidebar still leaves the wizard
+without asking: React Router's `useBlocker` needs a data router, and the app
+uses Backstage's `BrowserRouter`. Replacing the router is not a quick win.
+
+- Affected components:
+  `plugins/urs-composer/src/components/CreateWizard/CreateWizard.tsx`,
+  `.../CreateWizard/UndoSnackbar.tsx` (new),
+  `.../CreateWizard/steps/RequirementsStep.tsx`,
+  `.../CreateWizard/steps/AcceptanceCriteriaStep.tsx`,
+  `.../CreateWizard/unsavedWork.test.tsx` (new).

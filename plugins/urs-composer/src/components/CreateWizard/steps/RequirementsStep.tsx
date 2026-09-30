@@ -31,6 +31,7 @@ import {
 } from '../../../api/types';
 import { ursComposerApiRef } from '../../../api/ursComposerApi';
 import { URSWizardState, RequirementDraft } from '../wizardState';
+import { UndoSnackbar } from '../UndoSnackbar';
 
 const useStyles = makeStyles(theme => ({
   addButton: {
@@ -86,6 +87,10 @@ function createTempId(): string {
 export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChange }) => {
   const classes = useStyles();
   const api = useApi(ursComposerApiRef);
+  const [removed, setRemoved] = useState<{
+    item: RequirementDraft;
+    index: number;
+  } | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<GeneratedRequirement[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -118,9 +123,20 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
   };
 
   const handleDeleteRequirement = (index: number) => {
+    setRemoved({ item: state.requirements[index], index });
     onStateChange({
       requirements: state.requirements.filter((_, i) => i !== index),
     });
+  };
+
+  // NXD-096. Re-inserted into the *current* list at its old position, not
+  // restored from a snapshot, so an edit made after the delete survives.
+  const handleUndoDelete = () => {
+    if (!removed) return;
+    const next = [...state.requirements];
+    next.splice(Math.min(removed.index, next.length), 0, removed.item);
+    onStateChange({ requirements: next });
+    setRemoved(null);
   };
 
   const handleGenerateSuggestions = async () => {
@@ -487,6 +503,17 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
           solution design, not requirements.)
         </Typography>
       </Box>
+      <UndoSnackbar
+        message={
+          removed
+            ? `Requirement ${removed.index + 1}${
+                removed.item.title ? ` "${removed.item.title}"` : ''
+              } deleted`
+            : null
+        }
+        onUndo={handleUndoDelete}
+        onClose={() => setRemoved(null)}
+      />
     </Box>
   );
 };
