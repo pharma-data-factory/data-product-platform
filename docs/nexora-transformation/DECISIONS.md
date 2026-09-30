@@ -5321,3 +5321,45 @@ release gate) is the next leg of the path and not in this spec.
   `plugins/urs-composer/src/pages/URSRequirementSetPage.tsx`,
   `packages/backend/src/config/committedConfigIntegrity.test.ts`,
   `START.md` (§E).
+
+### NXD-098 — The scaffolder's author tools leave production, and a list overlay would have taken three settings with it
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 4 (frontend) — follow-up
+
+The scaffolder page offers five tabs: Templates, Tasks, Actions, Template
+Editor and Templating Extensions. The last three are tools for people
+authoring Golden Paths. In Nexora those are authored in `templates/` and
+reviewed as code, and the editor was worse than unnecessary: it answered
+everyone except PLATFORM_ADMIN with **"ERROR 404: PAGE NOT FOUND"**. Backstage
+wraps it in `RequirePermission(templateManagementPermission)`, whose default
+fallback is the not-found page, and Nexora grants
+`scaffolder.template.management` only to admins. A user reported it as a
+broken page, which is what it looked like.
+
+**Decision: off in production, on in local development.** Extensions are
+disabled by id in `app-config.production.yaml` — `sub-page:scaffolder/editor`,
+`sub-page:scaffolder/actions`, `sub-page:scaffolder/templating-extensions` —
+which is configuration of Backstage's extension tree, not a change to it.
+Templates and Tasks stay: those are how a user runs a Golden Path and sees
+what happened. Local development keeps all five for template authors. The
+extension system offers no per-role visibility, so "hide for non-admins" was
+not an option without replacing the page.
+
+**The trap, verified rather than assumed.** A list in an overlay **replaces**
+the base list; it does not extend it — `ConfigReader.fromConfigs` with a
+one-entry base and a one-entry overlay returns only the overlay's entry.
+Writing just the three new entries would have silently re-enabled the two
+built-in themes and the default TechDocs search item that `app-config.yaml`
+switches off. The production list therefore repeats those three, and
+`committedConfigIntegrity.test.ts` asserts on the **merged** configuration
+that the author tools are off, that every base setting survives, and that
+the base file leaves the author tools on.
+
+**The ids, verified in a browser.** A misspelt id would be ignored and the
+tabs would stay. The app was started with exactly the production list and
+signed in as a demo identity; `/create` showed two tabs, Templates and
+Tasks.
+
+- Affected components: `app-config.production.yaml`,
+  `packages/backend/src/config/committedConfigIntegrity.test.ts`.

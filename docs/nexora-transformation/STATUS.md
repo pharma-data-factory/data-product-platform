@@ -54,6 +54,11 @@ four quick wins F1–F4, one commit and one record each.
   demo sign-in buttons never rendered (config schema), and a created
   baseline stayed invisible until reload. axe awaits a dependency approval.
   See [`NXD-097`](DECISIONS.md).
+- **Follow-up — the scaffolder's author tools leave production.** Template
+  Editor, Actions and Templating Extensions are disabled in
+  `app-config.production.yaml`; the editor showed a 404 to every non-admin.
+  The overlay repeats the base extension list, because a list overlay
+  replaces rather than extends. See [`NXD-098`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

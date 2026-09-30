@@ -1,6 +1,25 @@
 app:
   baseUrl: ${APP_BASE_URL}
 
+  # NXD-098. The scaffolder's author tools are switched off in production:
+  # Template Editor, Actions and Templating Extensions. Golden Paths are
+  # authored in `templates/` and reviewed as code, not in a browser editor —
+  # and the editor answered everyone but PLATFORM_ADMIN with a 404, because
+  # Backstage's RequirePermission renders NotFound when
+  # `scaffolder.template.management` is denied. Templates and Tasks stay.
+  # Local development keeps all five for template authors.
+  #
+  # A list in an overlay REPLACES the base list rather than extending it, so
+  # the three entries from app-config.yaml are repeated here. The merged
+  # result is asserted in committedConfigIntegrity.test.ts.
+  extensions:
+    - theme:app/light: false
+    - theme:app/dark: false
+    - search-result-list-item:techdocs: false
+    - sub-page:scaffolder/editor: false
+    - sub-page:scaffolder/actions: false
+    - sub-page:scaffolder/templating-extensions: false
+
 backend:
   baseUrl: ${BACKEND_BASE_URL}
   listen: ':7007'

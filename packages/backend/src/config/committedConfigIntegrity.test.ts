@@ -122,6 +122,49 @@ describe('committed Control Plane configuration integrity', () => {
     });
   });
 
+  describe('scaffolder author tools (NXD-098)', () => {
+    const AUTHOR_TOOLS = [
+      'sub-page:scaffolder/editor',
+      'sub-page:scaffolder/actions',
+      'sub-page:scaffolder/templating-extensions',
+    ];
+
+    /** `app.extensions` as the frontend reads it: id -> enabled flag. */
+    function extensionFlags(files: string[]): Map<string, unknown> {
+      const entries =
+        (mergeConfigs(files).getOptional('app.extensions') as
+          | Array<Record<string, unknown>>
+          | undefined) ?? [];
+      return new Map(entries.flatMap(entry => Object.entries(entry)));
+    }
+
+    it('switches them off in the merged production configuration', () => {
+      const flags = extensionFlags(['app-config.yaml', 'app-config.production.yaml']);
+      for (const id of AUTHOR_TOOLS) {
+        expect(flags.get(id)).toBe(false);
+      }
+    });
+
+    it('keeps every base extension setting, because an overlay list replaces the base list', () => {
+      const base = extensionFlags(['app-config.yaml']);
+      const production = extensionFlags([
+        'app-config.yaml',
+        'app-config.production.yaml',
+      ]);
+      expect(base.size).toBeGreaterThan(0);
+      for (const [id, value] of base) {
+        expect(production.get(id)).toEqual(value);
+      }
+    });
+
+    it('leaves them available for local development', () => {
+      const flags = extensionFlags(['app-config.yaml']);
+      for (const id of AUTHOR_TOOLS) {
+        expect(flags.has(id)).toBe(false);
+      }
+    });
+  });
+
   it('does not embed credential values in frontend source', () => {
     const appSrc = path.join(ROOT, 'packages/app/src');
     const pluginSrc = path.join(ROOT, 'plugins/data-products/src');
