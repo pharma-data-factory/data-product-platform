@@ -164,6 +164,7 @@ beforeEach(() => {
     ...PRODUCT,
     ...input,
   }));
+  client.checkReleaseGate.mockResolvedValue({ passed: false, blockers: [] });
   client.createProductBaseline.mockResolvedValue({});
   client.approveProductBaseline.mockResolvedValue({});
 });

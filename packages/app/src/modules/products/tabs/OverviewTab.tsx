@@ -1,23 +1,13 @@
-import { NEXORA_TONE } from '@internal/plugin-nexora-common';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  Typography,
-} from '@material-ui/core';
-import CheckCircleIcon from '@material-ui/icons/CheckCircle';
-import ErrorIcon from '@material-ui/icons/Error';
+import { Box, Button, Typography } from '@material-ui/core';
 import type {
   Product,
   ProductBaseline,
+  ProductRequirementCoverage,
   ProductVersion,
 } from '@internal/platform-common';
 import type { ReleaseGateResult } from '../api';
 import { GovernanceCard } from './GovernanceCard';
+import { ReleaseReadinessCard } from './ReleaseReadinessCard';
 import { BaselinesSection } from './BaselinesSection';
 
 /**
@@ -40,15 +30,15 @@ interface OverviewTabProps {
   product: Product;
   versions: ProductVersion[];
   selectedVersion?: ProductVersion;
-  gateResult: ReleaseGateResult | null;
-  gateLoading: boolean;
+  /** Loads the release gate for the selected version. */
+  loadGate: () => Promise<ReleaseGateResult>;
+  coverage: ProductRequirementCoverage | null;
   transitionLoading: boolean;
   actionError: string | null;
   baselines: ProductBaseline[] | null;
   baselineBusy: boolean;
   baselineError: string | null;
   onCreateVersion: () => void;
-  onCheckGate: () => void;
   onTransition: (targetStatus: string) => void;
   onSaveGovernance: (input: Record<string, unknown>) => Promise<void>;
   onCreateBaseline: (baselineVersion?: string) => Promise<void>;
@@ -59,15 +49,14 @@ export function OverviewTab({
   product,
   versions,
   selectedVersion,
-  gateResult,
-  gateLoading,
+  loadGate,
+  coverage,
   transitionLoading,
   actionError,
   baselines,
   baselineBusy,
   baselineError,
   onCreateVersion,
-  onCheckGate,
   onTransition,
   onSaveGovernance,
   onCreateBaseline,
@@ -113,6 +102,29 @@ export function OverviewTab({
               </Box>
             )}
 
+            {/*
+              NXD-100. For every version, not only RELEASE_CANDIDATE: the gate
+              answers read-only at any status so blockers can be cleared while
+              the version is still being built.
+            */}
+            {selectedVersion && (
+              <ReleaseReadinessCard
+                versionLabel={selectedVersion.version}
+                loadGate={loadGate}
+                coverage={coverage}
+                refreshKey={[
+                  selectedVersion.id,
+                  selectedVersion.status,
+                  selectedVersion.revision,
+                  selectedVersion.ursBaselineId,
+                  (baselines ?? []).map(b => `${b.id}:${b.status}`).join(','),
+                  coverage
+                    ? `${coverage.mapped}/${coverage.verified}/${coverage.validated}`
+                    : '',
+                ].join('|')}
+              />
+            )}
+
             {selectedVersion && TRANSITIONS[selectedVersion.status] && (
               <Box style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 {TRANSITIONS[selectedVersion.status].map(t => (
@@ -143,57 +155,6 @@ export function OverviewTab({
               onApprove={onApproveBaseline}
             />
 
-            {selectedVersion && selectedVersion.status === 'RELEASE_CANDIDATE' && (
-              <Card variant="outlined" style={{ marginTop: 24, marginBottom: 16 }}>
-                <CardContent>
-                  <Box
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    marginBottom={1}
-                  >
-                    <Typography variant="subtitle2">Release Gate</Typography>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={gateLoading}
-                      onClick={onCheckGate}
-                    >
-                      {gateLoading ? 'Checking...' : 'Check Gate'}
-                    </Button>
-                  </Box>
-                  {gateResult &&
-                    (gateResult.passed ? (
-                      <Box style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <CheckCircleIcon style={{ color: NEXORA_TONE.success.text }} />
-                        <Typography
-                          style={{
-                            color: NEXORA_TONE.success.text,
-                            fontWeight: 600,
-                          }}
-                        >
-                          All checks passed — ready to release
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <List dense>
-                        {gateResult.blockers.map((b, i) => (
-                          <ListItem key={i}>
-                            <ErrorIcon
-                              style={{
-                                color: NEXORA_TONE.danger.text,
-                                marginRight: 8,
-                              }}
-                              fontSize="small"
-                            />
-                            <ListItemText primary={b.code} secondary={b.message} />
-                          </ListItem>
-                        ))}
-                      </List>
-                    ))}
-                </CardContent>
-              </Card>
-            )}
           </>
         )}
       </section>

@@ -5423,3 +5423,59 @@ point.
   `plugins/composer-backend/src/scmPublishReadiness.test.ts` (new),
   `packages/app/src/modules/build/PublishReadinessNotice.tsx` (+ test, new),
   `packages/app/src/modules/build/BuildLandingPage.tsx`.
+
+### NXD-100 — Release readiness becomes visible for every version, without inventing a denominator
+
+- Date: 2026-09-30
+- Slice: frontend — first graphical improvement, chosen by the user from four
+
+The release gate was the product page's most important answer and its least
+visible: a card that appeared only at RELEASE_CANDIDATE, only after pressing
+**Check Gate**, listing raw codes (`NO_APPROVED_BASELINE`) under their
+messages. Requirement coverage sat on another tab as a row of chips. The
+backend has answered `GET /versions/:id/release-gate` read-only at any
+status since the gate was built — so blockers can be cleared while a version
+is still DRAFT — and nothing on screen used that.
+
+**`ReleaseReadinessCard`, at the top of Release Management, for every
+version.** It loads the gate itself and re-checks when anything the gate
+reads changes (status, revision, bound URS baseline, product baselines,
+coverage counts); a **Re-check** button stays for evidence that arrives from
+outside. Top to bottom: the verdict in words and icon ("Blocked by 6 checks"
+/ "Ready to release"), requirement coverage as three meters, then each
+blocker with a readable title over the server's message.
+
+**What the design refused, and why.**
+
+- **No "7 of 11 checks" ring.** It was in the proposal the user picked. The
+  gate returns blockers, not the checks it ran, and its codes are partly
+  conditional and mutually exclusive (`NO_URS_BASELINE` /
+  `NO_APPROVED_URS_BASELINE`) — every denominator would have been made up.
+  Coverage does have one, the requirement count, so it is the part drawn as
+  meters. A single ratio against a limit is a meter, not a ring, by the
+  dataviz method's own form table.
+- **Validated is never an empty bar when it is unknown.** Without a
+  validation context the row says *Unknown — no validation context*, the
+  distinction `ProductRequirementCoverage.validationContextId` exists to
+  carry (NXD-056).
+- **The meter is not the brand cyan.** The validator put `#00788A` at ΔE 4.4
+  from the success teal `#0F766E` — below the normal-vision floor of 15, so a
+  coverage bar would have read as "passed". Light mode uses brand navy
+  `#1E3A5F`, dark mode `#818CF8`, each checked against the status pair on its
+  surface (CVD ΔE ≥ 10.5, contrast ≥ 3:1). Status stays icon + text + colour.
+
+**Found by looking, not by testing.** The first render put the meters below
+six blockers, off the first screen — the one thing the card exists to show
+at a glance. The order was changed and re-rendered in both themes against a
+live stack (an approved URS baseline produced by the NXD-097 spec, bound to
+a scratch product). **Found by the tests:** `useLoadable` called `.then` on
+whatever the loader returned, so a loader that threw synchronously took the
+page down; it now goes through `Promise.resolve().then(load)`. And
+`useComposerClient` builds a new object per render, which would have
+re-run the gate on every render; the page holds it in a ref.
+
+- Affected components:
+  `packages/app/src/modules/products/tabs/ReleaseReadinessCard.tsx` (+ test,
+  new), `.../tabs/OverviewTab.tsx`, `.../ProductDetailPage.tsx`,
+  `.../ProductDetailPage.test.tsx`,
+  `plugins/nexora-common/src/loading/useLoadable.ts` (+ test).

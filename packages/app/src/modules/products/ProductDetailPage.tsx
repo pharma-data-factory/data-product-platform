@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NEXORA_CARD,
   NEXORA_SECURITY_FG,
@@ -28,7 +28,7 @@ import type {
   ProductRequirementCoverage,
   ProductVersion,
 } from '@internal/platform-common';
-import { useComposerClient, ProductTraceability, ReleaseGateResult } from './api';
+import { useComposerClient, ProductTraceability } from './api';
 import { OverviewTab } from './tabs/OverviewTab';
 import { RequirementsTab } from './tabs/RequirementsTab';
 import { ArchitectureTab } from './tabs/ArchitectureTab';
@@ -71,8 +71,6 @@ export function ProductDetailPage() {
   const [error, setError] = useState<Error | null>(null);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
-  const [gateResult, setGateResult] = useState<ReleaseGateResult | null>(null);
-  const [gateLoading, setGateLoading] = useState(false);
   const [transitionLoading, setTransitionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -161,7 +159,6 @@ export function ProductDetailPage() {
       setSelectedVersionId(nextSelectedId);
       await loadVersionScoped(nextSelectedId);
 
-      setGateResult(null);
       setActionError(null);
       setTraceability(await client.getProductTraceability(productId));
     } catch (e) {
@@ -282,7 +279,6 @@ export function ProductDetailPage() {
     setProduct(updated);
     // A governance change can clear a gate blocker, so a gate result computed
     // before it is stale rather than merely old.
-    setGateResult(null);
   };
 
   const refreshBaselines = async (versionId: string) => {
@@ -301,7 +297,6 @@ export function ProductDetailPage() {
         baselineVersion ? { baselineVersion } : {},
       );
       await refreshBaselines(selectedVersionId);
-      setGateResult(null);
     } catch (e) {
       setBaselineError((e as Error).message);
     } finally {
@@ -318,7 +313,6 @@ export function ProductDetailPage() {
     try {
       await client.approveProductBaseline(baselineId);
       await refreshBaselines(selectedVersionId);
-      setGateResult(null);
     } catch (e) {
       setBaselineError((e as Error).message);
     } finally {
@@ -359,19 +353,16 @@ export function ProductDetailPage() {
 
   const selectedVersion = versions.find(v => v.id === selectedVersionId);
 
-  const checkGate = async () => {
-    if (!selectedVersionId) return;
-    setGateLoading(true);
-    setActionError(null);
-    try {
-      const result = await client.checkReleaseGate(selectedVersionId);
-      setGateResult(result);
-    } catch (e) {
-      setActionError((e as Error).message);
-    } finally {
-      setGateLoading(false);
-    }
-  };
+  // useComposerClient builds a new object every render; a loader that
+  // depended on it would re-run the release gate on every render. The ref
+  // keeps the call current while the loader changes only with the version.
+  const clientRef = useRef(client);
+  clientRef.current = client;
+  const loadGate = useCallback(
+    () => clientRef.current.checkReleaseGate(selectedVersionId),
+    [selectedVersionId],
+  );
+
 
   const doTransition = async (targetStatus: string) => {
     if (!selectedVersionId) return;
@@ -379,7 +370,6 @@ export function ProductDetailPage() {
     setActionError(null);
     try {
       await client.transitionVersionStatus(selectedVersionId, targetStatus);
-      setGateResult(null);
       await load();
     } catch (e) {
       setActionError((e as Error).message);
@@ -487,7 +477,6 @@ export function ProductDetailPage() {
                 onChange={e => {
                   const nextId = e.target.value as string;
                   setSelectedVersionId(nextId);
-                  setGateResult(null);
                   setActionError(null);
                   setBindError(null);
                   loadVersionScoped(nextId).catch(err => setError(err as Error));
@@ -520,15 +509,14 @@ export function ProductDetailPage() {
               product={product}
               versions={versions}
               selectedVersion={selectedVersion}
-              gateResult={gateResult}
-              gateLoading={gateLoading}
+              loadGate={loadGate}
+              coverage={coverage}
               transitionLoading={transitionLoading}
               actionError={actionError}
               baselines={baselines}
               baselineBusy={baselineBusy}
               baselineError={baselineError}
               onCreateVersion={createVersion}
-              onCheckGate={checkGate}
               onTransition={doTransition}
               onSaveGovernance={saveGovernance}
               onCreateBaseline={createBaseline}

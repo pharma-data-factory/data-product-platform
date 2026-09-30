@@ -57,6 +57,19 @@ describe('useLoadable and LoadError (NXD-094)', () => {
     errors.mockRestore();
   });
 
+  it('reports a loader that throws synchronously instead of crashing', async () => {
+    render(
+      <Probe
+        load={() => {
+          throw new Error('HTTP 500');
+        }}
+      />,
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load the probe',
+    );
+  });
+
   it('never shows a stack trace to the user', () => {
     render(
       <LoadError

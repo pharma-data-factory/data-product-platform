@@ -36,7 +36,12 @@ export function useLoadable<T>(load: () => Promise<T>): Loadable<T> {
   useEffect(() => {
     let current = true;
     setState(previous => ({ value: previous.value, loading: true }));
-    load().then(
+    // Through Promise.resolve so a loader that throws synchronously, or
+    // returns something that is not a promise, lands in `error` instead of
+    // taking the page down with it (NXD-100 found one).
+    Promise.resolve()
+      .then(load)
+      .then(
       value => {
         if (current) {
           setState({ value, loading: false });

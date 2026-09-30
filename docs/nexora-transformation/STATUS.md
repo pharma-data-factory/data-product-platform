@@ -64,6 +64,11 @@ four quick wins F1–F4, one commit and one record each.
   too); Golden Paths stop at their first step when the environment has no
   GitHub credentials, and the Build page says so before anyone starts.
   Verified with a live task. See [`NXD-099`](DECISIONS.md).
+- **Follow-up — release readiness at a glance.** Every product version
+  shows its release-gate verdict, requirement coverage as meters, and
+  readable blockers, loaded automatically instead of at RELEASE_CANDIDATE
+  on request. No invented "n of m checks"; validation shows *unknown* rather
+  than zero; colours validated, not eyeballed. See [`NXD-100`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
