@@ -288,8 +288,20 @@ export const BusinessCapabilityStep: FC<BusinessCapabilityStepProps> = ({
                     <div className={classes.domain}>{cap.domain}</div>
                   </CardContent>
                   <CardActions>
+                    {/* NXD-095. Was `readOnly`, with the card's onClick as
+                        the only way to select — so the first, mandatory step
+                        of the wizard could not be completed from a
+                        keyboard. The checkbox now changes the selection
+                        itself; stopPropagation keeps the card from toggling
+                        it back. */}
                     <FormControlLabel
-                      control={<Checkbox checked={isSelected} readOnly />}
+                      control={
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={() => handleToggleCapability(cap.id)}
+                          inputProps={{ 'aria-label': `Select ${cap.name}` }}
+                        />
+                      }
                       label={isSelected ? 'Selected' : 'Select'}
                       onClick={e => e.stopPropagation()}
                     />

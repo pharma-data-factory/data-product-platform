@@ -156,6 +156,7 @@ export const AcceptanceCriteriaStep: FC<AcceptanceCriteriaStepProps> = ({
                               size="small"
                               onClick={() => handleDeleteCriteria(reqIdx, acIdx)}
                               title="Delete criterion"
+                              aria-label={`Delete acceptance criterion ${acIdx + 1} of requirement ${reqIdx + 1}`}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>

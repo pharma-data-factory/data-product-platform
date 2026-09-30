@@ -144,7 +144,17 @@ export function ReleaseCatalogPage() {
                       className={classes.row}
                       onClick={() => navigate(`/releases/${row.template}`)}
                     >
-                      <TableCell>{row.name}</TableCell>
+                      <TableCell>
+                        {/* NXD-095. The row click is a mouse shortcut; this
+                            link is the way in for a keyboard or a screen
+                            reader, which a clickable <tr> is not. */}
+                        <Link
+                          to={`/releases/${row.template}`}
+                          onClick={event => event.stopPropagation()}
+                        >
+                          {row.name}
+                        </Link>
+                      </TableCell>
                       <TableCell>
                         {row.version}
                         {row.current ? ' CURRENT' : ''}

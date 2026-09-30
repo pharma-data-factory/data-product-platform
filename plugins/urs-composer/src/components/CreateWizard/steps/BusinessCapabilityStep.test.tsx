@@ -132,6 +132,27 @@ describe('BusinessCapabilityStep', () => {
       });
     });
 
+    test('selects through the checkbox, the way a keyboard reaches it (NXD-095)', async () => {
+      // The checkbox was readOnly and the card's onClick the only way in, so
+      // the wizard's first mandatory step could not be completed from a
+      // keyboard. Space on a focused checkbox fires the same change event.
+      renderStep(mockState, mockOnStateChange);
+
+      const checkbox = await screen.findByRole('checkbox', {
+        name: 'Select OEE Management',
+      });
+      expect(checkbox).not.toHaveAttribute('readonly');
+      fireEvent.click(checkbox);
+
+      // Once: the card must not toggle it straight back.
+      expect(mockOnStateChange).toHaveBeenCalledTimes(1);
+      expect(mockOnStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          businessCapabilityRefs: ['business-capability:make/oee'],
+        }),
+      );
+    });
+
     test('shows selected capabilities as chips', async () => {
       const stateWithSelection: URSWizardState = {
         ...mockState,

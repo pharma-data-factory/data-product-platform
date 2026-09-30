@@ -269,7 +269,13 @@ export function MarketplacePage() {
                       onClick={() => navigate(`/marketplace/${item.id}`)}
                     >
                       <TableCell className={classes.nameCell}>
-                        {item.name}
+                        {/* NXD-095: the keyboard-reachable way in. */}
+                        <Link
+                          to={`/marketplace/${item.id}`}
+                          onClick={event => event.stopPropagation()}
+                        >
+                          {item.name}
+                        </Link>
                         {marketplaceOfferingKind(item) === 'BUILDING BLOCK' && (
                           <Chip
                             size="small"

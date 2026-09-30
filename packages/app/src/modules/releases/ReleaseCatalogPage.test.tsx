@@ -24,6 +24,21 @@ describe('Release Catalog', () => {
     expect(screen.queryByText('SAAS')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Release filters')).toBeInTheDocument();
   });
+
+  it('opens a release through a link, not only a clickable row (NXD-095)', () => {
+    render(
+      <UnifiedThemeProvider theme={pharmaDataFactoryTheme}>
+        <MemoryRouter>
+          <ReleaseCatalogPage />
+        </MemoryRouter>
+      </UnifiedThemeProvider>,
+    );
+
+    // A <tr onClick> is not focusable; this link is the keyboard's way in.
+    expect(
+      screen.getByRole('link', { name: 'MQTT Temperature Data Product' }),
+    ).toHaveAttribute('href', '/releases/mqtt-temperature-data-product');
+  });
 });
 
 describe('Golden Path release detail', () => {

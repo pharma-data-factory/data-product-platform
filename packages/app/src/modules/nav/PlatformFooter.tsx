@@ -37,13 +37,30 @@ function statusDotText(label: string, ok: boolean | null): string {
   return `${label}: Down`;
 }
 
+/**
+ * NXD-095. The state used to be the dot's colour alone, with the words in a
+ * tooltip on an element nothing could focus — invisible to a screen reader,
+ * a keyboard, and anyone who cannot tell the green from the red. The dot
+ * stays; a non-OK state is also written out, so nothing depends on the
+ * tooltip, and the whole item carries its state as an accessible name.
+ */
 function StatusDot({ label, ok }: { label: string; ok: boolean | null }) {
   const color = statusDotColor(ok);
   const text = statusDotText(label, ok);
+  let suffix = '';
+  if (ok === null) {
+    suffix = ' · checking';
+  } else if (!ok) {
+    suffix = ' · down';
+  }
 
   return (
     <Tooltip title={text} placement="top">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'default' }}>
+      <div
+        role="img"
+        aria-label={text}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'default' }}
+      >
         <span
           style={{
             width: 8,
@@ -56,6 +73,7 @@ function StatusDot({ label, ok }: { label: string; ok: boolean | null }) {
         />
         <span style={{ fontSize: 11, color: NEXORA_GREY[400], fontFamily: "'JetBrains Mono', monospace" }}>
           {label}
+          {suffix}
         </span>
       </div>
     </Tooltip>
@@ -97,6 +115,8 @@ export function PlatformFooter() {
 
   return (
     <div
+      role="region"
+      aria-label="Service status"
       style={{
         position: 'fixed',
         bottom: 0,

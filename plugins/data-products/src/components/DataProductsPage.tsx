@@ -156,7 +156,13 @@ export function DataProductsPage() {
                         }
                       >
                         <TableCell className={classes.nameCell}>
-                          {product.title}
+                          {/* NXD-095: the keyboard-reachable way in. */}
+                          <Link
+                            to={`/data-products/${product.name}`}
+                            onClick={event => event.stopPropagation()}
+                          >
+                            {product.title}
+                          </Link>
                           {catalogClassLabel(product)
                             ? ` · ${catalogClassLabel(product)}`
                             : ''}

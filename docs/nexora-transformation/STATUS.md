@@ -39,6 +39,11 @@ four quick wins F1–F4, one commit and one record each.
   converted. The approval page was worse than reported: a failed approval
   lookup showed "No approval workflow active" and offered **Create
   baseline**. See [`NXD-094`](DECISIONS.md).
+- **F2 — the keyboard gets a way in.** The wizard's first, mandatory step
+  could not be completed without a mouse (a `readOnly` checkbox inside a
+  clickable card). Clickable table rows gain real links, icon-only buttons
+  get names, the footer status stops being colour-only, and a guard test
+  keeps two of those rules from regressing. See [`NXD-095`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

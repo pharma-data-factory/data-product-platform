@@ -204,6 +204,7 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
                   size="small"
                   onClick={() => handleDeleteRequirement(idx)}
                   title="Delete requirement"
+                  aria-label={`Delete requirement ${idx + 1}`}
                 >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
@@ -418,10 +419,16 @@ export const RequirementsStep: FC<RequirementsStepProps> = ({ state, onStateChan
               >
                 <CardContent style={{ padding: '8px 16px', paddingBottom: 8 }}>
                   <Box style={{ display: 'flex', alignItems: 'flex-start' }}>
+                    {/* Space on a checkbox dispatches a click that bubbles
+                        to the card, so the keyboard already toggles it; what
+                        was missing is a name for a screen reader. */}
                     <Checkbox
                       checked={selectedIndices.has(idx)}
                       color="primary"
                       style={{ padding: 4 }}
+                      inputProps={{
+                        'aria-label': `Select suggestion: ${suggestion.title}`,
+                      }}
                     />
                     <Box style={{ flex: 1 }}>
                       <Typography variant="subtitle2">{suggestion.title}</Typography>

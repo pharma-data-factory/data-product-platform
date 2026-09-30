@@ -5121,3 +5121,67 @@ fourth is the honest empty state, which must pass on both.
   (new), `packages/app/src/modules/products/ProductDetailPage.tsx`,
   `packages/app/src/modules/products/tabs/RequirementsTab.tsx`,
   `packages/app/src/modules/products/ProductDetailPage.test.tsx`.
+
+### NXD-095 — The keyboard gets a way in, and the wizard's first step could not be completed without a mouse
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 4 (frontend) — F2
+- Closes: re-audit finding U7, partially (keyboard and screen-reader access
+  on the named surfaces; axe in CI is F4's).
+
+The recount at `7fb817b` found 0 `onKeyDown`, 0 `tabIndex` and 1
+`aria-live` across the frontend. That alone is not a defect — native
+controls need none of them — but it meant nothing had compensated where
+native controls were **not** used.
+
+**The finding the audit did not have.** `BusinessCapabilityStep` rendered
+each capability as a clickable `Card` with a `Checkbox` marked `readOnly`
+inside it. The card's `onClick` was the only way to select; the checkbox
+was focusable and inert. Selecting a capability is the wizard's first,
+mandatory step, so **a URS could not be started from a keyboard at all.**
+The checkbox now changes the selection itself and carries
+`Select <capability>` as its name; the label's existing
+`stopPropagation` keeps the card from toggling it straight back, which the
+test pins by asserting exactly one state change.
+
+**Clickable rows.** `ReleaseCatalogPage`, `DataProductsPage` and
+`MarketplacePage` opened an item only through `<tr onClick>`, which is not
+focusable and announces nothing. The name cell is now a real link to the
+same route; the row click stays as the mouse shortcut, and the link stops
+propagation so a click does not navigate twice.
+
+**Icon-only buttons.** Three relied on `title`, which is not a dependable
+accessible name: version history on the approval page (now also
+`aria-expanded`), and delete requirement / delete criterion in the wizard,
+whose names now say *which* requirement or criterion. The AI-suggestion
+checkboxes get names too; they were already keyboard-operable, because
+Space on a checkbox dispatches a click that bubbles to the card.
+
+**Service status.** The footer's health was the colour of an 8px dot, with
+the words in a tooltip on an element nothing could focus. A non-OK state is
+now written out (`· down`, `· checking`), and each item is `role="img"` with
+its state as the name inside a named region. A first version also made
+each item focusable so the tooltip could be reached; `jsx-a11y` rejected
+`tabIndex` on a non-interactive element, and it was right — once the state
+is visible text, the tooltip carries nothing that needs reaching.
+
+**A guard, because these regress silently.** `frontendAccessibility.test.ts`
+scans every frontend `.tsx` for an `IconButton` without `aria-label` and a
+`readOnly` `Checkbox`. Run against the pre-change files it reports all four
+defects fixed here; against the tree it reports none. A text scan is a
+stopgap for an axe run, not a substitute: it knows two rules.
+
+**Not done.** `DataProductsPage`'s in-row *Docs* link and other clickable
+cards were not audited one by one; only the surfaces the re-audit named and
+the ones found while fixing them.
+
+- Affected components:
+  `plugins/urs-composer/src/components/CreateWizard/steps/BusinessCapabilityStep.tsx`
+  (+ test), `.../steps/RequirementsStep.tsx`,
+  `.../steps/AcceptanceCriteriaStep.tsx`,
+  `plugins/urs-composer/src/pages/URSRequirementSetPage.tsx`,
+  `packages/app/src/modules/releases/ReleaseCatalogPage.tsx` (+ test),
+  `plugins/data-products/src/components/DataProductsPage.tsx`,
+  `plugins/marketplace/src/components/MarketplacePage.tsx`,
+  `packages/app/src/modules/nav/PlatformFooter.tsx` (+ new test),
+  `packages/backend/src/frontendAccessibility.test.ts` (new).

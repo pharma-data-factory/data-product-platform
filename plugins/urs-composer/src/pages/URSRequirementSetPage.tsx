@@ -1048,6 +1048,12 @@ export const URSRequirementSetPage: FC = () => {
                                     handleToggleVersionHistory(logicalId)
                                   }
                                   title="Version History"
+                                  aria-label={
+                                    isExpanded
+                                      ? 'Hide version history'
+                                      : 'Show version history'
+                                  }
+                                  aria-expanded={isExpanded}
                                 >
                                   {isExpanded ? (
                                     <ExpandLessIcon />
