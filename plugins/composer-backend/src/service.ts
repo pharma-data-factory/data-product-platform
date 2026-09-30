@@ -1223,14 +1223,18 @@ export class ComposerService {
       throw new NotFoundError(`Product version ${productVersionId} not found`);
     }
 
-    const [specs, requirements, components, allLinks] = await Promise.all([
+    const [specs, requirements, components] = await Promise.all([
       this.repository.listFunctionalSpecifications(productVersionId),
       this.repository.listProductRequirements(productVersionId),
       this.repository.listProductComponents(productVersionId),
-      this.repository.listTraceabilityLinks(),
     ]);
 
     const componentIds = new Set(components.map(component => component.id));
+    // Both filters below require the target to be one of these components,
+    // so links touching them are a superset of everything either can accept.
+    const allLinks = await this.repository.listTraceabilityLinks([
+      ...componentIds,
+    ]);
     const byVersionId = new Map(
       requirements.map(requirement => [
         requirement.ursRequirementVersionId,
@@ -1307,7 +1311,11 @@ export class ComposerService {
     const components =
       await this.repository.listProductComponents(productVersionId);
     const componentIds = new Set(components.map(component => component.id));
-    const allLinks = await this.repository.listTraceabilityLinks();
+    // `linked` below requires the target to be one of these components, and
+    // nothing reads the requirement links before that filter.
+    const allLinks = await this.repository.listTraceabilityLinks([
+      ...componentIds,
+    ]);
 
     // MVP1-B (B-4c). Evidence rows for every key this version's requirements
     // answer to. Both keys, because `ingestTestExecution` accepts either and
@@ -1573,8 +1581,10 @@ export class ComposerService {
         message: 'Version must have at least one component',
       });
     }
-    const allLinks = await this.repository.listTraceabilityLinks();
     const componentIds = new Set(components.map(c => c.id));
+    const allLinks = await this.repository.listTraceabilityLinks([
+      ...componentIds,
+    ]);
     const linkedComponentIds = new Set(
       allLinks
         .filter(l => componentIds.has(l.sourceId) || componentIds.has(l.targetId))
@@ -1862,7 +1872,9 @@ export class ComposerService {
     for (const comp of components) {
       contracts.push(...(await this.repository.listDataContracts(comp.id)));
     }
-    const links = (await this.repository.listTraceabilityLinks()).filter(
+    const links = (
+      await this.repository.listTraceabilityLinks(components.map(c => c.id))
+    ).filter(
       l =>
         components.some(c => c.id === l.sourceId) ||
         components.some(c => c.id === l.targetId),
@@ -2362,7 +2374,10 @@ export class ComposerService {
       productVersionId,
     );
     const specIds = new Set(specs.map(s => s.id));
-    const allLinks = await this.repository.listTraceabilityLinks();
+    const allLinks = await this.repository.listTraceabilityLinks([
+      ...componentIds,
+      ...specIds,
+    ]);
 
     return {
       generatedAt: new Date(),
@@ -2415,7 +2430,9 @@ export class ComposerService {
       );
     }
     const componentIds = new Set(components.map(c => c.id));
-    const allLinks = await this.repository.listTraceabilityLinks();
+    const allLinks = await this.repository.listTraceabilityLinks([
+      ...componentIds,
+    ]);
     const links = allLinks.filter(
       link =>
         componentIds.has(link.targetId) || componentIds.has(link.sourceId),

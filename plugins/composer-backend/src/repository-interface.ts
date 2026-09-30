@@ -126,11 +126,23 @@ export interface IComposerRepository {
   /**
    * Resolve one link by id. Added so `deleteTraceabilityLink` can refuse an id
    * that does not exist instead of reporting success for it — `listTraceability
-   * Links()` is an unbounded full-table read and is not a substitute. NXD-072.
+   * Links()` was an unbounded full-table read then and is not a substitute.
+   * NXD-072.
    */
   getTraceabilityLink(id: string): Promise<TraceabilityLink | null>;
   deleteTraceabilityLink(id: string): Promise<void>;
-  listTraceabilityLinks(): Promise<TraceabilityLink[]>;
+  /**
+   * Every link whose source **or** target is one of `entityIds`. NXD-093.
+   *
+   * There is deliberately no unscoped variant. The previous signature read
+   * the whole table and six service paths filtered it in memory, including
+   * the release gate and the evidence package. Callers pass the ids their own
+   * filters key on and keep those filters, so the result is a bounded
+   * superset of what they used before, not a reinterpretation of it.
+   */
+  listTraceabilityLinks(
+    entityIds: readonly string[],
+  ): Promise<TraceabilityLink[]>;
 
   createTestExecution(execution: TestExecution): Promise<TestExecution>;
   getTestExecution(id: string): Promise<TestExecution | null>;

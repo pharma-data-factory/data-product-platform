@@ -49,6 +49,11 @@ and one record each.
   refuse `UPDATE`, `DELETE` and `TRUNCATE` by trigger, as the URS trail has
   refused the first two since `NXD-064`. Proven on PostgreSQL. See
   [`NXD-092`](DECISIONS.md).
+- **W1 — traceability links are scoped in the database.**
+  `listTraceabilityLinks` takes the ids a caller asks about and has no
+  unscoped form. The existing pair indexes lead with the type and could not
+  serve an id-only lookup — `EXPLAIN` showed a sequential scan — so two
+  single-column indexes were added. See [`NXD-093`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

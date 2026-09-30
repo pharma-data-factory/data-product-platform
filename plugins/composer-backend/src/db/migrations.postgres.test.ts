@@ -535,4 +535,32 @@ describe('composer migration on PostgreSQL', () => {
       .count<{ count: string }[]>({ count: '*' });
     expect(Number(count[0].count)).toBe(2);
   }, 60000);
+
+  it('indexes link lookups by id on either end (NXD-093)', async () => {
+    if (!available) {
+      console.warn('Skipping composer lookup index test: no database.');
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+    await up(database);
+
+    const rows = await database('pg_indexes')
+      .select('indexname', 'indexdef')
+      .where({ schemaname: SCHEMA, tablename: 'traceability_links' });
+    const byName = new Map(
+      rows.map((r: { indexname: string; indexdef: string }) => [
+        r.indexname,
+        r.indexdef,
+      ]),
+    );
+    // Single-column, not led by the type: the pair indexes cannot be entered
+    // on the id alone, which is the whole reason these exist.
+    expect(byName.get('traceability_links_source_id_idx')).toMatch(
+      /\(source_id\)$/,
+    );
+    expect(byName.get('traceability_links_target_id_idx')).toMatch(
+      /\(target_id\)$/,
+    );
+  }, 60000);
 });

@@ -584,8 +584,20 @@ export class ComposerRepository implements IComposerRepository {
     await this.db('traceability_links').where({ id }).del();
   }
 
-  async listTraceabilityLinks(): Promise<TraceabilityLink[]> {
-    const rows = await this.db('traceability_links').select();
+  async listTraceabilityLinks(
+    entityIds: readonly string[],
+  ): Promise<TraceabilityLink[]> {
+    if (entityIds.length === 0) {
+      return [];
+    }
+    const ids = [...new Set(entityIds)];
+    // Served by traceability_links_source_id_idx / _target_id_idx. The
+    // (source_type, source_id) pair indexes cannot be entered on the id
+    // alone, which EXPLAIN showed as a sequential scan (NXD-093).
+    const rows = await this.db('traceability_links')
+      .whereIn('source_id', ids)
+      .orWhereIn('target_id', ids)
+      .select();
     return rows.map((r: any) => this.rowToTraceabilityLink(r));
   }
 

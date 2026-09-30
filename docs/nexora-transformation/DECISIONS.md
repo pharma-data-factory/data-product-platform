@@ -4990,3 +4990,58 @@ not pass) and that inserting still works.
   `plugins/users-backend/src/db/migrations.ts`,
   `plugins/users-backend/src/db/migrations.postgres.test.ts` (new),
   `docs/compliance/traceability-and-gmp.md`.
+
+### NXD-093 — Traceability links are scoped in the database, and the index the audit counted on could not serve it
+
+- Date: 2026-09-30
+- Slice: maturity-audit remediation, wave 3 — quick win W1 of the re-audit of
+  2026-09-30
+- Closes: re-audit finding W1 (the whole traceability table read on every
+  call).
+
+`ComposerRepository.listTraceabilityLinks()` was `select()` on
+`traceability_links`, unfiltered, and six service paths called it and
+filtered in memory: the functional-spec trace, requirement coverage, the
+release gate, baseline snapshots, the evidence package and product
+traceability. Memory and latency grew with the number of links across
+**every** product, for questions about one version.
+
+**The signature changes; there is no unscoped variant left.**
+`listTraceabilityLinks(entityIds)` returns every link whose source **or**
+target is one of the given ids. Each caller passes the ids its own filter
+keys on — component ids everywhere, plus functional-spec ids for the
+evidence package — and **keeps that filter**. The result is a bounded
+superset of what each filter accepted before, so the answer is preserved by
+construction rather than by re-deriving six filters. The reasoning is
+written at each call site; for coverage and the functional-spec trace it
+rests on every accepted link having a component as its target, which the
+code checks and the comment names. An empty id list answers no links, not
+all of them.
+
+**The audit's premise was wrong, and measuring it was the only way to know.**
+The finding said composite indexes on source and target "already exist". They
+do: `(source_type, source_id)` and `(target_type, target_id)`. Both lead with
+the type, and the lookup does not know the types — a component can be either
+end of a link. `EXPLAIN` against PostgreSQL 16 with 300,000 links planned a
+**parallel sequential scan** for `source_id = ANY(…) OR target_id = ANY(…)`
+with only those indexes. Filtering in SQL alone would have moved the full
+read from Node into the database and called it fixed. Two single-column
+indexes, `traceability_links_source_id_idx` and `_target_id_idx`, turn the
+same query into a `BitmapOr` of two index scans. `create index if not exists`,
+so one statement serves both dialects; purely additive.
+
+**Not done.** The in-memory filters stay, redundant for most callers now,
+because removing them is a behaviour argument per call site and not this
+record's. `whereIn` is not chunked, matching `listTestExecutions` beside it;
+a version with more than ~32,000 components would reach PostgreSQL's
+parameter limit, which is not a shape this domain has. The remaining N+1
+chains in lineage and artifact impact (re-audit W2) are untouched.
+
+- Affected components:
+  `plugins/composer-backend/src/repository-interface.ts`,
+  `plugins/composer-backend/src/repository.ts`,
+  `plugins/composer-backend/src/service.ts`,
+  `plugins/composer-backend/src/db/migrations.ts`,
+  `plugins/composer-backend/src/db/migrations.postgres.test.ts`,
+  `plugins/composer-backend/src/traceabilityLookup.test.ts` (new),
+  `plugins/composer-backend/src/evidencePackage.test.ts` (comment).

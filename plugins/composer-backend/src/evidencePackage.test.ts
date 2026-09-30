@@ -266,7 +266,8 @@ describe('evidence package', () => {
   describe('scope', () => {
     it('carries only this version traceability, not the whole product', async () => {
       // The one non-trivial thing the aggregator does. `listTraceabilityLinks`
-      // returns every link in the database and the package filters it down;
+      // is scoped to this version's components and specs since NXD-093, and
+      // the package still applies its own filter on top;
       // `getProductTraceability` deliberately does not, because it answers a
       // different question. Getting this backwards puts another version's
       // evidence into this version's attestation, which in a regulated record

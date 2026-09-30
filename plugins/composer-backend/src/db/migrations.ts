@@ -632,7 +632,32 @@ export async function up(knex: Knex): Promise<void> {
 
   await createFunctionalSpecIndexes(knex);
   await addTraceabilityIntegrity(knex);
+  await createTraceabilityLookupIndexes(knex);
   await makeAuditTrailAppendOnly(knex);
+}
+
+/**
+ * NXD-093. Link lookups by id alone, on either end.
+ *
+ * `listTraceabilityLinks` asks "which links touch these entities" without
+ * knowing their types. The `(source_type, source_id)` and
+ * `(target_type, target_id)` indexes lead with the type, so PostgreSQL
+ * cannot enter them on the id and planned a sequential scan of the whole
+ * table; with these two it plans a BitmapOr of two index scans. Plain
+ * `if not exists` so one statement covers both dialects.
+ */
+async function createTraceabilityLookupIndexes(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('traceability_links'))) {
+    return;
+  }
+  await knex.raw(
+    'create index if not exists traceability_links_source_id_idx ' +
+      'on traceability_links (source_id)',
+  );
+  await knex.raw(
+    'create index if not exists traceability_links_target_id_idx ' +
+      'on traceability_links (target_id)',
+  );
 }
 
 /**
