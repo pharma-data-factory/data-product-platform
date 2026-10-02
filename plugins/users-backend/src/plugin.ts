@@ -13,6 +13,7 @@ import { CatalogUserProjection } from './entityProvider';
 import { applyGuestGroups } from './guestRole';
 import { applyDemoUsers, readDemoUsers } from './demoUsers';
 import { normalizeBootstrapAdmin, seed } from './db/seeds';
+import { parseGithubTeamSyncConfig } from './githubTeamSync';
 
 /** Committed first-install content. Read once, when the table is empty. */
 const SEED_FILE = '../../catalog/users.seed.yaml';
@@ -48,6 +49,22 @@ export const usersBackendPlugin = createBackendPlugin({
         auth,
         catalog,
       }) {
+        // NXD-108. Validated before anything else touches the database, so a
+        // urs-* group in the mapping stops the backend instead of starting a
+        // half-configured one. The reconciler itself is not wired yet.
+        const teamSync = parseGithubTeamSyncConfig(
+          config.getOptional('users.githubTeamSync'),
+        );
+        if (teamSync?.enabled) {
+          logger.info(
+            `GitHub team sync configured for ${teamSync.organization}: ` +
+              `${Object.entries(teamSync.teams)
+                .map(([group, team]) => `${group} → ${team}`)
+                .join(', ')}. The reconciler is not part of this build yet; ` +
+              'nothing is written to GitHub.',
+          );
+        }
+
         const repository = await UsersRepository.create(database);
 
         // Migrate, then seed once. A restart must never rewrite a role an

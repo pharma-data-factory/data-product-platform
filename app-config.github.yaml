@@ -19,3 +19,25 @@ integrations:
           clientSecret: ${GITHUB_CLIENT_SECRET}
           privateKey: ${GITHUB_PRIVATE_KEY}
           webhookSecret: ${GITHUB_WEBHOOK_SECRET:-}
+
+users:
+  # NXD-108. Keeps GitHub team membership in step with Nexora platform roles.
+  # Opt-in per installation and off by default; while off, Nexora asks GitHub
+  # for nothing new. When on, the GitHub App above additionally needs
+  # Organization → Members: read & write, and every team below must exist.
+  #
+  # Keys are Nexora platform groups, values GitHub team slugs. URS approval
+  # groups (urs-*) are refused and stop the backend: approval roles are
+  # granted only in Nexora (NXD-107).
+  #
+  # This build validates the mapping; the reconciler is the next slice.
+  githubTeamSync:
+    enabled: ${GITHUB_TEAM_SYNC_ENABLED:-false}
+    organization: ${GITHUB_ORG:-pharma-data-factory}
+    schedule:
+      frequency: { minutes: 15 }
+      timeout: { minutes: 5 }
+    teams:
+      data-product-developers: nexora-developers
+      data-product-owners: nexora-owners
+      platform-admins: nexora-admins

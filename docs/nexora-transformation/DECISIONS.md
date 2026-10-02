@@ -5873,3 +5873,69 @@ scheduled until that block is lifted. Revisit then.
   `.env.example`, `app-config.p1a-test.yaml` (removed), `README.md`,
   `docs/identity-and-rbac.md`, `docs/operations/pilot-runbook.md`,
   `docs/deployment/portainer.md`.
+
+### NXD-110 — GitHub team sync, part 1: the mapping is validated and the client exists, nothing writes to GitHub yet
+
+- Date: 2026-10-02
+- Slice: users-backend — first part of NXD-108
+
+This is the groundwork the reconciler will stand on. It adds no behaviour a
+user can see. While `GITHUB_TEAM_SYNC_ENABLED` is unset, nothing changes.
+
+**Configuration and guardrail.** `app-config.github.yaml` gains
+`users.githubTeamSync`: `enabled` (default `false`), `organization` (from
+`GITHUB_ORG`), `schedule`, and `teams`, which maps platform groups to GitHub
+team slugs. `parseGithubTeamSyncConfig` reads the raw value, the pattern
+`readDemoUsers` set. It runs first in the users plugin's init, before the
+database is touched.
+
+A `urs-*` key in `teams` throws, and the backend does not start. Matching
+ignores case. The check runs even while the sync is disabled, because a
+mapping that is wrong while switched off is still wrong the day someone
+switches it on. The message names every offending group and NXD-107.
+
+**Client.** `githubTeams.ts` makes the four calls and nothing else:
+
+- list members, `GET …/members`
+- list invitations, `GET …/invitations`
+- add, `PUT …/memberships/{user}`
+- remove, `DELETE …/memberships/{user}`
+
+It follows `data-products-backend/githubActions.ts`:
+
+- credentials come from `DefaultGithubCredentialsProvider`, which picks the
+  App installation for the organization URL;
+- requests use native `fetch`;
+- a result names the reason instead of throwing.
+
+The reasons are 404 `not-found`, 401/403 `forbidden`, 422 `not-in-org`, and
+everything else `unavailable`. GitHub's own message is kept for
+`last_error`. Lists are paged at 100 per page, up to 50 pages.
+`createGithubTeamsClientFromConfig` takes the API base URL from the
+integration, so GitHub Enterprise works.
+
+**State table.** `github_team_sync_state` has one row per `(user_id,
+team_slug)`:
+
+- `status` is one of `active`, `invited`, `not_in_org`, `error`;
+- `last_checked` and a nullable `last_error` record the last check.
+
+It records what the reconciler last saw, not what it did, which belongs to
+`user_audit_events`. So it is mutable and not append-only. There is no
+foreign key to `platform_users`: a removed user's row has to outlive the
+account until the team membership is gone.
+
+**Dependency.** `@backstage/integration` `^2.0.3` is declared in
+`plugins/users-backend/package.json`. The repository already resolved that
+range for data-products-backend, so `yarn.lock` gains one workspace line and
+no new package (AGENTS.md dependency governance: existing dependency reused).
+
+**Next (part 2).** The reconciler, run on `coreServices.scheduler` and after
+each change in `/api/users`, with removal first and an audit entry for every
+change in GitHub. Then the status API and the GitHub column in Admin →
+Users & Roles.
+
+- Affected components: `app-config.github.yaml`,
+  `plugins/users-backend/src/{githubTeamSync.ts,githubTeams.ts,plugin.ts,db/migrations.ts}`
+  and the tests `githubTeamSync.test.ts`, `githubTeams.test.ts`,
+  `db/migrations.test.ts`.

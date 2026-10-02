@@ -102,10 +102,14 @@ four quick wins F1–F4, one commit and one record each.
   onboarding docs describe Admin → Users & Roles. AWS Marketplace stays a
   test integration until distribution is approved. See
   [`NXD-109`](DECISIONS.md).
-- **Next slice — NXD-108 GitHub team reconciler.** Opt-in per installation:
-  platform role → configured team, periodic reconcile, removal first,
-  invited/active/drift shown in Admin → Users & Roles, every change in
-  `user_audit_events`.
+- **NXD-108 GitHub team sync, part 1.** `users.githubTeamSync` in
+  `app-config.github.yaml` (off by default), validated at startup; a
+  `urs-*` group stops the backend. GitHub team client (four calls, App
+  credentials, native `fetch`) and the `github_team_sync_state` table.
+  Nothing writes to GitHub yet. See [`NXD-110`](DECISIONS.md).
+- **Next slice — NXD-108 part 2, the reconciler.** Scheduled and on each
+  user change, removal first, every change in `user_audit_events`; status
+  API and GitHub column in Admin → Users & Roles.
 
 ## Previous Vertical Slices
 

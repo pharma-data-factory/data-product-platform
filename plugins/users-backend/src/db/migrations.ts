@@ -64,6 +64,27 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // NXD-108. Current state of the GitHub team reconciler, one row per user
+  // and team: what it last saw, not what it did — what it did goes to
+  // user_audit_events. Mutable on purpose, so it is not append-only, and safe
+  // to lose: the next run rebuilds it from GitHub.
+  if (!(await knex.schema.hasTable('github_team_sync_state'))) {
+    await knex.schema.createTable('github_team_sync_state', table => {
+      // The GitHub login, which is also platform_users.name. Not a foreign
+      // key: removing a user must leave the row until the reconciler has
+      // taken them out of the team and recorded it.
+      table.text('user_id').notNullable();
+      table.text('team_slug').notNullable();
+      table
+        .enu('status', ['active', 'invited', 'not_in_org', 'error'])
+        .notNullable();
+      table.timestamp('last_checked').notNullable().defaultTo(knex.fn.now());
+      table.text('last_error').nullable();
+
+      table.primary(['user_id', 'team_slug']);
+    });
+  }
+
   await makeAuditTrailsAppendOnly(knex);
 }
 
@@ -109,6 +130,7 @@ async function makeAuditTrailsAppendOnly(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('github_team_sync_state');
   await knex.schema.dropTableIfExists('user_sign_in_events');
   await knex.schema.dropTableIfExists('user_audit_events');
   await knex.schema.dropTableIfExists('platform_users');
