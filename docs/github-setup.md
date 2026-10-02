@@ -118,6 +118,42 @@ Minimum permissions for this Golden Path:
 
 Do not grant organization admin, delete-repo, or unrelated write permissions.
 
+### Optional: GitHub team sync (NXD-108)
+
+Only when `GITHUB_TEAM_SYNC_ENABLED=true`. Nexora then keeps GitHub team
+membership in step with platform roles, as configured under
+`users.githubTeamSync.teams` in `app-config.github.yaml`.
+
+| Permission | Access | Why |
+| --- | --- | --- |
+| Organization → Members | Read and write | List team members and invitations, add and remove team memberships |
+
+Before enabling it:
+
+1. Create every team named in `teams`, for example `nexora-developers`,
+   `nexora-owners` and `nexora-admins`. Nexora never creates teams.
+2. Grant those teams access to the generated repositories in GitHub.
+3. Set `GITHUB_TEAM_SYNC_ENABLED=true` and restart.
+
+What it does and does not do:
+
+- **Who it touches.** Only people Nexora manages: a Nexora user record, or a
+  login it synced into the team before. Other members of a team are
+  reported as *unmanaged* and left alone.
+- **Order.** Removal runs before addition. Removing or demoting a user takes
+  them out of the team on the next run, and right after the change in Admin →
+  Users & Roles.
+- **Invitations.** A person who is not yet in the organization gets an
+  invitation from GitHub and shows as *invited* until they accept. If GitHub
+  refuses the invitation, they show as *not in org*.
+- **Approval roles never cross over.** A `urs-*` group in `teams` stops the
+  backend from starting (NXD-107).
+- **Audit.** Every change is in the user audit trail as `GITHUB_TEAM_ADDED` /
+  `GITHUB_TEAM_REMOVED`, with actor `system:github-team-sync`.
+
+Without the Members permission GitHub answers 403. Each team then shows
+*error* with "forbidden" on the admin page, and nothing else is affected.
+
 Install the App with **All repositories** so newly created repositories are
 included.
 

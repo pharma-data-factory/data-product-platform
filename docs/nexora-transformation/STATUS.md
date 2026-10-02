@@ -107,9 +107,13 @@ four quick wins F1–F4, one commit and one record each.
   `urs-*` group stops the backend. GitHub team client (four calls, App
   credentials, native `fetch`) and the `github_team_sync_state` table.
   Nothing writes to GitHub yet. See [`NXD-110`](DECISIONS.md).
-- **Next slice — NXD-108 part 2, the reconciler.** Scheduled and on each
-  user change, removal first, every change in `user_audit_events`; status
-  API and GitHub column in Admin → Users & Roles.
+- **NXD-108 GitHub team sync, part 2 — complete.** The reconciler runs on
+  the scheduler (one global, locked task, every 15 minutes) and right after
+  every role change. It removes before it adds, only touches logins Nexora
+  manages, and isolates failures per team. Every change goes to
+  `user_audit_events`. `GET/POST /api/users/github-sync[/run]`; banner and
+  per-user team chips in Admin → Users & Roles. Off by default. See
+  [`NXD-111`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

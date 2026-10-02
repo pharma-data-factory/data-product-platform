@@ -19,6 +19,7 @@ import { listenOnFetchablePort } from '@internal/backend-test-utils';
 
 import { createRouter } from './router';
 import { UsersRepository } from './repository';
+import type { TeamSyncController } from './teamSyncController';
 
 const ADMIN = 'user:default/platform-admin';
 
@@ -82,7 +83,7 @@ describe('users-backend router', () => {
     await db?.destroy();
   });
 
-  async function app() {
+  async function app(teamSync?: TeamSyncController) {
     const router = await createRouter({
       logger: {
         warn: jest.fn(),
@@ -95,6 +96,7 @@ describe('users-backend router', () => {
       permissions: permissions as never,
       repository,
       projection,
+      teamSync,
     });
     return express().use(router);
   }
@@ -121,14 +123,19 @@ describe('users-backend router', () => {
       ['DELETE', '/someone'],
       ['GET', '/audit'],
       ['GET', '/signins'],
-    ] as [Method, string][])('rejects %s %s when denied', async (method, urlPath) => {
-      decision = AuthorizeResult.DENY;
+      ['GET', '/github-sync'],
+      ['POST', '/github-sync/run'],
+    ] as [Method, string][])(
+      'rejects %s %s when denied',
+      async (method, urlPath) => {
+        decision = AuthorizeResult.DENY;
 
-      const res = await call(await app(), method, urlPath, { login: 'x' });
+        const res = await call(await app(), method, urlPath, { login: 'x' });
 
-      expect(res.status).toBe(403);
-      expect(res.body).toEqual({ error: 'Forbidden' });
-    });
+        expect(res.status).toBe(403);
+        expect(res.body).toEqual({ error: 'Forbidden' });
+      },
+    );
 
     it('writes nothing when denied', async () => {
       decision = AuthorizeResult.DENY;
@@ -168,7 +175,11 @@ describe('users-backend router', () => {
 
       const audit: any[] = await auditRecords();
       expect(audit).toHaveLength(1);
-      expect(audit[0]).toMatchObject({ actor: ADMIN, action: 'CREATED', entity: 'ada' });
+      expect(audit[0]).toMatchObject({
+        actor: ADMIN,
+        action: 'CREATED',
+        entity: 'ada',
+      });
 
       expect(refresh).toHaveBeenCalledTimes(1);
     });
@@ -321,6 +332,72 @@ describe('users-backend router', () => {
       decision = AuthorizeResult.DENY;
       const res = await call(await app(), 'GET', '/signins', undefined);
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('GitHub team sync (NXD-108)', () => {
+    function enabledSync(): TeamSyncController & {
+      trigger: jest.Mock;
+      status: jest.Mock;
+    } {
+      return {
+        enabled: true,
+        trigger: jest.fn(async () => 'triggered' as const),
+        status: jest.fn(async () => ({
+          enabled: true,
+          organization: 'pharma-data-factory',
+          teams: { 'platform-admins': 'nexora-admins' },
+          lastRun: null,
+          states: [],
+        })),
+      };
+    }
+
+    it('reports the sync as off when it is not configured', async () => {
+      const res = await call(await app(), 'GET', '/github-sync');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ enabled: false });
+    });
+
+    it('refuses a manual run with 409 while the sync is off', async () => {
+      const res = await call(await app(), 'POST', '/github-sync/run');
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/not enabled/);
+    });
+
+    it('returns the status and starts a run when enabled', async () => {
+      const sync = enabledSync();
+      const status = await call(await app(sync), 'GET', '/github-sync');
+      expect(status.body).toMatchObject({
+        enabled: true,
+        organization: 'pharma-data-factory',
+      });
+
+      const run = await call(await app(sync), 'POST', '/github-sync/run');
+      expect(run.status).toBe(202);
+      expect(run.body).toEqual({ result: 'triggered' });
+      expect(sync.trigger).toHaveBeenCalledTimes(1);
+    });
+
+    it('triggers a sync after every role change: create, update, delete', async () => {
+      const sync = enabledSync();
+      const server = await app(sync);
+
+      await call(server, 'POST', '/', {
+        login: 'newdev',
+        memberOf: ['data-product-developers'],
+      });
+      await call(server, 'PUT', '/newdev', { memberOf: ['platform-viewers'] });
+      await call(server, 'DELETE', '/newdev');
+
+      expect(sync.trigger).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not trigger when the change was refused', async () => {
+      const sync = enabledSync();
+      decision = AuthorizeResult.DENY;
+      await call(await app(sync), 'POST', '/', { login: 'mallory' });
+      expect(sync.trigger).not.toHaveBeenCalled();
     });
   });
 });

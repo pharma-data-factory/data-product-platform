@@ -20,10 +20,31 @@ export interface UserAuditRecord {
   id: string;
   timestamp: Date;
   actor: string;
-  action: 'CREATED' | 'UPDATED' | 'REMOVED';
+  /**
+   * The GITHUB_TEAM_* actions are written by the team reconciler (NXD-108)
+   * with actor `system:github-team-sync`: what Nexora changed in GitHub, on
+   * whose role, belongs in the same trail as the role change that caused it.
+   */
+  action:
+    | 'CREATED'
+    | 'UPDATED'
+    | 'REMOVED'
+    | 'GITHUB_TEAM_ADDED'
+    | 'GITHUB_TEAM_REMOVED';
   entity: string;
   oldValue?: unknown;
   newValue?: unknown;
+}
+
+export type TeamSyncStatus = 'active' | 'invited' | 'not_in_org' | 'error';
+
+/** One row of `github_team_sync_state`: what the reconciler last saw. */
+export interface TeamSyncStateRecord {
+  userId: string;
+  teamSlug: string;
+  status: TeamSyncStatus;
+  lastChecked: Date;
+  lastError?: string;
 }
 
 export interface SignInRecord {
@@ -62,7 +83,9 @@ export class UsersRepository {
   }
 
   async listUsers(): Promise<PlatformUserRecord[]> {
-    const rows = await this.db('platform_users').orderBy('name', 'asc').select();
+    const rows = await this.db('platform_users')
+      .orderBy('name', 'asc')
+      .select();
     return rows.map(toRecord);
   }
 
@@ -148,6 +171,46 @@ export class UsersRepository {
       oldValue: r.old_value ? JSON.parse(r.old_value) : undefined,
       newValue: r.new_value ? JSON.parse(r.new_value) : undefined,
     }));
+  }
+
+  async listTeamSyncState(): Promise<TeamSyncStateRecord[]> {
+    const rows = await this.db('github_team_sync_state')
+      .orderBy([
+        { column: 'user_id', order: 'asc' },
+        { column: 'team_slug', order: 'asc' },
+      ])
+      .select();
+    return rows.map(row => ({
+      userId: row.user_id,
+      teamSlug: row.team_slug,
+      status: row.status,
+      lastChecked: new Date(row.last_checked),
+      lastError: row.last_error ?? undefined,
+    }));
+  }
+
+  async upsertTeamSyncState(record: {
+    userId: string;
+    teamSlug: string;
+    status: TeamSyncStatus;
+    lastError?: string;
+  }): Promise<void> {
+    await this.db('github_team_sync_state')
+      .insert({
+        user_id: record.userId,
+        team_slug: record.teamSlug,
+        status: record.status,
+        last_checked: new Date(),
+        last_error: record.lastError ?? null,
+      })
+      .onConflict(['user_id', 'team_slug'])
+      .merge();
+  }
+
+  async deleteTeamSyncState(userId: string, teamSlug: string): Promise<void> {
+    await this.db('github_team_sync_state')
+      .where({ user_id: userId, team_slug: teamSlug })
+      .delete();
   }
 
   async appendSignIn(actor: string, provider: string): Promise<void> {

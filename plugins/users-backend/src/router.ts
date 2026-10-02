@@ -1,6 +1,6 @@
 import express from 'express';
 import Router from 'express-promise-router';
-import { InputError, NotAllowedError } from '@backstage/errors';
+import { ConflictError, InputError, NotAllowedError } from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
@@ -12,6 +12,7 @@ import { platformUserManagePermission } from '@internal/platform-common';
 import type { PlatformUserRecord, UsersRepository } from './repository';
 import { toUserEntity } from './entityProvider';
 import type { CatalogUserProjection } from './entityProvider';
+import { disabledTeamSync, TeamSyncController } from './teamSyncController';
 
 interface RouterOptions {
   logger: LoggerService;
@@ -19,6 +20,8 @@ interface RouterOptions {
   permissions: PermissionsService;
   repository: UsersRepository;
   projection: CatalogUserProjection;
+  /** NXD-108. Absent or disabled: the GitHub sync routes report "off". */
+  teamSync?: TeamSyncController;
 }
 
 /**
@@ -53,12 +56,23 @@ export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
   const { logger, httpAuth, permissions, repository, projection } = options;
+  const teamSync = options.teamSync ?? disabledTeamSync;
   const router = Router();
   router.use(express.json());
 
   // The catalog is told to re-read after every write, so a role change is
   // visible on the next request rather than at the next refresh cycle.
   const republish = () => projection.publish();
+
+  // NXD-108. After every role change, so offboarding reaches GitHub now
+  // rather than at the next interval. Not awaited into the response: the
+  // role change has succeeded whatever GitHub says, and the outcome is on
+  // the GitHub sync status.
+  const syncTeams = () => {
+    if (teamSync.enabled) {
+      void teamSync.trigger();
+    }
+  };
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -99,6 +113,7 @@ export async function createRouter(
       newValue: { memberOf: created.memberOf },
     });
     await republish();
+    syncTeams();
     res.status(201).json(toUserEntity(created));
   });
 
@@ -121,6 +136,7 @@ export async function createRouter(
       newValue: { memberOf: updated.memberOf },
     });
     await republish();
+    syncTeams();
     res.json(toUserEntity(updated));
   });
 
@@ -140,7 +156,23 @@ export async function createRouter(
       oldValue: { memberOf: existing.memberOf },
     });
     await republish();
+    syncTeams();
     res.json({ removed: name });
+  });
+
+  router.get('/github-sync', async (req, res) => {
+    await authorize(permissions, httpAuth, req);
+    res.json(await teamSync.status());
+  });
+
+  router.post('/github-sync/run', async (req, res) => {
+    await authorize(permissions, httpAuth, req);
+    if (!teamSync.enabled) {
+      throw new ConflictError(
+        'GitHub team sync is not enabled (users.githubTeamSync.enabled).',
+      );
+    }
+    res.status(202).json({ result: await teamSync.trigger() });
   });
 
   router.get('/audit', async (req, res) => {
@@ -176,6 +208,10 @@ export async function createRouter(
       logger.error(`users-backend error: ${error.message}`);
       if (error instanceof NotAllowedError) {
         res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      if (error instanceof ConflictError) {
+        res.status(409).json({ error: error.message });
         return;
       }
       if (error instanceof InputError) {

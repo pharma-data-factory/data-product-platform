@@ -30,7 +30,9 @@ users:
   # groups (urs-*) are refused and stop the backend: approval roles are
   # granted only in Nexora (NXD-107).
   #
-  # This build validates the mapping; the reconciler is the next slice.
+  # Runs on the scheduler (one global task, locked) and right after every
+  # change in Admin → Users & Roles. Removal before addition; members Nexora
+  # does not manage are left alone. See docs/github-setup.md.
   githubTeamSync:
     enabled: ${GITHUB_TEAM_SYNC_ENABLED:-false}
     organization: ${GITHUB_ORG:-pharma-data-factory}

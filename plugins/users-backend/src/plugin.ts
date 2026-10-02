@@ -14,6 +14,12 @@ import { applyGuestGroups } from './guestRole';
 import { applyDemoUsers, readDemoUsers } from './demoUsers';
 import { normalizeBootstrapAdmin, seed } from './db/seeds';
 import { parseGithubTeamSyncConfig } from './githubTeamSync';
+import { createGithubTeamsClientFromConfig } from './githubTeams';
+import {
+  disabledTeamSync,
+  startTeamSync,
+  TeamSyncController,
+} from './teamSyncController';
 
 /** Committed first-install content. Read once, when the table is empty. */
 const SEED_FILE = '../../catalog/users.seed.yaml';
@@ -38,6 +44,7 @@ export const usersBackendPlugin = createBackendPlugin({
         config: coreServices.rootConfig,
         auth: coreServices.auth,
         catalog: catalogServiceRef,
+        scheduler: coreServices.scheduler,
       },
       async init({
         httpRouter,
@@ -48,22 +55,14 @@ export const usersBackendPlugin = createBackendPlugin({
         config,
         auth,
         catalog,
+        scheduler,
       }) {
         // NXD-108. Validated before anything else touches the database, so a
         // urs-* group in the mapping stops the backend instead of starting a
-        // half-configured one. The reconciler itself is not wired yet.
-        const teamSync = parseGithubTeamSyncConfig(
+        // half-configured one.
+        const teamSyncConfig = parseGithubTeamSyncConfig(
           config.getOptional('users.githubTeamSync'),
         );
-        if (teamSync?.enabled) {
-          logger.info(
-            `GitHub team sync configured for ${teamSync.organization}: ` +
-              `${Object.entries(teamSync.teams)
-                .map(([group, team]) => `${group} → ${team}`)
-                .join(', ')}. The reconciler is not part of this build yet; ` +
-              'nothing is written to GitHub.',
-          );
-        }
 
         const repository = await UsersRepository.create(database);
 
@@ -132,6 +131,23 @@ export const usersBackendPlugin = createBackendPlugin({
         // container replaced whatever the previous one left behind.
         await projection.publish();
 
+        // After the projection: the reconciler reads the same table the
+        // Catalog was just written from.
+        let teamSync: TeamSyncController = disabledTeamSync;
+        if (teamSyncConfig?.enabled) {
+          teamSync = await startTeamSync({
+            config: teamSyncConfig,
+            rootConfig: config,
+            scheduler,
+            client: createGithubTeamsClientFromConfig({
+              config,
+              organization: teamSyncConfig.organization,
+            }),
+            repository,
+            logger,
+          });
+        }
+
         httpRouter.use(
           await createRouter({
             logger,
@@ -139,6 +155,7 @@ export const usersBackendPlugin = createBackendPlugin({
             permissions,
             repository,
             projection,
+            teamSync,
           }),
         );
         httpRouter.addAuthPolicy({ path: '/health', allow: 'unauthenticated' });

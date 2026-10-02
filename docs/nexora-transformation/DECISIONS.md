@@ -5939,3 +5939,79 @@ Users & Roles.
   `plugins/users-backend/src/{githubTeamSync.ts,githubTeams.ts,plugin.ts,db/migrations.ts}`
   and the tests `githubTeamSync.test.ts`, `githubTeams.test.ts`,
   `db/migrations.test.ts`.
+
+### NXD-111 — GitHub team sync, part 2: the reconciler runs, removes first, and leaves strangers alone
+
+- Date: 2026-10-02
+- Slice: users-backend, Admin → Users & Roles — completes NXD-108
+
+With `GITHUB_TEAM_SYNC_ENABLED=true`, Nexora now keeps the configured GitHub
+teams in step with platform roles. Off by default, it still asks GitHub for
+nothing.
+
+**Diff engine (`teamReconciler.ts`).** `planTeam` is pure. Given who should
+be in a team and who is, it returns `remove`, `add`, `keepActive`,
+`keepInvited`, `unmanaged` and `forget`. `reconcile` applies those plans.
+Three rules:
+
+- **Removal before addition**, within each team. A run cut short has taken
+  access away, not handed it out.
+- **Only managed logins are removed.** A login is managed if it has a Nexora
+  user record, or a `github_team_sync_state` row for that team. The second
+  clause makes deletion work: a deleted user has no record any more, but
+  their state row says Nexora put them there. Everyone else is `unmanaged`,
+  reported and never touched.
+- **Isolation per team.** A team that cannot be read is skipped, and its
+  people are marked `error`. A single refused call is recorded and the run
+  goes on. A failed removal keeps its state row, so the next run retries it.
+
+**Scheduling (`teamSyncController.ts`).** There is one
+`coreServices.scheduler` task, `users-github-team-sync`, with
+`scope: 'global'`. The scheduler's database lock lets exactly one instance
+run it. The default is every 15 minutes with a 5-minute timeout, or
+`users.githubTeamSync.schedule`. After every `POST`, `PUT` or `DELETE` on
+`/api/users`, the router calls `triggerTask` on the same task, through the
+same lock, without awaiting it into the response.
+
+A trigger that meets a running task gets a ConflictError. It is remembered,
+and the task runs again when the current run ends. The test for this found
+the first version clearing that memory at the start of the run. Because the
+scheduler reports the task as running from the moment it is claimed, a
+change could be lost in that window. The memory is now cleared at the end.
+It is per instance; a run on another instance is caught by the interval.
+
+**Audit and state.** Every change in GitHub appends
+`GITHUB_TEAM_ADDED` (`{organization, team, state}`) or
+`GITHUB_TEAM_REMOVED` (`{organization, team}`) to `user_audit_events`, with
+actor `system:github-team-sync`. A 404 on removal ("already gone") changes
+nothing in GitHub, so it writes no audit entry. `github_team_sync_state`
+holds `active`, `invited`, `not_in_org` (422) or `error`, with
+`last_error`. Rows for people neither wanted nor present are dropped.
+
+**API.** Both routes need `platform.user.manage`.
+
+- `GET /api/users/github-sync` returns `{enabled}`. When enabled it adds the
+  organization, the mapping, this instance's last run and every state row.
+- `POST /api/users/github-sync/run` answers 202 with `triggered` or
+  `queued`, and 409 while the sync is off.
+
+**UI.** When the backend reports the sync as enabled, Admin → Users & Roles
+shows:
+
+- a banner with the organization, the last run, the teams with failures, and
+  *Sync now*;
+- per user, one chip per team: active, invited, not in org, or error, with
+  `last_error` in the tooltip.
+
+While the sync is off, nothing GitHub-related appears. The page is a list of
+cards, not a table, so the "column" is the chips.
+
+**Not changed, named.** `lastRun` is held in memory per instance. Behind a
+load balancer the banner may show another instance's older run. The state
+rows, which live in the database, are always current. Teams are never
+created by Nexora.
+
+- Affected components: `plugins/users-backend/src/{teamReconciler.ts,teamSyncController.ts,repository.ts,router.ts,plugin.ts}`
+  (+ `teamReconciler.test.ts`, `teamSyncController.test.ts`,
+  `router.test.ts`), `packages/app/src/modules/admin/{GithubSyncStatus.tsx,GithubSyncStatus.test.tsx,UsersRolesPage.tsx}`,
+  `app-config.github.yaml`, `docs/github-setup.md`, `README.md`.

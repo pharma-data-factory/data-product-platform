@@ -14,7 +14,16 @@ import {
 } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import type { Entity } from '@backstage/catalog-model';
-import { Button, TextField, Typography, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@material-ui/core';
+import {
+  Button,
+  TextField,
+  Typography,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from '@material-ui/core';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import {
   canManagePlatformUsers,
@@ -27,6 +36,12 @@ import {
 } from '@internal/platform-common';
 import type { PlatformRole } from '@internal/platform-common';
 import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
+import {
+  GithubSyncBanner,
+  GithubSyncChips,
+  GithubSyncStatusResponse,
+  syncRowsFor,
+} from './GithubSyncStatus';
 
 const USER_KIND = 'User';
 const BLOCKED = '__blocked__';
@@ -130,12 +145,56 @@ export function UsersRolesPage() {
     }
   };
 
+  // NXD-108. Absent or disabled on the backend: nothing GitHub-related shows.
+  const [githubSync, setGithubSync] = useState<GithubSyncStatusResponse | null>(
+    null,
+  );
+  const [githubSyncRunning, setGithubSyncRunning] = useState(false);
+
+  const loadGithubSync = async () => {
+    try {
+      setGithubSync(
+        (await apiCall('GET', '/github-sync')) as GithubSyncStatusResponse,
+      );
+    } catch {
+      setGithubSync(null);
+    }
+  };
+
+  const runGithubSync = async () => {
+    setGithubSyncRunning(true);
+    setNotice(null);
+    try {
+      const { result } = (await apiCall('POST', '/github-sync/run')) as {
+        result: 'triggered' | 'queued';
+      };
+      setNotice(
+        result === 'triggered'
+          ? 'GitHub team sync started. Reload in a moment to see the result.'
+          : 'A GitHub team sync is already running; another run follows it.',
+      );
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setGithubSyncRunning(false);
+    }
+  };
+
   useEffect(() => {
     if (admin) {
       loadSignIns();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin]);
+
+  // Re-read whenever the user list is reloaded: the backend triggers a sync
+  // after every role change, so show what it has recorded so far.
+  useEffect(() => {
+    if (admin) {
+      loadGithubSync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin, users]);
 
   /**
    * Adds or removes one URS domain group, leaving every other membership
@@ -304,6 +363,14 @@ export function UsersRolesPage() {
                 </Typography>
               ) : null}
 
+              {githubSync?.enabled ? (
+                <GithubSyncBanner
+                  status={githubSync}
+                  running={githubSyncRunning}
+                  onRun={runGithubSync}
+                />
+              ) : null}
+
               <Typography variant="h6" style={{ marginBottom: 16 }}>
                 Users
               </Typography>
@@ -340,9 +407,16 @@ export function UsersRolesPage() {
                           gap: 12,
                         }}
                       >
-                        <Typography variant="subtitle1">
-                          {user.metadata.name}
-                        </Typography>
+                        <div>
+                          <Typography variant="subtitle1">
+                            {user.metadata.name}
+                          </Typography>
+                          {githubSync?.enabled ? (
+                            <GithubSyncChips
+                              rows={syncRowsFor(githubSync, user.metadata.name)}
+                            />
+                          ) : null}
+                        </div>
                         <div
                           style={{
                             display: 'flex',
@@ -364,7 +438,9 @@ export function UsersRolesPage() {
                                 {option.label}
                               </MenuItem>
                             ))}
-                            <MenuItem value={BLOCKED}>Blocked (no access)</MenuItem>
+                            <MenuItem value={BLOCKED}>
+                              Blocked (no access)
+                            </MenuItem>
                           </TextField>
                           <TextField
                             select
@@ -372,17 +448,27 @@ export function UsersRolesPage() {
                             label="URS roles"
                             helperText="Author / review rights, independent of the tier"
                             value={userMemberOf(user).filter(g =>
-                              (URS_DOMAIN_GROUPS as readonly string[]).includes(g),
+                              (URS_DOMAIN_GROUPS as readonly string[]).includes(
+                                g,
+                              ),
                             )}
                             onChange={e => {
-                              const selected = e.target.value as unknown as string[];
+                              const selected = e.target
+                                .value as unknown as string[];
                               const held = userMemberOf(user).filter(g =>
-                                (URS_DOMAIN_GROUPS as readonly string[]).includes(g),
+                                (
+                                  URS_DOMAIN_GROUPS as readonly string[]
+                                ).includes(g),
                               );
-                              const added = selected.find(g => !held.includes(g));
-                              const removed = held.find(g => !selected.includes(g));
+                              const added = selected.find(
+                                g => !held.includes(g),
+                              );
+                              const removed = held.find(
+                                g => !selected.includes(g),
+                              );
                               if (added) setUrsRole(user, added, true);
-                              else if (removed) setUrsRole(user, removed, false);
+                              else if (removed)
+                                setUrsRole(user, removed, false);
                             }}
                             disabled={saving}
                             style={{ minWidth: 260 }}
@@ -430,7 +516,9 @@ export function UsersRolesPage() {
                       {new Date(entry.timestamp).toLocaleString()}
                     </span>
                     <span style={{ fontWeight: 600 }}>{entry.actor}</span>
-                    <span style={{ color: NEXORA_TONE.success.text }}>{entry.provider}</span>
+                    <span style={{ color: NEXORA_TONE.success.text }}>
+                      {entry.provider}
+                    </span>
                   </div>
                 ))
               )}
@@ -441,16 +529,23 @@ export function UsersRolesPage() {
         </div>
       </Content>
 
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="sm">
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        maxWidth="sm"
+      >
         <DialogTitle>Delete User</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete user <strong>{deleteTarget?.metadata.name}</strong>?
-            This removes them from the platform catalog and cannot be undone.
+            Are you sure you want to delete user{' '}
+            <strong>{deleteTarget?.metadata.name}</strong>? This removes them
+            from the platform catalog and cannot be undone.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={saving}>Cancel</Button>
+          <Button onClick={() => setDeleteTarget(null)} disabled={saving}>
+            Cancel
+          </Button>
           {/*
             Destructive and irreversible, so it carries the danger tone. It
             used to be color="secondary", which this theme renders in brand
