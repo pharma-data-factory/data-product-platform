@@ -38,8 +38,8 @@ export type TriggerResult = 'triggered' | 'queued';
 export interface TeamSyncStatus {
   enabled: boolean;
   organization?: string;
-  /** Platform group → team slug. */
-  teams?: Record<string, string>;
+  /** Platform group → team slugs. */
+  teams?: Record<string, string[]>;
   /** The last run this instance performed; null before the first. */
   lastRun?: ReconcileSummary | null;
   states?: TeamSyncStateRecord[];

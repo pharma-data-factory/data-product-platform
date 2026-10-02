@@ -132,11 +132,17 @@ Before enabling it:
 
 1. Create every team named in `teams`, for example `nexora-developers`,
    `nexora-owners` and `nexora-admins`. Nexora never creates teams.
-2. Grant those teams access to the generated repositories in GitHub.
+2. Grant those teams access to the generated repositories in GitHub — for
+   example `nexora-developers` Write, `nexora-owners` Maintain,
+   `nexora-admins` Admin. Nexora manages who is in a team, not what the team
+   may do.
 3. Set `GITHUB_TEAM_SYNC_ENABLED=true` and restart.
 
 What it does and does not do:
 
+- **Mapping.** A group names one team or a list of teams. The shipped
+  mapping puts `platform-admins` in all three:
+  `platform-admins: [nexora-admins, nexora-developers, nexora-owners]`.
 - **Who it touches.** Only people Nexora manages: a Nexora user record, or a
   login it synced into the team before. Other members of a team are
   reported as *unmanaged* and left alone.

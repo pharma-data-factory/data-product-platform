@@ -101,20 +101,22 @@ export function planTeam(input: {
 
 /**
  * Team slug → logins that should be in it. Several groups may map to one
- * team; holding any of them is enough.
+ * team, and one group to several teams; holding any group that names a team
+ * is enough to belong in it.
  */
 export function desiredByTeam(
   users: readonly Pick<PlatformUserRecord, 'name' | 'memberOf'>[],
-  teams: Readonly<Record<string, string>>,
+  teams: Readonly<Record<string, readonly string[]>>,
 ): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
-  for (const team of Object.values(teams)) {
-    result.set(team, new Set());
+  for (const slugs of Object.values(teams)) {
+    for (const team of slugs) {
+      result.set(team, new Set());
+    }
   }
   for (const user of users) {
     for (const group of user.memberOf) {
-      const team = teams[group];
-      if (team) {
+      for (const team of teams[group] ?? []) {
         result.get(team)!.add(user.name.toLowerCase());
       }
     }
@@ -166,7 +168,7 @@ function describe(reason: GithubTeamsFailure, message?: string): string {
 
 export async function reconcile(options: {
   organization: string;
-  teams: Readonly<Record<string, string>>;
+  teams: Readonly<Record<string, readonly string[]>>;
   client: GithubTeamsClient;
   repository: UsersRepository;
   log: (message: string) => void;

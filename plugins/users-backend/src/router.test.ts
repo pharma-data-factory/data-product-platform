@@ -346,7 +346,7 @@ describe('users-backend router', () => {
         status: jest.fn(async () => ({
           enabled: true,
           organization: 'pharma-data-factory',
-          teams: { 'platform-admins': 'nexora-admins' },
+          teams: { 'platform-admins': ['nexora-admins'] },
           lastRun: null,
           states: [],
         })),

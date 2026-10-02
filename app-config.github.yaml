@@ -26,9 +26,9 @@ users:
   # for nothing new. When on, the GitHub App above additionally needs
   # Organization → Members: read & write, and every team below must exist.
   #
-  # Keys are Nexora platform groups, values GitHub team slugs. URS approval
-  # groups (urs-*) are refused and stop the backend: approval roles are
-  # granted only in Nexora (NXD-107).
+  # Keys are Nexora platform groups, values one GitHub team slug or a list
+  # of them (NXD-112). URS approval groups (urs-*) are refused and stop the
+  # backend: approval roles are granted only in Nexora (NXD-107).
   #
   # Runs on the scheduler (one global task, locked) and right after every
   # change in Admin → Users & Roles. Removal before addition; members Nexora
@@ -42,4 +42,5 @@ users:
     teams:
       data-product-developers: nexora-developers
       data-product-owners: nexora-owners
-      platform-admins: nexora-admins
+      # Administrators belong in every team, not only their own.
+      platform-admins: [nexora-admins, nexora-developers, nexora-owners]

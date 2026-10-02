@@ -6015,3 +6015,38 @@ created by Nexora.
   (+ `teamReconciler.test.ts`, `teamSyncController.test.ts`,
   `router.test.ts`), `packages/app/src/modules/admin/{GithubSyncStatus.tsx,GithubSyncStatus.test.tsx,UsersRolesPage.tsx}`,
   `app-config.github.yaml`, `docs/github-setup.md`, `README.md`.
+
+### NXD-112 — A platform group may map to several GitHub teams; administrators are in all of them
+
+- Date: 2026-10-02
+- Slice: users-backend config — follow-up to NXD-111
+
+**Context.** The first live setup found the single administrator in all three
+teams, because GitHub adds a team's creator to it. With one group → one team,
+the first run would have taken them out of `nexora-developers` and
+`nexora-owners`. An administrator asked to belong in every team.
+
+**Decision.** There are two parts, and both apply.
+
+1. **Repository rights are set on the teams in GitHub.** `nexora-developers`
+   gets Write, `nexora-owners` Maintain and `nexora-admins` Admin.
+   Nexora decides who is in a team, not what the team may do.
+2. **A group may name a list of teams.** In `users.githubTeamSync.teams` a
+   value is one slug or a list. `parseGithubTeamSyncConfig` always returns a
+   trimmed, de-duplicated, non-empty list, and refuses an empty list or a
+   non-string entry. `desiredByTeam` puts a member of the group in every team
+   it names. The shipped mapping is
+   `platform-admins: [nexora-admins, nexora-developers, nexora-owners]`.
+
+**Consequences.**
+
+- An existing single-slug mapping keeps working unchanged.
+- The `urs-*` guardrail is untouched: it checks the keys, and keys are still
+  groups.
+- Repositories that Create generates later do not inherit team rights
+  automatically. Granting them is a manual step in GitHub until a template or
+  Nexora does it.
+
+- Affected components: `plugins/users-backend/src/{githubTeamSync.ts,teamReconciler.ts,teamSyncController.ts}`
+  (+ tests), `packages/app/src/modules/admin/GithubSyncStatus.tsx` (type),
+  `app-config.github.yaml`, `docs/github-setup.md`.

@@ -25,8 +25,11 @@ export interface GithubTeamSyncConfig {
   organization: string;
   /** Passed to the scheduler as given; validated there. */
   schedule?: Record<string, unknown>;
-  /** Platform group name → GitHub team slug. */
-  teams: Record<string, string>;
+  /**
+   * Platform group name → GitHub team slugs. Written as one slug or a list in
+   * config; always a non-empty, de-duplicated list here.
+   */
+  teams: Record<string, string[]>;
 }
 
 function fail(message: string): never {
@@ -82,12 +85,20 @@ export function parseGithubTeamSyncConfig(
     );
   }
 
-  const teams: Record<string, string> = {};
-  for (const [group, slug] of Object.entries(teamsRaw)) {
-    if (typeof slug !== 'string' || slug.trim() === '') {
-      return fail(`teams.${group} must be a GitHub team slug`);
+  // One slug, or a list: `platform-admins: [nexora-admins, nexora-developers]`
+  // puts administrators in several teams (NXD-112).
+  const teams: Record<string, string[]> = {};
+  for (const [group, value] of Object.entries(teamsRaw)) {
+    const slugs = Array.isArray(value) ? value : [value];
+    if (
+      slugs.length === 0 ||
+      slugs.some(slug => typeof slug !== 'string' || slug.trim() === '')
+    ) {
+      return fail(
+        `teams.${group} must be a GitHub team slug or a non-empty list of them`,
+      );
     }
-    teams[group] = slug.trim();
+    teams[group] = [...new Set(slugs.map(slug => (slug as string).trim()))];
   }
 
   const enabled = readEnabled(raw.enabled);

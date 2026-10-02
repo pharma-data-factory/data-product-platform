@@ -23,9 +23,42 @@ describe('parseGithubTeamSyncConfig', () => {
     expect(parseGithubTeamSyncConfig(undefined)).toBeUndefined();
   });
 
-  it('reads a valid mapping', () => {
-    expect(parseGithubTeamSyncConfig(valid)).toEqual(valid);
+  it('reads a valid mapping, one slug becoming a one-element list', () => {
+    expect(parseGithubTeamSyncConfig(valid)).toEqual({
+      ...valid,
+      teams: {
+        'data-product-developers': ['nexora-developers'],
+        'platform-admins': ['nexora-admins'],
+      },
+    });
   });
+
+  it('maps one group to several teams, trimmed and de-duplicated (NXD-112)', () => {
+    expect(
+      parseGithubTeamSyncConfig({
+        ...valid,
+        teams: {
+          'platform-admins': [
+            'nexora-admins',
+            ' nexora-developers ',
+            'nexora-admins',
+          ],
+        },
+      })?.teams,
+    ).toEqual({ 'platform-admins': ['nexora-admins', 'nexora-developers'] });
+  });
+
+  it.each([[[]], [['nexora-admins', '']], [['nexora-admins', 7]]])(
+    'refuses an empty or invalid team list %j',
+    list => {
+      expect(() =>
+        parseGithubTeamSyncConfig({
+          ...valid,
+          teams: { 'platform-admins': list },
+        }),
+      ).toThrow(/non-empty list/);
+    },
+  );
 
   it.each([
     ['urs-authors'],
@@ -109,5 +142,11 @@ describe('parseGithubTeamSyncConfig', () => {
     expect(Object.keys(parsed!.teams).some(g => g.startsWith('urs-'))).toBe(
       false,
     );
+    // Weg 2: administrators are in every synced team.
+    expect(parsed!.teams['platform-admins']).toEqual([
+      'nexora-admins',
+      'nexora-developers',
+      'nexora-owners',
+    ]);
   });
 });

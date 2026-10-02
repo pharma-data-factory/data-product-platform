@@ -10,7 +10,7 @@ import {
 const status: GithubSyncStatusResponse = {
   enabled: true,
   organization: 'pharma-data-factory',
-  teams: { 'data-product-developers': 'nexora-developers' },
+  teams: { 'data-product-developers': ['nexora-developers'] },
   lastRun: {
     startedAt: '2026-10-02T10:00:00Z',
     finishedAt: '2026-10-02T10:00:05Z',

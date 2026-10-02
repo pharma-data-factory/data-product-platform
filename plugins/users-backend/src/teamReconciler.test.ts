@@ -101,13 +101,31 @@ describe('desiredByTeam', () => {
         { name: 'cat', memberOf: ['platform-viewers'] },
       ],
       {
-        'data-product-developers': 'nexora-builders',
-        'data-product-owners': 'nexora-builders',
-        'platform-admins': 'nexora-admins',
+        'data-product-developers': ['nexora-builders'],
+        'data-product-owners': ['nexora-builders'],
+        'platform-admins': ['nexora-admins'],
       },
     );
     expect([...desired.get('nexora-builders')!].sort()).toEqual(['ann', 'ben']);
     expect([...desired.get('nexora-admins')!]).toEqual([]);
+  });
+
+  it('puts a group mapped to several teams in each of them (NXD-112)', () => {
+    const desired = desiredByTeam(
+      [
+        { name: 'boss', memberOf: ['platform-admins'] },
+        { name: 'dev', memberOf: ['data-product-developers'] },
+      ],
+      {
+        'data-product-developers': ['nexora-developers'],
+        'platform-admins': ['nexora-admins', 'nexora-developers'],
+      },
+    );
+    expect([...desired.get('nexora-admins')!]).toEqual(['boss']);
+    expect([...desired.get('nexora-developers')!].sort()).toEqual([
+      'boss',
+      'dev',
+    ]);
   });
 });
 
@@ -156,8 +174,8 @@ describe('reconcile', () => {
   const log = jest.fn();
 
   const MAPPING = {
-    'data-product-developers': 'nexora-developers',
-    'platform-admins': 'nexora-admins',
+    'data-product-developers': ['nexora-developers'],
+    'platform-admins': ['nexora-admins'],
   };
 
   async function addUser(name: string, memberOf: string[]) {

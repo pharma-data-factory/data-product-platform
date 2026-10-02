@@ -36,7 +36,7 @@ export interface GithubSyncTeamOutcome {
 export interface GithubSyncStatusResponse {
   enabled: boolean;
   organization?: string;
-  teams?: Record<string, string>;
+  teams?: Record<string, string[]>;
   lastRun?: {
     startedAt: string;
     finishedAt: string;

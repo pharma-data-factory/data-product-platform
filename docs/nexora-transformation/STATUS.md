@@ -114,6 +114,9 @@ four quick wins F1–F4, one commit and one record each.
   `user_audit_events`. `GET/POST /api/users/github-sync[/run]`; banner and
   per-user team chips in Admin → Users & Roles. Off by default. See
   [`NXD-111`](DECISIONS.md).
+- **A group may map to several GitHub teams.** `platform-admins` is now in
+  `nexora-admins`, `nexora-developers` and `nexora-owners`. Repository
+  rights are set on the teams in GitHub. See [`NXD-112`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

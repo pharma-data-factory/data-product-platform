@@ -63,7 +63,7 @@ describe('startTeamSync', () => {
       config: {
         enabled: true,
         organization: 'pharma-data-factory',
-        teams: { 'platform-admins': 'nexora-admins' },
+        teams: { 'platform-admins': ['nexora-admins'] },
       },
       rootConfig,
       scheduler: scheduler as never,
@@ -116,7 +116,7 @@ describe('startTeamSync', () => {
     expect(status).toMatchObject({
       enabled: true,
       organization: 'pharma-data-factory',
-      teams: { 'platform-admins': 'nexora-admins' },
+      teams: { 'platform-admins': ['nexora-admins'] },
     });
     expect(status.lastRun?.teams[0]).toMatchObject({
       team: 'nexora-admins',
