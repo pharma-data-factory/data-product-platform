@@ -5726,11 +5726,12 @@ slice:
   `plugins/users-backend/src/{plugin.ts,db/seeds.ts,db/seeds.test.ts}`,
   `packages/backend/src/{startup.test.ts,auth/identity.test.ts}`.
 
-### NXD-107 — Which system is the source of truth for roles (PROPOSED)
+### NXD-107 — Approval roles are granted only in Nexora; platform roles may later come from the directory
 
 - Date: 2026-10-02
-- Status: **PROPOSED — not in force.** Awaiting a product decision. Until it
-  is accepted, NXD-051 stands unchanged.
+- Status: **ACCEPTED 2026-10-02.** Recorded as PROPOSED in NXD-106's commit;
+  the recommendation was adopted unchanged. NXD-051 stands; this record adds
+  the principle and the target.
 - Context: Administrators ask whether users and roles could come from GitHub
   or from the company directory instead of being maintained in Nexora. Today
   GitHub OAuth proves identity only. Platform role and URS approval role come
@@ -5760,20 +5761,24 @@ the directory must still revoke access. Under C, losing the directory group
 removes the platform role, and with it every ability to sign, because a
 person with no platform role cannot reach the approval routes.
 
-**To decide.**
+**Decided.**
 
-1. Is the "approval roles only in Nexora" principle accepted as binding?
-2. Is C the target, and for which customer tier: every customer, or Enterprise
-   only?
+1. **Binding:** approval roles (AUTHOR, BUSINESS_REVIEWER, PRODUCT_MANAGER,
+   QUALITY_REVIEWER) are granted only in Nexora, in Admin → Users & Roles.
+   They are never derived from GitHub, a directory group or an OAuth scope.
+2. **Today A; target C, for the Enterprise tier only.** Smaller installations
+   stay on A. B is excluded. C is not scheduled; it waits on the OIDC
+   provider listed as planned in `docs/identity-providers.md`.
 
 - Affected components (if C is accepted): `packages/backend` auth module,
   `plugins/users-backend` (directory groups become read-only on the record),
   `PlatformPermissionPolicy`, `docs/identity-providers.md`.
 
-### NXD-108 — Whether Nexora provisions users into GitHub, and how far (PROPOSED)
+### NXD-108 — Nexora keeps GitHub team membership in step with platform roles, opt-in
 
 - Date: 2026-10-02
-- Status: **PROPOSED — not in force.** Depends on NXD-107.
+- Status: **ACCEPTED 2026-10-02** (option 2, as recommended). Not yet
+  implemented; scheduled as its own slice in `STATUS.md`.
 - Context: When an administrator adds a person in Admin → Users & Roles,
   that person usually also needs access to the repositories Create generates
   in the customer's GitHub organization. Today that is a second, manual step
@@ -5809,13 +5814,62 @@ person with no platform role cannot reach the approval routes.
   may already own team membership. The reconciler must then stand down,
   never compete.
 
-**To decide.**
+**Decided.**
 
-1. Option 2 as recommended, or 1 or 3?
-2. Is the added GitHub App permission (Members: read & write) acceptable for
-   the customer installation guide?
-3. Is the reconciler opt-in per installation or on by default?
+1. **Option 2:** team membership only, built as a reconciler. Approval roles
+   never cross over.
+2. **The added GitHub App permission is accepted.** It is *Organization →
+   Members: read & write*, and the customer installation guide will list it as
+   required only when the feature is enabled.
+3. **Opt-in per installation, off by default.** An installation that does not
+   enable it asks GitHub for nothing new.
 
 - Affected components (if 2 is accepted): `plugins/users-backend` (new
   reconciler and status column), `app-config.github.yaml` (team mapping),
   `docs/github-setup.md` (App permission), Admin → Users & Roles page.
+
+### NXD-109 — The installation needs no YAML edit, and AWS Marketplace stays a test integration
+
+- Date: 2026-10-02
+- Slice: configuration clean-up named in NXD-106, plus the product decisions
+  taken with NXD-107 and NXD-108
+
+**`GITHUB_ORG` is read.** `.env.example`, `deploy/portainer.env.example` and
+both Compose files set it, but `nexora.scm.organization` was a literal in
+`app-config.yaml`. An operator who set the variable still published into
+`pharma-data-factory`. The value is now
+`${GITHUB_ORG:-pharma-data-factory}`. Backstage's `:-` substitution falls
+back on unset *and* empty, so the old behaviour is the default. With this,
+nothing an installation has to decide is a YAML edit any more.
+
+**One name for the AWS link store.** `app-config.marketplace-test.yaml` and
+`.env.example` read `AWS_MARKETPLACE_LINK_STORE`. Production and its Compose
+file read `AWS_MARKETPLACE_LINK_STORE_PATH`, so a path set for one was
+silently ignored by the other. Both now use `AWS_MARKETPLACE_LINK_STORE_PATH`.
+
+**`app-config.p1a-test.yaml` is removed.** Nothing loaded it. It carried a
+fixed database password and `permission.enabled: false`.
+
+**Corrected documentation.** `docs/identity-and-rbac.md` still told
+administrators to add users to `catalog/org.yaml`, which NXD-051 made
+ineffective. It now describes `USERS_BOOTSTRAP_ADMIN` and Admin → Users &
+Roles. `docs/operations/pilot-runbook.md` and `docs/deployment/portainer.md`
+said local Compose ran the root `Dockerfile` with `app-config.docker.yaml`.
+It runs `packages/backend/Dockerfile` with `app-config.docker-local.yaml`.
+
+**Not changed, named.** The root `Dockerfile` and `app-config.docker.yaml`
+stay. Nothing in Compose or CI runs them, but four governance tests assert
+their properties (`auditPersistence`, `pilotHardening`, `hostingProduction`,
+`committedConfigIntegrity`). Removing them means retiring those assertions,
+which is a decision to take on its own, not as part of a clean-up.
+
+**AWS Marketplace stays at TEST_INTEGRATION_READY.** The adapter resolves
+buyers and reads entitlements. There is no public listing and no metering:
+`/metering` answers 501. Distribution is blocked anyway until LICENSE and
+NOTICE are approved by counsel. No listing, pricing model or metering work is
+scheduled until that block is lifted. Revisit then.
+
+- Affected components: `app-config.yaml`, `app-config.marketplace-test.yaml`,
+  `.env.example`, `app-config.p1a-test.yaml` (removed), `README.md`,
+  `docs/identity-and-rbac.md`, `docs/operations/pilot-runbook.md`,
+  `docs/deployment/portainer.md`.

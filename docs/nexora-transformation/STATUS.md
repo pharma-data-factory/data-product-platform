@@ -94,6 +94,18 @@ four quick wins F1–F4, one commit and one record each.
   `USERS_BOOTSTRAP_ADMIN`. See [`NXD-106`](DECISIONS.md). Proposed, not in
   force: the source of truth for roles ([`NXD-107`](DECISIONS.md)) and
   provisioning users into GitHub ([`NXD-108`](DECISIONS.md)).
+- **Decided, and the configuration clean-up.** Approval roles are granted
+  only in Nexora ([`NXD-107`](DECISIONS.md), accepted). GitHub team
+  membership follows platform roles, opt-in ([`NXD-108`](DECISIONS.md),
+  accepted, not yet built). `GITHUB_ORG` is read, the AWS link-store
+  variable has one name, `app-config.p1a-test.yaml` is gone, and the user
+  onboarding docs describe Admin → Users & Roles. AWS Marketplace stays a
+  test integration until distribution is approved. See
+  [`NXD-109`](DECISIONS.md).
+- **Next slice — NXD-108 GitHub team reconciler.** Opt-in per installation:
+  platform role → configured team, periodic reconcile, removal first,
+  invited/active/drift shown in Admin → Users & Roles, every change in
+  `user_audit_events`.
 
 ## Previous Vertical Slices
 

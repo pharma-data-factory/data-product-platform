@@ -107,7 +107,7 @@ Three things this picture is meant to make obvious:
 - **GitHub plays three roles, each with its own credential.** The **OAuth App**
   signs people in and is required for every non-Guest login. The **GitHub App**
   publishes the repositories that _Create_ generates, and must be installed on
-  the target organization (`nexora.scm.organization` in `app-config.yaml`).
+  the target organization (`GITHUB_ORG`, default `pharma-data-factory`).
   `GITHUB_TOKEN` is an optional personal-token fallback for catalog reads and
   the CI Quality Gate. Without any of them the portal still runs; only sign-in,
   publishing and CI status are missing. Setup: [GitHub setup](#github-setup),
@@ -556,7 +556,7 @@ values marked below.
 
 | File                               | Purpose                                                                                              | What you set                                                                                                                                                      | Production |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `app-config.yaml`                  | Base for every environment: PostgreSQL, GitHub login, catalog, plugins, commercial defaults          | Env: `BACKEND_SECRET`, `POSTGRES_*`, `AUTH_GITHUB_*`, optional `GITHUB_TOKEN`, AI keys. Literal: `nexora.scm.organization` — the GitHub org Create publishes into | Base       |
+| `app-config.yaml`                  | Base for every environment: PostgreSQL, GitHub login, catalog, plugins, commercial defaults          | Env: `BACKEND_SECRET`, `POSTGRES_*`, `AUTH_GITHUB_*`, optional `GITHUB_TOKEN`, AI keys, `GITHUB_ORG` — the GitHub org Create publishes into | Base       |
 | `app-config.local.yaml`            | Local developer overrides; contains a fixed dev auth key                                             | Optional `COMPOSER_AI_KEY`                                                                                                                                        | No         |
 | `app-config.guest.yaml`            | Adds **Continue as Guest** (read-only VIEWER)                                                        | Nothing — switched on by `AUTH_GUEST_ENABLED=true`                                                                                                                | No         |
 | `app-config.guest-developer.yaml`  | Raises Guest to DEVELOPER (scaffold, create, URS authoring; never approval)                          | Nothing — `AUTH_GUEST_ROLE=developer`                                                                                                                             | No         |
@@ -566,10 +566,9 @@ values marked below.
 | `app-config.docker-local.yaml`     | Guest-only override for the local Compose stack                                                      | Nothing                                                                                                                                                           | No         |
 | `app-config.docker.yaml`           | Profile for the root `Dockerfile` dev image                                                          | `POSTGRES_*`, `AUTH_GITHUB_*` — nothing in Compose or CI uses it                                                                                                  | No         |
 | `app-config.memory.yaml`           | Run without any database; the file lists what you give up                                            | Nothing — add it by hand                                                                                                                                          | No         |
-| `app-config.marketplace-test.yaml` | AWS Marketplace **test** entitlements instead of local ones                                          | `AWS_MARKETPLACE_REGION`, `AWS_MARKETPLACE_PRODUCT_CODE`, `AWS_MARKETPLACE_LINK_STORE`, `LEGAL_DISTRIBUTION_STATUS`                                               | No         |
+| `app-config.marketplace-test.yaml` | AWS Marketplace **test** entitlements instead of local ones                                          | `AWS_MARKETPLACE_REGION`, `AWS_MARKETPLACE_PRODUCT_CODE`, `AWS_MARKETPLACE_LINK_STORE_PATH`, `LEGAL_DISTRIBUTION_STATUS`                                               | No         |
 | `app-config.e2e.yaml`              | Backend serves the built frontend for Playwright; layered on `.demo`                                 | `POSTGRES_*`                                                                                                                                                      | No         |
 | `app-config.service-token.yaml`    | Static local service-principal token for API experiments                                             | Nothing                                                                                                                                                           | Never      |
-| `app-config.p1a-test.yaml`         | Historical persistence check; nothing loads it                                                       | —                                                                                                                                                                 | No         |
 
 **Other root files an administrator meets**
 

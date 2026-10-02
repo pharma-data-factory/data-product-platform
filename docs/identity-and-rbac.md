@@ -58,38 +58,28 @@ Unapproved GitHub users see Access not granted with their GitHub login,
 
 ## Onboarding a user
 
-Exact procedure:
+Users and roles live in the users-backend database, not in a YAML file
+(NXD-051). `catalog/org.yaml` holds Groups only; the Catalog's Users are a
+projection the plugin rewrites from the database.
 
-1. GitHub identity — note the GitHub login (lowercase), for example `schmeckm`
-2. Catalog User — add a `User` in `catalog/org.yaml` whose `metadata.name`
-   matches that login
-3. `memberOf` group — assign exactly one platform role group
-4. Catalog reload — restart the backend or refresh catalog locations
-5. Effective role — the user signs in again; RBAC reads groups only
+1. **First administrator** — on a fresh production install, set
+   `USERS_BOOTSTRAP_ADMIN=<github-login>` before the first start. It is read
+   once, against an empty user table (NXD-106).
+2. **GitHub identity** — note the person's GitHub login, for example
+   `schmeckm`.
+3. **Add the user** — Admin → Users & Roles (`/admin/users`, PLATFORM_ADMIN
+   only): enter that login, a display name, and the groups. Choose exactly one
+   platform role group; add `urs-*` groups only for people who sign approvals.
+4. **Effective role** — the person signs in, or signs in again. No restart is
+   needed; the change and who made it are in the user audit trail.
 
 ```text
-GitHub identity
-    → Catalog User
-    → memberOf group
-    → Catalog reload
-    → effective role
+GitHub identity → Admin → Users & Roles → memberOf groups → effective role
 ```
 
-```yaml
-apiVersion: backstage.io/v1alpha1
-kind: User
-metadata:
-  name: your-github-login
-  annotations:
-    github.com/user-login: your-github-login
-spec:
-  profile:
-    displayName: Your Name
-  memberOf: [platform-admins]
-```
-
-Replace `platform-admins` with `platform-viewers`, `data-product-developers`,
-or `data-product-owners` as required.
+A GitHub login that has no user record authenticates and lands on
+**Access not granted**. Approval roles are granted only in Nexora, never
+derived from GitHub (NXD-107).
 
 ## Role / group model
 

@@ -17,7 +17,7 @@ this repository until an operator deploys it.
 | Mode | Compose / config | Guest | URLs |
 | --- | --- | --- | --- |
 | Local development | `yarn start` + `app-config.yaml` | allowed (Developer) | localhost |
-| Local Compose | `docker compose.yml` + `app-config.docker.yaml` | forbidden | localhost |
+| Local Compose | `docker-compose.yml` (production image + `app-config.docker-local.yaml`) | allowed (Developer) | localhost |
 | Hosted pilot | `docker-compose.production.yml` + production image | forbidden | HTTPS |
 | Marketplace test | hosted baseline + `app-config.marketplace-test.yaml` | forbidden | HTTPS + AWS overlay |
 

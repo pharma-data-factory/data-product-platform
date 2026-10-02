@@ -13,7 +13,7 @@ not an enterprise ITSM process.
 | Runtime | Image | Notes |
 | --- | --- | --- |
 | Control Plane (pilot/production) | `packages/backend/Dockerfile` | `NODE_ENV=production`. Requires `yarn install --immutable`, `yarn tsc`, `yarn build:backend` first. |
-| Local Compose Control Plane | root `Dockerfile` | Development only. `NODE_ENV=development`. Guest forbidden by `app-config.docker.yaml`. |
+| Local Compose Control Plane | `packages/backend/Dockerfile` | `docker compose up nexora` builds the production image and layers `app-config.docker-local.yaml` (Guest allowed, local only). The root `Dockerfile` is not used by Compose or CI. |
 | MQTT Temperature | generated `Dockerfile` | Independent of Backstage. |
 | REST Equipment | generated `Dockerfile` | Independent of Backstage. |
 | OEE Data Product | generated `Dockerfile` | Independent of Backstage. Pilot compose: `pilot/oee/docker-compose.yml` (Test MES + Mosquitto + generated product). Mosquitto anonymous mode is pilot-local only. |

@@ -292,9 +292,13 @@ nexora:
   #
   # Deliberately not defaulted in code: an unconfigured installation fails the
   # task and says so, rather than quietly publishing somewhere.
+  #
+  # The organization comes from GITHUB_ORG, which .env.example and both
+  # Compose files already set but nothing read (NXD-109). An unset or empty
+  # variable falls back to the value that used to be the literal here.
   scm:
     host: github.com
-    organization: pharma-data-factory
+    organization: ${GITHUB_ORG:-pharma-data-factory}
 
   providers:
     mode: mock
