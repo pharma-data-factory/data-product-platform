@@ -5648,3 +5648,174 @@ section heading.
   `packages/app/src/modules/composer/ComposePage.tsx`,
   `packages/app/src/modules/products/ProductsPage.tsx`,
   `packages/app/src/modules/products/index.tsx`, `mkdocs.yml`.
+
+### NXD-106 — An administrator can install and test Nexora from the repository page, without the app running
+
+- Date: 2026-10-02
+- Slice: documentation, dev start, users-backend — found when a workspace
+  restart left the backend at "Backend has not started yet" for forty
+  minutes, and the explanation sat in in-app help nobody could open
+
+**What happened.** The workspace restarted and the `nexora-db-1` container
+stayed stopped. `yarn start` brought the frontend up on 3000, every backend
+plugin failed with `Failed to connect to the database`, and every `/api/*`
+route answered 404, including the GitHub sign-in callback. It looked like a
+GitHub token problem. The README said local `yarn start` used SQLite, which
+had been untrue since NXD-064, and `START.md` section C did not mention the
+database. The developer help explains none of this, and it is part of the app.
+
+**The landing page carries the installation.** `README.md` gains
+_Installation for administrators_:
+
+- the three topologies (everything in one container, separate containers,
+  workspace with only PostgreSQL in Docker) plus production;
+- a Mermaid diagram of how the host, PostgreSQL, the three GitHub credentials
+  (OAuth App, GitHub App, `GITHUB_TOKEN`), generated repositories and AWS
+  Marketplace connect;
+- a statement that the in-app Marketplace is not AWS Marketplace.
+
+_Configuration files_ now lists every root `app-config*.yaml`, which start
+command loads which file, what an administrator sets, and whether the file is
+meant for production. The other root files have their own table. `START.md`
+section C says the database has to be started first; a backend still at 503
+after five minutes is diagnosed as stuck, not booting.
+
+**A test system is an `.env` flag.** `AUTH_DEMO_ENABLED=true` adds
+`app-config.demo.yaml`, the same way `AUTH_GUEST_ENABLED` adds the Guest
+file. The NXD-057 identities gain `demo-pm` in `urs-product-managers`, so
+every approval role has its own seat on the sign-in page: author, business
+reviewer, product manager, quality. Each seat holds exactly one `urs-*`
+group, so walking the chain still takes four sign-ins.
+`auth.environment: development` and the production refusal are unchanged.
+
+**`yarn start` reads those flags.** The flags were honoured only by
+`scripts/ona-dev.sh`. An administrator who set one and ran `yarn start` saw
+no effect. `yarn start` now runs `scripts/ona-dev.sh start`, which passes
+extra arguments through (`yarn start app`, `yarn start backend`, as
+Playwright calls it). `yarn start:raw` keeps the bare command for shells
+without bash.
+
+**A fresh production install gets its first administrator from the
+environment.** `users.bootstrapAdmin` existed (NXD-051), but no shipped
+config set it. Every production install therefore logged
+`No users seeded` and had nobody who could open `/admin/users`.
+`app-config.production.yaml` now reads it from `USERS_BOOTSTRAP_ADMIN`, and
+the production Compose file and the Portainer template pass it.
+
+Compose passes optional variables as `${…:-}`, so an install that never sets
+this one receives an empty string. `getOptionalString` rejects an empty
+string, which would take the users plugin down on every existing install.
+The value is therefore read raw, and `normalizeBootstrapAdmin` treats empty
+or blank as "not configured".
+
+**Not changed, named.** Found while writing the tables, left for their own
+slice:
+
+- `AWS_MARKETPLACE_LINK_STORE` and `AWS_MARKETPLACE_LINK_STORE_PATH` are two
+  names for one setting.
+- No config reads `GITHUB_ORG`. The organization is the literal
+  `nexora.scm.organization`.
+- `app-config.p1a-test.yaml` and the root `Dockerfile` are loaded by nothing.
+- `docs/identity-and-rbac.md`, `docs/operations/pilot-runbook.md` and
+  `docs/deployment/portainer.md` still describe the pre-NXD-051 user file and
+  the root `Dockerfile`.
+
+- Affected components: `README.md`, `START.md`, `scripts/ona-dev.sh`,
+  `package.json`, `app-config.demo.yaml`, `app-config.production.yaml`,
+  `docker-compose.production.yml`, `deploy/portainer.env.example`,
+  `plugins/users-backend/src/{plugin.ts,db/seeds.ts,db/seeds.test.ts}`,
+  `packages/backend/src/{startup.test.ts,auth/identity.test.ts}`.
+
+### NXD-107 — Which system is the source of truth for roles (PROPOSED)
+
+- Date: 2026-10-02
+- Status: **PROPOSED — not in force.** Awaiting a product decision. Until it
+  is accepted, NXD-051 stands unchanged.
+- Context: Administrators ask whether users and roles could come from GitHub
+  or from the company directory instead of being maintained in Nexora. Today
+  GitHub OAuth proves identity only. Platform role and URS approval role come
+  from `memberOf` on the Nexora user record, which lives in PostgreSQL, is
+  edited in Admin → Users & Roles and is audited append-only (NXD-051,
+  NXD-092). No GitHub org or team sync is installed. Entra ID / OIDC is listed
+  as planned in `docs/identity-providers.md`.
+
+**Two kinds of role, and they need not share a source.**
+
+| Kind                                            | Examples                                                     | Why it matters                                                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Approval roles** (GxP, segregation of duties) | AUTHOR, BUSINESS_REVIEWER, PRODUCT_MANAGER, QUALITY_REVIEWER | They authorize electronic signatures. Granting one is itself a controlled act: who, when, why, recorded in the validated system            |
+| **Platform roles** (access tier)                | VIEWER, DEVELOPER, OWNER, PLATFORM_ADMIN                     | They decide what a person can see and create. Usually mirrors the organization chart, and enterprises already maintain that in a directory |
+
+**Options**
+
+| Option                                                    | Approval roles | Platform roles         | Consequence                                                                                                                                                                                                |
+| --------------------------------------------------------- | -------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A — Nexora for both** (today)                           | Nexora         | Nexora                 | Simplest, fully audited, no external dependency. Administrators maintain every person twice: in GitHub and in Nexora                                                                                       |
+| **B — GitHub teams for both**                             | GitHub         | GitHub                 | Requires `catalog-backend-module-github-org`. Any GitHub org owner could then grant QA signing authority, outside the validated system, with no reason and no Nexora audit entry. Not defensible under GxP |
+| **C — Directory for platform roles, Nexora for approval** | Nexora         | Entra ID / Okta (OIDC) | Enterprise standard. Joiners and leavers flow from HR systems. Approval roles stay a controlled act in Nexora. Needs the planned OIDC provider and a group-claim or Graph mapping                          |
+
+**Recommendation: A now, C as the target. B is excluded.** Whatever is
+chosen for platform roles, approval roles are granted only in Nexora. Leaving
+the directory must still revoke access. Under C, losing the directory group
+removes the platform role, and with it every ability to sign, because a
+person with no platform role cannot reach the approval routes.
+
+**To decide.**
+
+1. Is the "approval roles only in Nexora" principle accepted as binding?
+2. Is C the target, and for which customer tier: every customer, or Enterprise
+   only?
+
+- Affected components (if C is accepted): `packages/backend` auth module,
+  `plugins/users-backend` (directory groups become read-only on the record),
+  `PlatformPermissionPolicy`, `docs/identity-providers.md`.
+
+### NXD-108 — Whether Nexora provisions users into GitHub, and how far (PROPOSED)
+
+- Date: 2026-10-02
+- Status: **PROPOSED — not in force.** Depends on NXD-107.
+- Context: When an administrator adds a person in Admin → Users & Roles,
+  that person usually also needs access to the repositories Create generates
+  in the customer's GitHub organization. Today that is a second, manual step
+  in GitHub, and so is removing it.
+
+**Options**
+
+| Option                       | What Nexora does in GitHub                                                                  | GitHub App permission added                         | Consequence                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — Nothing** (today)      | —                                                                                           | —                                                   | No new permission. Joiners wait for a GitHub admin. Leavers keep repository access until someone remembers                                                       |
+| **2 — Team membership only** | Keeps one team per platform role in step (for example `nexora-developers`, `nexora-owners`) | Organization → Members: read & write                | Repository access follows the Nexora role. Offboarding becomes provable. Org invitations still need the person to accept                                         |
+| **3 — Full provisioning**    | Org invitation, teams, and per-product repository permissions                               | Members: read & write, Administration: read & write | Most convenient. Gives the App the broadest rights in every customer org, and puts Nexora in charge of GitHub permissions that customers often govern themselves |
+
+**Recommendation: option 2, built as a reconciler.**
+
+- **Only GitHub-meaningful rights cross over.** Approval roles have no meaning
+  in GitHub and are never written there (NXD-107). The mapping is
+  `platform role → team`, configured, not derived.
+- **Desired state, not events.** A periodic job compares the Nexora records
+  with the team members and corrects the difference. A call fired once on
+  "user created" gets lost on the first GitHub outage and never repairs drift.
+- **Offboarding first.** Removing a user, or lowering their role, removes the
+  team membership on the next run, and the removal is audited. This is the
+  part a GxP auditor asks for.
+- **Visible state.** Admin → Users & Roles shows _invited / active / not in
+  org / drift_, because GitHub invitations wait for the person to accept.
+- **Audited.** Every change Nexora makes in GitHub is written to
+  `user_audit_events` with actor `system:github-reconciler`.
+- **Opt-in per installation.** Off by default. Customers who govern GitHub
+  themselves keep option 1, and the App does not ask for the new permission
+  unless the feature is on.
+- **Under NXD-107 option C,** the directory (via SCIM to GitHub Enterprise)
+  may already own team membership. The reconciler must then stand down,
+  never compete.
+
+**To decide.**
+
+1. Option 2 as recommended, or 1 or 3?
+2. Is the added GitHub App permission (Members: read & write) acceptable for
+   the customer installation guide?
+3. Is the reconciler opt-in per installation or on by default?
+
+- Affected components (if 2 is accepted): `plugins/users-backend` (new
+  reconciler and status column), `app-config.github.yaml` (team mapping),
+  `docs/github-setup.md` (App permission), Admin → Users & Roles page.

@@ -3,14 +3,14 @@
 Four ways to run this platform. Pick the row that matches where you are, then
 follow that one section. Nothing here is new — it collects procedures that were
 spread across `README.md`, `docker/README.md`, `scripts/ona-dev.sh` and
-`docs/deployment/`, because knowing *which* to use was the hard part.
+`docs/deployment/`, because knowing _which_ to use was the hard part.
 
-| Where you are | Use | Get |
-| --- | --- | --- |
-| Laptop, want the whole stack in Docker | [A — Local Docker](#a--local-docker) | One container on `:7007` + PostgreSQL |
-| Ona / Gitpod / Codespaces workspace | [B — Remote gateway](#b--remote-gateway) | One forwarded HTTPS origin |
-| Inside the container, editing code | [C — Dev server](#c--dev-server) | Hot reload on `:3000` + `:7007` |
-| Deploying | [D — Production image](#d--production-image) | Published image, real secrets |
+| Where you are                          | Use                                          | Get                                                        |
+| -------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| Laptop, want the whole stack in Docker | [A — Local Docker](#a--local-docker)         | One container on `:7007` + PostgreSQL                      |
+| Ona / Gitpod / Codespaces workspace    | [B — Remote gateway](#b--remote-gateway)     | One forwarded HTTPS origin                                 |
+| Inside the container, editing code     | [C — Dev server](#c--dev-server)             | Hot reload on `:3000` + `:7007`, only PostgreSQL in Docker |
+| Deploying                              | [D — Production image](#d--production-image) | Published image, real secrets                              |
 
 **The single most common mistake** is running a split frontend/backend setup
 (C) behind a remote gateway (B). It cannot work: the browser treats the API
@@ -31,13 +31,13 @@ yarn build:backend            # REQUIRED — see note below
 docker compose up --build nexora
 ```
 
-Open **http://localhost:7007** and sign in with *Continue as Guest*.
+Open **http://localhost:7007** and sign in with _Continue as Guest_.
 
 > **`yarn build:backend` is not optional.** `packages/backend/Dockerfile` copies
 > `packages/backend/dist/skeleton.tar.gz` and `bundle.tar.gz` into the image; it
 > does not build them. Without that step `docker compose up --build` fails on a
 > missing file. The root `README.md` used to show the bare `docker compose up
-> --build`, which is why this guide exists.
+--build`, which is why this guide exists.
 
 Split mode — nginx on `:3000`, backend on `:7007` — additionally needs
 `yarn workspace app build` and `docker compose --profile split up`. It exists
@@ -56,24 +56,24 @@ Data lives in the `nexora_db` volume; Create-authorization audit records live in
 
 ---
 
-### Database, user and `.env` — set these *before* the first start
+### Database, user and `.env` — set these _before_ the first start
 
-| Variable | Default | Read by | When to change it |
-| --- | --- | --- | --- |
-| `POSTGRES_USER` | `nexora` | `db` and the backend | Rarely |
-| `POSTGRES_PASSWORD` | `nexora_dev_pass` | `db` and the backend | Before the **first** start — see the warning below |
-| `POSTGRES_DATABASE` | `nexora` | backend | Rarely |
-| `POSTGRES_HOST` / `POSTGRES_PORT` | `db` / `5432` | backend | Only against an external database |
-| `BACKEND_SECRET` | `nexora-dev-secret-change-in-production` | backend | Any shared or long-lived instance |
-| `AUTH_GUEST_ENABLED` | `true` (compose) | backend | Set `false` to require GitHub |
-| `AUTH_GUEST_ROLE` | `developer` (compose) | backend | `viewer` for read-only |
+| Variable                          | Default                                  | Read by              | When to change it                                  |
+| --------------------------------- | ---------------------------------------- | -------------------- | -------------------------------------------------- |
+| `POSTGRES_USER`                   | `nexora`                                 | `db` and the backend | Rarely                                             |
+| `POSTGRES_PASSWORD`               | `nexora_dev_pass`                        | `db` and the backend | Before the **first** start — see the warning below |
+| `POSTGRES_DATABASE`               | `nexora`                                 | backend              | Rarely                                             |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | `db` / `5432`                            | backend              | Only against an external database                  |
+| `BACKEND_SECRET`                  | `nexora-dev-secret-change-in-production` | backend              | Any shared or long-lived instance                  |
+| `AUTH_GUEST_ENABLED`              | `true` (compose)                         | backend              | Set `false` to require GitHub                      |
+| `AUTH_GUEST_ROLE`                 | `developer` (compose)                    | backend              | `viewer` for read-only                             |
 
 All of them live in `docker-compose.yml` under `x-backend-env` with a default,
 so **Docker needs no `.env` at all**. Override by exporting the variable or by
 putting it in `.env`, which Compose reads automatically.
 
 `.env` is for the dev server (B and C), not for production — D reads a Compose
-environment file instead. Never write an *empty* value anywhere: Backstage
+environment file instead. Never write an _empty_ value anywhere: Backstage
 drops a config key whose `${VAR}` is unset, but rejects it with
 "got empty-string, wanted string" when it is set and empty, and half the
 backend plugins then refuse to start.
@@ -115,7 +115,7 @@ scripts/ona-dev.sh serve      # single origin on 7007
 ```
 
 `expose` prints the forwarded URL — open that, not `localhost`. Sign in with
-*Continue as Guest*.
+_Continue as Guest_.
 
 Two things to know:
 
@@ -144,15 +144,34 @@ vague and the real cause is in the browser console.
 
 ## C — Dev server
 
-Hot reload, container-local only. Frontend on `:3000`, backend on `:7007`.
+Hot reload, container-local only. Frontend and backend run as Node processes
+in the workspace — frontend on `:3000`, backend on `:7007`. Only PostgreSQL
+runs in Docker.
 
 ```bash
+docker compose up -d db       # PostgreSQL on localhost:5432
 yarn start
 ```
 
-Equivalent to `scripts/ona-dev.sh start`, which additionally creates a `.env`
-if one is missing. Do not use this through a remote gateway — see the warning
+`yarn start` runs `scripts/ona-dev.sh start`: it creates a `.env` if one is
+missing and adds the config files the sign-in flags in `.env` ask for
+(`AUTH_GUEST_ENABLED`, `AUTH_GUEST_ROLE`, `AUTH_DEMO_ENABLED`). `yarn start:raw`
+is the bare command and ignores those flags. Do not use this through a remote gateway — see the warning
 at the top.
+
+**The database does not come back on its own.** After a workspace or machine
+restart the `nexora-db-1` container is stopped, and `yarn start` does not
+start it. Run `docker compose up -d db` (or `docker start nexora-db-1`) first.
+B needs it too: `scripts/ona-dev.sh serve` runs the same backend against the
+same database.
+
+`.env` must point at that container: `POSTGRES_HOST=localhost`,
+`POSTGRES_PORT=5432`, `POSTGRES_USER=nexora`, `POSTGRES_DATABASE=nexora`, and
+`POSTGRES_PASSWORD` equal to what the container was first initialised with
+(`nexora_dev_pass` unless you overrode it — see the warning under A).
+
+To run with no database at all, add `--config app-config.yaml --config
+app-config.memory.yaml` to `yarn start`; that file lists what you give up.
 
 ---
 
@@ -172,11 +191,19 @@ The production path does **not** read `.env` — that is a development
 mechanism. It reads a Compose environment file, and the same
 `docker-compose.production.yml` backs the Portainer stack.
 
-Never carry an *empty* variable into a production environment file.
+Never carry an _empty_ variable into a production environment file.
 Backstage drops a config key whose `${VAR}` is unset, but rejects it with
 "got empty-string, wanted string" when it is set and empty, and half the
 backend plugins then refuse to start. Required variables:
 `deploy/portainer.env.example`.
+
+**The first administrator.** A production install seeds no demo accounts, so
+set `USERS_BOOTSTRAP_ADMIN` to your GitHub login before the first start. It is
+read once, against an empty user table, and installed as PLATFORM_ADMIN; every
+further user and role is added in **Admin → Users & Roles** (`/admin/users`).
+Without it the log says `No users seeded` and nobody can administer the
+platform. Each person you add must also be able to sign in with GitHub — a
+login is identity only; the role comes from that page.
 
 Detail: [Docker production](docs/deployment/docker-production.md) ·
 [Portainer](docs/deployment/portainer.md).
@@ -192,6 +219,14 @@ curl -s http://localhost:7007/.backstage/health/v1/readiness
 
 A 503 with `"Backend has not started yet"` means it is still booting; first
 start takes a minute or two while migrations and the catalog run.
+
+If it is still 503 after five minutes, it is not booting — it is stuck. The
+usual cause is an unreachable database: the log shows
+`Plugin '…' startup failed … Failed to connect to the database` for every
+plugin, the frontend on `:3000` still loads, and every `/api/*` route answers
+404 — including the GitHub sign-in callback, which then looks like a GitHub
+problem when it is not. Start PostgreSQL (`docker compose up -d db`) and
+restart the backend.
 
 To call the API from a shell you need a **user** token — the Composer and
 registry routes reject service credentials:

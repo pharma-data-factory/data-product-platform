@@ -4,7 +4,10 @@
 # Two modes, because they have different constraints:
 #
 #   start  — webpack dev server on 3000 + backend on 7007, container-local.
-#            Hot reload. Use it from inside the container.
+#            Hot reload. Use it from inside the container. `yarn start` runs
+#            this, so the .env flags below apply to it too; extra arguments
+#            (`yarn start backend`) are passed through to `repo start`.
+#            `yarn start:raw` is the bare command, for shells without bash.
 #
 #   serve  — ONE origin on 7007: the backend serves the built frontend, the
 #            way the production image does. Required for the Ona gateway.
@@ -19,6 +22,8 @@
 #      but rejects it with "got empty-string, wanted string" when it is set and
 #      empty. Half the backend plugins refuse to start otherwise.
 #   3. Guest sign-in is opt-in via AUTH_GUEST_ENABLED / AUTH_GUEST_ROLE.
+#   4. The test identities (author, business reviewer, product manager,
+#      quality) are opt-in via AUTH_DEMO_ENABLED — app-config.demo.yaml.
 #
 # Exposing a port is deliberately never automatic.
 set -euo pipefail
@@ -65,6 +70,12 @@ BACKEND_SECRET=dev-local-auth-key
 #   AUTH_GUEST_ROLE=developer additionally allows scaffolding and create
 # AUTH_GUEST_ENABLED=true
 # AUTH_GUEST_ROLE=viewer
+
+# Test system. Adds one sign-in button per approval role (author, business
+# reviewer, product manager, quality), so the URS approval chain can be walked
+# without a GitHub account per role. Refused when auth.environment is
+# production. See app-config.demo.yaml.
+# AUTH_DEMO_ENABLED=true
 EOF
 }
 
@@ -90,6 +101,15 @@ base_config_args() {
     fi
   else
     echo "Guest sign-in: disabled (set AUTH_GUEST_ENABLED=true in .env)" >&2
+  fi
+
+  # Last, so its auth.environment and persistence settings are not overridden
+  # by a file merged after it.
+  if [ "$(env_value AUTH_DEMO_ENABLED)" = "true" ]; then
+    out+=(--config "$ROOT/app-config.demo.yaml")
+    echo "Test identities: enabled — demo-author, demo-reviewer, demo-pm, demo-quality" >&2
+  else
+    echo "Test identities: disabled (set AUTH_DEMO_ENABLED=true in .env)" >&2
   fi
 }
 
@@ -144,7 +164,7 @@ start() {
   echo "Mode: dev server — http://localhost:3000 (container-local)"
   cd "$ROOT"
   exec node --env-file=.env ./node_modules/@backstage/cli/bin/backstage-cli \
-    repo start "${args[@]}"
+    repo start "$@" "${args[@]}"
 }
 
 serve() {
@@ -171,7 +191,7 @@ ready() {
 }
 
 case "${1:-start}" in
-  start)  start ;;
+  start)  shift || true; start "$@" ;;
   serve)  serve ;;
   expose) expose ;;
   ready)  ready ;;

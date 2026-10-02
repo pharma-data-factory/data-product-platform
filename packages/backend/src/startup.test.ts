@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import yaml from 'yaml';
 
 const backendIndex = fs.readFileSync(path.join(__dirname, 'index.ts'), 'utf8');
 const appConfig = fs.readFileSync(
@@ -38,14 +39,24 @@ const REGISTERED_TEMPLATE_DIRS = [
 
 describe('Backstage foundation', () => {
   it('starts the current backend architecture with required plugins', () => {
-    expect(backendIndex).toContain("import { createBackend } from '@backstage/backend-defaults'");
-    expect(backendIndex).toContain("backend.add(import('@backstage/plugin-catalog-backend'))");
-    expect(backendIndex).toContain("backend.add(import('@backstage/plugin-scaffolder-backend'))");
+    expect(backendIndex).toContain(
+      "import { createBackend } from '@backstage/backend-defaults'",
+    );
+    expect(backendIndex).toContain(
+      "backend.add(import('@backstage/plugin-catalog-backend'))",
+    );
+    expect(backendIndex).toContain(
+      "backend.add(import('@backstage/plugin-scaffolder-backend'))",
+    );
     expect(backendIndex).toContain(
       "backend.add(import('@backstage/plugin-scaffolder-backend-module-github'))",
     );
-    expect(backendIndex).toContain("backend.add(import('@backstage/plugin-techdocs-backend'))");
-    expect(backendIndex).toContain("backend.add(import('@backstage/plugin-search-backend'))");
+    expect(backendIndex).toContain(
+      "backend.add(import('@backstage/plugin-techdocs-backend'))",
+    );
+    expect(backendIndex).toContain(
+      "backend.add(import('@backstage/plugin-search-backend'))",
+    );
     expect(backendIndex).toContain(
       "backend.add(import('@backstage/plugin-auth-backend-module-github-provider'))",
     );
@@ -74,7 +85,9 @@ describe('Backstage foundation', () => {
       REGISTERED_TEMPLATE_DIRS.map(dir => ({
         dir,
         development: appConfig.includes(`../../templates/${dir}/template.yaml`),
-        production: productionConfig.includes(`./templates/${dir}/template.yaml`),
+        production: productionConfig.includes(
+          `./templates/${dir}/template.yaml`,
+        ),
       })),
     ).toEqual(
       REGISTERED_TEMPLATE_DIRS.map(dir => ({
@@ -83,7 +96,9 @@ describe('Backstage foundation', () => {
         production: true,
       })),
     );
-    expect(appConfig).toContain('allow: [Component, System, API, Resource, Location, Template, Domain]');
+    expect(appConfig).toContain(
+      'allow: [Component, System, API, Resource, Location, Template, Domain]',
+    );
   });
 
   it('registers the app config schema so frontend visibility takes effect', () => {
@@ -92,7 +107,10 @@ describe('Backstage foundation', () => {
     // frontend-visible is stripped from the served config, and the Guest button
     // never appears however the YAML is written.
     const appPackage = JSON.parse(
-      fs.readFileSync(path.resolve(__dirname, '../../app/package.json'), 'utf8'),
+      fs.readFileSync(
+        path.resolve(__dirname, '../../app/package.json'),
+        'utf8',
+      ),
     );
     expect(appPackage.configSchema).toBe('config.d.ts');
 
@@ -147,5 +165,36 @@ describe('Backstage foundation', () => {
     expect(appConfig).toContain('token: ${GITHUB_TOKEN}');
     expect(appConfig).not.toMatch(/ghp_[A-Za-z0-9]+/);
     expect(appConfig).not.toMatch(/-----BEGIN .*PRIVATE KEY-----/);
+  });
+  it('offers one test identity per URS approval role behind AUTH_DEMO_ENABLED', () => {
+    // A test system needs every approval seat on the sign-in page without a
+    // GitHub account per role. Each identity holds exactly one urs-* group so
+    // the chain still needs four different sign-ins to walk.
+    const root = path.resolve(__dirname, '../../..');
+    const demo = yaml.parse(
+      fs.readFileSync(path.join(root, 'app-config.demo.yaml'), 'utf8'),
+    );
+    expect(demo.auth.environment).toBe('development');
+
+    const identities: Array<{ name: string; memberOf: string[] }> =
+      demo.users.demoIdentities;
+    const ursGroups = identities.map(i =>
+      i.memberOf.filter(g => g.startsWith('urs-')),
+    );
+    expect(ursGroups).toEqual([
+      ['urs-authors'],
+      ['urs-business-reviewers'],
+      ['urs-product-managers'],
+      ['urs-quality-reviewers'],
+    ]);
+    expect(demo.auth.providers.demo.users).toEqual(identities.map(i => i.name));
+
+    const onaDev = fs.readFileSync(
+      path.join(root, 'scripts/ona-dev.sh'),
+      'utf8',
+    );
+    expect(onaDev).toMatch(
+      /env_value AUTH_DEMO_ENABLED\)" = "true" \]; then\s+out\+=\(--config "\$ROOT\/app-config\.demo\.yaml"\)/,
+    );
   });
 });

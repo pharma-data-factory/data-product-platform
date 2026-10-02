@@ -36,6 +36,100 @@ corporate platforms.
 
 ---
 
+## Installation for administrators
+
+This section is here, rather than in the in-app help, because the in-app help
+is unreadable until the platform runs. Nexora has three parts — **frontend**,
+**backend**, **PostgreSQL** — and three ways to place them:
+
+| Topology                                       | Frontend                | Backend              | PostgreSQL            | Use it for                              | Start                                              |
+| ---------------------------------------------- | ----------------------- | -------------------- | --------------------- | --------------------------------------- | -------------------------------------------------- |
+| **1 — All in Docker, one container**           | served by the backend   | container            | container             | Evaluation, pilots, any shared instance | `./start.sh` or `docker compose up --build nexora` |
+| **2 — All in Docker, separate containers**     | nginx container on 3000 | container            | container             | Testing a reverse-proxy layout          | `docker compose --profile split up`                |
+| **3 — Workspace, only the database in Docker** | Node process on 3000    | Node process on 7007 | container             | Development with hot reload             | `docker compose up -d db`, then `yarn start`       |
+| Production                                     | served by the backend   | published image      | container or external | Deployment                              | `yarn prod:env && yarn docker:prod:up`             |
+
+Choose **1** unless you are changing code. It is what the production image
+does: one origin on `:7007`, no CORS, no `.env` required.
+
+**Every topology needs PostgreSQL.** In topology 3 the database is the one
+part that does not start by itself: after a workspace or machine restart,
+start it again with `docker compose up -d db` (or `docker start nexora-db-1`)
+**before** `yarn start`. If you skip that, the frontend still loads on 3000,
+but the backend stays at `"Backend has not started yet"` indefinitely, every
+API route returns 404, and the log shows `Failed to connect to the database`
+for each plugin. To run without any database, layer `app-config.memory.yaml`
+on top of `app-config.yaml` and read what that file says you give up.
+
+Behind a remote gateway (Ona, Gitpod, Codespaces) the split 3000/7007 layout
+of topology 3 cannot sign you in; use the single-origin mode in
+[Remote gateways](#remote-gateways-ona-gitpod-codespaces).
+
+Step-by-step procedures, variables and troubleshooting for each topology:
+**[START.md](START.md)**.
+
+### How the parts connect
+
+```mermaid
+flowchart LR
+  admin([Administrator]) -.->|"configures .env or Compose env file"| cp
+  user([User browser]) -->|"HTTPS"| cp
+
+  subgraph host["Your host — topology 1, 2 or 3"]
+    cp["Nexora Control Plane<br/>Backstage backend :7007<br/>serves the frontend"]
+    db[("PostgreSQL<br/>products, URS, users, audit")]
+    rt[("/app/.runtime volume<br/>audit JSONL, marketplace links")]
+    cp --> db
+    cp --> rt
+  end
+
+  subgraph gh["GitHub — three separate credentials"]
+    oauth["OAuth App<br/>sign-in<br/>AUTH_GITHUB_*"]
+    app["GitHub App<br/>publishes generated repos<br/>GITHUB_APP_*"]
+    repo["Generated product repos<br/>+ GitHub Actions ci.yml"]
+  end
+
+  user <-->|"sign-in redirect"| oauth
+  cp -->|"login → Catalog User → role"| oauth
+  cp -->|"Create: publish:github"| app
+  app --> repo
+  cp -->|"CI Quality Gate reads runs<br/>App token or GITHUB_TOKEN"| repo
+
+  subgraph aws["AWS Marketplace — adapter ready, no public listing"]
+    awsm["Metering ResolveCustomer<br/>Entitlement GetEntitlements"]
+  end
+  buyer([AWS buyer]) -->|"fulfilment URL<br/>POST /api/entitlements/marketplace/register"| cp
+  cp -->|"IAM role, no keys in config"| awsm
+```
+
+Three things this picture is meant to make obvious:
+
+- **GitHub plays three roles, each with its own credential.** The **OAuth App**
+  signs people in and is required for every non-Guest login. The **GitHub App**
+  publishes the repositories that _Create_ generates, and must be installed on
+  the target organization (`nexora.scm.organization` in `app-config.yaml`).
+  `GITHUB_TOKEN` is an optional personal-token fallback for catalog reads and
+  the CI Quality Gate. Without any of them the portal still runs; only sign-in,
+  publishing and CI status are missing. Setup: [GitHub setup](#github-setup),
+  [docs/github-setup.md](docs/github-setup.md).
+- **A GitHub login is not access.** Sign-in proves identity; the role comes
+  from the Nexora user record (`/admin/users`, stored in PostgreSQL). An unknown
+  login authenticates and lands on "Access not granted". On a fresh production
+  install set `USERS_BOOTSTRAP_ADMIN=<github-login>` in the environment file, or nobody
+  can open `/admin/users` to add the next person.
+- **The in-app Marketplace is not AWS Marketplace.** The Marketplace page is a
+  technical catalog of approved assets, fed by `catalog/artifacts/` and
+  `catalog/editions.yaml` (artifact-registry-backend); it needs no setup
+  beyond those files. **AWS Marketplace** is an optional entitlement source:
+  the adapter (`plugins/entitlements-backend`) resolves buyers and reads
+  entitlements, an administrator approves each buyer link in
+  `/admin/marketplace-integration`, and there is no metering and no public
+  listing yet. Enable it only with `app-config.marketplace-test.yaml` and the
+  `AWS_MARKETPLACE_*` variables —
+  [docs/aws-marketplace-test-listing.md](docs/aws-marketplace-test-listing.md).
+
+---
+
 ## What the platform does
 
 Nexora keeps core systems standard, composes certified capabilities, and
@@ -269,10 +363,14 @@ the container path. The devcontainer provides both; rebuild it after pulling
 corepack enable
 yarn install
 yarn tsc
+docker compose up -d db   # PostgreSQL; repeat after every workspace restart
 yarn start
 ```
 
-Frontend on **3000**, backend on **7007**. `yarn start` reads `.env` through
+Frontend on **3000**, backend on **7007**, database in Docker on **5432** —
+topology 3 in [Installation for administrators](#installation-for-administrators). `yarn start` runs `scripts/ona-dev.sh start`, which honours the sign-in flags
+in `.env` (see [Sign-in](#sign-in)); `yarn start:raw` is the bare command for
+shells without bash. Either reads `.env` through
 `node --env-file`, so the file must exist.
 
 ### Environment file
@@ -302,11 +400,12 @@ GitHub login is the default and requires an OAuth App — see
 
 Guest sign-in is opt-in and local-only:
 
-| Variable                    | Effect                                                      |
-| --------------------------- | ----------------------------------------------------------- |
-| `AUTH_GUEST_ENABLED=true`   | Shows **Continue as Guest**                                 |
-| `AUTH_GUEST_ROLE=viewer`    | Read-only (default)                                         |
-| `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding, create, and URS authoring |
+| Variable                    | Effect                                                                                                     |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `AUTH_GUEST_ENABLED=true`   | Shows **Continue as Guest**                                                                                |
+| `AUTH_GUEST_ROLE=viewer`    | Read-only (default)                                                                                        |
+| `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding, create, and URS authoring                                                |
+| `AUTH_DEMO_ENABLED=true`    | **Test system:** one sign-in per approval role — `demo-author`, `demo-reviewer`, `demo-pm`, `demo-quality` |
 
 Guest resolves to **VIEWER**: catalog, marketplace and data-product read
 access, no scaffolding, no create. Raising it to `developer` is a deliberate
@@ -315,7 +414,9 @@ local escalation. Guest is unavailable in production, where
 
 `developer` does **not** grant URS approval. Each approval step requires its
 own role and no role bypasses the check, so a chain one identity can walk alone
-would prove nothing. To walk it locally anyway, uncomment the three
+would prove nothing. To walk it on a test system, set `AUTH_DEMO_ENABLED=true` and restart; `yarn start`
+and `scripts/ona-dev.sh serve` both read the flag from `.env`. Each seat holds one approval role, so the chain
+still needs four different sign-ins. Alternatively, uncomment the three
 `urs-*-reviewers` groups in `app-config.guest-developer.yaml` — and treat the
 resulting signatures as worthless evidence, because they are.
 
@@ -405,8 +506,8 @@ split 3000/7007 layout is `--profile split` and is not the default.
 `packages/backend/dist/skeleton.tar.gz` and `bundle.tar.gz` into the image.
 Without it the build fails on a missing file.
 
-Local `yarn start` without Docker uses SQLite from `app-config.yaml`.
-Do not deploy the root `Dockerfile` as production. Production image:
+Local `yarn start` uses PostgreSQL from `app-config.yaml` and expects it on
+`localhost:5432`; `docker compose up -d db` provides it. Do not deploy the root `Dockerfile` as production. Production image:
 `packages/backend/Dockerfile`. Hosted: [Portainer](docs/deployment/portainer.md).
 Production smoke checklist: [Docker production](docs/deployment/docker-production.md).
 
@@ -435,15 +536,54 @@ against an external database.
 
 ### Configuration files
 
-| File                              | Purpose                                                     |
-| --------------------------------- | ----------------------------------------------------------- |
-| `app-config.yaml`                 | Default local configuration                                 |
-| `app-config.local.yaml`           | Safe local overrides, no secrets                            |
-| `app-config.guest.yaml`           | Opt-in Guest sign-in, loaded when `AUTH_GUEST_ENABLED=true` |
-| `app-config.guest-developer.yaml` | Raises the local Guest to DEVELOPER                         |
-| `app-config.github.yaml`          | Opt-in GitHub App for repository publishing                 |
-| `app-config.docker.yaml`          | Compose / container paths and PostgreSQL                    |
-| `app-config.production.yaml`      | Production-like PostgreSQL, GitHub login, no Guest          |
+Backstage merges every `--config` file in order; a later file overrides an
+earlier one. Secrets never go into these files — they reference environment
+variables (`${VAR}`), which come from `.env` in development and from a Compose
+environment file in production. **What an administrator edits is almost always
+the environment, not the YAML.** The YAML is changed only for the few literal
+values marked below.
+
+**Which files each way of starting loads**
+
+| Start command                        | Files, in merge order                                                                                                                                          |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `yarn start`                         | `app-config.yaml`, `app-config.local.yaml`                                                                                                                     |
+| `scripts/ona-dev.sh start` / `serve` | the two above, then by `.env` flag: `.guest` (`AUTH_GUEST_ENABLED=true`), `.guest-developer` (`AUTH_GUEST_ROLE=developer`), `.demo` (`AUTH_DEMO_ENABLED=true`) |
+| `docker compose up nexora`           | `app-config.yaml`, `.production`, `.docker-local`                                                                                                              |
+| Production image                     | `app-config.yaml`, `.production`, `.github`                                                                                                                    |
+
+**What each file is for**
+
+| File                               | Purpose                                                                                              | What you set                                                                                                                                                      | Production |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `app-config.yaml`                  | Base for every environment: PostgreSQL, GitHub login, catalog, plugins, commercial defaults          | Env: `BACKEND_SECRET`, `POSTGRES_*`, `AUTH_GITHUB_*`, optional `GITHUB_TOKEN`, AI keys. Literal: `nexora.scm.organization` — the GitHub org Create publishes into | Base       |
+| `app-config.local.yaml`            | Local developer overrides; contains a fixed dev auth key                                             | Optional `COMPOSER_AI_KEY`                                                                                                                                        | No         |
+| `app-config.guest.yaml`            | Adds **Continue as Guest** (read-only VIEWER)                                                        | Nothing — switched on by `AUTH_GUEST_ENABLED=true`                                                                                                                | No         |
+| `app-config.guest-developer.yaml`  | Raises Guest to DEVELOPER (scaffold, create, URS authoring; never approval)                          | Nothing — `AUTH_GUEST_ROLE=developer`                                                                                                                             | No         |
+| `app-config.demo.yaml`             | **Test system:** one sign-in per approval role — author, business reviewer, product manager, quality | Nothing — `AUTH_DEMO_ENABLED=true`. Refused under `auth.environment: production`                                                                                  | No         |
+| `app-config.github.yaml`           | GitHub App for publishing generated repositories                                                     | `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`, optional `GITHUB_WEBHOOK_SECRET`                                               | **Yes**    |
+| `app-config.production.yaml`       | Hosted profile: production auth (Catalog users only, no Guest), permissions on, rate limit           | `APP_BASE_URL`, `BACKEND_BASE_URL`, `AUTH_GITHUB_CALLBACK_URL`, optional `NEXORA_PROVENANCE_TOKEN`. `USERS_BOOTSTRAP_ADMIN` for the first admin                   | **Yes**    |
+| `app-config.docker-local.yaml`     | Guest-only override for the local Compose stack                                                      | Nothing                                                                                                                                                           | No         |
+| `app-config.docker.yaml`           | Profile for the root `Dockerfile` dev image                                                          | `POSTGRES_*`, `AUTH_GITHUB_*` — nothing in Compose or CI uses it                                                                                                  | No         |
+| `app-config.memory.yaml`           | Run without any database; the file lists what you give up                                            | Nothing — add it by hand                                                                                                                                          | No         |
+| `app-config.marketplace-test.yaml` | AWS Marketplace **test** entitlements instead of local ones                                          | `AWS_MARKETPLACE_REGION`, `AWS_MARKETPLACE_PRODUCT_CODE`, `AWS_MARKETPLACE_LINK_STORE`, `LEGAL_DISTRIBUTION_STATUS`                                               | No         |
+| `app-config.e2e.yaml`              | Backend serves the built frontend for Playwright; layered on `.demo`                                 | `POSTGRES_*`                                                                                                                                                      | No         |
+| `app-config.service-token.yaml`    | Static local service-principal token for API experiments                                             | Nothing                                                                                                                                                           | Never      |
+| `app-config.p1a-test.yaml`         | Historical persistence check; nothing loads it                                                       | —                                                                                                                                                                 | No         |
+
+**Other root files an administrator meets**
+
+| File                            | Purpose                                                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `.env` / `.env.example`         | Development environment, read by `yarn start` and `scripts/ona-dev.sh`. Write `.env` by hand — see [Environment file](#environment-file) |
+| `docker-compose.yml`            | Local stack: topology 1 (`nexora`) and 2 (`--profile split`), and the database for topology 3 (`db`)                                     |
+| `docker-compose.production.yml` | Hosted stack: PostgreSQL + published image; refuses to start without its required variables                                              |
+| `deploy/portainer.env.example`  | Template for the production environment file (also used by `yarn prod:env`)                                                              |
+| `docker-compose.test.yml`       | Disposable PostgreSQL for the GxP test suites                                                                                            |
+| `docker-compose.validation.yml` | Production-like local stack for IQ re-tests, on ports 7008 / 5435                                                                        |
+| `packages/backend/Dockerfile`   | **The** image — production, Compose and CI                                                                                               |
+| `Dockerfile` (root)             | Development image; not used by Compose or CI. Do not deploy it                                                                           |
+| `start.sh`                      | One command for topology 1: build, start, wait for health, detect a stale database password                                              |
 
 Without GitHub App credentials the portal still runs. **Create** fails at
 publish until the App is installed on the organization.

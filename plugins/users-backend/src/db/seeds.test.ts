@@ -11,7 +11,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { up } from './migrations';
-import { seed } from './seeds';
+import { normalizeBootstrapAdmin, seed } from './seeds';
 
 const SEED_YAML = `apiVersion: backstage.io/v1alpha1
 kind: User
@@ -71,7 +71,9 @@ describe('users first-install seed', () => {
     const second = await seed(db, { seedFile, log });
 
     expect(second).toEqual({ seeded: 0, reason: 'ALREADY_POPULATED' });
-    const row = await db('platform_users').where({ name: 'demo-admin' }).first();
+    const row = await db('platform_users')
+      .where({ name: 'demo-admin' })
+      .first();
     // The demotion survives. Before this change the committed YAML was the
     // store, so a restart restored platform-admins silently.
     expect(JSON.parse(row.member_of)).toEqual(['platform-viewers']);
@@ -99,6 +101,16 @@ describe('users first-install seed', () => {
     expect(result).toEqual({ seeded: 0, reason: 'NOTHING' });
     expect(await db('platform_users').select()).toHaveLength(0);
     expect(log.mock.calls.flat().join(' ')).toMatch(/users.bootstrapAdmin/);
+  });
+
+  it('treats an empty USERS_BOOTSTRAP_ADMIN as not configured', () => {
+    // docker-compose.production.yml passes the variable as `${...:-}`, so an
+    // install that never set it receives an empty string, not nothing.
+    expect(normalizeBootstrapAdmin(undefined)).toBeUndefined();
+    expect(normalizeBootstrapAdmin('')).toBeUndefined();
+    expect(normalizeBootstrapAdmin('   ')).toBeUndefined();
+    expect(normalizeBootstrapAdmin(42)).toBeUndefined();
+    expect(normalizeBootstrapAdmin(' schmeckm_roche ')).toBe('schmeckm_roche');
   });
 
   it('tolerates a missing seed file', async () => {

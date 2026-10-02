@@ -22,6 +22,23 @@ export interface SeedOptions {
   log: (message: string) => void;
 }
 
+/**
+ * `users.bootstrapAdmin` as configured, or undefined.
+ *
+ * Read raw rather than with `getOptionalString`, because the production
+ * Compose file passes `USERS_BOOTSTRAP_ADMIN: ${USERS_BOOTSTRAP_ADMIN:-}` and
+ * an unset variable therefore arrives as an empty string, which the typed
+ * getter rejects — taking the whole users plugin down on every install that
+ * already has its administrator. Empty means "not configured".
+ */
+export function normalizeBootstrapAdmin(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const login = value.trim();
+  return login.length > 0 ? login : undefined;
+}
+
 export interface SeedResult {
   seeded: number;
   reason: 'ALREADY_POPULATED' | 'DEMO_USERS' | 'BOOTSTRAP_ADMIN' | 'NOTHING';

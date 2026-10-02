@@ -115,6 +115,14 @@ validationExpert:
   persistence:
     mode: postgres
 
+users:
+  # The GitHub login installed as the first PLATFORM_ADMIN. Read once, on the
+  # first start against an empty user table; afterwards users and roles are
+  # managed in Admin → Users & Roles and this value is ignored. Without it a
+  # fresh install has no administrator and nobody can open /admin/users.
+  # An unset or empty variable means "not configured" (normalizeBootstrapAdmin).
+  bootstrapAdmin: ${USERS_BOOTSTRAP_ADMIN}
+
 catalog:
   rules:
     - allow: [Component, System, API, Resource, Location, Template]

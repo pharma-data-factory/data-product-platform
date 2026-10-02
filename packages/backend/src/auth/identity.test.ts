@@ -25,15 +25,15 @@ describe('Guest development fallback', () => {
     expect(guestConfig).toContain('group:default/guests');
     expect(guestConfig).toContain('group:default/platform-viewers');
     expect(guestConfig).not.toContain('group:default/platform-admins');
-    expect(guestConfig).not.toContain('dangerouslyAllowOutsideDevelopment: true');
+    expect(guestConfig).not.toContain(
+      'dangerouslyAllowOutsideDevelopment: true',
+    );
 
     expect(production).toContain('environment: production');
     expect(production).not.toMatch(/providers:\s*[\s\S]*guest:/);
     expect(production).not.toContain('user:default/guest');
     expect(production).toContain('clientId: ${AUTH_GITHUB_CLIENT_ID}');
-    expect(production).toContain(
-      'callbackUrl: ${AUTH_GITHUB_CALLBACK_URL}',
-    );
+    expect(production).toContain('callbackUrl: ${AUTH_GITHUB_CALLBACK_URL}');
     expect(production).toContain('baseUrl: ${APP_BASE_URL}');
     expect(production).toContain('secret: ${BACKEND_SECRET}');
     expect(production).not.toContain('dangerouslyAllowOutsideDevelopment');
@@ -80,7 +80,9 @@ describe('GitHub user sign-in configuration', () => {
     expect(githubApp).toContain('clientId: ${GITHUB_CLIENT_ID}');
     expect(githubApp).toContain('privateKey: ${GITHUB_PRIVATE_KEY}');
     expect(githubApp).not.toContain('clientId: ${AUTH_GITHUB_CLIENT_ID}');
-    expect(githubApp).not.toContain('clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}');
+    expect(githubApp).not.toContain(
+      'clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}',
+    );
     expect(githubApp).toContain('repository publishing');
 
     expect(envExample).toContain('AUTH_GITHUB_CLIENT_ID=');
@@ -92,7 +94,9 @@ describe('GitHub user sign-in configuration', () => {
 
     expect(appConfig).not.toMatch(/personalAccessToken|PERSONAL_ACCESS_TOKEN/);
     expect(githubApp).not.toMatch(/personalAccessToken|GITHUB_TOKEN/);
-    const landing = read('packages/app/src/modules/identity/LandingSignInPage.tsx');
+    const landing = read(
+      'packages/app/src/modules/identity/LandingSignInPage.tsx',
+    );
     const login = read('packages/app/src/modules/identity/LoginPage.tsx');
     expect(landing).not.toContain('AUTH_GITHUB_CLIENT_SECRET');
     expect(landing).not.toContain('clientSecret');
@@ -102,7 +106,14 @@ describe('GitHub user sign-in configuration', () => {
     const rootPkg = JSON.parse(read('package.json'));
     const backendPkg = JSON.parse(read('packages/backend/package.json'));
     const appPkg = JSON.parse(read('packages/app/package.json'));
-    expect(rootPkg.scripts.start).toContain('--env-file=.env');
+    // `yarn start` goes through scripts/ona-dev.sh so the .env sign-in flags
+    // apply (NXD-106); the script is what passes the env file. `start:raw`
+    // keeps the bare command.
+    expect(rootPkg.scripts.start).toBe('bash scripts/ona-dev.sh start');
+    expect(read('scripts/ona-dev.sh')).toMatch(
+      /exec node --env-file=\.env \S+backstage-cli \\\s+repo start/,
+    );
+    expect(rootPkg.scripts['start:raw']).toContain('--env-file=.env');
     expect(backendPkg.scripts.start).toContain('--env-file=../../.env');
     expect(appPkg.scripts.start).toContain('--env-file=../../.env');
   });
@@ -110,12 +121,12 @@ describe('GitHub user sign-in configuration', () => {
 
 describe('user and group mapping', () => {
   it('maps GitHub users onto catalog User entities and platform groups', () => {
-    const org = yaml.parseAllDocuments(read('catalog/org.yaml')).map(doc =>
-      doc.toJSON(),
-    );
-    const seed = yaml.parseAllDocuments(read('catalog/users.seed.yaml')).map(doc =>
-      doc.toJSON(),
-    );
+    const org = yaml
+      .parseAllDocuments(read('catalog/org.yaml'))
+      .map(doc => doc.toJSON());
+    const seed = yaml
+      .parseAllDocuments(read('catalog/users.seed.yaml'))
+      .map(doc => doc.toJSON());
 
     const groups = org
       .filter(entity => entity.kind === 'Group')
@@ -157,7 +168,9 @@ describe('user and group mapping', () => {
 
 describe('GitHub login flow', () => {
   it('documents the verified production login path and keeps publishing separate', () => {
-    const landing = read('packages/app/src/modules/identity/LandingSignInPage.tsx');
+    const landing = read(
+      'packages/app/src/modules/identity/LandingSignInPage.tsx',
+    );
     const production = read('app-config.production.yaml');
     const githubApp = read('app-config.github.yaml');
 
@@ -175,7 +188,9 @@ describe('GitHub login flow', () => {
     );
     expect(production).not.toContain('GITHUB_APP_ID');
     expect(githubApp).not.toContain('clientId: ${AUTH_GITHUB_CLIENT_ID}');
-    expect(githubApp).not.toContain('clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}');
+    expect(githubApp).not.toContain(
+      'clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}',
+    );
     expect(githubApp).toContain('Do not put AUTH_GITHUB_* values here');
   });
 });

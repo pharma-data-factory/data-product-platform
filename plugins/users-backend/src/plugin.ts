@@ -12,7 +12,7 @@ import { UsersRepository } from './repository';
 import { CatalogUserProjection } from './entityProvider';
 import { applyGuestGroups } from './guestRole';
 import { applyDemoUsers, readDemoUsers } from './demoUsers';
-import { seed } from './db/seeds';
+import { normalizeBootstrapAdmin, seed } from './db/seeds';
 
 /** Committed first-install content. Read once, when the table is empty. */
 const SEED_FILE = '../../catalog/users.seed.yaml';
@@ -55,7 +55,9 @@ export const usersBackendPlugin = createBackendPlugin({
         // file, and the emptiness check is what guarantees it.
         const result = await seed(repository.client(), {
           environment: config.getOptionalString('auth.environment'),
-          bootstrapAdmin: config.getOptionalString('users.bootstrapAdmin'),
+          bootstrapAdmin: normalizeBootstrapAdmin(
+            config.getOptional('users.bootstrapAdmin'),
+          ),
           seedFile: path.resolve(
             process.cwd(),
             config.getOptionalString('users.seedFile') ?? SEED_FILE,

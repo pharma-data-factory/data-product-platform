@@ -84,6 +84,16 @@ four quick wins F1–F4, one commit and one record each.
   Governance* is its own step; *Help & Docs* reaches the Developer Hub,
   which had no nav entry. Build, Compose and Release show where they sit in
   Build → Release → Operate and what comes next. See [`NXD-103`](DECISIONS.md).
+- **Administrator installation, readable without the app.** `README.md`
+  now covers the three topologies (one container, separate containers,
+  workspace with only PostgreSQL in Docker), has a diagram of how GitHub and
+  AWS Marketplace connect, and lists every root config file. A test system
+  is `AUTH_DEMO_ENABLED=true`: one sign-in per approval role, including the
+  new `demo-pm`. `yarn start` now honours the `.env` sign-in flags. A fresh
+  production install gets its first administrator from
+  `USERS_BOOTSTRAP_ADMIN`. See [`NXD-106`](DECISIONS.md). Proposed, not in
+  force: the source of truth for roles ([`NXD-107`](DECISIONS.md)) and
+  provisioning users into GitHub ([`NXD-108`](DECISIONS.md)).
 
 ## Previous Vertical Slices
 

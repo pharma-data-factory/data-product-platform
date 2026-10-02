@@ -63,6 +63,9 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?GITHUB_CLIENT_SECRET is required}
       GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY:?GITHUB_PRIVATE_KEY is required}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      # GitHub login of the first administrator. Consulted only on the very
+      # first start, against an empty user table; harmless to leave set.
+      USERS_BOOTSTRAP_ADMIN: ${USERS_BOOTSTRAP_ADMIN:-}
       GITHUB_ORG: ${GITHUB_ORG:-pharma-data-factory}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
