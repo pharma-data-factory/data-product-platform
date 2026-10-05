@@ -74,3 +74,56 @@ export function isApprovalStepDue(
   const status = String(step.status);
   return status === 'PENDING' || status === 'ACTIVE';
 }
+
+/**
+ * The line above the chain: what it is waiting for, and who submitted it.
+ *
+ * It printed `Status: NOT_STARTED · Started by …`. NOT_STARTED is what the
+ * backend calls a submitted chain nobody has signed yet, so the page said a
+ * workflow it had just started was not started, and "started by" named the
+ * submitter, not a signer. A tester read it as stuck (NXD-104).
+ */
+export function approvalInstanceSummary(instance: ApprovalInstance): string {
+  const submitted = `submitted by ${instance.startedBy}`;
+  switch (String(instance.status)) {
+    case 'NOT_STARTED':
+    case 'IN_PROGRESS': {
+      const due = instance.steps.find(
+        step => step.sequence === instance.currentStepSequence,
+      );
+      const waitingFor = due
+        ? `Waiting for step ${due.sequence} (${due.role || 'Reviewer'})`
+        : 'Waiting for the next step';
+      return `${waitingFor} · ${submitted}`;
+    }
+    case 'APPROVED':
+      return `Approved · ${submitted}`;
+    case 'REJECTED':
+      return `Rejected · ${submitted}`;
+    case 'CANCELLED':
+      return `Cancelled · ${submitted}`;
+    default:
+      return `${String(instance.status)} · ${submitted}`;
+  }
+}
+
+/**
+ * Whether the signed-in user holds the role this step needs.
+ *
+ * Decides only whether Approve is offered. The page offered it to everyone
+ * with urs.approve, so an author could fill in the signing dialog for a
+ * BUSINESS_REVIEWER step and be refused by the server afterwards.
+ *
+ * `null` roles means they could not be loaded; the button is then offered as
+ * before and the server's refusal is the answer. Hiding it would make one
+ * failed read look like a missing role.
+ */
+export function holdsApprovalStepRole(
+  step: ApprovalStepInstance,
+  roles: readonly string[] | null,
+): boolean {
+  if (roles === null || !step.role) {
+    return true;
+  }
+  return roles.includes(String(step.role));
+}

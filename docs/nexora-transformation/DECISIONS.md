@@ -5649,6 +5649,84 @@ section heading.
   `packages/app/src/modules/products/ProductsPage.tsx`,
   `packages/app/src/modules/products/index.tsx`, `mkdocs.yml`.
 
+### NXD-104 — Walking the OEE approval chain by hand: a refusal said "Signing failed.", and the page went stale on success
+
+- Date: 2026-10-01
+- Slice: frontend + one read route — found by the user walking URS-EPM (the
+  OEE requirement set) through the demo profile, three seats, on PostgreSQL
+
+The user took the seeded _Equipment Performance Management_ set from DRAFT
+to an approved baseline 1.0, the first manual walk of the whole chain. The
+backend did everything right. The page misreported it four times.
+
+**"Signing failed." hid a correct refusal.** Signed in as demo-author, the
+user opened Approve on step 1 (BUSINESS_REVIEWER). The server answered 403
+_"This step requires role 'BUSINESS_REVIEWER'. Your roles: PRODUCT_MANAGER,
+AUTHOR"_; the dialog showed _"Signing failed."_ The URS client threw a plain
+`{ status, message }` object, and `ESignatureDialog` shows `e.message` only
+for `e instanceof Error`. NXD-101 fixed what the message _contains_; this
+is whether it _arrives_. Every signature refusal — wrong PIN, lockout,
+missing QA role, segregation of duties — had been reaching the signer as the
+same placeholder. The log showed three more refused QA signatures before
+the user found the right seat. The client now throws an `Error` carrying
+`status`, `code` and `details`, so `URSApiError` readers are unaffected.
+
+**Approve was offered to people who cannot sign.** The step buttons were
+gated on `urs.approve` alone. The approval _role_ comes from catalog group
+membership and is checked only server-side, so the page had no way to know.
+`GET /approval-roles/me` returns the caller's roles through the same
+`getUserApprovalRoles` the approval uses: same mapping, same aliases, ADMIN
+standing in for nothing. The page offers Approve and Reject only to the
+holder of the step's role and tells everyone else which role the step needs
+and which roles they have. It is display only; every act is re-checked. If
+the roles cannot be loaded the button is offered as before, because hiding
+it would make one failed read look like a missing role.
+
+**"Status: NOT_STARTED · Started by user:default/guest".** That is the
+backend's name for a submitted chain nobody has signed yet. The page said
+a workflow it had just started was not started, and "started by" named the
+submitter. The user read it as stuck. It now reads _"Waiting for step 1
+(BUSINESS_REVIEWER) · submitted by …"_, and _Approved / Rejected / Cancelled_
+once settled. _Current State_, directly above the chain, was the
+requirement **set's** status and read as the chain's; it is labelled
+_Requirement set status_.
+
+**Success went unseen until a browser reload.** After the final signature
+the server had approved the baseline and the set
+(`approveApprovalStep` → `releaseBaseline`, set → APPROVED). The page
+replaced only the approval instance. It kept showing _Current State: DRAFT_
+and _"Validation handoff becomes available after a baseline is approved"_.
+That is NXD-097's defect again, on a different action: baselines have their
+own effect, which `reload()` does not reach. Approve, Reject and Cancel now
+re-read both. A failed re-read is reported as _"Saved, but the page could
+not refresh"_ and never thrown, so the signing dialog cannot call a
+recorded signature a failure.
+
+**Not changed, named.** Step 2 (PRODUCT_MANAGER) can be signed by any demo
+seat, because `data-product-owners` aliases to PRODUCT_MANAGER, as
+`app-config.demo.yaml` already says. The OEE Golden Path still stops at
+its first step in this workspace (`publish-readiness: NO_CREDENTIALS`), so
+the repository half of the journey stays unwalked. The 9 `CreateWizard`
+test failures ("A component suspended while responding to synchronous
+input") fail identically on the unchanged tree.
+
+**Proof.** The client test uses the exact 403 body the running backend
+sent. The page test drives the final signature through the dialog and
+expects _Start Validation_ without a reload. An HTTP test pins the role
+route for author, reviewer, admin and a denied read. Verified live after
+rebuild: `/approval-roles/me` answers demo-author `PRODUCT_MANAGER, AUTHOR`
+and demo-reviewer `PRODUCT_MANAGER, BUSINESS_REVIEWER`.
+
+- Affected components:
+  `plugins/urs-composer-backend/src/router.ts`,
+  `plugins/urs-composer-backend/src/approval-roles-me-http.test.ts` (new),
+  `plugins/urs-composer/src/api/ursComposerApi.ts` (+ test),
+  `plugins/urs-composer/src/api/types.ts`,
+  `plugins/urs-composer/src/pages/approvalStepper.ts` (+ test),
+  `plugins/urs-composer/src/pages/URSRequirementSetPage.tsx`,
+  `plugins/urs-composer/src/pages/URSRequirementSetPage.approval.test.tsx` (new),
+  `plugins/urs-composer/src/pages/URSRequirementSetPage.loadFailure.test.tsx`.
+
 ### NXD-106 — An administrator can install and test Nexora from the repository page, without the app running
 
 - Date: 2026-10-02

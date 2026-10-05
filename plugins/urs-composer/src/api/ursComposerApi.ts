@@ -30,6 +30,7 @@ import {
   CreateRevisionRequest,
   SubmitBaselineRequest,
   ApproveStepRequest,
+  MyApprovalRoles,
   RejectStepRequest,
   RequirementSetListResponse,
   CapabilityListResponse,
@@ -98,14 +99,22 @@ export class URSComposerApi {
     // Handle error responses
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const error: URSApiError = {
-        status: response.status,
-        // Backstage's own errors nest the message; a page rendered the
-        // object and crashed (NXD-101).
-        message: messageFromErrorBody(errorData, `HTTP ${response.status}`),
-        code: errorData.code,
-        details: errorData,
-      };
+      // A real Error carrying the URSApiError fields. A plain object lost its
+      // message wherever a reader checked `instanceof Error` — the signing
+      // dialog turned every refusal, the server's role message included,
+      // into "Signing failed." (NXD-104).
+      const error: Error & URSApiError = Object.assign(
+        new Error(
+          // Backstage's own errors nest the message; a page rendered the
+          // object and crashed (NXD-101).
+          messageFromErrorBody(errorData, `HTTP ${response.status}`),
+        ),
+        {
+          status: response.status,
+          code: errorData.code,
+          details: errorData,
+        },
+      );
       throw error;
     }
 
@@ -600,6 +609,15 @@ export class URSComposerApi {
    */
   async setSigningPin(pin: string): Promise<void> {
     await this.put<{ ok: boolean }>('/signing-pin', { pin });
+  }
+
+  /**
+   * GET /approval-roles/me
+   * The caller's own approval roles. Decides which buttons a page offers,
+   * never whether an approval is accepted.
+   */
+  async getMyApprovalRoles(): Promise<MyApprovalRoles> {
+    return this.get<MyApprovalRoles>('/approval-roles/me');
   }
 
   /**

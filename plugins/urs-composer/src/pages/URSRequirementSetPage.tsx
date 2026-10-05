@@ -90,6 +90,8 @@ import {
 } from './reviewChain';
 import {
   activeApprovalStepIndex,
+  approvalInstanceSummary,
+  holdsApprovalStepRole,
   isApprovalStepDue,
 } from './approvalStepper';
 import { parseAcceptanceCriteria } from '../components/CreateWizard/wizardState';
@@ -237,6 +239,12 @@ export const URSRequirementSetPage: FC = () => {
   // own effect — so creating one left "No baselines yet" and "Create
   // Baseline" on screen until a page reload (NXD-097, found by the e2e test).
   const [baselinesAttempt, setBaselinesAttempt] = useState(0);
+  // The signed-in user's approval roles, so Approve is offered only on a step
+  // they can sign. `null` until loaded or when the read fails — see
+  // `holdsApprovalStepRole`.
+  const [myApprovalRoles, setMyApprovalRoles] = useState<string[] | null>(
+    null,
+  );
   const [stepComments, setStepComments] = useState<Record<string, string>>({});
   // Create Baseline dialog state
   const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
@@ -399,6 +407,24 @@ export const URSRequirementSetPage: FC = () => {
       })
       .catch(() => {
         // capability catalog may be empty — fall back to raw IDs
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    let mounted = true;
+    api
+      .getMyApprovalRoles()
+      .then(result => {
+        if (mounted) {
+          setMyApprovalRoles(result.roles);
+        }
+      })
+      .catch(() => {
+        // Not fatal: without roles the page offers Approve as it always did
+        // and the server's refusal explains itself.
       });
     return () => {
       mounted = false;
@@ -612,6 +638,31 @@ export const URSRequirementSetPage: FC = () => {
     }
   };
 
+  /**
+   * Re-read what an approval act changes besides the instance itself.
+   *
+   * The final step releases the baseline and approves the set; a rejection or
+   * cancellation settles the baseline. Only the instance used to be replaced,
+   * so the page kept "Current State: DRAFT" and "Validation handoff becomes
+   * available after a baseline is approved" until a browser reload, on a
+   * baseline the server had already approved (NXD-104).
+   *
+   * A failed re-read is reported as such and never thrown: the act itself
+   * succeeded, and the signing dialog must not call it a failure.
+   */
+  const refreshAfterApprovalAct = async () => {
+    setBaselinesAttempt(n => n + 1);
+    try {
+      await reload();
+    } catch (err: any) {
+      setActionError(
+        `Saved, but the page could not refresh: ${
+          err?.message || 'unknown error'
+        }. Reload the page.`,
+      );
+    }
+  };
+
   const handleApproveStep = async (
     stepId: string,
     opts: { comment?: string; pin: string },
@@ -632,6 +683,7 @@ export const URSRequirementSetPage: FC = () => {
         delete next[stepId];
         return next;
       });
+      await refreshAfterApprovalAct();
     } catch (err: any) {
       setActionError(err.message || 'Failed to approve step');
       throw err;
@@ -658,6 +710,7 @@ export const URSRequirementSetPage: FC = () => {
         delete next[stepId];
         return next;
       });
+      await refreshAfterApprovalAct();
     } catch (err: any) {
       setActionError(err.message || 'Failed to reject step');
     } finally {
@@ -674,6 +727,7 @@ export const URSRequirementSetPage: FC = () => {
     try {
       const updated = await api.cancelApprovalInstance(approvalInstance.id);
       setApprovalInstance(updated);
+      await refreshAfterApprovalAct();
     } catch (err: any) {
       setActionError(err.message || 'Failed to cancel workflow');
     } finally {
@@ -1357,7 +1411,12 @@ export const URSRequirementSetPage: FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Approval
                 </Typography>
-                <Typography variant="subtitle2">Current State</Typography>
+                {/*
+                  The set's status, not the approval chain's. Labelled
+                  "Current State" it sat directly above the chain and read as
+                  the chain's state.
+                */}
+                <Typography variant="subtitle2">Requirement set status</Typography>
                 <Typography paragraph>{set.status}</Typography>
 
                 {approvalInstance ? (
@@ -1374,8 +1433,7 @@ export const URSRequirementSetPage: FC = () => {
                         the field, now that `startedBy` is required and the
                         contract test holds the server to sending it.
                       */}
-                      Status: {approvalInstance.status} · Started by{' '}
-                      {approvalInstance.startedBy}
+                      {approvalInstanceSummary(approvalInstance)}
                     </Typography>
                     <Stepper
                       activeStep={activeApprovalStepIndex(approvalInstance)}
@@ -1473,7 +1531,27 @@ export const URSRequirementSetPage: FC = () => {
                                 )}
                                 {isActive &&
                                   !approveAllowed.loading &&
-                                  approveAllowed.allowed && (
+                                  approveAllowed.allowed &&
+                                  !holdsApprovalStepRole(
+                                    step,
+                                    myApprovalRoles,
+                                  ) && (
+                                    <Typography
+                                      variant="caption"
+                                      color="textSecondary"
+                                    >
+                                      Step {step.sequence} needs the{' '}
+                                      {step.role} approval role. Your roles:{' '}
+                                      {myApprovalRoles?.join(', ') || 'none'}.
+                                    </Typography>
+                                  )}
+                                {isActive &&
+                                  !approveAllowed.loading &&
+                                  approveAllowed.allowed &&
+                                  holdsApprovalStepRole(
+                                    step,
+                                    myApprovalRoles,
+                                  ) && (
                                     <Box
                                       display="flex"
                                       alignItems="center"

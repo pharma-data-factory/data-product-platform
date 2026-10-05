@@ -60,6 +60,9 @@ function api(overrides: Record<string, jest.Mock> = {}) {
     listCapabilities: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     listBaselines: jest.fn().mockResolvedValue([baselineInApproval]),
     findValidationContext: jest.fn().mockResolvedValue(null),
+    getMyApprovalRoles: jest
+      .fn()
+      .mockResolvedValue({ userEntityRef: 'user:default/author', roles: [] }),
     getApprovalInstance: jest
       .fn()
       .mockRejectedValue(new Error('Service Unavailable (503)')),

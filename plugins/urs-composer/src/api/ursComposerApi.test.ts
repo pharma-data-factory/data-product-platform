@@ -218,6 +218,54 @@ describe('URSComposerApi', () => {
         status: 500,
       });
     });
+
+    // NXD-104. The body is the one the running backend sent when demo-author
+    // tried a BUSINESS_REVIEWER step. As a plain object it reached the signing
+    // dialog, which reads `instanceof Error`, and was shown as "Signing failed."
+    test('a refusal is a real Error, so its message survives to the dialog', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({
+          error: {
+            name: 'NotAllowedError',
+            message:
+              "This step requires role 'BUSINESS_REVIEWER'. Your roles: PRODUCT_MANAGER, AUTHOR",
+          },
+        }),
+      });
+
+      const api = createApi();
+      const refusal = await api
+        .approveStep('approval-1', 'step-1', { pin: '1234' })
+        .catch((e: unknown) => e);
+
+      expect(refusal).toBeInstanceOf(Error);
+      expect((refusal as Error).message).toBe(
+        "This step requires role 'BUSINESS_REVIEWER'. Your roles: PRODUCT_MANAGER, AUTHOR",
+      );
+      expect(refusal).toMatchObject({ status: 403 });
+    });
+  });
+
+  describe('getMyApprovalRoles', () => {
+    test('reads GET /approval-roles/me', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          userEntityRef: 'user:default/demo-reviewer',
+          roles: ['BUSINESS_REVIEWER', 'PRODUCT_MANAGER'],
+        }),
+      });
+
+      const result = await createApi().getMyApprovalRoles();
+
+      expect((fetchApi.fetch as jest.Mock).mock.calls[0][0]).toMatch(
+        /\/approval-roles\/me$/,
+      );
+      expect(result.roles).toEqual(['BUSINESS_REVIEWER', 'PRODUCT_MANAGER']);
+    });
   });
 
   // ============================================================================

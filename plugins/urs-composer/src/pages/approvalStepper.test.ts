@@ -15,6 +15,8 @@
 
 import {
   activeApprovalStepIndex,
+  approvalInstanceSummary,
+  holdsApprovalStepRole,
   isApprovalStepDue,
 } from './approvalStepper';
 import { ApprovalInstance, ApprovalStepInstance } from '../api/types';
@@ -136,5 +138,61 @@ describe('isApprovalStepDue', () => {
     const decided = step(1, 'APPROVED');
     const chain = instance('IN_PROGRESS', 1, [decided, step(2, 'PENDING')]);
     expect(isApprovalStepDue(decided, chain)).toBe(false);
+  });
+});
+
+describe('approvalInstanceSummary (NXD-104)', () => {
+  it('names the step a submitted chain is waiting for, instead of "NOT_STARTED"', () => {
+    const chain = instance('NOT_STARTED', 1, [
+      step(1, 'PENDING', { role: 'BUSINESS_REVIEWER' }),
+      step(2, 'PENDING', { role: 'PRODUCT_MANAGER' }),
+    ]);
+    expect(approvalInstanceSummary(chain)).toBe(
+      'Waiting for step 1 (BUSINESS_REVIEWER) · submitted by user:default/author',
+    );
+  });
+
+  it('follows the chain as it advances', () => {
+    const chain = instance('IN_PROGRESS', 2, [
+      step(1, 'APPROVED', { role: 'BUSINESS_REVIEWER' }),
+      step(2, 'ACTIVE', { role: 'PRODUCT_MANAGER' }),
+    ]);
+    expect(approvalInstanceSummary(chain)).toBe(
+      'Waiting for step 2 (PRODUCT_MANAGER) · submitted by user:default/author',
+    );
+  });
+
+  it('says a settled chain is settled', () => {
+    expect(approvalInstanceSummary(instance('APPROVED', 3, []))).toBe(
+      'Approved · submitted by user:default/author',
+    );
+    expect(approvalInstanceSummary(instance('REJECTED', 1, []))).toBe(
+      'Rejected · submitted by user:default/author',
+    );
+    expect(approvalInstanceSummary(instance('CANCELLED', 1, []))).toBe(
+      'Cancelled · submitted by user:default/author',
+    );
+  });
+});
+
+describe('holdsApprovalStepRole (NXD-104)', () => {
+  const reviewerStep = step(1, 'PENDING', { role: 'BUSINESS_REVIEWER' });
+
+  it('is true only for a user holding the step role', () => {
+    expect(holdsApprovalStepRole(reviewerStep, ['BUSINESS_REVIEWER'])).toBe(
+      true,
+    );
+    expect(
+      holdsApprovalStepRole(reviewerStep, ['AUTHOR', 'PRODUCT_MANAGER']),
+    ).toBe(false);
+    expect(holdsApprovalStepRole(reviewerStep, [])).toBe(false);
+  });
+
+  it('does not let ADMIN stand in for the step role, as the server does not', () => {
+    expect(holdsApprovalStepRole(reviewerStep, ['ADMIN'])).toBe(false);
+  });
+
+  it('offers the step when the roles could not be loaded, leaving the decision to the server', () => {
+    expect(holdsApprovalStepRole(reviewerStep, null)).toBe(true);
   });
 });

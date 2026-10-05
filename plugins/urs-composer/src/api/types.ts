@@ -547,6 +547,15 @@ export interface ApproveStepRequest {
   pin?: string;
 }
 
+/**
+ * GET /approval-roles/me — the caller's approval roles, resolved the way a
+ * step approval resolves them. Display only; the server re-checks every act.
+ */
+export interface MyApprovalRoles {
+  userEntityRef: string;
+  roles: string[];
+}
+
 export interface QualityCheckRequest {
   requirementId?: string;
   title?: string;

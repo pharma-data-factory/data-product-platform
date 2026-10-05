@@ -84,6 +84,13 @@ four quick wins F1–F4, one commit and one record each.
   Governance* is its own step; *Help & Docs* reaches the Developer Hub,
   which had no nav entry. Build, Compose and Release show where they sit in
   Build → Release → Operate and what comes next. See [`NXD-103`](DECISIONS.md).
+- **Defect — a manual walk of the OEE approval chain (URS-EPM).** It got
+  from DRAFT to an approved baseline, and the page misreported it four
+  times. A role refusal reached the signer as "Signing failed."; Approve
+  was offered to seats without the step's role; "NOT_STARTED" meant
+  "waiting for the first signature"; and the approved baseline and set
+  stayed DRAFT on screen until a reload. New read route
+  `GET /approval-roles/me`. See [`NXD-104`](DECISIONS.md).
 - **Administrator installation, readable without the app.** `README.md`
   now covers the three topologies (one container, separate containers,
   workspace with only PostgreSQL in Docker), has a diagram of how GitHub and

@@ -1202,6 +1202,26 @@ export async function createRouter(
   });
 
   /**
+   * GET /approval-roles/me
+   * The caller's own approval roles, resolved exactly as a step approval
+   * resolves them.
+   *
+   * For display only: the page offers Approve to whoever holds the step's role
+   * and names the role to everyone else. Every approval still re-resolves the
+   * roles server-side, so this answer grants nothing.
+   */
+  router.get('/approval-roles/me', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursReadPermission);
+      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+      const roles = await service.getUserApprovalRoles(actor, credentials);
+      res.json({ userEntityRef: actor, roles });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * POST /requirement-versions/:id/obsolete
    * Retire a released version. Refused with 409 while a released baseline
    * still pins it (invariant 16).
