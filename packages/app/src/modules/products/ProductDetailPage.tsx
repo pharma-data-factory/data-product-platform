@@ -40,6 +40,8 @@ import {
 } from './tabs/ContractsTab';
 import { TestsTab } from './tabs/TestsTab';
 import { ValidationTab } from './tabs/ValidationTab';
+import { ApprovalAct, ApprovalDialog } from './tabs/ApprovalDialog';
+import type { ProductSignatureRecord, SignatureInput } from './api';
 
 /**
  * The Product page (NXD-056).
@@ -113,6 +115,13 @@ export function ProductDetailPage() {
   const [baselines, setBaselines] = useState<ProductBaseline[] | null>(null);
   const [baselineBusy, setBaselineBusy] = useState(false);
   const [baselineError, setBaselineError] = useState<string | null>(null);
+  /** NXD-128: the act awaiting the approval dialog, and the acts recorded. */
+  const [pendingAct, setPendingAct] = useState<{
+    act: ApprovalAct;
+    targetStatus?: string;
+    baselineId?: string;
+  } | null>(null);
+  const [signatures, setSignatures] = useState<ProductSignatureRecord[]>([]);
 
   /**
    * Everything scoped to one version: components, requirements, coverage.
@@ -161,6 +170,7 @@ export function ProductDetailPage() {
 
       setActionError(null);
       setTraceability(await client.getProductTraceability(productId));
+      setSignatures(await client.listProductSignatures(productId).catch(() => []));
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -304,19 +314,10 @@ export function ProductDetailPage() {
     }
   };
 
+  // NXD-128: approving a baseline goes through the approval dialog.
   const approveBaseline = async (baselineId: string) => {
-    if (!selectedVersionId) {
-      return;
-    }
-    setBaselineBusy(true);
-    setBaselineError(null);
-    try {
-      await client.approveProductBaseline(baselineId);
-      await refreshBaselines(selectedVersionId);
-    } catch (e) {
-      setBaselineError((e as Error).message);
-    } finally {
-      setBaselineBusy(false);
+    if (selectedVersionId) {
+      setPendingAct({ act: 'BASELINE_APPROVED', baselineId });
     }
   };
 
@@ -366,6 +367,14 @@ export function ProductDetailPage() {
 
   const doTransition = async (targetStatus: string) => {
     if (!selectedVersionId) return;
+    // NXD-128: approval and release are attested acts.
+    if (targetStatus === 'APPROVED' || targetStatus === 'RELEASED') {
+      setPendingAct({
+        act: targetStatus === 'APPROVED' ? 'VERSION_APPROVED' : 'VERSION_RELEASED',
+        targetStatus,
+      });
+      return;
+    }
     setTransitionLoading(true);
     setActionError(null);
     try {
@@ -376,6 +385,25 @@ export function ProductDetailPage() {
     } finally {
       setTransitionLoading(false);
     }
+  };
+
+  /** Runs the act the dialog confirmed; rethrows so the dialog shows why. */
+  const confirmPendingAct = async (signature: SignatureInput) => {
+    if (!pendingAct || !selectedVersionId) return;
+    if (pendingAct.baselineId) {
+      await client.approveProductBaseline(pendingAct.baselineId, signature);
+      setPendingAct(null);
+      await refreshBaselines(selectedVersionId);
+      setSignatures(await client.listProductSignatures(productId).catch(() => []));
+      return;
+    }
+    await client.transitionVersionStatus(
+      selectedVersionId,
+      pendingAct.targetStatus ?? '',
+      signature,
+    );
+    setPendingAct(null);
+    await load();
   };
 
   if (loading) {
@@ -505,8 +533,17 @@ export function ProductDetailPage() {
           )}
 
           {tab === 'overview' && (
+            <>
+            <ApprovalDialog
+              act={pendingAct?.act ?? null}
+              subject={`${product.name} ${selectedVersion?.version ?? ''}`.trim()}
+              gxpRelevance={product.gxpRelevance}
+              onConfirm={confirmPendingAct}
+              onClose={() => setPendingAct(null)}
+            />
             <OverviewTab
               product={product}
+              signatures={signatures}
               versions={versions}
               selectedVersion={selectedVersion}
               loadGate={loadGate}
@@ -522,6 +559,7 @@ export function ProductDetailPage() {
               onCreateBaseline={createBaseline}
               onApproveBaseline={approveBaseline}
             />
+            </>
           )}
 
           {tab === 'requirements' && (

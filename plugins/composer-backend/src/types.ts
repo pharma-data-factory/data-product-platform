@@ -185,6 +185,39 @@ export interface TransitionProductVersionRequest {
   targetStatus: string;
   releaseCommitSha?: string;
   artifactDigest?: string;
+  /** NXD-128: required for APPROVED and RELEASED on a GMP-relevant product. */
+  signature?: ProductSignatureInput;
+}
+
+/**
+ * NXD-128. What a person attests by approving or releasing: the meaning is
+ * fixed by the act, the justification is theirs.
+ */
+export type ProductSignatureMeaning =
+  | 'VERSION_APPROVED'
+  | 'VERSION_RELEASED'
+  | 'BASELINE_APPROVED';
+
+export interface ProductSignatureInput {
+  justification?: string;
+  /** The signing PIN; verified in the URS Composer, never stored. */
+  pin?: string;
+}
+
+/** One approval or release, as attested. Append-only. */
+export interface ProductSignature {
+  id: string;
+  productId: string;
+  entityType: 'PRODUCT_VERSION' | 'PRODUCT_BASELINE';
+  entityId: string;
+  meaning: ProductSignatureMeaning;
+  justification: string;
+  signedBy: string;
+  signedAt: string;
+  /** Whether the product counted as GMP-relevant when it was signed. */
+  gmpRelevant: boolean;
+  /** The second factor verified (`signature-pin`); absent for a confirmation. */
+  reauthMethod?: string;
 }
 
 export interface CreateProductBaselineRequest {

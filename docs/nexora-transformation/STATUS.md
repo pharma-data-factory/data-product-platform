@@ -202,6 +202,10 @@ four quick wins F1–F4, one commit and one record each.
   evidence review carry the version; the gate asks for exactly the version it
   releases; the panel has a version picker. The pre-NXD-127 decision covers no
   version. See [`NXD-127`](DECISIONS.md).
+- **Signed approval and release.** For a GMP-relevant product, version
+  approval, baseline approval and release need a justification and the PIN;
+  NONE confirms. Every act is recorded append-only and listed on the product
+  page. See [`NXD-128`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

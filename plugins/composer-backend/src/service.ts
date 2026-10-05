@@ -81,6 +81,9 @@ import {
   AISpecDraft,
   AuditContext,
   TestExecution,
+  ProductSignature,
+  ProductSignatureInput,
+  ProductSignatureMeaning,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type { CatalogComponentLoader } from './catalog-component-loader';
@@ -1629,23 +1632,27 @@ export class ComposerService {
     await this.audit(audit, 'TRACEABILITY_LINK', id, 'TRACEABILITY_LINK_DELETED');
   }
 
-  async transitionProductVersionStatus(
+  /**
+   * Whether `actor` may move the version to `targetStatus` now; throws if
+   * not, writes nothing. Shared by the plain and the signed transition, so a
+   * refused transition never costs a PIN attempt (NXD-128).
+   */
+  private async assertVersionTransition(
     versionId: string,
-    request: TransitionProductVersionRequest,
+    targetStatus: string,
     actor: string,
   ): Promise<ProductVersion> {
-    const audit = this.beginAudit(actor);
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
       throw new NotFoundError(`Product version ${versionId} not found`);
     }
     const allowed = VALID_TRANSITIONS[version.status] ?? [];
-    if (!allowed.includes(request.targetStatus)) {
+    if (!allowed.includes(targetStatus)) {
       throw new ConflictError(
-        `Invalid transition from ${version.status} to ${request.targetStatus}`,
+        `Invalid transition from ${version.status} to ${targetStatus}`,
       );
     }
-    if (request.targetStatus === 'RELEASED') {
+    if (targetStatus === 'RELEASED') {
       const gate = await this.checkReleaseGate(versionId);
       if (!gate.passed) {
         // A blocked gate is the platform working, not failing. 409 says
@@ -1665,13 +1672,149 @@ export class ComposerService {
     // 403, not 400 (NXD-072). This is a statement about who the caller is, not
     // about what they sent: there is no correction to the request body that
     // makes it succeed, and a 400 invites the author to go looking for one.
-    if (request.targetStatus === 'APPROVED' && actor === version.createdBy) {
+    if (targetStatus === 'APPROVED' && actor === version.createdBy) {
       throw new NotAllowedError(
         `Segregation of Duties violation: the author of a product version ` +
           `cannot approve it. Actor "${actor}" created version ${versionId}. ` +
           `A different person must perform the approval.`,
       );
     }
+    return version;
+  }
+
+  /**
+   * Approve or release a version as a person, with an electronic signature
+   * when the product is GMP-relevant (NXD-128). The entry point for people;
+   * `transitionProductVersionStatus` stays the plain state change.
+   *
+   * GMP-relevant (INDIRECT, DIRECT or unanswered): a justification and the
+   * signer's PIN, verified in the URS Composer like every signature on the
+   * platform. NONE: a justification is recorded when given, no PIN. Either
+   * way the act is written to `product_signatures`, after the transition
+   * succeeded. Other transitions (release candidate, revert) are not
+   * signed.
+   */
+  async signedVersionTransition(
+    versionId: string,
+    request: TransitionProductVersionRequest,
+    actor: string,
+    verifyPin: (pin: string) => Promise<string>,
+  ): Promise<ProductVersion> {
+    const meaning: ProductSignatureMeaning | undefined =
+      request.targetStatus === 'APPROVED'
+        ? 'VERSION_APPROVED'
+        : request.targetStatus === 'RELEASED'
+          ? 'VERSION_RELEASED'
+          : undefined;
+    if (!meaning) {
+      return this.transitionProductVersionStatus(versionId, request, actor);
+    }
+    const version = await this.assertVersionTransition(
+      versionId,
+      request.targetStatus,
+      actor,
+    );
+    const product = await this.repository.getProduct(version.productId);
+    const attested = await this.attest(product, request.signature, verifyPin);
+    const updated = await this.transitionProductVersionStatus(versionId, request, actor);
+    await this.repository.addProductSignature({
+      id: randomUUID(),
+      productId: version.productId,
+      entityType: 'PRODUCT_VERSION',
+      entityId: versionId,
+      meaning,
+      justification: attested.justification,
+      signedBy: actor,
+      signedAt: new Date().toISOString(),
+      gmpRelevant: attested.gmpRelevant,
+      reauthMethod: attested.reauthMethod,
+    });
+    return updated;
+  }
+
+  /** Approve a baseline as a person, signed when GMP-relevant (NXD-128). */
+  async signedBaselineApproval(
+    baselineId: string,
+    signature: ProductSignatureInput | undefined,
+    actor: string,
+    verifyPin: (pin: string) => Promise<string>,
+  ): Promise<ProductBaseline> {
+    const baseline = await this.repository.getProductBaseline(baselineId);
+    if (!baseline) {
+      throw new NotFoundError(`Product baseline ${baselineId} not found`);
+    }
+    if (baseline.status !== 'DRAFT') {
+      throw new ConflictError(`Cannot approve baseline in status ${baseline.status}`);
+    }
+    if (actor === baseline.createdBy) {
+      throw new NotAllowedError(
+        `Segregation of Duties violation: the author of a product baseline ` +
+          `cannot approve it. Actor "${actor}" created baseline ${baselineId}. ` +
+          `A different person must perform the approval.`,
+      );
+    }
+    const version = await this.repository.getProductVersion(baseline.productVersionId);
+    const product = version ? await this.repository.getProduct(version.productId) : null;
+    const attested = await this.attest(product, signature, verifyPin);
+    const approved = await this.approveProductBaseline(baselineId, actor);
+    await this.repository.addProductSignature({
+      id: randomUUID(),
+      productId: version?.productId ?? '',
+      entityType: 'PRODUCT_BASELINE',
+      entityId: baselineId,
+      meaning: 'BASELINE_APPROVED',
+      justification: attested.justification,
+      signedBy: actor,
+      signedAt: new Date().toISOString(),
+      gmpRelevant: attested.gmpRelevant,
+      reauthMethod: attested.reauthMethod,
+    });
+    return approved;
+  }
+
+  async listProductSignatures(productId: string): Promise<ProductSignature[]> {
+    return this.repository.listProductSignatures(productId);
+  }
+
+  /**
+   * The justification and, for a GMP-relevant product, the verified PIN.
+   * Only an explicit NONE takes a product out (as NXD-119); an unknown
+   * product is treated as GMP-relevant.
+   */
+  private async attest(
+    product: Product | null,
+    input: ProductSignatureInput | undefined,
+    verifyPin: (pin: string) => Promise<string>,
+  ): Promise<{ justification: string; gmpRelevant: boolean; reauthMethod?: string }> {
+    const gmpRelevant = product?.gxpRelevance !== 'NONE';
+    const justification = String(input?.justification ?? '').trim();
+    if (!gmpRelevant) {
+      return { justification, gmpRelevant };
+    }
+    if (!justification) {
+      throw new InputError(
+        'This product is GMP-relevant: approving or releasing it needs a justification and your signing PIN.',
+      );
+    }
+    if (!input?.pin) {
+      throw new InputError(
+        'This product is GMP-relevant: approving or releasing it needs your signing PIN.',
+      );
+    }
+    return { justification, gmpRelevant, reauthMethod: await verifyPin(String(input.pin)) };
+  }
+
+  async transitionProductVersionStatus(
+    versionId: string,
+    request: TransitionProductVersionRequest,
+    actor: string,
+  ): Promise<ProductVersion> {
+    const audit = this.beginAudit(actor);
+    const version = await this.assertVersionTransition(
+      versionId,
+      request.targetStatus,
+      actor,
+    );
 
     const oldStatus = version.status;
     const updated: ProductVersion = {

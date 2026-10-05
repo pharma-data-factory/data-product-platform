@@ -5,7 +5,13 @@ import type {
   ProductRequirementCoverage,
   ProductVersion,
 } from '@internal/platform-common';
-import type { ReleaseGateResult } from '../api';
+import type { ProductSignatureRecord, ReleaseGateResult } from '../api';
+
+const SIGNATURE_LABEL: Record<ProductSignatureRecord['meaning'], string> = {
+  VERSION_APPROVED: 'Version approved',
+  VERSION_RELEASED: 'Version released',
+  BASELINE_APPROVED: 'Baseline approved',
+};
 import { GovernanceCard } from './GovernanceCard';
 import { ReleaseReadinessCard } from './ReleaseReadinessCard';
 import { BaselinesSection } from './BaselinesSection';
@@ -43,6 +49,8 @@ interface OverviewTabProps {
   onSaveGovernance: (input: Record<string, unknown>) => Promise<void>;
   onCreateBaseline: (baselineVersion?: string) => Promise<void>;
   onApproveBaseline: (baselineId: string) => Promise<void>;
+  /** NXD-128: approvals and releases of this product, as attested. */
+  signatures?: ProductSignatureRecord[];
 }
 
 export function OverviewTab({
@@ -61,6 +69,7 @@ export function OverviewTab({
   onSaveGovernance,
   onCreateBaseline,
   onApproveBaseline,
+  signatures = [],
 }: OverviewTabProps) {
   return (
     <>
@@ -154,6 +163,23 @@ export function OverviewTab({
               onCreate={onCreateBaseline}
               onApprove={onApproveBaseline}
             />
+
+            {signatures.length > 0 ? (
+              <section aria-label="Approvals and releases" style={{ marginTop: 16 }}>
+                <Typography variant="subtitle1">Approvals and releases</Typography>
+                {signatures.map(sig => (
+                  <Typography key={sig.id} variant="body2" color="textSecondary">
+                    {SIGNATURE_LABEL[sig.meaning]}
+                    {sig.entityType === 'PRODUCT_VERSION'
+                      ? ` ${versions.find(v => v.id === sig.entityId)?.version ?? ''}`
+                      : ''}{' '}
+                    by {sig.signedBy}, {new Date(sig.signedAt).toLocaleString()} ·{' '}
+                    {sig.reauthMethod ? 'signed with PIN' : 'confirmed'}
+                    {sig.justification ? ` — “${sig.justification}”` : ''}
+                  </Typography>
+                ))}
+              </section>
+            ) : null}
 
           </>
         )}

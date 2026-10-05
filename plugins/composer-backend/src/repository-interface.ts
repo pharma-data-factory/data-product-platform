@@ -14,6 +14,7 @@ import {
   AISpecDraft,
   AISpecDraftStatus,
   FunctionalSpecification,
+  ProductSignature,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -168,6 +169,9 @@ export interface IComposerRepository {
   createProductBaseline(baseline: ProductBaseline): Promise<ProductBaseline>;
   getProductBaseline(id: string): Promise<ProductBaseline | null>;
   listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
+  /** NXD-128: approvals and releases as attested. Append-only. */
+  addProductSignature(signature: ProductSignature): Promise<void>;
+  listProductSignatures(productId: string): Promise<ProductSignature[]>;
   updateProductBaseline(baseline: ProductBaseline): Promise<void>;
 
   // Functional Specifications — Stage 3 (MVP1 item 11)

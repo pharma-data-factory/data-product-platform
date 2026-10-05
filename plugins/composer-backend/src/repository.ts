@@ -23,6 +23,7 @@ import {
   AISpecDraft,
   AISpecDraftStatus,
   FunctionalSpecification,
+  ProductSignature,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -754,6 +755,39 @@ export class ComposerRepository implements IComposerRepository {
   async getProductBaseline(id: string): Promise<ProductBaseline | null> {
     const row = await this.db('product_baselines').where({ id }).first();
     return row ? this.rowToProductBaseline(row) : null;
+  }
+
+  async addProductSignature(signature: ProductSignature): Promise<void> {
+    await this.db('product_signatures').insert({
+      id: signature.id,
+      product_id: signature.productId,
+      entity_type: signature.entityType,
+      entity_id: signature.entityId,
+      meaning: signature.meaning,
+      justification: signature.justification,
+      signed_by: signature.signedBy,
+      signed_at: signature.signedAt,
+      gmp_relevant: signature.gmpRelevant,
+      reauth_method: signature.reauthMethod ?? null,
+    });
+  }
+
+  async listProductSignatures(productId: string): Promise<ProductSignature[]> {
+    const rows = await this.db('product_signatures')
+      .where({ product_id: productId })
+      .orderBy('signed_at', 'asc');
+    return rows.map((row: any) => ({
+      id: row.id,
+      productId: row.product_id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      meaning: row.meaning,
+      justification: row.justification,
+      signedBy: row.signed_by,
+      signedAt: row.signed_at,
+      gmpRelevant: Boolean(row.gmp_relevant),
+      reauthMethod: row.reauth_method ?? undefined,
+    }));
   }
 
   async listProductBaselines(productVersionId: string): Promise<ProductBaseline[]> {

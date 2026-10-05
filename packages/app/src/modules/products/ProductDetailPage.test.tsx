@@ -15,6 +15,19 @@ jest.mock('@backstage/core-components', () => {
   };
 });
 
+/** Fills the NXD-128 approval dialog as a GMP signature and signs. */
+async function signInDialog() {
+  fireEvent.change(screen.getByLabelText(/Justification/), {
+    target: { value: 'Snapshot reviewed.' },
+  });
+  fireEvent.change(screen.getByLabelText(/Signing PIN/), {
+    target: { value: 'pin-4711' },
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }));
+  });
+}
+
 const client = {
   getProduct: jest.fn(),
   listProductVersions: jest.fn(),
@@ -22,6 +35,8 @@ const client = {
   listProductRequirements: jest.fn(),
   getRequirementCoverage: jest.fn(),
   getProductTraceability: jest.fn(),
+  // NXD-128.
+  listProductSignatures: jest.fn(),
   addProductComponent: jest.fn(),
   createTraceabilityLink: jest.fn(),
   createProductVersion: jest.fn(),
@@ -149,6 +164,7 @@ beforeEach(() => {
   client.listProductComponents.mockResolvedValue([COMPONENT]);
   client.listProductRequirements.mockResolvedValue([]);
   client.getRequirementCoverage.mockResolvedValue(COVERAGE_WITHOUT_CONTEXT);
+  client.listProductSignatures.mockResolvedValue([]);
   client.getProductTraceability.mockResolvedValue({
     productId: 'p1',
     componentCount: 1,
@@ -494,8 +510,14 @@ describe('ProductDetailPage — baselines', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     });
+    // NXD-128: an attested act. This product has no GxP answer, so it is a
+    // signature with justification and PIN.
+    await signInDialog();
 
-    expect(client.approveProductBaseline).toHaveBeenCalledWith('b1');
+    expect(client.approveProductBaseline).toHaveBeenCalledWith('b1', {
+      justification: 'Snapshot reviewed.',
+      pin: 'pin-4711',
+    });
   });
 
   it('offers no approval for a baseline that is already approved', async () => {
@@ -529,9 +551,11 @@ describe('ProductDetailPage — baselines', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     });
+    await signInDialog();
 
+    // The refusal is shown in the dialog that asked for the signature.
     expect(
-      screen.getByText('Cannot approve baseline in status SUPERSEDED'),
+      await screen.findByText('Cannot approve baseline in status SUPERSEDED'),
     ).toBeInTheDocument();
     // The page is still usable.
     expect(screen.getByText('Release Management')).toBeInTheDocument();

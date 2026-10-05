@@ -21,6 +21,7 @@ import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
 import { createHttpCiEvidenceClient } from './ci-evidence-client';
+import { createHttpPinVerifier } from './pin-verifier';
 import { createHttpPolicyResolverClient } from './policy-resolver-client';
 import { bootstrapPlatformProduct } from './platformProductBootstrap';
 import {
@@ -165,6 +166,7 @@ export const composerPlugin = createBackendPlugin({
             permissions,
             service,
             llmEnabled,
+            pinVerifier: createHttpPinVerifier({ discovery, auth }),
             publishReadiness: getPublishReadiness(config),
           }),
         );

@@ -633,6 +633,23 @@ export async function up(knex: Knex): Promise<void> {
   await createFunctionalSpecIndexes(knex);
   await addTraceabilityIntegrity(knex);
   await createTraceabilityLookupIndexes(knex);
+  // NXD-128. Approvals and releases, as attested: meaning, justification,
+  // who, when, and whether a PIN was verified. Never changed, never removed.
+  if (!(await knex.schema.hasTable('product_signatures'))) {
+    await knex.schema.createTable('product_signatures', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255).notNullable().index();
+      table.string('entity_type', 32).notNullable();
+      table.string('entity_id', 255).notNullable().index();
+      table.string('meaning', 32).notNullable();
+      table.text('justification').notNullable();
+      table.string('signed_by', 255).notNullable();
+      table.string('signed_at', 64).notNullable();
+      table.boolean('gmp_relevant').notNullable();
+      table.string('reauth_method', 64).nullable();
+    });
+  }
+
   await makeAuditTrailAppendOnly(knex);
 }
 
@@ -702,9 +719,19 @@ async function makeAuditTrailAppendOnly(knex: Knex): Promise<void> {
       'composer_audit_events_no_truncate',
       'BEFORE TRUNCATE ON composer_audit_events FOR EACH STATEMENT',
     ],
+    // NXD-128.
+    [
+      'product_signatures_append_only',
+      'BEFORE UPDATE OR DELETE ON product_signatures FOR EACH ROW',
+    ],
+    [
+      'product_signatures_no_truncate',
+      'BEFORE TRUNCATE ON product_signatures FOR EACH STATEMENT',
+    ],
   ];
   for (const [name, definition] of triggers) {
-    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON composer_audit_events`);
+    const table = definition.split(' ON ')[1].split(' ')[0];
+    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON ${table}`);
     await knex.raw(
       `CREATE TRIGGER ${name} ${definition} EXECUTE FUNCTION composer_append_only()`,
     );

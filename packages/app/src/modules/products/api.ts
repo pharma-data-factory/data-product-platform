@@ -17,6 +17,25 @@ import type {
   TraceabilityLink,
 } from '@internal/platform-common';
 
+/** NXD-128. A justification, and the PIN for a GMP-relevant product. */
+export interface SignatureInput {
+  justification?: string;
+  pin?: string;
+}
+
+/** NXD-128. One approval or release, as recorded. */
+export interface ProductSignatureRecord {
+  id: string;
+  entityType: 'PRODUCT_VERSION' | 'PRODUCT_BASELINE';
+  entityId: string;
+  meaning: 'VERSION_APPROVED' | 'VERSION_RELEASED' | 'BASELINE_APPROVED';
+  justification: string;
+  signedBy: string;
+  signedAt: string;
+  gmpRelevant: boolean;
+  reauthMethod?: string;
+}
+
 /** What an import of CI test evidence recorded (NXD-123). */
 export interface TestEvidenceImport {
   run: { id: number; url: string; commit: string; conclusion: string | null };
@@ -75,7 +94,11 @@ export interface ComposerClient {
   transitionVersionStatus(
     versionId: string,
     targetStatus: string,
+    /** NXD-128: approval and release of a GMP product are signed. */
+    signature?: SignatureInput,
   ): Promise<ProductVersion>;
+  /** NXD-128: approvals and releases of a product, as attested. */
+  listProductSignatures(productId: string): Promise<ProductSignatureRecord[]>;
   /**
    * Baselines of one version, newest first (`created_at` descending).
    *
@@ -96,7 +119,10 @@ export interface ComposerClient {
     versionId: string,
     input?: Record<string, unknown>,
   ): Promise<ProductBaseline>;
-  approveProductBaseline(baselineId: string): Promise<ProductBaseline>;
+  approveProductBaseline(
+    baselineId: string,
+    signature?: SignatureInput,
+  ): Promise<ProductBaseline>;
   bindUrsBaseline(
     versionId: string,
     ursBaselineId: string,
@@ -170,14 +196,18 @@ export function useComposerClient(): ComposerClient {
       request('GET', `/products/${productId}/traceability`),
     checkReleaseGate: versionId =>
       request('GET', `/versions/${versionId}/release-gate`),
-    transitionVersionStatus: (versionId, targetStatus) =>
-      request('POST', `/versions/${versionId}/transition`, { targetStatus }),
+    transitionVersionStatus: (versionId, targetStatus, signature) =>
+      request('POST', `/versions/${versionId}/transition`, { targetStatus, signature }),
+    listProductSignatures: productId =>
+      request('GET', `/products/${productId}/signatures`).then(
+        (body: { items: ProductSignatureRecord[] }) => body.items,
+      ),
     listProductBaselines: versionId =>
       request('GET', `/versions/${versionId}/baselines`),
     createProductBaseline: (versionId, input) =>
       request('POST', `/versions/${versionId}/baselines`, input ?? {}),
-    approveProductBaseline: baselineId =>
-      request('POST', `/baselines/${baselineId}/approve`, {}),
+    approveProductBaseline: (baselineId, signature) =>
+      request('POST', `/baselines/${baselineId}/approve`, { signature }),
     bindUrsBaseline: (versionId, ursBaselineId) =>
       request('POST', `/versions/${versionId}/urs-baseline`, { ursBaselineId }),
     listProductRequirements: versionId =>

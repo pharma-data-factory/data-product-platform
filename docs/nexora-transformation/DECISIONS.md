@@ -7052,3 +7052,69 @@ full.
   `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx}` (+ test),
   `plugins/composer-backend/src/{service,validation-decision-resolver}.ts` (+ test),
   `packages/platform-common/src/validation-integration.ts`.
+
+### NXD-128 — Approving and releasing a GMP-relevant product is an electronic signature
+
+- Date: 2026-10-05
+- Slice: composer + product page — decided by the user (open item 3)
+
+**Context.** NXD-121's end-to-end run approved and released a GxP-DIRECT,
+CRITICAL product with one click each: version approval, baseline approval,
+release. No confirmation, no justification, no second factor. The URS chain
+and, since NXD-119, the validation decision were signed with a PIN; the
+three acts that put a product into use were not.
+
+**Decision (the user's choice).**
+
+- **GMP-relevant (INDIRECT, DIRECT or unanswered):** approving a version,
+  approving its baseline and releasing it need a justification and the
+  signer's PIN. The PIN is verified in the URS Composer on their behalf, so
+  it is the one signing credential and lockout of NXD-119.
+- **NONE:** a confirmation; the justification is optional.
+- **Recorded either way:** every act goes to the new table
+  `product_signatures` — meaning, justification, who, when, whether the
+  product counted as GMP-relevant, and the second factor (absent for a
+  confirmation). Append-only and no-TRUNCATE on PostgreSQL, through the
+  NXD-092 trigger function. `GET /products/:id/signatures` lists them, and
+  the product page shows them under *Approvals and releases*.
+- **Order.** Whether the act is allowed is checked first: valid transition,
+  release gate, Segregation of Duties. The extracted
+  `assertVersionTransition` is shared with the plain transition. A refused
+  act therefore costs no PIN attempt; then the PIN; then the change; then
+  the record.
+- **Where the rule lives.** In new signing service methods
+  (`signedVersionTransition`, `signedBaselineApproval`), which the HTTP
+  routes now call. The plain methods stay the state change, used by about
+  75 existing tests and no other entry point. A person can reach a
+  transition only through the routes.
+- **Not signed:** release candidate and revert to draft decide nothing.
+- **Product page:** *Approve*, *Release* and baseline *Approve* open a
+  dialog. For a GMP product it states the meaning of the act and asks for a
+  justification and the PIN; for NONE it is a confirmation. A refusal is
+  shown verbatim in the dialog.
+
+**Verified.**
+
+- Unit: GMP requires justification and PIN, and is recorded; no GxP answer
+  counts as GMP; a wrong PIN changes nothing; a refused act calls no PIN
+  check; NONE confirms without PIN and is recorded; release candidate is
+  not signed; a baseline approval is signed and its author is still
+  refused.
+- PostgreSQL: the signature table refuses UPDATE, DELETE and TRUNCATE.
+- Product page and dialog tests.
+- Live, on `oee-e2e-test-20261005-d` as `demo-reviewer`:
+  - no signature → 400 naming what is needed;
+  - wrong PIN → 403;
+  - signed → APPROVED, recorded with `signature-pin`.
+
+**Not changed, named.**
+
+- The record is written after the state change, without a shared
+  transaction: if that one insert fails, the change stands unrecorded.
+- The dialog points to the URS Composer to set a PIN; a person without
+  `urs.sign` cannot set one there.
+
+- Affected components: `plugins/composer-backend/src/{service,router,plugin,repository,repository-interface,types,pin-verifier,db/migrations}.ts`
+  (+ `productSignatures.test.ts`, `db/migrations.postgres.test.ts`),
+  `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/OverviewTab.tsx,tabs/ApprovalDialog.tsx}`
+  (+ tests).

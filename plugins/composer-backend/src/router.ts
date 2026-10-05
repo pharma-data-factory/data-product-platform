@@ -33,6 +33,7 @@ import {
 } from '@internal/platform-common';
 import { ComposerService } from './service';
 import type { PublishReadiness } from './scm-publish-readiness';
+import type { PinVerifier } from './pin-verifier';
 import type { AvailableComponentSummary } from './llm-client';
 import {
   BindUrsBaselineRequest,
@@ -48,6 +49,8 @@ import {
 } from './types';
 
 export interface RouterOptions {
+  /** NXD-128. Verifies a signer's PIN in the URS Composer. */
+  pinVerifier?: PinVerifier;
   logger: LoggerService;
   httpAuth: HttpAuthService;
   permissions?: PermissionsService;
@@ -179,6 +182,17 @@ export async function createRouter(
   const { logger, httpAuth, permissions, service, llmEnabled, publishReadiness } =
     options;
   const router = Router();
+
+  /** A PIN check bound to the caller's own credentials (NXD-128). */
+  const pinVerifierFor = async (req: express.Request) => {
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+    return (pin: string) => {
+      if (!options.pinVerifier) {
+        throw new NotAllowedError('Signing is not configured on this instance.');
+      }
+      return options.pinVerifier(credentials, pin);
+    };
+  };
   router.use(express.json());
 
   router.get('/health', (_req: express.Request, res: express.Response) => {
@@ -273,6 +287,19 @@ export async function createRouter(
           await authorize(permissions, httpAuth, req, productReadPermission);
         }
         res.json(await service.getVersionTestEvidence(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /** GET /products/:id/signatures (NXD-128): approvals and releases as attested. */
+  router.get(
+    '/products/:id/signatures',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({ items: await service.listProductSignatures(req.params.id) });
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -920,10 +947,12 @@ export async function createRouter(
           req,
           productManagePermission,
         );
-        const version = await service.transitionProductVersionStatus(
+        // NXD-128: approval and release are signed acts for a GMP product.
+        const version = await service.signedVersionTransition(
           req.params.versionId,
           req.body as TransitionProductVersionRequest,
           actor,
+          await pinVerifierFor(req),
         );
         res.json(version);
       } catch (err) {
@@ -1009,9 +1038,11 @@ export async function createRouter(
           req,
           productManagePermission,
         );
-        const baseline = await service.approveProductBaseline(
+        const baseline = await service.signedBaselineApproval(
           req.params.id,
+          (req.body ?? {}).signature,
           actor,
+          await pinVerifierFor(req),
         );
         res.json(baseline);
       } catch (err) {
