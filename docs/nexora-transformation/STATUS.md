@@ -91,6 +91,12 @@ four quick wins F1–F4, one commit and one record each.
   "waiting for the first signature"; and the approved baseline and set
   stayed DRAFT on screen until a reload. New read route
   `GET /approval-roles/me`. See [`NXD-104`](DECISIONS.md).
+- **Defect — the OEE Golden Path had never completed a run.** A Python
+  literal `"${{"` in the skeleton is an unterminated placeholder to
+  `fetch:template`, so every run stopped at *Fetch skeleton*. The template
+  tests render with a regex and could not see it. A new test runs
+  Backstage's real `fetch:template` over every template. See
+  [`NXD-105`](DECISIONS.md).
 - **Administrator installation, readable without the app.** `README.md`
   now covers the three topologies (one container, separate containers,
   workspace with only PostgreSQL in Docker), has a diagram of how GitHub and

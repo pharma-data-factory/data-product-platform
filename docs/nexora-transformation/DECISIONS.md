@@ -5727,6 +5727,51 @@ and demo-reviewer `PRODUCT_MANAGER, BUSINESS_REVIEWER`.
   `plugins/urs-composer/src/pages/URSRequirementSetPage.approval.test.tsx` (new),
   `plugins/urs-composer/src/pages/URSRequirementSetPage.loadFailure.test.tsx`.
 
+### NXD-105 — The OEE Golden Path had never completed a run, and the template tests could not have noticed
+
+- Date: 2026-10-01
+- Slice: templates — found by the user on the first OEE run with GitHub
+  credentials configured
+
+With `publish-readiness` reporting `ready: true` for the first time in this
+workspace, the user ran _OEE Data Product_ against the approved URS-EPM
+baseline. The page said _"Creation failed. Something went wrong."_ The task
+log said:
+
+    scaffolder.task (unknown path) [Line 56, Column 47]
+      expected variable end
+
+**Cause.** `templates/oee-data-product/content/app/main.py` held
+`str(value).startswith("${{")`, a check for an unrendered placeholder.
+Backstage configures Nunjucks with `${{` as its variable start, so
+`fetch:template` reads the Python literal as an unterminated placeholder and
+gives up nine lines later. The line has been there since the MVP 1.0 baseline
+(`700d584`, 2026-08-21). Every run of this Golden Path has stopped at
+_Fetch skeleton_, before anything reached GitHub. Until NXD-099 that went
+unnoticed, because the run never got that far without credentials.
+
+**Why nothing caught it.** `oeeGoldenPath.test.ts` and
+`scripts/render-template.mjs` render `${{ … }}` with a regular expression.
+A regex has no notion of an unterminated tag, so the file rendered fine
+everywhere except in the scaffolder.
+
+**What changed.** The literal is split (`"$" + "{{"`), with the same
+behaviour in Python. `templateRendering.test.ts` runs Backstage's own
+`createFetchTemplateAction`, taken from `@backstage/plugin-scaffolder-backend`
+(already a dependency), against every local `fetch:template` step of every
+template, with that step's `copyWithoutTemplating`. Run against the unfixed
+file it fails with _"expected variable end"_; it passes on the fix. A one-off
+compile of all 434 templated files with the scaffolder's Nunjucks settings
+found no second case.
+
+**Not changed, named.** The regex renderers stay. They check what a template
+renders _to_, which is a different question. The test uses placeholder values,
+and a template that calls `parseRepoUrl` would need real integrations.
+
+- Affected components:
+  `templates/oee-data-product/content/app/main.py`,
+  `packages/backend/src/templateRendering.test.ts` (new).
+
 ### NXD-106 — An administrator can install and test Nexora from the repository page, without the app running
 
 - Date: 2026-10-02

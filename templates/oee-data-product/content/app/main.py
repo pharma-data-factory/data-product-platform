@@ -44,7 +44,10 @@ loss_service = LossService(events)
 
 
 def _usable_topic(value: str | None) -> bool:
-    return bool(value) and not str(value).startswith("${{")
+    # Split so fetch:template does not read the literal as the start of a
+    # placeholder: the unsplit form failed every run of this Golden Path
+    # with "expected variable end" (NXD-105).
+    return bool(value) and not str(value).startswith("$" + "{{")
 
 
 def mqtt_topics() -> list[str]:
