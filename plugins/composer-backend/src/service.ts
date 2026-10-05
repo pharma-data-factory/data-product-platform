@@ -62,6 +62,7 @@ import {
   type JsonSchemaLike,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
+import type { CiEvidenceClient } from './ci-evidence-client';
 import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
@@ -267,11 +268,25 @@ export interface ComposerServiceOptions {
    * Used by the release gate to check product-declared policy obligations (5-R1).
    */
   policyResolverClient?: PolicyResolverClient;
+  /** NXD-123. Test evidence from a product repository's CI. */
+  ciEvidenceClient?: CiEvidenceClient;
   /**
    * Shared SSE client registry. Injected by the router so upgrade notifications
    * can push events to connected consumers without any property bag tricks.
    */
   sseClients?: Map<string, Set<{ write(s: string): void }>>;
+}
+
+/**
+ * A value for a varchar(255) column, kept unique: longer values are cut and
+ * given a hash of the whole, so two long test ids never collapse into one.
+ */
+function fitColumn(value: string, max = 255): string {
+  if (value.length <= max) {
+    return value;
+  }
+  const hash = createHash('sha256').update(value).digest('hex').slice(0, 12);
+  return `${value.slice(0, max - 13)}#${hash}`;
 }
 
 export class ComposerService {
@@ -282,6 +297,7 @@ export class ComposerService {
   private readonly catalogLoader?: CatalogComponentLoader;
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly policyResolverClient?: PolicyResolverClient;
+  private readonly ciEvidenceClient?: CiEvidenceClient;
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
 
   constructor(options: ComposerServiceOptions) {
@@ -292,6 +308,7 @@ export class ComposerService {
     this.catalogLoader = options.catalogLoader;
     this.validationDecisionResolver = options.validationDecisionResolver;
     this.policyResolverClient = options.policyResolverClient;
+    this.ciEvidenceClient = options.ciEvidenceClient;
     this.sseClients = options.sseClients ?? new Map();
   }
 
@@ -2174,6 +2191,139 @@ export class ComposerService {
    * without the result; deriving it means the claim and the evidence are
    * written in the same operation or neither is.
    */
+  /**
+   * Import the test evidence of the product repository's newest completed CI
+   * run as test executions of this version's requirements (NXD-123).
+   *
+   * The CI of a Golden Path uploads its per-test outcomes, each naming the
+   * URS requirement ids it verifies (NXD-122). Those ids are matched against
+   * the requirements bound to this version; each match becomes one execution
+   * through `ingestTestExecution`, with the CI run as its artifact. A skipped
+   * test is not evidence and is not recorded; an error is a failure. Re-running
+   * the import for the same CI run records nothing twice.
+   */
+  async importTestEvidence(
+    productVersionId: string,
+    actor: string,
+  ): Promise<{
+    run: { id: number; url: string; commit: string; conclusion: string | null };
+    imported: number;
+    skipped: number;
+    alreadyRecorded: number;
+    byRequirement: Record<string, { passed: number; failed: number }>;
+    uncoveredRequirements: string[];
+    unknownRequirements: string[];
+  }> {
+    if (!this.ciEvidenceClient) {
+      throw new ConflictError('Test evidence import is not configured on this instance.');
+    }
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product?.repositoryUrl) {
+      throw new ConflictError(
+        'This product has no repository URL, so there is no CI to read evidence from.',
+      );
+    }
+    const requirements = await this.repository.listProductRequirements(productVersionId);
+    if (requirements.length === 0) {
+      throw new ConflictError(
+        'No URS baseline is bound to this version, so there is nothing to attach evidence to.',
+      );
+    }
+
+    const evidence = await this.ciEvidenceClient.getLatestEvidence(product.repositoryUrl);
+    if (!evidence.available || !evidence.run || !evidence.results) {
+      const why: Record<string, string> = {
+        'no-completed-run': 'the repository has no completed CI run yet',
+        'no-evidence-artifact':
+          'the newest CI run uploaded no nexora-test-evidence artifact (or it expired)',
+        inaccessible: 'Nexora cannot read the repository’s CI',
+        'not-found': 'the repository or its CI workflow was not found',
+      };
+      throw new ConflictError(
+        `No test evidence to import: ${why[evidence.reason ?? ''] ?? evidence.reason ?? 'unknown'}.`,
+      );
+    }
+
+    const byRef = new Map(requirements.map(r => [r.requirementRef, r]));
+    const versionIds = requirements.map(r => r.ursRequirementVersionId);
+    const existing = await this.repository.listTestExecutions(versionIds);
+    const recorded = new Set(
+      existing
+        .filter(e => e.executionArtifactUrl === evidence.run!.url)
+        .map(e => `${e.requirementVersionId} ${e.testCase}`),
+    );
+    const correlationId = randomUUID();
+    const byRequirement: Record<string, { passed: number; failed: number }> = {};
+    const unknown = new Set<string>();
+    let imported = 0;
+    let skipped = 0;
+    let alreadyRecorded = 0;
+
+    for (const result of evidence.results) {
+      if (result.outcome === 'skipped') {
+        skipped++;
+        continue;
+      }
+      for (const ref of result.requirements) {
+        const requirement = byRef.get(ref);
+        if (!requirement) {
+          unknown.add(ref);
+          continue;
+        }
+        const key = `${requirement.ursRequirementVersionId} ${fitColumn(result.testCase)}`;
+        if (recorded.has(key)) {
+          alreadyRecorded++;
+          continue;
+        }
+        const passed = result.outcome === 'passed';
+        await this.ingestTestExecution(
+          {
+            requirementVersionId: requirement.ursRequirementVersionId,
+            // The module, not the CI step: a step's pytest invocation lists
+            // every file it runs and overflowed the 255-character column on
+            // PostgreSQL (SQLite does not enforce the length).
+            testSuite: fitColumn(result.testCase.split('::')[0] || result.suite),
+            testCase: fitColumn(result.testCase),
+            status: passed ? 'PASSED' : 'FAILED',
+            executedAt: evidence.run.completedAt,
+            executionArtifactUrl: evidence.run.url,
+            correlationId,
+          },
+          actor,
+        );
+        recorded.add(key);
+        imported++;
+        const tally = (byRequirement[ref] ??= { passed: 0, failed: 0 });
+        if (passed) tally.passed++;
+        else tally.failed++;
+      }
+    }
+
+    const evidenced = new Set(
+      evidence.results.filter(r => r.outcome !== 'skipped').flatMap(r => r.requirements),
+    );
+    return {
+      run: {
+        id: evidence.run.id,
+        url: evidence.run.url,
+        commit: evidence.run.commit,
+        conclusion: evidence.run.conclusion,
+      },
+      imported,
+      skipped,
+      alreadyRecorded,
+      byRequirement,
+      uncoveredRequirements: requirements
+        .map(r => r.requirementRef)
+        .filter(ref => !evidenced.has(ref)),
+      unknownRequirements: [...unknown].sort(),
+    };
+  }
+
   async ingestTestExecution(
     request: {
       requirementVersionId?: unknown;

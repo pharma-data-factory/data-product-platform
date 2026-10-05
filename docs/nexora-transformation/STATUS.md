@@ -181,6 +181,11 @@ four quick wins F1–F4, one commit and one record each.
   modules, a new test for URS-EPM-005, conftest hooks writing
   `test-evidence/`, uploaded by CI as `nexora-test-evidence`. Found: the loss
   tests (URS-EPM-002) were in no CI step. See [`NXD-122`](DECISIONS.md).
+- **CI evidence imported (C2).** data-products reads the newest CI run's
+  `nexora-test-evidence` artifact; Composer records one test execution per
+  matched requirement; *Import CI evidence* on the Tests tab. Live:
+  `oee-e2e-test-20261005-d`, 5 of 5 requirements verified from 81 CI
+  outcomes. See [`NXD-123`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

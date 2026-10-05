@@ -6773,3 +6773,82 @@ C4.
   `templates/oee-data-product/content/.github/workflows/{ci,data-product-quality}.yml`,
   `templates/oee-data-product/content/.gitignore`,
   `packages/backend/src/oeeTestEvidence.test.ts` (new).
+
+### NXD-123 — Nexora reads a product's CI test evidence, and a requirement is verified by a test that ran
+
+- Date: 2026-10-05
+- Slice: data-products + composer + product page — package C, step 2 (C2)
+
+**Context.** NXD-122 made the OEE Golden Path's CI upload per-test outcomes
+that name the URS requirements they verify (artifact
+`nexora-test-evidence`). Composer's `POST /test-executions` could record
+such outcomes, but expected the CI to push with an external-access token.
+The user chose pull: the product CI needs no Nexora secret, and Nexora need
+not be reachable from GitHub's runners.
+
+**Decision.**
+
+- **GitHub stays in data-products-backend**, which already has the Actions
+  client. Composer has no `@backstage/integration` and gets none; adding it
+  would be a dependency change for a call another plugin can make. The new
+  `GET /ci-evidence?repoUrl=` takes the newest completed `ci.yml` run,
+  downloads its `nexora-test-evidence` artifact, and answers the parsed
+  results. A service or a person with data-product.view may read it. When
+  there is nothing to answer, it says why: no completed run, no artifact
+  (or expired), inaccessible.
+- **The zip is read without a library**: a central-directory walk plus
+  `zlib.inflateRawSync`, stored and deflated entries only. It is bounded,
+  because it comes from a repository: 200 entries, 5 MiB each, 20 MiB in
+  total. A file that is not `nexora.test-evidence/v1` is reported, not
+  guessed at.
+- **`POST /versions/:id/test-evidence/import`** (product.manage):
+  - matches each outcome's requirement ids to the requirements bound to the
+    version, and records one execution per match through the existing
+    `ingestTestExecution`, with the CI run as its artifact and one
+    correlation id for the import;
+  - `passed` becomes PASSED; `failed` and `error` become FAILED; `skipped`
+    is not evidence and is not recorded;
+  - an id the version does not carry is reported, and so is a requirement
+    without a test;
+  - the same CI run is never recorded twice.
+- **The product's Tests tab** gets *Import CI evidence*, with the run
+  (linked), its commit and conclusion, and a line per requirement.
+
+**Found by the live run.** The first import against the real repository
+failed with *"value too long for type character varying(255)"*. The hook
+wrote the step's whole pytest invocation as the suite, and the unit step
+lists twelve files. SQLite in the tests does not enforce the length;
+PostgreSQL does. The suite is now the test module, which is more useful
+anyway. Ids longer than the column are cut and given a hash of the whole,
+so two never collapse into one.
+
+**Verified live.**
+
+- A fresh Golden Path run, `oee-e2e-test-20261005-d`, as `demo-author`: CI
+  green, artifact uploaded (2.8 KB).
+- Version created, URS-EPM bound, then *Import CI evidence* on run
+  `#37328211949` (commit `a94fdc1`):
+
+| Requirement | Passed | Failed |
+|---|---|---|
+| URS-EPM-001 | 40 | 0 |
+| URS-EPM-002 | 12 | 0 |
+| URS-EPM-003 | 14 | 0 |
+| URS-EPM-004 | 14 | 0 |
+| URS-EPM-005 | 1 | 0 |
+
+  The tab then reads *5 of 5 requirements verified*. A second import
+  recorded nothing new (85 already recorded).
+
+**Not changed, named.**
+
+- The import is not one transaction. The failed first attempt had written
+  4 rows before it stopped, and the next import completed the rest and
+  skipped those 4.
+- `ingestTestExecution` itself does not check field lengths.
+- The Validation Expert does not read this evidence yet; that is C3.
+
+- Affected components: `plugins/data-products-backend/src/{testEvidence,githubActions,types,router}.ts`
+  (+ tests), `plugins/composer-backend/src/{ci-evidence-client,service,router,plugin}.ts`
+  (+ `testEvidenceImport.test.ts`), `packages/app/src/modules/products/{api,ProductDetailPage}.ts(x)`,
+  `packages/app/src/modules/products/tabs/TestsTab.tsx` (+ test).

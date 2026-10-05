@@ -1039,6 +1039,25 @@ export async function createRouter(
    * may be a no-op; a test execution is always a new row, so the status code
    * should say a resource was created.
    */
+  /**
+   * POST /versions/:id/test-evidence/import (NXD-123)
+   * Read the newest completed CI run's test evidence from the product's
+   * repository and record it as test executions of this version's
+   * requirements. A person with product.manage presses the button; the
+   * evidence comes from CI, not from them.
+   */
+  router.post(
+    '/versions/:id/test-evidence/import',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res.status(201).json(await service.importTestEvidence(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/test-executions',
     async (req: express.Request, res: express.Response) => {
