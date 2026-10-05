@@ -252,7 +252,7 @@ jobs:
       # too. v0.36.0 pins its own actions by hash, so a pin here pins the
       # whole chain (NXD-125).
       - name: Scan image
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
