@@ -28,6 +28,7 @@ export interface ValidationRunRepository {
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productVersionId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun>;
   saveRun(run: ValidationRun): Promise<void>;
@@ -47,10 +48,12 @@ export interface ValidationRunRepository {
 
   // Phase 5 (P5-S1): Validation Decisions
   addDecision(decision: ValidationDecision): Promise<void>;
-  getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined>;
+  /** NXD-127: every decision on a context, one per product version (+ legacy). */
+  listDecisions(contextId: string): Promise<ValidationDecision[]>;
 
   // NXD-119: the signatures a decision is the outcome of. Append-only.
   addSignature(signature: ValidationDecisionSignature): Promise<void>;
+  /** All signatures on a context; filter by productVersionId (NXD-127). */
   listSignatures(contextId: string): Promise<ValidationDecisionSignature[]>;
 }
 
@@ -96,6 +99,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productVersionId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     const key = input.type;
@@ -107,6 +111,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
       candidateCommit: input.candidateCommit,
       baselineId: input.baselineId,
       contextId: input.contextId,
+      productVersionId: input.productVersionId,
       type: input.type,
       status: 'PENDING',
       createdAt: new Date().toISOString(),
@@ -204,15 +209,24 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
   }
 
   async addDecision(decision: ValidationDecision): Promise<void> {
-    if (this.store.decisions.some(d => d.contextId === decision.contextId)) {
-      throw new Error(`Decision already exists for context ${decision.contextId}`);
+    if (
+      this.store.decisions.some(
+        d =>
+          d.contextId === decision.contextId &&
+          d.productVersionId === decision.productVersionId,
+      )
+    ) {
+      throw new Error(
+        `Decision already exists for context ${decision.contextId} and version ${decision.productVersionId}`,
+      );
     }
     this.store.decisions.push({ ...decision });
   }
 
-  async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
-    const found = this.store.decisions.find(d => d.contextId === contextId);
-    return found ? { ...found } : undefined;
+  async listDecisions(contextId: string): Promise<ValidationDecision[]> {
+    return this.store.decisions
+      .filter(d => d.contextId === contextId)
+      .map(d => ({ ...d }));
   }
 
   async addSignature(signature: ValidationDecisionSignature): Promise<void> {
@@ -221,6 +235,7 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
       this.store.signatures.some(
         s =>
           s.contextId === signature.contextId &&
+          s.productVersionId === signature.productVersionId &&
           (s.role === signature.role || s.signedBy === signature.signedBy),
       )
     ) {
@@ -282,6 +297,7 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productVersionId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     const run = await this.memory.createRun(input);
@@ -342,8 +358,8 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     this.persist();
   }
 
-  async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
-    return this.memory.getDecisionByContextId(contextId);
+  async listDecisions(contextId: string): Promise<ValidationDecision[]> {
+    return this.memory.listDecisions(contextId);
   }
 
   async addSignature(signature: ValidationDecisionSignature): Promise<void> {

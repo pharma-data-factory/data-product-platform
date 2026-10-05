@@ -24,10 +24,21 @@ const EXPERT = 'user:default/vera-validator';
 const QA = 'user:default/quinn-quality';
 const VERSION_AUTHOR = 'user:default/dana-author';
 
-function classifierFor(gxpRelevance: string | undefined): GmpClassifier {
+function classifierFor(
+  gxpRelevance: string | undefined,
+  otherGxp = 'NONE',
+): GmpClassifier {
   return async () => ({
-    products: [{ id: 'p-1', name: 'OEE', gxpRelevance }],
+    products: [
+      { id: 'p-1', name: 'OEE', gxpRelevance },
+      { id: 'p-2', name: 'Other', gxpRelevance: otherGxp },
+    ],
     versionCreators: [VERSION_AUTHOR],
+    versions: [
+      { id: 'v-1', productId: 'p-1', productName: 'OEE', version: '1.0', status: 'DRAFT', createdBy: VERSION_AUTHOR },
+      { id: 'v-2', productId: 'p-1', productName: 'OEE', version: '1.1', status: 'DRAFT', createdBy: VERSION_AUTHOR },
+      { id: 'v-9', productId: 'p-2', productName: 'Other', version: '1.0', status: 'DRAFT', createdBy: 'user:default/someone' },
+    ],
   });
 }
 
@@ -105,7 +116,11 @@ const verifyPin = jest.fn(async (pin: string) => {
 const expert = { ref: EXPERT, roles: ['VALIDATION_EXPERT' as const], verifyPin };
 const qa = { ref: QA, roles: ['QUALITY_ASSURANCE' as const], verifyPin };
 
-const approve = (role: 'VALIDATION_EXPERT' | 'QUALITY_ASSURANCE') => ({
+const approve = (
+  role: 'VALIDATION_EXPERT' | 'QUALITY_ASSURANCE',
+  productVersionId = 'v-1',
+) => ({
+  productVersionId,
   role,
   verdict: 'APPROVED' as const,
   justification: 'IQ/OQ/UAT passed; coverage complete.',
@@ -245,6 +260,9 @@ describe('validation decision signatures (NXD-119)', () => {
   it('applies the GMP rule when the classification is missing or fails', async () => {
     const missing = makeService(undefined);
     expect((await missing.service.getDecisionState(CONTEXT_ID)).gmpRelevant).toBe(true);
+    await expect(
+      missing.service.signValidationDecision(CONTEXT_ID, approve('VALIDATION_EXPERT'), expert),
+    ).rejects.toThrow(/Cannot confirm that version v-1 is bound/);
 
     const failing = makeService(async () => {
       throw new Error('composer unreachable');
@@ -256,9 +274,9 @@ describe('validation decision signatures (NXD-119)', () => {
 
   it('a product without a GxP answer counts as GMP-relevant', async () => {
     const { service } = makeService(classifierFor(undefined));
-    expect((await service.getDecisionState(CONTEXT_ID)).progress.nextRoles).toEqual([
-      'VALIDATION_EXPERT',
-    ]);
+    expect(
+      (await service.getDecisionState(CONTEXT_ID, 'v-1')).progress.nextRoles,
+    ).toEqual(['VALIDATION_EXPERT']);
   });
 
   it('refuses an unknown context', async () => {
@@ -342,12 +360,62 @@ describe('product evidence review and the approval block (NXD-124)', () => {
 
   it('shows the newest review in the decision state', async () => {
     const { service } = await reviewed(classifierFor('DIRECT'));
-    expect((await service.getDecisionState(CONTEXT_ID)).evidence).toMatchObject({
+    expect((await service.getDecisionState(CONTEXT_ID, 'v-1')).evidence).toMatchObject({
       total: 2,
       passed: 2,
       complete: true,
       candidate: 'oee-line-3 1.0',
     });
+  });
+
+  it('a decision covers its own version only (NXD-127)', async () => {
+    const { service } = await reviewed(classifierFor('NONE'));
+    await service.signValidationDecision(CONTEXT_ID, approve('QUALITY_ASSURANCE'), qa);
+
+    expect((await service.getValidationDecision(CONTEXT_ID, 'v-1'))?.status).toBe('APPROVED');
+    expect(await service.getValidationDecision(CONTEXT_ID, 'v-2')).toBeUndefined();
+    const other = await service.getDecisionState(CONTEXT_ID, 'v-2');
+    expect(other.decision).toBeUndefined();
+    expect(other.signatures).toEqual([]);
+    expect(other.evidence).toBeUndefined();
+    expect(other.otherDecisions?.map(d => d.productVersionId)).toEqual(['v-1']);
+    // The next version needs its own review before anyone may approve it.
+    await expect(
+      service.signValidationDecision(CONTEXT_ID, approve('QUALITY_ASSURANCE', 'v-2'), qa),
+    ).rejects.toThrow(/none has been run/);
+  });
+
+  it("uses the version's own product for the GMP rule (NXD-127)", async () => {
+    const { service } = makeService(classifierFor('DIRECT', 'NONE'));
+    expect((await service.getDecisionState(CONTEXT_ID, 'v-1')).gmpRelevant).toBe(true);
+    expect((await service.getDecisionState(CONTEXT_ID, 'v-9')).gmpRelevant).toBe(false);
+  });
+
+  it('refuses a version that is not bound to the baseline (NXD-127)', async () => {
+    const { service } = makeService(classifierFor('DIRECT'));
+    await expect(
+      service.signValidationDecision(CONTEXT_ID, approve('VALIDATION_EXPERT', 'v-x'), expert),
+    ).rejects.toThrow(/not bound to this context's URS baseline/);
+    await expect(service.getDecisionState(CONTEXT_ID, 'v-x')).rejects.toThrow(
+      /not bound/,
+    );
+  });
+
+  it('a decision recorded per baseline before NXD-127 covers no version', async () => {
+    const { service, repo } = makeService(classifierFor('DIRECT'));
+    await repo.addDecision({
+      id: 'legacy',
+      contextId: CONTEXT_ID,
+      status: 'APPROVED',
+      justification: 'per baseline',
+      decidedBy: QA,
+      decidedAt: '2026-10-05T10:00:00Z',
+      gmpRule: true,
+    });
+    expect(await service.getValidationDecision(CONTEXT_ID, 'v-1')).toBeUndefined();
+    expect(
+      (await service.getDecisionState(CONTEXT_ID, 'v-1')).otherDecisions?.map(d => d.id),
+    ).toEqual(['legacy']);
   });
 });
 

@@ -218,7 +218,7 @@ export interface ValidationExpertApi {
     contextId: string,
   ): Promise<ValidationContextRequirementsResponse>;
   /** NXD-119: classification, signatures, next role, the caller's roles. */
-  getDecisionState(contextId: string): Promise<DecisionStateView>;
+  getDecisionState(contextId: string, productVersionId?: string): Promise<DecisionStateView>;
   /** NXD-124: review a product version's CI evidence; answers the run. */
   startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun>;
   /** NXD-119: sign the decision; answers the new state. */
@@ -393,9 +393,12 @@ export class ValidationExpertClient implements ValidationExpertApi {
     );
   }
 
-  getDecisionState(contextId: string): Promise<DecisionStateView> {
+  getDecisionState(contextId: string, productVersionId?: string): Promise<DecisionStateView> {
+    const query = productVersionId
+      ? `?productVersionId=${encodeURIComponent(productVersionId)}`
+      : '';
     return this.json<DecisionStateView>(
-      `/contexts/${encodeURIComponent(contextId)}/decision-state`,
+      `/contexts/${encodeURIComponent(contextId)}/decision-state${query}`,
     );
   }
 

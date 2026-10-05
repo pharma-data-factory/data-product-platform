@@ -198,6 +198,10 @@ four quick wins F1–F4, one commit and one record each.
 - **CI image job, third link.** Past *Set up job* at last, the build failed:
   SBOM/provenance attestations need a Buildx builder. Added
   `docker/setup-buildx-action`. See [`NXD-126`](DECISIONS.md).
+- **Validation decision per product version.** Decision, signatures and
+  evidence review carry the version; the gate asks for exactly the version it
+  releases; the panel has a version picker. The pre-NXD-127 decision covers no
+  version. See [`NXD-127`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

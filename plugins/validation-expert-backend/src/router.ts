@@ -508,7 +508,12 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
           // Unknown roles offer nothing; the state itself is still answered.
         }
       }
-      res.json({ ...(await service.getDecisionState(req.params.id)), myRoles });
+      const productVersionId =
+        String(req.query.productVersionId ?? '').trim() || undefined;
+      res.json({
+        ...(await service.getDecisionState(req.params.id, productVersionId)),
+        myRoles,
+      });
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -562,7 +567,12 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       // Service-callable: the Composer's release gate reads the verdict.
       await authorizeReadOrService(permissions, httpAuth, req, validationReadPermission);
-      const decision = await service.getValidationDecision(req.params.id);
+      // NXD-127: a decision is for one product version.
+      const productVersionId = String(req.query.productVersionId ?? '').trim();
+      if (!productVersionId) {
+        throw new InputError('productVersionId is required');
+      }
+      const decision = await service.getValidationDecision(req.params.id, productVersionId);
       if (!decision) {
         res.status(404).json({ error: `No decision recorded for context ${req.params.id}` });
         return;

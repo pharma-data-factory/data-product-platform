@@ -6982,3 +6982,73 @@ they are why the image can say years later what was in it.
 never run; the next main run is their first.
 
 - Affected components: `.github/workflows/ci.yml`.
+
+### NXD-127 — A validation decision is for one product version
+
+- Date: 2026-10-05
+- Slice: validation + composer + context page — decided by the user after
+  NXD-124
+
+**Context.** Since NXD-119 a validation decision belonged to a validation
+context, and a context is unique per URS baseline. Since NXD-124 the
+evidence it rests on belongs to a product version. So a version bound later
+to an already-decided baseline was covered by a decision taken on another
+version's evidence. That had happened: `oee-e2e-test-20261005-d` rode on the
+approval signed for `-c`. GAMP 5 and EU GMP Annex 11 validate a system
+state, and a new version is validated again through change control.
+
+**Decision.**
+
+- **What stays per baseline:** the context — requirements, runs, coverage.
+- **What moves to the version:** the decision, its signatures and the
+  evidence review it rests on each carry `productVersionId`.
+- **Constraints, one decision per version:** at most one decision per
+  context and version, one signature per role and one per person per
+  version's decision. On PostgreSQL the per-baseline unique constraints are
+  swapped for per-version unique indexes; the migration is idempotent and
+  the append-only triggers stay.
+- **Signing**:
+  - requires `productVersionId`, and refuses a version not bound to the
+    baseline;
+  - GMP relevance is the version's own product's, not the strictest on the
+    baseline;
+  - Segregation of Duties keeps this version's creator out, and the context
+    creator as before;
+  - approval needs a complete evidence review of this version.
+- **Reading a decision:** `GET /contexts/:id/decision` now requires
+  `?productVersionId=`. Composer's resolver sends the version, so the release
+  gate asks for the decision of exactly the version it releases.
+  `decision-state` takes the version (default: the newest bound one).
+- **Panel:** a *Product version* picker; everything below it is for that
+  version. Decisions of other versions, and legacy ones, are listed apart.
+
+**Legacy decisions.** The decision signed in NXD-121 has no version. It was
+attested per baseline, and assigning it a version now would rewrite what
+was signed, so it covers no version. Consequence, verified: the gate of
+`oee-e2e-test-20261005-c` (already RELEASED) now reports
+`NO_APPROVED_VALIDATION_DECISION`. The release stands; a re-release would
+need its own decision.
+
+**Verified.**
+
+- Unit: decisions cover only their version; the next version needs its own
+  review; GMP comes from the version's own product; an unbound version is
+  refused; a legacy decision covers none.
+- A new PostgreSQL test against the test database: upgrade from the
+  pre-NXD-127 constraints, rerun, uniqueness per version, append-only
+  guard.
+- Live, dev stack, in `file` mode:
+  - `-d` was refused approval without its own review;
+  - review `EVIDENCE-RUN-0002` passed 5/5;
+  - `demo-validator`, then `demo-qa-lead`, signed with PIN;
+  - the gate of `-d` no longer reports a missing validation decision.
+
+**Not changed, named.** Reduced re-validation of a follow-up version,
+scoped by impact assessment, is not offered. Every version is reviewed in
+full.
+
+- Affected components: `plugins/validation-expert-backend/src/{service,router,repository,postgres-repository,types,db/migrations}.ts`
+  (+ tests, new `db/migrations.postgres.test.ts`),
+  `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx}` (+ test),
+  `plugins/composer-backend/src/{service,validation-decision-resolver}.ts` (+ test),
+  `packages/platform-common/src/validation-integration.ts`.

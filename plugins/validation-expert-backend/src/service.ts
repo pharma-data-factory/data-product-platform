@@ -1,6 +1,7 @@
 import { ConflictError, InputError, NotAllowedError } from '@backstage/errors';
 import {
   baselineNeedsGmpRule,
+  isGmpRelevant,
   validationDecisionProgress,
   VALIDATION_SIGNATURE_ROLES,
 } from '@internal/platform-common';
@@ -98,6 +99,8 @@ export type GmpClassifier = (ursBaselineId: string) => Promise<{
     productName: string;
     version: string;
     status: string;
+    /** NXD-127: kept from signing the validation of this version. */
+    createdBy?: string;
   }>;
 }>;
 
@@ -740,6 +743,7 @@ export class ValidationExpertService {
       candidate: `${evidence.productName} ${evidence.version}`,
       baselineId: context.source.baselineId,
       contextId: context.id,
+      productVersionId,
       createdBy: executor,
     });
     const now = new Date().toISOString();
@@ -789,16 +793,17 @@ export class ValidationExpertService {
     return (await this.options.repository.getRun(run.id))!;
   }
 
-  /** The newest product evidence review of a context, or undefined. */
+  /** The newest product evidence review of a version on a context (NXD-127). */
   async getProductEvidenceStatus(
     contextId: string,
+    productVersionId: string,
   ): Promise<ProductEvidenceStatus | undefined> {
     const context = await this.options.repository.getContext(contextId);
     if (!context) {
       throw new NotFoundError(`Validation context ${contextId} not found`);
     }
     const runs = (await this.listRunsForContext(contextId))
-      .filter(run => run.type === 'EVIDENCE')
+      .filter(run => run.type === 'EVIDENCE' && run.productVersionId === productVersionId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const latest = runs[runs.length - 1];
     if (!latest) {
@@ -828,50 +833,80 @@ export class ValidationExpertService {
    * products that depend on its baseline, the signatures so far, and which
    * role may sign next.
    */
-  async getDecisionState(contextId: string): Promise<ValidationDecisionState> {
+  async getDecisionState(
+    contextId: string,
+    requestedVersionId?: string,
+  ): Promise<ValidationDecisionState> {
     const context = await this.options.repository.getContext(contextId);
     if (!context) {
       throw new NotFoundError(`Validation context ${contextId} not found`);
     }
     const classification = await this.classify(context.source.baselineId);
-    const signatures = await this.options.repository.listSignatures(contextId);
-    const decision = await this.getValidationDecision(contextId);
-    const evidence = await this.getProductEvidenceStatus(contextId);
+    const versions = classification.versions ?? [];
+    // NXD-127. Every view is of one product version; the newest bound one
+    // unless another is asked for.
+    const version = requestedVersionId
+      ? versions.find(v => v.id === requestedVersionId)
+      : versions[versions.length - 1];
+    if (requestedVersionId && !version) {
+      throw new InputError(
+        `Product version ${requestedVersionId} is not bound to this context's URS baseline.`,
+      );
+    }
+    const decisions = await this.options.repository.listDecisions(contextId);
+    const gmpRelevant = version
+      ? this.versionIsGmp(version, classification)
+      : classification.gmpRelevant;
+    const signatures = version
+      ? (await this.options.repository.listSignatures(contextId)).filter(
+          sig => sig.productVersionId === version.id,
+        )
+      : [];
+    const decision = version
+      ? await this.getValidationDecision(contextId, version.id)
+      : undefined;
+    const evidence = version
+      ? await this.getProductEvidenceStatus(contextId, version.id)
+      : undefined;
     return {
       contextId,
-      gmpRelevant: classification.gmpRelevant,
+      ...(version ? { productVersionId: version.id } : {}),
+      gmpRelevant,
       products: classification.products,
-      versions: classification.versions,
+      versions,
       ...(evidence ? { evidence } : {}),
       ...(classification.error
         ? { classificationError: classification.error }
         : {}),
       signatures,
-      progress: validationDecisionProgress(classification.gmpRelevant, signatures),
+      progress: version
+        ? validationDecisionProgress(gmpRelevant, signatures)
+        : { complete: false, nextRoles: [] },
       ...(decision ? { decision } : {}),
+      otherDecisions: decisions.filter(d => d.productVersionId !== version?.id),
     };
   }
 
   /**
-   * Record one electronic signature on a validation decision (NXD-119), and
-   * the decision itself once the rule is satisfied.
+   * Record one electronic signature on the validation decision for one
+   * product version (NXD-119, per version since NXD-127), and the decision
+   * itself once the rule is satisfied.
    *
-   * The rule (GAMP 5, EU GMP Annex 11/15): when a GMP-relevant product depends
-   * on the baseline, the validation expert signs and then QA approves;
-   * otherwise one signature from either suffices. A rejection by either ends
-   * the decision.
+   * The rule (GAMP 5, EU GMP Annex 11/15): for a GMP-relevant product the
+   * validation expert signs and then QA approves; otherwise one signature
+   * from either suffices. A rejection by either ends the decision. GMP
+   * relevance is the version's own product's.
    *
    * Checked in this order, all before anything is written:
-   * 1. the context exists and is not decided yet;
+   * 1. the context exists; the version is bound to its baseline and not
+   *    decided yet;
    * 2. the signer holds the role they sign as;
-   * 3. Segregation of Duties — not the context's creator, not the creator of
-   *    a product version bound to the baseline, not already a signer here;
+   * 3. Segregation of Duties — not the context's creator, not this version's
+   *    creator, not already a signer of this version's decision;
    * 4. the rule allows this role now (QA does not sign before the expert);
-   * 5. a verdict and a justification;
+   * 5. a verdict and a justification; for an approval, a complete product
+   *    evidence review of this version;
    * 6. the signer's PIN, last, so a refused signature costs no attempt.
-   *
-   * `signer.verifyPin` verifies the signer's own PIN in the URS Composer,
-   * where the platform's one signing credential and its lockout live.
    */
   async signValidationDecision(
     contextId: string,
@@ -886,9 +921,24 @@ export class ValidationExpertService {
     if (!context) {
       throw new NotFoundError(`Validation context ${contextId} not found`);
     }
-    if (await this.getValidationDecision(contextId)) {
+    const productVersionId = String(request.productVersionId ?? '').trim();
+    if (!productVersionId) {
+      throw new InputError(
+        'productVersionId is required: a validation decision is for one product version.',
+      );
+    }
+    const classification = await this.classify(context.source.baselineId);
+    const version = (classification.versions ?? []).find(v => v.id === productVersionId);
+    if (!version) {
+      throw new InputError(
+        classification.error
+          ? `Cannot confirm that version ${productVersionId} is bound to this baseline: ${classification.error}`
+          : `Product version ${productVersionId} is not bound to this context's URS baseline.`,
+      );
+    }
+    if (await this.getValidationDecision(contextId, productVersionId)) {
       throw new ConflictError(
-        `ValidationContext ${contextId} is already decided. A decision is not re-opened.`,
+        `${version.productName} ${version.version} is already decided. A decision is not re-opened.`,
       );
     }
 
@@ -906,29 +956,30 @@ export class ValidationExpertService {
       );
     }
 
-    const classification = await this.classify(context.source.baselineId);
-    const signatures = await this.options.repository.listSignatures(contextId);
+    const signatures = (await this.options.repository.listSignatures(contextId)).filter(
+      sig => sig.productVersionId === productVersionId,
+    );
     if (context.createdBy && signer.ref === context.createdBy) {
       throw new NotAllowedError(
         'Segregation of Duties: the creator of a validation context cannot sign its decision.',
       );
     }
-    if (classification.versionCreators.includes(signer.ref)) {
+    if (version.createdBy && signer.ref === version.createdBy) {
       throw new NotAllowedError(
-        'Segregation of Duties: the creator of a product version bound to this ' +
-          'baseline cannot sign its validation.',
+        'Segregation of Duties: the creator of a product version cannot sign its validation.',
       );
     }
-    if (signatures.some(s => s.signedBy === signer.ref)) {
+    if (signatures.some(sig => sig.signedBy === signer.ref)) {
       throw new NotAllowedError(
         'Segregation of Duties: one person signs a validation decision once. ' +
           'The second signature must come from someone else.',
       );
     }
 
-    const progress = validationDecisionProgress(classification.gmpRelevant, signatures);
+    const gmpRelevant = this.versionIsGmp(version, classification);
+    const progress = validationDecisionProgress(gmpRelevant, signatures);
     if (!progress.nextRoles.includes(role)) {
-      const why = classification.gmpRelevant
+      const why = gmpRelevant
         ? ' — for a GMP-relevant product the validation expert signs first, then QA.'
         : '.';
       throw new ConflictError(
@@ -947,18 +998,17 @@ export class ValidationExpertService {
     if (!request.pin) {
       throw new InputError('The signing PIN is required.');
     }
-    // NXD-124. No approval without product evidence: the newest product
-    // evidence review must be complete and pass every requirement. A
-    // rejection needs no evidence.
+    // NXD-124. No approval without product evidence of this version.
     if (verdict === 'APPROVED') {
-      const evidence = await this.getProductEvidenceStatus(contextId);
+      const evidence = await this.getProductEvidenceStatus(contextId, productVersionId);
       if (!evidence?.complete) {
         throw new ConflictError(
           evidence
             ? `Approval needs passing product evidence for every requirement; ` +
                 `the newest review ${evidence.runId} (${evidence.candidate}) passes ` +
                 `${evidence.passed} of ${evidence.total}.`
-            : 'Approval needs a product evidence review; none has been run for this context.',
+            : `Approval needs a product evidence review of ${version.productName} ` +
+                `${version.version}; none has been run.`,
         );
       }
     }
@@ -968,6 +1018,7 @@ export class ValidationExpertService {
     const signature: ValidationDecisionSignature = {
       id: randomUUID(),
       contextId,
+      productVersionId,
       role,
       verdict,
       justification,
@@ -978,33 +1029,58 @@ export class ValidationExpertService {
     await this.options.repository.addSignature(signature);
 
     const all = [...signatures, signature];
-    const outcome = validationDecisionProgress(classification.gmpRelevant, all);
+    const outcome = validationDecisionProgress(gmpRelevant, all);
     if (outcome.complete && outcome.status) {
       await this.options.repository.addDecision({
         id: randomUUID(),
         contextId,
+        productVersionId,
         status: outcome.status,
         justification,
         decidedBy: signer.ref,
         decidedAt: signature.signedAt,
         gmpRule:
           outcome.status === 'APPROVED' &&
-          all.some(s => s.role === 'VALIDATION_EXPERT' && s.verdict === 'APPROVED') &&
-          all.some(s => s.role === 'QUALITY_ASSURANCE' && s.verdict === 'APPROVED'),
+          all.some(sig => sig.role === 'VALIDATION_EXPERT' && sig.verdict === 'APPROVED') &&
+          all.some(sig => sig.role === 'QUALITY_ASSURANCE' && sig.verdict === 'APPROVED'),
       });
     }
-    return this.getDecisionState(contextId);
+    return this.getDecisionState(contextId, productVersionId);
   }
 
-  async getValidationDecision(contextId: string): Promise<ValidationDecision | undefined> {
-    const decision = await this.options.repository.getDecisionByContextId(contextId);
+  /** The decision for one product version on a context (NXD-127). */
+  async getValidationDecision(
+    contextId: string,
+    productVersionId: string,
+  ): Promise<ValidationDecision | undefined> {
+    const decision = (await this.options.repository.listDecisions(contextId)).find(
+      d => d.productVersionId === productVersionId,
+    );
     if (!decision) {
       return undefined;
     }
     return {
       ...decision,
-      signatures: await this.options.repository.listSignatures(contextId),
+      signatures: (await this.options.repository.listSignatures(contextId)).filter(
+        sig => sig.productVersionId === productVersionId,
+      ),
     };
+  }
+
+  /**
+   * GMP relevance of one version: its product's own answer (INDIRECT, DIRECT
+   * or none given counts). Unknown product, or no classification at all,
+   * follows the GMP rule.
+   */
+  private versionIsGmp(
+    version: { productId: string },
+    classification: { products: ValidationGmpProduct[]; error?: string },
+  ): boolean {
+    if (classification.error) {
+      return true;
+    }
+    const product = classification.products.find(p => p.id === version.productId);
+    return product ? isGmpRelevant(product.gxpRelevance) : true;
   }
 
   private async classify(ursBaselineId: string): Promise<{

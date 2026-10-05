@@ -19,6 +19,11 @@ function state(overrides: Partial<DecisionStateView> = {}): DecisionStateView {
     contextId: CTX,
     gmpRelevant: true,
     products: [{ id: 'p1', name: 'oee-line-3', gxpRelevance: 'DIRECT' }],
+    productVersionId: 'v1',
+    versions: [
+      { id: 'v1', productId: 'p1', productName: 'oee-line-3', version: '1.0', status: 'DRAFT' },
+      { id: 'v2', productId: 'p1', productName: 'oee-line-3', version: '1.1', status: 'DRAFT' },
+    ],
     signatures: [],
     progress: { complete: false, nextRoles: ['VALIDATION_EXPERT'] },
     myRoles: [],
@@ -117,6 +122,7 @@ describe('DecisionPanel (NXD-120)', () => {
 
     await waitFor(() =>
       expect(api.signDecision).toHaveBeenCalledWith(CTX, {
+        productVersionId: 'v1',
         role: 'VALIDATION_EXPERT',
         verdict: 'APPROVED',
         justification: 'IQ/OQ passed',
@@ -192,13 +198,7 @@ describe('DecisionPanel (NXD-120)', () => {
     const api = {
       getDecisionState: jest
         .fn()
-        .mockResolvedValueOnce(
-          state({
-            versions: [
-              { id: 'v1', productId: 'p1', productName: 'oee-line-3', version: '1.0', status: 'DRAFT' },
-            ],
-          }),
-        )
+        .mockResolvedValueOnce(state())
         .mockResolvedValueOnce(state({ evidence: COMPLETE })),
       startEvidenceReview: jest.fn().mockResolvedValue({ id: 'EVIDENCE-RUN-0001' }),
     };
@@ -211,6 +211,28 @@ describe('DecisionPanel (NXD-120)', () => {
       '/validation-expert/runs/EVIDENCE-RUN-0001',
     );
     expect(onRunCreated).toHaveBeenCalled();
+  });
+
+  it('shows the decision of the version picked, and other decisions apart (NXD-127)', async () => {
+    const api = {
+      getDecisionState: jest
+        .fn()
+        .mockResolvedValueOnce(
+          state({
+            otherDecisions: [
+              { id: 'legacy', contextId: CTX, status: 'APPROVED', justification: 'x', decidedBy: 'q', decidedAt: 't' },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(state({ productVersionId: 'v2' })),
+    };
+    renderPanel(api);
+    expect(
+      await screen.findByText(/recorded per baseline before NXD-127 \(covers no version\): APPROVED/),
+    ).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByLabelText('Product version'));
+    fireEvent.click(await screen.findByRole('option', { name: /oee-line-3 1.1/ }));
+    await waitFor(() => expect(api.getDecisionState).toHaveBeenLastCalledWith(CTX, 'v2'));
   });
 });
 

@@ -197,7 +197,7 @@ describe('ValidationDecision resolver: cross-plugin call shape', () => {
       ) as unknown as typeof fetch,
     });
 
-    expect(await resolver.hasApprovedDecision('urs-1')).toBe(true);
+    expect(await resolver.hasApprovedDecision('urs-1', 'version-1')).toBe(true);
   });
 
   it('still accepts a bare array, so the reader survives an envelope change', async () => {
@@ -211,7 +211,24 @@ describe('ValidationDecision resolver: cross-plugin call shape', () => {
       ) as unknown as typeof fetch,
     });
 
-    expect(await resolver.hasApprovedDecision('urs-1')).toBe(true);
+    expect(await resolver.hasApprovedDecision('urs-1', 'version-1')).toBe(true);
+  });
+
+  it('asks for the decision of the version, and knows none without one (NXD-127)', async () => {
+    const fetchImpl = contextsThenDecision(
+      { items: [{ id: 'ctx-1', source: { baselineId: 'urs-1' } }] },
+      { status: 'APPROVED', gmpRule: true },
+    );
+    const resolver = createHttpValidationDecisionResolver({
+      discovery: fakeDiscovery(),
+      auth: fakeAuth(),
+      logger: fakeLogger(),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(await resolver.getDecisionApproval!('urs-1', 'version-1')).toBe('APPROVED_GMP');
+    const urls = (fetchImpl as jest.Mock).mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some(u => u.endsWith('/contexts/ctx-1/decision?productVersionId=version-1'))).toBe(true);
+    expect(await resolver.getDecisionApproval!('urs-1')).toBe('NONE');
   });
 
   it('returns false for a REJECTED decision', async () => {

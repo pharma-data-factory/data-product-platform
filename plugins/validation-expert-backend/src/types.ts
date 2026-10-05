@@ -146,6 +146,8 @@ export interface ValidationRun {
   baselineId: string;
   /** Optional Validation Context anchor (URS approved baseline handoff). */
   contextId?: string;
+  /** NXD-127. The product version an EVIDENCE run reviewed. */
+  productVersionId?: string;
   type: ProtocolType;
   status: RunStatus;
   createdAt: string;

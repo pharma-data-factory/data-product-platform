@@ -113,9 +113,15 @@ export function createHttpValidationDecisionResolver(options: {
     headers: Record<string, string>,
     contextId: string,
     baselineId: string,
+    productVersionId: string | undefined,
   ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'> {
+    // NXD-127: decisions are per product version; without one there is no
+    // decision to read.
+    if (!productVersionId) {
+      return 'NONE';
+    }
     const decisionRes = await doFetch(
-      `${base}/contexts/${encodeURIComponent(contextId)}/decision`,
+      `${base}/contexts/${encodeURIComponent(contextId)}/decision?productVersionId=${encodeURIComponent(productVersionId)}`,
       { headers },
     );
     if (!decisionRes.ok) {
@@ -141,6 +147,7 @@ export function createHttpValidationDecisionResolver(options: {
 
   const getDecisionApproval = async (
     baselineId: string,
+    productVersionId?: string,
   ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'> => {
     try {
       const base = await options.discovery.getBaseUrl('validation-expert');
@@ -150,7 +157,13 @@ export function createHttpValidationDecisionResolver(options: {
       if (!context) {
         return 'NONE';
       }
-      return await readDecisionApproval(base, headers, context.id, baselineId);
+      return await readDecisionApproval(
+        base,
+        headers,
+        context.id,
+        baselineId,
+        productVersionId,
+      );
     } catch (error) {
       // Network or parse failure → treat as "not approved".
       options.logger?.warn(
@@ -166,9 +179,12 @@ export function createHttpValidationDecisionResolver(options: {
   return {
     getDecisionApproval,
 
-    async hasApprovedDecision(baselineId: string): Promise<boolean> {
+    async hasApprovedDecision(
+      baselineId: string,
+      productVersionId?: string,
+    ): Promise<boolean> {
       // getDecisionApproval never throws: a failed lookup is "not approved".
-      return (await getDecisionApproval(baselineId)) !== 'NONE';
+      return (await getDecisionApproval(baselineId, productVersionId)) !== 'NONE';
     },
 
     /**
@@ -182,6 +198,7 @@ export function createHttpValidationDecisionResolver(options: {
      */
     async getValidationCoverage(
       baselineId: string,
+      productVersionId?: string,
     ): Promise<ValidationCoverageSummary | undefined> {
       try {
         const base = await options.discovery.getBaseUrl('validation-expert');
@@ -233,8 +250,13 @@ export function createHttpValidationDecisionResolver(options: {
         return {
           contextId: context.id,
           decisionApproved:
-            (await readDecisionApproval(base, headers, context.id, baselineId)) !==
-            'NONE',
+            (await readDecisionApproval(
+              base,
+              headers,
+              context.id,
+              baselineId,
+              productVersionId,
+            )) !== 'NONE',
           byRequirement,
         };
       } catch (error) {

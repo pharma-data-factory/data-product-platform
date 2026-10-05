@@ -121,7 +121,7 @@ export interface ValidationDecisionResolver {
    * ValidationDecision. Returns false when no context or no decision exists,
    * or when the decision status is CONDITIONAL or REJECTED.
    */
-  hasApprovedDecision(baselineId: string): Promise<boolean>;
+  hasApprovedDecision(baselineId: string, productVersionId?: string): Promise<boolean>;
   /**
    * NXD-119. `APPROVED_GMP` when the decision carries the validation expert's
    * and QA's approval, `APPROVED` when it was approved under the
@@ -130,6 +130,8 @@ export interface ValidationDecisionResolver {
    */
   getDecisionApproval?(
     baselineId: string,
+    /** NXD-127: the decision is per product version. */
+    productVersionId?: string,
   ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'>;
   /**
    * Per-requirement validation coverage for a URS baseline, or `undefined`
@@ -142,6 +144,7 @@ export interface ValidationDecisionResolver {
    */
   getValidationCoverage?(
     baselineId: string,
+    productVersionId?: string,
   ): Promise<ValidationCoverageSummary | undefined>;
 }
 import {
@@ -447,6 +450,7 @@ export class ComposerService {
       productName: string;
       version: string;
       status: string;
+      createdBy: string;
     }>;
   }> {
     const versions =
@@ -475,6 +479,7 @@ export class ComposerService {
         productName: nameOf.get(v.productId) ?? v.productId,
         version: v.version,
         status: v.status,
+        createdBy: v.createdBy,
       })),
     };
   }
@@ -1476,6 +1481,7 @@ export class ComposerService {
       try {
         validation = await this.validationDecisionResolver.getValidationCoverage(
           version.ursBaselineId,
+          version.id,
         );
       } catch (error) {
         // Unreachable is not "nothing is validated" — leave it undefined so
@@ -1926,9 +1932,10 @@ export class ComposerService {
           // approval is taken as complete, as it was before.
           let approval: 'APPROVED_GMP' | 'APPROVED' | 'NONE';
           if (resolver.getDecisionApproval) {
-            approval = await resolver.getDecisionApproval(ursId);
+            // NXD-127: the decision for this version, not for the baseline.
+            approval = await resolver.getDecisionApproval(ursId, versionId);
           } else {
-            approval = (await resolver.hasApprovedDecision(ursId))
+            approval = (await resolver.hasApprovedDecision(ursId, versionId))
               ? 'APPROVED_GMP'
               : 'NONE';
           }

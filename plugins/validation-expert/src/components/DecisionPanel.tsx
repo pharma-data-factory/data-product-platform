@@ -9,7 +9,7 @@
  * signature, so this decides nothing.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -104,16 +104,19 @@ export function DecisionPanel(props: {
   const [error, setError] = useState<string | null>(null);
   const [signingAs, setSigningAs] = useState<ValidationSignatureRole | null>(null);
   const [pinDialog, setPinDialog] = useState(false);
+  // NXD-127: the decision shown is for one product version; the server picks
+  // the newest bound one until the user picks another.
+  const [versionId, setVersionId] = useState<string | undefined>(undefined);
 
   const load = useCallback(() => {
     setError(null);
     api
-      .getDecisionState(contextId)
+      .getDecisionState(contextId, versionId)
       .then(setState)
       .catch(err =>
         setError(err instanceof Error ? err.message : 'Failed to load the decision'),
       );
-  }, [api, contextId]);
+  }, [api, contextId, versionId]);
 
   useEffect(load, [load]);
 
@@ -136,13 +139,35 @@ export function DecisionPanel(props: {
 
   const due = state.progress.nextRoles;
   const mine = state.myRoles.filter(role => due.includes(role));
+  const versions = state.versions ?? [];
+  const current = versions.find(v => v.id === state.productVersionId);
 
   return (
     <Section>
-      <Box display="flex" alignItems="center" style={{ gap: 12 }} mb={1}>
+      <Box display="flex" alignItems="center" style={{ gap: 12 }} mb={1} flexWrap="wrap">
         <Typography variant="h6">Validation decision</Typography>
-        <StatusChip value={state.decision?.status ?? 'OPEN'} />
+        {current ? <StatusChip value={state.decision?.status ?? 'OPEN'} /> : null}
+        {versions.length > 0 ? (
+          <TextField
+            select
+            id="decision-product-version"
+            label="Product version"
+            value={state.productVersionId ?? ''}
+            onChange={e => setVersionId(e.target.value)}
+            style={{ minWidth: 280 }}
+          >
+            {versions.map(v => (
+              <MenuItem key={v.id} value={v.id}>
+                {v.productName} {v.version} ({v.status})
+              </MenuItem>
+            ))}
+          </TextField>
+        ) : null}
       </Box>
+      <Typography variant="body2" color="textSecondary" paragraph>
+        A validation decision is for one product version: each version is
+        reviewed and signed on its own evidence.
+      </Typography>
 
       <Typography variant="body2" paragraph>
         {state.gmpRelevant ? (
@@ -168,19 +193,29 @@ export function DecisionPanel(props: {
         </Typography>
       ) : null}
 
-      <EvidenceSection
-        contextId={contextId}
-        state={state}
-        canStart={Boolean(canStartReview) && !state.decision}
-        onCreated={() => {
-          load();
-          onRunCreated?.();
-        }}
-      />
+      {current ? (
+        <EvidenceSection
+          contextId={contextId}
+          productVersionId={current.id}
+          state={state}
+          canStart={Boolean(canStartReview) && !state.decision}
+          onCreated={() => {
+            load();
+            onRunCreated?.();
+          }}
+        />
+      ) : (
+        <Typography variant="body2" color="textSecondary" paragraph>
+          No product version is bound to this baseline, so there is nothing to
+          validate yet.
+        </Typography>
+      )}
 
-      <Typography variant="body2" paragraph>
-        <strong>{nextStepText(state)}</strong>
-      </Typography>
+      {current ? (
+        <Typography variant="body2" paragraph>
+          <strong>{nextStepText(state)}</strong>
+        </Typography>
+      ) : null}
 
       {state.signatures.length > 0 ? (
         <Table size="small" aria-label="Signatures">
@@ -209,7 +244,7 @@ export function DecisionPanel(props: {
         </Table>
       ) : null}
 
-      {state.decision ? null : (
+      {state.decision || !current ? null : (
         <Box mt={2} display="flex" style={{ gap: 12 }} flexWrap="wrap" alignItems="center">
           {mine.map(role => (
             <Button
@@ -236,9 +271,25 @@ export function DecisionPanel(props: {
         </Box>
       )}
 
+      {state.otherDecisions && state.otherDecisions.length > 0 ? (
+        <Typography variant="body2" color="textSecondary" style={{ marginTop: 12 }}>
+          Other decisions on this baseline:{' '}
+          {state.otherDecisions
+            .map(d => {
+              const v = versions.find(x => x.id === d.productVersionId);
+              const label = v
+                ? `${v.productName} ${v.version}`
+                : 'recorded per baseline before NXD-127 (covers no version)';
+              return `${label}: ${d.status}`;
+            })
+            .join(' · ')}
+        </Typography>
+      ) : null}
+
       <SignDialog
         role={signingAs}
         contextId={contextId}
+        productVersionId={current?.id ?? ''}
         evidenceComplete={Boolean(state.evidence?.complete)}
         onClose={() => setSigningAs(null)}
         onSigned={() => {
@@ -257,29 +308,22 @@ export function DecisionPanel(props: {
  */
 function EvidenceSection(props: {
   contextId: string;
+  productVersionId: string;
   state: DecisionStateView;
   canStart: boolean;
   onCreated: () => void;
 }) {
-  const { contextId, state, canStart, onCreated } = props;
+  const { contextId, productVersionId, state, canStart, onCreated } = props;
   const api = useApi(validationExpertApiRef);
-  const versions = useMemo(() => state.versions ?? [], [state.versions]);
-  const [versionId, setVersionId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const evidence = state.evidence;
-
-  useEffect(() => {
-    if (!versionId && versions.length > 0) {
-      setVersionId(versions[versions.length - 1].id);
-    }
-  }, [versionId, versions]);
 
   async function start() {
     setBusy(true);
     setError(null);
     try {
-      await api.startEvidenceReview(contextId, versionId);
+      await api.startEvidenceReview(contextId, productVersionId);
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -305,31 +349,12 @@ function EvidenceSection(props: {
           '— no review yet. Approval needs one in which every requirement passed.'
         )}
       </Typography>
-      {canStart && versions.length > 0 ? (
-          <Box mt={1} display="flex" alignItems="center" style={{ gap: 12 }} flexWrap="wrap">
-            <TextField
-              select
-              id="evidence-review-version"
-              label="Product version"
-              value={versionId}
-              onChange={e => setVersionId(e.target.value)}
-              style={{ minWidth: 280 }}
-            >
-              {versions.map(v => (
-                <MenuItem key={v.id} value={v.id}>
-                  {v.productName} {v.version} ({v.status})
-                </MenuItem>
-              ))}
-            </TextField>
-            <Button variant="outlined" disabled={busy || !versionId} onClick={start}>
-              {busy ? 'Reviewing…' : 'Run product evidence review'}
-            </Button>
-          </Box>
-      ) : null}
-      {canStart && versions.length === 0 ? (
-        <Typography variant="body2" color="textSecondary">
-          No product version is bound to this baseline, so there is no evidence to review.
-        </Typography>
+      {canStart ? (
+        <Box mt={1}>
+          <Button variant="outlined" disabled={busy} onClick={start}>
+            {busy ? 'Reviewing…' : 'Run product evidence review'}
+          </Button>
+        </Box>
       ) : null}
       {error ? (
         <Typography role="alert" variant="body2" style={{ color: NX.failFg }}>
@@ -362,12 +387,14 @@ function Section(props: { children: React.ReactNode }) {
 export function SignDialog(props: {
   role: ValidationSignatureRole | null;
   contextId: string;
+  /** NXD-127: the version whose validation is signed. */
+  productVersionId: string;
   /** NXD-124: approval needs passing product evidence for every requirement. */
   evidenceComplete: boolean;
   onClose: () => void;
   onSigned: () => void;
 }) {
-  const { role, contextId, evidenceComplete, onClose, onSigned } = props;
+  const { role, contextId, productVersionId, evidenceComplete, onClose, onSigned } = props;
   const api = useApi(validationExpertApiRef);
   const initialVerdict: ValidationSignatureVerdict = evidenceComplete
     ? 'APPROVED'
@@ -401,6 +428,7 @@ export function SignDialog(props: {
     setError(null);
     try {
       await api.signDecision(contextId, {
+        productVersionId,
         role,
         verdict,
         justification: justification.trim(),
