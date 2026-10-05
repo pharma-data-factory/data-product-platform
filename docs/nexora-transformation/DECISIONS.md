@@ -6927,3 +6927,31 @@ to a product version is a decision for the user.
   `packages/platform-common/src/validation-integration.ts`,
   `.github/workflows/data-product-quality.yml`,
   `templates/{machine-state-consumer,mqtt-temperature-product,rest-equipment-product}/content/.github/workflows/data-product-quality.yml`.
+
+### NXD-125 — NXD-117's pin was not enough: the pinned action called a vanished tag itself
+
+- Date: 2026-10-05
+- Slice: CI — found in the first `main` run after PR #13 (`a8171d4`)
+
+**Symptom.** `test`, `e2e` and CodeQL were green; `image` failed at
+*Set up job* again, now with *"Unable to resolve action
+`aquasecurity/setup-trivy@v0.2.1`"*.
+
+**Cause.** NXD-117 pinned `trivy-action` by commit to v0.28.0, but that
+version's own `action.yaml` calls `aquasecurity/setup-trivy@v0.2.1` by tag,
+and upstream removed that tag as well (only v0.2.6 and later remain). A
+pin by hash fixes only the first link of the chain. NXD-117 claimed only
+that the job would be proven by the next push to main; it was, and it
+failed.
+
+**Decision.** `trivy-action` v0.36.0, pinned by commit
+(`a9c7b0f…`). That version pins its own actions by hash
+(`setup-trivy@3fb12ec… # v0.2.6`, `actions/cache@27d5ce7… # v5.0.5`), so
+this pin now holds the whole chain. The inputs used here — `image-ref`,
+`format`, `output`, `severity`, `ignore-unfixed` — are unchanged in v0.36.0.
+
+**Not changed, named.** Proven again only by the next push to main. The
+validation decision per product version, announced as NXD-125 in PR #13,
+becomes NXD-126.
+
+- Affected components: `.github/workflows/ci.yml`.

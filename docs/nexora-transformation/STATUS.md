@@ -191,6 +191,10 @@ four quick wins F1–F4, one commit and one record each.
   evidence; coverage counts them; every approval needs a complete review.
   Product pages no longer read *Validated: Unknown*. Live: 5/5 for
   `oee-e2e-test-20261005-d`. See [`NXD-124`](DECISIONS.md).
+- **CI image job, second link.** After PR #13 `image` failed again: the
+  pinned trivy-action v0.28.0 itself calls `setup-trivy@v0.2.1`, also gone.
+  Now v0.36.0, which pins its own actions by hash. See
+  [`NXD-125`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
