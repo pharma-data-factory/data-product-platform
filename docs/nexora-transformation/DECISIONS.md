@@ -6589,3 +6589,56 @@ panel is the next slice (NXD-120).
   (+ tests), `plugins/users-backend/src/githubTeamSync.ts` (+ test),
   `packages/app/src/modules/admin/UsersRolesPage.tsx`, `app-config.demo.yaml`,
   `catalog/org.yaml`, `README.md`, `packages/backend/src/startup.test.ts`.
+
+### NXD-120 — The validation decision is signed on the context page
+
+- Date: 2026-10-05
+- Slice: frontend — the UI half of NXD-119
+
+**Decision.** The validation context page gets a *Validation decision*
+panel:
+
+- **Rule:** it states the rule with its reason, *GMP-relevant — the
+  validation expert signs, then QA approves*, and names the products and
+  their GxP relevance. If the classification could not be read, it says so.
+- **Signatures:** it lists the signatures (role, verdict, signer, time,
+  justification) and says who signs next.
+- **Who may sign:** *Sign as validation expert* / *Sign as quality
+  assurance* is offered only to someone who holds the role that is due.
+  `decision-state` now also answers the caller's own signature roles. QA
+  before the expert reads *"It is not your turn: Validation expert signs
+  next"*; someone with neither role reads which group signing needs. Display
+  only, as in NXD-104; the server re-checks every signature.
+- **Dialog:** approve or reject, the meaning of that signature for that role
+  above the fields, a required justification, and the PIN. A refusal is
+  shown verbatim: wrong PIN, lockout, Segregation of Duties. The dialog
+  keeps nothing typed after it closes.
+- **PIN:** *Set signing PIN* sets the one platform PIN in the URS Composer,
+  so a validation expert, who never opens a requirement set, can sign at
+  all.
+
+The validation plugin has its own small dialog instead of importing the URS
+Composer's `ESignatureDialog`: that one is bound to the URS signature
+meanings and has an optional comment, and importing it would add a package
+dependency between two frontend plugins.
+
+**Found on the way.** The dialog's text fields had no `id`, so their labels
+were not associated with them. A screen reader would not have named the
+fields; the test noticed first.
+
+**Verified live.**
+
+- As `demo-validator`, on `VALIDATION-CTX-MUPNNM25`: the panel names
+  `oee-e2e-test-20261005-c (DIRECT)`, waits for the validation expert, and
+  offers the signature only to them.
+- The PIN was set through the panel.
+
+**Not changed, named.** The panel allows an approval while the same page
+shows *0/5 expected requirements touched* and an IQ run stuck at RUNNING.
+Until runs test the product (package C), the expert has to read that and
+reject.
+
+- Affected components: `plugins/validation-expert/src/components/DecisionPanel.tsx`
+  (new, + test), `plugins/validation-expert/src/components/ContextPages.tsx`
+  (+ test), `plugins/validation-expert/src/api.ts`,
+  `plugins/validation-expert-backend/src/router.ts`.

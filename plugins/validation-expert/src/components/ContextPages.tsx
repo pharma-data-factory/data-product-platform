@@ -23,6 +23,7 @@ import {
   ValidationRun,
 } from '../api';
 import { NX, PageShell, PrimaryActionButton, StatusChip } from './shared';
+import { DecisionPanel } from './DecisionPanel';
 
 function formatWhen(value?: string) {
   if (!value) {
@@ -275,6 +276,8 @@ export function ContextDetailPage() {
           {context.summary}
         </Typography>
       ) : null}
+
+      <DecisionPanel contextId={context.id} />
 
       <Box
         mt={3}

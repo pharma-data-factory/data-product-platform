@@ -168,6 +168,10 @@ four quick wins F1–F4, one commit and one record each.
   append-only signatures, no administrator approval. A GMP product needs a
   decision under that rule at the release gate. Demo seat `demo-validator`.
   See [`NXD-119`](DECISIONS.md).
+- **Decision panel.** The validation context page states the GMP rule,
+  lists the signatures, and offers *Sign as …* only to the role that is due,
+  with verdict, justification and PIN; *Set signing PIN* included. See
+  [`NXD-120`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

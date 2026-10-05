@@ -456,12 +456,30 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
 
   /**
    * GET /contexts/:id/decision-state (NXD-119)
-   * GMP classification, signatures so far, and which role may sign next.
+   * GMP classification, signatures so far, which role may sign next, and the
+   * caller's own signature roles (`myRoles`).
    */
   router.get('/contexts/:id/decision-state', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationReadPermission);
-      res.json(await service.getDecisionState(req.params.id));
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReadPermission,
+      );
+      // The caller's own signature roles, so the page offers signing only to
+      // whoever may sign (cf. NXD-104). Display only: signing re-checks.
+      let myRoles: ValidationSignatureRole[] = [];
+      if (userInfo) {
+        try {
+          myRoles = signatureRoles(
+            (await userInfo.getUserInfo(credentials)).ownershipEntityRefs ?? [],
+          );
+        } catch {
+          // Unknown roles offer nothing; the state itself is still answered.
+        }
+      }
+      res.json({ ...(await service.getDecisionState(req.params.id)), myRoles });
     } catch (error) {
       respondError(res, logger, error);
     }
