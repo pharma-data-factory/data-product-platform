@@ -247,8 +247,11 @@ jobs:
       # audit: the base image and the Backstage tree carry advisories that
       # cannot be cleared from this pipeline. Findings land in the Security
       # tab, where they accumulate visibly instead of scrolling past.
+      # Pinned by commit (v0.28.0). The unprefixed tag 0.28.0 was removed
+      # upstream; actions resolve at "Set up job", so a missing ref fails the
+      # whole job and continue-on-error below never gets a say (NXD-117).
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}

@@ -6369,3 +6369,36 @@ themselves are unchanged. They are now harmless to the sync, not removed.
 - Affected components: `plugins/users-backend/src/{githubTeams,teamReconciler,githubTeamSync,teamSyncController}.ts`
   (+ tests), `packages/app/src/modules/admin/GithubSyncStatus.tsx` (+ test),
   `app-config.github.yaml`, `docs/github-setup.md`, `README.md`.
+
+### NXD-117 — The image job had never run, and its first run failed before the first step
+
+- Date: 2026-10-05
+- Slice: CI — found in the first `main` run after PR #4 was merged (`a0d2d82`)
+
+**Symptom.** On `main`, Platform CI ran `test` and `e2e` green and failed
+`image` at *Set up job*. The annotation:
+_"Unable to resolve action `aquasecurity/trivy-action@0.28.0`, unable to
+find version `0.28.0`"_.
+
+**Cause.** NXD-088 (wave 1) added the Trivy image scan with the tag
+`0.28.0`. Upstream, the tags now carry a `v` prefix (`v0.28.0` …
+`v0.36.0`), and the unprefixed tag is gone. The `image` job runs only on a
+push to `main`, and nothing reached `main` between NXD-088 and PR #4, so the
+step had never been resolved.
+
+**Why `continue-on-error` did not help.** The step is marked
+`continue-on-error: true`, so a failing scan would not block. But GitHub
+resolves every action of a job at *Set up job*, before any step runs. A
+missing ref therefore fails the whole job: the image was not built or pushed
+either.
+
+**Decision.** The action is pinned by commit,
+`aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0`:
+the same version, and a ref that a renamed or moved tag cannot take away.
+No upgrade in the same change.
+
+**Not changed, named.** The other actions are still pinned by major tag
+(`actions/checkout@v4`, …). Two Dependabot `npm_and_yarn` update runs on
+`main` also failed. Neither is part of this fix.
+
+- Affected components: `.github/workflows/ci.yml`.

@@ -151,6 +151,10 @@ four quick wins F1–F4, one commit and one record each.
   now reads the organization's members and adds only those.
   `GITHUB_TEAM_SYNC_DRY_RUN=true` reports the plan and writes nothing. See
   [`NXD-116`](DECISIONS.md).
+- **CI image job: a vanished action tag.** The first `main` run after the
+  merge failed `image` at *Set up job*: `aquasecurity/trivy-action@0.28.0` no
+  longer exists upstream (tags are now `v`-prefixed). Pinned by commit to
+  v0.28.0. See [`NXD-117`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
