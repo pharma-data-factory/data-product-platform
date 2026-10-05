@@ -6156,3 +6156,42 @@ TechDocs.
 - Affected components: `packages/app/src/modules/publicDocs/*` (new),
   `packages/app/src/modules/identity/{LandingSignInPage,LoginPage,PublicLanding,landingI18n}.tsx`,
   `packages/app/config.d.ts`, `app-config.yaml`, `.env.example`, `README.md`.
+
+### NXD-115 — A refused insert was reported as "did not throw", because the test asked the wrong question
+
+- Date: 2026-10-05
+- Slice: test infrastructure — found in the verification run for NXD-113/114
+
+**Symptom.** `plugins/users-backend/src/db/migrations.test.ts` (NXD-110)
+failed in two of four runs: the composite primary key and the status enum
+of `github_team_sync_state` "did not throw". Run alone, it always passed.
+
+**Cause.** The insert was refused every time. The test could not tell:
+
+- The better-sqlite3 native addon is loaded once per Jest worker, and Jest
+  cannot reset it between test files. On first load it registers the
+  `SqliteError` constructor of the file that loaded it. Every later file in
+  the same worker receives errors whose prototype chain leads to another
+  sandbox's `Error.prototype`.
+- `SqliteError` is a plain function with `setPrototypeOf(…, Error.prototype)`,
+  not a real `Error`, so Jest recognises it only through `instanceof Error`.
+- With both, `rejects.toThrow()` reads the rejection as "not an error" and
+  reports "Received function did not throw".
+
+Whether it failed depended only on whether another SQLite test file ran
+before it in the same worker. Forcing `seeds.test.ts` before it with
+`--runInBand` fails it every time.
+
+**Decision.** Database refusals are asserted by SQLite error code,
+`rejects.toMatchObject({ code: 'SQLITE_CONSTRAINT_PRIMARYKEY' })` and
+`'SQLITE_CONSTRAINT_CHECK'`. That does not depend on the realm, and it is
+more precise: it proves the expected constraint fired, not just that
+something failed. The migration was right throughout and is unchanged.
+
+**Not changed, named.** Twenty other SQLite test files use
+`rejects.toThrow()`, most in `composer-backend`. Where the service throws its
+own error they are unaffected; only assertions on a raw database refusal can
+fail this way. None has failed in the runs so far, and they were not audited
+one by one.
+
+- Affected components: `plugins/users-backend/src/db/migrations.test.ts`.

@@ -127,6 +127,11 @@ four quick wins F1–F4, one commit and one record each.
   linked from the footer and the login view. `NEXORA_PUBLIC_DOCS=false`
   hides it. Audits, strategy and decision records stay behind sign-in. See
   [`NXD-114`](DECISIONS.md).
+- **Flaky migration test — the refusal was real, the assertion was not.**
+  better-sqlite3 keeps the `SqliteError` class of the first test file per
+  Jest worker, so later files saw a refused insert as "did not throw".
+  `github_team_sync_state` refusals are now asserted by SQLite error code.
+  See [`NXD-115`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

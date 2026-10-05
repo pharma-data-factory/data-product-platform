@@ -7,6 +7,11 @@
 import knex, { Knex } from 'knex';
 import { down, up } from './migrations';
 
+// Refusals are asserted by SQLite error code, not with toThrow(). The
+// better-sqlite3 addon is loaded once per Jest worker and keeps the
+// SqliteError class of the first test file that loaded it; in every later
+// file that error is not `instanceof Error`, and toThrow() reports a refused
+// insert as "did not throw".
 describe('github_team_sync_state migration', () => {
   let db: Knex;
 
@@ -44,7 +49,7 @@ describe('github_team_sync_state migration', () => {
         team_slug: 'nexora-developers',
         status: 'invited',
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: 'SQLITE_CONSTRAINT_PRIMARYKEY' });
     // A second team for the same user is a second row.
     await db('github_team_sync_state').insert({
       user_id: 'schmeckm',
@@ -64,7 +69,7 @@ describe('github_team_sync_state migration', () => {
         team_slug: 'nexora-developers',
         status: 'pending',
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: 'SQLITE_CONSTRAINT_CHECK' });
   });
 
   it('is idempotent and reversible', async () => {
