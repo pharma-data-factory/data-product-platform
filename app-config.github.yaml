@@ -35,6 +35,11 @@ users:
   # does not manage are left alone. See docs/github-setup.md.
   githubTeamSync:
     enabled: ${GITHUB_TEAM_SYNC_ENABLED:-false}
+    # NXD-116. Report what a run would change and write nothing — to GitHub,
+    # the state table or the audit trail. The first run starts as soon as the
+    # sync is enabled, so turn this on with it, read the plan in Admin → Users
+    # & Roles, then turn it off.
+    dryRun: ${GITHUB_TEAM_SYNC_DRY_RUN:-false}
     organization: ${GITHUB_ORG:-pharma-data-factory}
     schedule:
       frequency: { minutes: 15 }

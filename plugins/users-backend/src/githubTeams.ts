@@ -1,10 +1,11 @@
 /**
- * The four GitHub calls the team reconciler needs (NXD-108), and nothing else.
+ * The five GitHub calls the team reconciler needs (NXD-108, NXD-116), and
+ * nothing else.
  *
  * Same shape as `data-products-backend/src/githubActions.ts`: credentials from
  * `DefaultGithubCredentialsProvider` (the GitHub App installation token for the
  * organization, or `GITHUB_TOKEN` as the integration fallback), native `fetch`,
- * and a result that names the reason instead of throwing. No Octokit: four
+ * and a result that names the reason instead of throwing. No Octokit: five
  * endpoints do not justify a client library.
  *
  * The App needs *Organization → Members: read & write* for these calls. Without
@@ -50,6 +51,12 @@ export type GithubTeamsResult<T> =
 export type TeamMembershipState = 'active' | 'pending';
 
 export interface GithubTeamsClient {
+  /**
+   * Logins of the organization's members (NXD-116). The reconciler adds only
+   * these to teams: a team membership call for anyone else would send them an
+   * invitation to the organization.
+   */
+  listOrgMembers(): Promise<GithubTeamsResult<string[]>>;
   /** Logins of the team's current members. */
   listMembers(teamSlug: string): Promise<GithubTeamsResult<string[]>>;
   /** Logins with an open invitation to the team. Email-only invitations are skipped. */
@@ -182,6 +189,8 @@ export function createGithubTeamsClient(options: {
     `${team(slug)}/memberships/${encodeURIComponent(username)}`;
 
   return {
+    listOrgMembers: () => listLogins(`/orgs/${org}/members`),
+
     listMembers: slug => listLogins(`${team(slug)}/members`),
 
     listInvitations: slug => listLogins(`${team(slug)}/invitations`),

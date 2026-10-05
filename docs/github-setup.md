@@ -132,8 +132,10 @@ GITHUB_CLIENT_SECRET=...
 GITHUB_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n"
 GITHUB_ORG=pharma-data-factory         # where Create publishes and the teams live
 
-# 4 — team sync (off unless set)
+# 4 — team sync (off unless set). Start with the dry run: the first run
+# begins as soon as the sync is enabled.
 GITHUB_TEAM_SYNC_ENABLED=true
+GITHUB_TEAM_SYNC_DRY_RUN=true
 
 # Production, first start only: your GitHub login becomes the first admin
 USERS_BOOTSTRAP_ADMIN=your-github-login
@@ -299,7 +301,14 @@ Before enabling it:
    example `nexora-developers` Write, `nexora-owners` Maintain,
    `nexora-admins` Admin. Nexora manages who is in a team, not what the team
    may do.
-3. Set `GITHUB_TEAM_SYNC_ENABLED=true` and restart.
+3. Invite everyone who should be in a team into the **organization** in
+   GitHub. Nexora adds organization members to teams; it never invites
+   anyone into the organization (NXD-116).
+4. Set `GITHUB_TEAM_SYNC_ENABLED=true` **and** `GITHUB_TEAM_SYNC_DRY_RUN=true`,
+   and restart. The first run starts right away. In the dry run it writes
+   nothing; Admin → Users & Roles lists per team whom it would add and remove,
+   and who is not in the organization.
+5. When the plan is right, remove `GITHUB_TEAM_SYNC_DRY_RUN` and restart.
 
 What it does and does not do:
 
@@ -312,9 +321,16 @@ What it does and does not do:
 - **Order.** Removal runs before addition. Removing or demoting a user takes
   them out of the team on the next run, and right after the change in Admin →
   Users & Roles.
-- **Invitations.** A person who is not yet in the organization gets an
-  invitation from GitHub and shows as *invited* until they accept. If GitHub
-  refuses the invitation, they show as *not in org*.
+- **Organization members only.** Each run reads the organization's members
+  first and adds only those. A Nexora user name is a GitHub login by
+  convention only: the seed and demo records (`admin`, `developer`,
+  `owner`, `demo-pm`, …) are real GitHub accounts of other people, and a
+  team membership call for them would invite them into the organization.
+  Anyone not in the organization shows as *not in org* and is left for a
+  GitHub owner to invite. If the member list cannot be read, no one is
+  added that run; removals still run (NXD-116).
+- **Invitations.** Someone who is in the organization and has an open team
+  invitation shows as *invited* until they accept.
 - **Approval roles never cross over.** A `urs-*` group in `teams` stops the
   backend from starting (NXD-107).
 - **Audit.** Every change is in the user audit trail as `GITHUB_TEAM_ADDED` /

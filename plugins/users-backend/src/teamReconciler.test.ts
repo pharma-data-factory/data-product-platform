@@ -16,6 +16,10 @@ import {
 } from './teamReconciler';
 
 const set = (...values: string[]) => new Set(values);
+/** An organization everyone in these plans belongs to. */
+const EVERYONE = {
+  has: () => true,
+} as unknown as ReadonlySet<string>;
 
 describe('planTeam', () => {
   it('adds the missing, removes the unwanted, keeps the rest', () => {
@@ -26,11 +30,14 @@ describe('planTeam', () => {
       invitations: ['ben'],
       known: set('ann', 'ben', 'cat', 'dan'),
       previouslySynced: set(),
+      orgMembers: EVERYONE,
     });
     expect(plan).toEqual({
       team: 'nexora-developers',
       remove: ['dan'],
       add: ['cat'],
+      notInOrg: [],
+      unverified: [],
       keepActive: ['ann'],
       keepInvited: ['ben'],
       unmanaged: [],
@@ -46,6 +53,7 @@ describe('planTeam', () => {
       invitations: ['external-invitee'],
       known: set('ann'),
       previouslySynced: set(),
+      orgMembers: EVERYONE,
     });
     expect(plan.remove).toEqual([]);
     expect(plan.unmanaged).toEqual(['contractor', 'external-invitee']);
@@ -61,6 +69,7 @@ describe('planTeam', () => {
       invitations: [],
       known: set(),
       previouslySynced: set('leaver'),
+      orgMembers: EVERYONE,
     });
     expect(plan.remove).toEqual(['leaver']);
     expect(plan.unmanaged).toEqual([]);
@@ -74,7 +83,37 @@ describe('planTeam', () => {
       invitations: ['demoted'],
       known: set('demoted'),
       previouslySynced: set('demoted'),
+      orgMembers: EVERYONE,
     });
+    expect(plan.remove).toEqual(['demoted']);
+  });
+
+  it('adds only organization members; the rest are not invited (NXD-116)', () => {
+    const plan = planTeam({
+      team: 't',
+      desired: set('staff', 'admin', 'demo-pm'),
+      members: [],
+      invitations: [],
+      known: set('staff', 'admin', 'demo-pm'),
+      previouslySynced: set(),
+      orgMembers: set('staff'),
+    });
+    expect(plan.add).toEqual(['staff']);
+    expect(plan.notInOrg).toEqual(['admin', 'demo-pm']);
+  });
+
+  it('adds no one when the organization members are unknown, and still removes', () => {
+    const plan = planTeam({
+      team: 't',
+      desired: set('staff'),
+      members: ['demoted'],
+      invitations: [],
+      known: set('staff', 'demoted'),
+      previouslySynced: set(),
+      orgMembers: null,
+    });
+    expect(plan.add).toEqual([]);
+    expect(plan.unverified).toEqual(['staff']);
     expect(plan.remove).toEqual(['demoted']);
   });
 
@@ -86,6 +125,7 @@ describe('planTeam', () => {
       invitations: [],
       known: set('gone'),
       previouslySynced: set('gone'),
+      orgMembers: EVERYONE,
     });
     expect(plan.forget).toEqual(['gone']);
     expect(plan.remove).toEqual([]);
@@ -129,14 +169,25 @@ describe('desiredByTeam', () => {
   });
 });
 
-/** In-memory GitHub: teams → members / invitations, with scripted failures. */
+/**
+ * In-memory GitHub: teams → members / invitations, with scripted failures.
+ * Organization members come from `defaultOrgMembers` until a test sets them.
+ */
 function fakeGithub(
   teams: Record<string, { members: string[]; invitations?: string[] }>,
+  defaultOrgMembers: () => Promise<string[]> = async () => [],
 ) {
   const calls: string[] = [];
   const failures = new Map<string, GithubTeamsResult<never>>();
   const pendingFor = new Set<string>();
+  let orgMembers: string[] | null = null;
+  let orgFailure: GithubTeamsResult<never> | null = null;
   const client: GithubTeamsClient = {
+    async listOrgMembers() {
+      calls.push('list-org');
+      if (orgFailure) return orgFailure;
+      return { ok: true, value: orgMembers ?? (await defaultOrgMembers()) };
+    },
     async listMembers(team) {
       calls.push(`list ${team}`);
       const fail = failures.get(`list ${team}`);
@@ -165,7 +216,19 @@ function fakeGithub(
       return { ok: true, value: undefined };
     },
   };
-  return { client, calls, failures, pendingFor, teams };
+  return {
+    client,
+    calls,
+    failures,
+    pendingFor,
+    teams,
+    setOrgMembers: (logins: string[]) => {
+      orgMembers = logins;
+    },
+    failOrg: (failure: GithubTeamsResult<never>) => {
+      orgFailure = failure;
+    },
+  };
 }
 
 describe('reconcile', () => {
@@ -201,19 +264,26 @@ describe('reconcile', () => {
     await db?.destroy();
   });
 
-  const run = (client: GithubTeamsClient) =>
+  /** Every Nexora user is an organization member unless a test says otherwise. */
+  const withOrg = (teams: Parameters<typeof fakeGithub>[0]) =>
+    fakeGithub(teams, async () =>
+      (await repository.listUsers()).map(u => u.name.toLowerCase()),
+    );
+
+  const run = (client: GithubTeamsClient, dryRun = false) =>
     reconcile({
       organization: 'pharma-data-factory',
       teams: MAPPING,
       client,
       repository,
       log,
+      dryRun,
     });
 
   it('removes before it adds, within a team', async () => {
     await addUser('newdev', ['data-product-developers']);
     await addUser('demoted', ['platform-viewers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: ['demoted'] },
       'nexora-admins': { members: [] },
     });
@@ -231,7 +301,7 @@ describe('reconcile', () => {
   it('records every change in the audit trail under the reconciler actor', async () => {
     await addUser('newdev', ['data-product-developers']);
     await addUser('demoted', ['platform-viewers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: ['demoted'] },
       'nexora-admins': { members: [] },
     });
@@ -268,7 +338,7 @@ describe('reconcile', () => {
     await addUser('member', ['data-product-developers']);
     await addUser('invitee', ['data-product-developers']);
     await addUser('outsider', ['data-product-developers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: ['member'] },
       'nexora-admins': { members: [] },
     });
@@ -305,7 +375,7 @@ describe('reconcile', () => {
   it('isolates a team that cannot be read and goes on with the others', async () => {
     await addUser('dev', ['data-product-developers']);
     await addUser('boss', ['platform-admins']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: [] },
       'nexora-admins': { members: [] },
     });
@@ -339,7 +409,7 @@ describe('reconcile', () => {
   it('carries on after a single refused call', async () => {
     await addUser('a-refused', ['data-product-developers']);
     await addUser('b-fine', ['data-product-developers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: [] },
       'nexora-admins': { members: [] },
     });
@@ -359,7 +429,7 @@ describe('reconcile', () => {
 
   it('never touches members Nexora does not manage', async () => {
     await addUser('dev', ['data-product-developers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: ['dev', 'contractor'] },
       'nexora-admins': { members: ['org-owner'] },
     });
@@ -376,7 +446,7 @@ describe('reconcile', () => {
 
   it('takes a deleted user out of the team on the next run', async () => {
     await addUser('leaver', ['data-product-developers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: [] },
       'nexora-admins': { members: [] },
     });
@@ -390,9 +460,88 @@ describe('reconcile', () => {
     expect(await repository.listTeamSyncState()).toEqual([]);
   });
 
+  it('never invites the seed and demo logins, which are strangers on GitHub (NXD-116)', async () => {
+    await addUser('schmeckm', ['platform-admins']);
+    await addUser('admin', ['platform-admins']);
+    await addUser('developer', ['data-product-developers']);
+    await addUser('demo-pm', ['data-product-developers']);
+    const github = withOrg({
+      'nexora-developers': { members: [] },
+      'nexora-admins': { members: [] },
+    });
+    github.setOrgMembers(['schmeckm']);
+
+    const summary = await run(github.client);
+
+    expect(github.calls.filter(c => c.startsWith('add'))).toEqual([
+      'add nexora-admins schmeckm',
+    ]);
+    expect(summary.teams.map(t => [t.team, t.notInOrg])).toEqual([
+      ['nexora-developers', ['demo-pm', 'developer']],
+      ['nexora-admins', ['admin']],
+    ]);
+    const state = await repository.listTeamSyncState();
+    expect(state.find(s => s.userId === 'admin')).toMatchObject({
+      status: 'not_in_org',
+      lastError: expect.stringContaining('invite them to the organization'),
+    });
+    expect(
+      (await repository.listAudit()).filter(a => a.actor === TEAM_SYNC_ACTOR),
+    ).toHaveLength(1);
+  });
+
+  it('adds no one when the organization cannot be read, and still removes', async () => {
+    await addUser('newdev', ['data-product-developers']);
+    await addUser('demoted', ['platform-viewers']);
+    const github = withOrg({
+      'nexora-developers': { members: ['demoted'] },
+      'nexora-admins': { members: [] },
+    });
+    github.failOrg({ ok: false, reason: 'forbidden', status: 403 });
+
+    const summary = await run(github.client);
+
+    expect(github.calls.filter(c => /^(add|remove)/.test(c))).toEqual([
+      'remove nexora-developers demoted',
+    ]);
+    expect(summary.orgMembersError).toBe('forbidden');
+    expect(
+      (await repository.listTeamSyncState()).find(s => s.userId === 'newdev'),
+    ).toMatchObject({
+      status: 'error',
+      lastError: expect.stringContaining(
+        'organization members could not be read',
+      ),
+    });
+  });
+
+  it('reports the plan on a dry run and writes nothing anywhere (NXD-116)', async () => {
+    await addUser('newdev', ['data-product-developers']);
+    await addUser('demoted', ['platform-viewers']);
+    await addUser('admin', ['platform-admins']);
+    const github = withOrg({
+      'nexora-developers': { members: ['demoted'] },
+      'nexora-admins': { members: [] },
+    });
+    github.setOrgMembers(['newdev', 'demoted']);
+
+    const summary = await run(github.client, true);
+
+    expect(summary.dryRun).toBe(true);
+    expect(github.calls.filter(c => /^(add|remove)/.test(c))).toEqual([]);
+    expect(summary.teams.map(t => [t.team, t.planned, t.notInOrg])).toEqual([
+      ['nexora-developers', { add: ['newdev'], remove: ['demoted'] }, []],
+      ['nexora-admins', { add: [], remove: [] }, ['admin']],
+    ]);
+    expect(await repository.listTeamSyncState()).toEqual([]);
+    expect(
+      (await repository.listAudit()).filter(a => a.actor === TEAM_SYNC_ACTOR),
+    ).toEqual([]);
+  });
+
   it('keeps the state row when a removal fails, so the next run retries', async () => {
     await addUser('leaver', ['data-product-developers']);
-    const github = fakeGithub({
+    const github = withOrg({
       'nexora-developers': { members: [] },
       'nexora-admins': { members: [] },
     });

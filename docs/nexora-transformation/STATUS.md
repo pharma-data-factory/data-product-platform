@@ -145,6 +145,12 @@ four quick wins F1–F4, one commit and one record each.
   Jest worker, so later files saw a refused insert as "did not throw".
   `github_team_sync_state` refusals are now asserted by SQLite error code.
   See [`NXD-115`](DECISIONS.md).
+- **Team sync adds only organization members, with a dry run.** The first
+  run would have invited the GitHub accounts behind the seed and demo
+  logins (`admin`, `developer`, `demo-pm`, …) into the organization. Each run
+  now reads the organization's members and adds only those.
+  `GITHUB_TEAM_SYNC_DRY_RUN=true` reports the plan and writes nothing. See
+  [`NXD-116`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

@@ -30,14 +30,21 @@ export interface GithubSyncTeamOutcome {
   invited: string[];
   removed: string[];
   unmanaged: string[];
+  /** Wanted in the team but not members of the organization (NXD-116). */
+  notInOrg?: string[];
+  /** Present on a dry run: what the run would have changed. */
+  planned?: { add: string[]; remove: string[] };
   failed: Array<{ user: string; reason: string; message?: string }>;
 }
 
 export interface GithubSyncStatusResponse {
   enabled: boolean;
+  dryRun?: boolean;
   organization?: string;
   teams?: Record<string, string[]>;
   lastRun?: {
+    dryRun?: boolean;
+    orgMembersError?: string;
     startedAt: string;
     finishedAt: string;
     teams: GithubSyncTeamOutcome[];
@@ -79,6 +86,26 @@ export function syncRowsFor(
   return (status?.states ?? []).filter(
     row => row.userId === login.toLowerCase(),
   );
+}
+
+/**
+ * One line per team for a dry run: what it would add and remove, and who it
+ * would leave out because they are not in the organization.
+ */
+export function plannedChanges(status: GithubSyncStatusResponse | null) {
+  return (status?.lastRun?.teams ?? []).map(team => {
+    const parts = [
+      team.planned?.add.length ? `add ${team.planned.add.join(', ')}` : '',
+      team.planned?.remove.length
+        ? `remove ${team.planned.remove.join(', ')}`
+        : '',
+      team.notInOrg?.length
+        ? `not in organization: ${team.notInOrg.join(', ')}`
+        : '',
+      team.ok ? '' : `could not be read (${team.reason})`,
+    ].filter(Boolean);
+    return `${team.team}: ${parts.length ? parts.join('; ') : 'no change'}`;
+  });
 }
 
 /** Teams in the last run that could not be read or had a refused call. */
@@ -150,6 +177,7 @@ export function GithubSyncBanner(props: {
       <div>
         <Typography variant="subtitle1">
           GitHub team sync — {status.organization}
+          {status.dryRun ? ' (dry run)' : ''}
         </Typography>
         <Typography variant="body2" color="textSecondary">
           {lastRun
@@ -158,6 +186,30 @@ export function GithubSyncBanner(props: {
           Team membership follows the platform role; URS approval roles are
           never synced.
         </Typography>
+        {status.dryRun ? (
+          <div style={{ marginTop: 4 }}>
+            <Typography variant="body2" style={{ fontWeight: 600 }}>
+              Dry run: nothing is written to GitHub.
+              {lastRun ? ' The last run would have done this:' : ''}
+            </Typography>
+            {lastRun
+              ? plannedChanges(status).map(line => (
+                  <Typography key={line} variant="body2">
+                    {line}
+                  </Typography>
+                ))
+              : null}
+          </div>
+        ) : null}
+        {lastRun?.orgMembersError ? (
+          <Typography
+            variant="body2"
+            style={{ color: NEXORA_TONE.danger.text, marginTop: 4 }}
+          >
+            Organization members could not be read ({lastRun.orgMembersError}
+            ); no one was added.
+          </Typography>
+        ) : null}
         {failures.length > 0 ? (
           <Typography
             variant="body2"

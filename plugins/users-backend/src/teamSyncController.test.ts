@@ -10,6 +10,8 @@ import { UsersRepository } from './repository';
 import { startTeamSync, TEAM_SYNC_TASK_ID } from './teamSyncController';
 
 const emptyGithub: GithubTeamsClient = {
+  // NXD-116: only organization members are added.
+  listOrgMembers: async () => ({ ok: true, value: ['boss'] }),
   listMembers: async () => ({ ok: true, value: [] }),
   listInvitations: async () => ({ ok: true, value: [] }),
   addMember: async () => ({ ok: true, value: 'active' }),
@@ -62,6 +64,7 @@ describe('startTeamSync', () => {
     startTeamSync({
       config: {
         enabled: true,
+        dryRun: false,
         organization: 'pharma-data-factory',
         teams: { 'platform-admins': ['nexora-admins'] },
       },

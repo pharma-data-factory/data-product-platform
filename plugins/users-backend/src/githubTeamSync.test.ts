@@ -26,6 +26,7 @@ describe('parseGithubTeamSyncConfig', () => {
   it('reads a valid mapping, one slug becoming a one-element list', () => {
     expect(parseGithubTeamSyncConfig(valid)).toEqual({
       ...valid,
+      dryRun: false,
       teams: {
         'data-product-developers': ['nexora-developers'],
         'platform-admins': ['nexora-admins'],
@@ -118,9 +119,20 @@ describe('parseGithubTeamSyncConfig', () => {
     expect(() => parseGithubTeamSyncConfig(raw)).toThrow(message);
   });
 
+  it('reads dryRun as the string an environment variable produces (NXD-116)', () => {
+    expect(
+      parseGithubTeamSyncConfig({ ...valid, dryRun: 'true' })?.dryRun,
+    ).toBe(true);
+    expect(parseGithubTeamSyncConfig(valid)?.dryRun).toBe(false);
+    expect(() =>
+      parseGithubTeamSyncConfig({ ...valid, dryRun: 'yes' }),
+    ).toThrow(/dryRun must be true or false/);
+  });
+
   it('does not require organization or teams while disabled', () => {
     expect(parseGithubTeamSyncConfig({ enabled: false })).toEqual({
       enabled: false,
+      dryRun: false,
       organization: '',
       schedule: undefined,
       teams: {},
@@ -133,9 +145,11 @@ describe('parseGithubTeamSyncConfig', () => {
     // What the config loader makes of the substitutions when nothing is set.
     expect(raw.enabled).toBe('${GITHUB_TEAM_SYNC_ENABLED:-false}');
     expect(raw.organization).toBe('${GITHUB_ORG:-pharma-data-factory}');
+    expect(raw.dryRun).toBe('${GITHUB_TEAM_SYNC_DRY_RUN:-false}');
     const parsed = parseGithubTeamSyncConfig({
       ...raw,
       enabled: 'false',
+      dryRun: 'false',
       organization: 'pharma-data-factory',
     });
     expect(parsed?.enabled).toBe(false);

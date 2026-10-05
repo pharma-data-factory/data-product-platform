@@ -6318,3 +6318,54 @@ fail this way. None has failed in the runs so far, and they were not audited
 one by one.
 
 - Affected components: `plugins/users-backend/src/db/migrations.test.ts`.
+
+### NXD-116 — Team sync adds only organization members, and a dry run shows the first run before it acts
+
+- Date: 2026-10-05
+- Slice: backend + admin UI — found while preparing the first live run of
+  team sync (NXD-108, NXD-110..112)
+
+**What the first run would have done.** The local database holds 14 user
+records. Besides `schmeckm`, the mapped groups contain `admin`, `developer`,
+`owner`, `guest`, `demo-author`, `demo-pm`, `demo-quality` and
+`demo-reviewer`, from the seed file and the demo identities. The reconciler
+treated every Nexora user name as a GitHub login. Those names are real
+GitHub accounts of other people. A team membership call for someone outside
+the organization makes GitHub invite them into it, so the first run would
+have invited strangers into `pharma-data-factory`'s teams. There was no way
+to see this beforehand: the scheduler runs the task as soon as the sync is
+enabled.
+
+**Rejected: "only users who signed in with GitHub".** Sign-ins are recorded
+by `POST /signins`, and the frontend supplies the `provider` field, so a
+guest session can claim `github`. GitHub sign-in uses the stock resolver,
+which has no hook to record a server-side proof.
+
+**Decision 1 — only organization members are added.** Each run reads the
+organization's members once (`GET /orgs/{org}/members`, a fifth client call)
+and adds only those. Everyone else who should be in a team is recorded
+`not_in_org` with "invite them to the organization in GitHub first". Who
+joins the organization stays a GitHub owner's decision; Nexora manages team
+membership inside it. The proof comes from GitHub and cannot be claimed from
+a browser. If the member list cannot be read, no one is added and removals
+still run, in line with removal before addition.
+
+**Decision 2 — `dryRun`.** `users.githubTeamSync.dryRun`
+(`GITHUB_TEAM_SYNC_DRY_RUN`, default false) makes a run read both sides and
+report what it would change. GitHub, the state table and the audit trail are
+untouched. Admin → Users & Roles shows the plan per team: add, remove, not
+in organization. The setup guide now enables the sync together with the dry
+run, and turns the dry run off once the plan is right.
+
+**Corrected.** `docs/github-setup.md` said a person outside the organization
+"gets an invitation from GitHub". With this change that no longer happens.
+
+**Not changed, named.** Someone with a pending invitation to the
+organization is not yet a member and is added on the first run after they
+accept. With credentials that see only public members, private members show
+as *not in org*; that errs towards adding no one. The seed and demo records
+themselves are unchanged. They are now harmless to the sync, not removed.
+
+- Affected components: `plugins/users-backend/src/{githubTeams,teamReconciler,githubTeamSync,teamSyncController}.ts`
+  (+ tests), `packages/app/src/modules/admin/GithubSyncStatus.tsx` (+ test),
+  `app-config.github.yaml`, `docs/github-setup.md`, `README.md`.
