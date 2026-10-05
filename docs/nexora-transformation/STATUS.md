@@ -172,6 +172,11 @@ four quick wins F1–F4, one commit and one record each.
   lists the signatures, and offers *Sign as …* only to the role that is due,
   with verdict, justification and PIN; *Set signing PIN* included. See
   [`NXD-120`](DECISIONS.md).
+- **First product released end to end.** `oee-e2e-test-20261005-c` went
+  from the OEE Golden Path to RELEASED in the browser: seven demo seats,
+  validation signed by the expert and QA. A second QA seat `demo-qa-lead` was
+  needed, because the first had created the validation context. Open findings
+  are listed in the record. See [`NXD-121`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

@@ -65,6 +65,7 @@ auth:
         - demo-pm
         - demo-quality
         - demo-validator
+        - demo-qa-lead
 
 users:
   # Written into platform_users on every non-production start, which the
@@ -100,6 +101,15 @@ users:
       memberOf:
         - platform-viewers
         - validation-experts
+    # NXD-121. A second QA person. Segregation of Duties keeps whoever set up
+    # a validation context from signing its decision, and a QA department has
+    # more than one member; with one QA seat, a context QA had started could
+    # not be decided at all. Not a product owner.
+    - name: demo-qa-lead
+      displayName: Quentin QA Lead (demo)
+      memberOf:
+        - platform-viewers
+        - urs-quality-reviewers
 
 ursComposer:
   persistence:

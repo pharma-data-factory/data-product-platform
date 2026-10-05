@@ -6642,3 +6642,56 @@ reject.
   (new, + test), `plugins/validation-expert/src/components/ContextPages.tsx`
   (+ test), `plugins/validation-expert/src/api.ts`,
   `plugins/validation-expert-backend/src/router.ts`.
+
+### NXD-121 — A second QA seat, and the first product released end to end
+
+- Date: 2026-10-05
+- Slice: test system — package E of the OEE end-to-end run
+
+**Context.** `demo-quality` had created the validation context for URS-EPM
+on 2026-10-01. Under NXD-119's Segregation of Duties, whoever sets up a
+validation context does not sign its decision. The test system had one QA
+seat, so it had no QA person who could decide that context. A context is
+unique per baseline, and rewriting its creator in the database would be
+falsifying the record, so neither was an option.
+
+**Decision.** A second QA seat, `demo-qa-lead`, with `platform-viewers` and
+`urs-quality-reviewers` and without the owner tier. A QA department has
+more than one member, and the user chose this over widening an existing
+seat. Widening one would break the rule that each URS demo seat holds
+exactly one URS role.
+
+**The run, in the browser, on the dev stack against GitHub.** Product
+`oee-e2e-test-20261005-c`, URS-EPM 1.0, GMP-relevant (DIRECT):
+
+| # | Step | Who |
+|---|---|---|
+| 1–2 | Golden Path, repository, CI green (NXD-118) | demo-author |
+| 3–6 | Version, URS binding, components and traceability, governance | demo-author |
+| 7 | Version approved | demo-reviewer |
+| 8 | Baseline created / approved | demo-author / demo-quality |
+| 9 | Validation expert signs, then QA (PIN, justification) | demo-validator, demo-qa-lead |
+| 10 | Release candidate; gate: *every release-gate check passes* | demo-author |
+| 11 | **Released** | demo-reviewer |
+
+The first Nexora product to go from a Golden Path to a released version.
+The signatures say in their justification what this was: a test of the
+signature chain on test data, with runs that cover 0/5 requirements — not a
+GxP validation.
+
+**Found by the run, not changed.**
+
+- After release, the readiness card reads *"Blocked by 1 check — Version
+  must be RELEASE_CANDIDATE, got RELEASED"*. A released version is reported
+  as blocked.
+- *Validated: Unknown — no validation context* beside an approved decision.
+  Composer reads `/contexts/:id/coverage` with a service token, and that
+  route admits users only.
+- Release, like version approval, is one click: no confirmation, no
+  signature.
+- After signing, the validation expert reads *"It is not your turn"*;
+  *"You have signed"* would be accurate.
+- Validation runs do not test the product (package C).
+
+- Affected components: `app-config.demo.yaml`, `README.md`,
+  `packages/backend/src/startup.test.ts`.
