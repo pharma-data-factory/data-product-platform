@@ -186,6 +186,11 @@ four quick wins F1–F4, one commit and one record each.
   matched requirement; *Import CI evidence* on the Tests tab. Live:
   `oee-e2e-test-20261005-d`, 5 of 5 requirements verified from 81 CI
   outcomes. See [`NXD-123`](DECISIONS.md).
+- **Product evidence review, and no approval without it (C3, C4).** Runs of
+  type EVIDENCE judge each context requirement on the product's recorded CI
+  evidence; coverage counts them; every approval needs a complete review.
+  Product pages no longer read *Validated: Unknown*. Live: 5/5 for
+  `oee-e2e-test-20261005-d`. See [`NXD-124`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

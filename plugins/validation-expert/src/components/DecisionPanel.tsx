@@ -9,10 +9,11 @@
  * signature, so this decides nothing.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
+  MenuItem,
   Dialog,
   DialogActions,
   DialogContent,
@@ -29,6 +30,7 @@ import {
   Typography,
 } from '@material-ui/core';
 import { useApi } from '@backstage/core-plugin-api';
+import { Link as RouterLink } from 'react-router-dom';
 import type {
   ValidationSignatureRole,
   ValidationSignatureVerdict,
@@ -89,8 +91,14 @@ export function nextStepText(state: DecisionStateView): string {
     : 'Waiting for the validation expert.';
 }
 
-export function DecisionPanel(props: { contextId: string }) {
-  const { contextId } = props;
+export function DecisionPanel(props: {
+  contextId: string;
+  /** May start a product evidence review (validation.run.start). */
+  canStartReview?: boolean;
+  /** Called after a review run was created, so the page can list it. */
+  onRunCreated?: () => void;
+}) {
+  const { contextId, canStartReview, onRunCreated } = props;
   const api = useApi(validationExpertApiRef);
   const [state, setState] = useState<DecisionStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +168,16 @@ export function DecisionPanel(props: { contextId: string }) {
         </Typography>
       ) : null}
 
+      <EvidenceSection
+        contextId={contextId}
+        state={state}
+        canStart={Boolean(canStartReview) && !state.decision}
+        onCreated={() => {
+          load();
+          onRunCreated?.();
+        }}
+      />
+
       <Typography variant="body2" paragraph>
         <strong>{nextStepText(state)}</strong>
       </Typography>
@@ -221,6 +239,7 @@ export function DecisionPanel(props: { contextId: string }) {
       <SignDialog
         role={signingAs}
         contextId={contextId}
+        evidenceComplete={Boolean(state.evidence?.complete)}
         onClose={() => setSigningAs(null)}
         onSigned={() => {
           setSigningAs(null);
@@ -229,6 +248,95 @@ export function DecisionPanel(props: { contextId: string }) {
       />
       <PinDialog open={pinDialog} onClose={() => setPinDialog(false)} />
     </Section>
+  );
+}
+
+/**
+ * The product evidence a decision rests on (NXD-124): the newest review, and
+ * — for whoever may start runs — a review of a version bound to the baseline.
+ */
+function EvidenceSection(props: {
+  contextId: string;
+  state: DecisionStateView;
+  canStart: boolean;
+  onCreated: () => void;
+}) {
+  const { contextId, state, canStart, onCreated } = props;
+  const api = useApi(validationExpertApiRef);
+  const versions = useMemo(() => state.versions ?? [], [state.versions]);
+  const [versionId, setVersionId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const evidence = state.evidence;
+
+  useEffect(() => {
+    if (!versionId && versions.length > 0) {
+      setVersionId(versions[versions.length - 1].id);
+    }
+  }, [versionId, versions]);
+
+  async function start() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.startEvidenceReview(contextId, versionId);
+      onCreated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Box mb={2} aria-label="Product evidence">
+      <Typography variant="body2">
+        <strong>Product evidence</strong>{' '}
+        {evidence ? (
+          <>
+            — newest review{' '}
+            <RouterLink to={`/validation-expert/runs/${encodeURIComponent(evidence.runId)}`}>
+              {evidence.runId}
+            </RouterLink>{' '}
+            ({evidence.candidate}): {evidence.passed} of {evidence.total} requirements
+            passed{evidence.complete ? '.' : ' — approval is not possible yet.'}
+          </>
+        ) : (
+          '— no review yet. Approval needs one in which every requirement passed.'
+        )}
+      </Typography>
+      {canStart && versions.length > 0 ? (
+          <Box mt={1} display="flex" alignItems="center" style={{ gap: 12 }} flexWrap="wrap">
+            <TextField
+              select
+              id="evidence-review-version"
+              label="Product version"
+              value={versionId}
+              onChange={e => setVersionId(e.target.value)}
+              style={{ minWidth: 280 }}
+            >
+              {versions.map(v => (
+                <MenuItem key={v.id} value={v.id}>
+                  {v.productName} {v.version} ({v.status})
+                </MenuItem>
+              ))}
+            </TextField>
+            <Button variant="outlined" disabled={busy || !versionId} onClick={start}>
+              {busy ? 'Reviewing…' : 'Run product evidence review'}
+            </Button>
+          </Box>
+      ) : null}
+      {canStart && versions.length === 0 ? (
+        <Typography variant="body2" color="textSecondary">
+          No product version is bound to this baseline, so there is no evidence to review.
+        </Typography>
+      ) : null}
+      {error ? (
+        <Typography role="alert" variant="body2" style={{ color: NX.failFg }}>
+          {error}
+        </Typography>
+      ) : null}
+    </Box>
   );
 }
 
@@ -254,12 +362,17 @@ function Section(props: { children: React.ReactNode }) {
 export function SignDialog(props: {
   role: ValidationSignatureRole | null;
   contextId: string;
+  /** NXD-124: approval needs passing product evidence for every requirement. */
+  evidenceComplete: boolean;
   onClose: () => void;
   onSigned: () => void;
 }) {
-  const { role, contextId, onClose, onSigned } = props;
+  const { role, contextId, evidenceComplete, onClose, onSigned } = props;
   const api = useApi(validationExpertApiRef);
-  const [verdict, setVerdict] = useState<ValidationSignatureVerdict>('APPROVED');
+  const initialVerdict: ValidationSignatureVerdict = evidenceComplete
+    ? 'APPROVED'
+    : 'REJECTED';
+  const [verdict, setVerdict] = useState<ValidationSignatureVerdict>(initialVerdict);
   const [justification, setJustification] = useState('');
   const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -268,13 +381,13 @@ export function SignDialog(props: {
   // Nothing typed survives a close, so a reopened dialog never carries a PIN.
   useEffect(() => {
     if (!role) {
-      setVerdict('APPROVED');
+      setVerdict(initialVerdict);
       setJustification('');
       setPin('');
       setError(null);
       setSubmitting(false);
     }
-  }, [role]);
+  }, [role, initialVerdict]);
 
   if (!role) {
     return null;
@@ -319,9 +432,20 @@ export function SignDialog(props: {
           value={verdict}
           onChange={e => setVerdict(e.target.value as ValidationSignatureVerdict)}
         >
-          <FormControlLabel value="APPROVED" control={<Radio />} label="Approve" />
+          <FormControlLabel
+            value="APPROVED"
+            control={<Radio />}
+            label="Approve"
+            disabled={!evidenceComplete}
+          />
           <FormControlLabel value="REJECTED" control={<Radio />} label="Reject" />
         </RadioGroup>
+        {evidenceComplete ? null : (
+          <Typography variant="body2" paragraph style={{ color: NX.failFg }}>
+            Approval needs a product evidence review in which every requirement
+            passed. You can reject.
+          </Typography>
+        )}
         <Typography variant="body2" paragraph>
           {SIGNATURE_MEANING[role][verdict]}
         </Typography>

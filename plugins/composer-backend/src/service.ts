@@ -440,6 +440,14 @@ export class ComposerService {
     ursBaselineId: string;
     products: Array<{ id: string; name: string; gxpRelevance?: string }>;
     versionCreators: string[];
+    /** NXD-124: the versions bound, so a review can name the one it checks. */
+    versions: Array<{
+      id: string;
+      productId: string;
+      productName: string;
+      version: string;
+      status: string;
+    }>;
   }> {
     const versions =
       await this.repository.listProductVersionsForUrsBaseline(ursBaselineId);
@@ -454,12 +462,70 @@ export class ComposerService {
         });
       }
     }
+    const nameOf = new Map(products.map(p => [p.id, p.name]));
     return {
       ursBaselineId,
       products,
       versionCreators: [
         ...new Set(versions.map(v => v.createdBy).filter(Boolean)),
       ],
+      versions: versions.map(v => ({
+        id: v.id,
+        productId: v.productId,
+        productName: nameOf.get(v.productId) ?? v.productId,
+        version: v.version,
+        status: v.status,
+      })),
+    };
+  }
+
+  /**
+   * The test evidence recorded for a version, per bound requirement: the
+   * newest execution of each test case (NXD-124). The Validation Expert's
+   * product evidence review reads this; it is what "verified" means here.
+   */
+  async getVersionTestEvidence(productVersionId: string): Promise<{
+    productVersionId: string;
+    productName: string;
+    version: string;
+    ursBaselineId?: string;
+    requirements: Array<{
+      requirementRef: string;
+      executions: Array<{
+        testSuite: string;
+        testCase: string;
+        status: string;
+        executedAt: string;
+        executionArtifactUrl?: string;
+      }>;
+    }>;
+  }> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    const requirements = await this.repository.listProductRequirements(productVersionId);
+    const executions = await this.repository.listTestExecutions(
+      requirements.map(r => r.ursRequirementVersionId),
+    );
+    return {
+      productVersionId,
+      productName: product?.name ?? version.productId,
+      version: version.version,
+      ursBaselineId: version.ursBaselineId,
+      requirements: requirements.map(r => ({
+        requirementRef: r.requirementRef,
+        executions: latestExecutionPerCase(
+          executions.filter(e => e.requirementVersionId === r.ursRequirementVersionId),
+        ).map(e => ({
+          testSuite: e.testSuite,
+          testCase: e.testCase,
+          status: e.status,
+          executedAt: new Date(e.executedAt).toISOString(),
+          executionArtifactUrl: e.executionArtifactUrl,
+        })),
+      })),
     };
   }
 

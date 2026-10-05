@@ -256,6 +256,29 @@ export async function createRouter(
     },
   );
 
+  /**
+   * GET /versions/:id/test-evidence (NXD-124)
+   * Newest execution of each test case per bound requirement. Read by the
+   * Validation Expert's product evidence review, as a service, and by a
+   * person with product.read.
+   */
+  router.get(
+    '/versions/:id/test-evidence',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        res.json(await service.getVersionTestEvidence(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get('/products', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, productReadPermission);

@@ -86,7 +86,8 @@ async function authorize(
  * user without validation read access sees a spurious
  * `NO_APPROVED_VALIDATION_DECISION` blocker on a properly validated product.
  *
- * Read-only, and only on the two routes the Composer calls. Recording a
+ * Read-only, and only on the routes the Composer calls (decision, contexts,
+ * coverage). Recording a
  * decision stays `POST /contexts/:id/decision`, which still requires a human
  * PLATFORM_ADMIN and still enforces Segregation of Duties — nothing here lets
  * a machine approve anything. See `NXD-054`.
@@ -285,6 +286,31 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     }
   });
 
+  /**
+   * POST /contexts/:id/evidence-review (NXD-124)
+   * Review a product version's recorded CI test evidence against the
+   * context's requirements, as a completed EVIDENCE run.
+   * Body: { productVersionId }.
+   */
+  router.post('/contexts/:id/evidence-review', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationRunStartPermission);
+      const executor = await resolveExecutor(httpAuth, userInfo, req);
+      const productVersionId = String(req.body?.productVersionId ?? '').trim();
+      if (!productVersionId) {
+        throw new InputError('productVersionId is required');
+      }
+      const run = await service.runProductEvidenceReview(
+        req.params.id,
+        productVersionId,
+        executor,
+      );
+      res.status(201).json(run);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
   router.post('/runs/:runId/execute-automated', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationRunStartPermission);
@@ -431,7 +457,10 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
    */
   router.get('/contexts/:id/coverage', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationReadPermission);
+      // Service-callable, like the decision (NXD-054): the Composer reads
+      // coverage as the platform. It was user-only, so every product page
+      // read "Validated: Unknown" beside an approved decision (NXD-124).
+      await authorizeReadOrService(permissions, httpAuth, req, validationReadPermission);
       res.json(await service.getContextCoverage(req.params.id));
     } catch (error) {
       respondError(res, logger, error);

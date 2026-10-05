@@ -58,6 +58,18 @@ jobs:
       - name: Docker build
         run: docker build -t ${{ inputs.image-name }}:ci .
 
+      # NXD-122. The per-requirement test outcomes the conftest hooks wrote,
+      # for Nexora to read as test evidence. Uploaded even when a test step
+      # failed: a failure is evidence too.
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-test-evidence
+          path: test-evidence/
+          if-no-files-found: warn
+          retention-days: 90
+
       # Technical CVE scan of installed Python dependencies.
       # Does not prove GxP validation, container hardening, or secret absence.
       - name: Security scan

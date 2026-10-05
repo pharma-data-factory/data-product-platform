@@ -207,6 +207,27 @@ export interface ValidationDecisionState {
   signatures: ValidationDecisionSignature[];
   progress: ValidationDecisionProgress;
   decision?: ValidationDecision;
+  /** NXD-124. Product versions bound to the baseline, for an evidence review. */
+  versions?: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    version: string;
+    status: string;
+  }>;
+  /**
+   * NXD-124. The newest product evidence review. Approval is refused unless
+   * it is complete: every requirement has passing product test evidence.
+   */
+  evidence?: {
+    runId: string;
+    candidate: string;
+    status: string;
+    total: number;
+    passed: number;
+    complete: boolean;
+    completedAt?: string;
+  };
 }
 
 /**

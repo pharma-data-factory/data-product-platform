@@ -5,7 +5,8 @@
  * server reaches the signer verbatim.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
 import { DecisionPanel, nextStepText } from './DecisionPanel';
@@ -25,11 +26,25 @@ function state(overrides: Partial<DecisionStateView> = {}): DecisionStateView {
   };
 }
 
-function renderPanel(api: Record<string, jest.Mock>) {
+const COMPLETE = {
+  runId: 'EVIDENCE-RUN-0001',
+  candidate: 'oee-line-3 1.0',
+  status: 'COMPLETED',
+  total: 5,
+  passed: 5,
+  complete: true,
+};
+
+function renderPanel(
+  api: Record<string, jest.Mock>,
+  extra: { canStartReview?: boolean; onRunCreated?: () => void } = {},
+) {
   return render(
-    <TestApiProvider apis={[[validationExpertApiRef, api as any]]}>
-      <DecisionPanel contextId={CTX} />
-    </TestApiProvider>,
+    <MemoryRouter>
+      <TestApiProvider apis={[[validationExpertApiRef, api as any]]}>
+        <DecisionPanel contextId={CTX} {...extra} />
+      </TestApiProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -83,7 +98,7 @@ describe('DecisionPanel (NXD-120)', () => {
     const api = {
       getDecisionState: jest
         .fn()
-        .mockResolvedValueOnce(state({ myRoles: ['VALIDATION_EXPERT'] }))
+        .mockResolvedValueOnce(state({ myRoles: ['VALIDATION_EXPERT'], evidence: COMPLETE }))
         .mockResolvedValueOnce(signed),
       signDecision: jest.fn().mockResolvedValue(signed),
     };
@@ -153,4 +168,49 @@ describe('DecisionPanel (NXD-120)', () => {
       nextStepText(state({ gmpRelevant: false, progress: { complete: false, nextRoles: ['VALIDATION_EXPERT', 'QUALITY_ASSURANCE'] } })),
     ).toBe('Waiting for one signature: the validation expert or QA.');
   });
+
+  it('allows only a rejection while the product evidence is incomplete (NXD-124)', async () => {
+    renderPanel({
+      getDecisionState: jest.fn().mockResolvedValue(
+        state({
+          myRoles: ['VALIDATION_EXPERT'],
+          evidence: { ...COMPLETE, passed: 3, complete: false },
+        }),
+      ),
+    });
+    expect(
+      await screen.findByText(/3 of 5 requirements passed — approval is not possible yet/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign as validation expert' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByLabelText('Approve')).toBeDisabled();
+    expect(within(dialog).getByLabelText('Reject')).toBeChecked();
+  });
+
+  it('starts a product evidence review of a bound version and reloads (NXD-124)', async () => {
+    const onRunCreated = jest.fn();
+    const api = {
+      getDecisionState: jest
+        .fn()
+        .mockResolvedValueOnce(
+          state({
+            versions: [
+              { id: 'v1', productId: 'p1', productName: 'oee-line-3', version: '1.0', status: 'DRAFT' },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(state({ evidence: COMPLETE })),
+      startEvidenceReview: jest.fn().mockResolvedValue({ id: 'EVIDENCE-RUN-0001' }),
+    };
+    renderPanel(api, { canStartReview: true, onRunCreated });
+    expect(await screen.findByText(/no review yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Run product evidence review' }));
+    await waitFor(() => expect(api.startEvidenceReview).toHaveBeenCalledWith(CTX, 'v1'));
+    expect(await screen.findByRole('link', { name: 'EVIDENCE-RUN-0001' })).toHaveAttribute(
+      'href',
+      '/validation-expert/runs/EVIDENCE-RUN-0001',
+    );
+    expect(onRunCreated).toHaveBeenCalled();
+  });
 });
+

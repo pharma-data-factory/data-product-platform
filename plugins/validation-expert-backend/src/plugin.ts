@@ -18,6 +18,7 @@ import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import {
   createHttpGmpClassifier,
   createHttpPinVerifier,
+  createHttpProductEvidenceReader,
 } from './decision-collaborators';
 
 type PersistenceMode = 'postgres' | 'file' | 'memory';
@@ -137,6 +138,7 @@ export const validationExpertPlugin = createBackendPlugin({
             auth,
           }),
           gmpClassifier: createHttpGmpClassifier({ discovery, auth }),
+          productEvidenceReader: createHttpProductEvidenceReader({ discovery, auth }),
         });
 
         httpRouter.use(

@@ -6852,3 +6852,78 @@ so two never collapse into one.
   (+ tests), `plugins/composer-backend/src/{ci-evidence-client,service,router,plugin}.ts`
   (+ `testEvidenceImport.test.ts`), `packages/app/src/modules/products/{api,ProductDetailPage}.ts(x)`,
   `packages/app/src/modules/products/tabs/TestsTab.tsx` (+ test).
+
+### NXD-124 — A validation reviews the product's evidence, and no one approves without it
+
+- Date: 2026-10-05
+- Slice: validation + composer + context page — package C, steps 3 and 4 (C3, C4)
+
+**Context.** After NXD-123, a product version's requirements were verified
+by imported CI test results. The validation context still offered only
+"Start IQ/OQ/UAT run": protocols from the platform's validation package,
+candidate `platform-core-v1.0-rc2`. They validate Nexora, their tests name
+platform requirements, and coverage of a product context stayed 0/5. The IQ
+run stopped at RUNNING forever: tests without a runner are skipped, and a
+run with no executions is never completed. And an expert could approve
+with nothing reviewed (NXD-121 did, in its test run).
+
+**Decision — C3: a product evidence review.**
+
+- **Run type `EVIDENCE`.** It is not from the validation package. It runs
+  against a product version bound to the context's URS baseline, which it
+  refuses otherwise.
+- **One test `EVIDENCE-<requirement>` per context requirement**, judged on
+  the newest execution of every test case Composer recorded for it:
+  - PASS when every one passed;
+  - FAIL when any failed (the cases are named);
+  - FAIL when there is none — no evidence is not a pass.
+  The run completes in one step, with the CI run linked in each result.
+- **Coverage counts these tests**, one requirement each.
+- **Composer** answers `GET /versions/:id/test-evidence` (service or
+  product.read), and its GMP classification now also names the bound
+  versions, so a review can say which one it checks.
+- **The context page** no longer offers the platform runs. The decision
+  panel shows the newest review, linked, with *n of m requirements passed*,
+  and offers *Run product evidence review* with the bound versions to
+  whoever may start runs.
+- **Fixed on the way:** `GET /contexts/:id/coverage` admitted users only,
+  but the Composer reads it as a service. Every product page therefore read
+  *"Validated: Unknown"* beside an approved decision. It now admits the
+  service like the decision route does (NXD-054).
+
+**Decision — C4: no approval without evidence (the user's choice).** Every
+APPROVED signature, by the expert or by QA, needs the newest evidence
+review to be complete, with every requirement PASS. The check runs before
+the PIN, so a refused approval costs no attempt. A rejection needs no
+evidence. The dialog disables *Approve* until then and says why.
+
+**Corrected — NXD-122.** NXD-122 added the evidence upload to the OEE
+template's copy of `data-product-quality.yml` only.
+`dataProductFoundation.test.ts` requires every template's copy to equal the
+canonical `.github/workflows/data-product-quality.yml`, and it failed. That
+test had not been run for NXD-122. The canonical workflow and all four
+template copies now carry the step. Templates without the conftest hooks
+upload nothing and only warn.
+
+**Verified live, on the dev stack.**
+
+- Review of `oee-e2e-test-20261005-d 1.0` on `VALIDATION-CTX-MUPNNM25`:
+  `EVIDENCE-RUN-0001`, all five requirements PASS, from 40/12/18/14/1 test
+  cases, each with the CI run linked. Coverage 5/5.
+- The product page reads *Verified 5 of 5 · Validated 5 of 5* instead of
+  *Unknown*.
+- The block itself was proven by tests only. That context was already
+  decided by NXD-121's run, and a decision is not re-opened.
+
+**Named, not changed — a design question.** A validation decision belongs
+to a URS baseline; product evidence belongs to a product version. A later
+version bound to an already-decided baseline is covered by that decision
+without a review of its own evidence. Whether the decision should belong
+to a product version is a decision for the user.
+
+- Affected components: `plugins/validation-expert-backend/src/{types,service,router,plugin,decision-collaborators}.ts`
+  (+ tests), `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx,components/ContextPages.tsx}`
+  (+ tests), `plugins/composer-backend/src/{service,router}.ts` (+ test),
+  `packages/platform-common/src/validation-integration.ts`,
+  `.github/workflows/data-product-quality.yml`,
+  `templates/{machine-state-consumer,mqtt-temperature-product,rest-equipment-product}/content/.github/workflows/data-product-quality.yml`.

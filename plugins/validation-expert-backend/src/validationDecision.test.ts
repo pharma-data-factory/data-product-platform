@@ -12,7 +12,11 @@
 
 import { NotAllowedError } from '@backstage/errors';
 import { MemoryValidationRunRepository } from './repository';
-import { ValidationExpertService, type GmpClassifier } from './service';
+import {
+  ValidationExpertService,
+  type GmpClassifier,
+  type ProductEvidenceReader,
+} from './service';
 
 const CONTEXT_ID = 'ctx-001';
 const CREATOR = 'user:default/alice';
@@ -27,7 +31,36 @@ function classifierFor(gxpRelevance: string | undefined): GmpClassifier {
   });
 }
 
-function makeService(gmpClassifier?: GmpClassifier) {
+/** Recorded CI evidence for a version bound to the context's baseline. */
+function evidenceReader(
+  statuses: Record<string, string[]>,
+  ursBaselineId = 'urs-baseline-001',
+): ProductEvidenceReader {
+  return async productVersionId => ({
+    productVersionId,
+    productName: 'oee-line-3',
+    version: '1.0',
+    ursBaselineId,
+    requirements: Object.entries(statuses).map(([requirementRef, list]) => ({
+      requirementRef,
+      executions: list.map((status, i) => ({
+        testSuite: 'tests/test_x.py',
+        testCase: `tests/test_x.py::t${i}`,
+        status,
+        executedAt: '2026-10-05T12:00:00Z',
+        executionArtifactUrl: 'https://github.com/o/r/actions/runs/7',
+      })),
+    })),
+  });
+}
+
+const ALL_PASS = { 'URS-EPM-001': ['PASSED', 'PASSED'], 'URS-EPM-002': ['PASSED'] };
+const executor = { userEntityRef: 'user:default/dana-author', displayName: 'Dana' } as any;
+
+function makeService(
+  gmpClassifier?: GmpClassifier,
+  productEvidenceReader: ProductEvidenceReader = evidenceReader(ALL_PASS),
+) {
   const repo = new MemoryValidationRunRepository();
   (repo as any).store.contexts.push({
     id: CONTEXT_ID,
@@ -36,7 +69,7 @@ function makeService(gmpClassifier?: GmpClassifier) {
       baselineId: 'urs-baseline-001',
       baselineVersion: '1.0',
       businessCapabilityIds: [],
-      requirementIds: [],
+      requirementIds: ['URS-EPM-001', 'URS-EPM-002'],
       approvalStatus: 'APPROVED',
       sourceSystem: 'urs-composer',
       createdAt: new Date().toISOString(),
@@ -50,8 +83,16 @@ function makeService(gmpClassifier?: GmpClassifier) {
     runners: { getRunner: () => undefined } as any,
     validationRoot: '/unused',
     gmpClassifier,
+    productEvidenceReader,
   });
   return { service, repo };
+}
+
+/** A service whose context already has a passing product evidence review. */
+async function reviewed(gmpClassifier?: GmpClassifier) {
+  const made = makeService(gmpClassifier);
+  await made.service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+  return made;
 }
 
 const verifyPin = jest.fn(async (pin: string) => {
@@ -75,7 +116,7 @@ beforeEach(() => verifyPin.mockClear());
 
 describe('validation decision signatures (NXD-119)', () => {
   it('GMP: the expert signs, QA approves, then the decision exists with gmpRule', async () => {
-    const { service } = makeService(classifierFor('DIRECT'));
+    const { service } = await reviewed(classifierFor('DIRECT'));
 
     const afterExpert = await service.signValidationDecision(
       CONTEXT_ID,
@@ -113,7 +154,7 @@ describe('validation decision signatures (NXD-119)', () => {
   });
 
   it('not GMP: one signature decides, and the decision is not under the GMP rule', async () => {
-    const { service } = makeService(classifierFor('NONE'));
+    const { service } = await reviewed(classifierFor('NONE'));
     const state = await service.signValidationDecision(
       CONTEXT_ID,
       approve('QUALITY_ASSURANCE'),
@@ -158,6 +199,7 @@ describe('validation decision signatures (NXD-119)', () => {
       }),
     ).rejects.toThrow(/creator of a product version/);
 
+    await service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
     // One person holding both roles still signs once.
     const both = {
       ref: EXPERT,
@@ -171,7 +213,7 @@ describe('validation decision signatures (NXD-119)', () => {
   });
 
   it('a wrong PIN records nothing', async () => {
-    const { service, repo } = makeService(classifierFor('DIRECT'));
+    const { service, repo } = await reviewed(classifierFor('DIRECT'));
     await expect(
       service.signValidationDecision(
         CONTEXT_ID,
@@ -226,3 +268,86 @@ describe('validation decision signatures (NXD-119)', () => {
     ).rejects.toThrow(/not found/);
   });
 });
+
+describe('product evidence review and the approval block (NXD-124)', () => {
+  it('passes a requirement whose every test case passed, and fails one without evidence', async () => {
+    const { service } = makeService(
+      classifierFor('DIRECT'),
+      evidenceReader({ 'URS-EPM-001': ['PASSED', 'PASSED'] }),
+    );
+    const run = await service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+    expect(run).toMatchObject({ type: 'EVIDENCE', status: 'COMPLETED', candidate: 'oee-line-3 1.0' });
+    expect(run.executions.map(e => [e.testId, e.status])).toEqual([
+      ['EVIDENCE-URS-EPM-001', 'PASS'],
+      ['EVIDENCE-URS-EPM-002', 'FAIL'],
+    ]);
+    expect(run.executions[1].actualResult).toBe(
+      'No test evidence is recorded for this requirement.',
+    );
+    const coverage = await service.getContextCoverage(CONTEXT_ID);
+    expect(coverage.byRequirement.map(r => [r.requirementId, r.status])).toEqual([
+      ['URS-EPM-001', 'covered'],
+      ['URS-EPM-002', 'covered'],
+    ]);
+  });
+
+  it('fails a requirement when any newest test case failed, naming it', async () => {
+    const { service } = makeService(
+      classifierFor('DIRECT'),
+      evidenceReader({ 'URS-EPM-001': ['PASSED', 'FAILED'], 'URS-EPM-002': ['PASSED'] }),
+    );
+    const run = await service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+    expect(run.executions[0]).toMatchObject({
+      status: 'FAIL',
+      actualResult: '1 of 2 test cases failed: tests/test_x.py::t1.',
+    });
+  });
+
+  it('refuses a version that is not bound to the context baseline', async () => {
+    const { service } = makeService(
+      classifierFor('DIRECT'),
+      evidenceReader(ALL_PASS, 'another-baseline'),
+    );
+    await expect(
+      service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor),
+    ).rejects.toThrow(/not bound to this context's URS baseline/);
+  });
+
+  it('refuses approval without a review, and with an incomplete one', async () => {
+    const none = makeService(classifierFor('DIRECT'));
+    await expect(
+      none.service.signValidationDecision(CONTEXT_ID, approve('VALIDATION_EXPERT'), expert),
+    ).rejects.toThrow(/none has been run/);
+
+    const partial = makeService(
+      classifierFor('DIRECT'),
+      evidenceReader({ 'URS-EPM-001': ['PASSED'] }),
+    );
+    await partial.service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+    await expect(
+      partial.service.signValidationDecision(CONTEXT_ID, approve('VALIDATION_EXPERT'), expert),
+    ).rejects.toThrow(/passes 1 of 2/);
+    expect(verifyPin).not.toHaveBeenCalled();
+  });
+
+  it('lets a rejection through without evidence', async () => {
+    const { service } = makeService(classifierFor('DIRECT'));
+    const state = await service.signValidationDecision(
+      CONTEXT_ID,
+      { ...approve('VALIDATION_EXPERT'), verdict: 'REJECTED' },
+      expert,
+    );
+    expect(state.decision?.status).toBe('REJECTED');
+  });
+
+  it('shows the newest review in the decision state', async () => {
+    const { service } = await reviewed(classifierFor('DIRECT'));
+    expect((await service.getDecisionState(CONTEXT_ID)).evidence).toMatchObject({
+      total: 2,
+      passed: 2,
+      complete: true,
+      candidate: 'oee-line-3 1.0',
+    });
+  });
+});
+

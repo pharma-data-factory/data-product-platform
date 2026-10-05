@@ -10,7 +10,7 @@
  */
 
 import { NotAllowedError } from '@backstage/errors';
-import type { GmpClassifier } from './service';
+import type { GmpClassifier, ProductEvidenceReader } from './service';
 
 type FetchLike = typeof fetch;
 
@@ -100,10 +100,44 @@ export function createHttpGmpClassifier(options: {
     const body = (await response.json()) as {
       products?: Array<{ id: string; name: string; gxpRelevance?: string }>;
       versionCreators?: string[];
+      versions?: Array<{
+        id: string;
+        productId: string;
+        productName: string;
+        version: string;
+        status: string;
+      }>;
     };
     return {
       products: body.products ?? [],
       versionCreators: body.versionCreators ?? [],
+      versions: body.versions ?? [],
     };
+  };
+}
+
+/** NXD-124. A product version's recorded test evidence, from the Composer. */
+export function createHttpProductEvidenceReader(options: {
+  discovery: Discovery;
+  auth: Auth;
+  fetchImpl?: FetchLike;
+}): ProductEvidenceReader {
+  const doFetch = options.fetchImpl ?? ((...args) => fetch(...args));
+  return async productVersionId => {
+    const base = await options.discovery.getBaseUrl('composer');
+    const { token } = await options.auth.getPluginRequestToken({
+      onBehalfOf: await options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'composer',
+    });
+    const response = await doFetch(
+      `${base}/versions/${encodeURIComponent(productVersionId)}/test-evidence`,
+      { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` } },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `The product's test evidence could not be read: ${response.status} ${await errorText(response)}`,
+      );
+    }
+    return response.json();
   };
 }

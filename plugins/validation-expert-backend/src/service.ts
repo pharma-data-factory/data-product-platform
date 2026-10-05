@@ -91,7 +91,48 @@ export interface UrsBaselineResolver {
 export type GmpClassifier = (ursBaselineId: string) => Promise<{
   products: ValidationGmpProduct[];
   versionCreators: string[];
+  /** NXD-124. Product versions bound to the baseline. */
+  versions?: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    version: string;
+    status: string;
+  }>;
 }>;
+
+/** NXD-124. A product version's newest test execution per case, per requirement. */
+export type ProductEvidenceReader = (productVersionId: string) => Promise<{
+  productVersionId: string;
+  productName: string;
+  version: string;
+  ursBaselineId?: string;
+  requirements: Array<{
+    requirementRef: string;
+    executions: Array<{
+      testSuite: string;
+      testCase: string;
+      status: string;
+      executedAt: string;
+      executionArtifactUrl?: string;
+    }>;
+  }>;
+}>;
+
+/** Where the product evidence of a context stands (NXD-124). */
+export interface ProductEvidenceStatus {
+  runId: string;
+  candidate: string;
+  status: string;
+  total: number;
+  passed: number;
+  /** Every context requirement has passing evidence in this run. */
+  complete: boolean;
+  completedAt?: string;
+}
+
+/** The product evidence review's test for one requirement. */
+export const evidenceTestId = (requirementId: string) => `EVIDENCE-${requirementId}`;
 
 export class ValidationExpertService {
   constructor(
@@ -107,6 +148,8 @@ export class ValidationExpertService {
        * the decision follows the GMP rule.
        */
       gmpClassifier?: GmpClassifier;
+      /** NXD-124. The product's recorded test evidence, from the Composer. */
+      productEvidenceReader?: ProductEvidenceReader;
     },
   ) {}
 
@@ -131,6 +174,10 @@ export class ValidationExpertService {
   }
 
   getProtocol(type: ProtocolType): ProtocolTest[] {
+    if (type === 'EVIDENCE') {
+      // Not from the validation package: built per context (NXD-124).
+      return [];
+    }
     if (type === 'IQ') {
       return parseIqProtocol(this.options.validationRoot);
     }
@@ -238,6 +285,12 @@ export class ValidationExpertService {
       for (const test of this.getProtocol(type)) {
         protocolRequirementIdsByTestId.set(test.id, test.requirementIds ?? []);
       }
+    }
+
+    // NXD-124. A product evidence review's tests verify the context's own
+    // requirements, one each.
+    for (const requirementId of context.source.requirementIds ?? []) {
+      protocolRequirementIdsByTestId.set(evidenceTestId(requirementId), [requirementId]);
     }
 
     const runs = await this.listRunsForContext(contextId);
@@ -649,6 +702,125 @@ export class ValidationExpertService {
     return (await this.options.repository.getRun(runId))!;
   }
 
+  // ── Product evidence review (NXD-124) ────────────────────────────────────
+
+  /**
+   * Review a product version's recorded test evidence against the context's
+   * requirements, as a completed run of type EVIDENCE.
+   *
+   * The platform protocols (IQ/OQ/UAT from the validation package) validate
+   * Nexora itself; their tests name platform requirements and can never
+   * touch a product's. This run has one test per context requirement: PASS
+   * when the version has test evidence for it and the newest execution of
+   * every test case passed; FAIL when any failed, or when there is none —
+   * no evidence is not a pass.
+   */
+  async runProductEvidenceReview(
+    contextId: string,
+    productVersionId: string,
+    executor: ExecutorIdentity,
+  ): Promise<ValidationRun> {
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+    if (!this.options.productEvidenceReader) {
+      throw new ConflictError('Product evidence is not configured on this instance.');
+    }
+    const evidence = await this.options.productEvidenceReader(productVersionId);
+    if (evidence.ursBaselineId !== context.source.baselineId) {
+      throw new InputError(
+        `${evidence.productName} ${evidence.version} is not bound to this context's ` +
+          `URS baseline ${context.source.baselineId}.`,
+      );
+    }
+
+    const run = await this.options.repository.createRun({
+      type: 'EVIDENCE',
+      candidate: `${evidence.productName} ${evidence.version}`,
+      baselineId: context.source.baselineId,
+      contextId: context.id,
+      createdBy: executor,
+    });
+    const now = new Date().toISOString();
+    const byRef = new Map(evidence.requirements.map(r => [r.requirementRef, r]));
+    run.executions = (context.source.requirementIds ?? []).map(requirementId => {
+      const executions = byRef.get(requirementId)?.executions ?? [];
+      const failed = executions.filter(e => e.status !== 'PASSED');
+      const runs = [
+        ...new Set(executions.map(e => e.executionArtifactUrl).filter(Boolean)),
+      ];
+      let status: 'PASS' | 'FAIL';
+      let actualResult: string;
+      if (executions.length === 0) {
+        status = 'FAIL';
+        actualResult = 'No test evidence is recorded for this requirement.';
+      } else if (failed.length > 0) {
+        status = 'FAIL';
+        actualResult =
+          `${failed.length} of ${executions.length} test cases failed: ` +
+          `${failed.slice(0, 5).map(e => e.testCase).join(', ')}` +
+          `${failed.length > 5 ? ', …' : ''}.`;
+      } else {
+        status = 'PASS';
+        actualResult = `${executions.length} test case${
+          executions.length === 1 ? '' : 's'
+        } passed${runs.length ? ` (CI ${runs.join(', ')})` : ''}.`;
+      }
+      return {
+        id: randomUUID(),
+        runId: run.id,
+        testId: evidenceTestId(requirementId),
+        type: 'EXTERNAL' as const,
+        status,
+        expectedResult:
+          `Every test case naming ${requirementId} passed in the product's CI.`,
+        actualResult,
+        executor,
+        startedAt: now,
+        completedAt: now,
+        evidenceIds: [],
+      };
+    });
+    run.status = 'COMPLETED';
+    run.startedAt = now;
+    run.completedAt = now;
+    await this.options.repository.saveRun(run);
+    return (await this.options.repository.getRun(run.id))!;
+  }
+
+  /** The newest product evidence review of a context, or undefined. */
+  async getProductEvidenceStatus(
+    contextId: string,
+  ): Promise<ProductEvidenceStatus | undefined> {
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+    const runs = (await this.listRunsForContext(contextId))
+      .filter(run => run.type === 'EVIDENCE')
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const latest = runs[runs.length - 1];
+    if (!latest) {
+      return undefined;
+    }
+    const required = context.source.requirementIds ?? [];
+    const passedIds = new Set(
+      latest.executions.filter(e => e.status === 'PASS').map(e => e.testId),
+    );
+    const passed = required.filter(id => passedIds.has(evidenceTestId(id))).length;
+    return {
+      runId: latest.id,
+      candidate: latest.candidate,
+      status: latest.status,
+      total: required.length,
+      passed,
+      complete:
+        latest.status === 'COMPLETED' && required.length > 0 && passed === required.length,
+      completedAt: latest.completedAt,
+    };
+  }
+
   // ── Validation Decision (Phase 5, P5-S1; signatures since NXD-119) ────────
 
   /**
@@ -664,10 +836,13 @@ export class ValidationExpertService {
     const classification = await this.classify(context.source.baselineId);
     const signatures = await this.options.repository.listSignatures(contextId);
     const decision = await this.getValidationDecision(contextId);
+    const evidence = await this.getProductEvidenceStatus(contextId);
     return {
       contextId,
       gmpRelevant: classification.gmpRelevant,
       products: classification.products,
+      versions: classification.versions,
+      ...(evidence ? { evidence } : {}),
       ...(classification.error
         ? { classificationError: classification.error }
         : {}),
@@ -772,6 +947,21 @@ export class ValidationExpertService {
     if (!request.pin) {
       throw new InputError('The signing PIN is required.');
     }
+    // NXD-124. No approval without product evidence: the newest product
+    // evidence review must be complete and pass every requirement. A
+    // rejection needs no evidence.
+    if (verdict === 'APPROVED') {
+      const evidence = await this.getProductEvidenceStatus(contextId);
+      if (!evidence?.complete) {
+        throw new ConflictError(
+          evidence
+            ? `Approval needs passing product evidence for every requirement; ` +
+                `the newest review ${evidence.runId} (${evidence.candidate}) passes ` +
+                `${evidence.passed} of ${evidence.total}.`
+            : 'Approval needs a product evidence review; none has been run for this context.',
+        );
+      }
+    }
 
     const reauthMethod = await signer.verifyPin(String(request.pin));
 
@@ -821,6 +1011,7 @@ export class ValidationExpertService {
     gmpRelevant: boolean;
     products: ValidationGmpProduct[];
     versionCreators: string[];
+    versions?: Awaited<ReturnType<GmpClassifier>>['versions'];
     error?: string;
   }> {
     if (!this.options.gmpClassifier) {
@@ -837,6 +1028,7 @@ export class ValidationExpertService {
         gmpRelevant: baselineNeedsGmpRule(result.products),
         products: result.products,
         versionCreators: result.versionCreators,
+        versions: result.versions ?? [],
       };
     } catch (error) {
       return {

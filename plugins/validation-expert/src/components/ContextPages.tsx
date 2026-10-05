@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import {
@@ -22,7 +22,7 @@ import {
   ValidationContextRequirement,
   ValidationRun,
 } from '../api';
-import { NX, PageShell, PrimaryActionButton, StatusChip } from './shared';
+import { NX, PageShell, StatusChip } from './shared';
 import { DecisionPanel } from './DecisionPanel';
 
 function formatWhen(value?: string) {
@@ -130,7 +130,6 @@ export function ContextDetailPage() {
   const { contextId = '' } = useParams<{ contextId: string }>();
   const api = useApi(validationExpertApiRef);
   const identityApi = useApi(identityApiRef);
-  const navigate = useNavigate();
   const [context, setContext] = useState<ValidationContext | null>(null);
   const [requirements, setRequirements] = useState<
     ValidationContextRequirement[] | null
@@ -142,7 +141,8 @@ export function ContextDetailPage() {
   const [coverage, setCoverage] = useState<ContextCoverage | null>(null);
   const [coverageError, setCoverageError] = useState<string | null>(null);
   const [canStart, setCanStart] = useState(false);
-  const [busyType, setBusyType] = useState<'IQ' | 'OQ' | 'UAT' | null>(null);
+  // Bumped after a product evidence review, so runs and coverage reload.
+  const [runsVersion, setRunsVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -202,28 +202,7 @@ export function ContextDetailPage() {
         canStartValidationRun(resolvePlatformRole(identity.ownershipEntityRefs)),
       );
     });
-  }, [api, contextId, identityApi]);
-
-  async function startRun(type: 'IQ' | 'OQ' | 'UAT') {
-    if (!contextId) {
-      return;
-    }
-    setBusyType(type);
-    setRunsError(null);
-    try {
-      const created = await api.createRun('platform-core-v1.0-rc2', type, {
-        contextId,
-      });
-      if (type === 'IQ' || type === 'OQ') {
-        await api.executeAutomated(created.runId);
-      }
-      navigate(`/validation-expert/runs/${encodeURIComponent(created.runId)}`);
-    } catch (err) {
-      setRunsError(err instanceof Error ? err.message : 'Failed to start run');
-    } finally {
-      setBusyType(null);
-    }
-  }
+  }, [api, contextId, identityApi, runsVersion]);
 
   if (error) {
     return (
@@ -277,7 +256,11 @@ export function ContextDetailPage() {
         </Typography>
       ) : null}
 
-      <DecisionPanel contextId={context.id} />
+      <DecisionPanel
+        contextId={context.id}
+        canStartReview={canStart}
+        onRunCreated={() => setRunsVersion(n => n + 1)}
+      />
 
       <Box
         mt={3}
@@ -479,27 +462,12 @@ export function ContextDetailPage() {
           Linked runs
         </Typography>
         <Typography variant="body2" color="textSecondary" paragraph>
-          Runs started from this context use the approved URS baseline identity
-          as baselineId. Protocol steps still come from the platform Markdown
-          workbench (not a GxP claim).
+          A product evidence review (EVIDENCE) checks the recorded CI test
+          evidence of a product version against this baseline's requirements;
+          start one in the decision panel above. The platform IQ/OQ/UAT
+          protocols validate Nexora itself and do not test a product
+          (NXD-124).
         </Typography>
-        {canStart ? (
-          <Box mb={2} display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
-            {(['IQ', 'OQ', 'UAT'] as const).map(type => (
-              <PrimaryActionButton
-                key={type}
-                disabled={Boolean(busyType)}
-                onClick={() => startRun(type)}
-              >
-                {busyType === type ? `Starting ${type}…` : `Start ${type} run`}
-              </PrimaryActionButton>
-            ))}
-          </Box>
-        ) : (
-          <Typography variant="body2" color="textSecondary" paragraph>
-            Your role cannot start validation runs.
-          </Typography>
-        )}
         {runsError ? <Typography color="error">{runsError}</Typography> : null}
         {!runsError && !runs ? <Progress /> : null}
         {runs && runs.length === 0 ? (

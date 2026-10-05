@@ -183,4 +183,35 @@ describe('importTestEvidence (NXD-123)', () => {
       /No URS baseline is bound/,
     );
   });
+
+  it('answers the newest execution per test case per requirement (NXD-124)', async () => {
+    client.getLatestEvidence.mockResolvedValue(
+      evidence([
+        { suite: 'unit', testCase: 't::calc', outcome: 'passed', requirements: ['URS-EPM-001'] },
+      ]),
+    );
+    await service.importTestEvidence(versionId, actor);
+    const report = await service.getVersionTestEvidence(versionId);
+    expect(report).toMatchObject({ productName: 'oee-line-3', version: '1.0', ursBaselineId: BASELINE });
+    expect(report.requirements).toEqual([
+      {
+        requirementRef: 'URS-EPM-001',
+        executions: [
+          {
+            testSuite: 't',
+            testCase: 't::calc',
+            status: 'PASSED',
+            executedAt: '2026-10-05T12:00:00.000Z',
+            executionArtifactUrl: RUN_URL,
+          },
+        ],
+      },
+      { requirementRef: 'URS-EPM-002', executions: [] },
+    ]);
+    const classification = await service.getUrsBaselineGmpClassification(BASELINE);
+    expect(classification.versions).toEqual([
+      expect.objectContaining({ id: versionId, productName: 'oee-line-3', version: '1.0' }),
+    ]);
+  });
 });
+

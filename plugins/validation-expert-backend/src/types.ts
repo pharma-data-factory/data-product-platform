@@ -11,7 +11,12 @@ import type {
  * and the ImplementationPlan listed it as "optional PQ". Phase 5 (P5-S4)
  * adds it so validators are not forced to misclassify PQ runs as UAT.
  */
-export type ProtocolType = 'IQ' | 'OQ' | 'UAT' | 'PQ';
+/**
+ * `EVIDENCE` (NXD-124) is not a protocol from the platform's validation
+ * package: it is a product evidence review, one test per URS requirement of a
+ * validation context, judged on the product's recorded CI test evidence.
+ */
+export type ProtocolType = 'IQ' | 'OQ' | 'UAT' | 'PQ' | 'EVIDENCE';
 export type ExecutionType =
   | 'AUTOMATED_API'
   | 'AUTOMATED_PLATFORM'
