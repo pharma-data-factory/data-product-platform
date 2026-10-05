@@ -127,7 +127,7 @@ describe('REST Equipment Data Product Golden Path', () => {
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
-        'catalog:register',
+        'nexora:catalog:register',
         // Step 2: the governed record, written last, from the repository the
         // publish step produced and the entity the register step created.
         'nexora:product:create',

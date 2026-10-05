@@ -30,6 +30,10 @@ import {
 } from '@backstage/plugin-scaffolder-node';
 
 import type { Config } from '@backstage/config';
+import {
+  AuthorizeResult,
+  createPermission,
+} from '@backstage/plugin-permission-common';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { getPublishReadiness } from './scm-publish-readiness';
 
@@ -64,8 +68,8 @@ export function createScmResolveRepoAction(options: { config: Config }) {
   return createTemplateAction({
     id: 'nexora:scm:resolve-repo',
     description:
-      'Builds the publish coordinate from the platform\'s configured SCM host ' +
-      'and organisation, so no template carries an operator\'s organisation.',
+      "Builds the publish coordinate from the platform's configured SCM host " +
+      "and organisation, so no template carries an operator's organisation.",
     schema: {
       input: {
         repo: z =>
@@ -251,7 +255,9 @@ export function createProductCreateAction(options: {
         productType: z =>
           z
             .string()
-            .describe('Product type, e.g. DATA_PRODUCT. Validated server-side.'),
+            .describe(
+              'Product type, e.g. DATA_PRODUCT. Validated server-side.',
+            ),
         repositoryUrl: z =>
           z
             .string()
@@ -268,7 +274,9 @@ export function createProductCreateAction(options: {
           z
             .string()
             .optional()
-            .describe('Owning group entity ref. Defaults to the task initiator.'),
+            .describe(
+              'Owning group entity ref. Defaults to the task initiator.',
+            ),
       },
       output: {
         productId: z => z.string().describe('Id of the product record.'),
@@ -365,6 +373,236 @@ export function createProductCreateAction(options: {
   });
 }
 
+/**
+ * The catalog's own create permission, by name. The policy decides by name, and
+ * importing `@backstage/plugin-catalog-common` for one constant would be a new
+ * dependency.
+ */
+const catalogEntityCreatePermission = createPermission({
+  name: 'catalog.entity.create',
+  attributes: { action: 'create' },
+});
+
+/**
+ * Registers the repository a Golden Path has just published in the Catalog,
+ * in place of the built-in `catalog:register`. NXD-118.
+ *
+ * ## Why the built-in could not stay
+ *
+ * `catalog:register` adds a Catalog location with the credentials of the
+ * person who started the task, so the permission checked is
+ * `catalog.location.create`. That permission is PLATFORM_ADMIN only, and
+ * rightly: a location is an arbitrary URL the Catalog will keep fetching and
+ * turning into entities. So every Golden Path a developer or owner started
+ * published its repository and then failed here, leaving a repository with no
+ * entity and no product record. No run below admin had ever got further.
+ *
+ * Granting developers `catalog.location.create` would let any of them point
+ * the Catalog at any URL. This action narrows what is registered instead of
+ * widening who may register:
+ *
+ * - **Who.** The initiator must hold `catalog.entity.create` (DEVELOPER and
+ *   up), checked against their own credentials.
+ * - **What.** Only a URL inside the platform's configured organisation
+ *   (`nexora.scm.host` / `nexora.scm.organization`, the same settings
+ *   `nexora:scm:resolve-repo` publishes to), and only a path inside the named
+ *   repository. Not from a template value: from configuration, inside the
+ *   task, where the rule holds.
+ * - **How.** The location is added with this plugin's own service identity,
+ *   which the Catalog accepts for a location. The audit trail still names
+ *   the task and its initiator.
+ *
+ * Same inputs and outputs as the built-in, so a template changes one word.
+ */
+export function createCatalogRegisterAction(options: {
+  config: Config;
+  discovery: { getBaseUrl(pluginId: string): Promise<string> };
+  auth: {
+    getOwnServiceCredentials(): Promise<unknown>;
+    getPluginRequestToken(options: {
+      onBehalfOf: unknown;
+      targetPluginId: string;
+    }): Promise<{ token: string }>;
+  };
+  permissions: {
+    authorize(
+      requests: Array<{ permission: typeof catalogEntityCreatePermission }>,
+      options: { credentials: unknown },
+    ): Promise<Array<{ result: AuthorizeResult }>>;
+  };
+  /** Injected by tests; production uses global fetch. */
+  fetchImpl?: typeof fetch;
+}) {
+  const doFetch: typeof fetch =
+    options.fetchImpl ?? ((...args) => fetch(...args));
+
+  return createTemplateAction({
+    id: 'nexora:catalog:register',
+    description:
+      'Registers a repository the task published in the Catalog. Only ' +
+      "repositories in the platform's configured organisation, and only for " +
+      'an initiator who may create Catalog entities.',
+    schema: {
+      input: {
+        repoContentsUrl: z =>
+          z
+            .string()
+            .describe('Repository contents URL; publish step repoContentsUrl.'),
+        catalogInfoPath: z =>
+          z
+            .string()
+            .optional()
+            .describe('Path of the descriptor in the repository.'),
+      },
+      output: {
+        entityRef: z =>
+          z.string().describe('Ref of the Component the descriptor defines.'),
+        catalogInfoUrl: z =>
+          z.string().describe('URL of the registered descriptor.'),
+      },
+    },
+    async handler(ctx) {
+      const host = options.config.getOptionalString('nexora.scm.host');
+      const owner = options.config.getOptionalString('nexora.scm.organization');
+      if (!host || !owner) {
+        throw new Error(
+          'No SCM target is configured (nexora.scm.host and ' +
+            'nexora.scm.organization), so there is no organisation to register from.',
+        );
+      }
+
+      const catalogInfoUrl = resolveCatalogInfoUrl({
+        repoContentsUrl: ctx.input.repoContentsUrl,
+        catalogInfoPath: ctx.input.catalogInfoPath ?? '/catalog-info.yaml',
+        host,
+        owner,
+      });
+
+      const initiator = await ctx.getInitiatorCredentials();
+      const [decision] = await options.permissions.authorize(
+        [{ permission: catalogEntityCreatePermission }],
+        { credentials: initiator },
+      );
+      if (decision?.result !== AuthorizeResult.ALLOW) {
+        throw new Error(
+          'You may not create Catalog entities (catalog.entity.create), so ' +
+            'the repository cannot be registered. Ask a platform administrator ' +
+            'for the developer role.',
+        );
+      }
+
+      const base = await options.discovery.getBaseUrl('catalog');
+      const { token } = await options.auth.getPluginRequestToken({
+        onBehalfOf: await options.auth.getOwnServiceCredentials(),
+        targetPluginId: 'catalog',
+      });
+      const post = (dryRun: boolean) =>
+        doFetch(`${base}/locations${dryRun ? '?dryRun=true' : ''}`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ type: 'url', target: catalogInfoUrl }),
+        });
+
+      // Read first, register second. The dry run fetches and validates the
+      // descriptor and names its entities; only a descriptor the Catalog
+      // accepts becomes a location. The other order (the built-in's) leaves
+      // a location behind that fails on every refresh.
+      const preview = await post(true);
+      if (!preview.ok) {
+        throw new Error(
+          `The Catalog refuses ${catalogInfoUrl}, so it was not registered: ` +
+            `${preview.status} ${await preview.text()}`,
+        );
+      }
+      const { entities = [] } = (await preview.json()) as {
+        entities?: CatalogEntityHead[];
+      };
+      const entity = pickEntity(entities);
+      if (!entity) {
+        throw new Error(`${catalogInfoUrl} defines no entity.`);
+      }
+
+      ctx.logger.info(`Registering ${catalogInfoUrl} in the catalog`);
+      const added = await post(false);
+      if (!added.ok) {
+        throw new Error(
+          `Registering ${catalogInfoUrl} failed: ${added.status} ` +
+            `${await added.text()}`,
+        );
+      }
+
+      const entityRef = `${entity.kind.toLocaleLowerCase('en-US')}:${
+        entity.metadata.namespace ?? 'default'
+      }/${entity.metadata.name}`;
+      ctx.logger.info(`Registered ${entityRef}.`);
+      ctx.output('entityRef', entityRef);
+      ctx.output('catalogInfoUrl', catalogInfoUrl);
+    },
+  });
+}
+
+interface CatalogEntityHead {
+  kind: string;
+  metadata: { name: string; namespace?: string };
+}
+
+/** The built-in's choice: a named Component, else any named entity, else the first. */
+function pickEntity(
+  entities: CatalogEntityHead[],
+): CatalogEntityHead | undefined {
+  const named = (e: CatalogEntityHead) =>
+    !e.metadata.name.startsWith('generated-');
+  return (
+    entities.find(e => named(e) && e.kind === 'Component') ??
+    entities.find(named) ??
+    entities[0]
+  );
+}
+
+/**
+ * `https://<host>/<owner>/<repo>/<ref…>` plus the descriptor path, or an
+ * error. Pure, for the tests: this is the whole of the "what" rule.
+ */
+export function resolveCatalogInfoUrl(input: {
+  repoContentsUrl: string;
+  catalogInfoPath: string;
+  host: string;
+  owner: string;
+}): string {
+  let url: URL;
+  try {
+    url = new URL(input.repoContentsUrl);
+  } catch {
+    throw new Error(`Not a URL: ${input.repoContentsUrl}`);
+  }
+  const [org, repo] = url.pathname.split('/').filter(Boolean);
+  if (
+    url.protocol !== 'https:' ||
+    url.hostname.toLowerCase() !== input.host.toLowerCase() ||
+    org?.toLowerCase() !== input.owner.toLowerCase() ||
+    !repo ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      `Only repositories in ${input.host}/${input.owner} can be registered; ` +
+        `got ${input.repoContentsUrl}.`,
+    );
+  }
+  const path = input.catalogInfoPath.replace(/^\/+/, '');
+  if (
+    !path ||
+    path.split('/').some(segment => segment === '..' || segment === '')
+  ) {
+    throw new Error(`Invalid catalogInfoPath: ${input.catalogInfoPath}`);
+  }
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}/${path}`;
+}
+
 export const scaffolderModuleUrsBinding = createBackendModule({
   pluginId: 'scaffolder',
   moduleId: 'urs-binding',
@@ -375,10 +613,17 @@ export const scaffolderModuleUrsBinding = createBackendModule({
         discovery: coreServices.discovery,
         auth: coreServices.auth,
         config: coreServices.rootConfig,
+        permissions: coreServices.permissions,
       },
-      async init({ scaffolder, discovery, auth, config }) {
+      async init({ scaffolder, discovery, auth, config, permissions }) {
         scaffolder.addActions(
           createScmResolveRepoAction({ config }),
+          createCatalogRegisterAction({
+            config,
+            discovery,
+            auth: auth as never,
+            permissions: permissions as never,
+          }),
           createUrsVerifyBaselineAction({
             discovery,
             auth: auth as never,

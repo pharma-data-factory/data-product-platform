@@ -137,7 +137,7 @@ describe('Machine State Consumer Data Product', () => {
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
-        'catalog:register',
+        'nexora:catalog:register',
         'nexora:product:create',
       ],
     );

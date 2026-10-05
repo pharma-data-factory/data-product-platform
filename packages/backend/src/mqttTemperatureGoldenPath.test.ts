@@ -143,7 +143,7 @@ describe('MQTT Temperature Data Product Golden Path', () => {
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
-        'catalog:register',
+        'nexora:catalog:register',
         'nexora:product:create',
       ],
     );

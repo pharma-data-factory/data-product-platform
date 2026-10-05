@@ -58,6 +58,53 @@ function localFetchTemplateSteps(): FetchStep[] {
   return steps;
 }
 
+/**
+ * A template's own literals pass through as written; only what comes from the
+ * form (`${{ … }}`) is replaced. NXD-118: `policyVersion: '1'` rendered as a
+ * YAML number, and a placeholder for every value had hidden it, because a
+ * placeholder is always a string.
+ */
+function renderValues(values: Record<string, unknown> = {}) {
+  return Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [
+      key,
+      typeof value === 'string' && !value.includes('${{')
+        ? value
+        : `test-${key}`,
+    ]),
+  );
+}
+
+/**
+ * The Catalog refuses an entity whose annotation or label is not a string
+ * ("Malformed envelope … must be string"), and it does so only after the
+ * repository is published. Checked here, before anything is.
+ */
+function nonStringMetadata(workspacePath: string): string[] {
+  const file = path.join(workspacePath, 'catalog-info.yaml');
+  if (!fs.existsSync(file)) {
+    return [];
+  }
+  const problems: string[] = [];
+  for (const doc of yaml.parseAllDocuments(fs.readFileSync(file, 'utf8'))) {
+    const entity = doc.toJSON();
+    for (const field of ['annotations', 'labels'] as const) {
+      for (const [key, value] of Object.entries(
+        entity?.metadata?.[field] ?? {},
+      )) {
+        if (typeof value !== 'string') {
+          problems.push(
+            `${entity?.metadata?.name} ${field}.${key} = ${JSON.stringify(
+              value,
+            )}`,
+          );
+        }
+      }
+    }
+  }
+  return problems;
+}
+
 const logger: any = {
   info: jest.fn(),
   warn: jest.fn(),
@@ -66,7 +113,7 @@ const logger: any = {
   child: jest.fn((): any => logger),
 };
 
-describe('Golden Path skeletons render through the real fetch:template (NXD-105)', () => {
+describe('Golden Path skeletons render through the real fetch:template (NXD-105, NXD-118)', () => {
   const steps = localFetchTemplateSteps();
 
   // Only parseRepoUrl reads integrations, and only when a template calls it;
@@ -94,12 +141,7 @@ describe('Golden Path skeletons render through the real fetch:template (NXD-105)
             // Placeholder values: this checks that every file parses as a
             // template, not what a particular product renders to.
             ...step.input,
-            values: Object.fromEntries(
-              Object.keys(step.input.values ?? {}).map(key => [
-                key,
-                `test-${key}`,
-              ]),
-            ),
+            values: renderValues(step.input.values),
           },
           workspacePath,
           logger,
@@ -112,6 +154,7 @@ describe('Golden Path skeletons render through the real fetch:template (NXD-105)
         } as any);
 
         expect(fs.readdirSync(workspacePath).length).toBeGreaterThan(0);
+        expect(nonStringMetadata(workspacePath)).toEqual([]);
       } finally {
         fs.rmSync(workspacePath, { recursive: true, force: true });
       }

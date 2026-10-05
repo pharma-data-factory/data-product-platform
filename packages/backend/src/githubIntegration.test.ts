@@ -46,7 +46,7 @@ describe('GitHub Golden Path integration', () => {
     expect(githubSetup).toContain('No token available for host: github.com');
   });
 
-  it('wires publish:github and catalog:register on the Python template', () => {
+  it('wires publish:github and nexora:catalog:register on the Python template', () => {
     const template = yaml.parse(
       fs.readFileSync(
         path.join(ROOT, 'templates/python-service/template.yaml'),
@@ -65,7 +65,7 @@ describe('GitHub Golden Path integration', () => {
         'fetch:template',
         'nexora:urs:verify-baseline',
         'publish:github',
-        'catalog:register',
+        'nexora:catalog:register',
         'nexora:product:create',
       ],
     );

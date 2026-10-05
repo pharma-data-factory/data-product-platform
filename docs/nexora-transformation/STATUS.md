@@ -155,6 +155,13 @@ four quick wins F1–F4, one commit and one record each.
   merge failed `image` at *Set up job*: `aquasecurity/trivy-action@0.28.0` no
   longer exists upstream (tags are now `v`-prefixed). Pinned by commit to
   v0.28.0. See [`NXD-117`](DECISIONS.md).
+- **First complete Golden Path run.** The OEE Golden Path as `demo-author`
+  failed at registration (403: `catalog.location.create` is admin-only),
+  then on a malformed descriptor (`policy-version` rendered as a number).
+  `nexora:catalog:register` registers only repositories of the platform
+  organisation, for initiators who may create entities, after a dry run; the
+  annotation is quoted in all nine templates. Run 3 completed all six steps.
+  See [`NXD-118`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

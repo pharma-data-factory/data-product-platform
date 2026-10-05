@@ -6402,3 +6402,81 @@ No upgrade in the same change.
 `main` also failed. Neither is part of this fix.
 
 - Affected components: `.github/workflows/ci.yml`.
+
+### NXD-118 — No Golden Path had ever completed below admin: registration was admin-only, and every descriptor was malformed
+
+- Date: 2026-10-05
+- Slice: scaffolder + templates — found by the first browser run of the OEE
+  Golden Path as `demo-author`, against GitHub (`pharma-data-factory`)
+
+**Run 1 — 403 at registration.** Resolve, render, URS check and
+`publish:github` succeeded: the repository was created. Then
+`catalog:register` failed with 403 Forbidden, and the product record was
+never written. The built-in action adds a Catalog location with the
+initiator's credentials, so the permission checked is
+`catalog.location.create`. That permission is PLATFORM_ADMIN only
+(`permissions.ts`, unchanged since the MVP 1.0 baseline). Developers and
+owners may start a Golden Path, but none of them could finish one. Every
+such run left a repository on GitHub with no entity and no product.
+`docs/PHASE8_REGRESSION_TEST_RESULTS.md` marks `catalog:register` "WORKING"
+six times; it never ran as anyone but an admin.
+
+**Rejected: grant `catalog.location.create` to developers.** A location is
+an arbitrary URL the Catalog fetches again and again and turns into
+entities. Any developer could have pointed it anywhere.
+
+**Decision 1 — `nexora:catalog:register`.** It narrows what is registered
+instead of widening who may register:
+
+- **Who:** the initiator must hold `catalog.entity.create` (DEVELOPER and
+  up), checked against their own credentials.
+- **What:** only `https://<nexora.scm.host>/<nexora.scm.organization>/<repo>/…`,
+  from configuration inside the task (as `nexora:scm:resolve-repo`,
+  NXD-079), and only a descriptor path inside that repository.
+- **How:** the location is added with composer-backend's own service
+  identity.
+- **Order:** a dry run first, which fetches and validates the descriptor
+  and names its entities; only then the location. The built-in registers
+  first and checks after, which leaves a location that fails on every
+  refresh when the descriptor is wrong.
+
+Same inputs and outputs as the built-in. All nine templates change one
+word. The catalog is called over HTTP, like `catalog-component-loader.ts`,
+so no new dependency.
+
+**Run 2 — the descriptor itself was malformed.** With registration
+allowed, the Catalog refused the entity: _"Malformed envelope,
+/metadata/annotations/dataprod.platform~1policy-version must be string"_.
+All nine templates wrote `policy-version: ${{ values.policyVersion }}` with
+`policyVersion: '1'`, which renders as the YAML number `1`.
+
+**Decision 2 — quoted, and tested.** The annotation is quoted in all nine
+`catalog-info.yaml`. NXD-105's rendering test could not have seen it,
+because it replaced every value with a placeholder, and a placeholder is
+always a string. It now passes a template's own literals through, and
+checks that every annotation and label of the rendered descriptor is a
+string. Against the unfixed templates it fails for all nine, on this
+annotation only.
+
+**Run 3 — complete.** All six steps green as `demo-author`: repository
+`pharma-data-factory/oee-e2e-test-20261005-c`, entity
+`component:default/oee-e2e-test-20261005-c`, product record with
+repository and entity ref. The first Golden Path run that has ever reached
+the end.
+
+**Not changed, named.**
+
+- The product record's `owner` is empty: the template does not pass
+  `owner` to `nexora:product:create`.
+- The success page does not show the template's *Governance and release*
+  link to `/products/:id`.
+- A failed step is reported as _"You do not have permission to view this
+  page"_.
+- Runs 1 and 2 left two repositories (`oee-e2e-test-20261005`, `-b`), and
+  run 2 a Catalog location that fails on refresh. Cleanup is manual.
+
+- Affected components: `plugins/composer-backend/src/scaffolderModule.ts`
+  (+ test), `templates/*/template.yaml`,
+  `templates/*/content/catalog-info.yaml`,
+  `packages/backend/src/templateRendering.test.ts` and the six template tests
+  that name the register action.
