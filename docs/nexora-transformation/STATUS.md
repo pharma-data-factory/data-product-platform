@@ -162,6 +162,12 @@ four quick wins F1–F4, one commit and one record each.
   organisation, for initiators who may create entities, after a dry run; the
   annotation is quoted in all nine templates. Run 3 completed all six steps.
   See [`NXD-118`](DECISIONS.md).
+- **Validation decisions are signed.** The validation expert signs, then QA
+  when a GMP-relevant product (INDIRECT, DIRECT or unanswered) depends on the
+  baseline; otherwise one signature suffices. PIN via the URS Composer,
+  append-only signatures, no administrator approval. A GMP product needs a
+  decision under that rule at the release gate. Demo seat `demo-validator`.
+  See [`NXD-119`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

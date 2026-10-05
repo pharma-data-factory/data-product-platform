@@ -572,14 +572,15 @@ describe('Phase 1: Versioning Foundation', () => {
       });
     });
 
-    async function createSetup() {
+    async function createSetup(gxpRelevance = 'NONE') {
       const product = await serviceWithDecisionResolver.createProduct(
         {
           name: `VD Product ${Date.now()}`,
           productType: 'DATA_PRODUCT',
           owner: 'group:default/platform-team',
           dataClassification: 'INTERNAL',
-          gxpRelevance: 'NONE',
+          gxpRelevance,
+          ...(gxpRelevance === 'NONE' ? {} : { criticality: 'HIGH' }),
         },
         actor,
       );
@@ -615,6 +616,36 @@ describe('Phase 1: Versioning Foundation', () => {
       const { version } = await createSetup();
       const result = await serviceWithDecisionResolver.checkReleaseGate(version.id);
       expect(result.blockers.map(b => b.code)).not.toContain('NO_APPROVED_VALIDATION_DECISION');
+    });
+
+    it('blocks a GMP-relevant product whose baseline was approved with one signature (NXD-119)', async () => {
+      mockDecisionResolver.getDecisionApproval = jest.fn(async () => 'APPROVED' as const);
+      try {
+        const { version } = await createSetup('DIRECT');
+        const codes = (await serviceWithDecisionResolver.checkReleaseGate(version.id))
+          .blockers.map(b => b.code);
+        expect(codes).toContain('VALIDATION_DECISION_NOT_GMP');
+        expect(codes).not.toContain('NO_APPROVED_VALIDATION_DECISION');
+      } finally {
+        delete mockDecisionResolver.getDecisionApproval;
+      }
+    });
+
+    it('accepts a decision under the GMP rule for a GMP product, and a single signature for NONE', async () => {
+      mockDecisionResolver.getDecisionApproval = jest.fn(async () => 'APPROVED_GMP' as const);
+      try {
+        const gmp = await createSetup('INDIRECT');
+        expect(
+          (await serviceWithDecisionResolver.checkReleaseGate(gmp.version.id)).blockers.map(b => b.code),
+        ).not.toContain('VALIDATION_DECISION_NOT_GMP');
+        mockDecisionResolver.getDecisionApproval = jest.fn(async () => 'APPROVED' as const);
+        const none = await createSetup('NONE');
+        expect(
+          (await serviceWithDecisionResolver.checkReleaseGate(none.version.id)).blockers.map(b => b.code),
+        ).not.toContain('VALIDATION_DECISION_NOT_GMP');
+      } finally {
+        delete mockDecisionResolver.getDecisionApproval;
+      }
     });
   });
   // ── Exchange obligation at the release gate (closure Slice 2) ────────────

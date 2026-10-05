@@ -64,6 +64,7 @@ auth:
         - demo-reviewer
         - demo-pm
         - demo-quality
+        - demo-validator
 
 users:
   # Written into platform_users on every non-production start, which the
@@ -91,6 +92,14 @@ users:
       memberOf:
         - data-product-owners
         - urs-quality-reviewers
+    # NXD-119. The validation expert's signature on a validation decision.
+    # Read-only on the platform and not a product owner, so the person who
+    # validates is not the one who builds.
+    - name: demo-validator
+      displayName: Vera Validator (demo)
+      memberOf:
+        - platform-viewers
+        - validation-experts
 
 ursComposer:
   persistence:

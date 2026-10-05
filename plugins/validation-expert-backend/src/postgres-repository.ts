@@ -16,7 +16,10 @@ import type {
   ValidationRun,
   ValidationTestExecution,
 } from './types';
-import type { ValidationDecision } from '@internal/platform-common';
+import type {
+  ValidationDecision,
+  ValidationDecisionSignature,
+} from '@internal/platform-common';
 
 function parseJson<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) {
@@ -317,6 +320,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       conditions: decision.conditions ?? null,
       decided_by: decision.decidedBy,
       decided_at: decision.decidedAt,
+      gmp_rule: decision.gmpRule ?? null,
     });
   }
 
@@ -333,6 +337,38 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       conditions: row.conditions ?? undefined,
       decidedBy: row.decided_by,
       decidedAt: row.decided_at,
+      gmpRule: row.gmp_rule === null || row.gmp_rule === undefined
+        ? undefined
+        : Boolean(row.gmp_rule),
     };
+  }
+
+  async addSignature(signature: ValidationDecisionSignature): Promise<void> {
+    await this.db('validation_decision_signatures').insert({
+      id: signature.id,
+      context_id: signature.contextId,
+      role: signature.role,
+      verdict: signature.verdict,
+      justification: signature.justification,
+      signed_by: signature.signedBy,
+      signed_at: signature.signedAt,
+      reauth_method: signature.reauthMethod,
+    });
+  }
+
+  async listSignatures(contextId: string): Promise<ValidationDecisionSignature[]> {
+    const rows = await this.db('validation_decision_signatures')
+      .where({ context_id: contextId })
+      .orderBy('signed_at', 'asc');
+    return rows.map((row: any) => ({
+      id: row.id,
+      contextId: row.context_id,
+      role: row.role,
+      verdict: row.verdict,
+      justification: row.justification,
+      signedBy: row.signed_by,
+      signedAt: row.signed_at,
+      reauthMethod: row.reauth_method,
+    }));
   }
 }

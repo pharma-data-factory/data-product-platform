@@ -10,7 +10,10 @@ import type {
   ValidationRun,
   ValidationTestExecution,
 } from './types';
-import type { ValidationDecision } from '@internal/platform-common';
+import type {
+  ValidationDecision,
+  ValidationDecisionSignature,
+} from '@internal/platform-common';
 
 /**
  * Persistence contract for Validation Expert runtime evidence.
@@ -45,6 +48,10 @@ export interface ValidationRunRepository {
   // Phase 5 (P5-S1): Validation Decisions
   addDecision(decision: ValidationDecision): Promise<void>;
   getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined>;
+
+  // NXD-119: the signatures a decision is the outcome of. Append-only.
+  addSignature(signature: ValidationDecisionSignature): Promise<void>;
+  listSignatures(contextId: string): Promise<ValidationDecisionSignature[]>;
 }
 
 interface StoreShape {
@@ -53,10 +60,22 @@ interface StoreShape {
   evidence: ValidationEvidenceItem[];
   contexts: ValidationContext[];
   counters: Record<string, number>;
+  // In the store since NXD-119: decisions used to live beside it, so the
+  // file repository wrote every decision nowhere and lost it on restart.
+  decisions: ValidationDecision[];
+  signatures: ValidationDecisionSignature[];
 }
 
 function emptyStore(): StoreShape {
-  return { runs: [], findings: [], evidence: [], contexts: [], counters: {} };
+  return {
+    runs: [],
+    findings: [],
+    evidence: [],
+    contexts: [],
+    counters: {},
+    decisions: [],
+    signatures: [],
+  };
 }
 
 export class MemoryValidationRunRepository implements ValidationRunRepository {
@@ -184,17 +203,38 @@ export class MemoryValidationRunRepository implements ValidationRunRepository {
     });
   }
 
-  private decisions: ValidationDecision[] = [];
-
   async addDecision(decision: ValidationDecision): Promise<void> {
-    if (this.decisions.some(d => d.contextId === decision.contextId)) {
+    if (this.store.decisions.some(d => d.contextId === decision.contextId)) {
       throw new Error(`Decision already exists for context ${decision.contextId}`);
     }
-    this.decisions.push({ ...decision });
+    this.store.decisions.push({ ...decision });
   }
 
   async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
-    return this.decisions.find(d => d.contextId === contextId);
+    const found = this.store.decisions.find(d => d.contextId === contextId);
+    return found ? { ...found } : undefined;
+  }
+
+  async addSignature(signature: ValidationDecisionSignature): Promise<void> {
+    // The same constraints the PostgreSQL table has.
+    if (
+      this.store.signatures.some(
+        s =>
+          s.contextId === signature.contextId &&
+          (s.role === signature.role || s.signedBy === signature.signedBy),
+      )
+    ) {
+      throw new Error(
+        `Context ${signature.contextId} already has a ${signature.role} signature or one by ${signature.signedBy}`,
+      );
+    }
+    this.store.signatures.push({ ...signature });
+  }
+
+  async listSignatures(contextId: string): Promise<ValidationDecisionSignature[]> {
+    return this.store.signatures
+      .filter(s => s.contextId === contextId)
+      .map(s => ({ ...s }));
   }
 }
 
@@ -218,6 +258,8 @@ export class FileValidationRunRepository implements ValidationRunRepository {
     store.evidence = raw.evidence ?? [];
     store.contexts = raw.contexts ?? [];
     store.counters = raw.counters ?? {};
+    store.decisions = raw.decisions ?? [];
+    store.signatures = raw.signatures ?? [];
   }
 
   private persist(): void {
@@ -302,6 +344,15 @@ export class FileValidationRunRepository implements ValidationRunRepository {
 
   async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
     return this.memory.getDecisionByContextId(contextId);
+  }
+
+  async addSignature(signature: ValidationDecisionSignature): Promise<void> {
+    await this.memory.addSignature(signature);
+    this.persist();
+  }
+
+  async listSignatures(contextId: string): Promise<ValidationDecisionSignature[]> {
+    return this.memory.listSignatures(contextId);
   }
 }
 

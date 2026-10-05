@@ -86,6 +86,15 @@ describe('parseGithubTeamSyncConfig', () => {
     ).toThrow(/urs-quality-reviewers/);
   });
 
+  it('refuses the validation-experts group too (NXD-119)', () => {
+    expect(() =>
+      parseGithubTeamSyncConfig({
+        ...valid,
+        teams: { ...valid.teams, 'validation-experts': 'nexora-validators' },
+      }),
+    ).toThrow(/approval groups must not be mirrored.*validation-experts/);
+  });
+
   it('lists every offending group in one message', () => {
     expect(() =>
       parseGithubTeamSyncConfig({

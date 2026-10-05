@@ -171,6 +171,15 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToProductVersion(r));
   }
 
+  async listProductVersionsForUrsBaseline(
+    ursBaselineId: string,
+  ): Promise<ProductVersion[]> {
+    const rows = await this.db('product_versions')
+      .where({ urs_baseline_id: ursBaselineId })
+      .select();
+    return rows.map((r: any) => this.rowToProductVersion(r));
+  }
+
   async updateProductVersion(version: ProductVersion): Promise<void> {
     await this.db('product_versions').where({ id: version.id }).update({
       status: version.status,

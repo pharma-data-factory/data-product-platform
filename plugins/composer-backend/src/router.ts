@@ -231,6 +231,31 @@ export async function createRouter(
     }
   });
 
+  /**
+   * GET /urs-baselines/:id/gmp-classification (NXD-119)
+   *
+   * Which products depend on a URS baseline, how GxP-relevant each is, and
+   * who created the versions bound to it. Read by the Validation Expert to
+   * decide which signatures a validation decision needs, as a service, and by
+   * a person with product.read.
+   */
+  router.get(
+    '/urs-baselines/:id/gmp-classification',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        res.json(await service.getUrsBaselineGmpClassification(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get('/products', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, productReadPermission);

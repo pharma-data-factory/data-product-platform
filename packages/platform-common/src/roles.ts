@@ -148,8 +148,60 @@ export const URS_DOMAIN_PERMISSIONS: Readonly<
   'urs-owners': ['urs.read', 'urs.create', 'urs.manage'],
   'urs-business-reviewers': ['urs.read', 'urs.approve'],
   'urs-product-managers': ['urs.read', 'urs.approve'],
-  'urs-quality-reviewers': ['urs.read', 'urs.approve', 'urs.sign'],
+  // NXD-119: quality reviewers are also the QA signature on a validation
+  // decision. One QA role for both, so it is granted and revoked in one place.
+  'urs-quality-reviewers': [
+    'urs.read',
+    'urs.approve',
+    'urs.sign',
+    'validation.read',
+    'validation.approve',
+  ],
 };
+
+/** The QA group: approves URS (APPROVED_QA) and signs validation decisions. */
+export const QUALITY_ASSURANCE_GROUP = 'urs-quality-reviewers';
+
+/** Validation experts: the technical signature on a validation decision. */
+export const VALIDATION_EXPERT_GROUP = 'validation-experts';
+
+/**
+ * Catalog groups that grant validation permissions (NXD-119). Like the URS
+ * groups, membership adds permissions and is not a platform tier.
+ *
+ * `urs.sign` lets a validation expert enrol the signing PIN, which lives in
+ * the URS Composer and is the platform's one signing credential.
+ */
+export const VALIDATION_DOMAIN_PERMISSIONS: Readonly<
+  Record<typeof VALIDATION_EXPERT_GROUP, readonly string[]>
+> = {
+  [VALIDATION_EXPERT_GROUP]: [
+    'validation.read',
+    'validation.review',
+    'validation.approve',
+    'requirement.read',
+    'traceability.read',
+    'urs.read',
+    'urs.sign',
+  ],
+};
+
+/** URS and validation domain-group grants together, as the policy applies them. */
+export function domainPermissionNames(
+  ownershipEntityRefs: readonly string[],
+): Set<string> {
+  const names = ursDomainPermissionNames(ownershipEntityRefs);
+  for (const ref of ownershipEntityRefs) {
+    if (parseGroupName(ref) === VALIDATION_EXPERT_GROUP) {
+      for (const permission of VALIDATION_DOMAIN_PERMISSIONS[
+        VALIDATION_EXPERT_GROUP
+      ]) {
+        names.add(permission);
+      }
+    }
+  }
+  return names;
+}
 
 export function ursDomainPermissionNames(
   ownershipEntityRefs: readonly string[],

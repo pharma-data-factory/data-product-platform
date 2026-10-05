@@ -80,8 +80,13 @@ export type ValidationDecisionStatus =
  * the ValidationContext (validated in the service). The same person cannot
  * initiate and approve their own validation package.
  *
- * **Permission:** `validation.approve` — granted to `PLATFORM_ADMIN` only.
- * Automatic or programmatic approval must never be implemented.
+ * **Permission:** `validation.approve` — the `validation-experts` and
+ * `urs-quality-reviewers` domain groups (NXD-119). Automatic or programmatic
+ * approval must never be implemented.
+ *
+ * Since NXD-119 a decision is the outcome of electronic signatures, see
+ * `ValidationDecisionSignature` and `validationDecisionProgress`; it is
+ * written when the signatures the rule requires are complete.
  *
  * Phase 5 (P5-S1). `riskAccept` and `baselineModify` remain reserved.
  */
@@ -96,6 +101,133 @@ export interface ValidationDecision {
   /** The independent expert who made the decision (must ≠ context.createdBy). */
   decidedBy: string;
   decidedAt: string;
+  /**
+   * True when the decision carries the validation expert's and QA's approval
+   * (NXD-119). The release gate requires it for a GMP-relevant product, so a
+   * product cannot ride on a baseline approved under the one-signature rule.
+   */
+  gmpRule?: boolean;
+  /** The signatures the decision is the outcome of (NXD-119). */
+  signatures?: ValidationDecisionSignature[];
+}
+
+/**
+ * The two signatures a validation decision can carry (NXD-119).
+ *
+ * - `VALIDATION_EXPERT` — technical: the tests cover the requirements and
+ *   passed. Group `validation-experts`.
+ * - `QUALITY_ASSURANCE` — independent quality approval. Group
+ *   `urs-quality-reviewers`.
+ */
+export const VALIDATION_SIGNATURE_ROLES = [
+  'VALIDATION_EXPERT',
+  'QUALITY_ASSURANCE',
+] as const;
+export type ValidationSignatureRole =
+  (typeof VALIDATION_SIGNATURE_ROLES)[number];
+
+export type ValidationSignatureVerdict = 'APPROVED' | 'REJECTED';
+
+/** One electronic signature on a validation decision. Append-only. */
+export interface ValidationDecisionSignature {
+  id: string;
+  contextId: string;
+  role: ValidationSignatureRole;
+  verdict: ValidationSignatureVerdict;
+  justification: string;
+  signedBy: string;
+  signedAt: string;
+  /** Which second factor was verified, e.g. `signature-pin`. */
+  reauthMethod: string;
+}
+
+/** Body of `POST /contexts/:id/signatures`. */
+export interface ValidationSignatureRequest {
+  role: ValidationSignatureRole;
+  verdict: ValidationSignatureVerdict;
+  justification: string;
+  /** The signer's signing PIN; verified, never stored. */
+  pin: string;
+}
+
+/**
+ * Where a decision stands, given whether a GMP-relevant product depends on
+ * the baseline and the signatures so far. Pure, so the service and the page
+ * apply the same rule (NXD-119), which follows GAMP 5 / EU GMP Annex 11 and
+ * 15: for a GMP-relevant system the validation expert signs and QA approves;
+ * otherwise one signature from either suffices. A rejection by either ends
+ * the decision.
+ */
+export interface ValidationDecisionProgress {
+  complete: boolean;
+  /** Set when complete. */
+  status?: 'APPROVED' | 'REJECTED';
+  /** Roles that may sign next; empty when complete. */
+  nextRoles: ValidationSignatureRole[];
+}
+
+export function validationDecisionProgress(
+  gmpRelevant: boolean,
+  signatures: readonly Pick<ValidationDecisionSignature, 'role' | 'verdict'>[],
+): ValidationDecisionProgress {
+  if (signatures.some(s => s.verdict === 'REJECTED')) {
+    return { complete: true, status: 'REJECTED', nextRoles: [] };
+  }
+  const approved = (role: ValidationSignatureRole) =>
+    signatures.some(s => s.role === role && s.verdict === 'APPROVED');
+  if (!gmpRelevant) {
+    return signatures.length > 0
+      ? { complete: true, status: 'APPROVED', nextRoles: [] }
+      : { complete: false, nextRoles: [...VALIDATION_SIGNATURE_ROLES] };
+  }
+  if (!approved('VALIDATION_EXPERT')) {
+    return { complete: false, nextRoles: ['VALIDATION_EXPERT'] };
+  }
+  if (!approved('QUALITY_ASSURANCE')) {
+    return { complete: false, nextRoles: ['QUALITY_ASSURANCE'] };
+  }
+  return { complete: true, status: 'APPROVED', nextRoles: [] };
+}
+
+/** A product that depends on the context's URS baseline, as Composer reports it. */
+export interface ValidationGmpProduct {
+  id: string;
+  name: string;
+  gxpRelevance?: string;
+}
+
+/** `GET /contexts/:id/decision-state`: everything the decision panel shows. */
+export interface ValidationDecisionState {
+  contextId: string;
+  /** True when any dependent product is INDIRECT or DIRECT, or unknown. */
+  gmpRelevant: boolean;
+  products: ValidationGmpProduct[];
+  /** Set when the classification could not be read; the GMP rule applies. */
+  classificationError?: string;
+  signatures: ValidationDecisionSignature[];
+  progress: ValidationDecisionProgress;
+  decision?: ValidationDecision;
+}
+
+/**
+ * INDIRECT and DIRECT count, and so does no answer: only an explicit NONE
+ * takes a product out of the GMP rule (NXD-119).
+ */
+export function isGmpRelevant(gxpRelevance: string | undefined): boolean {
+  return gxpRelevance !== 'NONE';
+}
+
+/**
+ * Whether a baseline's decision must follow the GMP rule: when any dependent
+ * product is GMP-relevant, when none is known yet (a GMP product may bind
+ * later), and when the classification could not be read.
+ */
+export function baselineNeedsGmpRule(
+  products: readonly Pick<ValidationGmpProduct, 'gxpRelevance'>[] | undefined,
+): boolean {
+  return !products || products.length === 0
+    ? true
+    : products.some(p => isGmpRelevant(p.gxpRelevance));
 }
 
 export interface CreateValidationDecisionRequest {

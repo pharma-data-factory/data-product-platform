@@ -19,6 +19,12 @@
 /** Prefix of the URS approval groups (`urs-authors`, `urs-quality-reviewers`, …). */
 export const APPROVAL_GROUP_PREFIX = 'urs-';
 
+/**
+ * Approval groups without the `urs-` prefix (NXD-119: the validation expert
+ * who signs validation decisions). Refused in the mapping for the same reason.
+ */
+export const OTHER_APPROVAL_GROUPS: readonly string[] = ['validation-experts'];
+
 export interface GithubTeamSyncConfig {
   enabled: boolean;
   /**
@@ -80,7 +86,8 @@ export function parseGithubTeamSyncConfig(
 
   // First, before any other check can return: this is the one that matters.
   const approvalGroups = Object.keys(teamsRaw).filter(group =>
-    group.toLowerCase().startsWith(APPROVAL_GROUP_PREFIX),
+    group.toLowerCase().startsWith(APPROVAL_GROUP_PREFIX) ||
+    OTHER_APPROVAL_GROUPS.includes(group.toLowerCase()),
   );
   if (approvalGroups.length > 0) {
     return fail(

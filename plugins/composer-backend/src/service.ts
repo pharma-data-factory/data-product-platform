@@ -122,6 +122,15 @@ export interface ValidationDecisionResolver {
    */
   hasApprovedDecision(baselineId: string): Promise<boolean>;
   /**
+   * NXD-119. `APPROVED_GMP` when the decision carries the validation expert's
+   * and QA's approval, `APPROVED` when it was approved under the
+   * one-signature rule, `NONE` otherwise. Optional so existing resolver
+   * doubles keep compiling; the gate falls back to `hasApprovedDecision`.
+   */
+  getDecisionApproval?(
+    baselineId: string,
+  ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'>;
+  /**
    * Per-requirement validation coverage for a URS baseline, or `undefined`
    * when no context could be resolved.
    *
@@ -400,6 +409,41 @@ export class ComposerService {
 
   async getProduct(id: string): Promise<Product | null> {
     return this.repository.getProduct(id);
+  }
+
+  /**
+   * The products whose versions are bound to a URS baseline, with their GxP
+   * relevance, and who created those versions (NXD-119).
+   *
+   * The Validation Expert decides from this which signatures a decision on the
+   * baseline needs (validation expert and QA when any is GMP-relevant), and
+   * keeps a version's creator from signing the validation of it.
+   */
+  async getUrsBaselineGmpClassification(ursBaselineId: string): Promise<{
+    ursBaselineId: string;
+    products: Array<{ id: string; name: string; gxpRelevance?: string }>;
+    versionCreators: string[];
+  }> {
+    const versions =
+      await this.repository.listProductVersionsForUrsBaseline(ursBaselineId);
+    const products = [];
+    for (const productId of new Set(versions.map(v => v.productId))) {
+      const product = await this.repository.getProduct(productId);
+      if (product) {
+        products.push({
+          id: product.id,
+          name: product.name,
+          gxpRelevance: product.gxpRelevance,
+        });
+      }
+    }
+    return {
+      ursBaselineId,
+      products,
+      versionCreators: [
+        ...new Set(versions.map(v => v.createdBy).filter(Boolean)),
+      ],
+    };
   }
 
   /** The product that claims a Catalog entity, or null. Step 2. */
@@ -1787,9 +1831,34 @@ export class ComposerService {
       product &&
       ursBaselineIds.length > 0
     ) {
+      // NXD-119. A GMP-relevant product (anything but an explicit NONE) needs
+      // a decision under the GMP rule: the validation expert's and QA's
+      // signatures. Otherwise a product could ride on a baseline that was
+      // approved with one signature while no GMP product depended on it.
+      const gmpProduct = product.gxpRelevance !== 'NONE';
       for (const ursId of ursBaselineIds) {
         try {
-          const approved = await this.validationDecisionResolver.hasApprovedDecision(ursId);
+          const resolver = this.validationDecisionResolver;
+          // A resolver without getDecisionApproval predates NXD-119; its
+          // approval is taken as complete, as it was before.
+          let approval: 'APPROVED_GMP' | 'APPROVED' | 'NONE';
+          if (resolver.getDecisionApproval) {
+            approval = await resolver.getDecisionApproval(ursId);
+          } else {
+            approval = (await resolver.hasApprovedDecision(ursId))
+              ? 'APPROVED_GMP'
+              : 'NONE';
+          }
+          const approved = approval !== 'NONE';
+          if (approved && gmpProduct && approval !== 'APPROVED_GMP') {
+            blockers.push({
+              code: 'VALIDATION_DECISION_NOT_GMP',
+              message:
+                `URS baseline ${ursId} was approved with a single signature. ` +
+                'This product is GMP-relevant, so its validation needs the ' +
+                'validation expert and QA (NXD-119).',
+            });
+          }
           if (!approved) {
             blockers.push({
               code: 'NO_APPROVED_VALIDATION_DECISION',

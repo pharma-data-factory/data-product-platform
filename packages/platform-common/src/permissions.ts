@@ -474,10 +474,9 @@ export const ADMIN_PERMISSION_NAMES = new Set([
   'business-capability.manage',
   'platform.user.manage',
   'publisher.manage',
-  // Phase 5 (P5-S1): validation.approve granted to PLATFORM_ADMIN only.
-  // Segregation of Duties is enforced in the service (decider ≠ context creator).
+  // validation.approve is not an administrator's (NXD-119): it is granted by
+  // the validation-experts and urs-quality-reviewers domain groups only.
   // risk.accept and baseline.modify remain reserved.
-  'validation.approve',
 ]);
 
 export const BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES = new Set([

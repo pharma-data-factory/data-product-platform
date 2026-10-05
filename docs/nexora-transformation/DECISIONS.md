@@ -6480,3 +6480,112 @@ the end.
   `templates/*/content/catalog-info.yaml`,
   `packages/backend/src/templateRendering.test.ts` and the six template tests
   that name the register action.
+
+### NXD-119 — A validation decision is signed: by the validation expert, and by QA when the product is GMP-relevant
+
+- Date: 2026-10-05
+- Slice: validation + roles — the OEE end-to-end run stopped at step 9
+
+**Context.** The browser run of the OEE workflow reached a release gate
+with one blocker left: _"No approved validation decision — an independent
+expert must validate the package"_. Nothing in the UI could record one.
+`POST /contexts/:id/decision` existed, but needed `validation.approve`, and
+that permission belonged to PLATFORM_ADMIN alone. A platform administrator
+is neither the independent quality unit nor a validation expert. No
+signature was required either.
+
+**Decision — the rule, after GAMP 5 and EU GMP Annex 11/15 (21 CFR 211.22).**
+The user asked for best practice. The validation expert attests the
+technical content: the tests cover the requirements, and they passed. The
+quality unit gives the independent approval.
+
+- **GMP-relevant:** the validation expert signs first, then QA. Two
+  different people.
+- **Not GMP-relevant:** one signature from either suffices.
+- **Rejection:** a rejection by either ends the decision.
+- **Who counts as GMP-relevant:** INDIRECT and DIRECT, and also *no answer*.
+  Only an explicit NONE does not count.
+- **Which product decides:** the decision belongs to the URS baseline, and
+  a baseline can serve several products. So the strictest classification
+  among the products bound to it decides. A baseline with no product yet,
+  or a classification that cannot be read, follows the GMP rule too.
+- **Pure function:** `validationDecisionProgress` in platform-common states
+  the rule once, for the service and for the page.
+
+**Roles.**
+
+- New domain group `validation-experts`, which also gets the catalog Group
+  entity.
+- `urs-quality-reviewers` now also grants `validation.approve`, so QA is one
+  role for URS and validation.
+- `validation.approve` is decided before the PLATFORM_ADMIN short-circuit in
+  `decidePermission`, which would otherwise allow it to every administrator.
+  Removing it from the admin list alone would have changed nothing.
+- New demo seat `demo-validator`: `platform-viewers` and
+  `validation-experts`. Read-only and not a product owner, so the person
+  who validates is not the one who builds.
+- The admin page's role picker offers the group.
+- The GitHub team sync refuses it in its mapping, like `urs-*` (NXD-107).
+
+**Signatures.**
+
+- `POST /contexts/:id/signatures` takes `{ role, verdict, justification, pin }`.
+- Checks, in this order and all before anything is written:
+  1. the context exists and is not decided;
+  2. the signer holds the role;
+  3. Segregation of Duties: not the context creator, not the creator of a
+     product version bound to the baseline, and one signature per person;
+  4. the order of the rule;
+  5. a verdict and a justification;
+  6. the PIN, last, so a refused signature costs no attempt.
+- The PIN is verified in the URS Composer, through the new
+  `POST /signing-pin/verify` on behalf of the signer. The platform keeps one
+  signing credential and one lockout per person, not one per plugin.
+- Signatures go into the new table `validation_decision_signatures`: unique
+  per role and per person, append-only and no-TRUNCATE triggers on
+  PostgreSQL (the NXD-092 pattern).
+- When the rule is satisfied, the decision is written as before, so the
+  release gate keeps reading the same record. It now also carries
+  `gmpRule` and its signatures.
+- The old `POST /contexts/:id/decision` answers 410 and names the new
+  route. A route that wrote a decision directly would bypass the rule.
+
+**The gap closed at the gate.** A baseline approved under the
+one-signature rule could later serve a GMP product that binds to it. The
+release gate now asks `getDecisionApproval`. A GMP-relevant product needs
+`APPROVED_GMP`; otherwise the blocker is `VALIDATION_DECISION_NOT_GMP`. The
+classification comes from Composer's new
+`GET /urs-baselines/:id/gmp-classification`.
+
+**Found on the way.**
+
+- In `file` persistence, the development default, decisions lived beside
+  the stored file and were lost on every restart. Decisions and signatures
+  now live in the store.
+- The router answered every refusal with "Not allowed", so a signer would
+  not have learned whether the PIN, the lockout or Segregation of Duties
+  refused them (cf. NXD-104). It now passes the reason and answers a
+  conflict with 409.
+
+**Verified live, against the dev stack.** For the OEE context
+`VALIDATION-CTX-MUPNNM25`, `decision-state` names the OEE product (DIRECT)
+and asks for the validation expert first. Each refusal arrives with its
+reason:
+
+- no PIN set;
+- a role the signer does not hold;
+- the old route (410);
+- an author without the permission.
+
+**Named, not changed.** `demo-quality` created that validation context on
+2026-10-01, so it cannot sign the context's decision as QA. The rule is
+right; the test data needs a second QA seat or a new context. The decision
+panel is the next slice (NXD-120).
+
+- Affected components: `packages/platform-common/src/{roles,policy,permissions,validation-integration,index}.ts`
+  (+ tests), `plugins/validation-expert-backend/src/{service,router,plugin,repository,postgres-repository,decision-collaborators,db/migrations}.ts`
+  (+ test), `plugins/urs-composer-backend/src/{service,router}.ts` (+ test),
+  `plugins/composer-backend/src/{service,router,repository,repository-interface,validation-decision-resolver}.ts`
+  (+ tests), `plugins/users-backend/src/githubTeamSync.ts` (+ test),
+  `packages/app/src/modules/admin/UsersRolesPage.tsx`, `app-config.demo.yaml`,
+  `catalog/org.yaml`, `README.md`, `packages/backend/src/startup.test.ts`.

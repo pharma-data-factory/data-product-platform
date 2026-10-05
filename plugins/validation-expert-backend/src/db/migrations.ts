@@ -110,4 +110,67 @@ export async function up(knex: Knex): Promise<void> {
       table.foreign('context_id').references('id').inTable('validation_contexts');
     });
   }
+
+  // NXD-119. Whether the decision carries the validation expert's and QA's
+  // approval; the release gate requires it for a GMP-relevant product.
+  if (!(await knex.schema.hasColumn('validation_decisions', 'gmp_rule'))) {
+    await knex.schema.alterTable('validation_decisions', table => {
+      table.boolean('gmp_rule').nullable();
+    });
+  }
+
+  // NXD-119. The electronic signatures a decision is the outcome of: one row
+  // per signature, never changed and never removed.
+  if (!(await knex.schema.hasTable('validation_decision_signatures'))) {
+    await knex.schema.createTable('validation_decision_signatures', table => {
+      table.string('id', 255).primary();
+      table.string('context_id', 255).notNullable().index();
+      table.string('role', 32).notNullable(); // VALIDATION_EXPERT | QUALITY_ASSURANCE
+      table.string('verdict', 16).notNullable(); // APPROVED | REJECTED
+      table.text('justification').notNullable();
+      table.string('signed_by', 255).notNullable();
+      table.string('signed_at', 64).notNullable();
+      table.string('reauth_method', 64).notNullable();
+      table.unique(['context_id', 'role']);
+      table.unique(['context_id', 'signed_by']);
+      table.foreign('context_id').references('id').inTable('validation_contexts');
+    });
+  }
+
+  await makeSignaturesAppendOnly(knex);
+}
+
+/**
+ * NXD-119. A signature is a record of who attested what, when; it must not be
+ * edited or deleted afterwards. Row triggers refuse UPDATE and DELETE and a
+ * statement trigger refuses TRUNCATE — the users-backend pattern (NXD-092).
+ * PostgreSQL only; SQLite backs unit tests, not records.
+ */
+async function makeSignaturesAppendOnly(knex: Knex): Promise<void> {
+  if (knex.client.config.client !== 'pg') {
+    return;
+  }
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION validation_append_only()
+    RETURNS trigger AS $fn$
+    BEGIN
+      RAISE EXCEPTION
+        'VALIDATION_APPEND_ONLY: % is append-only; % is not permitted',
+        TG_TABLE_NAME, TG_OP USING ERRCODE = '23514';
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+  // Dropped and recreated: CREATE TRIGGER has no IF NOT EXISTS before
+  // PostgreSQL 14, and this migration runs on every boot.
+  const table = 'validation_decision_signatures';
+  await knex.raw(`DROP TRIGGER IF EXISTS ${table}_append_only ON ${table}`);
+  await knex.raw(
+    `CREATE TRIGGER ${table}_append_only BEFORE UPDATE OR DELETE ON ${table} ` +
+      'FOR EACH ROW EXECUTE FUNCTION validation_append_only()',
+  );
+  await knex.raw(`DROP TRIGGER IF EXISTS ${table}_no_truncate ON ${table}`);
+  await knex.raw(
+    `CREATE TRIGGER ${table}_no_truncate BEFORE TRUNCATE ON ${table} ` +
+      'FOR EACH STATEMENT EXECUTE FUNCTION validation_append_only()',
+  );
 }

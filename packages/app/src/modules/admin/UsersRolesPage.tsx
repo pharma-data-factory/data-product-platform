@@ -30,11 +30,21 @@ import {
   resolvePlatformRole,
   PLATFORM_GROUPS,
   URS_DOMAIN_GROUPS,
+  VALIDATION_EXPERT_GROUP,
   GROUP_TO_ROLE,
   ROLE_LABELS,
   messageFromErrorBody,
 } from '@internal/platform-common';
 import type { PlatformRole } from '@internal/platform-common';
+
+/**
+ * Groups granted beside the tier: the URS approval roles and, since NXD-119,
+ * the validation expert who signs validation decisions.
+ */
+const APPROVAL_GROUPS: readonly string[] = [
+  ...URS_DOMAIN_GROUPS,
+  VALIDATION_EXPERT_GROUP,
+];
 import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import {
   GithubSyncBanner,
@@ -445,10 +455,10 @@ export function UsersRolesPage() {
                           <TextField
                             select
                             SelectProps={{ multiple: true }}
-                            label="URS roles"
-                            helperText="Author / review rights, independent of the tier"
+                            label="Approval roles"
+                            helperText="URS and validation signing rights, independent of the tier"
                             value={userMemberOf(user).filter(g =>
-                              (URS_DOMAIN_GROUPS as readonly string[]).includes(
+                              APPROVAL_GROUPS.includes(
                                 g,
                               ),
                             )}
@@ -456,9 +466,7 @@ export function UsersRolesPage() {
                               const selected = e.target
                                 .value as unknown as string[];
                               const held = userMemberOf(user).filter(g =>
-                                (
-                                  URS_DOMAIN_GROUPS as readonly string[]
-                                ).includes(g),
+                                APPROVAL_GROUPS.includes(g),
                               );
                               const added = selected.find(
                                 g => !held.includes(g),
@@ -473,7 +481,7 @@ export function UsersRolesPage() {
                             disabled={saving}
                             style={{ minWidth: 260 }}
                           >
-                            {URS_DOMAIN_GROUPS.map(group => (
+                            {APPROVAL_GROUPS.map(group => (
                               <MenuItem key={group} value={group}>
                                 {group}
                               </MenuItem>

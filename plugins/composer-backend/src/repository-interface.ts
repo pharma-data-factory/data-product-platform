@@ -72,6 +72,10 @@ export interface IComposerRepository {
   createProductVersion(version: ProductVersion): Promise<ProductVersion>;
   getProductVersion(id: string): Promise<ProductVersion | null>;
   listProductVersions(productId: string): Promise<ProductVersion[]>;
+  /** Versions bound to a URS baseline, across products (NXD-119). */
+  listProductVersionsForUrsBaseline(
+    ursBaselineId: string,
+  ): Promise<ProductVersion[]>;
   updateProductVersion(version: ProductVersion): Promise<void>;
 
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;

@@ -46,21 +46,33 @@ describe('validation expert permissions', () => {
     );
   });
 
-  it('allows platform admin to administer and approve validation contexts (Phase 5, P5-S1)', () => {
+  it('lets a platform admin administer validation but not approve it (NXD-119)', () => {
     expect(decidePermission(validationAdminPermission, 'PLATFORM_ADMIN')).toBe('allow');
     expect(canAdministerValidation('PLATFORM_ADMIN')).toBe(true);
-    // validation.approve is now granted to PLATFORM_ADMIN (P5-S1).
-    // Segregation of Duties is enforced at the service layer (decider ≠ creator),
-    // not by denying the permission itself.
-    expect(decidePermission(validationApprovePermission, 'PLATFORM_ADMIN')).toBe('allow');
+    // An administrator is neither independent QA nor the validation expert.
+    expect(decidePermission(validationApprovePermission, 'PLATFORM_ADMIN')).toBe('deny');
     // risk.accept and baseline.modify remain reserved.
     expect(decidePermission(riskAcceptPermission, 'PLATFORM_ADMIN')).toBe('deny');
     expect(decidePermission(baselineModifyPermission, 'PLATFORM_ADMIN')).toBe('deny');
   });
 
-  it('still denies validation.approve to every non-admin role', () => {
-    for (const role of ['VIEWER', 'DEVELOPER', 'DATA_PRODUCT_OWNER', 'BUSINESS_CAPABILITY_LEAD'] as const) {
+  it('denies validation.approve to every platform role on its own', () => {
+    for (const role of ['VIEWER', 'DEVELOPER', 'DATA_PRODUCT_OWNER', 'BUSINESS_CAPABILITY_LEAD', 'PLATFORM_ADMIN'] as const) {
       expect(decidePermission(validationApprovePermission, role)).toBe('deny');
     }
+  });
+
+  it('grants validation.approve through the validation-experts and QA groups only (NXD-119)', () => {
+    const decide = (groups: string[], role?: 'VIEWER' | 'PLATFORM_ADMIN') =>
+      decidePermission(
+        validationApprovePermission,
+        role,
+        undefined,
+        groups.map(g => `group:default/${g}`),
+      );
+    expect(decide(['platform-viewers', 'validation-experts'], 'VIEWER')).toBe('allow');
+    expect(decide(['platform-viewers', 'urs-quality-reviewers'], 'VIEWER')).toBe('allow');
+    expect(decide(['platform-admins'], 'PLATFORM_ADMIN')).toBe('deny');
+    expect(decide(['urs-authors', 'urs-business-reviewers'], 'VIEWER')).toBe('deny');
   });
 });

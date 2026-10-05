@@ -433,7 +433,7 @@ Guest sign-in is opt-in and local-only:
 | `AUTH_GUEST_ENABLED=true`   | Shows **Continue as Guest**                                                                                |
 | `AUTH_GUEST_ROLE=viewer`    | Read-only (default)                                                                                        |
 | `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding, create, and URS authoring                                                |
-| `AUTH_DEMO_ENABLED=true`    | **Test system:** one sign-in per approval role — `demo-author`, `demo-reviewer`, `demo-pm`, `demo-quality` |
+| `AUTH_DEMO_ENABLED=true`    | **Test system:** one sign-in per approval role — `demo-author`, `demo-reviewer`, `demo-pm`, `demo-quality`, `demo-validator` |
 
 Guest resolves to **VIEWER**: catalog, marketplace and data-product read
 access, no scaffolding, no create. Raising it to `developer` is a deliberate

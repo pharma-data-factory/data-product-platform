@@ -1,15 +1,20 @@
-import { InputError } from '@backstage/errors';
+import { ConflictError, InputError, NotAllowedError } from '@backstage/errors';
 import {
-  VALIDATION_DECISION_STATUSES,
+  baselineNeedsGmpRule,
+  validationDecisionProgress,
+  VALIDATION_SIGNATURE_ROLES,
 } from '@internal/platform-common';
 import type {
   ApprovedURSReference,
   CreateValidationContextRequest,
-  CreateValidationDecisionRequest,
   ValidationContext,
   ValidationContextRequirement,
   ValidationDecision,
-  ValidationDecisionStatus,
+  ValidationDecisionSignature,
+  ValidationDecisionState,
+  ValidationGmpProduct,
+  ValidationSignatureRequest,
+  ValidationSignatureRole,
 } from '@internal/platform-common';
 import { createHash, randomUUID } from 'crypto';
 import { NotFoundError } from '@backstage/errors';
@@ -82,6 +87,12 @@ export interface UrsBaselineResolver {
 }
 
 
+/** NXD-119. Composer's answer for a URS baseline; throws when unreachable. */
+export type GmpClassifier = (ursBaselineId: string) => Promise<{
+  products: ValidationGmpProduct[];
+  versionCreators: string[];
+}>;
+
 export class ValidationExpertService {
   constructor(
     private readonly options: {
@@ -90,6 +101,12 @@ export class ValidationExpertService {
       runners: ValidationRunnerRegistry;
       healthBaseUrl?: string;
       ursBaselineResolver?: UrsBaselineResolver;
+      /**
+       * NXD-119. Which products depend on a URS baseline and who created the
+       * versions bound to it, from the Product Composer. Absent or failing,
+       * the decision follows the GMP rule.
+       */
+      gmpClassifier?: GmpClassifier;
     },
   ) {}
 
@@ -632,75 +649,205 @@ export class ValidationExpertService {
     return (await this.options.repository.getRun(runId))!;
   }
 
-  // ── Validation Decision (Phase 5, P5-S1) ───────────────────────────────────
+  // ── Validation Decision (Phase 5, P5-S1; signatures since NXD-119) ────────
 
   /**
-   * Record the independent expert's verdict on a ValidationContext.
-   *
-   * **Segregation of Duties:** `actor` must not be the same person who created
-   * the ValidationContext. An expert cannot approve their own validation package.
-   *
-   * **Permission:** `validation.approve` — PLATFORM_ADMIN only.
-   *
-   * Only one decision is allowed per context. A context that already has a
-   * decision is closed and cannot be re-decided (conflicts with audit integrity).
+   * Where the decision on a context stands: the GMP classification of the
+   * products that depend on its baseline, the signatures so far, and which
+   * role may sign next.
    */
-  async createValidationDecision(
-    contextId: string,
-    request: CreateValidationDecisionRequest,
-    actor: string,
-  ): Promise<ValidationDecision> {
+  async getDecisionState(contextId: string): Promise<ValidationDecisionState> {
     const context = await this.options.repository.getContext(contextId);
     if (!context) {
       throw new NotFoundError(`Validation context ${contextId} not found`);
     }
+    const classification = await this.classify(context.source.baselineId);
+    const signatures = await this.options.repository.listSignatures(contextId);
+    const decision = await this.getValidationDecision(contextId);
+    return {
+      contextId,
+      gmpRelevant: classification.gmpRelevant,
+      products: classification.products,
+      ...(classification.error
+        ? { classificationError: classification.error }
+        : {}),
+      signatures,
+      progress: validationDecisionProgress(classification.gmpRelevant, signatures),
+      ...(decision ? { decision } : {}),
+    };
+  }
 
-    // Segregation of Duties: decider must differ from context creator.
-    if (context.createdBy && actor === context.createdBy) {
-      throw new InputError(
-        `Segregation of Duties violation: the same person cannot create and ` +
-          `approve a validation context. Actor "${actor}" created this context.`,
+  /**
+   * Record one electronic signature on a validation decision (NXD-119), and
+   * the decision itself once the rule is satisfied.
+   *
+   * The rule (GAMP 5, EU GMP Annex 11/15): when a GMP-relevant product depends
+   * on the baseline, the validation expert signs and then QA approves;
+   * otherwise one signature from either suffices. A rejection by either ends
+   * the decision.
+   *
+   * Checked in this order, all before anything is written:
+   * 1. the context exists and is not decided yet;
+   * 2. the signer holds the role they sign as;
+   * 3. Segregation of Duties — not the context's creator, not the creator of
+   *    a product version bound to the baseline, not already a signer here;
+   * 4. the rule allows this role now (QA does not sign before the expert);
+   * 5. a verdict and a justification;
+   * 6. the signer's PIN, last, so a refused signature costs no attempt.
+   *
+   * `signer.verifyPin` verifies the signer's own PIN in the URS Composer,
+   * where the platform's one signing credential and its lockout live.
+   */
+  async signValidationDecision(
+    contextId: string,
+    request: ValidationSignatureRequest,
+    signer: {
+      ref: string;
+      roles: readonly ValidationSignatureRole[];
+      verifyPin: (pin: string) => Promise<string>;
+    },
+  ): Promise<ValidationDecisionState> {
+    const context = await this.options.repository.getContext(contextId);
+    if (!context) {
+      throw new NotFoundError(`Validation context ${contextId} not found`);
+    }
+    if (await this.getValidationDecision(contextId)) {
+      throw new ConflictError(
+        `ValidationContext ${contextId} is already decided. A decision is not re-opened.`,
       );
     }
 
-    // One decision per context.
-    const existing = await this.options.repository.getDecisionByContextId(contextId);
-    if (existing) {
+    const role = String(request.role ?? '') as ValidationSignatureRole;
+    if (!(VALIDATION_SIGNATURE_ROLES as readonly string[]).includes(role)) {
       throw new InputError(
-        `ValidationContext ${contextId} already has a decision (${existing.status}). ` +
-          `A context cannot be re-decided once a decision has been recorded.`,
+        `Invalid role "${request.role}". Expected one of: ${VALIDATION_SIGNATURE_ROLES.join(', ')}`,
+      );
+    }
+    if (!signer.roles.includes(role)) {
+      throw new NotAllowedError(
+        `Signing as ${role} requires membership in ${
+          role === 'VALIDATION_EXPERT' ? 'validation-experts' : 'urs-quality-reviewers'
+        }.`,
       );
     }
 
-    const status = String(request.status ?? '').trim().toUpperCase();
-    if (!(VALIDATION_DECISION_STATUSES as readonly string[]).includes(status)) {
-      throw new InputError(
-        `Invalid decision status "${request.status}". ` +
-          `Expected one of: ${VALIDATION_DECISION_STATUSES.join(', ')}`,
+    const classification = await this.classify(context.source.baselineId);
+    const signatures = await this.options.repository.listSignatures(contextId);
+    if (context.createdBy && signer.ref === context.createdBy) {
+      throw new NotAllowedError(
+        'Segregation of Duties: the creator of a validation context cannot sign its decision.',
+      );
+    }
+    if (classification.versionCreators.includes(signer.ref)) {
+      throw new NotAllowedError(
+        'Segregation of Duties: the creator of a product version bound to this ' +
+          'baseline cannot sign its validation.',
+      );
+    }
+    if (signatures.some(s => s.signedBy === signer.ref)) {
+      throw new NotAllowedError(
+        'Segregation of Duties: one person signs a validation decision once. ' +
+          'The second signature must come from someone else.',
       );
     }
 
+    const progress = validationDecisionProgress(classification.gmpRelevant, signatures);
+    if (!progress.nextRoles.includes(role)) {
+      const why = classification.gmpRelevant
+        ? ' — for a GMP-relevant product the validation expert signs first, then QA.'
+        : '.';
+      throw new ConflictError(
+        `${role} cannot sign now. Next: ${progress.nextRoles.join(' or ') || 'nothing'}${why}`,
+      );
+    }
+
+    const verdict = String(request.verdict ?? '').toUpperCase();
+    if (verdict !== 'APPROVED' && verdict !== 'REJECTED') {
+      throw new InputError('verdict must be APPROVED or REJECTED.');
+    }
     const justification = String(request.justification ?? '').trim();
     if (!justification) {
-      throw new InputError('A justification is required for every Validation Decision.');
+      throw new InputError('A justification is required for every signature.');
+    }
+    if (!request.pin) {
+      throw new InputError('The signing PIN is required.');
     }
 
-    const decision: ValidationDecision = {
+    const reauthMethod = await signer.verifyPin(String(request.pin));
+
+    const signature: ValidationDecisionSignature = {
       id: randomUUID(),
       contextId,
-      status: status as ValidationDecisionStatus,
+      role,
+      verdict,
       justification,
-      conditions: request.conditions ? String(request.conditions).trim() || undefined : undefined,
-      decidedBy: actor,
-      decidedAt: new Date().toISOString(),
+      signedBy: signer.ref,
+      signedAt: new Date().toISOString(),
+      reauthMethod,
     };
+    await this.options.repository.addSignature(signature);
 
-    await this.options.repository.addDecision(decision);
-    return decision;
+    const all = [...signatures, signature];
+    const outcome = validationDecisionProgress(classification.gmpRelevant, all);
+    if (outcome.complete && outcome.status) {
+      await this.options.repository.addDecision({
+        id: randomUUID(),
+        contextId,
+        status: outcome.status,
+        justification,
+        decidedBy: signer.ref,
+        decidedAt: signature.signedAt,
+        gmpRule:
+          outcome.status === 'APPROVED' &&
+          all.some(s => s.role === 'VALIDATION_EXPERT' && s.verdict === 'APPROVED') &&
+          all.some(s => s.role === 'QUALITY_ASSURANCE' && s.verdict === 'APPROVED'),
+      });
+    }
+    return this.getDecisionState(contextId);
   }
 
   async getValidationDecision(contextId: string): Promise<ValidationDecision | undefined> {
-    return this.options.repository.getDecisionByContextId(contextId);
+    const decision = await this.options.repository.getDecisionByContextId(contextId);
+    if (!decision) {
+      return undefined;
+    }
+    return {
+      ...decision,
+      signatures: await this.options.repository.listSignatures(contextId),
+    };
+  }
+
+  private async classify(ursBaselineId: string): Promise<{
+    gmpRelevant: boolean;
+    products: ValidationGmpProduct[];
+    versionCreators: string[];
+    error?: string;
+  }> {
+    if (!this.options.gmpClassifier) {
+      return {
+        gmpRelevant: true,
+        products: [],
+        versionCreators: [],
+        error: 'No product classification is configured; the GMP rule applies.',
+      };
+    }
+    try {
+      const result = await this.options.gmpClassifier(ursBaselineId);
+      return {
+        gmpRelevant: baselineNeedsGmpRule(result.products),
+        products: result.products,
+        versionCreators: result.versionCreators,
+      };
+    } catch (error) {
+      return {
+        gmpRelevant: true,
+        products: [],
+        versionCreators: [],
+        error: `The product classification could not be read (${
+          error instanceof Error ? error.message : String(error)
+        }); the GMP rule applies.`,
+      };
+    }
   }
 }
 

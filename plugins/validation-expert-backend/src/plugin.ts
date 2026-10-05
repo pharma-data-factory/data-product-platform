@@ -15,6 +15,10 @@ import { createRouter } from './router';
 import { createDefaultRunnerRegistry } from './runners';
 import { ValidationExpertService } from './service';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
+import {
+  createHttpGmpClassifier,
+  createHttpPinVerifier,
+} from './decision-collaborators';
 
 type PersistenceMode = 'postgres' | 'file' | 'memory';
 
@@ -132,6 +136,7 @@ export const validationExpertPlugin = createBackendPlugin({
             discovery,
             auth,
           }),
+          gmpClassifier: createHttpGmpClassifier({ discovery, auth }),
         });
 
         httpRouter.use(
@@ -141,6 +146,7 @@ export const validationExpertPlugin = createBackendPlugin({
             userInfo,
             permissions,
             service,
+            pinVerifier: createHttpPinVerifier({ discovery, auth }),
           }),
         );
         httpRouter.addAuthPolicy({
