@@ -5,6 +5,169 @@ standard GitHub integration and the `publish:github` scaffolder action.
 
 Credentials are never committed.
 
+## Setup checklist — GitHub as a prerequisite
+
+The whole GitHub setup, in the order an administrator does it. Each step
+links to the detail further down. This page is also on the repository's
+GitHub page, so it can be read before Nexora runs.
+
+### 0. Decide what you need
+
+GitHub provides four things, each with its own credential. The portal runs
+without any of them; Guest sign-in needs no GitHub at all.
+
+| You want | You need | Steps |
+| --- | --- | --- |
+| People sign in with GitHub | OAuth App | 1, 5, 6 |
+| *Create* publishes repositories | GitHub App, installed on the organization | 2, 3, 5, 6 |
+| CI status on the product page | GitHub App with Actions read | 2 |
+| Team membership follows Nexora roles (NXD-108) | GitHub App with Members read & write, plus teams | 2, 4, 5 |
+
+**Prerequisites:**
+
+- A GitHub **organization**, for example `pharma-data-factory`. A GitHub App
+  cannot create repositories on a personal account.
+- **Owner** rights in that organization.
+
+### 1. OAuth App — sign-in
+
+1. GitHub → your **profile** Settings → Developer settings → **OAuth Apps** →
+   **New OAuth App**.
+2. Callback URL: `<backend URL>/api/auth/github/handler/frame`, for example
+   `http://localhost:7007/api/auth/github/handler/frame`. It is matched
+   exactly; register one per environment.
+3. Generate a client secret. GitHub shows it **once**.
+
+Field by field: [OAuth App settings](#oauth-app-settings-field-by-field).
+
+### 2. GitHub App — publishing, CI status, team sync
+
+1. Organization → **Settings** → Developer settings → **GitHub Apps** →
+   **New GitHub App**. If the App already exists, use **Edit** on it.
+2. Under **Permissions & events** set:
+
+   | Section | Permission | Access | Needed for |
+   | --- | --- | --- | --- |
+   | Repository | Administration | Read and write | *Create* makes the repository |
+   | Repository | Contents | Read and write | Pushing the generated source |
+   | Repository | Metadata | Read-only (mandatory) | — |
+   | Repository | Workflows | Read and write | Pushing `.github/workflows/ci.yml` |
+   | Repository | Actions | Read-only | CI status on the product page |
+   | **Organization** | **Members** | **Read and write** | Team sync only (NXD-108) |
+
+   **Organization permissions** is a separate, **collapsed** section below the
+   long repository list. Click its heading to open it, then set **Members**.
+   Leave everything else at *No access*.
+3. **Save changes**. GitHub asks whether to update the permissions; confirm.
+4. **Install** the App on the organization with **All repositories**, so
+   repositories *Create* makes later are covered too.
+5. **If the App was already installed, accept the new permissions.** A
+   permission change does nothing until the installation accepts it:
+   - Organization → **Settings** → *Integrations* → **GitHub Apps** →
+     **Configure** on the App.
+   - In the yellow notice, choose **Review request** → **Accept new
+     permissions**.
+   - The installation page must then list *members* under "Read and write
+     access".
+
+Detail: [GitHub App permissions](#github-app-permissions).
+
+### 3. Collect the App credentials
+
+On the App's settings page (**App settings** on the installation page):
+
+| Value | Where | `.env` key |
+| --- | --- | --- |
+| App ID | top of the page | `GITHUB_APP_ID` |
+| Client ID | top of the page | `GITHUB_CLIENT_ID` |
+| Client secret | **Generate a new client secret** — shown once | `GITHUB_CLIENT_SECRET` |
+| Private key | bottom, **Generate a private key** — downloads a `.pem` | `GITHUB_PRIVATE_KEY` |
+
+The private key goes into `.env` as **one line**, with `\n` for every line
+break, in double quotes. To convert the downloaded file:
+
+```bash
+awk 'NF {sub(/\r/, ""); printf "%s\\n", $0}' path/to/app.private-key.pem
+```
+
+Never paste the key into a ticket, a chat or a log.
+
+### 4. Teams — only for team sync
+
+1. Organization → **Teams** (top navigation, not Settings) → **New team**.
+   Create every team named in `users.githubTeamSync.teams` in
+   `app-config.github.yaml`. The shipped names are `nexora-developers`,
+   `nexora-owners` and `nexora-admins`. Nexora never creates teams.
+2. **GitHub adds you to each team you create.** That is harmless. On the
+   first run Nexora removes you from every team your Nexora role does not
+   map to. With the shipped mapping an administrator stays in all three.
+3. Give each team its repository rights: team → **Repositories** → **Add
+   repository**. For example:
+   - `nexora-developers`: Write
+   - `nexora-owners`: Maintain
+   - `nexora-admins`: Admin
+
+   Nexora decides who is in a team, not what the team may do. Repositories
+   *Create* makes later need these rights added too.
+
+Detail: [GitHub team sync](#optional-github-team-sync-nxd-108).
+
+### 5. Environment
+
+Development: `.env` in the repository root. Production: the Compose
+environment file (`deploy/portainer.env.example`). Leave out what you do not
+use. **Never write an empty value**: Backstage rejects `KEY=` but simply
+ignores a key that is absent.
+
+```bash
+# 1 — sign-in
+AUTH_GITHUB_CLIENT_ID=Ov23...
+AUTH_GITHUB_CLIENT_SECRET=...
+AUTH_GITHUB_CALLBACK_URL=http://localhost:7007/api/auth/github/handler/frame
+
+# 2/3 — GitHub App
+GITHUB_APP_ID=123456
+GITHUB_CLIENT_ID=Iv23...
+GITHUB_CLIENT_SECRET=...
+GITHUB_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n"
+GITHUB_ORG=pharma-data-factory         # where Create publishes and the teams live
+
+# 4 — team sync (off unless set)
+GITHUB_TEAM_SYNC_ENABLED=true
+
+# Production, first start only: your GitHub login becomes the first admin
+USERS_BOOTSTRAP_ADMIN=your-github-login
+```
+
+A GitHub login only proves who someone is. Their role comes from **Admin →
+Users & Roles**. Add each person there with their GitHub login, or they reach
+"Access not granted" ([identity-and-rbac.md](identity-and-rbac.md)).
+
+### 6. Start and verify
+
+`.env` is read once at start, so restart after every change.
+
+- **Production image:** loads `app-config.github.yaml` itself.
+- **Development:**
+
+  ```bash
+  yarn start:github
+  ```
+
+  This loads `app-config.yaml` and `app-config.github.yaml`. The `.env`
+  sign-in flags for Guest and test identities apply only to `yarn start`.
+
+Check, in this order:
+
+| Check | Expected | If not |
+| --- | --- | --- |
+| Sign in with GitHub | Portal opens | [Troubleshooting: sign-in](#troubleshooting-sign-in) |
+| *Create* → any Golden Path | No "cannot publish" warning before you start | App not installed, or credentials missing: [No token available](#troubleshooting-no-token-available) |
+| Run a Golden Path | Repository appears in the organization | Same as above |
+| Admin → Users & Roles (team sync on) | Banner *GitHub team sync — <org>*, a chip per team for each user | Log: `grep "GitHub team sync" /tmp/backstage.log` |
+| A team chip shows *error: forbidden* | — | Members permission missing, or not yet accepted on the installation (step 2.5) |
+| A team chip shows *error: not-found* | — | Team missing or misspelt (step 4) |
+
 ## What is already wired
 
 - `@backstage/plugin-scaffolder-backend-module-github`

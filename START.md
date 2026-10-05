@@ -135,8 +135,11 @@ GitHub sign-in additionally needs `AUTH_GITHUB_CLIENT_ID`,
 contains the workspace id, the registered URI goes stale whenever the
 workspace is recreated — Guest is the reliable path here.
 
-Which settings, and what each sign-in failure means:
-**[docs/github-setup.md](docs/github-setup.md)**. Read the troubleshooting
+The whole GitHub setup in order is the
+**[GitHub setup checklist](docs/github-setup.md#setup-checklist-github-as-a-prerequisite)**:
+OAuth App, GitHub App with its permissions, installation, credentials,
+teams, `.env` and verification. Which settings, and what each sign-in failure
+means: **[docs/github-setup.md](docs/github-setup.md)**. Read the troubleshooting
 section before debugging a failed login — the UI message is deliberately
 vague and the real cause is in the browser console.
 

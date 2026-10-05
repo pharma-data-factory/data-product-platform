@@ -265,6 +265,8 @@ function StatusPill({
 export interface PublicLandingProps {
   onSignIn?: () => void;
   error?: string;
+  /** `/install` when the public installation docs are on (NXD-114). */
+  installDocsHref?: string;
 }
 
 function signInButtonClass(variant: 'light' | 'hero' | 'primary'): string {
@@ -785,8 +787,10 @@ function FinalCta(props: PublicLandingProps) {
 
 export function LandingFooter({
   location = 'landing',
+  installDocsHref,
 }: {
   location?: LandingChromeLocation;
+  installDocsHref?: string;
 }) {
   const { t, locale } = useLandingI18n();
   const legalNav = legalNavCopy[locale];
@@ -818,6 +822,11 @@ export function LandingFooter({
             {t.footer.note}
           </p>
           <nav aria-label="Legal" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12 }}>
+            {installDocsHref ? (
+              <a href={installDocsHref} className="pdf-muted pdf-focus" style={{ textDecoration: 'none' }}>
+                {t.footer.installDocs}
+              </a>
+            ) : null}
             {LEGAL_NAV.map(item => (
               <a key={item.id} href={item.path} className="pdf-muted pdf-focus" style={{ textDecoration: 'none' }}>
                 {legalNav[item.id === 'open-source' ? 'openSource' : item.id]}
@@ -874,7 +883,7 @@ export function PublicLanding(props: PublicLandingProps) {
         <EnterpriseSection />
         <ProductEditions />
         <FinalCta {...props} onSignIn={startCreate} />
-        <LandingFooter />
+        <LandingFooter installDocsHref={props.installDocsHref} />
         <CookieConsentBanner />
       </main>
     </LandingI18nProvider>

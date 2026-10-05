@@ -164,6 +164,8 @@ export interface LandingCopy {
   footer: {
     tagline: string;
     note: string;
+    /** Link to the public installation docs (NXD-114). */
+    installDocs: string;
   };
   overview: {
     eyebrow: string;
@@ -528,6 +530,7 @@ const en: LandingCopy = {
   footer: {
     tagline: `${PLATFORM_POSITIONING}. Technical certification is platform status only. It is not GxP or regulatory validation.`,
     note: 'Single-organization Control Plane. SaaS multi-tenancy is future.',
+    installDocs: 'Installation & setup',
   },
   overview: {
     eyebrow: 'FROM PRINCIPLE TO ARCHITECTURE',
@@ -1197,6 +1200,7 @@ const de: LandingCopy = {
     tagline:
       'DIE OFFENE MANUFACTURING-PLATTFORM FÜR LIFE SCIENCES. Technische Zertifizierung ist nur Plattformstatus. Sie ist keine GxP- oder regulatorische Validierung.',
     note: 'Control Plane für eine Organisation. SaaS-Mandantenfähigkeit ist Zukunft.',
+    installDocs: 'Installation & Einrichtung',
   },
   overview: {
     eyebrow: 'VOM PRINZIP ZUR ARCHITEKTUR',

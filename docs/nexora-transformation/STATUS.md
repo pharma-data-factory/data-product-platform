@@ -117,6 +117,16 @@ four quick wins F1–F4, one commit and one record each.
 - **A group may map to several GitHub teams.** `platform-admins` is now in
   `nexora-admins`, `nexora-developers` and `nexora-owners`. Repository
   rights are set on the teams in GitHub. See [`NXD-112`](DECISIONS.md).
+- **GitHub setup as one checklist.** `docs/github-setup.md` opens with the
+  full GitHub prerequisite setup in order: OAuth App, GitHub App permissions
+  (including the collapsed Members setting), installation acceptance,
+  credentials, teams, `.env`, verification. Linked from README and
+  `START.md`. See [`NXD-113`](DECISIONS.md).
+- **Installation docs before sign-in.** `/install` on the landing page shows
+  six curated setup documents without sign-in, bundled at build time and
+  linked from the footer and the login view. `NEXORA_PUBLIC_DOCS=false`
+  hides it. Audits, strategy and decision records stay behind sign-in. See
+  [`NXD-114`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

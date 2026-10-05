@@ -65,8 +65,34 @@ Behind a remote gateway (Ona, Gitpod, Codespaces) the split 3000/7007 layout
 of topology 3 cannot sign you in; use the single-origin mode in
 [Remote gateways](#remote-gateways-ona-gitpod-codespaces).
 
+**GitHub is a prerequisite for sign-in, publishing and team sync, not for
+running the portal.** Set it up before go-live, in order:
+
+1. OAuth App
+2. GitHub App: permissions, installation, accepting changed permissions
+3. Credentials
+4. Teams
+5. Environment variables
+6. Verification
+
+Step by step: **[GitHub setup checklist](docs/github-setup.md#setup-checklist-github-as-a-prerequisite)**.
+
 Step-by-step procedures, variables and troubleshooting for each topology:
 **[START.md](START.md)**.
+
+**In the running portal** the same installation documents are at
+**`/install`**, readable without signing in. The landing page footer and the
+login view link there:
+
+- this section,
+- `START.md`,
+- the GitHub setup checklist,
+- users and roles,
+- Docker production,
+- Portainer.
+
+`NEXORA_PUBLIC_DOCS=false` hides the page and the links. The complete
+documentation stays in the portal behind sign-in.
 
 ### How the parts connect
 
@@ -110,8 +136,10 @@ Three things this picture is meant to make obvious:
   the target organization (`GITHUB_ORG`, default `pharma-data-factory`).
   `GITHUB_TOKEN` is an optional personal-token fallback for catalog reads and
   the CI Quality Gate. Without any of them the portal still runs; only sign-in,
-  publishing and CI status are missing. Setup: [GitHub setup](#github-setup),
-  [docs/github-setup.md](docs/github-setup.md).
+  publishing and CI status are missing. Setup, step by step:
+  [GitHub setup checklist](docs/github-setup.md#setup-checklist-github-as-a-prerequisite).
+  With team sync (NXD-108) the GitHub App also keeps team membership in step
+  with Nexora roles.
 - **A GitHub login is not access.** Sign-in proves identity; the role comes
   from the Nexora user record (`/admin/users`, stored in PostgreSQL). An unknown
   login authenticates and lands on "Access not granted". On a fresh production
@@ -554,21 +582,21 @@ values marked below.
 
 **What each file is for**
 
-| File                               | Purpose                                                                                              | What you set                                                                                                                                                      | Production |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `app-config.yaml`                  | Base for every environment: PostgreSQL, GitHub login, catalog, plugins, commercial defaults          | Env: `BACKEND_SECRET`, `POSTGRES_*`, `AUTH_GITHUB_*`, optional `GITHUB_TOKEN`, AI keys, `GITHUB_ORG` — the GitHub org Create publishes into | Base       |
-| `app-config.local.yaml`            | Local developer overrides; contains a fixed dev auth key                                             | Optional `COMPOSER_AI_KEY`                                                                                                                                        | No         |
-| `app-config.guest.yaml`            | Adds **Continue as Guest** (read-only VIEWER)                                                        | Nothing — switched on by `AUTH_GUEST_ENABLED=true`                                                                                                                | No         |
-| `app-config.guest-developer.yaml`  | Raises Guest to DEVELOPER (scaffold, create, URS authoring; never approval)                          | Nothing — `AUTH_GUEST_ROLE=developer`                                                                                                                             | No         |
-| `app-config.demo.yaml`             | **Test system:** one sign-in per approval role — author, business reviewer, product manager, quality | Nothing — `AUTH_DEMO_ENABLED=true`. Refused under `auth.environment: production`                                                                                  | No         |
-| `app-config.github.yaml`           | GitHub App for publishing generated repositories                                                     | `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`, optional `GITHUB_WEBHOOK_SECRET`; optional `GITHUB_TEAM_SYNC_ENABLED` (team sync, NXD-108)                                               | **Yes**    |
-| `app-config.production.yaml`       | Hosted profile: production auth (Catalog users only, no Guest), permissions on, rate limit           | `APP_BASE_URL`, `BACKEND_BASE_URL`, `AUTH_GITHUB_CALLBACK_URL`, optional `NEXORA_PROVENANCE_TOKEN`. `USERS_BOOTSTRAP_ADMIN` for the first admin                   | **Yes**    |
-| `app-config.docker-local.yaml`     | Guest-only override for the local Compose stack                                                      | Nothing                                                                                                                                                           | No         |
-| `app-config.docker.yaml`           | Profile for the root `Dockerfile` dev image                                                          | `POSTGRES_*`, `AUTH_GITHUB_*` — nothing in Compose or CI uses it                                                                                                  | No         |
-| `app-config.memory.yaml`           | Run without any database; the file lists what you give up                                            | Nothing — add it by hand                                                                                                                                          | No         |
-| `app-config.marketplace-test.yaml` | AWS Marketplace **test** entitlements instead of local ones                                          | `AWS_MARKETPLACE_REGION`, `AWS_MARKETPLACE_PRODUCT_CODE`, `AWS_MARKETPLACE_LINK_STORE_PATH`, `LEGAL_DISTRIBUTION_STATUS`                                               | No         |
-| `app-config.e2e.yaml`              | Backend serves the built frontend for Playwright; layered on `.demo`                                 | `POSTGRES_*`                                                                                                                                                      | No         |
-| `app-config.service-token.yaml`    | Static local service-principal token for API experiments                                             | Nothing                                                                                                                                                           | Never      |
+| File                               | Purpose                                                                                              | What you set                                                                                                                                                                  | Production |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `app-config.yaml`                  | Base for every environment: PostgreSQL, GitHub login, catalog, plugins, commercial defaults          | Env: `BACKEND_SECRET`, `POSTGRES_*`, `AUTH_GITHUB_*`, optional `GITHUB_TOKEN`, AI keys, `GITHUB_ORG` — the GitHub org Create publishes into                                   | Base       |
+| `app-config.local.yaml`            | Local developer overrides; contains a fixed dev auth key                                             | Optional `COMPOSER_AI_KEY`                                                                                                                                                    | No         |
+| `app-config.guest.yaml`            | Adds **Continue as Guest** (read-only VIEWER)                                                        | Nothing — switched on by `AUTH_GUEST_ENABLED=true`                                                                                                                            | No         |
+| `app-config.guest-developer.yaml`  | Raises Guest to DEVELOPER (scaffold, create, URS authoring; never approval)                          | Nothing — `AUTH_GUEST_ROLE=developer`                                                                                                                                         | No         |
+| `app-config.demo.yaml`             | **Test system:** one sign-in per approval role — author, business reviewer, product manager, quality | Nothing — `AUTH_DEMO_ENABLED=true`. Refused under `auth.environment: production`                                                                                              | No         |
+| `app-config.github.yaml`           | GitHub App for publishing generated repositories                                                     | `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`, optional `GITHUB_WEBHOOK_SECRET`; optional `GITHUB_TEAM_SYNC_ENABLED` (team sync, NXD-108) | **Yes**    |
+| `app-config.production.yaml`       | Hosted profile: production auth (Catalog users only, no Guest), permissions on, rate limit           | `APP_BASE_URL`, `BACKEND_BASE_URL`, `AUTH_GITHUB_CALLBACK_URL`, optional `NEXORA_PROVENANCE_TOKEN`. `USERS_BOOTSTRAP_ADMIN` for the first admin                               | **Yes**    |
+| `app-config.docker-local.yaml`     | Guest-only override for the local Compose stack                                                      | Nothing                                                                                                                                                                       | No         |
+| `app-config.docker.yaml`           | Profile for the root `Dockerfile` dev image                                                          | `POSTGRES_*`, `AUTH_GITHUB_*` — nothing in Compose or CI uses it                                                                                                              | No         |
+| `app-config.memory.yaml`           | Run without any database; the file lists what you give up                                            | Nothing — add it by hand                                                                                                                                                      | No         |
+| `app-config.marketplace-test.yaml` | AWS Marketplace **test** entitlements instead of local ones                                          | `AWS_MARKETPLACE_REGION`, `AWS_MARKETPLACE_PRODUCT_CODE`, `AWS_MARKETPLACE_LINK_STORE_PATH`, `LEGAL_DISTRIBUTION_STATUS`                                                      | No         |
+| `app-config.e2e.yaml`              | Backend serves the built frontend for Playwright; layered on `.demo`                                 | `POSTGRES_*`                                                                                                                                                                  | No         |
+| `app-config.service-token.yaml`    | Static local service-principal token for API experiments                                             | Nothing                                                                                                                                                                       | Never      |
 
 **Other root files an administrator meets**
 

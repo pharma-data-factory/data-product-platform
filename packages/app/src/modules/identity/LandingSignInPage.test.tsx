@@ -92,6 +92,40 @@ function renderLanding(
 }
 
 describe('LandingSignInPage', () => {
+  describe('public installation docs (NXD-114)', () => {
+    const base = {
+      auth: {
+        environment: 'development',
+        providers: { github: { development: { clientId: 'oauth-client' } } },
+      },
+    };
+
+    it('links them from the footer and from the login view by default', () => {
+      renderLanding(base);
+      const footerLink = screen.getByRole('link', {
+        name: 'Installation & setup',
+      });
+      expect(footerLink.getAttribute('href')).toBe('/install');
+
+      fireEvent.click(screen.getAllByText('Sign In')[0]);
+      expect(
+        screen.getByText(/Sign-in not set up yet\?/).querySelector('a'),
+      ).toHaveAttribute('href', '/install');
+    });
+
+    it('hides every link when the instance switches them off', () => {
+      renderLanding({ ...base, nexora: { publicDocs: { enabled: false } } });
+      expect(
+        screen.queryByRole('link', { name: 'Installation & setup' }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getAllByText('Sign In')[0]);
+      expect(
+        screen.queryByText(/Sign-in not set up yet\?/),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the public landing when unauthenticated', () => {
     renderLanding({
       auth: {

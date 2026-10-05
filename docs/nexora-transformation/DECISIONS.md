@@ -6050,3 +6050,109 @@ the first run would have taken them out of `nexora-developers` and
 - Affected components: `plugins/users-backend/src/{githubTeamSync.ts,teamReconciler.ts,teamSyncController.ts}`
   (+ tests), `packages/app/src/modules/admin/GithubSyncStatus.tsx` (type),
   `app-config.github.yaml`, `docs/github-setup.md`.
+
+### NXD-113 — The GitHub setup is one checklist, in the order an administrator does it
+
+- Date: 2026-10-02
+- Slice: documentation — found during the first live setup of team sync
+
+The facts were in `docs/github-setup.md`, but spread across sections written
+at different times, and three steps of the first live setup were not in it
+at all:
+
+- **Organization permissions is collapsed.** The section sits below the long
+  repository list and shows only its heading. *Members* was not findable
+  from "set Members: Read and write".
+- **A permission change must be accepted on the installation.** Until then
+  it does nothing (Org Settings → Integrations → GitHub Apps → Configure →
+  Review request).
+- **GitHub adds a team's creator to the team.** The first run then takes
+  that person out of every team their role does not map to.
+
+**Decision.** `docs/github-setup.md` opens with *Setup checklist — GitHub as
+a prerequisite*:
+
+0. Decide what you need: which credential serves sign-in, publishing,
+   CI status and team sync.
+1. OAuth App.
+2. GitHub App: the full permission table, including Actions and the
+   collapsed Members setting; installation; accepting changed permissions.
+3. Collecting the credentials, with the one-line private-key conversion.
+4. Teams, and their repository rights.
+5. The complete `.env` block.
+6. Start, then a verification table that maps each symptom to its cause.
+
+The existing sections stay as the reference the checklist links into.
+The file is in the TechDocs nav, so the same page is in-app help when the
+portal runs and readable on GitHub when it does not. The README installation
+section and `START.md` link to the checklist.
+
+- Affected components: `docs/github-setup.md`, `README.md`, `START.md`.
+
+### NXD-114 — The installation docs are readable on the landing page, before sign-in
+
+- Date: 2026-10-02
+- Slice: frontend — asked for after the GitHub setup checklist (NXD-113)
+
+**Context.** The documents an administrator needs to make sign-in work were
+reachable only after sign-in: TechDocs is behind authentication, and the
+landing page linked no documentation. The repository's GitHub page helps
+only someone with access to a private repository.
+
+**Decision.** `/install` on the landing page shows a **curated set** of six
+documents without signing in. It follows the same pattern as the public legal
+pages, in the same chrome:
+
+- the README section *Installation for administrators*;
+- `START.md`;
+- `docs/github-setup.md`;
+- `docs/identity-and-rbac.md`;
+- `docs/deployment/docker-production.md`;
+- `docs/deployment/portainer.md`.
+
+The landing page footer and the login view ("Sign-in not set up yet?") link
+there. `nexora.publicDocs.enabled` (`NEXORA_PUBLIC_DOCS`, default on) hides
+page and links on an instance that must show nothing publicly.
+
+**Not the whole tree.** The repository also holds audits, commercial
+strategy and decision records, and those stay behind sign-in. A test refuses
+any public path under `audits`, `nexora-transformation`, `commercial`,
+`strategy` or `archive`.
+
+**How the content gets there.** The Backstage bundler emits an imported
+`.md` as a static asset. The page fetches it, and static assets need no
+authentication, so it works:
+
+- without a backend route;
+- without a database;
+- without GitHub;
+- without shipping README.md or START.md in the image.
+
+The imports reach outside `packages/app`, against
+`@backstage/no-relative-monorepo-imports`. The exception is stated at the
+import: one copy of each document beats a second, drifting copy, and the
+private app package is always built inside the monorepo. A production build
+emitted all six files. The loader is a dynamic import, so the landing page
+does not load them until someone opens one.
+
+**Links.** Documents are written for GitHub, so every link is resolved
+before it is rendered:
+
+- A GitHub-style `#anchor` maps to the id Backstage's MarkdownContent
+  renders. They differ for any heading with punctuation.
+- A relative link to another public document goes to its `/install/<slug>`
+  page.
+- Any other repository file goes to `nexora.publicDocs.repositoryUrl` when
+  that is set. Otherwise the link is dropped and its text stays, which beats
+  a link into a page the reader cannot open.
+
+A test checks that every document still exists and that the README heading
+the section is cut from is still there.
+
+**Not changed, named.** Mermaid diagrams appear as source, with a note. The
+page exists only before sign-in, like the legal pages; signed-in users have
+TechDocs.
+
+- Affected components: `packages/app/src/modules/publicDocs/*` (new),
+  `packages/app/src/modules/identity/{LandingSignInPage,LoginPage,PublicLanding,landingI18n}.tsx`,
+  `packages/app/config.d.ts`, `app-config.yaml`, `.env.example`, `README.md`.

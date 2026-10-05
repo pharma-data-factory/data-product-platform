@@ -38,6 +38,12 @@ import { LoginPage } from './LoginPage';
 import { PublicLanding } from './PublicLanding';
 import { isPublicEcosystemPath } from '../ecosystem/constants';
 import { EcosystemPage } from '../ecosystem/EcosystemPage';
+import {
+  isPublicDocsPath,
+  PUBLIC_DOCS_PATH,
+  publicDocsEnabled,
+} from '../publicDocs/constants';
+import { PublicDocsPage } from '../publicDocs/PublicDocsPage';
 
 function isModelCompanyPath(pathname: string): boolean {
   return (
@@ -87,6 +93,11 @@ export function LandingSignInPage(props: SignInPageProps) {
     environment !== 'production' &&
     configApi.getOptional('auth.providers.guest') !== undefined;
   const githubConfigured = Boolean(readGithubOAuthClientId(configApi));
+  // NXD-114. The installation docs are readable before sign-in, and linked
+  // from the footer and the login view, unless the instance switches them off.
+  const installDocsHref = publicDocsEnabled(configApi)
+    ? PUBLIC_DOCS_PATH
+    : undefined;
   const demoUsers =
     environment !== 'production'
       ? configApi.getOptionalStringArray('auth.providers.demo.users') ?? []
@@ -249,6 +260,7 @@ export function LandingSignInPage(props: SignInPageProps) {
         onDemoSignIn={demoUsers.length > 0 ? onDemoSignIn : undefined}
         onBack={returnToLanding}
         error={error}
+        installDocsHref={installDocsHref}
       />
     );
   }
@@ -295,5 +307,17 @@ export function LandingSignInPage(props: SignInPageProps) {
     );
   }
 
-  return <PublicLanding onSignIn={openLogin} />;
+  if (installDocsHref && isPublicDocsPath(window.location.pathname)) {
+    return (
+      <PublicDocsPage
+        pathname={window.location.pathname}
+        onSignIn={openLogin}
+        repositoryUrl={configApi.getOptionalString(
+          'nexora.publicDocs.repositoryUrl',
+        )}
+      />
+    );
+  }
+
+  return <PublicLanding onSignIn={openLogin} installDocsHref={installDocsHref} />;
 }

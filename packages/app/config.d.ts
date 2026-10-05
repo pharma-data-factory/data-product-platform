@@ -56,4 +56,25 @@ export interface Config {
       };
     };
   };
+  nexora?: {
+    /**
+     * Installation and setup documentation readable without signing in, at
+     * `/install` on the landing page (NXD-114). On by default; an instance
+     * that must show nothing publicly sets `NEXORA_PUBLIC_DOCS=false`.
+     */
+    publicDocs?: {
+      /**
+       * Show the public installation docs and the landing page link to them.
+       * @visibility frontend
+       */
+      enabled?: boolean;
+      /**
+       * Optional `https://github.com/<org>/<repo>/blob/<branch>`. Links in
+       * the public docs to files outside the public set go there; without
+       * it they are shown as plain text.
+       * @visibility frontend
+       */
+      repositoryUrl?: string;
+    };
+  };
 }

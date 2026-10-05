@@ -21,6 +21,11 @@ export interface LoginPageProps {
   onDemoSignIn?: (userName: string) => void;
   onBack?: () => void;
   error?: string;
+  /**
+   * `/install` when the public installation docs are on (NXD-114). Shown
+   * here because a failing or unconfigured sign-in is when they are needed.
+   */
+  installDocsHref?: string;
 }
 
 export function LoginPage({
@@ -31,6 +36,7 @@ export function LoginPage({
   onDemoSignIn,
   onBack,
   error,
+  installDocsHref,
 }: LoginPageProps) {
   return (
     <main
@@ -219,6 +225,22 @@ export function LoginPage({
             }}
           >
             {error}
+          </p>
+        )}
+
+        {installDocsHref && (
+          <p
+            style={{
+              margin: '24px 0 0',
+              textAlign: 'center',
+              fontSize: 13,
+              color: C.muted,
+            }}
+          >
+            Sign-in not set up yet?{' '}
+            <a href={installDocsHref} style={{ color: C.muted }}>
+              Installation &amp; setup
+            </a>
           </p>
         )}
 

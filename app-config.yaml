@@ -282,6 +282,16 @@ rbac:
 # Nexora industrial providers. mock uses in-memory fixtures for local
 # development. Remote base URLs are server-side only. Never put credentials here.
 nexora:
+  # NXD-114. The installation and setup docs (README installation section,
+  # START.md, GitHub setup, users and roles, Docker production, Portainer) at
+  # /install on the landing page, readable without signing in — because the
+  # person who needs them is often the one whose sign-in does not work yet.
+  # NEXORA_PUBLIC_DOCS=false hides page and link. Set repositoryUrl to send
+  # links to other repository files to GitHub instead of showing plain text.
+  publicDocs:
+    enabled: ${NEXORA_PUBLIC_DOCS:-true}
+    # repositoryUrl: https://github.com/<org>/<repo>/blob/main
+
   # Where scaffolded product repositories are published.
   #
   # This was written into seven templates as a literal, four times each, plus
