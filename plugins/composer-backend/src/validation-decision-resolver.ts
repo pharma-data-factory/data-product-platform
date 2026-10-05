@@ -108,12 +108,12 @@ export function createHttpValidationDecisionResolver(options: {
     return context;
   }
 
-  async function readDecisionApproved(
+  async function readDecisionApproval(
     base: string,
     headers: Record<string, string>,
     contextId: string,
     baselineId: string,
-  ): Promise<boolean> {
+  ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'> {
     const decisionRes = await doFetch(
       `${base}/contexts/${encodeURIComponent(contextId)}/decision`,
       { headers },
@@ -127,38 +127,48 @@ export function createHttpValidationDecisionResolver(options: {
             `${baselineId} as having no approved decision.`,
         );
       }
-      return false;
+      return 'NONE';
     }
-    const decision = (await decisionRes.json()) as { status?: string };
-    return decision.status === 'APPROVED';
+    const decision = (await decisionRes.json()) as {
+      status?: string;
+      gmpRule?: boolean;
+    };
+    if (decision.status !== 'APPROVED') {
+      return 'NONE';
+    }
+    return decision.gmpRule === true ? 'APPROVED_GMP' : 'APPROVED';
   }
 
-  return {
-    async hasApprovedDecision(baselineId: string): Promise<boolean> {
-      try {
-        const base = await options.discovery.getBaseUrl('validation-expert');
-        const headers = await getAuthHeaders();
+  const getDecisionApproval = async (
+    baselineId: string,
+  ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'> => {
+    try {
+      const base = await options.discovery.getBaseUrl('validation-expert');
+      const headers = await getAuthHeaders();
 
-        const context = await findContext(base, headers, baselineId);
-        if (!context) {
-          return false;
-        }
-        return await readDecisionApproved(
-          base,
-          headers,
-          context.id,
-          baselineId,
-        );
-      } catch (error) {
-        // Network or parse failure → treat as "not approved".
-        options.logger?.warn(
-          `Could not resolve a ValidationDecision for URS baseline ` +
-            `${baselineId}: ` +
-            `${error instanceof Error ? error.message : String(error)}. ` +
-            `The release gate will report no approved decision.`,
-        );
-        return false;
+      const context = await findContext(base, headers, baselineId);
+      if (!context) {
+        return 'NONE';
       }
+      return await readDecisionApproval(base, headers, context.id, baselineId);
+    } catch (error) {
+      // Network or parse failure → treat as "not approved".
+      options.logger?.warn(
+        `Could not resolve a ValidationDecision for URS baseline ` +
+          `${baselineId}: ` +
+          `${error instanceof Error ? error.message : String(error)}. ` +
+          `The release gate will report no approved decision.`,
+      );
+      return 'NONE';
+    }
+  };
+
+  return {
+    getDecisionApproval,
+
+    async hasApprovedDecision(baselineId: string): Promise<boolean> {
+      // getDecisionApproval never throws: a failed lookup is "not approved".
+      return (await getDecisionApproval(baselineId)) !== 'NONE';
     },
 
     /**
@@ -222,12 +232,9 @@ export function createHttpValidationDecisionResolver(options: {
 
         return {
           contextId: context.id,
-          decisionApproved: await readDecisionApproved(
-            base,
-            headers,
-            context.id,
-            baselineId,
-          ),
+          decisionApproved:
+            (await readDecisionApproval(base, headers, context.id, baselineId)) !==
+            'NONE',
           byRequirement,
         };
       } catch (error) {

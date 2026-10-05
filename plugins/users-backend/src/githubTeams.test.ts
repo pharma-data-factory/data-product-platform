@@ -67,6 +67,18 @@ describe('createGithubTeamsClient', () => {
     expect(init.headers['X-GitHub-Api-Version']).toBe('2022-11-28');
   });
 
+  it('lists the members of the organization (NXD-116)', async () => {
+    const fetchFn = jest.fn(async () =>
+      jsonResponse(200, [{ login: 'schmeckm' }, { login: 'New-Hire' }]),
+    );
+    const result = await client(fetchFn).listOrgMembers();
+
+    expect(result).toEqual({ ok: true, value: ['schmeckm', 'new-hire'] });
+    expect(call(fetchFn)[0]).toBe(
+      'https://api.github.com/orgs/pharma-data-factory/members?per_page=100&page=1',
+    );
+  });
+
   it('follows pages until a short one', async () => {
     const full = Array.from({ length: 100 }, (_, i) => ({ login: `user${i}` }));
     const fetchFn = jest

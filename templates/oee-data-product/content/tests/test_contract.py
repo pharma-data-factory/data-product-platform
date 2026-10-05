@@ -1,5 +1,10 @@
+import pytest
+
 from app.contract import contract_file
 from dataprod.contracts import load_json_schema, validate_against_schema
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-004")
 
 VALID_COUNT = {
     "eventId": "8c1e0b2a-4d3f-4a1e-9c0b-1f2e3d4c5b6a",

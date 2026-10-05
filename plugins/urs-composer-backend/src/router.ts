@@ -1202,6 +1202,29 @@ export async function createRouter(
   });
 
   /**
+   * POST /signing-pin/verify
+   * Verify the caller's own signing PIN (NXD-119).
+   *
+   * Called by the Validation Expert, on behalf of the person signing a
+   * validation decision, so that the platform has one signing credential and
+   * one lockout. Only ever the caller's own PIN: the user comes from the
+   * token, never from the body. Answers which second factor was verified.
+   */
+  router.post('/signing-pin/verify', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      const { pin } = req.body as { pin?: string };
+      if (!pin) {
+        res.status(400).json({ error: 'pin is required' });
+        return;
+      }
+      res.json({ verified: true, method: await service.verifySigningPin(actor, pin) });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * GET /approval-roles/me
    * The caller's own approval roles, resolved exactly as a step approval
    * resolves them.

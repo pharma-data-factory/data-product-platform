@@ -62,6 +62,7 @@ import {
   type JsonSchemaLike,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
+import type { CiEvidenceClient } from './ci-evidence-client';
 import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
@@ -121,6 +122,15 @@ export interface ValidationDecisionResolver {
    * or when the decision status is CONDITIONAL or REJECTED.
    */
   hasApprovedDecision(baselineId: string): Promise<boolean>;
+  /**
+   * NXD-119. `APPROVED_GMP` when the decision carries the validation expert's
+   * and QA's approval, `APPROVED` when it was approved under the
+   * one-signature rule, `NONE` otherwise. Optional so existing resolver
+   * doubles keep compiling; the gate falls back to `hasApprovedDecision`.
+   */
+  getDecisionApproval?(
+    baselineId: string,
+  ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'>;
   /**
    * Per-requirement validation coverage for a URS baseline, or `undefined`
    * when no context could be resolved.
@@ -258,11 +268,25 @@ export interface ComposerServiceOptions {
    * Used by the release gate to check product-declared policy obligations (5-R1).
    */
   policyResolverClient?: PolicyResolverClient;
+  /** NXD-123. Test evidence from a product repository's CI. */
+  ciEvidenceClient?: CiEvidenceClient;
   /**
    * Shared SSE client registry. Injected by the router so upgrade notifications
    * can push events to connected consumers without any property bag tricks.
    */
   sseClients?: Map<string, Set<{ write(s: string): void }>>;
+}
+
+/**
+ * A value for a varchar(255) column, kept unique: longer values are cut and
+ * given a hash of the whole, so two long test ids never collapse into one.
+ */
+function fitColumn(value: string, max = 255): string {
+  if (value.length <= max) {
+    return value;
+  }
+  const hash = createHash('sha256').update(value).digest('hex').slice(0, 12);
+  return `${value.slice(0, max - 13)}#${hash}`;
 }
 
 export class ComposerService {
@@ -273,6 +297,7 @@ export class ComposerService {
   private readonly catalogLoader?: CatalogComponentLoader;
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly policyResolverClient?: PolicyResolverClient;
+  private readonly ciEvidenceClient?: CiEvidenceClient;
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
 
   constructor(options: ComposerServiceOptions) {
@@ -283,6 +308,7 @@ export class ComposerService {
     this.catalogLoader = options.catalogLoader;
     this.validationDecisionResolver = options.validationDecisionResolver;
     this.policyResolverClient = options.policyResolverClient;
+    this.ciEvidenceClient = options.ciEvidenceClient;
     this.sseClients = options.sseClients ?? new Map();
   }
 
@@ -400,6 +426,107 @@ export class ComposerService {
 
   async getProduct(id: string): Promise<Product | null> {
     return this.repository.getProduct(id);
+  }
+
+  /**
+   * The products whose versions are bound to a URS baseline, with their GxP
+   * relevance, and who created those versions (NXD-119).
+   *
+   * The Validation Expert decides from this which signatures a decision on the
+   * baseline needs (validation expert and QA when any is GMP-relevant), and
+   * keeps a version's creator from signing the validation of it.
+   */
+  async getUrsBaselineGmpClassification(ursBaselineId: string): Promise<{
+    ursBaselineId: string;
+    products: Array<{ id: string; name: string; gxpRelevance?: string }>;
+    versionCreators: string[];
+    /** NXD-124: the versions bound, so a review can name the one it checks. */
+    versions: Array<{
+      id: string;
+      productId: string;
+      productName: string;
+      version: string;
+      status: string;
+    }>;
+  }> {
+    const versions =
+      await this.repository.listProductVersionsForUrsBaseline(ursBaselineId);
+    const products = [];
+    for (const productId of new Set(versions.map(v => v.productId))) {
+      const product = await this.repository.getProduct(productId);
+      if (product) {
+        products.push({
+          id: product.id,
+          name: product.name,
+          gxpRelevance: product.gxpRelevance,
+        });
+      }
+    }
+    const nameOf = new Map(products.map(p => [p.id, p.name]));
+    return {
+      ursBaselineId,
+      products,
+      versionCreators: [
+        ...new Set(versions.map(v => v.createdBy).filter(Boolean)),
+      ],
+      versions: versions.map(v => ({
+        id: v.id,
+        productId: v.productId,
+        productName: nameOf.get(v.productId) ?? v.productId,
+        version: v.version,
+        status: v.status,
+      })),
+    };
+  }
+
+  /**
+   * The test evidence recorded for a version, per bound requirement: the
+   * newest execution of each test case (NXD-124). The Validation Expert's
+   * product evidence review reads this; it is what "verified" means here.
+   */
+  async getVersionTestEvidence(productVersionId: string): Promise<{
+    productVersionId: string;
+    productName: string;
+    version: string;
+    ursBaselineId?: string;
+    requirements: Array<{
+      requirementRef: string;
+      executions: Array<{
+        testSuite: string;
+        testCase: string;
+        status: string;
+        executedAt: string;
+        executionArtifactUrl?: string;
+      }>;
+    }>;
+  }> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    const requirements = await this.repository.listProductRequirements(productVersionId);
+    const executions = await this.repository.listTestExecutions(
+      requirements.map(r => r.ursRequirementVersionId),
+    );
+    return {
+      productVersionId,
+      productName: product?.name ?? version.productId,
+      version: version.version,
+      ursBaselineId: version.ursBaselineId,
+      requirements: requirements.map(r => ({
+        requirementRef: r.requirementRef,
+        executions: latestExecutionPerCase(
+          executions.filter(e => e.requirementVersionId === r.ursRequirementVersionId),
+        ).map(e => ({
+          testSuite: e.testSuite,
+          testCase: e.testCase,
+          status: e.status,
+          executedAt: new Date(e.executedAt).toISOString(),
+          executionArtifactUrl: e.executionArtifactUrl,
+        })),
+      })),
+    };
   }
 
   /** The product that claims a Catalog entity, or null. Step 2. */
@@ -1787,9 +1914,34 @@ export class ComposerService {
       product &&
       ursBaselineIds.length > 0
     ) {
+      // NXD-119. A GMP-relevant product (anything but an explicit NONE) needs
+      // a decision under the GMP rule: the validation expert's and QA's
+      // signatures. Otherwise a product could ride on a baseline that was
+      // approved with one signature while no GMP product depended on it.
+      const gmpProduct = product.gxpRelevance !== 'NONE';
       for (const ursId of ursBaselineIds) {
         try {
-          const approved = await this.validationDecisionResolver.hasApprovedDecision(ursId);
+          const resolver = this.validationDecisionResolver;
+          // A resolver without getDecisionApproval predates NXD-119; its
+          // approval is taken as complete, as it was before.
+          let approval: 'APPROVED_GMP' | 'APPROVED' | 'NONE';
+          if (resolver.getDecisionApproval) {
+            approval = await resolver.getDecisionApproval(ursId);
+          } else {
+            approval = (await resolver.hasApprovedDecision(ursId))
+              ? 'APPROVED_GMP'
+              : 'NONE';
+          }
+          const approved = approval !== 'NONE';
+          if (approved && gmpProduct && approval !== 'APPROVED_GMP') {
+            blockers.push({
+              code: 'VALIDATION_DECISION_NOT_GMP',
+              message:
+                `URS baseline ${ursId} was approved with a single signature. ` +
+                'This product is GMP-relevant, so its validation needs the ' +
+                'validation expert and QA (NXD-119).',
+            });
+          }
           if (!approved) {
             blockers.push({
               code: 'NO_APPROVED_VALIDATION_DECISION',
@@ -2105,6 +2257,139 @@ export class ComposerService {
    * without the result; deriving it means the claim and the evidence are
    * written in the same operation or neither is.
    */
+  /**
+   * Import the test evidence of the product repository's newest completed CI
+   * run as test executions of this version's requirements (NXD-123).
+   *
+   * The CI of a Golden Path uploads its per-test outcomes, each naming the
+   * URS requirement ids it verifies (NXD-122). Those ids are matched against
+   * the requirements bound to this version; each match becomes one execution
+   * through `ingestTestExecution`, with the CI run as its artifact. A skipped
+   * test is not evidence and is not recorded; an error is a failure. Re-running
+   * the import for the same CI run records nothing twice.
+   */
+  async importTestEvidence(
+    productVersionId: string,
+    actor: string,
+  ): Promise<{
+    run: { id: number; url: string; commit: string; conclusion: string | null };
+    imported: number;
+    skipped: number;
+    alreadyRecorded: number;
+    byRequirement: Record<string, { passed: number; failed: number }>;
+    uncoveredRequirements: string[];
+    unknownRequirements: string[];
+  }> {
+    if (!this.ciEvidenceClient) {
+      throw new ConflictError('Test evidence import is not configured on this instance.');
+    }
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product?.repositoryUrl) {
+      throw new ConflictError(
+        'This product has no repository URL, so there is no CI to read evidence from.',
+      );
+    }
+    const requirements = await this.repository.listProductRequirements(productVersionId);
+    if (requirements.length === 0) {
+      throw new ConflictError(
+        'No URS baseline is bound to this version, so there is nothing to attach evidence to.',
+      );
+    }
+
+    const evidence = await this.ciEvidenceClient.getLatestEvidence(product.repositoryUrl);
+    if (!evidence.available || !evidence.run || !evidence.results) {
+      const why: Record<string, string> = {
+        'no-completed-run': 'the repository has no completed CI run yet',
+        'no-evidence-artifact':
+          'the newest CI run uploaded no nexora-test-evidence artifact (or it expired)',
+        inaccessible: 'Nexora cannot read the repository’s CI',
+        'not-found': 'the repository or its CI workflow was not found',
+      };
+      throw new ConflictError(
+        `No test evidence to import: ${why[evidence.reason ?? ''] ?? evidence.reason ?? 'unknown'}.`,
+      );
+    }
+
+    const byRef = new Map(requirements.map(r => [r.requirementRef, r]));
+    const versionIds = requirements.map(r => r.ursRequirementVersionId);
+    const existing = await this.repository.listTestExecutions(versionIds);
+    const recorded = new Set(
+      existing
+        .filter(e => e.executionArtifactUrl === evidence.run!.url)
+        .map(e => `${e.requirementVersionId} ${e.testCase}`),
+    );
+    const correlationId = randomUUID();
+    const byRequirement: Record<string, { passed: number; failed: number }> = {};
+    const unknown = new Set<string>();
+    let imported = 0;
+    let skipped = 0;
+    let alreadyRecorded = 0;
+
+    for (const result of evidence.results) {
+      if (result.outcome === 'skipped') {
+        skipped++;
+        continue;
+      }
+      for (const ref of result.requirements) {
+        const requirement = byRef.get(ref);
+        if (!requirement) {
+          unknown.add(ref);
+          continue;
+        }
+        const key = `${requirement.ursRequirementVersionId} ${fitColumn(result.testCase)}`;
+        if (recorded.has(key)) {
+          alreadyRecorded++;
+          continue;
+        }
+        const passed = result.outcome === 'passed';
+        await this.ingestTestExecution(
+          {
+            requirementVersionId: requirement.ursRequirementVersionId,
+            // The module, not the CI step: a step's pytest invocation lists
+            // every file it runs and overflowed the 255-character column on
+            // PostgreSQL (SQLite does not enforce the length).
+            testSuite: fitColumn(result.testCase.split('::')[0] || result.suite),
+            testCase: fitColumn(result.testCase),
+            status: passed ? 'PASSED' : 'FAILED',
+            executedAt: evidence.run.completedAt,
+            executionArtifactUrl: evidence.run.url,
+            correlationId,
+          },
+          actor,
+        );
+        recorded.add(key);
+        imported++;
+        const tally = (byRequirement[ref] ??= { passed: 0, failed: 0 });
+        if (passed) tally.passed++;
+        else tally.failed++;
+      }
+    }
+
+    const evidenced = new Set(
+      evidence.results.filter(r => r.outcome !== 'skipped').flatMap(r => r.requirements),
+    );
+    return {
+      run: {
+        id: evidence.run.id,
+        url: evidence.run.url,
+        commit: evidence.run.commit,
+        conclusion: evidence.run.conclusion,
+      },
+      imported,
+      skipped,
+      alreadyRecorded,
+      byRequirement,
+      uncoveredRequirements: requirements
+        .map(r => r.requirementRef)
+        .filter(ref => !evidenced.has(ref)),
+      unknownRequirements: [...unknown].sort(),
+    };
+  }
+
   async ingestTestExecution(
     request: {
       requirementVersionId?: unknown;

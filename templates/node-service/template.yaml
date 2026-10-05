@@ -157,7 +157,7 @@ spec:
         gitAuthorEmail: platform@localhost
     - id: register
       name: Register in catalog
-      action: catalog:register
+      action: nexora:catalog:register
       input:
         repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml

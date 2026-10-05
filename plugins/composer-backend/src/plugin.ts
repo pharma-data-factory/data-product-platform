@@ -20,6 +20,7 @@ import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
+import { createHttpCiEvidenceClient } from './ci-evidence-client';
 import { createHttpPolicyResolverClient } from './policy-resolver-client';
 import { bootstrapPlatformProduct } from './platformProductBootstrap';
 import {
@@ -154,6 +155,7 @@ export const composerPlugin = createBackendPlugin({
           catalogLoader,
           validationDecisionResolver,
           policyResolverClient,
+          ciEvidenceClient: createHttpCiEvidenceClient({ discovery, auth }),
         });
 
         httpRouter.use(

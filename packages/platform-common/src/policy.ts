@@ -1,4 +1,4 @@
-import { PlatformRole, isAtLeast, ursDomainPermissionNames } from './roles';
+import { PlatformRole, domainPermissionNames, isAtLeast } from './roles';
 import {
   ADMIN_PERMISSION_NAMES,
   BUSINESS_CAPABILITY_LEAD_PERMISSION_NAMES,
@@ -50,13 +50,23 @@ export function decidePermission(
   resourceRef?: string,
   ownershipEntityRefs?: readonly string[],
 ): PolicyDecisionName {
-  // Phase 5 (P5-S1): validation.approve is now granted to PLATFORM_ADMIN.
   // risk.accept and baseline.modify remain reserved (Phase 5 later slices).
   if (
     permission.name === 'risk.accept' ||
     permission.name === 'baseline.modify'
   ) {
     return 'deny';
+  }
+
+  // NXD-119. A validation decision is signed by a validation expert and, for
+  // a GMP-relevant product, by QA. Neither is a platform tier, so only the
+  // domain groups grant it — decided before the PLATFORM_ADMIN short-circuit
+  // below, which would otherwise allow it to every administrator.
+  if (permission.name === 'validation.approve') {
+    return ownershipEntityRefs &&
+      domainPermissionNames(ownershipEntityRefs).has(permission.name)
+      ? 'allow'
+      : 'deny';
   }
 
   if (role === 'PLATFORM_ADMIN') {
@@ -85,7 +95,7 @@ export function decidePermission(
 
   if (
     ownershipEntityRefs &&
-    ursDomainPermissionNames(ownershipEntityRefs).has(permission.name)
+    domainPermissionNames(ownershipEntityRefs).has(permission.name)
   ) {
     return 'allow';
   }

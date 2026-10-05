@@ -145,6 +145,52 @@ four quick wins F1–F4, one commit and one record each.
   Jest worker, so later files saw a refused insert as "did not throw".
   `github_team_sync_state` refusals are now asserted by SQLite error code.
   See [`NXD-115`](DECISIONS.md).
+- **Team sync adds only organization members, with a dry run.** The first
+  run would have invited the GitHub accounts behind the seed and demo
+  logins (`admin`, `developer`, `demo-pm`, …) into the organization. Each run
+  now reads the organization's members and adds only those.
+  `GITHUB_TEAM_SYNC_DRY_RUN=true` reports the plan and writes nothing. See
+  [`NXD-116`](DECISIONS.md).
+- **CI image job: a vanished action tag.** The first `main` run after the
+  merge failed `image` at *Set up job*: `aquasecurity/trivy-action@0.28.0` no
+  longer exists upstream (tags are now `v`-prefixed). Pinned by commit to
+  v0.28.0. See [`NXD-117`](DECISIONS.md).
+- **First complete Golden Path run.** The OEE Golden Path as `demo-author`
+  failed at registration (403: `catalog.location.create` is admin-only),
+  then on a malformed descriptor (`policy-version` rendered as a number).
+  `nexora:catalog:register` registers only repositories of the platform
+  organisation, for initiators who may create entities, after a dry run; the
+  annotation is quoted in all nine templates. Run 3 completed all six steps.
+  See [`NXD-118`](DECISIONS.md).
+- **Validation decisions are signed.** The validation expert signs, then QA
+  when a GMP-relevant product (INDIRECT, DIRECT or unanswered) depends on the
+  baseline; otherwise one signature suffices. PIN via the URS Composer,
+  append-only signatures, no administrator approval. A GMP product needs a
+  decision under that rule at the release gate. Demo seat `demo-validator`.
+  See [`NXD-119`](DECISIONS.md).
+- **Decision panel.** The validation context page states the GMP rule,
+  lists the signatures, and offers *Sign as …* only to the role that is due,
+  with verdict, justification and PIN; *Set signing PIN* included. See
+  [`NXD-120`](DECISIONS.md).
+- **First product released end to end.** `oee-e2e-test-20261005-c` went
+  from the OEE Golden Path to RELEASED in the browser: seven demo seats,
+  validation signed by the expert and QA. A second QA seat `demo-qa-lead` was
+  needed, because the first had created the validation context. Open findings
+  are listed in the record. See [`NXD-121`](DECISIONS.md).
+- **OEE tests name their requirements (C1).** `@pytest.mark.urs(...)` on ten
+  modules, a new test for URS-EPM-005, conftest hooks writing
+  `test-evidence/`, uploaded by CI as `nexora-test-evidence`. Found: the loss
+  tests (URS-EPM-002) were in no CI step. See [`NXD-122`](DECISIONS.md).
+- **CI evidence imported (C2).** data-products reads the newest CI run's
+  `nexora-test-evidence` artifact; Composer records one test execution per
+  matched requirement; *Import CI evidence* on the Tests tab. Live:
+  `oee-e2e-test-20261005-d`, 5 of 5 requirements verified from 81 CI
+  outcomes. See [`NXD-123`](DECISIONS.md).
+- **Product evidence review, and no approval without it (C3, C4).** Runs of
+  type EVIDENCE judge each context requirement on the product's recorded CI
+  evidence; coverage counts them; every approval needs a complete review.
+  Product pages no longer read *Validated: Unknown*. Live: 5/5 for
+  `oee-e2e-test-20261005-d`. See [`NXD-124`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

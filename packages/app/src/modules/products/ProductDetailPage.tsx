@@ -566,6 +566,16 @@ export function ProductDetailPage() {
               coverage={coverage}
               baselines={baselines}
               error={tabError}
+              onImportEvidence={
+                selectedVersionId
+                  ? async () => {
+                      const result =
+                        await client.importTestEvidence(selectedVersionId);
+                      await loadVersionScoped(selectedVersionId);
+                      return result;
+                    }
+                  : undefined
+              }
             />
           )}
 

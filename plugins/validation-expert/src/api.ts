@@ -1,4 +1,14 @@
 import { messageFromErrorBody } from '@internal/platform-common';
+import type {
+  ValidationDecisionState,
+  ValidationSignatureRequest,
+  ValidationSignatureRole,
+} from '@internal/platform-common';
+
+/** NXD-119. The decision state plus the caller's own signature roles. */
+export type DecisionStateView = ValidationDecisionState & {
+  myRoles: ValidationSignatureRole[];
+};
 import {
   createApiRef,
   DiscoveryApi,
@@ -207,6 +217,20 @@ export interface ValidationExpertApi {
   getContextRequirements(
     contextId: string,
   ): Promise<ValidationContextRequirementsResponse>;
+  /** NXD-119: classification, signatures, next role, the caller's roles. */
+  getDecisionState(contextId: string): Promise<DecisionStateView>;
+  /** NXD-124: review a product version's CI evidence; answers the run. */
+  startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun>;
+  /** NXD-119: sign the decision; answers the new state. */
+  signDecision(
+    contextId: string,
+    request: ValidationSignatureRequest,
+  ): Promise<ValidationDecisionState>;
+  /**
+   * Set the caller's own signing PIN. It lives in the URS Composer: one
+   * signing credential for every signature on the platform.
+   */
+  setSigningPin(pin: string): Promise<void>;
 }
 
 export const validationExpertApiRef = createApiRef<ValidationExpertApi>({
@@ -367,5 +391,43 @@ export class ValidationExpertClient implements ValidationExpertApi {
     return this.json<ValidationContextRequirementsResponse>(
       `/contexts/${encodeURIComponent(contextId)}/requirements`,
     );
+  }
+
+  getDecisionState(contextId: string): Promise<DecisionStateView> {
+    return this.json<DecisionStateView>(
+      `/contexts/${encodeURIComponent(contextId)}/decision-state`,
+    );
+  }
+
+  startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun> {
+    return this.json<ValidationRun>(
+      `/contexts/${encodeURIComponent(contextId)}/evidence-review`,
+      { method: 'POST', body: JSON.stringify({ productVersionId }) },
+    );
+  }
+
+  signDecision(
+    contextId: string,
+    request: ValidationSignatureRequest,
+  ): Promise<ValidationDecisionState> {
+    return this.json<ValidationDecisionState>(
+      `/contexts/${encodeURIComponent(contextId)}/signatures`,
+      { method: 'POST', body: JSON.stringify(request) },
+    );
+  }
+
+  async setSigningPin(pin: string): Promise<void> {
+    const base = await this.options.discoveryApi.getBaseUrl('urs-composer');
+    const response = await this.options.fetchApi.fetch(`${base}/signing-pin`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(
+        messageFromErrorBody(body, `Setting the PIN failed (${response.status})`),
+      );
+    }
   }
 }

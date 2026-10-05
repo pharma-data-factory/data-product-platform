@@ -67,7 +67,14 @@ describe('platform identity mapping', () => {
     ).toEqual(['urs.create', 'urs.manage', 'urs.read']);
     expect(
       [...ursDomainPermissionNames(['group:default/urs-quality-reviewers'])].sort(),
-    ).toEqual(['urs.approve', 'urs.read', 'urs.sign']);
+    ).toEqual([
+      'urs.approve',
+      'urs.read',
+      'urs.sign',
+      // NXD-119: QA also signs validation decisions.
+      'validation.approve',
+      'validation.read',
+    ]);
     expect(
       ursDomainPermissionNames(['group:default/platform-viewers']).size,
     ).toBe(0);

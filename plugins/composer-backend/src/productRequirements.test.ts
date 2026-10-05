@@ -133,6 +133,33 @@ describe('Slice 1a: binding a URS baseline to a Product Version', () => {
     return { product, version };
   }
 
+  it('classifies a URS baseline by the GxP relevance of the products bound to it (NXD-119)', async () => {
+    const service = serviceWith(resolverWith(TWO_REQUIREMENTS));
+    const gmp = await draftVersion(service);
+    await service.bindUrsBaseline(gmp.version.id, BASELINE_ID, actor);
+    const other = await service.createProduct(
+      {
+        name: 'Unbound product',
+        productType: 'DATA_PRODUCT',
+        gxpRelevance: 'NONE',
+      },
+      actor,
+    );
+    await service.createProductVersion(other.id, { version: '1.0' }, actor);
+
+    const classification =
+      await service.getUrsBaselineGmpClassification(BASELINE_ID);
+
+    expect(classification.products).toEqual([
+      { id: gmp.product.id, name: gmp.product.name, gxpRelevance: 'DIRECT' },
+    ]);
+    expect(classification.versionCreators).toEqual([actor]);
+    expect(
+      (await service.getUrsBaselineGmpClassification('no-such-baseline'))
+        .products,
+    ).toEqual([]);
+  });
+
   it('snapshots every requirement of the baseline onto the version', async () => {
     const service = serviceWith(resolverWith(TWO_REQUIREMENTS));
     const { version } = await draftVersion(service);

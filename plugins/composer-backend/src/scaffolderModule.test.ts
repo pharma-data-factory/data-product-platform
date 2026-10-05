@@ -9,8 +9,11 @@
  * releasing without one is not.
  */
 
+import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import {
+  createCatalogRegisterAction,
   createProductCreateAction,
+  resolveCatalogInfoUrl,
   createUrsVerifyBaselineAction,
   UNBOUND,
 } from './scaffolderModule';
@@ -269,9 +272,7 @@ describe('nexora:product:create', () => {
     // Not 404 and not 200: the lookup did not answer the question, so whether
     // the entity is claimed is unknown, and creating anyway is how duplicates
     // are made.
-    const { impl, calls } = fetchSequence([
-      { status: 500, text: 'boom' },
-    ]);
+    const { impl, calls } = fetchSequence([{ status: 500, text: 'boom' }]);
 
     const action = createProductCreateAction({
       discovery: composerDiscovery,
@@ -298,5 +299,182 @@ describe('nexora:product:create', () => {
       action.handler(productCtx({ catalogEntityRef: '  ' })),
     ).rejects.toThrow(/catalog:register/);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('nexora:catalog:register (NXD-118)', () => {
+  const INITIATOR = {
+    principal: { type: 'user', userEntityRef: 'user:default/dana' },
+  };
+  const SERVICE = {
+    principal: { type: 'service', subject: 'plugin:scaffolder' },
+  };
+  const REPO = 'https://github.com/pharma-data-factory/oee-line-3/tree/main';
+
+  const config = {
+    getOptionalString: (key: string) =>
+      ({
+        'nexora.scm.host': 'github.com',
+        'nexora.scm.organization': 'pharma-data-factory',
+      }[key]),
+  } as never;
+
+  function registerCtx(input: Record<string, unknown>) {
+    return {
+      input: { catalogInfoPath: '/catalog-info.yaml', ...input },
+      output: jest.fn(),
+      getInitiatorCredentials: jest.fn(async () => INITIATOR),
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    } as never as Parameters<
+      ReturnType<typeof createCatalogRegisterAction>['handler']
+    >[0] & { output: jest.Mock };
+  }
+
+  function setup(
+    decision: AuthorizeResult = AuthorizeResult.ALLOW,
+    catalogRefuses = false,
+  ) {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = jest.fn(
+      async (url: string, init?: RequestInit): Promise<unknown> => {
+        calls.push({ url: String(url), init });
+        if (catalogRefuses) {
+          return {
+            ok: false,
+            status: 400,
+            text: async () =>
+              'Malformed envelope, policy-version must be string',
+          };
+        }
+        const dryRun = String(url).includes('dryRun=true');
+        return {
+          ok: true,
+          status: 201,
+          json: async () =>
+            dryRun
+              ? {
+                  entities: [
+                    { kind: 'Location', metadata: { name: 'generated-abc' } },
+                    { kind: 'Component', metadata: { name: 'oee-line-3' } },
+                  ],
+                }
+              : { location: {}, entities: [] },
+          text: async () => '',
+        };
+      },
+    ) as never as typeof fetch;
+    const serviceAuth = {
+      getOwnServiceCredentials: jest.fn(async () => SERVICE),
+      getPluginRequestToken: jest.fn(async () => ({ token: 'service-token' })),
+    };
+    const permissions = {
+      authorize: jest.fn(async () => [{ result: decision }]),
+    };
+    const action = createCatalogRegisterAction({
+      config,
+      discovery: {
+        getBaseUrl: jest.fn(async () => 'http://localhost:7007/api/catalog'),
+      },
+      auth: serviceAuth,
+      permissions,
+      fetchImpl,
+    });
+    return { action, calls, serviceAuth, permissions };
+  }
+
+  it('registers a repository of the platform organisation with the service identity', async () => {
+    const { action, calls, serviceAuth, permissions } = setup();
+    const c = registerCtx({ repoContentsUrl: REPO });
+
+    await action.handler(c);
+
+    // Who: the initiator's own right to create entities.
+    expect(permissions.authorize).toHaveBeenCalledWith(
+      [
+        {
+          permission: expect.objectContaining({
+            name: 'catalog.entity.create',
+          }),
+        },
+      ],
+      { credentials: INITIATOR },
+    );
+    // How: the location is added as this plugin, not as the initiator.
+    expect(serviceAuth.getPluginRequestToken).toHaveBeenCalledWith({
+      onBehalfOf: SERVICE,
+      targetPluginId: 'catalog',
+    });
+    // Validated by a dry run before anything is registered.
+    expect(calls.map(call => call.url)).toEqual([
+      'http://localhost:7007/api/catalog/locations?dryRun=true',
+      'http://localhost:7007/api/catalog/locations',
+    ]);
+    expect(JSON.parse(String(calls[1].init?.body))).toEqual({
+      type: 'url',
+      target:
+        'https://github.com/pharma-data-factory/oee-line-3/tree/main/catalog-info.yaml',
+    });
+    expect(c.output).toHaveBeenCalledWith(
+      'entityRef',
+      'component:default/oee-line-3',
+    );
+  });
+
+  it('registers nothing when the Catalog refuses the descriptor', async () => {
+    const { action, calls } = setup(AuthorizeResult.ALLOW, true);
+    await expect(
+      action.handler(registerCtx({ repoContentsUrl: REPO })),
+    ).rejects.toThrow(/refuses .* so it was not registered: 400 Malformed/);
+    expect(calls.map(call => call.url)).toEqual([
+      'http://localhost:7007/api/catalog/locations?dryRun=true',
+    ]);
+  });
+
+  it('refuses an initiator who may not create Catalog entities, before writing', async () => {
+    const { action, calls } = setup(AuthorizeResult.DENY);
+    await expect(
+      action.handler(registerCtx({ repoContentsUrl: REPO })),
+    ).rejects.toThrow(/catalog\.entity\.create/);
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses a repository outside the platform organisation, before writing', async () => {
+    const { action, calls, permissions } = setup();
+    await expect(
+      action.handler(
+        registerCtx({
+          repoContentsUrl: 'https://github.com/someone-else/oee/tree/main',
+        }),
+      ),
+    ).rejects.toThrow(/Only repositories in github.com\/pharma-data-factory/);
+    expect(calls).toEqual([]);
+    expect(permissions.authorize).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['another host', 'https://gitlab.com/pharma-data-factory/oee/tree/main'],
+    ['plain http', 'http://github.com/pharma-data-factory/oee/tree/main'],
+    ['no repository', 'https://github.com/pharma-data-factory'],
+    ['a query', 'https://github.com/pharma-data-factory/oee?x=1'],
+  ])('resolveCatalogInfoUrl refuses %s', (_label, repoContentsUrl) => {
+    expect(() =>
+      resolveCatalogInfoUrl({
+        repoContentsUrl,
+        catalogInfoPath: '/catalog-info.yaml',
+        host: 'github.com',
+        owner: 'pharma-data-factory',
+      }),
+    ).toThrow(/Only repositories in/);
+  });
+
+  it('resolveCatalogInfoUrl refuses a path that climbs out of the repository', () => {
+    expect(() =>
+      resolveCatalogInfoUrl({
+        repoContentsUrl: REPO,
+        catalogInfoPath: '/../../other-repo/catalog-info.yaml',
+        host: 'github.com',
+        owner: 'pharma-data-factory',
+      }),
+    ).toThrow(/Invalid catalogInfoPath/);
   });
 });

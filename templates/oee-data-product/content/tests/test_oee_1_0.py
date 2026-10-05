@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from app.contract import contract_file
 from app.domain import calculate_oee
 from app.domain.models import (
@@ -21,6 +23,9 @@ from tests.fixtures import (
     running,
     ts,
 )
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-001")
 
 
 def _inputs(**overrides) -> OeeInputs:

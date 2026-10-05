@@ -1,6 +1,11 @@
 import express from 'express';
 import Router from 'express-promise-router';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+} from '@backstage/errors';
 import {
   HttpAuthService,
   LoggerService,
@@ -17,6 +22,12 @@ import {
   validationRunStartPermission,
   validationTestExecutePermission,
 } from '@internal/platform-common';
+import {
+  QUALITY_ASSURANCE_GROUP,
+  VALIDATION_EXPERT_GROUP,
+  type ValidationSignatureRole,
+} from '@internal/platform-common';
+import type { PinVerifier } from './decision-collaborators';
 import type { ValidationExpertService } from './service';
 import type { ExecutorIdentity, ProtocolType } from './types';
 
@@ -26,6 +37,23 @@ export interface RouterOptions {
   userInfo?: UserInfoService;
   permissions?: PermissionsService;
   service: ValidationExpertService;
+  /** NXD-119. Verifies a signer's PIN in the URS Composer. */
+  pinVerifier?: PinVerifier;
+}
+
+/**
+ * NXD-119. The signature roles a person holds, from their group membership:
+ * `validation-experts` signs as VALIDATION_EXPERT, `urs-quality-reviewers`
+ * as QUALITY_ASSURANCE.
+ */
+function signatureRoles(ownershipEntityRefs: readonly string[]): ValidationSignatureRole[] {
+  const groups = new Set(
+    ownershipEntityRefs.map(ref => ref.split('/').pop()?.toLowerCase()),
+  );
+  const roles: ValidationSignatureRole[] = [];
+  if (groups.has(VALIDATION_EXPERT_GROUP)) roles.push('VALIDATION_EXPERT');
+  if (groups.has(QUALITY_ASSURANCE_GROUP)) roles.push('QUALITY_ASSURANCE');
+  return roles;
 }
 
 async function authorize(
@@ -58,7 +86,8 @@ async function authorize(
  * user without validation read access sees a spurious
  * `NO_APPROVED_VALIDATION_DECISION` blocker on a properly validated product.
  *
- * Read-only, and only on the two routes the Composer calls. Recording a
+ * Read-only, and only on the routes the Composer calls (decision, contexts,
+ * coverage). Recording a
  * decision stays `POST /contexts/:id/decision`, which still requires a human
  * PLATFORM_ADMIN and still enforces Segregation of Duties — nothing here lets
  * a machine approve anything. See `NXD-054`.
@@ -257,6 +286,31 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     }
   });
 
+  /**
+   * POST /contexts/:id/evidence-review (NXD-124)
+   * Review a product version's recorded CI test evidence against the
+   * context's requirements, as a completed EVIDENCE run.
+   * Body: { productVersionId }.
+   */
+  router.post('/contexts/:id/evidence-review', async (req, res) => {
+    try {
+      await authorize(permissions, httpAuth, req, validationRunStartPermission);
+      const executor = await resolveExecutor(httpAuth, userInfo, req);
+      const productVersionId = String(req.body?.productVersionId ?? '').trim();
+      if (!productVersionId) {
+        throw new InputError('productVersionId is required');
+      }
+      const run = await service.runProductEvidenceReview(
+        req.params.id,
+        productVersionId,
+        executor,
+      );
+      res.status(201).json(run);
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
   router.post('/runs/:runId/execute-automated', async (req, res) => {
     try {
       await authorize(permissions, httpAuth, req, validationRunStartPermission);
@@ -403,7 +457,10 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
    */
   router.get('/contexts/:id/coverage', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationReadPermission);
+      // Service-callable, like the decision (NXD-054): the Composer reads
+      // coverage as the platform. It was user-only, so every product page
+      // read "Validated: Unknown" beside an approved decision (NXD-124).
+      await authorizeReadOrService(permissions, httpAuth, req, validationReadPermission);
       res.json(await service.getContextCoverage(req.params.id));
     } catch (error) {
       respondError(res, logger, error);
@@ -413,16 +470,60 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
   // ── Validation Decision (Phase 5, P5-S1) ─────────────────────────────────
 
   /**
-   * POST /contexts/:id/decision
-   * Record the independent expert's verdict on a ValidationContext.
+   * POST /contexts/:id/decision — gone since NXD-119.
    *
-   * Requires `validation.approve` (PLATFORM_ADMIN only). The service enforces
-   * Segregation of Duties: the actor must not be the same person who created
-   * the context.
-   *
-   * Body: { status: 'APPROVED' | 'CONDITIONAL' | 'REJECTED', justification, conditions? }
+   * A decision is now the outcome of electronic signatures, so a route that
+   * wrote one directly would bypass the two-signature rule. Answered rather
+   * than removed, so a caller learns where it went.
    */
-  router.post('/contexts/:id/decision', async (req, res) => {
+  router.post('/contexts/:id/decision', async (_req, res) => {
+    res.status(410).json({
+      error:
+        'A validation decision is recorded by signatures: POST /contexts/:id/signatures (NXD-119).',
+    });
+  });
+
+  /**
+   * GET /contexts/:id/decision-state (NXD-119)
+   * GMP classification, signatures so far, which role may sign next, and the
+   * caller's own signature roles (`myRoles`).
+   */
+  router.get('/contexts/:id/decision-state', async (req, res) => {
+    try {
+      const credentials = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        validationReadPermission,
+      );
+      // The caller's own signature roles, so the page offers signing only to
+      // whoever may sign (cf. NXD-104). Display only: signing re-checks.
+      let myRoles: ValidationSignatureRole[] = [];
+      if (userInfo) {
+        try {
+          myRoles = signatureRoles(
+            (await userInfo.getUserInfo(credentials)).ownershipEntityRefs ?? [],
+          );
+        } catch {
+          // Unknown roles offer nothing; the state itself is still answered.
+        }
+      }
+      res.json({ ...(await service.getDecisionState(req.params.id)), myRoles });
+    } catch (error) {
+      respondError(res, logger, error);
+    }
+  });
+
+  /**
+   * POST /contexts/:id/signatures (NXD-119)
+   * Sign the validation decision as VALIDATION_EXPERT or QUALITY_ASSURANCE.
+   *
+   * Body: { role, verdict: 'APPROVED' | 'REJECTED', justification, pin }.
+   * Requires `validation.approve` (the two groups). The role is checked
+   * against the signer's own groups; the PIN against their own credential in
+   * the URS Composer. Answers the new decision state.
+   */
+  router.post('/contexts/:id/signatures', async (req, res) => {
     try {
       const credentials = await authorize(
         permissions,
@@ -430,15 +531,23 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
         req,
         validationApprovePermission,
       );
-      const actor =
-        (credentials as { principal?: { userEntityRef?: string } }).principal
-          ?.userEntityRef ?? 'unknown';
-      const decision = await service.createValidationDecision(
-        req.params.id,
-        req.body,
-        actor,
+      const ref = (credentials as { principal?: { userEntityRef?: string } })
+        .principal?.userEntityRef;
+      if (!ref) {
+        throw new NotAllowedError('Authenticated user required');
+      }
+      if (!userInfo || !options.pinVerifier) {
+        throw new NotAllowedError('Signing is not configured on this instance.');
+      }
+      const info = await userInfo.getUserInfo(credentials);
+      const verifier = options.pinVerifier;
+      res.status(201).json(
+        await service.signValidationDecision(req.params.id, req.body ?? {}, {
+          ref,
+          roles: signatureRoles(info.ownershipEntityRefs ?? []),
+          verifyPin: pin => verifier(credentials, pin),
+        }),
       );
-      res.status(201).json(decision);
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -509,7 +618,14 @@ function respondError(
   error: unknown,
 ) {
   if (error instanceof NotAllowedError) {
-    res.status(403).json({ error: 'Not allowed' });
+    // The reason, when there is one: a signer refused for a wrong PIN, a
+    // lockout or Segregation of Duties must be told which (NXD-119, as
+    // NXD-104 for the URS chain).
+    res.status(403).json({ error: error.message || 'Not allowed' });
+    return;
+  }
+  if (error instanceof ConflictError) {
+    res.status(409).json({ error: error.message });
     return;
   }
   if (error instanceof NotFoundError) {

@@ -17,6 +17,10 @@ export {
   URS_DOMAIN_GROUPS,
   URS_DOMAIN_PERMISSIONS,
   ursDomainPermissionNames,
+  domainPermissionNames,
+  QUALITY_ASSURANCE_GROUP,
+  VALIDATION_EXPERT_GROUP,
+  VALIDATION_DOMAIN_PERMISSIONS,
 } from './roles';
 export type { PlatformGroup, PlatformRole, UrsDomainGroup } from './roles';
 
@@ -150,7 +154,13 @@ export type {
 } from './approval-wire-contract';
 
 // URS Composer → Validation Expert integration contract
-export { VALIDATION_DECISION_STATUSES } from './validation-integration';
+export {
+  VALIDATION_DECISION_STATUSES,
+  VALIDATION_SIGNATURE_ROLES,
+  validationDecisionProgress,
+  isGmpRelevant,
+  baselineNeedsGmpRule,
+} from './validation-integration';
 export type {
   ApprovedURSReference,
   ValidationContext,
@@ -159,6 +169,13 @@ export type {
   ValidationDecision,
   ValidationDecisionStatus,
   CreateValidationDecisionRequest,
+  ValidationSignatureRole,
+  ValidationSignatureVerdict,
+  ValidationDecisionSignature,
+  ValidationSignatureRequest,
+  ValidationDecisionProgress,
+  ValidationGmpProduct,
+  ValidationDecisionState,
 } from './validation-integration';
 
 export { quickActionsForRole } from './dashboard';

@@ -1,6 +1,11 @@
 from decimal import Decimal
 
+import pytest
+
 from app.domain.calculation import availability, oee, performance, quality
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-001")
 
 
 def test_availability_normal() -> None:

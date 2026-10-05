@@ -178,4 +178,78 @@ describe('createGithubActionsClient', () => {
 
     await expect(client.getFailedStages(repo, 42)).resolves.toEqual(['Lint']);
   });
+
+  describe('test evidence (NXD-123)', () => {
+    const credentialsProvider = {
+      getCredentials: async () => ({
+        type: 'token' as const,
+        token: 'tok',
+        headers: { Authorization: 'Bearer tok' },
+      }),
+    };
+
+    it('asks for the newest completed ci.yml run', async () => {
+      const fetchFn = jest.fn(async () =>
+        jsonResponse(200, {
+          workflow_runs: [
+            { id: 7, name: 'CI', status: 'completed', conclusion: 'success', head_sha: 'abc', html_url: 'u' },
+          ],
+        }),
+      );
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      const run = await client.getLatestCompletedRun!(repo);
+      expect(run).toMatchObject({ ok: true, value: { id: 7, headSha: 'abc' } });
+      expect(String((fetchFn.mock.calls[0] as unknown[])[0])).toContain(
+        '/actions/workflows/ci.yml/runs?status=completed&per_page=1',
+      );
+    });
+
+    it('downloads the named, unexpired artifact of a run as bytes', async () => {
+      const zipBytes = Buffer.from('PK-zip-bytes');
+      const fetchFn = jest.fn(async (url: string) => {
+        if (String(url).endsWith('/actions/runs/7/artifacts?per_page=100')) {
+          return jsonResponse(200, {
+            artifacts: [
+              { id: 1, name: 'nexora-test-evidence', expired: true },
+              { id: 2, name: 'other' },
+              { id: 3, name: 'nexora-test-evidence', expired: false },
+            ],
+          });
+        }
+        if (String(url).endsWith('/actions/artifacts/3/zip')) {
+          return {
+            ok: true,
+            status: 200,
+            arrayBuffer: async () => zipBytes,
+          } as unknown as Response;
+        }
+        return jsonResponse(404, {});
+      });
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      const result = await client.downloadArtifact!(repo, 7, 'nexora-test-evidence');
+      expect(result.ok && result.value?.toString()).toBe('PK-zip-bytes');
+    });
+
+    it('answers no artifact when the run uploaded none', async () => {
+      const fetchFn = jest.fn(async () => jsonResponse(200, { artifacts: [] }));
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      expect(await client.downloadArtifact!(repo, 7, 'nexora-test-evidence')).toEqual({
+        ok: true,
+        value: undefined,
+      });
+    });
+  });
 });
+

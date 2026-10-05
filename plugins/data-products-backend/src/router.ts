@@ -25,6 +25,8 @@ import { FileReleaseOverlay } from './releaseCatalog';
 import { mountConsumeRoutes } from './consume/router';
 import { GithubActionsClient, publicCiStatus, unknownCiStatus } from './types';
 import { resolveCiStatus } from './resolveCiStatus';
+import { parseGithubUrl } from './resolveRepository';
+import { parseEvidence, readZip, TEST_EVIDENCE_ARTIFACT } from './testEvidence';
 
 export interface RouterOptions {
   logger: LoggerService;
@@ -68,6 +70,92 @@ export async function createRouter(
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  /**
+   * GET /ci-evidence?repoUrl=… (NXD-123)
+   *
+   * The test evidence of a product repository's newest completed CI run: the
+   * `nexora-test-evidence` artifact a Golden Path's CI uploads (NXD-122),
+   * parsed. Read by the Product Composer as a service, to record
+   * per-requirement test executions; and by a person with data-product.view.
+   * GitHub access stays here, where the Actions client already lives.
+   */
+  router.get('/ci-evidence', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req, {
+        allow: ['user', 'service'],
+      });
+      if (credentials.principal.type === 'user') {
+        if (!permissions) {
+          throw new NotAllowedError('Permission service is not configured');
+        }
+        const [decision] = await permissions.authorize(
+          [{ permission: dataProductViewPermission }],
+          { credentials },
+        );
+        if (decision.result !== AuthorizeResult.ALLOW) {
+          throw new NotAllowedError();
+        }
+      }
+      const repo = parseGithubUrl(String(req.query.repoUrl ?? '').trim());
+      if (!repo) {
+        throw new InputError('repoUrl must be a GitHub repository URL');
+      }
+      if (!github.getLatestCompletedRun || !github.downloadArtifact) {
+        res.json({ available: false, reason: 'unavailable' });
+        return;
+      }
+      const run = await github.getLatestCompletedRun(repo);
+      if (!run.ok) {
+        res.json({ available: false, reason: run.reason });
+        return;
+      }
+      if (!run.value) {
+        res.json({ available: false, reason: 'no-completed-run' });
+        return;
+      }
+      const runInfo = {
+        id: run.value.id,
+        url: run.value.htmlUrl,
+        commit: run.value.headSha,
+        branch: run.value.headBranch,
+        conclusion: run.value.conclusion,
+        completedAt: run.value.completedAt,
+      };
+      const zip = await github.downloadArtifact(
+        repo,
+        run.value.id,
+        TEST_EVIDENCE_ARTIFACT,
+      );
+      if (!zip.ok) {
+        res.json({ available: false, reason: zip.reason, run: runInfo });
+        return;
+      }
+      if (!zip.value) {
+        res.json({ available: false, reason: 'no-evidence-artifact', run: runInfo });
+        return;
+      }
+      const { results, ignored } = parseEvidence(readZip(zip.value));
+      res.json({ available: true, run: runInfo, results, ignored });
+    } catch (error) {
+      if (error instanceof NotAllowedError) {
+        res.status(403).json({ error: error.message || 'Not allowed' });
+        return;
+      }
+      if (error instanceof InputError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      logger.warn(
+        `ci-evidence failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      res.status(502).json({
+        error: `The test evidence could not be read: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
   });
 
   router.get('/ci-status', async (req, res) => {

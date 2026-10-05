@@ -77,6 +77,16 @@ export interface GithubActionsClient {
     repo: GithubRepoRef,
     runId: number,
   ): Promise<QualityStage[]>;
+  /** NXD-123. The newest completed run of the CI workflow. */
+  getLatestCompletedRun?(
+    repo: GithubRepoRef,
+  ): Promise<GithubFetchResult<GithubWorkflowRun | undefined>>;
+  /** NXD-123. A run's artifact by name, as the zip GitHub serves. */
+  downloadArtifact?(
+    repo: GithubRepoRef,
+    runId: number,
+    name: string,
+  ): Promise<GithubFetchResult<Buffer | undefined>>;
 }
 
 export function unknownCiStatus(

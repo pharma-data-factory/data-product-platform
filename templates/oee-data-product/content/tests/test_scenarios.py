@@ -1,3 +1,5 @@
+import pytest
+
 from app.domain import calculate_oee
 from app.domain.models import CalculationStatus, OeeInputs
 from tests.fixtures import (
@@ -12,6 +14,9 @@ from tests.fixtures import (
     stopped,
     ts,
 )
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-001")
 
 
 def _inputs(**overrides) -> OeeInputs:

@@ -125,6 +125,18 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
+  name: validation-experts
+  title: Validation Experts
+  description: >-
+    Sign validation decisions as the validation expert (NXD-119). For a
+    GMP-relevant product, QA (urs-quality-reviewers) approves after them.
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
   name: validation-reviewers
   title: Validation Reviewers
   description: Review validation evidence, findings, and test results.

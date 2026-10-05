@@ -60,6 +60,14 @@ describe('Validation contexts UI', () => {
   it('shows Approved URS reference and linked runs on detail page', async () => {
     const api = {
       getContext: jest.fn().mockResolvedValue(sampleContext),
+      getDecisionState: jest.fn().mockResolvedValue({
+        contextId: 'VALIDATION-CTX-ABC',
+        gmpRelevant: true,
+        products: [],
+        signatures: [],
+        progress: { complete: false, nextRoles: ['VALIDATION_EXPERT'] },
+        myRoles: [],
+      }),
       getContextRequirements: jest.fn().mockResolvedValue({
         contextId: sampleContext.id,
         baselineId: sampleContext.source.baselineId,

@@ -231,6 +231,54 @@ export async function createRouter(
     }
   });
 
+  /**
+   * GET /urs-baselines/:id/gmp-classification (NXD-119)
+   *
+   * Which products depend on a URS baseline, how GxP-relevant each is, and
+   * who created the versions bound to it. Read by the Validation Expert to
+   * decide which signatures a validation decision needs, as a service, and by
+   * a person with product.read.
+   */
+  router.get(
+    '/urs-baselines/:id/gmp-classification',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        res.json(await service.getUrsBaselineGmpClassification(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /versions/:id/test-evidence (NXD-124)
+   * Newest execution of each test case per bound requirement. Read by the
+   * Validation Expert's product evidence review, as a service, and by a
+   * person with product.read.
+   */
+  router.get(
+    '/versions/:id/test-evidence',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        res.json(await service.getVersionTestEvidence(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.get('/products', async (req: express.Request, res: express.Response) => {
     try {
       await authorize(permissions, httpAuth, req, productReadPermission);
@@ -1014,6 +1062,25 @@ export async function createRouter(
    * may be a no-op; a test execution is always a new row, so the status code
    * should say a resource was created.
    */
+  /**
+   * POST /versions/:id/test-evidence/import (NXD-123)
+   * Read the newest completed CI run's test evidence from the product's
+   * repository and record it as test executions of this version's
+   * requirements. A person with product.manage presses the button; the
+   * evidence comes from CI, not from them.
+   */
+  router.post(
+    '/versions/:id/test-evidence/import',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res.status(201).json(await service.importTestEvidence(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/test-executions',
     async (req: express.Request, res: express.Response) => {

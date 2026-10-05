@@ -1734,6 +1734,27 @@ export class URSService {
     });
   }
 
+  /**
+   * Verify the caller's own signing PIN, for a signature recorded by another
+   * plugin (NXD-119: the Validation Expert's decision signatures). Same
+   * provider, same lockout and same messages as an approval step here, so a
+   * person has one signing credential on the platform, not one per plugin.
+   * Throws when the PIN is wrong or the credential is locked.
+   */
+  async verifySigningPin(actor: string, pin: string): Promise<string> {
+    const reAuth = new SignaturePinReAuth(this.repository);
+    const result = await reAuth.verify(actor, pin);
+    if (!result.ok) {
+      if (result.lockedUntil) {
+        throw new NotAllowedError(
+          `Too many failed signing attempts. Locked until ${result.lockedUntil.toISOString()}.`,
+        );
+      }
+      throw new NotAllowedError('Re-authentication failed. Signature rejected.');
+    }
+    return reAuth.name;
+  }
+
   /** Set or replace the caller's own signing PIN. */
   async setSigningPin(actor: string, pin: string): Promise<void> {
     const audit = this.beginAudit(actor);

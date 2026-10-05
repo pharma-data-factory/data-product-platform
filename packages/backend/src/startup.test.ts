@@ -186,6 +186,14 @@ describe('Backstage foundation', () => {
       ['urs-business-reviewers'],
       ['urs-product-managers'],
       ['urs-quality-reviewers'],
+      // NXD-119: the validation expert holds no URS role, and no owner tier.
+      [],
+      // NXD-121: a second QA person, without the owner tier.
+      ['urs-quality-reviewers'],
+    ]);
+    expect(identities.find(i => i.name === 'demo-validator')?.memberOf).toEqual([
+      'platform-viewers',
+      'validation-experts',
     ]);
     expect(demo.auth.providers.demo.users).toEqual(identities.map(i => i.name));
 

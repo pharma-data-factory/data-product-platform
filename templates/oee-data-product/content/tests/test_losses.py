@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from app.domain.losses import (
     MicrostopConfig,
     detect_losses,
@@ -16,6 +18,9 @@ from app.domain.reason_codes import (
     ancestors,
 )
 from tests.fixtures import EQUIPMENT, WINDOW_END, WINDOW_START, running, stopped
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-002")
 
 
 def test_microstop_threshold_is_inclusive_and_configurable() -> None:

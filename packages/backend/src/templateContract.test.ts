@@ -203,7 +203,7 @@ describe('template registration and generation contract', () => {
       expect(stepIds).toContain('register');
       expect(stepIds.indexOf('register')).toBe(stepIds.indexOf('publish') + 1);
       expect(actionById.get('publish')).toBe('publish:github');
-      expect(actionById.get('register')).toBe('catalog:register');
+      expect(actionById.get('register')).toBe('nexora:catalog:register');
 
       // Every publishing template creates the governed product record, and
       // creates it after the Catalog entity exists, because the entity ref is

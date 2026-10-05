@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from app.domain import calculate_oee
 from app.domain.models import CalculationStatus, OeeInputs
 from app.domain.quality import event_quality_failures
@@ -15,6 +17,9 @@ from tests.fixtures import (
     stopped,
     ts,
 )
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-001", "URS-EPM-003")
 
 
 def _inputs(**overrides) -> OeeInputs:

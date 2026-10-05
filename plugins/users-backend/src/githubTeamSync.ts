@@ -19,8 +19,19 @@
 /** Prefix of the URS approval groups (`urs-authors`, `urs-quality-reviewers`, …). */
 export const APPROVAL_GROUP_PREFIX = 'urs-';
 
+/**
+ * Approval groups without the `urs-` prefix (NXD-119: the validation expert
+ * who signs validation decisions). Refused in the mapping for the same reason.
+ */
+export const OTHER_APPROVAL_GROUPS: readonly string[] = ['validation-experts'];
+
 export interface GithubTeamSyncConfig {
   enabled: boolean;
+  /**
+   * Read both sides and report what would change, without writing to GitHub,
+   * the state table or the audit trail (NXD-116).
+   */
+  dryRun: boolean;
   /** GitHub organization the teams live in. */
   organization: string;
   /** Passed to the scheduler as given; validated there. */
@@ -44,14 +55,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `${GITHUB_TEAM_SYNC_ENABLED:-false}` arrives as a string, so both shapes
  * are accepted. Anything else is an error rather than a guess.
  */
-function readEnabled(value: unknown): boolean {
+function readBoolean(key: string, value: unknown): boolean {
   if (value === undefined || value === false || value === 'false') {
     return false;
   }
   if (value === true || value === 'true') {
     return true;
   }
-  return fail(`enabled must be true or false, got ${JSON.stringify(value)}`);
+  return fail(`${key} must be true or false, got ${JSON.stringify(value)}`);
 }
 
 /**
@@ -75,7 +86,8 @@ export function parseGithubTeamSyncConfig(
 
   // First, before any other check can return: this is the one that matters.
   const approvalGroups = Object.keys(teamsRaw).filter(group =>
-    group.toLowerCase().startsWith(APPROVAL_GROUP_PREFIX),
+    group.toLowerCase().startsWith(APPROVAL_GROUP_PREFIX) ||
+    OTHER_APPROVAL_GROUPS.includes(group.toLowerCase()),
   );
   if (approvalGroups.length > 0) {
     return fail(
@@ -101,7 +113,8 @@ export function parseGithubTeamSyncConfig(
     teams[group] = [...new Set(slugs.map(slug => (slug as string).trim()))];
   }
 
-  const enabled = readEnabled(raw.enabled);
+  const enabled = readBoolean('enabled', raw.enabled);
+  const dryRun = readBoolean('dryRun', raw.dryRun);
 
   const organization =
     typeof raw.organization === 'string' ? raw.organization.trim() : '';
@@ -120,6 +133,7 @@ export function parseGithubTeamSyncConfig(
 
   return {
     enabled,
+    dryRun,
     organization,
     schedule: raw.schedule as Record<string, unknown> | undefined,
     teams,

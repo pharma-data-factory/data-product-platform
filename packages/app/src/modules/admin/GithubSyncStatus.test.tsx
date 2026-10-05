@@ -3,6 +3,7 @@ import {
   GithubSyncBanner,
   GithubSyncChips,
   GithubSyncStatusResponse,
+  plannedChanges,
   syncRowsFor,
   teamsWithFailures,
 } from './GithubSyncStatus';
@@ -124,6 +125,78 @@ describe('GitHub sync status (NXD-108)', () => {
     );
     expect(
       screen.getByText(/No run recorded on this backend instance yet/),
+    ).toBeTruthy();
+  });
+
+  it('shows a dry run as a plan, including who is not in the organization (NXD-116)', () => {
+    const dryRun: GithubSyncStatusResponse = {
+      enabled: true,
+      dryRun: true,
+      organization: 'pharma-data-factory',
+      lastRun: {
+        dryRun: true,
+        startedAt: '2026-10-05T10:00:00Z',
+        finishedAt: '2026-10-05T10:00:02Z',
+        teams: [
+          {
+            team: 'nexora-admins',
+            ok: true,
+            added: [],
+            invited: [],
+            removed: [],
+            unmanaged: ['org-owner'],
+            notInOrg: ['admin'],
+            planned: { add: ['schmeckm'], remove: [] },
+            failed: [],
+          },
+          {
+            team: 'nexora-owners',
+            ok: true,
+            added: [],
+            invited: [],
+            removed: [],
+            unmanaged: [],
+            notInOrg: [],
+            planned: { add: [], remove: [] },
+            failed: [],
+          },
+        ],
+      },
+    };
+    expect(plannedChanges(dryRun)).toEqual([
+      'nexora-admins: add schmeckm; not in organization: admin',
+      'nexora-owners: no change',
+    ]);
+
+    render(
+      <GithubSyncBanner status={dryRun} running={false} onRun={jest.fn()} />,
+    );
+    expect(
+      screen.getByText('GitHub team sync — pharma-data-factory (dry run)'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Dry run: nothing is written to GitHub\./),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'nexora-admins: add schmeckm; not in organization: admin',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('says no one was added when the organization could not be read', () => {
+    render(
+      <GithubSyncBanner
+        status={{
+          ...status,
+          lastRun: { ...status.lastRun!, orgMembersError: 'forbidden' },
+        }}
+        running={false}
+        onRun={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/Organization members could not be read \(forbidden/),
     ).toBeTruthy();
   });
 });

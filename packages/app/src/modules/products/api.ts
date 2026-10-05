@@ -17,6 +17,17 @@ import type {
   TraceabilityLink,
 } from '@internal/platform-common';
 
+/** What an import of CI test evidence recorded (NXD-123). */
+export interface TestEvidenceImport {
+  run: { id: number; url: string; commit: string; conclusion: string | null };
+  imported: number;
+  skipped: number;
+  alreadyRecorded: number;
+  byRequirement: Record<string, { passed: number; failed: number }>;
+  uncoveredRequirements: string[];
+  unknownRequirements: string[];
+}
+
 export interface ProductTraceability {
   productId: string;
   componentCount: number;
@@ -94,6 +105,8 @@ export interface ComposerClient {
   getRequirementCoverage(
     versionId: string,
   ): Promise<ProductRequirementCoverage>;
+  /** NXD-123: record the newest CI run's test evidence for this version. */
+  importTestEvidence(versionId: string): Promise<TestEvidenceImport>;
   /** Contracts this component provides. Keyed by component, listed by coordinate. */
   listComponentContracts(componentId: string): Promise<DataContract[]>;
   /** Contracts this version consumes — the other side of the exchange. */
@@ -173,6 +186,8 @@ export function useComposerClient(): ComposerClient {
       ),
     getRequirementCoverage: versionId =>
       request('GET', `/versions/${versionId}/requirement-coverage`),
+    importTestEvidence: versionId =>
+      request('POST', `/versions/${versionId}/test-evidence/import`, {}),
     listComponentContracts: componentId =>
       request('GET', `/components/${componentId}/contracts`),
     listVersionDependencies: versionId =>

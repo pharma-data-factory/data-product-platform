@@ -1,6 +1,10 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.test_api import CONTEXT, _load_perfect
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-003")
 
 
 def test_quality_report_passes_for_valid_events(client: TestClient) -> None:

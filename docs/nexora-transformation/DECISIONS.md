@@ -6318,3 +6318,612 @@ fail this way. None has failed in the runs so far, and they were not audited
 one by one.
 
 - Affected components: `plugins/users-backend/src/db/migrations.test.ts`.
+
+### NXD-116 — Team sync adds only organization members, and a dry run shows the first run before it acts
+
+- Date: 2026-10-05
+- Slice: backend + admin UI — found while preparing the first live run of
+  team sync (NXD-108, NXD-110..112)
+
+**What the first run would have done.** The local database holds 14 user
+records. Besides `schmeckm`, the mapped groups contain `admin`, `developer`,
+`owner`, `guest`, `demo-author`, `demo-pm`, `demo-quality` and
+`demo-reviewer`, from the seed file and the demo identities. The reconciler
+treated every Nexora user name as a GitHub login. Those names are real
+GitHub accounts of other people. A team membership call for someone outside
+the organization makes GitHub invite them into it, so the first run would
+have invited strangers into `pharma-data-factory`'s teams. There was no way
+to see this beforehand: the scheduler runs the task as soon as the sync is
+enabled.
+
+**Rejected: "only users who signed in with GitHub".** Sign-ins are recorded
+by `POST /signins`, and the frontend supplies the `provider` field, so a
+guest session can claim `github`. GitHub sign-in uses the stock resolver,
+which has no hook to record a server-side proof.
+
+**Decision 1 — only organization members are added.** Each run reads the
+organization's members once (`GET /orgs/{org}/members`, a fifth client call)
+and adds only those. Everyone else who should be in a team is recorded
+`not_in_org` with "invite them to the organization in GitHub first". Who
+joins the organization stays a GitHub owner's decision; Nexora manages team
+membership inside it. The proof comes from GitHub and cannot be claimed from
+a browser. If the member list cannot be read, no one is added and removals
+still run, in line with removal before addition.
+
+**Decision 2 — `dryRun`.** `users.githubTeamSync.dryRun`
+(`GITHUB_TEAM_SYNC_DRY_RUN`, default false) makes a run read both sides and
+report what it would change. GitHub, the state table and the audit trail are
+untouched. Admin → Users & Roles shows the plan per team: add, remove, not
+in organization. The setup guide now enables the sync together with the dry
+run, and turns the dry run off once the plan is right.
+
+**Corrected.** `docs/github-setup.md` said a person outside the organization
+"gets an invitation from GitHub". With this change that no longer happens.
+
+**Not changed, named.** Someone with a pending invitation to the
+organization is not yet a member and is added on the first run after they
+accept. With credentials that see only public members, private members show
+as *not in org*; that errs towards adding no one. The seed and demo records
+themselves are unchanged. They are now harmless to the sync, not removed.
+
+- Affected components: `plugins/users-backend/src/{githubTeams,teamReconciler,githubTeamSync,teamSyncController}.ts`
+  (+ tests), `packages/app/src/modules/admin/GithubSyncStatus.tsx` (+ test),
+  `app-config.github.yaml`, `docs/github-setup.md`, `README.md`.
+
+### NXD-117 — The image job had never run, and its first run failed before the first step
+
+- Date: 2026-10-05
+- Slice: CI — found in the first `main` run after PR #4 was merged (`a0d2d82`)
+
+**Symptom.** On `main`, Platform CI ran `test` and `e2e` green and failed
+`image` at *Set up job*. The annotation:
+_"Unable to resolve action `aquasecurity/trivy-action@0.28.0`, unable to
+find version `0.28.0`"_.
+
+**Cause.** NXD-088 (wave 1) added the Trivy image scan with the tag
+`0.28.0`. Upstream, the tags now carry a `v` prefix (`v0.28.0` …
+`v0.36.0`), and the unprefixed tag is gone. The `image` job runs only on a
+push to `main`, and nothing reached `main` between NXD-088 and PR #4, so the
+step had never been resolved.
+
+**Why `continue-on-error` did not help.** The step is marked
+`continue-on-error: true`, so a failing scan would not block. But GitHub
+resolves every action of a job at *Set up job*, before any step runs. A
+missing ref therefore fails the whole job: the image was not built or pushed
+either.
+
+**Decision.** The action is pinned by commit,
+`aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0`:
+the same version, and a ref that a renamed or moved tag cannot take away.
+No upgrade in the same change.
+
+**Not changed, named.** The other actions are still pinned by major tag
+(`actions/checkout@v4`, …). Two Dependabot `npm_and_yarn` update runs on
+`main` also failed. Neither is part of this fix.
+
+- Affected components: `.github/workflows/ci.yml`.
+
+### NXD-118 — No Golden Path had ever completed below admin: registration was admin-only, and every descriptor was malformed
+
+- Date: 2026-10-05
+- Slice: scaffolder + templates — found by the first browser run of the OEE
+  Golden Path as `demo-author`, against GitHub (`pharma-data-factory`)
+
+**Run 1 — 403 at registration.** Resolve, render, URS check and
+`publish:github` succeeded: the repository was created. Then
+`catalog:register` failed with 403 Forbidden, and the product record was
+never written. The built-in action adds a Catalog location with the
+initiator's credentials, so the permission checked is
+`catalog.location.create`. That permission is PLATFORM_ADMIN only
+(`permissions.ts`, unchanged since the MVP 1.0 baseline). Developers and
+owners may start a Golden Path, but none of them could finish one. Every
+such run left a repository on GitHub with no entity and no product.
+`docs/PHASE8_REGRESSION_TEST_RESULTS.md` marks `catalog:register` "WORKING"
+six times; it never ran as anyone but an admin.
+
+**Rejected: grant `catalog.location.create` to developers.** A location is
+an arbitrary URL the Catalog fetches again and again and turns into
+entities. Any developer could have pointed it anywhere.
+
+**Decision 1 — `nexora:catalog:register`.** It narrows what is registered
+instead of widening who may register:
+
+- **Who:** the initiator must hold `catalog.entity.create` (DEVELOPER and
+  up), checked against their own credentials.
+- **What:** only `https://<nexora.scm.host>/<nexora.scm.organization>/<repo>/…`,
+  from configuration inside the task (as `nexora:scm:resolve-repo`,
+  NXD-079), and only a descriptor path inside that repository.
+- **How:** the location is added with composer-backend's own service
+  identity.
+- **Order:** a dry run first, which fetches and validates the descriptor
+  and names its entities; only then the location. The built-in registers
+  first and checks after, which leaves a location that fails on every
+  refresh when the descriptor is wrong.
+
+Same inputs and outputs as the built-in. All nine templates change one
+word. The catalog is called over HTTP, like `catalog-component-loader.ts`,
+so no new dependency.
+
+**Run 2 — the descriptor itself was malformed.** With registration
+allowed, the Catalog refused the entity: _"Malformed envelope,
+/metadata/annotations/dataprod.platform~1policy-version must be string"_.
+All nine templates wrote `policy-version: ${{ values.policyVersion }}` with
+`policyVersion: '1'`, which renders as the YAML number `1`.
+
+**Decision 2 — quoted, and tested.** The annotation is quoted in all nine
+`catalog-info.yaml`. NXD-105's rendering test could not have seen it,
+because it replaced every value with a placeholder, and a placeholder is
+always a string. It now passes a template's own literals through, and
+checks that every annotation and label of the rendered descriptor is a
+string. Against the unfixed templates it fails for all nine, on this
+annotation only.
+
+**Run 3 — complete.** All six steps green as `demo-author`: repository
+`pharma-data-factory/oee-e2e-test-20261005-c`, entity
+`component:default/oee-e2e-test-20261005-c`, product record with
+repository and entity ref. The first Golden Path run that has ever reached
+the end.
+
+**Not changed, named.**
+
+- The product record's `owner` is empty: the template does not pass
+  `owner` to `nexora:product:create`.
+- The success page does not show the template's *Governance and release*
+  link to `/products/:id`.
+- A failed step is reported as _"You do not have permission to view this
+  page"_.
+- Runs 1 and 2 left two repositories (`oee-e2e-test-20261005`, `-b`), and
+  run 2 a Catalog location that fails on refresh. Cleanup is manual.
+
+- Affected components: `plugins/composer-backend/src/scaffolderModule.ts`
+  (+ test), `templates/*/template.yaml`,
+  `templates/*/content/catalog-info.yaml`,
+  `packages/backend/src/templateRendering.test.ts` and the six template tests
+  that name the register action.
+
+### NXD-119 — A validation decision is signed: by the validation expert, and by QA when the product is GMP-relevant
+
+- Date: 2026-10-05
+- Slice: validation + roles — the OEE end-to-end run stopped at step 9
+
+**Context.** The browser run of the OEE workflow reached a release gate
+with one blocker left: _"No approved validation decision — an independent
+expert must validate the package"_. Nothing in the UI could record one.
+`POST /contexts/:id/decision` existed, but needed `validation.approve`, and
+that permission belonged to PLATFORM_ADMIN alone. A platform administrator
+is neither the independent quality unit nor a validation expert. No
+signature was required either.
+
+**Decision — the rule, after GAMP 5 and EU GMP Annex 11/15 (21 CFR 211.22).**
+The user asked for best practice. The validation expert attests the
+technical content: the tests cover the requirements, and they passed. The
+quality unit gives the independent approval.
+
+- **GMP-relevant:** the validation expert signs first, then QA. Two
+  different people.
+- **Not GMP-relevant:** one signature from either suffices.
+- **Rejection:** a rejection by either ends the decision.
+- **Who counts as GMP-relevant:** INDIRECT and DIRECT, and also *no answer*.
+  Only an explicit NONE does not count.
+- **Which product decides:** the decision belongs to the URS baseline, and
+  a baseline can serve several products. So the strictest classification
+  among the products bound to it decides. A baseline with no product yet,
+  or a classification that cannot be read, follows the GMP rule too.
+- **Pure function:** `validationDecisionProgress` in platform-common states
+  the rule once, for the service and for the page.
+
+**Roles.**
+
+- New domain group `validation-experts`, which also gets the catalog Group
+  entity.
+- `urs-quality-reviewers` now also grants `validation.approve`, so QA is one
+  role for URS and validation.
+- `validation.approve` is decided before the PLATFORM_ADMIN short-circuit in
+  `decidePermission`, which would otherwise allow it to every administrator.
+  Removing it from the admin list alone would have changed nothing.
+- New demo seat `demo-validator`: `platform-viewers` and
+  `validation-experts`. Read-only and not a product owner, so the person
+  who validates is not the one who builds.
+- The admin page's role picker offers the group.
+- The GitHub team sync refuses it in its mapping, like `urs-*` (NXD-107).
+
+**Signatures.**
+
+- `POST /contexts/:id/signatures` takes `{ role, verdict, justification, pin }`.
+- Checks, in this order and all before anything is written:
+  1. the context exists and is not decided;
+  2. the signer holds the role;
+  3. Segregation of Duties: not the context creator, not the creator of a
+     product version bound to the baseline, and one signature per person;
+  4. the order of the rule;
+  5. a verdict and a justification;
+  6. the PIN, last, so a refused signature costs no attempt.
+- The PIN is verified in the URS Composer, through the new
+  `POST /signing-pin/verify` on behalf of the signer. The platform keeps one
+  signing credential and one lockout per person, not one per plugin.
+- Signatures go into the new table `validation_decision_signatures`: unique
+  per role and per person, append-only and no-TRUNCATE triggers on
+  PostgreSQL (the NXD-092 pattern).
+- When the rule is satisfied, the decision is written as before, so the
+  release gate keeps reading the same record. It now also carries
+  `gmpRule` and its signatures.
+- The old `POST /contexts/:id/decision` answers 410 and names the new
+  route. A route that wrote a decision directly would bypass the rule.
+
+**The gap closed at the gate.** A baseline approved under the
+one-signature rule could later serve a GMP product that binds to it. The
+release gate now asks `getDecisionApproval`. A GMP-relevant product needs
+`APPROVED_GMP`; otherwise the blocker is `VALIDATION_DECISION_NOT_GMP`. The
+classification comes from Composer's new
+`GET /urs-baselines/:id/gmp-classification`.
+
+**Found on the way.**
+
+- In `file` persistence, the development default, decisions lived beside
+  the stored file and were lost on every restart. Decisions and signatures
+  now live in the store.
+- The router answered every refusal with "Not allowed", so a signer would
+  not have learned whether the PIN, the lockout or Segregation of Duties
+  refused them (cf. NXD-104). It now passes the reason and answers a
+  conflict with 409.
+
+**Verified live, against the dev stack.** For the OEE context
+`VALIDATION-CTX-MUPNNM25`, `decision-state` names the OEE product (DIRECT)
+and asks for the validation expert first. Each refusal arrives with its
+reason:
+
+- no PIN set;
+- a role the signer does not hold;
+- the old route (410);
+- an author without the permission.
+
+**Named, not changed.** `demo-quality` created that validation context on
+2026-10-01, so it cannot sign the context's decision as QA. The rule is
+right; the test data needs a second QA seat or a new context. The decision
+panel is the next slice (NXD-120).
+
+- Affected components: `packages/platform-common/src/{roles,policy,permissions,validation-integration,index}.ts`
+  (+ tests), `plugins/validation-expert-backend/src/{service,router,plugin,repository,postgres-repository,decision-collaborators,db/migrations}.ts`
+  (+ test), `plugins/urs-composer-backend/src/{service,router}.ts` (+ test),
+  `plugins/composer-backend/src/{service,router,repository,repository-interface,validation-decision-resolver}.ts`
+  (+ tests), `plugins/users-backend/src/githubTeamSync.ts` (+ test),
+  `packages/app/src/modules/admin/UsersRolesPage.tsx`, `app-config.demo.yaml`,
+  `catalog/org.yaml`, `README.md`, `packages/backend/src/startup.test.ts`.
+
+### NXD-120 — The validation decision is signed on the context page
+
+- Date: 2026-10-05
+- Slice: frontend — the UI half of NXD-119
+
+**Decision.** The validation context page gets a *Validation decision*
+panel:
+
+- **Rule:** it states the rule with its reason, *GMP-relevant — the
+  validation expert signs, then QA approves*, and names the products and
+  their GxP relevance. If the classification could not be read, it says so.
+- **Signatures:** it lists the signatures (role, verdict, signer, time,
+  justification) and says who signs next.
+- **Who may sign:** *Sign as validation expert* / *Sign as quality
+  assurance* is offered only to someone who holds the role that is due.
+  `decision-state` now also answers the caller's own signature roles. QA
+  before the expert reads *"It is not your turn: Validation expert signs
+  next"*; someone with neither role reads which group signing needs. Display
+  only, as in NXD-104; the server re-checks every signature.
+- **Dialog:** approve or reject, the meaning of that signature for that role
+  above the fields, a required justification, and the PIN. A refusal is
+  shown verbatim: wrong PIN, lockout, Segregation of Duties. The dialog
+  keeps nothing typed after it closes.
+- **PIN:** *Set signing PIN* sets the one platform PIN in the URS Composer,
+  so a validation expert, who never opens a requirement set, can sign at
+  all.
+
+The validation plugin has its own small dialog instead of importing the URS
+Composer's `ESignatureDialog`: that one is bound to the URS signature
+meanings and has an optional comment, and importing it would add a package
+dependency between two frontend plugins.
+
+**Found on the way.** The dialog's text fields had no `id`, so their labels
+were not associated with them. A screen reader would not have named the
+fields; the test noticed first.
+
+**Verified live.**
+
+- As `demo-validator`, on `VALIDATION-CTX-MUPNNM25`: the panel names
+  `oee-e2e-test-20261005-c (DIRECT)`, waits for the validation expert, and
+  offers the signature only to them.
+- The PIN was set through the panel.
+
+**Not changed, named.** The panel allows an approval while the same page
+shows *0/5 expected requirements touched* and an IQ run stuck at RUNNING.
+Until runs test the product (package C), the expert has to read that and
+reject.
+
+- Affected components: `plugins/validation-expert/src/components/DecisionPanel.tsx`
+  (new, + test), `plugins/validation-expert/src/components/ContextPages.tsx`
+  (+ test), `plugins/validation-expert/src/api.ts`,
+  `plugins/validation-expert-backend/src/router.ts`.
+
+### NXD-121 — A second QA seat, and the first product released end to end
+
+- Date: 2026-10-05
+- Slice: test system — package E of the OEE end-to-end run
+
+**Context.** `demo-quality` had created the validation context for URS-EPM
+on 2026-10-01. Under NXD-119's Segregation of Duties, whoever sets up a
+validation context does not sign its decision. The test system had one QA
+seat, so it had no QA person who could decide that context. A context is
+unique per baseline, and rewriting its creator in the database would be
+falsifying the record, so neither was an option.
+
+**Decision.** A second QA seat, `demo-qa-lead`, with `platform-viewers` and
+`urs-quality-reviewers` and without the owner tier. A QA department has
+more than one member, and the user chose this over widening an existing
+seat. Widening one would break the rule that each URS demo seat holds
+exactly one URS role.
+
+**The run, in the browser, on the dev stack against GitHub.** Product
+`oee-e2e-test-20261005-c`, URS-EPM 1.0, GMP-relevant (DIRECT):
+
+| # | Step | Who |
+|---|---|---|
+| 1–2 | Golden Path, repository, CI green (NXD-118) | demo-author |
+| 3–6 | Version, URS binding, components and traceability, governance | demo-author |
+| 7 | Version approved | demo-reviewer |
+| 8 | Baseline created / approved | demo-author / demo-quality |
+| 9 | Validation expert signs, then QA (PIN, justification) | demo-validator, demo-qa-lead |
+| 10 | Release candidate; gate: *every release-gate check passes* | demo-author |
+| 11 | **Released** | demo-reviewer |
+
+The first Nexora product to go from a Golden Path to a released version.
+The signatures say in their justification what this was: a test of the
+signature chain on test data, with runs that cover 0/5 requirements — not a
+GxP validation.
+
+**Found by the run, not changed.**
+
+- After release, the readiness card reads *"Blocked by 1 check — Version
+  must be RELEASE_CANDIDATE, got RELEASED"*. A released version is reported
+  as blocked.
+- *Validated: Unknown — no validation context* beside an approved decision.
+  Composer reads `/contexts/:id/coverage` with a service token, and that
+  route admits users only.
+- Release, like version approval, is one click: no confirmation, no
+  signature.
+- After signing, the validation expert reads *"It is not your turn"*;
+  *"You have signed"* would be accurate.
+- Validation runs do not test the product (package C).
+
+- Affected components: `app-config.demo.yaml`, `README.md`,
+  `packages/backend/src/startup.test.ts`.
+
+### NXD-122 — The OEE Golden Path's tests name the requirements they verify, and its CI hands over the outcomes
+
+- Date: 2026-10-05
+- Slice: templates — package C, step 1 (C1)
+
+**Context.** NXD-121 released the first product, with validation runs that
+covered 0/5 requirements. The Validation Expert's runs come from the
+platform's own validation package (`validation/`, candidate
+`platform-core-v1.0-rc2`): they validate Nexora, and their tests name
+platform requirements (`URS-CFG-001`, …). No run could ever touch
+`URS-EPM-001`. Composer already had the receiving end —
+`POST /test-executions`, one execution per requirement version, counted as
+*verified* by the gate — but nothing ever sent to it: the product's tests
+named no requirement, and its CI kept its outcomes in a log.
+
+The OEE template is the right place to start: it already declares the
+requirements it satisfies in `urs.yaml` (URS-EPM, five requirements), and
+`templateUrsParity.test.ts` holds that declaration to the URS library.
+
+**Decision.**
+
+- **Each test module names what it verifies**:
+  `pytestmark = pytest.mark.urs("URS-EPM-001")`. Ten modules are mapped by
+  what they test:
+  - calculation, OEE 1.0 and scenarios → 001;
+  - edges → 001 and 003;
+  - losses and loss API → 002;
+  - quality → 003;
+  - API, contract and compatibility → 004.
+  Health, model, independence and platform metadata name none; they verify
+  no URS-EPM requirement.
+- **URS-EPM-005 gets a real test.** No test checked it (*each metric records
+  its definition and version*; `urs.yaml` says Inspection). The new
+  `test_metric_definitions.py` checks that a result names the oee-result
+  contract and its version, and that the versioned schema defines all four
+  metrics. That is what the app does; the evidence is not borrowed from a
+  test written for something else.
+- **Three pytest hooks in `conftest.py`** write one JSON file per invocation
+  into `test-evidence/`: `nexora.test-evidence/v1`, commit, run id, and per
+  test the node id, outcome and requirements. A failed setup is recorded as
+  an error. No plugin and no new Python dependency.
+- **The CI uploads `test-evidence/` as the artifact `nexora-test-evidence`**,
+  with `if: always()`, because a failure is evidence too. The directory is
+  git-ignored. Nexora will read the artifact (pull, decided by the user):
+  the product CI needs no Nexora secret, and Nexora need not be reachable
+  from GitHub's runners.
+
+**Found on the way.** `test_losses.py` and `test_loss_api.py` were in no CI
+step. The twelve tests behind URS-EPM-002, *loss categorization*, had never
+run in a generated repository's CI. They are in the unit step now, and the
+new `oeeTestEvidence.test.ts` fails for any test file no workflow runs.
+Against the old `ci.yml` it fails for exactly these two.
+
+**Verified locally**, in a rendered copy with the template's own
+dependencies in a virtualenv: ruff clean; the four CI test steps pass 76
+tests (75 before, plus 1 new); the evidence holds 76 outcomes, with every
+requirement covered:
+
+| Requirement | Passing tests |
+|---|---|
+| URS-EPM-001 | 40 |
+| URS-EPM-002 | 12 |
+| URS-EPM-003 | 18 |
+| URS-EPM-004 | 14 |
+| URS-EPM-005 | 1 |
+
+**Not changed, named.** Only the OEE template. The other eight templates
+declare no requirement set, so there is nothing for their tests to name
+yet. Reading the artifact into Composer is C2, the product evidence review
+in the Validation Expert is C3, and refusing approval without coverage is
+C4.
+
+- Affected components: `templates/oee-data-product/content/tests/*`
+  (conftest, ten modules, new `test_metric_definitions.py`),
+  `templates/oee-data-product/content/.github/workflows/{ci,data-product-quality}.yml`,
+  `templates/oee-data-product/content/.gitignore`,
+  `packages/backend/src/oeeTestEvidence.test.ts` (new).
+
+### NXD-123 — Nexora reads a product's CI test evidence, and a requirement is verified by a test that ran
+
+- Date: 2026-10-05
+- Slice: data-products + composer + product page — package C, step 2 (C2)
+
+**Context.** NXD-122 made the OEE Golden Path's CI upload per-test outcomes
+that name the URS requirements they verify (artifact
+`nexora-test-evidence`). Composer's `POST /test-executions` could record
+such outcomes, but expected the CI to push with an external-access token.
+The user chose pull: the product CI needs no Nexora secret, and Nexora need
+not be reachable from GitHub's runners.
+
+**Decision.**
+
+- **GitHub stays in data-products-backend**, which already has the Actions
+  client. Composer has no `@backstage/integration` and gets none; adding it
+  would be a dependency change for a call another plugin can make. The new
+  `GET /ci-evidence?repoUrl=` takes the newest completed `ci.yml` run,
+  downloads its `nexora-test-evidence` artifact, and answers the parsed
+  results. A service or a person with data-product.view may read it. When
+  there is nothing to answer, it says why: no completed run, no artifact
+  (or expired), inaccessible.
+- **The zip is read without a library**: a central-directory walk plus
+  `zlib.inflateRawSync`, stored and deflated entries only. It is bounded,
+  because it comes from a repository: 200 entries, 5 MiB each, 20 MiB in
+  total. A file that is not `nexora.test-evidence/v1` is reported, not
+  guessed at.
+- **`POST /versions/:id/test-evidence/import`** (product.manage):
+  - matches each outcome's requirement ids to the requirements bound to the
+    version, and records one execution per match through the existing
+    `ingestTestExecution`, with the CI run as its artifact and one
+    correlation id for the import;
+  - `passed` becomes PASSED; `failed` and `error` become FAILED; `skipped`
+    is not evidence and is not recorded;
+  - an id the version does not carry is reported, and so is a requirement
+    without a test;
+  - the same CI run is never recorded twice.
+- **The product's Tests tab** gets *Import CI evidence*, with the run
+  (linked), its commit and conclusion, and a line per requirement.
+
+**Found by the live run.** The first import against the real repository
+failed with *"value too long for type character varying(255)"*. The hook
+wrote the step's whole pytest invocation as the suite, and the unit step
+lists twelve files. SQLite in the tests does not enforce the length;
+PostgreSQL does. The suite is now the test module, which is more useful
+anyway. Ids longer than the column are cut and given a hash of the whole,
+so two never collapse into one.
+
+**Verified live.**
+
+- A fresh Golden Path run, `oee-e2e-test-20261005-d`, as `demo-author`: CI
+  green, artifact uploaded (2.8 KB).
+- Version created, URS-EPM bound, then *Import CI evidence* on run
+  `#37328211949` (commit `a94fdc1`):
+
+| Requirement | Passed | Failed |
+|---|---|---|
+| URS-EPM-001 | 40 | 0 |
+| URS-EPM-002 | 12 | 0 |
+| URS-EPM-003 | 14 | 0 |
+| URS-EPM-004 | 14 | 0 |
+| URS-EPM-005 | 1 | 0 |
+
+  The tab then reads *5 of 5 requirements verified*. A second import
+  recorded nothing new (85 already recorded).
+
+**Not changed, named.**
+
+- The import is not one transaction. The failed first attempt had written
+  4 rows before it stopped, and the next import completed the rest and
+  skipped those 4.
+- `ingestTestExecution` itself does not check field lengths.
+- The Validation Expert does not read this evidence yet; that is C3.
+
+- Affected components: `plugins/data-products-backend/src/{testEvidence,githubActions,types,router}.ts`
+  (+ tests), `plugins/composer-backend/src/{ci-evidence-client,service,router,plugin}.ts`
+  (+ `testEvidenceImport.test.ts`), `packages/app/src/modules/products/{api,ProductDetailPage}.ts(x)`,
+  `packages/app/src/modules/products/tabs/TestsTab.tsx` (+ test).
+
+### NXD-124 — A validation reviews the product's evidence, and no one approves without it
+
+- Date: 2026-10-05
+- Slice: validation + composer + context page — package C, steps 3 and 4 (C3, C4)
+
+**Context.** After NXD-123, a product version's requirements were verified
+by imported CI test results. The validation context still offered only
+"Start IQ/OQ/UAT run": protocols from the platform's validation package,
+candidate `platform-core-v1.0-rc2`. They validate Nexora, their tests name
+platform requirements, and coverage of a product context stayed 0/5. The IQ
+run stopped at RUNNING forever: tests without a runner are skipped, and a
+run with no executions is never completed. And an expert could approve
+with nothing reviewed (NXD-121 did, in its test run).
+
+**Decision — C3: a product evidence review.**
+
+- **Run type `EVIDENCE`.** It is not from the validation package. It runs
+  against a product version bound to the context's URS baseline, which it
+  refuses otherwise.
+- **One test `EVIDENCE-<requirement>` per context requirement**, judged on
+  the newest execution of every test case Composer recorded for it:
+  - PASS when every one passed;
+  - FAIL when any failed (the cases are named);
+  - FAIL when there is none — no evidence is not a pass.
+  The run completes in one step, with the CI run linked in each result.
+- **Coverage counts these tests**, one requirement each.
+- **Composer** answers `GET /versions/:id/test-evidence` (service or
+  product.read), and its GMP classification now also names the bound
+  versions, so a review can say which one it checks.
+- **The context page** no longer offers the platform runs. The decision
+  panel shows the newest review, linked, with *n of m requirements passed*,
+  and offers *Run product evidence review* with the bound versions to
+  whoever may start runs.
+- **Fixed on the way:** `GET /contexts/:id/coverage` admitted users only,
+  but the Composer reads it as a service. Every product page therefore read
+  *"Validated: Unknown"* beside an approved decision. It now admits the
+  service like the decision route does (NXD-054).
+
+**Decision — C4: no approval without evidence (the user's choice).** Every
+APPROVED signature, by the expert or by QA, needs the newest evidence
+review to be complete, with every requirement PASS. The check runs before
+the PIN, so a refused approval costs no attempt. A rejection needs no
+evidence. The dialog disables *Approve* until then and says why.
+
+**Corrected — NXD-122.** NXD-122 added the evidence upload to the OEE
+template's copy of `data-product-quality.yml` only.
+`dataProductFoundation.test.ts` requires every template's copy to equal the
+canonical `.github/workflows/data-product-quality.yml`, and it failed. That
+test had not been run for NXD-122. The canonical workflow and all four
+template copies now carry the step. Templates without the conftest hooks
+upload nothing and only warn.
+
+**Verified live, on the dev stack.**
+
+- Review of `oee-e2e-test-20261005-d 1.0` on `VALIDATION-CTX-MUPNNM25`:
+  `EVIDENCE-RUN-0001`, all five requirements PASS, from 40/12/18/14/1 test
+  cases, each with the CI run linked. Coverage 5/5.
+- The product page reads *Verified 5 of 5 · Validated 5 of 5* instead of
+  *Unknown*.
+- The block itself was proven by tests only. That context was already
+  decided by NXD-121's run, and a decision is not re-opened.
+
+**Named, not changed — a design question.** A validation decision belongs
+to a URS baseline; product evidence belongs to a product version. A later
+version bound to an already-decided baseline is covered by that decision
+without a review of its own evidence. Whether the decision should belong
+to a product version is a decision for the user.
+
+- Affected components: `plugins/validation-expert-backend/src/{types,service,router,plugin,decision-collaborators}.ts`
+  (+ tests), `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx,components/ContextPages.tsx}`
+  (+ tests), `plugins/composer-backend/src/{service,router}.ts` (+ test),
+  `packages/platform-common/src/validation-integration.ts`,
+  `.github/workflows/data-product-quality.yml`,
+  `templates/{machine-state-consumer,mqtt-temperature-product,rest-equipment-product}/content/.github/workflows/data-product-quality.yml`.

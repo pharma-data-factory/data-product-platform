@@ -37,6 +37,8 @@ export type TriggerResult = 'triggered' | 'queued';
 
 export interface TeamSyncStatus {
   enabled: boolean;
+  /** Runs report what they would change and write nothing (NXD-116). */
+  dryRun?: boolean;
   organization?: string;
   /** Platform group → team slugs. */
   teams?: Record<string, string[]>;
@@ -110,6 +112,7 @@ export async function startTeamSync(options: {
           client: options.client,
           repository,
           log: message => logger.info(message),
+          dryRun: config.dryRun,
         });
       } catch (error) {
         // Reading the user table failed, or similar. Logged, not rethrown:
@@ -129,7 +132,8 @@ export async function startTeamSync(options: {
 
   logger.info(
     `GitHub team sync scheduled for ${config.organization} ` +
-      `(${Object.keys(config.teams).length} group mapping(s)).`,
+      `(${Object.keys(config.teams).length} group mapping(s))` +
+      `${config.dryRun ? ', dry run: nothing is written' : ''}.`,
   );
 
   return {
@@ -137,6 +141,7 @@ export async function startTeamSync(options: {
     trigger,
     status: async () => ({
       enabled: true,
+      dryRun: config.dryRun,
       organization: config.organization,
       teams: config.teams,
       lastRun,

@@ -31,10 +31,10 @@ export function createGithubActionsClient(options: {
     DefaultGithubCredentialsProvider.fromIntegrations(integrations);
   const fetchFn = options.fetchFn ?? fetch;
 
-  async function authorizedRequest(
+  async function authorizedFetch(
     repo: GithubRepoRef,
     path: string,
-  ): Promise<GithubFetchResult<unknown>> {
+  ): Promise<GithubFetchResult<Response>> {
     const integration = integrations.github.byUrl(repo.url);
     if (!integration) {
       return { ok: false, reason: 'unavailable' };
@@ -72,11 +72,29 @@ export function createGithubActionsClient(options: {
       if (!response.ok) {
         return { ok: false, reason: 'unavailable' };
       }
-      return { ok: true, value: await response.json() };
+      return { ok: true, value: response };
     } catch {
       return { ok: false, reason: 'unavailable' };
     }
   }
+
+  async function authorizedRequest(
+    repo: GithubRepoRef,
+    path: string,
+  ): Promise<GithubFetchResult<unknown>> {
+    const response = await authorizedFetch(repo, path);
+    if (!response.ok) {
+      return response;
+    }
+    try {
+      return { ok: true, value: await response.value.json() };
+    } catch {
+      return { ok: false, reason: 'unavailable' };
+    }
+  }
+
+  const repoPath = (repo: GithubRepoRef) =>
+    `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`;
 
   return {
     async getLatestRun(repo) {
@@ -106,6 +124,45 @@ export function createGithubActionsClient(options: {
         return allRuns;
       }
       return { ok: true, value: firstRun(allRuns.value) };
+    },
+
+    async getLatestCompletedRun(repo) {
+      const runs = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=completed&per_page=1`,
+      );
+      return runs.ok ? { ok: true, value: firstRun(runs.value) } : runs;
+    },
+
+    async downloadArtifact(repo, runId, name) {
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/actions/runs/${runId}/artifacts?per_page=100`,
+      );
+      if (!listing.ok) {
+        return listing;
+      }
+      const artifacts =
+        (listing.value as { artifacts?: Array<Record<string, unknown>> })
+          .artifacts ?? [];
+      const artifact = artifacts.find(a => a.name === name && a.expired !== true);
+      if (!artifact) {
+        return { ok: true, value: undefined };
+      }
+      // GitHub answers with a redirect to short-lived blob storage; fetch
+      // follows it.
+      const zip = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/actions/artifacts/${artifact.id}/zip`,
+      );
+      if (!zip.ok) {
+        return zip;
+      }
+      try {
+        return { ok: true, value: Buffer.from(await zip.value.arrayBuffer()) };
+      } catch {
+        return { ok: false, reason: 'unavailable' };
+      }
     },
 
     async getFailedStages(repo, runId) {
