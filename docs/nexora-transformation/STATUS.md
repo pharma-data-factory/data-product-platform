@@ -195,6 +195,9 @@ four quick wins F1–F4, one commit and one record each.
   pinned trivy-action v0.28.0 itself calls `setup-trivy@v0.2.1`, also gone.
   Now v0.36.0, which pins its own actions by hash. See
   [`NXD-125`](DECISIONS.md).
+- **CI image job, third link.** Past *Set up job* at last, the build failed:
+  SBOM/provenance attestations need a Buildx builder. Added
+  `docker/setup-buildx-action`. See [`NXD-126`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

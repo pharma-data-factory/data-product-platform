@@ -219,6 +219,13 @@ jobs:
           echo "sha_tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "mvp_tag=mvp-1.0" >> "$GITHUB_OUTPUT"
 
+      # The SBOM and provenance attestations below need a BuildKit builder
+      # with the docker-container driver; the runner's default docker driver
+      # refuses them ("Attestation is not supported for the docker driver").
+      # Hidden until NXD-125 let the job get past "Set up job" (NXD-126).
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:

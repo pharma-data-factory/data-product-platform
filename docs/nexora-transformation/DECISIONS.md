@@ -6955,3 +6955,30 @@ validation decision per product version, announced as NXD-125 in PR #13,
 becomes NXD-126.
 
 - Affected components: `.github/workflows/ci.yml`.
+
+### NXD-126 — The image job's third failure: attestations need a Buildx builder
+
+- Date: 2026-10-05
+- Slice: CI — found in the first `main` run with NXD-125 (`63d7047`)
+
+**Symptom.** With the Trivy chain fixed, `image` got past *Set up job* for
+the first time, built the backend, and failed at *Build and push
+production image*: _"ERROR: failed to build: Attestation is not supported
+for the docker driver."_
+
+**Cause.** The step asks for `sbom: true` and `provenance: mode=max`
+(NXD-088). Attestations need a BuildKit builder with the
+`docker-container` driver; without `docker/setup-buildx-action`,
+`build-push-action` uses the runner's default `docker` driver, which
+refuses them. The job had never got this far, so this was the third
+failure in a chain of which only the first was visible: vanished tag
+(NXD-117), vanished nested tag (NXD-125), missing builder (here).
+
+**Decision.** `docker/setup-buildx-action@v3` before the build, like the
+workflow's other Docker actions by major tag. SBOM and provenance stay:
+they are why the image can say years later what was in it.
+
+**Not changed, named.** Push to GHCR and the Trivy scan after it have still
+never run; the next main run is their first.
+
+- Affected components: `.github/workflows/ci.yml`.
