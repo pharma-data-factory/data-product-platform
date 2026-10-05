@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import pytest
+
 from app.compatibility import (
     compatibility_gate_should_fail,
     evaluate_compatibility,
@@ -8,6 +10,9 @@ from app.compatibility import (
     load_published_schema,
     version_satisfies,
 )
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-004")
 
 BASE_SCHEMA = {
     "version": "1.0.0",

@@ -177,6 +177,10 @@ four quick wins F1–F4, one commit and one record each.
   validation signed by the expert and QA. A second QA seat `demo-qa-lead` was
   needed, because the first had created the validation context. Open findings
   are listed in the record. See [`NXD-121`](DECISIONS.md).
+- **OEE tests name their requirements (C1).** `@pytest.mark.urs(...)` on ten
+  modules, a new test for URS-EPM-005, conftest hooks writing
+  `test-evidence/`, uploaded by CI as `nexora-test-evidence`. Found: the loss
+  tests (URS-EPM-002) were in no CI step. See [`NXD-122`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

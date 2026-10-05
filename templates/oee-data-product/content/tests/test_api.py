@@ -1,4 +1,8 @@
+import pytest
 from fastapi.testclient import TestClient
+
+# The URS requirements these tests verify (NXD-122).
+pytestmark = pytest.mark.urs("URS-EPM-004")
 
 CONTEXT = {
     "contextId": "ctx-1",

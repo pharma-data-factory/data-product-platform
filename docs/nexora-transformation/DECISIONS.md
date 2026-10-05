@@ -6695,3 +6695,81 @@ GxP validation.
 
 - Affected components: `app-config.demo.yaml`, `README.md`,
   `packages/backend/src/startup.test.ts`.
+
+### NXD-122 — The OEE Golden Path's tests name the requirements they verify, and its CI hands over the outcomes
+
+- Date: 2026-10-05
+- Slice: templates — package C, step 1 (C1)
+
+**Context.** NXD-121 released the first product, with validation runs that
+covered 0/5 requirements. The Validation Expert's runs come from the
+platform's own validation package (`validation/`, candidate
+`platform-core-v1.0-rc2`): they validate Nexora, and their tests name
+platform requirements (`URS-CFG-001`, …). No run could ever touch
+`URS-EPM-001`. Composer already had the receiving end —
+`POST /test-executions`, one execution per requirement version, counted as
+*verified* by the gate — but nothing ever sent to it: the product's tests
+named no requirement, and its CI kept its outcomes in a log.
+
+The OEE template is the right place to start: it already declares the
+requirements it satisfies in `urs.yaml` (URS-EPM, five requirements), and
+`templateUrsParity.test.ts` holds that declaration to the URS library.
+
+**Decision.**
+
+- **Each test module names what it verifies**:
+  `pytestmark = pytest.mark.urs("URS-EPM-001")`. Ten modules are mapped by
+  what they test:
+  - calculation, OEE 1.0 and scenarios → 001;
+  - edges → 001 and 003;
+  - losses and loss API → 002;
+  - quality → 003;
+  - API, contract and compatibility → 004.
+  Health, model, independence and platform metadata name none; they verify
+  no URS-EPM requirement.
+- **URS-EPM-005 gets a real test.** No test checked it (*each metric records
+  its definition and version*; `urs.yaml` says Inspection). The new
+  `test_metric_definitions.py` checks that a result names the oee-result
+  contract and its version, and that the versioned schema defines all four
+  metrics. That is what the app does; the evidence is not borrowed from a
+  test written for something else.
+- **Three pytest hooks in `conftest.py`** write one JSON file per invocation
+  into `test-evidence/`: `nexora.test-evidence/v1`, commit, run id, and per
+  test the node id, outcome and requirements. A failed setup is recorded as
+  an error. No plugin and no new Python dependency.
+- **The CI uploads `test-evidence/` as the artifact `nexora-test-evidence`**,
+  with `if: always()`, because a failure is evidence too. The directory is
+  git-ignored. Nexora will read the artifact (pull, decided by the user):
+  the product CI needs no Nexora secret, and Nexora need not be reachable
+  from GitHub's runners.
+
+**Found on the way.** `test_losses.py` and `test_loss_api.py` were in no CI
+step. The twelve tests behind URS-EPM-002, *loss categorization*, had never
+run in a generated repository's CI. They are in the unit step now, and the
+new `oeeTestEvidence.test.ts` fails for any test file no workflow runs.
+Against the old `ci.yml` it fails for exactly these two.
+
+**Verified locally**, in a rendered copy with the template's own
+dependencies in a virtualenv: ruff clean; the four CI test steps pass 76
+tests (75 before, plus 1 new); the evidence holds 76 outcomes, with every
+requirement covered:
+
+| Requirement | Passing tests |
+|---|---|
+| URS-EPM-001 | 40 |
+| URS-EPM-002 | 12 |
+| URS-EPM-003 | 18 |
+| URS-EPM-004 | 14 |
+| URS-EPM-005 | 1 |
+
+**Not changed, named.** Only the OEE template. The other eight templates
+declare no requirement set, so there is nothing for their tests to name
+yet. Reading the artifact into Composer is C2, the product evidence review
+in the Validation Expert is C3, and refusing approval without coverage is
+C4.
+
+- Affected components: `templates/oee-data-product/content/tests/*`
+  (conftest, ten modules, new `test_metric_definitions.py`),
+  `templates/oee-data-product/content/.github/workflows/{ci,data-product-quality}.yml`,
+  `templates/oee-data-product/content/.gitignore`,
+  `packages/backend/src/oeeTestEvidence.test.ts` (new).
