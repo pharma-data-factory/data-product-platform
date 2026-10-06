@@ -249,6 +249,10 @@ four quick wins F1–F4, one commit and one record each.
   commit and digest on the approved baseline `1.0`; a re-import was a no-op.
   This ran on a personal token, not a GitHub App. Open finding:
   `PUT /signing-pin` needs no current PIN. See [`NXD-135`](DECISIONS.md).
+- **Follow-up recorded: signing-PIN re-enrolment.** A PIN can be replaced
+  without the current one, so a session alone resets a Part 11 second factor.
+  Proposed fix: change needs the current PIN, plus an audited admin reset. Not
+  in force; ranked in the closure plan. See [`NXD-136`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

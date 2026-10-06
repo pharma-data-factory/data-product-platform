@@ -521,6 +521,7 @@ Two constraints, both learned from this plan's own history:
 | 7 | ~~Slice 4 remainder~~ · ~~Slice 5 — Federation~~ | — | **Re-ranked 2026-09-28 — moved to §9.6** |
 | 8 | **Return `urs-composer` to the gate**, with its 9 pre-existing `CreateWizard` failures | ? | unknown cost |
 | 9 | **Slice 8 spike** — conditional permissions | L | stop condition |
+| 10 | **Signing-PIN re-enrolment** ([`NXD-136`](DECISIONS.md), added 2026-10-06). `PUT /signing-pin` replaces a PIN without the current one, so a session alone can reset the second factor of a Part 11 signature. Found in the `NXD-135` live run. | M | one decision: the re-enrolment policy |
 
 Out of scope here, as §7 already implies: the AI Test Coordinator, the AI GMP
 Impact Agent, Kubernetes and platform observability, Marketplace

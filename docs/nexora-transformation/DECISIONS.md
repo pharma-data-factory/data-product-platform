@@ -7907,3 +7907,46 @@ this.
   `pharma-data-factory/oee-e2e-test-20261005-d` (commit `431fd71`, tag
   `v1.0.0`, GitHub Release, GHCR package). Nexora test database: baseline
   `1.0` of `oee-e2e-test-20261005-d`, a `demo-pm` signing PIN.
+
+### NXD-136 — A signing PIN must not be replaceable by the session it protects (proposed, not in force)
+
+- Date: 2026-10-06
+- Status: **proposed.** Recorded as a follow-up ticket at the user's
+  direction. Ranked in `PHASE_CLOSURE_PLAN.md` §9.4 (rank 10). Nothing is
+  changed by this record.
+
+**Finding (`NXD-135`).** `PUT /urs-composer/signing-pin` enrols the caller's
+PIN through `SignaturePinReAuth.enroll`, and it does so **whether or not a PIN
+already exists, without asking for the current one**. Anyone holding a seat's
+session, whether a stolen token or an unlocked workstation, can set a new PIN
+and then sign as that seat. Every electronic signature on the platform depends
+on that PIN: URS approvals, validation decisions (`NXD-119`), and product
+approval and release (`NXD-128`). So the second factor is no stronger than
+the first. 21 CFR Part 11 §11.200(a)(1) expects two distinct components; today
+one of them can be re-issued by the other.
+
+**Options for the decision.**
+
+1. **First enrolment free, change needs the current PIN.** The fewest moving
+   parts. A forgotten PIN then needs a reset path, which is option 2.
+2. **Administrator reset.** A platform admin clears a seat's credential.
+   The act is audited with a reason, and the seat must enrol again before its
+   next signature. The admin cannot set the PIN; they can only clear it, so
+   they cannot sign as the seat.
+3. **Re-authentication for re-enrolment.** A fresh sign-in, or OIDC step-up,
+   which `OidcStepUpReAuth` stubs and which always throws today. It is
+   stronger, but blocked on an identity provider that supports step-up.
+
+**Recommendation.** Options 1 and 2 together. Option 3 stays the long-term
+target once an IdP with step-up exists.
+
+**Also to settle in the same slice.**
+
+- What a lockout (`failed_attempts`, `locked_until`) means for a reset.
+- Whether demo seats in test installations are exempt.
+- Whether `NXD-135`'s enrolment of a PIN for `demo-pm` should be cleared
+  afterwards.
+
+- Affected components (when decided):
+  `plugins/urs-composer-backend/src/{router,service,domain/reauth}.ts`, the
+  URS Composer's PIN page, and `docs/compliance/traceability-and-gmp.md`.
