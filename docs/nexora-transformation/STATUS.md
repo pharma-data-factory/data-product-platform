@@ -243,6 +243,12 @@ four quick wins F1–F4, one commit and one record each.
   `signedVersionTransition` kept CI's `lint:all` red from `62667a3` on. It is
   now a lookup, with no behaviour change, and `lint:all` is clean. See
   [`NXD-134`](DECISIONS.md).
+- **MVP1 step 4, live.** In `oee-e2e-test-20261005-d`, tag `v1.0.0` ran the
+  gate, pushed `ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d@sha256:6e696d5f…`,
+  and published `nexora-release.json`. *Import release provenance* recorded
+  commit and digest on the approved baseline `1.0`; a re-import was a no-op.
+  This ran on a personal token, not a GitHub App. Open finding:
+  `PUT /signing-pin` needs no current PIN. See [`NXD-135`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

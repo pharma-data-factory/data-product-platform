@@ -7658,6 +7658,8 @@ Equality would have traded that for less.
   `oee-e2e-test-20261005-d` predates it, so a live proof means committing
   `release.yml`, the scripts and `nexora.yaml` there before tagging. That is
   an outward-facing act, awaiting the user's go.
+  **Done 2026-10-06 in [`NXD-135`](DECISIONS.md):** the release run is green,
+  and the image is on GHCR.
 - **Step 4b:** Nexora reading `nexora-release.json` and writing commit SHA and
   digest to the approved baseline.
 - `actionlint` is not run; the workflow is checked structurally.
@@ -7772,6 +7774,8 @@ talks to GitHub, Composer asks it, and a person triggers the import.
 
 - **No live run.** No product repository has published a release yet; that
   waits on the `NXD-132` live tag.
+  **Done 2026-10-06 in [`NXD-135`](DECISIONS.md):** imported live, and
+  write-once was confirmed.
 - **The digest is not checked against GHCR.** That would need *Packages: read*
   on the GitHub App. Today the digest is as trustworthy as the repository's
   release assets, cross-checked against the tag's commit.
@@ -7817,3 +7821,89 @@ per-workspace `yarn lint` runs, and composer's run is the one that caught
 this.
 
 - Affected components: `plugins/composer-backend/src/service.ts`.
+
+### NXD-135 — The live run NXD-132 and NXD-133 deferred, and what it found
+
+- Date: 2026-10-06
+- Slice: live verification of MVP1 step 4, on the user's go, in
+  `pharma-data-factory/oee-e2e-test-20261005-d`.
+
+**What was done.**
+
+1. **Credentials checked.** No GitHub App is configured in this environment
+   (`GITHUB_APP_ID` and the private key are absent). Nexora reads GitHub
+   through the integration's token fallback, `GITHUB_TOKEN` in `.env`: a
+   personal token of `schmeckm` with `repo`, `workflow` and `write:org`,
+   expiring 2026-11-04.
+2. **Product repository brought up to the Golden Path.** The current
+   template was rendered with the repository's own values and compared with
+   its tree. It differed only in `NXD-131`/`NXD-132` files. Committed as
+   `431fd71`: `release.yml`, `scripts/nexora_release.py`, `nexora.yaml`,
+   `ci.yml`, the two new tests, `contracts/openapi.yaml` and `pyproject.toml`.
+   The AsyncAPI fix, the docs and the `dataproduct.yaml` deletion were left
+   out as not needed for the run. Locally beforehand: ruff clean, 86/86
+   tests.
+3. **Version and baseline.** Version `1.0` was already APPROVED, but had
+   **no product baseline**.
+   - `demo-author` created baseline `1.0`.
+   - `demo-pm` approved it with a justification and PIN (`signature-pin`,
+     recorded in `product_signatures`). `demo-pm` is not the author, so
+     Segregation of Duties holds.
+   - `demo-pm` had no signing PIN, so one was enrolled for that test seat.
+     No existing PIN was changed.
+4. **Tag `v1.0.0` pushed** (annotated, on `431fd71`).
+   - Release run `37492608570`: quality gate ✅, release ✅.
+   - CI on `main`, run `37492605890`: ✅.
+5. **Import.** `POST /versions/:id/release-provenance/import` as `demo-pm`,
+   the route the Tests-tab button calls, answered 200.
+
+**What was verified.**
+
+- **GitHub Release `v1.0.0`**: published, not a draft. It carries
+  `nexora-release.json` (704 bytes):
+  - artifact `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0`;
+  - commit `431fd71d0fcb5c9c56773f58fb451435db8f1c87`, which equals the
+    commit GitHub resolves for the tag;
+  - digest `sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810`.
+- **GHCR**: the release job's buildx log shows the manifest list exported,
+  and `:1.0.0` and `:sha-431fd71` pushed, both at that digest, with the SBOM
+  and provenance attestations. **Checked through the log only:** the
+  packages API answers 403 without `read:packages`, which neither token
+  has.
+- **Nexora**:
+  - version label `1.0` matched tag `v1.0.0` (R3);
+  - baseline `1.0` carries that commit and digest, with
+    `provenanceRecordedBy` set to `github-release:<release URL>`, re-read from
+    the API;
+  - `composer_audit_events` shows `PROVENANCE_RECORDED` by `demo-pm`, with
+    reason `Imported from <release URL>`;
+  - a second import answered `alreadyRecorded: true` with the original
+    timestamp.
+
+**What it found.**
+
+1. **The GitHub App path is still unproven.** Everything ran on a personal
+   token. Whether the App's documented *Contents: read* suffices for
+   releases is a claim, not a measurement, until an installation with the
+   App runs this. The token also makes every GitHub read attributable to one
+   person, which a shared installation should not do.
+2. **Two personal tokens with different reach.** Git's credential store
+   holds a token that cannot see `pharma-data-factory` product repositories,
+   while `.env` holds one that can. The clone failed with *Repository not
+   found* until the `.env` token was used, passed as a transient header and
+   persisted nowhere.
+3. **An approved version without a baseline is a normal state, and import
+   rightly refuses it.** A live operator meets "approve a baseline first"
+   before anything else. That is the designed order (`NXD-052`), but it is
+   one more step than the journey suggests.
+4. **`PUT /signing-pin` sets a PIN without asking for the current one.**
+   Anyone holding a seat's session can replace that seat's second factor and
+   then sign as it. For a Part 11 signature, that weakens the second factor
+   to the session. Found while deciding not to overwrite an existing PIN.
+   Named here, **not fixed**: changing it is a decision about re-enrolment
+   (old PIN, admin reset, lockout) for the user to take.
+
+- Affected components: none in code. External:
+  `pharma-data-factory/oee-e2e-test-20261005-d` (commit `431fd71`, tag
+  `v1.0.0`, GitHub Release, GHCR package). Nexora test database: baseline
+  `1.0` of `oee-e2e-test-20261005-d`, a `demo-pm` signing PIN.
