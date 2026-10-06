@@ -634,7 +634,10 @@ export {
   ARTIFACT_INTERFACE_DIRECTIONS,
 } from './artifact';
 export { NEXORA_MANIFEST_SCHEMA } from './manifestSchema';
-export { validateRunnableManifestSections } from './manifestSchemaValidator';
+export {
+  nexoraManifestSchemaValidator,
+  validateRunnableManifestSections,
+} from './manifestSchemaValidator';
 export type {
   Artifact,
   ArtifactCertificationStatus,

@@ -21,6 +21,11 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import yaml from 'yaml';
 import { createFetchTemplateAction } from '@backstage/plugin-scaffolder-backend';
+import {
+  nexoraManifestSchemaValidator,
+  validateArtifactManifest,
+  validateRunnableManifestSections,
+} from '@internal/platform-common';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const TEMPLATES_DIR = path.join(ROOT, 'templates');
@@ -161,4 +166,224 @@ describe('Golden Path skeletons render through the real fetch:template (NXD-105,
     },
     60000,
   );
+});
+
+/**
+ * The OEE Golden Path ships the canonical manifest (NXD-130, NXD-131). The run
+ * above renders placeholders and so proves only that the file parses; this one
+ * renders what a real Create would, and holds the result to the same three
+ * checks the platform applies: the published schema, the hand-written
+ * validator, and the registry's gate. A manifest that fails here would be
+ * refused the first time the product is registered.
+ */
+describe('the OEE Golden Path renders a manifest the registry accepts (NXD-131)', () => {
+  const step = localFetchTemplateSteps().find(
+    s => s.template === 'oee-data-product',
+  )!;
+
+  // Every form-supplied value, named. A value the template gains later fails
+  // the run below until it is added here, rather than rendering as undefined.
+  const FORM: Record<string, unknown> = {
+    name: 'oee-line-1',
+    title: 'oee-line-1',
+    description: 'OEE for filling line 1',
+    owner: 'group:default/team-a',
+    domain: 'manufacturing',
+    site: 'basel',
+    area: 'filling',
+    line: 'line-1',
+    equipmentId: 'filler-01',
+    defaultWindow: 'HOUR',
+    machineStateTopic: 'pharma/oee/+/state',
+    counterTopic: 'pharma/oee/+/count',
+    mqttTopic: 'pharma/oee/+/+',
+    contextUrlRef: 'SOURCE_API_URL',
+    system: 'data-platform',
+    ursBaselineId: 'unbound',
+    // Mixed case on purpose: an OCI repository and a coordinate segment are
+    // lowercase, a GitHub organisation need not be.
+    destination: {
+      host: 'github.com',
+      owner: 'Pharma-Data-Factory',
+      repo: 'oee-line-1',
+    },
+  };
+
+  let workspacePath: string;
+  let manifest: any;
+  let entity: any;
+
+  beforeAll(async () => {
+    const values = Object.fromEntries(
+      Object.entries(step.input.values).map(([key, value]) => {
+        if (typeof value === 'string' && !value.includes('${{')) {
+          return [key, value];
+        }
+        if (!(key in FORM)) {
+          throw new Error(`templateRendering: no realistic value for "${key}"`);
+        }
+        return [key, FORM[key]];
+      }),
+    );
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'nexora-oee-'));
+    const action = createFetchTemplateAction({
+      reader: {} as any,
+      integrations: { byHost: () => undefined, byUrl: () => undefined } as any,
+    });
+    await action.handler({
+      input: { ...step.input, values },
+      workspacePath,
+      logger,
+      templateInfo: { baseUrl: pathToFileURL(step.templateFile).href },
+      output: jest.fn(),
+      createTemporaryDirectory: async () =>
+        fs.mkdtempSync(path.join(os.tmpdir(), 'nexora-oee-tmp-')),
+      checkpoint: async ({ fn }: { fn: () => any }) => fn(),
+      getInitiatorCredentials: async () => ({}),
+    } as any);
+    manifest = yaml.parse(
+      fs.readFileSync(path.join(workspacePath, 'nexora.yaml'), 'utf8'),
+    );
+    entity = yaml
+      .parseAllDocuments(
+        fs.readFileSync(path.join(workspacePath, 'catalog-info.yaml'), 'utf8'),
+      )[0]
+      .toJSON();
+  }, 60000);
+
+  afterAll(() => {
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  });
+
+  it('no longer ships the unread dataproduct.yaml', () => {
+    expect(fs.existsSync(path.join(workspacePath, 'dataproduct.yaml'))).toBe(
+      false,
+    );
+  });
+
+  it('is valid against the published schema', () => {
+    const validate = nexoraManifestSchemaValidator();
+    const valid = validate(manifest);
+    expect(validate.errors ?? []).toEqual([]);
+    expect(valid).toBe(true);
+  });
+
+  it('passes validateArtifactManifest and the registry gate', () => {
+    expect(validateArtifactManifest(manifest)).toEqual([]);
+    expect(validateRunnableManifestSections(manifest)).toEqual([]);
+  });
+
+  it('agrees with catalog-info.yaml on identity', () => {
+    expect(manifest.metadata.name).toBe(entity.metadata.name);
+    expect(manifest.metadata.version).toBe(
+      entity.metadata.annotations['dataprod.platform/version'],
+    );
+    expect(manifest.metadata.description).toBe(entity.metadata.description);
+    expect(manifest.metadata.displayName).toBe(entity.metadata.title);
+  });
+
+  it('names a portable, lowercase image and namespace from the organisation', () => {
+    expect(manifest.metadata.namespace).toBe('pharma-data-factory');
+    expect(manifest.spec.runtime.image.repository).toBe(
+      'ghcr.io/pharma-data-factory/oee-line-1',
+    );
+  });
+
+  it('serves on the port the image exposes and the health route it probes', () => {
+    const dockerfile = fs.readFileSync(
+      path.join(workspacePath, 'Dockerfile'),
+      'utf8',
+    );
+    const [port] = manifest.spec.runtime.ports;
+    expect(dockerfile).toMatch(new RegExp(`EXPOSE ${port.containerPort}\\b`));
+    expect(dockerfile).toContain(
+      `127.0.0.1:${port.containerPort}${manifest.spec.runtime.health.path}`,
+    );
+  });
+
+  it('points every interface document at a file that exists', () => {
+    const paths: string[] = manifest.spec.interfaces
+      .filter((iface: any) => iface.document)
+      .map((iface: any) => iface.document.path);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(
+      paths.filter(file => !fs.existsSync(path.join(workspacePath, file))),
+    ).toEqual([]);
+  });
+
+  it('declares every variable the Compose file passes, except the internal ones', () => {
+    const compose = yaml.parse(
+      fs.readFileSync(path.join(workspacePath, 'docker-compose.yml'), 'utf8'),
+    );
+    const [service] = Object.values<any>(compose.services);
+    // Set from the manifest itself, or a path inside the image: not something
+    // an installation chooses.
+    const internal = [
+      'SERVICE_NAME',
+      'SERVICE_VERSION',
+      'TIMESERIES_SQLITE_PATH',
+    ];
+    const passed = Object.keys(service.environment).filter(
+      key => !internal.includes(key),
+    );
+    const declared = manifest.spec.config.map((entry: any) => entry.key);
+    expect([...declared].sort()).toEqual([...passed].sort());
+  });
+
+  describe('contracts/asyncapi.yaml', () => {
+    let doc: any;
+    beforeAll(() => {
+      doc = yaml.parse(
+        fs.readFileSync(
+          path.join(workspacePath, 'contracts/asyncapi.yaml'),
+          'utf8',
+        ),
+      );
+    });
+
+    it('is AsyncAPI 3, which is what its `address` and `operations` mean', () => {
+      expect(doc.asyncapi).toMatch(/^3\.\d+\.\d+$/);
+      expect(doc.operations).toBeDefined();
+    });
+
+    it('resolves every $ref inside the document', () => {
+      const refs: string[] = [];
+      const walk = (node: unknown) => {
+        if (Array.isArray(node)) node.forEach(walk);
+        else if (node && typeof node === 'object') {
+          for (const [key, value] of Object.entries(node)) {
+            if (key === '$ref' && typeof value === 'string') refs.push(value);
+            else walk(value);
+          }
+        }
+      };
+      walk(doc);
+      expect(refs.length).toBeGreaterThan(0);
+      for (const ref of refs) {
+        const target = ref
+          .replace(/^#\//, '')
+          .split('/')
+          .reduce((node: any, key) => node?.[key], doc);
+        expect([ref, target !== undefined]).toEqual([ref, true]);
+      }
+    });
+
+    it('receives what the manifest says the product consumes, and sends nothing', () => {
+      const actions = Object.values<any>(doc.operations).map(op => op.action);
+      const consumedEvents = manifest.spec.interfaces.filter(
+        (i: any) => i.type === 'event' && i.direction === 'consumes',
+      );
+      expect(actions.every(action => action === 'receive')).toBe(true);
+      expect(actions).toHaveLength(consumedEvents.length);
+      const provided = manifest.spec.interfaces.filter(
+        (i: any) => i.type === 'event' && i.direction === 'provides',
+      );
+      expect(provided).toEqual([]);
+    });
+
+    it('carries the topics chosen at Create as channel addresses', () => {
+      expect(doc.channels.machineState.address).toBe(FORM.machineStateTopic);
+      expect(doc.channels.counters.address).toBe(FORM.counterTopic);
+    });
+  });
 });

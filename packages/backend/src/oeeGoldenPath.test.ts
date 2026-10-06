@@ -42,6 +42,7 @@ const REQUIRED_FILES = [
   'contracts/counter-event.schema.json',
   'contracts/openapi.yaml',
   'contracts/asyncapi.yaml',
+  'nexora.yaml',
   'contracts/loss-event.schema.json',
   'contracts/reason-code.schema.json',
   'compat/consumers.json',

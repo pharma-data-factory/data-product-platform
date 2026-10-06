@@ -219,6 +219,12 @@ four quick wins F1–F4, one commit and one record each.
   registration gate through `validateRunnableManifestSections` (ajv,
   approved). Not in `validateArtifactManifest`, because the browser runs
   that. Cross-field port and uniqueness rules are code beside it. See [`NXD-130`](DECISIONS.md).
+- **MVP1 step 3: the OEE Golden Path ships `nexora.yaml`.** It renders valid
+  against the schema, `validateArtifactManifest` and the registry gate, and
+  agrees with `catalog-info.yaml`; a test renders it through the real
+  `fetch:template`. All four unread `dataproduct.yaml` files are gone.
+  `asyncapi.yaml` is now valid AsyncAPI 3.0 and says *receive*. Topics stay
+  config until a provider binds them. See [`NXD-131`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

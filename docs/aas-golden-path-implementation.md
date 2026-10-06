@@ -63,7 +63,6 @@ templates/aas-data-product/
 │   ├── docker-compose.yml          # Local dev environment
 │   ├── requirements.txt            # Python dependencies
 │   ├── catalog-info.yaml           # Backstage registration
-│   ├── dataproduct.yaml            # Data Product metadata
 │   ├── mkdocs.yml                  # Documentation config
 │   ├── pytest.ini                  # Test configuration
 │   ├── .env.example                # Environment template
@@ -403,7 +402,7 @@ templates/aas-data-product/
     .github/workflows/
       ci.yml
     Dockerfile, docker-compose.yml
-    requirements.txt, catalog-info.yaml, dataproduct.yaml
+    requirements.txt, catalog-info.yaml
     mkdocs.yml, pytest.ini, .env.example, .gitignore
 
 docs/

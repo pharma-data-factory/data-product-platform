@@ -3,7 +3,8 @@
 Official Golden Paths emit consumption metadata automatically:
 
 - `catalog-info.yaml` annotations (`consume-*`, `presentation-*`, `validation-status: NOT_VALIDATED`)
-- `dataproduct.yaml` documentary descriptor
+- `nexora.yaml`, the canonical manifest (NXD-130). Shipped by `oee-data-product` so far (NXD-131);
+  the other Golden Paths follow. The former `dataproduct.yaml` is removed from all of them.
 
 ## Templates updated
 

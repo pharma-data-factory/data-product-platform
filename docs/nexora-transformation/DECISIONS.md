@@ -7413,6 +7413,8 @@ an install-time configuration. `NXD-129` needs exactly those.
 
 - The four `dataproduct.yaml` files are not deleted yet. They go in the slice
   in which the OEE template ships a `nexora.yaml` (MVP1 step 3).
+  **Done 2026-10-06 in [`NXD-131`](DECISIONS.md):** all four removed, and the
+  OEE template ships a `nexora.yaml`.
 - **Not modelled yet:** permissions a product needs (they belong with the
   installation grant of `NXD-129`), persistent storage, and a command or
   arguments.
@@ -7427,3 +7429,118 @@ an install-time configuration. `NXD-129` needs exactly those.
   `src/artifact.ts`, `src/index.ts`, `package.json` (`ajv`);
   `yarn.lock`; `plugins/artifact-registry-backend/src/service.ts`
   (+ `service.test.ts`).
+
+### NXD-131 — The OEE Golden Path ships `nexora.yaml`, and the unread `dataproduct.yaml` leaves every template
+
+- Date: 2026-10-06
+- Slice: MVP1 step 3. Decided by the user. Open choices E1–E6 of the
+  preparation were taken at their proposed defaults, except E5 (all four
+  files go) and E3 (see below).
+
+**Context.** `NXD-130` made `nexora.yaml` canonical but no template produced
+one. Meanwhile four templates still shipped a `dataproduct.yaml` that no code
+reads. The preparation also found:
+
+- `contracts/asyncapi.yaml` declared AsyncAPI `2.6.0` while using 3.0's
+  `address`, so it was valid under neither version. Its `subscribe` also
+  meant, in 2.x, that the product *publishes*, while the product in fact
+  receives both streams.
+- `contracts/openapi.yaml` describes 4 of about 20 routes.
+
+**Decision.**
+
+- **`templates/oee-data-product/content/nexora.yaml`** contains:
+  - `metadata`: namespace and image owner are the GitHub organisation,
+    lowercased (`${{ values.destination.owner | lower }}`; E1). A coordinate
+    segment and an OCI path are lowercase, an organisation need not be.
+  - `runtime`: `ghcr.io/<org>/<name>` (E2), port `http` 8080, health
+    `GET /health`. These are the values the Dockerfile already exposes and
+    probes.
+  - `interfaces`: four.
+    - The provided REST API `oee` under `/api/v1`.
+    - Two consumed MQTT events, `equipment/{equipmentId}/state` and
+      `equipment/{equipmentId}/count`, as logical channels with
+      `mechanisms: [mqtt]`.
+    - The consumed REST source `production-context`.
+  - `config`: every variable the Compose file passes, except `SERVICE_NAME`,
+    `SERVICE_VERSION` and `TIMESERIES_SQLITE_PATH`, which the manifest or the
+    image fixes. `MQTT_PASSWORD` and `SOURCE_API_TOKEN` are secrets without
+    values. `MQTT_HOST` is optional because an empty host disables MQTT and
+    ingest stays available over REST.
+- **Topics stay configuration (E4).** `MACHINE_STATE_TOPIC`,
+  `COUNTER_TOPIC` and `MQTT_TOPIC` are config keys whose defaults are the
+  topics chosen at Create. How an installation binds a channel to a broker
+  topic and hands it to the container is the provider slice's question
+  (`NXD-129`). Answering it here, before a provider exists, would fix a
+  contract nobody has used.
+- **License (E3): a literal, not a form field.** The skeleton says
+  `license: LicenseRef-Proprietary`, with a comment to replace it. A new
+  template parameter would have touched `template.yaml`, which this slice
+  did not include.
+- **No `contract:` coordinates.** They would name DataContracts that
+  `product:create` never registers in Composer. A dangling coordinate is
+  worse than none.
+- **No schema change (E6).** Domain and owner team stay in
+  `catalog-info.yaml`. A consumed API whose payload is described only by a
+  JSON Schema declares no document.
+- **All four `dataproduct.yaml` files are deleted (E5):** aas, mqtt-temperature,
+  oee, rest-equipment. Nothing referenced them: no code, no test, no
+  Dockerfile, no workflow. What they said that anything reads (quality
+  targets, presentation) is already in the catalog annotations;
+  `validation.status` belongs in no manifest (`NXD-019`). Three templates
+  now have neither file until they get a `nexora.yaml`.
+- **`asyncapi.yaml` is AsyncAPI 3.0.0.**
+  - Channels carry `address` (the topics from Create) and `messages`.
+  - Two `operations` with `action: receive`.
+  - Messages under `components`.
+  - The payload schemas are unchanged, field for field.
+- **Documents:**
+  - `docs/data-product-framework/DATA-PRODUCT-MODEL.md`,
+    `GOLDEN-PATH-INTEGRATION.md` and `ARCHITECTURE.md` now name `nexora.yaml`
+    as canonical.
+  - `docs/aas-golden-path-implementation.md` drops the file from its trees.
+  - `NXD-130`'s "not deleted yet" line is annotated, not rewritten
+    (`NXD-084`).
+
+**Verified.**
+
+- `templateRendering.test.ts` gains a block that renders the OEE Golden Path
+  through Backstage's real `fetch:template` with realistic form values. The
+  organisation is in mixed case (`Pharma-Data-Factory`), so the test proves
+  the lowercasing. It asserts 12 things:
+  - the rendered manifest is valid against the published schema,
+    `validateArtifactManifest` and the registry gate;
+  - name, version, description and title agree with `catalog-info.yaml`;
+  - namespace and image are lowercase;
+  - the Dockerfile exposes the declared port and probes the declared health
+    path;
+  - every interface document exists;
+  - the config keys equal the Compose variables less the three internal ones;
+  - `asyncapi.yaml` is 3.x, every `$ref` resolves, it receives exactly as
+    many streams as the manifest consumes and sends none, and its addresses
+    are the topics from Create;
+  - no `dataproduct.yaml` is rendered.
+- **Mutation check:** with `| lower` removed from the image path, three of
+  the twelve fail (schema, gate, lowercase).
+- `oeeGoldenPath.test.ts` lists `nexora.yaml` among the required skeleton
+  files.
+- See the commit body for the gates and the repo-wide run.
+
+**Not done, named.**
+
+- `contracts/openapi.yaml` still covers 4 of about 20 routes. Generating it
+  from FastAPI's `/openapi.json` in CI is the honest fix and belongs with
+  step 4, the CI release job.
+- The AsyncAPI document is checked structurally, not by an AsyncAPI parser.
+  That would be a new dependency.
+- The OEE product keeps state in a volume (`/app/data`, SQLite) that
+  `NXD-130` cannot express. It must be modelled before the Compose provider
+  reinstalls anything.
+- The other three data-product templates do not ship a `nexora.yaml` yet.
+
+- Affected components: `templates/oee-data-product/content/nexora.yaml`
+  (new), `templates/oee-data-product/content/contracts/asyncapi.yaml`,
+  `templates/{aas-data-product,mqtt-temperature-product,oee-data-product,rest-equipment-product}/content/dataproduct.yaml`
+  (deleted), `packages/backend/src/{templateRendering,oeeGoldenPath}.test.ts`,
+  `packages/platform-common/src/{index,manifestSchemaValidator}.ts`
+  (`nexoraManifestSchemaValidator` exported), the four documents above.

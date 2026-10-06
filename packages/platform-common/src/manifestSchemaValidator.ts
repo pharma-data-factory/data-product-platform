@@ -49,7 +49,11 @@ function subschema(pointer: string): ValidateFunction {
   return validate;
 }
 
-/** The full schema, for tests that check whole manifests against it. */
+/**
+ * The full schema, compiled once. The registry gate evaluates only the NXD-130
+ * sections; this is for checking a whole document, as the template tests do
+ * with a rendered Golden Path.
+ */
 export function nexoraManifestSchemaValidator(): ValidateFunction {
   return subschema('');
 }

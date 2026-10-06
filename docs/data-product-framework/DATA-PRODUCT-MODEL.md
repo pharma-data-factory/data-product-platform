@@ -21,8 +21,17 @@ No duplicate custom Catalog kind is introduced.
 
 ## Optional repo file
 
-Golden Paths may emit `dataproduct.yaml` (`apiVersion: platform.nexora.io/v1alpha1`) as documentation.
-Runtime discovery reads Catalog annotations via `descriptorFromEntity`.
+The canonical manifest of a Data Product is `nexora.yaml` (`apiVersion: nexora.dev/v1alpha1`,
+kind `DATA_PRODUCT`) at the repository root. Its schema is `NEXORA_MANIFEST_SCHEMA` in
+`@internal/platform-common`; it states runtime, interfaces and install-time configuration, and the
+registry checks it when a version is registered. See NXD-130 in
+[`DECISIONS.md`](../nexora-transformation/DECISIONS.md). The OEE Golden Path ships one (NXD-131).
+
+`dataproduct.yaml` is gone. No code ever read it, and its copies disagreed with each other and with
+`catalog-info.yaml`.
+
+Runtime discovery still reads Catalog annotations via `descriptorFromEntity`; deriving those
+annotations from `nexora.yaml` is later work.
 
 ## Live vs declared quality
 
