@@ -238,6 +238,17 @@ export async function up(knex: Knex): Promise<void> {
     }
   }
 
+  // NXD-137: the registry version a release build was registered as. Written
+  // once by the release provenance import; nullable, because most versions
+  // are never built and every version before this was not registered.
+  if (await knex.schema.hasTable('product_versions')) {
+    if (!(await knex.schema.hasColumn('product_versions', 'artifact_ref'))) {
+      await knex.schema.alterTable('product_versions', table => {
+        table.string('artifact_ref', 255).nullable();
+      });
+    }
+  }
+
   // Slice 1a: Product Requirements — the snapshot of an approved URS baseline
   // that a Product Version implements.
   //

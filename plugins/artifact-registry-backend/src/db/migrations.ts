@@ -83,6 +83,23 @@ export async function up(knex: Knex): Promise<void> {
 
   await createCaseInsensitiveIndexes(knex);
   await addPublisherTrustColumns(knex);
+  await addReleaseBuildColumns(knex);
+}
+
+/**
+ * NXD-137: the release build a runnable version is — image, digest, commit,
+ * release. Nullable, because a template or a listing has none and every
+ * version registered before this has none either.
+ */
+async function addReleaseBuildColumns(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('artifact_versions'))) return;
+  if (await knex.schema.hasColumn('artifact_versions', 'release_image_digest')) return;
+  await knex.schema.alterTable('artifact_versions', table => {
+    table.string('release_image_repository', 255).nullable();
+    table.string('release_image_digest', 80).nullable();
+    table.string('release_commit_sha', 64).nullable();
+    table.string('release_url', 512).nullable();
+  });
 }
 
 /**

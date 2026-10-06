@@ -7950,3 +7950,133 @@ target once an IdP with step-up exists.
 - Affected components (when decided):
   `plugins/urs-composer-backend/src/{router,service,domain/reauth}.ts`, the
   URS Composer's PIN page, and `docs/compliance/traceability-and-gmp.md`.
+
+### NXD-137 — A recorded release becomes a registry version, and only a version with a build may be certified or published
+
+- Date: 2026-10-06
+- Slice: MVP1 step 5, Release → Publish. Asked for by the user on the data
+  of the `NXD-135` live run. (The user named it NXD-135; that number was
+  already the live run.)
+
+**Context.** After `NXD-133`, a product version's approved baseline carries
+the commit and image digest of its release, but nothing reached the Artifact
+Registry. The registry is what a consuming installation, and later
+*Install*, reads. Its versions held a manifest and a `sourceRef`, never an
+image. Its lifecycle (submit → review → certify → publish) had no rule
+about builds at all.
+
+**Decision.**
+
+- **Recording a release registers it.** When *Import release provenance*
+  has written the provenance, Composer registers the build as a **DRAFT**
+  ArtifactVersion in the same request.
+  - The call goes **on behalf of the importing person** (the
+    `pinVerifierFor` pattern of `NXD-128`). The registry therefore applies
+    *their* `artifact.create` and the publisher's namespace; the Composer
+    holds no registry authority of its own.
+  - A refusal does not undo the provenance, which is true either way. It is
+    reported as `registration: { status: 'failed', reason }`, and a re-import
+    completes it.
+  - The CI push path (`NXD-052`, a service principal) does not register: it
+    has no person to act for.
+- **From the real manifest.** `data-products-backend` reads `nexora.yaml`
+  **at the commit the tag points at** (Contents API, raw, up to 256 KiB),
+  not at the default branch, which may have moved since. Its absence does not
+  hide the record; it answers `manifestReason`.
+  - The text travels unparsed to the registry, the one plugin that already
+    has a YAML library. No dependency was added.
+- **The build lives on the version.** `artifact_versions` gains
+  `release_image_repository`, `release_image_digest`, `release_commit_sha`
+  and `release_url`. In the model this is `ArtifactVersion.releaseBuild`.
+  - It is written once, at registration, like everything else on a version
+    (`NXD-030`).
+  - `validateArtifactReleaseBuild` (platform-common) refuses a build for a
+    non-runnable kind, an image other than the manifest's
+    `spec.runtime.image.repository`, and commit or digest grammars `NXD-052`
+    refuses.
+- **`POST /artifacts/release-builds`** (`artifact.create`, users).
+  `registerReleaseBuild` parses the text and registers with the build. The
+  same coordinate with the same digest answers `alreadyRegistered` (200).
+  A different digest is a 409: a rebuilt image is a new version.
+- **R8 in the registry.** `certify` and `publish` refuse a **runnable**
+  version (its manifest declares `spec.runtime`) that has no release build.
+  - Publish checks again, so a version certified before the rule cannot slip
+    through.
+  - The test is the manifest, not the kind: the shipped DATA_PRODUCT
+    listings without `spec.runtime` are unaffected.
+- **The product version remembers its registry version.**
+  `product_versions.artifact_ref` (`ProductVersion.artifactRef`) is
+  write-once, set at registration, and audited as
+  `ARTIFACT_VERSION_REGISTERED` by the importing person with the release
+  URL.
+- **The registry workflow on the product page.** Under *Build evidence*:
+  - the import says what happened in the registry;
+  - an *Artifact Registry* card shows coordinate, lifecycle, image and
+    digest, commit and release, and offers exactly the next act: *Submit for
+    testing*, *Record review*, *Certify* or *Publish*;
+  - each act goes to the registry's own route with the signed-in person's
+    token, and a refusal, R8 included, is shown in the registry's words.
+
+**Verified.**
+
+- **Unit and integration, about 120 new or extended tests:**
+  - platform-common: release-build validation and the runnable test, 4;
+  - registry, 135 green: on the live manifest and digest, registers DRAFT
+    with the build; idempotent; 409 on another digest; refuses another
+    image and non-manifest text; walks the full lifecycle with a build; R8
+    refuses certify without one; R8 refuses publish of one certified before
+    the rule; non-runnable versions unaffected; route 201/200/403;
+  - data-products, 134: manifest read at the tag commit; no-manifest answer;
+    raw-text client;
+  - composer, 400: registration hand-off with the live values; artifactRef
+    and audit; already-registered audits once; a refusal keeps the
+    provenance; no manifest means no call; unconfigured; registrar client
+    passes `onBehalfOf` and the registry's message;
+  - app, 53: card actions per lifecycle; act and refresh; R8 refusal
+    verbatim; registration line; card after import.
+- **Live, against the running instance, on the `NXD-135` release:**
+  1. Re-import: `alreadyRecorded: true`, and registration `failed` with
+     *No publisher owns namespace "pharma-data-factory"*. The provenance
+     stayed.
+  2. `demo-pm` self-registered publisher `pharma-data-factory`
+     (COMMUNITY).
+  3. Re-import: `registered`.
+     `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0` is DRAFT, with
+     `releaseBuild` set to image
+     `ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d`, digest
+     `sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810`,
+     commit `431fd71…` and the release URL. The stored manifest is the one at
+     `431fd71`.
+  4. Submit → TESTING; review → TESTED; certify → CERTIFIED; publish →
+     **RELEASED**.
+  5. Product version `1.0` carries `artifactRef`; the audit shows
+     `ARTIFACT_VERSION_REGISTERED` by `demo-pm`.
+
+**Found, named, not fixed.**
+
+1. **No segregation of duties in the registry.** One person submitted,
+   reviewed, certified and published. The URS chain and product approvals
+   forbid that (`NXD-057`, `NXD-072`); the registry's review and
+   certification currently mean nothing more than "someone with the
+   permission clicked".
+2. **A claim the code does not keep.** Self-registration answers "Artifacts
+   can be submitted but not published until a PLATFORM_ADMIN promotes this
+   publisher to PARTNER status". `publishArtifactVersion` checks no trust
+   level, and the COMMUNITY publisher's version was published.
+3. **Publish does not ask the Nexora release gate.** The artifact is
+   RELEASED in the registry while product version `1.0` is APPROVED, not
+   RELEASED. Whether publishing must follow the governed release is a
+   decision for the next slice. For a GxP product it should.
+4. Registry refusals reach the page prefixed with the error type
+   (`NotFoundError: …`). Cosmetic.
+
+- Affected components: `packages/platform-common/src/{artifact,product,index}.ts`
+  (+ `artifact.test.ts`);
+  `plugins/artifact-registry-backend/src/{db/migrations,repository,service,router}.ts`
+  (+ tests, `__fixtures__/oee-e2e-test-20261005-d.nexora.yaml`);
+  `plugins/data-products-backend/src/{githubActions,releaseRecord,router,types}.ts`
+  (+ tests);
+  `plugins/composer-backend/src/{db/migrations,repository,repository-interface,release-record-client,release-registrar,service,router,plugin}.ts`
+  (+ tests);
+  `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/TestsTab.tsx,tabs/RegistryPublication.tsx}`
+  (+ tests).

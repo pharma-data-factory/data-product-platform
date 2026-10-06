@@ -361,3 +361,159 @@ describe('POST /versions/:id/release-provenance/import (NXD-133)', () => {
     expect((await post()).status).toBe(401);
   });
 });
+
+describe('importReleaseProvenance registers the build (NXD-137)', () => {
+  let db: Knex;
+  let service: ComposerService;
+  let repository: ComposerRepository;
+  let versionId: string;
+  const MANIFEST = 'apiVersion: nexora.dev/v1alpha1\nkind: DATA_PRODUCT\n';
+  const REF = 'pharma-data-factory/oee-e2e-test-20261005-d@1.0.0';
+  const client = {
+    getReleaseRecord: jest.fn(async () => ({
+      ...lookup(),
+      manifest: MANIFEST,
+    })),
+  };
+
+  beforeEach(async () => {
+    db = knex({
+      client: 'better-sqlite3',
+      connection: { filename: ':memory:' },
+      useNullAsDefault: true,
+    });
+    repository = await ComposerRepository.create({ getClient: () => db });
+    service = new ComposerService({
+      logger: mockLogger,
+      repository,
+      releaseRecordClient: client,
+    });
+    const product = await service.createProduct(
+      {
+        name: 'oee-line-5',
+        productType: 'DATA_PRODUCT',
+        repositoryUrl: REPO,
+      } as any,
+      author,
+    );
+    const version = await service.createProductVersion(
+      product.id,
+      { version: '1.0' },
+      author,
+    );
+    versionId = version.id;
+    const baseline = await service.createProductBaseline(versionId, {}, author);
+    await service.approveProductBaseline(baseline.id, reviewer);
+  });
+
+  afterEach(async () => {
+    await db?.destroy();
+  });
+
+  const registered = (alreadyRegistered = false) =>
+    jest.fn(async () => ({
+      artifactRef: REF,
+      artifactVersionId: 'av-1',
+      lifecycle: 'DRAFT',
+      alreadyRegistered,
+    }));
+
+  it('hands the manifest and the build to the registry, and remembers the version', async () => {
+    const register = registered();
+    const result = await service.importReleaseProvenance(
+      versionId,
+      importer,
+      register,
+    );
+
+    expect(register).toHaveBeenCalledWith({
+      manifest: MANIFEST,
+      release: {
+        imageRepository: 'ghcr.io/pharma-data-factory/oee',
+        imageDigest: DIGEST,
+        commitSha: SHA,
+        releaseUrl: RELEASE_URL,
+      },
+    });
+    expect(result.registration).toEqual({
+      status: 'registered',
+      artifactRef: REF,
+      artifactVersionId: 'av-1',
+      lifecycle: 'DRAFT',
+    });
+    expect((await repository.getProductVersion(versionId))?.artifactRef).toBe(
+      REF,
+    );
+    const events = await service.getEntityAuditTrail(
+      'PRODUCT_VERSION',
+      versionId,
+    );
+    const event = events.find(
+      e => e.eventType === 'ARTIFACT_VERSION_REGISTERED',
+    );
+    expect(event).toMatchObject({ actor: importer, newValue: REF });
+  });
+
+  it('says already registered on a re-import, and audits the link once', async () => {
+    await service.importReleaseProvenance(versionId, importer, registered());
+    const again = await service.importReleaseProvenance(
+      versionId,
+      importer,
+      registered(true),
+    );
+    expect(again.registration.status).toBe('already-registered');
+    const events = await service.getEntityAuditTrail(
+      'PRODUCT_VERSION',
+      versionId,
+    );
+    expect(
+      events.filter(e => e.eventType === 'ARTIFACT_VERSION_REGISTERED'),
+    ).toHaveLength(1);
+  });
+
+  it('keeps the provenance when the registry refuses, and says why', async () => {
+    const register = jest.fn(async () => {
+      throw new Error(
+        'No publisher owns namespace "pharma-data-factory". Register the publisher first.',
+      );
+    });
+    const result = await service.importReleaseProvenance(
+      versionId,
+      importer,
+      register,
+    );
+    expect(result.baseline.provenance?.artifactDigest).toBe(DIGEST);
+    expect(result.registration).toEqual({
+      status: 'failed',
+      reason:
+        'The Artifact Registry refused the build: No publisher owns namespace "pharma-data-factory". Register the publisher first.',
+    });
+    expect(
+      (await repository.getProductVersion(versionId))?.artifactRef,
+    ).toBeUndefined();
+  });
+
+  it('does not register without the manifest of the tagged commit', async () => {
+    client.getReleaseRecord.mockResolvedValueOnce({
+      ...lookup(),
+      manifestReason: 'no-manifest',
+    } as any);
+    const register = registered();
+    const result = await service.importReleaseProvenance(
+      versionId,
+      importer,
+      register,
+    );
+    expect(register).not.toHaveBeenCalled();
+    expect(result.registration).toEqual({
+      status: 'skipped',
+      reason: 'Not registered: the tagged commit has no nexora.yaml.',
+    });
+  });
+
+  it('records provenance only when no registrar is configured', async () => {
+    const result = await service.importReleaseProvenance(versionId, importer);
+    expect(result.registration.status).toBe('skipped');
+    expect(result.baseline.provenance?.artifactDigest).toBe(DIGEST);
+  });
+});

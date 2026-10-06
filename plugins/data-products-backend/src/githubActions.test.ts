@@ -324,6 +324,23 @@ describe('createGithubActionsClient', () => {
       );
     });
 
+    it('reads a file at a ref as raw text, and a missing file as nothing (NXD-137)', async () => {
+      const fetchFn = jest.fn(async (url: string) =>
+        String(url).includes('/contents/nexora.yaml')
+          ? ({ ok: true, status: 200, text: async () => 'kind: DATA_PRODUCT\n' } as unknown as Response)
+          : jsonResponse(404, {}),
+      );
+      const result = await client(fetchFn).getFileAtRef!(repo, 'nexora.yaml', 'a'.repeat(40));
+      expect(result).toEqual({ ok: true, value: 'kind: DATA_PRODUCT\n' });
+      const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toContain(`/contents/nexora.yaml?ref=${'a'.repeat(40)}`);
+      expect((init.headers as Record<string, string>).Accept).toBe('application/vnd.github.raw');
+      expect(await client(fetchFn).getFileAtRef!(repo, 'missing.yaml', 'main')).toEqual({
+        ok: true,
+        value: undefined,
+      });
+    });
+
     it('maps a missing repository to not-found', async () => {
       const fetchFn = jest.fn(async () => jsonResponse(404, {}));
       expect(await client(fetchFn).listReleases!(repo)).toEqual({

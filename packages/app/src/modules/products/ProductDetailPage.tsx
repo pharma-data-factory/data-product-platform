@@ -28,7 +28,7 @@ import type {
   ProductRequirementCoverage,
   ProductVersion,
 } from '@internal/platform-common';
-import { useComposerClient, ProductTraceability } from './api';
+import { useComposerClient, useRegistryClient, ProductTraceability } from './api';
 import { OverviewTab } from './tabs/OverviewTab';
 import { RequirementsTab } from './tabs/RequirementsTab';
 import { ArchitectureTab } from './tabs/ArchitectureTab';
@@ -60,6 +60,7 @@ const NO_BASELINES: ApprovedBaselineOption[] = [];
 export function ProductDetailPage() {
   const { productId = '' } = useParams();
   const client = useComposerClient();
+  const registry = useRegistryClient();
   const ursApi = useApi(ursComposerApiRef);
 
   const [tab, setTab] = useState('overview');
@@ -624,6 +625,8 @@ export function ProductDetailPage() {
                     }
                   : undefined
               }
+              artifactRef={selectedVersion?.artifactRef}
+              registry={registry}
             />
           )}
 

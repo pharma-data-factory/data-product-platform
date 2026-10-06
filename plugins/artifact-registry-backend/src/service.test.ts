@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { parse as parseYaml } from 'yaml';
 /**
  * Artifact Registry rules.
  *
@@ -478,6 +481,136 @@ describe('ArtifactRegistryService', () => {
       await expect(
         service.submitArtifactVersion(version.id, outsider),
       ).resolves.toBeDefined();
+    });
+  });
+
+  /**
+   * NXD-137, on the data of the NXD-135 live run: the nexora.yaml read from
+   * oee-e2e-test-20261005-d at tag v1.0.0, and the image GHCR answered for it.
+   */
+  describe('release builds (NXD-137)', () => {
+    const LIVE_MANIFEST = readFileSync(
+      join(__dirname, '__fixtures__', 'oee-e2e-test-20261005-d.nexora.yaml'),
+      'utf8',
+    );
+    const LIVE_BUILD = {
+      imageRepository: 'ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d',
+      imageDigest:
+        'sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810',
+      commitSha: '431fd71d0fcb5c9c56773f58fb451435db8f1c87',
+      releaseUrl:
+        'https://github.com/pharma-data-factory/oee-e2e-test-20261005-d/releases/tag/v1.0.0',
+    };
+
+    beforeEach(async () => {
+      await service.createPublisher(
+        { namespace: 'pharma-data-factory', displayName: 'Pharma Data Factory' },
+        actor,
+      );
+    });
+
+    const register = () =>
+      service.registerReleaseBuild({ manifest: LIVE_MANIFEST, release: LIVE_BUILD }, actor);
+
+    it('registers the live build as a DRAFT version carrying its digest', async () => {
+      const result = await register();
+      expect(result.alreadyRegistered).toBe(false);
+      expect(result.artifact).toMatchObject({
+        namespace: 'pharma-data-factory',
+        name: 'oee-e2e-test-20261005-d',
+        kind: 'DATA_PRODUCT',
+      });
+      expect(result.version).toMatchObject({ version: '1.0.0', lifecycle: 'DRAFT' });
+      const stored = await service.resolveRef(
+        'pharma-data-factory/oee-e2e-test-20261005-d@1.0.0',
+      );
+      expect(stored?.releaseBuild).toEqual(LIVE_BUILD);
+      expect(stored?.manifest?.spec?.runtime?.image.repository).toBe(
+        LIVE_BUILD.imageRepository,
+      );
+    });
+
+    it('answers the same build again as already registered', async () => {
+      const first = await register();
+      const second = await register();
+      expect(second.alreadyRegistered).toBe(true);
+      expect(second.version.id).toBe(first.version.id);
+    });
+
+    it('refuses a different image under the same version', async () => {
+      await register();
+      await expect(
+        service.registerReleaseBuild(
+          {
+            manifest: LIVE_MANIFEST,
+            release: { ...LIVE_BUILD, imageDigest: `sha256:${'0'.repeat(64)}` },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(/already registered as sha256:6e696d5f.*bump metadata\.version/);
+    });
+
+    it('refuses a build of an image the manifest does not run', async () => {
+      await expect(
+        service.registerReleaseBuild(
+          {
+            manifest: LIVE_MANIFEST,
+            release: { ...LIVE_BUILD, imageRepository: 'ghcr.io/someone/else' },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(/Invalid release build: .*is not the manifest's spec\.runtime\.image\.repository/);
+    });
+
+    it('refuses text that is not a manifest', async () => {
+      await expect(
+        service.registerReleaseBuild({ manifest: '', release: LIVE_BUILD }, actor),
+      ).rejects.toThrow(/nexora\.yaml text/);
+      await expect(
+        service.registerReleaseBuild({ manifest: 'a: [', release: LIVE_BUILD }, actor),
+      ).rejects.toThrow(/not YAML/);
+    });
+
+    async function walkToTesting(id: string) {
+      await service.submitArtifactVersion(id, actor);
+      await service.reviewArtifactVersion(id, actor);
+    }
+
+    it('walks submit, review, certify and publish for a version with a build', async () => {
+      const { version } = await register();
+      await walkToTesting(version.id);
+      await service.certifyArtifactVersion(version.id, actor);
+      const released = await service.publishArtifactVersion(version.id, actor);
+      expect(released.lifecycle).toBe('RELEASED');
+    });
+
+    it('refuses to certify a runnable version registered without a build (R8)', async () => {
+      const { version } = await service.registerArtifactVersion(parseYaml(LIVE_MANIFEST), actor);
+      await walkToTesting(version.id);
+      await expect(service.certifyArtifactVersion(version.id, actor)).rejects.toThrow(
+        /declares spec\.runtime but has no recorded release build/,
+      );
+    });
+
+    it('refuses to publish one certified before the rule existed (R8)', async () => {
+      const { version } = await service.registerArtifactVersion(parseYaml(LIVE_MANIFEST), actor);
+      await walkToTesting(version.id);
+      // Certified under the old rules: written behind the service.
+      await db('artifact_versions')
+        .where({ id: version.id })
+        .update({ lifecycle: 'CERTIFIED', certification_status: 'CERTIFIED' });
+      await expect(service.publishArtifactVersion(version.id, actor)).rejects.toThrow(
+        /cannot be published: it declares spec\.runtime/,
+      );
+    });
+
+    it('leaves versions that do not run alone', async () => {
+      const { version } = await service.registerArtifactVersion(manifest(), actor);
+      await walkToTesting(version.id);
+      await service.certifyArtifactVersion(version.id, actor);
+      expect((await service.publishArtifactVersion(version.id, actor)).lifecycle).toBe(
+        'RELEASED',
+      );
     });
   });
 });

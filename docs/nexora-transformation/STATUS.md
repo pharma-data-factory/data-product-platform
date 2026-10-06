@@ -253,6 +253,15 @@ four quick wins F1–F4, one commit and one record each.
   without the current one, so a session alone resets a Part 11 second factor.
   Proposed fix: change needs the current PIN, plus an audited admin reset. Not
   in force; ranked in the closure plan. See [`NXD-136`](DECISIONS.md).
+- **MVP1 step 5: a recorded release becomes a registry version.** The import
+  registers the build as a DRAFT ArtifactVersion on the importer's behalf,
+  from the `nexora.yaml` at the tagged commit, with image, digest, commit and
+  release on the version. The registry refuses to certify or publish a
+  runnable version without a build (R8). An *Artifact Registry* card on the
+  Tests tab walks submit → review → certify → publish. Live: `…@1.0.0`
+  reached RELEASED with digest `sha256:6e696d5f…`. Found: no SoD in the
+  registry; COMMUNITY publishers can publish despite the claim; publish does
+  not ask the release gate. See [`NXD-137`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

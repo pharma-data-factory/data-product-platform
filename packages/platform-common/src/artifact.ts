@@ -25,6 +25,7 @@ import {
   COORDINATE_SEGMENT_MAX_LENGTH,
   isNameSegment,
   parseVersionLabel,
+  validateReleaseProvenance,
   validateVersionLabel,
   type DataContractSchemaType,
 } from './product';
@@ -238,10 +239,31 @@ export interface ArtifactVersion {
   /** Exact Artifact refs this version needs, as `namespace/name@version`. */
   dependencies?: string[];
   releaseNotes?: string;
+  /**
+   * The release build this version is (NXD-137): the image a runnable
+   * artifact installs as, and the commit and release it came from. Written
+   * once, at registration, like everything else on a version (NXD-030).
+   * Absent for a version that is not a build — a template, a policy pack, a
+   * listing — and for a runnable version registered by hand, which then
+   * cannot be certified or published.
+   */
+  releaseBuild?: ArtifactReleaseBuild;
   createdBy: string;
   createdAt: Date;
   revision: number;
 }
+
+export interface ArtifactReleaseBuild {
+  /** Equals the manifest's `spec.runtime.image.repository`. */
+  imageRepository: string;
+  /** `sha256:<64 hex>`. Never authored in the manifest (NXD-130). */
+  imageDigest: string;
+  /** Full commit SHA the image was built from. */
+  commitSha: string;
+  /** Where the build was published, e.g. the GitHub Release page. */
+  releaseUrl?: string;
+}
+
 
 // ============================================================================
 // MANIFEST (nexora.yaml)
@@ -484,6 +506,57 @@ export interface ArtifactCompositionComponent {
   version: string;
   /** Offered rather than required. Absent means required. */
   optional?: boolean;
+}
+
+/**
+ * Whether a version declares how it runs, and so needs a release build before
+ * it may be certified or published (NXD-137, R8). Decided by the manifest, not
+ * the kind: a DATA_PRODUCT listing without `spec.runtime` is a description of
+ * an offering, not something an installation could run.
+ */
+export function isRunnableArtifactVersion(
+  version: Pick<ArtifactVersion, 'manifest'>,
+): boolean {
+  return version.manifest?.spec?.runtime !== undefined;
+}
+
+/**
+ * Why `build` cannot be recorded on a version registered from `manifest`, or
+ * `[]` if it can. The commit and digest grammars are NXD-052's; the image
+ * must be the one the manifest says it runs, or the record would describe a
+ * different artifact from the one it is attached to.
+ */
+export function validateArtifactReleaseBuild(
+  build: Partial<ArtifactReleaseBuild>,
+  manifest: ArtifactManifest,
+): string[] {
+  const issues: string[] = [];
+  if (!(RUNNABLE_ARTIFACT_KINDS as readonly string[]).includes(manifest.kind)) {
+    issues.push(`a ${manifest.kind} has no release build; only runnable kinds do`);
+  }
+  const declared = manifest.spec?.runtime?.image?.repository;
+  if (!declared) {
+    issues.push('the manifest declares no spec.runtime.image.repository to build');
+  } else if (build.imageRepository !== declared) {
+    issues.push(
+      `release build image "${String(build.imageRepository)}" is not the ` +
+        `manifest's spec.runtime.image.repository "${declared}"`,
+    );
+  }
+  issues.push(
+    ...validateReleaseProvenance({
+      releaseCommitSha: build.commitSha,
+      artifactDigest: build.imageDigest,
+    }).map(issue =>
+      issue
+        .replace('releaseCommitSha', 'release build commitSha')
+        .replace('artifactDigest', 'release build imageDigest'),
+    ),
+  );
+  if (build.releaseUrl !== undefined && !/^https:\/\/\S+$/.test(build.releaseUrl)) {
+    issues.push(`release build releaseUrl "${build.releaseUrl}" is not an https URL`);
+  }
+  return issues;
 }
 
 export const ARTIFACT_MANIFEST_API_VERSION = 'nexora.dev/v1alpha1';

@@ -1,0 +1,132 @@
+# The canonical manifest of this Data Product (NXD-130).
+#
+# Schema: NEXORA_MANIFEST_SCHEMA in @internal/platform-common
+# (nexora-manifest.schema.json). The Nexora registry checks this file when a
+# version is registered and refuses it with every problem named.
+#
+# What this file deliberately does not say:
+# - the image tag or digest: the tag is metadata.version, the digest is
+#   recorded when CI builds the release;
+# - certification or validation status: those are outcomes of review, not
+#   declarations (NXD-019);
+# - where it runs, which broker it uses, or a host port: those belong to an
+#   installation (NXD-129).
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: pharma-data-factory
+  name: oee-e2e-test-20261005-d
+  version: '1.0.0'
+  displayName: oee-e2e-test-20261005-d
+  description: E2E test of the OEE Golden Path (2026-10-05). Safe to delete.
+  # SPDX expression. Replace with the license this repository is published
+  # under, e.g. Apache-2.0.
+  license: LicenseRef-Proprietary
+  tags:
+    - oee
+    - manufacturing
+spec:
+  runtime:
+    kind: container
+    image:
+      repository: ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d
+    ports:
+      - name: http
+        containerPort: 8080
+    health:
+      type: http
+      port: http
+      path: /health
+  interfaces:
+    - name: oee
+      type: api
+      direction: provides
+      description: OEE results, losses, reason codes and quality over REST.
+      port: http
+      basePath: /api/v1
+      document:
+        type: OPENAPI
+        path: contracts/openapi.yaml
+    - name: machine-state
+      type: event
+      direction: consumes
+      description: Machine state changes (RUNNING, STOPPED, IDLE, MAINTENANCE).
+      channel: equipment/{equipmentId}/state
+      mechanisms:
+        - mqtt
+      document:
+        type: ASYNCAPI
+        path: contracts/asyncapi.yaml
+    - name: counters
+      type: event
+      direction: consumes
+      description: Cumulative good and total counters.
+      channel: equipment/{equipmentId}/count
+      mechanisms:
+        - mqtt
+      document:
+        type: ASYNCAPI
+        path: contracts/asyncapi.yaml
+    - name: production-context
+      type: api
+      direction: consumes
+      description: Order and ideal cycle time from a REST source (SOURCE_API_URL).
+  # Until an installation binds channels to broker topics (NXD-129), the
+  # topics are configuration like any other value.
+  config:
+    - key: EQUIPMENT_ID
+      type: string
+      required: true
+      defaultValue: 'filler-01'
+    - key: SITE
+      type: string
+      required: false
+      defaultValue: ''
+    - key: AREA
+      type: string
+      required: false
+      defaultValue: ''
+    - key: LINE
+      type: string
+      required: false
+      defaultValue: ''
+    - key: DEFAULT_WINDOW
+      description: Default OEE calculation window.
+      type: string
+      required: false
+      defaultValue: 'HOUR'
+    - key: MQTT_HOST
+      description: Broker host. Empty disables MQTT; POST /api/v1/ingest still works.
+      type: string
+      required: false
+      example: mosquitto
+    - key: MQTT_PORT
+      type: number
+      required: false
+      defaultValue: '1883'
+    - key: MQTT_USERNAME
+      type: string
+      required: false
+    - key: MQTT_PASSWORD
+      type: secret
+      required: false
+    - key: MACHINE_STATE_TOPIC
+      type: string
+      required: false
+      defaultValue: 'pharma/oee/+/state'
+    - key: COUNTER_TOPIC
+      type: string
+      required: false
+      defaultValue: 'pharma/oee/+/count'
+    - key: MQTT_TOPIC
+      description: Additional subscription.
+      type: string
+      required: false
+      defaultValue: 'pharma/oee/+/+'
+    - key: SOURCE_API_URL
+      description: Production context REST source.
+      type: url
+      required: false
+    - key: SOURCE_API_TOKEN
+      type: secret
+      required: false

@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { NEXORA_CARD, NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { Box, Button, Chip, Link, Typography } from '@material-ui/core';
-import type { ReleaseProvenanceImport, TestEvidenceImport } from '../api';
+import type {
+  RegistryClient,
+  ReleaseProvenanceImport,
+  TestEvidenceImport,
+} from '../api';
+import { RegistryPublication } from './RegistryPublication';
 import type {
   ProductBaseline,
   ProductRequirementCoverage,
@@ -30,6 +35,26 @@ interface TestsTabProps {
    * when the viewer may not manage the product or no version is selected.
    */
   onImportReleaseProvenance?: () => Promise<ReleaseProvenanceImport>;
+  /**
+   * NXD-137. The registry version this product version's build became, and
+   * the client to read and move it. Absent before the first registration.
+   */
+  artifactRef?: string;
+  registry?: RegistryClient;
+}
+
+/** One line on what the import did in the Artifact Registry (NXD-137). */
+export function registrationLine(
+  registration: ReleaseProvenanceImport['registration'],
+): string {
+  switch (registration.status) {
+    case 'registered':
+      return `Registered in the Artifact Registry as ${registration.artifactRef} (${registration.lifecycle}).`;
+    case 'already-registered':
+      return `Already in the Artifact Registry as ${registration.artifactRef} (${registration.lifecycle}).`;
+    default:
+      return registration.reason ?? 'Not registered in the Artifact Registry.';
+  }
 }
 
 /** One line per outcome of an import, for the summary under the button. */
@@ -152,6 +177,16 @@ function ReleaseImport(props: { onImport: () => Promise<ReleaseProvenanceImport>
           <Typography variant="body2" color="textSecondary">
             {result.image.reference ?? result.image.digest}
           </Typography>
+          <Typography
+            variant="body2"
+            style={
+              result.registration.status === 'failed'
+                ? { color: NEXORA_TONE.danger.text }
+                : undefined
+            }
+          >
+            {registrationLine(result.registration)}
+          </Typography>
         </Box>
       ) : null}
       {error ? (
@@ -169,7 +204,20 @@ export function TestsTab({
   error,
   onImportEvidence,
   onImportReleaseProvenance,
+  artifactRef,
+  registry,
 }: TestsTabProps) {
+  // The import answers the registry coordinate before the version list is
+  // reloaded; the card should not wait for that.
+  const [importedRef, setImportedRef] = useState<string | undefined>();
+  const shownRef = artifactRef ?? importedRef;
+  const importReleaseProvenance = onImportReleaseProvenance
+    ? async () => {
+        const result = await onImportReleaseProvenance();
+        setImportedRef(result.registration.artifactRef);
+        return result;
+      }
+    : undefined;
   return (
     <>
       <section>
@@ -240,9 +288,16 @@ export function TestsTab({
         <Typography variant="h6" style={{ marginBottom: 12 }}>
           Build evidence
         </Typography>
-        {onImportReleaseProvenance &&
+        {importReleaseProvenance &&
         baselines?.some(baseline => baseline.status === 'APPROVED') ? (
-          <ReleaseImport onImport={onImportReleaseProvenance} />
+          <ReleaseImport onImport={importReleaseProvenance} />
+        ) : null}
+        {registry && shownRef ? (
+          <RegistryPublication
+            artifactRef={shownRef}
+            loadVersion={registry.getVersion}
+            transition={registry.transition}
+          />
         ) : null}
         {error && (
           <Typography color="error" variant="body2">

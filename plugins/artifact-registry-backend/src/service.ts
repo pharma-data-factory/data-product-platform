@@ -7,6 +7,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { parse as parseYaml } from 'yaml';
 import { ConflictError, InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import {
   formatArtifactRef,
@@ -27,6 +28,9 @@ import {
   type DistributionChannel,
   type ResolvedEdition,
   type Publisher,
+  isRunnableArtifactVersion,
+  validateArtifactReleaseBuild,
+  type ArtifactReleaseBuild,
 } from '@internal/platform-common';
 import type { ArtifactRegistryRepository } from './repository';
 
@@ -185,6 +189,8 @@ export class ArtifactRegistryService {
   async registerArtifactVersion(
     input: unknown,
     actor: string,
+    /** NXD-137: the release build a runnable version is, written once. */
+    releaseBuild?: ArtifactReleaseBuild,
   ): Promise<RegisterArtifactVersionResult> {
     // The runtime, interface, config and license sections are checked against
     // the published schema here, at the one gate every manifest passes, rather
@@ -198,6 +204,12 @@ export class ArtifactRegistryService {
     }
     const manifest = input as ArtifactManifest;
     const { namespace, name, version } = manifest.metadata;
+    if (releaseBuild) {
+      const buildIssues = validateArtifactReleaseBuild(releaseBuild, manifest);
+      if (buildIssues.length > 0) {
+        throw new InputError(`Invalid release build: ${buildIssues.join('; ')}`);
+      }
+    }
 
     const publisher = await this.repository.getPublisherByNamespace(namespace);
     if (!publisher) {
@@ -272,12 +284,81 @@ export class ArtifactRegistryService {
           (DISTRIBUTION_CHANNELS as readonly string[]).includes(channel),
       ),
       dependencies,
+      ...(releaseBuild
+        ? {
+            releaseBuild: {
+              imageRepository: releaseBuild.imageRepository,
+              imageDigest: releaseBuild.imageDigest.toLowerCase(),
+              commitSha: releaseBuild.commitSha.toLowerCase(),
+              ...(releaseBuild.releaseUrl ? { releaseUrl: releaseBuild.releaseUrl } : {}),
+            },
+          }
+        : {}),
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
     });
 
     return { artifact, version: created, artifactCreated };
+  }
+
+  /**
+   * Registers the release build of a runnable product as a DRAFT version
+   * (NXD-137): the `nexora.yaml` read from the tagged commit, as text, plus
+   * the image, digest, commit and release the build produced.
+   *
+   * Idempotent for the same build: a coordinate already registered with the
+   * same digest answers that version with `alreadyRegistered`. The same
+   * coordinate with a different digest is a 409 — a version is one artifact
+   * (NXD-030), and a rebuilt image under the same version is a new version,
+   * not a correction.
+   */
+  async registerReleaseBuild(
+    request: { manifest?: unknown; release?: Partial<ArtifactReleaseBuild> },
+    actor: string,
+  ): Promise<RegisterArtifactVersionResult & { alreadyRegistered: boolean }> {
+    if (typeof request.manifest !== 'string' || !request.manifest.trim()) {
+      throw new InputError('manifest must be the nexora.yaml text of the release');
+    }
+    let manifest: unknown;
+    try {
+      manifest = parseYaml(request.manifest);
+    } catch (error) {
+      throw new InputError(
+        `manifest is not YAML: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const release = (request.release ?? {}) as ArtifactReleaseBuild;
+
+    const metadata = (manifest as ArtifactManifest | undefined)?.metadata;
+    if (metadata?.namespace && metadata?.name && metadata?.version) {
+      const artifact = await this.repository.getArtifactByCoordinate(
+        metadata.namespace,
+        metadata.name,
+      );
+      const existing = artifact
+        ? await this.repository.getArtifactVersion(artifact.id, metadata.version)
+        : undefined;
+      if (artifact && existing) {
+        const digest = existing.releaseBuild?.imageDigest;
+        if (digest && digest === String(release.imageDigest ?? '').toLowerCase()) {
+          return {
+            artifact,
+            version: existing,
+            artifactCreated: false,
+            alreadyRegistered: true,
+          };
+        }
+        const registeredAs = digest ? `as ${digest}` : 'without a release build';
+        throw new ConflictError(
+          `${formatArtifactRef(metadata)} is already registered ${registeredAs}. ` +
+            'A rebuilt image is a new version: bump metadata.version and tag again.',
+        );
+      }
+    }
+
+    const result = await this.registerArtifactVersion(manifest, actor, release);
+    return { ...result, alreadyRegistered: false };
   }
 
   /**
@@ -463,6 +544,7 @@ export class ArtifactRegistryService {
           `${version.certificationStatus ?? 'unset'}, must be TESTED (review it first)`,
       );
     }
+    this.assertReleaseBuild(version, 'certified');
     await this.assertPublisherMembership(version, actor, 'certify');
     return this.applyTransition(version, {
       lifecycle: 'CERTIFIED',
@@ -477,6 +559,7 @@ export class ArtifactRegistryService {
   ): Promise<ArtifactVersion> {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'CERTIFIED', 'published');
+    this.assertReleaseBuild(version, 'published');
     await this.assertPublisherMembership(version, actor, 'publish');
     return this.applyTransition(version, { lifecycle: 'RELEASED' });
   }
@@ -541,6 +624,23 @@ export class ArtifactRegistryService {
       throw new NotFoundError(`Artifact version ${id} not found`);
     }
     return version;
+  }
+
+  /**
+   * R8 (NXD-137): a version that declares how it runs must say which image it
+   * is before it is certified or published. Otherwise certification would
+   * vouch for a description, and an installation would have nothing exact to
+   * pull. Publish checks again, because a version certified before this rule
+   * existed must not slip through on an old certification.
+   */
+  private assertReleaseBuild(version: ArtifactVersion, verb: string): void {
+    if (isRunnableArtifactVersion(version) && !version.releaseBuild) {
+      throw new ConflictError(
+        `Artifact version ${version.id} cannot be ${verb}: it declares ` +
+          'spec.runtime but has no recorded release build (image digest). ' +
+          'Register it from a release, through Import release provenance.',
+      );
+    }
   }
 
   private assertLifecycle(

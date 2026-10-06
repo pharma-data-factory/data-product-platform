@@ -172,6 +172,10 @@ export class ArtifactRegistryRepository {
       distribution: version.distribution ? toJson(version.distribution) : null,
       dependencies: toJson(version.dependencies ?? []),
       release_notes: version.releaseNotes ?? null,
+      release_image_repository: version.releaseBuild?.imageRepository ?? null,
+      release_image_digest: version.releaseBuild?.imageDigest ?? null,
+      release_commit_sha: version.releaseBuild?.commitSha ?? null,
+      release_url: version.releaseBuild?.releaseUrl ?? null,
       created_by: version.createdBy,
       created_at: version.createdAt,
       revision: version.revision,
@@ -292,6 +296,16 @@ export class ArtifactRegistryRepository {
       ),
       dependencies: fromJson<string[]>(row.dependencies, []),
       releaseNotes: row.release_notes ?? undefined,
+      ...(row.release_image_digest
+        ? {
+            releaseBuild: {
+              imageRepository: row.release_image_repository,
+              imageDigest: row.release_image_digest,
+              commitSha: row.release_commit_sha,
+              ...(row.release_url ? { releaseUrl: row.release_url } : {}),
+            },
+          }
+        : {}),
       createdBy: row.created_by,
       createdAt: toDate(row.created_at),
       revision: row.revision,

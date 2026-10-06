@@ -78,6 +78,8 @@ export interface IComposerRepository {
     ursBaselineId: string,
   ): Promise<ProductVersion[]>;
   updateProductVersion(version: ProductVersion): Promise<void>;
+  /** NXD-137. Write-once; true when the version now carries this ref. */
+  setProductVersionArtifactRef(id: string, artifactRef: string): Promise<boolean>;
 
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;
   getProductComponent(id: string): Promise<ProductComponent | undefined>;

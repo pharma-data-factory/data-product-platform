@@ -99,6 +99,12 @@ export interface GithubActionsClient {
     repo: GithubRepoRef,
     ref: string,
   ): Promise<GithubFetchResult<string>>;
+  /** NXD-137. A file's text at a ref; `undefined` when there is no such file. */
+  getFileAtRef?(
+    repo: GithubRepoRef,
+    path: string,
+    ref: string,
+  ): Promise<GithubFetchResult<string | undefined>>;
 }
 
 export interface GithubRelease {

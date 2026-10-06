@@ -233,6 +233,25 @@ export function createGithubActionsClient(options: {
         : { ok: false, reason: 'unavailable' };
     },
 
+    async getFileAtRef(repo, path, ref) {
+      const file = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/contents/${path
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}?ref=${encodeURIComponent(ref)}`,
+        'application/vnd.github.raw',
+      );
+      if (!file.ok) {
+        return file.reason === 'not-found' ? { ok: true, value: undefined } : file;
+      }
+      try {
+        return { ok: true, value: await file.value.text() };
+      } catch {
+        return { ok: false, reason: 'unavailable' };
+      }
+    },
+
     async getFailedStages(repo, runId) {
       const jobs = await authorizedRequest(
         repo,

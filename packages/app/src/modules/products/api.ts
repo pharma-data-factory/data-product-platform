@@ -6,6 +6,7 @@ import {
   useApi,
 } from '@backstage/core-plugin-api';
 import type {
+  ArtifactVersion,
   DataContract,
   Product,
   ProductBaseline,
@@ -54,6 +55,24 @@ export interface ReleaseProvenanceImport {
   image: { repository?: string; digest: string; reference?: string };
   /** The same build was already on the baseline; nothing was written. */
   alreadyRecorded: boolean;
+  /** NXD-137: what became of the build in the Artifact Registry. */
+  registration: {
+    status: 'registered' | 'already-registered' | 'failed' | 'skipped';
+    artifactRef?: string;
+    artifactVersionId?: string;
+    lifecycle?: string;
+    reason?: string;
+  };
+}
+
+/** NXD-137: the four producer acts of the registry lifecycle. */
+export type RegistryAction = 'submit' | 'review' | 'certify' | 'publish';
+
+export interface RegistryClient {
+  /** One version by its coordinate, `namespace/name@version`. */
+  getVersion(artifactRef: string): Promise<ArtifactVersion>;
+  /** Applies one lifecycle act, with the caller's own permission. */
+  transition(versionId: string, action: RegistryAction): Promise<ArtifactVersion>;
 }
 
 export interface ProductTraceability {
@@ -158,13 +177,13 @@ export interface ComposerClient {
   getContract(contractId: string): Promise<DataContract>;
 }
 
-export function useComposerClient(): ComposerClient {
+function usePluginRequest(pluginId: string) {
   const fetchApi = useApi(fetchApiRef);
   const discovery = useApi(discoveryApiRef);
   const identityApi = useApi(identityApiRef);
 
   const request = async (method: string, path: string, body?: unknown) => {
-    const baseUrl = await discovery.getBaseUrl('composer');
+    const baseUrl = await discovery.getBaseUrl(pluginId);
     const { token } = await identityApi.getCredentials();
     const response = await fetchApi.fetch(`${baseUrl}${path}`, {
       method,
@@ -187,6 +206,11 @@ export function useComposerClient(): ComposerClient {
     }
     return response.json();
   };
+  return request;
+}
+
+export function useComposerClient(): ComposerClient {
+  const request = usePluginRequest('composer');
 
   return {
     createProduct: input => request('POST', '/products', input),
@@ -236,5 +260,26 @@ export function useComposerClient(): ComposerClient {
     listVersionDependencies: versionId =>
       request('GET', `/versions/${versionId}/dependencies`),
     getContract: contractId => request('GET', `/contracts/${contractId}`),
+  };
+}
+
+/**
+ * NXD-137. The Artifact Registry, as the product page needs it: one version
+ * by coordinate and the producer acts. Every act carries the signed-in
+ * person's own token, so the registry's permissions decide, not this page.
+ */
+export function useRegistryClient(): RegistryClient {
+  const request = usePluginRequest('artifact-registry');
+  return {
+    getVersion: artifactRef => {
+      const match = /^([^/@]+)\/([^/@]+)@(.+)$/.exec(artifactRef);
+      if (!match) {
+        return Promise.reject(new Error(`Not an artifact coordinate: ${artifactRef}`));
+      }
+      const [, namespace, name, version] = match.map(encodeURIComponent);
+      return request('GET', `/artifacts/${namespace}/${name}/versions/${version}`);
+    },
+    transition: (versionId, action) =>
+      request('POST', `/artifact-versions/${encodeURIComponent(versionId)}/${action}`, {}),
   };
 }

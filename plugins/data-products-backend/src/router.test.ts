@@ -221,7 +221,11 @@ describe('data-products router', () => {
 
     async function releaseApp(
       releases: GithubActionsClient['listReleases'],
-      options: { credentials?: unknown; allow?: boolean } = {},
+      options: {
+        credentials?: unknown;
+        allow?: boolean;
+        manifestAt?: GithubActionsClient['getFileAtRef'];
+      } = {},
     ) {
       const router = await createRouter({
         logger: {
@@ -246,6 +250,7 @@ describe('data-products router', () => {
             value: Buffer.from(JSON.stringify(record)),
           }),
           getCommitSha: async () => ({ ok: true, value: SHA }),
+          getFileAtRef: options.manifestAt ?? (async () => ({ ok: true, value: 'kind: DATA_PRODUCT\n' })),
         },
         permissions: {
           authorize: async () => [
@@ -281,6 +286,35 @@ describe('data-products router', () => {
           commit: SHA,
         },
         record,
+        manifest: 'kind: DATA_PRODUCT\n',
+      });
+    });
+
+    it('reads the manifest at the commit the tag points at (NXD-137)', async () => {
+      const manifestAt = jest.fn(async () => ({ ok: true as const, value: 'x: 1\n' }));
+      const server = await releaseApp(
+        async () => ({
+          ok: true,
+          value: [releaseWith([{ id: 5, name: 'nexora-release.json', size: 200 }])],
+        }),
+        { manifestAt },
+      );
+      await get(server, query);
+      expect(manifestAt).toHaveBeenCalledWith(expect.anything(), 'nexora.yaml', SHA);
+    });
+
+    it('still answers the record when the release commit has no manifest', async () => {
+      const server = await releaseApp(
+        async () => ({
+          ok: true,
+          value: [releaseWith([{ id: 5, name: 'nexora-release.json', size: 200 }])],
+        }),
+        { manifestAt: async () => ({ ok: true, value: undefined }) },
+      );
+      expect((await get(server, query)).body).toMatchObject({
+        available: true,
+        record,
+        manifestReason: 'no-manifest',
       });
     });
 

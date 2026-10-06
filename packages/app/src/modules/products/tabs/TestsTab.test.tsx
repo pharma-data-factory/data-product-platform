@@ -6,7 +6,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { TestsTab, importSummaryLines } from './TestsTab';
+import { TestsTab, importSummaryLines, registrationLine } from './TestsTab';
 import type { ReleaseProvenanceImport, TestEvidenceImport } from '../api';
 
 const coverage = {
@@ -73,6 +73,12 @@ describe('TestsTab release provenance import (NXD-133)', () => {
     release: { tag: 'v1.0.0', url: 'https://github.com/o/r/releases/tag/v1.0.0', commit: 'abc1234'.padEnd(40, '0') },
     image: { digest: `sha256:${'b'.repeat(64)}`, reference: `ghcr.io/o/r@sha256:${'b'.repeat(64)}` },
     alreadyRecorded: false,
+    registration: {
+      status: 'registered',
+      artifactRef: 'pharma-data-factory/oee-e2e-test-20261005-d@1.0.0',
+      artifactVersionId: 'av-1',
+      lifecycle: 'DRAFT',
+    },
   };
   const button = () => screen.queryByRole('button', { name: 'Import release provenance' });
 
@@ -114,5 +120,53 @@ describe('TestsTab release provenance import (NXD-133)', () => {
     render(<TestsTab coverage={coverage} baselines={[approved]} error={null} onImportReleaseProvenance={onImport} />);
     fireEvent.click(button()!);
     expect(await screen.findByRole('alert')).toHaveTextContent(/no published release v1\.0/);
+  });
+});
+
+describe('TestsTab registry card (NXD-137)', () => {
+  const approved = { id: 'b1', baselineVersion: '1', status: 'APPROVED' } as any;
+  const REF = 'pharma-data-factory/oee-e2e-test-20261005-d@1.0.0';
+  const draft = {
+    id: 'av-1',
+    artifactId: 'a-1',
+    version: '1.0.0',
+    lifecycle: 'DRAFT',
+    releaseBuild: {
+      imageRepository: 'ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d',
+      imageDigest: 'sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810',
+      commitSha: '431fd71d0fcb5c9c56773f58fb451435db8f1c87',
+    },
+  } as any;
+
+  it('names the registration under the import, then shows the card', async () => {
+    const registry = { getVersion: jest.fn().mockResolvedValue(draft), transition: jest.fn() };
+    const onImport = jest.fn().mockResolvedValue({
+      baseline: approved,
+      release: { tag: 'v1.0.0', url: 'https://github.com/o/r/releases/tag/v1.0.0', commit: '431fd71'.padEnd(40, '0') },
+      image: { digest: draft.releaseBuild.imageDigest },
+      alreadyRecorded: false,
+      registration: { status: 'registered', artifactRef: REF, artifactVersionId: 'av-1', lifecycle: 'DRAFT' },
+    });
+    render(
+      <TestsTab
+        coverage={coverage}
+        baselines={[approved]}
+        error={null}
+        onImportReleaseProvenance={onImport}
+        registry={registry}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Import release provenance' }));
+    expect(
+      await screen.findByText(`Registered in the Artifact Registry as ${REF} (DRAFT).`),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Submit for testing' })).toBeInTheDocument();
+    expect(registry.getVersion).toHaveBeenCalledWith(REF);
+  });
+
+  it('says why the registry did not take the build', () => {
+    expect(
+      registrationLine({ status: 'failed', reason: 'The Artifact Registry refused the build: no publisher.' }),
+    ).toBe('The Artifact Registry refused the build: no publisher.');
   });
 });

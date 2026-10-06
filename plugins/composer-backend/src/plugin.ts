@@ -23,6 +23,7 @@ import { createHttpValidationDecisionResolver } from './validation-decision-reso
 import { createHttpCiEvidenceClient } from './ci-evidence-client';
 import { createHttpReleaseRecordClient } from './release-record-client';
 import { createHttpPinVerifier } from './pin-verifier';
+import { createHttpReleaseRegistrar } from './release-registrar';
 import { createHttpPolicyResolverClient } from './policy-resolver-client';
 import { bootstrapPlatformProduct } from './platformProductBootstrap';
 import {
@@ -169,6 +170,7 @@ export const composerPlugin = createBackendPlugin({
             service,
             llmEnabled,
             pinVerifier: createHttpPinVerifier({ discovery, auth }),
+            releaseRegistrar: createHttpReleaseRegistrar({ discovery, auth }),
             publishReadiness: getPublishReadiness(config),
           }),
         );

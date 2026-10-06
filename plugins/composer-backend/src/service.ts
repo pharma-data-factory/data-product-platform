@@ -64,7 +64,11 @@ import {
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import type { CiEvidenceClient } from './ci-evidence-client';
-import type { ReleaseRecordClient } from './release-record-client';
+import type { ReleaseRecordClient, ReleaseRecordLookup } from './release-record-client';
+import type {
+  RegisteredReleaseBuild,
+  ReleaseBuildRegistration,
+} from './release-registrar';
 import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
@@ -297,6 +301,15 @@ function fitColumn(value: string, max = 255): string {
   }
   const hash = createHash('sha256').update(value).digest('hex').slice(0, 12);
   return `${value.slice(0, max - 13)}#${hash}`;
+}
+
+/** NXD-137. What happened to the release build in the Artifact Registry. */
+export interface ReleaseRegistrationOutcome {
+  status: 'registered' | 'already-registered' | 'failed' | 'skipped';
+  artifactRef?: string;
+  artifactVersionId?: string;
+  lifecycle?: string;
+  reason?: string;
 }
 
 export class ComposerService {
@@ -2575,11 +2588,18 @@ export class ComposerService {
   async importReleaseProvenance(
     productVersionId: string,
     actor: string,
+    /**
+     * NXD-137. Registers the build in the Artifact Registry on the caller's
+     * behalf; the router binds it to their credentials. Absent, the import
+     * records provenance only.
+     */
+    register?: (request: ReleaseBuildRegistration) => Promise<RegisteredReleaseBuild>,
   ): Promise<{
     baseline: ProductBaseline;
     release: { tag: string; url: string; commit: string };
     image: { repository?: string; digest: string; reference?: string };
     alreadyRecorded: boolean;
+    registration: ReleaseRegistrationOutcome;
   }> {
     if (!this.releaseRecordClient) {
       throw new ConflictError('Release provenance import is not configured on this instance.');
@@ -2657,6 +2677,18 @@ export class ComposerService {
         reason: `Imported from ${release.url}`,
       },
     );
+    const registration = await this.registerReleaseBuild(
+      version,
+      actor,
+      lookup,
+      {
+        imageRepository: typeof image.repository === 'string' ? image.repository : undefined,
+        imageDigest: String(image.digest),
+        commitSha: tagCommit,
+        releaseUrl: release.url,
+      },
+      register,
+    );
     return {
       baseline: updated,
       release: { tag: release.tag, url: release.url, commit: tagCommit },
@@ -2666,6 +2698,71 @@ export class ComposerService {
         reference: typeof image.reference === 'string' ? image.reference : undefined,
       },
       alreadyRecorded: before !== undefined,
+      registration,
+    };
+  }
+
+  /**
+   * NXD-137. After the provenance is recorded, the build becomes a DRAFT
+   * version in the Artifact Registry, from the manifest at the tagged commit.
+   *
+   * A failure here does not undo the provenance — it is true whether or not
+   * the registry took the build — so it is reported, not thrown, and the
+   * import can be re-run: provenance answers already recorded, the registry
+   * answers already registered.
+   */
+  private async registerReleaseBuild(
+    version: ProductVersion,
+    actor: string,
+    lookup: ReleaseRecordLookup,
+    release: ReleaseBuildRegistration['release'],
+    register?: (request: ReleaseBuildRegistration) => Promise<RegisteredReleaseBuild>,
+  ): Promise<ReleaseRegistrationOutcome> {
+    if (!register) {
+      return { status: 'skipped', reason: 'Registry registration is not configured on this instance.' };
+    }
+    if (!lookup.manifest) {
+      const why: Record<string, string> = {
+        'no-manifest': `the tagged commit has no nexora.yaml`,
+        'manifest-too-large': 'the nexora.yaml at the tagged commit is too large',
+      };
+      return {
+        status: 'skipped',
+        reason: `Not registered: ${why[lookup.manifestReason ?? ''] ?? `the manifest could not be read (${lookup.manifestReason ?? 'unknown'})`}.`,
+      };
+    }
+    let registered: RegisteredReleaseBuild;
+    try {
+      registered = await register({ manifest: lookup.manifest, release });
+    } catch (error) {
+      return {
+        status: 'failed',
+        reason: `The Artifact Registry refused the build: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    const linked = await this.repository.setProductVersionArtifactRef(
+      version.id,
+      registered.artifactRef,
+    );
+    if (linked && version.artifactRef !== registered.artifactRef) {
+      await this.audit(
+        this.beginAudit(actor),
+        'PRODUCT_VERSION',
+        version.id,
+        'ARTIFACT_VERSION_REGISTERED',
+        { newValue: registered.artifactRef, reason: `Registered from ${release.releaseUrl ?? 'a release'}` },
+      );
+    }
+    return {
+      status: registered.alreadyRegistered ? 'already-registered' : 'registered',
+      artifactRef: registered.artifactRef,
+      artifactVersionId: registered.artifactVersionId,
+      lifecycle: registered.lifecycle,
+      ...(linked
+        ? {}
+        : {
+            reason: `Version ${version.version} already points at ${version.artifactRef}; it was not re-pointed.`,
+          }),
     };
   }
 

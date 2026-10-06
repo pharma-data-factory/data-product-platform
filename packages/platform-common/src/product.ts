@@ -336,6 +336,12 @@ export interface ProductVersion {
    * release gate is where the binding becomes mandatory.
    */
   ursBaselineId?: string;
+  /**
+   * NXD-137. The Artifact Registry version this product version's release
+   * build was registered as, `namespace/name@version`. Set once, by the
+   * release provenance import; the registry owns its lifecycle.
+   */
+  artifactRef?: string;
   createdBy: string;
   createdAt: Date;
   approvedBy?: string;

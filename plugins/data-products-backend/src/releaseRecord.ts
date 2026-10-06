@@ -20,6 +20,10 @@ const RECORD_KIND = 'ReleaseRecord';
 /** A record is a few hundred bytes; anything far larger is not one. */
 export const MAX_RECORD_BYTES = 64 * 1024;
 
+/** NXD-137. The manifest of the release, read at the tagged commit. */
+export const RELEASE_MANIFEST_PATH = 'nexora.yaml';
+export const MAX_MANIFEST_BYTES = 256 * 1024;
+
 export type ReleaseLookup =
   | { found: true; release: GithubRelease }
   | {

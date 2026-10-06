@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 /**
  * Artifact Registry HTTP surface.
  *
@@ -545,6 +547,46 @@ describe('Artifact Registry router', () => {
 
       expect(response.status).toBe(409);
       expect((await response.json()).error).toMatch(/already registered/);
+    });
+  });
+
+  describe('POST /artifacts/release-builds (NXD-137)', () => {
+    const body = {
+      manifest: readFileSync(
+        join(__dirname, '__fixtures__', 'oee-e2e-test-20261005-d.nexora.yaml'),
+        'utf8',
+      ),
+      release: {
+        imageRepository: 'ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d',
+        imageDigest:
+          'sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810',
+        commitSha: '431fd71d0fcb5c9c56773f58fb451435db8f1c87',
+      },
+    };
+
+    beforeEach(async () => {
+      await service.createPublisher(
+        { namespace: 'pharma-data-factory', displayName: 'Pharma Data Factory' },
+        actor,
+      );
+    });
+
+    it('creates the version, then answers the same build with 200', async () => {
+      const created = await request('/artifacts/release-builds', 'POST', body);
+      expect(created.status).toBe(201);
+      expect(await created.json()).toMatchObject({
+        alreadyRegistered: false,
+        version: { version: '1.0.0', lifecycle: 'DRAFT', releaseBuild: body.release },
+      });
+      const again = await request('/artifacts/release-builds', 'POST', body);
+      expect(again.status).toBe(200);
+      expect((await again.json()).alreadyRegistered).toBe(true);
+      expect(checked).toContain('artifact.create');
+    });
+
+    it('refuses a person without artifact.create', async () => {
+      decision = AuthorizeResult.DENY;
+      expect((await request('/artifacts/release-builds', 'POST', body)).status).toBe(403);
     });
   });
 });

@@ -54,6 +54,7 @@ const client = {
 
 jest.mock('./api', () => ({
   useComposerClient: () => client,
+  useRegistryClient: () => ({ getVersion: jest.fn(), transition: jest.fn() }),
 }));
 
 const PRODUCT = {

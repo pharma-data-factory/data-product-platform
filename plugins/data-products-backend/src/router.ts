@@ -30,7 +30,9 @@ import { parseEvidence, readZip, TEST_EVIDENCE_ARTIFACT } from './testEvidence';
 import {
   findReleaseForVersion,
   MAX_RECORD_BYTES,
+  MAX_MANIFEST_BYTES,
   parseReleaseRecord,
+  RELEASE_MANIFEST_PATH,
   RELEASE_RECORD_ASSET,
 } from './releaseRecord';
 
@@ -46,6 +48,25 @@ export interface RouterOptions {
   consumeBaseUrls?: Record<string, string>;
   /** Origins a consume-base-url annotation may name (NXD-091). */
   consumeAllowedOrigins?: readonly string[];
+}
+
+/** NXD-137. The manifest text, or why there is none to hand on. */
+function releaseManifest(
+  read: Awaited<ReturnType<NonNullable<GithubActionsClient['getFileAtRef']>>> | undefined,
+): { manifest: string } | { manifestReason: string } {
+  if (!read) {
+    return { manifestReason: 'unavailable' };
+  }
+  if (!read.ok) {
+    return { manifestReason: read.reason };
+  }
+  if (read.value === undefined) {
+    return { manifestReason: 'no-manifest' };
+  }
+  if (Buffer.byteLength(read.value) > MAX_MANIFEST_BYTES) {
+    return { manifestReason: 'manifest-too-large' };
+  }
+  return { manifest: read.value };
 }
 
 export async function createRouter(
@@ -261,10 +282,17 @@ export async function createRouter(
         });
         return;
       }
+      // NXD-137. The manifest the release was built from, read at the commit
+      // the tag points at — not at the default branch, which may have moved.
+      // Its absence does not hide the record: the provenance is still true.
+      const manifest = github.getFileAtRef
+        ? await github.getFileAtRef(repo, RELEASE_MANIFEST_PATH, tagCommit.value)
+        : undefined;
       res.json({
         available: true,
         release: { ...releaseInfo, commit: tagCommit.value },
         record: parsed.record,
+        ...releaseManifest(manifest),
       });
     } catch (error) {
       if (error instanceof NotAllowedError) {

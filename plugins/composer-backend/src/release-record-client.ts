@@ -20,6 +20,10 @@ export interface ReleaseRecordLookup {
   };
   /** `nexora-release.json` as published; shape checked, content not trusted. */
   record?: Record<string, unknown>;
+  /** NXD-137. `nexora.yaml` as it is at the commit the tag points at. */
+  manifest?: string;
+  /** Why there is no manifest: no-manifest, manifest-too-large, … */
+  manifestReason?: string;
 }
 
 export interface ReleaseRecordClient {

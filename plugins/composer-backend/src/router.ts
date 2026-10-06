@@ -34,6 +34,7 @@ import {
 import { ComposerService } from './service';
 import type { PublishReadiness } from './scm-publish-readiness';
 import type { PinVerifier } from './pin-verifier';
+import type { ReleaseRegistrar } from './release-registrar';
 import type { AvailableComponentSummary } from './llm-client';
 import {
   BindUrsBaselineRequest,
@@ -51,6 +52,8 @@ import {
 export interface RouterOptions {
   /** NXD-128. Verifies a signer's PIN in the URS Composer. */
   pinVerifier?: PinVerifier;
+  /** NXD-137. Registers release builds in the Artifact Registry. */
+  releaseRegistrar?: ReleaseRegistrar;
   logger: LoggerService;
   httpAuth: HttpAuthService;
   permissions?: PermissionsService;
@@ -192,6 +195,15 @@ export async function createRouter(
       }
       return options.pinVerifier(credentials, pin);
     };
+  };
+  /** Release-build registration bound to the caller's credentials (NXD-137). */
+  const registrarFor = async (req: express.Request) => {
+    if (!options.releaseRegistrar) {
+      return undefined;
+    }
+    const registrar = options.releaseRegistrar;
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+    return (request: Parameters<ReleaseRegistrar>[1]) => registrar(credentials, request);
   };
   router.use(express.json());
 
@@ -1125,7 +1137,9 @@ export async function createRouter(
     async (req: express.Request, res: express.Response) => {
       try {
         const actor = await authorize(permissions, httpAuth, req, productManagePermission);
-        res.json(await service.importReleaseProvenance(req.params.id, actor));
+        res.json(
+          await service.importReleaseProvenance(req.params.id, actor, await registrarFor(req)),
+        );
       } catch (err) {
         respondError(res, logger, err);
       }

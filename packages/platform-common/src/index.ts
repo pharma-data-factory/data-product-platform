@@ -632,6 +632,8 @@ export {
   ARTIFACT_HEALTH_CHECK_TYPES,
   ARTIFACT_INTERFACE_TYPES,
   ARTIFACT_INTERFACE_DIRECTIONS,
+  isRunnableArtifactVersion,
+  validateArtifactReleaseBuild,
 } from './artifact';
 export { NEXORA_MANIFEST_SCHEMA } from './manifestSchema';
 export {
@@ -650,6 +652,7 @@ export type {
   ArtifactManifest,
   ArtifactRuntime,
   ArtifactRuntimePort,
+  ArtifactReleaseBuild,
   ArtifactVersion,
   EditionCatalogue,
   PlatformEdition,

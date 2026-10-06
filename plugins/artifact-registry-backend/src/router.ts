@@ -380,6 +380,35 @@ export async function createRouter(
   // ARTIFACTS
   // ==========================================================================
 
+  /**
+   * POST /artifacts/release-builds (NXD-137)
+   * Registers a runnable product's release build as a DRAFT version: the
+   * nexora.yaml text from the tagged commit and the image, digest, commit and
+   * release. Called by the Product Composer on behalf of the person who
+   * imported the release, so their artifact.create and the publisher's
+   * namespace apply.
+   */
+  router.post(
+    '/artifacts/release-builds',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          artifactCreatePermission,
+        );
+        const result = await service.registerReleaseBuild(
+          (req.body ?? {}) as { manifest?: unknown; release?: never },
+          actor,
+        );
+        res.status(result.alreadyRegistered ? 200 : 201).json(result);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/artifacts',
     async (req: express.Request, res: express.Response) => {

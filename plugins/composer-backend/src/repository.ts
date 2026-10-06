@@ -196,6 +196,19 @@ export class ComposerRepository implements IComposerRepository {
     });
   }
 
+  /**
+   * NXD-137. Write-once: only a version with no artifact ref takes one.
+   * Answers whether the ref is now the one given.
+   */
+  async setProductVersionArtifactRef(id: string, artifactRef: string): Promise<boolean> {
+    await this.db('product_versions')
+      .where({ id })
+      .whereNull('artifact_ref')
+      .update({ artifact_ref: artifactRef });
+    const row = await this.db('product_versions').where({ id }).first();
+    return row?.artifact_ref === artifactRef;
+  }
+
   async createProductComponent(
     component: ProductComponent,
   ): Promise<ProductComponent> {
@@ -858,6 +871,7 @@ export class ComposerRepository implements IComposerRepository {
       artifactDigest: row.artifact_digest || undefined,
       baselineId: row.baseline_id || undefined,
       ursBaselineId: row.urs_baseline_id || undefined,
+      artifactRef: row.artifact_ref || undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       approvedBy: row.approved_by,
