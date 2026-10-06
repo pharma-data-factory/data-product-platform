@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NEXORA_CARD, NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { Box, Button, Chip, Link, Typography } from '@material-ui/core';
-import type { TestEvidenceImport } from '../api';
+import type { ReleaseProvenanceImport, TestEvidenceImport } from '../api';
 import type {
   ProductBaseline,
   ProductRequirementCoverage,
@@ -24,6 +24,12 @@ interface TestsTabProps {
    * version is selected.
    */
   onImportEvidence?: () => Promise<TestEvidenceImport>;
+  /**
+   * NXD-133. Reads the version's GitHub Release and records its commit and
+   * image digest on the approved baseline, then reloads the baselines. Absent
+   * when the viewer may not manage the product or no version is selected.
+   */
+  onImportReleaseProvenance?: () => Promise<ReleaseProvenanceImport>;
 }
 
 /** One line per outcome of an import, for the summary under the button. */
@@ -103,12 +109,66 @@ function EvidenceImport(props: { onImport: () => Promise<TestEvidenceImport> }) 
   );
 }
 
+function ReleaseImport(props: { onImport: () => Promise<ReleaseProvenanceImport> }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ReleaseProvenanceImport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await props.onImport());
+    } catch (e) {
+      setResult(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section aria-label="Release provenance" style={{ ...CARD_STYLE, marginBottom: 16 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" style={{ gap: 12 }}>
+        <Typography variant="body2">
+          The release build comes from the product repository: a tag v&lt;version&gt;
+          publishes a GitHub Release with the commit and image digest, and Nexora
+          records them on the approved baseline.
+        </Typography>
+        <Button variant="outlined" disabled={busy} onClick={run}>
+          {busy ? 'Importing…' : 'Import release provenance'}
+        </Button>
+      </Box>
+      {result ? (
+        <Box mt={1}>
+          <Typography variant="body2">
+            Release{' '}
+            <Link href={result.release.url} target="_blank" rel="noopener noreferrer">
+              {result.release.tag}
+            </Link>{' '}
+            · commit {result.release.commit.slice(0, 7)} ·{' '}
+            {result.alreadyRecorded
+              ? `already recorded on baseline ${result.baseline.baselineVersion}`
+              : `recorded on baseline ${result.baseline.baselineVersion}`}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {result.image.reference ?? result.image.digest}
+          </Typography>
+        </Box>
+      ) : null}
+      {error ? (
+        <Typography role="alert" variant="body2" style={{ color: NEXORA_TONE.danger.text, marginTop: 8 }}>
+          {error}
+        </Typography>
+      ) : null}
+    </section>
+  );
+}
 
 export function TestsTab({
   coverage,
   baselines,
   error,
   onImportEvidence,
+  onImportReleaseProvenance,
 }: TestsTabProps) {
   return (
     <>
@@ -180,6 +240,10 @@ export function TestsTab({
         <Typography variant="h6" style={{ marginBottom: 12 }}>
           Build evidence
         </Typography>
+        {onImportReleaseProvenance &&
+        baselines?.some(baseline => baseline.status === 'APPROVED') ? (
+          <ReleaseImport onImport={onImportReleaseProvenance} />
+        ) : null}
         {error && (
           <Typography color="error" variant="body2">
             {error}

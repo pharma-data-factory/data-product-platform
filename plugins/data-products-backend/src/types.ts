@@ -87,6 +87,27 @@ export interface GithubActionsClient {
     runId: number,
     name: string,
   ): Promise<GithubFetchResult<Buffer | undefined>>;
+  /** NXD-133. The repository's published releases, newest first. */
+  listReleases?(repo: GithubRepoRef): Promise<GithubFetchResult<GithubRelease[]>>;
+  /** NXD-133. One release asset's bytes. */
+  downloadReleaseAsset?(
+    repo: GithubRepoRef,
+    assetId: number,
+  ): Promise<GithubFetchResult<Buffer>>;
+  /** NXD-133. The commit a ref (a tag) points at, annotated tags resolved. */
+  getCommitSha?(
+    repo: GithubRepoRef,
+    ref: string,
+  ): Promise<GithubFetchResult<string>>;
+}
+
+export interface GithubRelease {
+  tag: string;
+  url: string;
+  publishedAt?: string;
+  draft: boolean;
+  prerelease: boolean;
+  assets: Array<{ id: number; name: string; size: number }>;
 }
 
 export function unknownCiStatus(

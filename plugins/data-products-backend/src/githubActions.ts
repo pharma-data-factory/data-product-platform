@@ -9,6 +9,7 @@ import {
 import {
   GithubActionsClient,
   GithubFetchFailure,
+  GithubRelease,
   GithubFetchResult,
   GithubRepoRef,
   GithubWorkflowRun,
@@ -34,6 +35,7 @@ export function createGithubActionsClient(options: {
   async function authorizedFetch(
     repo: GithubRepoRef,
     path: string,
+    accept = 'application/vnd.github+json',
   ): Promise<GithubFetchResult<Response>> {
     const integration = integrations.github.byUrl(repo.url);
     if (!integration) {
@@ -56,7 +58,7 @@ export function createGithubActionsClient(options: {
       '',
     );
     const headers: Record<string, string> = {
-      Accept: 'application/vnd.github+json',
+      Accept: accept,
       'X-GitHub-Api-Version': '2022-11-28',
       ...(creds.headers ?? {}),
     };
@@ -163,6 +165,72 @@ export function createGithubActionsClient(options: {
       } catch {
         return { ok: false, reason: 'unavailable' };
       }
+    },
+
+    async listReleases(repo) {
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/releases?per_page=100`,
+      );
+      if (!listing.ok) {
+        return listing;
+      }
+      const releases = Array.isArray(listing.value) ? listing.value : [];
+      return {
+        ok: true,
+        value: releases.map(
+          (release: Record<string, any>): GithubRelease => ({
+            tag: String(release.tag_name ?? ''),
+            url: String(release.html_url ?? ''),
+            publishedAt:
+              typeof release.published_at === 'string'
+                ? release.published_at
+                : undefined,
+            draft: release.draft === true,
+            prerelease: release.prerelease === true,
+            assets: (Array.isArray(release.assets) ? release.assets : []).map(
+              (asset: Record<string, any>) => ({
+                id: Number(asset.id),
+                name: String(asset.name ?? ''),
+                size: Number(asset.size ?? 0),
+              }),
+            ),
+          }),
+        ),
+      };
+    },
+
+    async downloadReleaseAsset(repo, assetId) {
+      // The asset endpoint answers JSON metadata unless asked for the bytes;
+      // with octet-stream it redirects to short-lived storage, which fetch
+      // follows (and, crossing origins, without the Authorization header).
+      const asset = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/releases/assets/${assetId}`,
+        'application/octet-stream',
+      );
+      if (!asset.ok) {
+        return asset;
+      }
+      try {
+        return { ok: true, value: Buffer.from(await asset.value.arrayBuffer()) };
+      } catch {
+        return { ok: false, reason: 'unavailable' };
+      }
+    },
+
+    async getCommitSha(repo, ref) {
+      const commit = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/commits/${encodeURIComponent(ref)}`,
+      );
+      if (!commit.ok) {
+        return commit;
+      }
+      const sha = (commit.value as { sha?: unknown }).sha;
+      return typeof sha === 'string'
+        ? { ok: true, value: sha }
+        : { ok: false, reason: 'unavailable' };
     },
 
     async getFailedStages(repo, runId) {

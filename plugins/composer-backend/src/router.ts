@@ -1112,6 +1112,26 @@ export async function createRouter(
     },
   );
 
+  /**
+   * POST /versions/:id/release-provenance/import (NXD-133)
+   * Read the release record the product's release workflow published for
+   * this version and write its commit and image digest to the approved
+   * baseline. A person with product.manage presses the button; the values
+   * come from GitHub, not from them, which is why this is not the
+   * service-only `/baselines/:id/provenance`.
+   */
+  router.post(
+    '/versions/:id/release-provenance/import',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res.json(await service.importReleaseProvenance(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/test-executions',
     async (req: express.Request, res: express.Response) => {

@@ -19,8 +19,11 @@ OpenAPI route coverage, Docker build, pip-audit.
 - creates the GitHub Release `v1.1.0` with `nexora-release.json`: version,
   full commit SHA, image digest.
 
-Nexora reads `nexora-release.json` from the release. The repository needs no
-Nexora secret.
+Nexora reads `nexora-release.json` from the release — *Import release
+provenance* on the product's Tests tab, once the version has an approved
+baseline. Nexora checks that the record names this version and this tag, and
+that its commit is the one the tag points at. The repository needs no Nexora
+secret.
 
 A GitHub Release is a build, not a Nexora release. The product version is
 released in Nexora by its release gate; the tag produces the image Nexora

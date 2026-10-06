@@ -7670,3 +7670,120 @@ Equality would have traded that for less.
   `tests/test_openapi_coverage.py` (new), `contracts/openapi.yaml`,
   `pyproject.toml`, `docs/ci-cd.md`;
   `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-133 — Nexora reads the release record and writes it to the approved baseline; the values come from GitHub, never from the person who presses the button
+
+- Date: 2026-10-06
+- Slice: MVP1 step 4b. Decided by the user (R1–R3, R6 of the step 4
+  preparation).
+
+**Context.** Since `NXD-132`, a version tag publishes `nexora-release.json` on
+a GitHub Release. Nexora did not read it. `NXD-052`'s
+`POST /baselines/:id/provenance` would accept the same values, but only from a
+service principal, and R1 chose pull so that no product repository holds a
+Nexora secret. `NXD-123` set the pattern for that: `data-products-backend`
+talks to GitHub, Composer asks it, and a person triggers the import.
+
+**Decision.**
+
+- **`data-products-backend`: `GET /release-record?repoUrl=&version=`.**
+  Authorisation is the same as `/ci-evidence`: a service, or a person with
+  `data-product.view`. That check is now one helper, `authorizeViewOrService`,
+  shared by both routes.
+  - It lists the repository's releases and picks the published one (no
+    drafts, no pre-releases) whose tag is `v` + a label **equivalent** to the
+    version (R3). Two matching releases (`v1.0` and `v1.0.0`) are refused as
+    `ambiguous-release` rather than chosen between.
+  - It downloads `nexora-release.json`. The asset endpoint needs
+    `Accept: application/octet-stream`, so `authorizedFetch` takes the Accept
+    header as a parameter. An asset over 64 KiB is refused without
+    downloading it.
+  - It resolves the commit the tag points at (`GET /commits/<tag>`, which
+    resolves annotated tags too).
+  - It judges shape only: a bounded JSON object, `nexora.dev/v1alpha1`
+    `ReleaseRecord`. Every "nothing there" answers a reason: `no-release`,
+    `ambiguous-release`, `no-release-record`, `invalid-release-record`, or
+    the GitHub failure.
+  - The GitHub App's existing *Contents: read* covers releases and assets.
+    No new permission.
+- **Composer: `POST /versions/:id/release-provenance/import`,
+  `product.manage`, user principals only.** Services keep their own route,
+  `/baselines/:id/provenance`. `importReleaseProvenance`:
+  - requires an **approved** baseline on the version, because the release
+    build follows approval (`NXD-052`);
+  - refuses a record whose `version` is not equivalent to the version, whose
+    `tag` is not the release's tag, or whose `commitSha` is not the commit
+    the tag points at. The asset is a file in a repository, so it is checked
+    against what GitHub says about the tag, not taken on its word;
+  - writes through `recordBaselineProvenance`, so `NXD-052`'s grammars,
+    write-once rule and refusal of superseded baselines hold unchanged. The
+    same build again answers `alreadyRecorded: true` and writes nothing;
+  - says why in every refusal, in words a product manager can act on.
+- **Who recorded it.** `ReleaseProvenance.provenanceRecordedBy` is
+  documented as "Service principal that posted it. Never a human." A person
+  presses the button, so `recordBaselineProvenance` gains optional
+  `recordedBy` and `reason`:
+  - `provenanceRecordedBy` is `github-release:<release URL>`, the source of
+    the values;
+  - the person is the audit event's actor, with reason
+    `Imported from <release URL>`.
+
+  The person can cause the record to be read; they cannot choose what it says.
+- **`versionLabelsEquivalent`** in `platform-common`: an absent patch counts
+  as 0, and an unparseable label matches nothing, itself included. It is for
+  matching a build to a version only; it does not make `1.0` and `1.0.0` one
+  row.
+- **UI.** On the Tests tab, *Build evidence* gains *Import release
+  provenance*, shown only once a baseline is approved. The result links the
+  release, names the commit and the baseline, says *already recorded* when
+  nothing was written, and shows a refusal verbatim.
+- **Docs:** `docs/github-setup.md` names release reading under Contents;
+  the OEE skeleton's `docs/ci-cd.md` names the button and the checks.
+
+**Verified.**
+
+- `platform-common`: `versionLabelsEquivalent`, 10 cases.
+- `data-products-backend`, 131 tests green:
+  - `releaseRecord.test.ts` (new): equivalence both ways; drafts,
+    pre-releases and tags without `v` excluded; the ambiguous case; four
+    malformed records;
+  - client tests: listing, asset download with the octet-stream Accept,
+    tag-commit resolution, 404;
+  - five route tests: success, no release, no record, oversized asset,
+    missing parameters, and a person without `data-product.view` refused
+    with 403.
+- `composer-backend`: `releaseProvenanceImport.test.ts` (new), 16 tests:
+  - written to the approved baseline with the release as recorder and the
+    person as audit actor;
+  - re-import is a no-op with one audit event;
+  - a different build on a baseline is refused, write-once;
+  - no approved baseline is refused before GitHub is asked;
+  - four reasons for "nothing to import";
+  - other version, other tag and other commit are each refused and write
+    nothing;
+  - a malformed digest is refused;
+  - an unconfigured instance is refused;
+  - over HTTP: `product.manage` gives 200, without it 403, and a service
+    principal 401.
+- `packages/app`: four new Tests-tab tests; products module 43/43.
+- **Repository-wide:** see the commit body.
+
+**Not done, named.**
+
+- **No live run.** No product repository has published a release yet; that
+  waits on the `NXD-132` live tag.
+- **The digest is not checked against GHCR.** That would need *Packages: read*
+  on the GitHub App. Today the digest is as trustworthy as the repository's
+  release assets, cross-checked against the tag's commit.
+- **Provenance stays optional for release (R8).** It becomes required with
+  step 5, which needs the digest to publish an artifact.
+
+- Affected components: `packages/platform-common/src/{product,index}.ts`
+  (+ `product.test.ts`); `plugins/data-products-backend/src/` —
+  `releaseRecord.ts` (new, + test), `githubActions.ts`, `router.ts`,
+  `types.ts` (+ tests); `plugins/composer-backend/src/` —
+  `release-record-client.ts` (new), `service.ts`, `router.ts`, `plugin.ts`,
+  `releaseProvenanceImport.test.ts` (new);
+  `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/TestsTab.tsx}`
+  (+ `TestsTab.test.tsx`); `docs/github-setup.md`;
+  `templates/oee-data-product/content/docs/ci-cd.md`.

@@ -1133,6 +1133,27 @@ export function isVersionLabel(label: string): boolean {
   return parseVersionLabel(label) !== undefined;
 }
 
+/**
+ * Whether two labels name the same version, an absent patch counting as 0.
+ *
+ * NXD-133. Composer names a first version `1.0` (`nextMajorVersionLabel`)
+ * while a Golden Path tags its build `v1.0.0`; a string comparison would make
+ * the release of the version Nexora approved unfindable. Only for matching a
+ * build to a version: it does not make `1.0` and `1.0.0` one row, and an
+ * unparseable label matches nothing, itself included.
+ */
+export function versionLabelsEquivalent(a: string, b: string): boolean {
+  const left = parseVersionLabel(a);
+  const right = parseVersionLabel(b);
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    left.major === right.major &&
+    left.minor === right.minor &&
+    (left.patch ?? 0) === (right.patch ?? 0)
+  );
+}
+
 export function validateVersionLabel(label: string): string[] {
   if (!label.trim()) {
     return ['Product version is required'];

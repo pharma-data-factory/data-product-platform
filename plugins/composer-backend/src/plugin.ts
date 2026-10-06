@@ -21,6 +21,7 @@ import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
 import { createHttpCiEvidenceClient } from './ci-evidence-client';
+import { createHttpReleaseRecordClient } from './release-record-client';
 import { createHttpPinVerifier } from './pin-verifier';
 import { createHttpPolicyResolverClient } from './policy-resolver-client';
 import { bootstrapPlatformProduct } from './platformProductBootstrap';
@@ -157,6 +158,7 @@ export const composerPlugin = createBackendPlugin({
           validationDecisionResolver,
           policyResolverClient,
           ciEvidenceClient: createHttpCiEvidenceClient({ discovery, auth }),
+          releaseRecordClient: createHttpReleaseRecordClient({ discovery, auth }),
         });
 
         httpRouter.use(

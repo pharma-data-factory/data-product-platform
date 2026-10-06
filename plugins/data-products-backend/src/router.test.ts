@@ -198,4 +198,144 @@ describe('data-products router', () => {
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('UNKNOWN');
   });
+
+  describe('GET /release-record (NXD-133)', () => {
+    const SHA = 'a'.repeat(40);
+    const record = {
+      apiVersion: 'nexora.dev/v1alpha1',
+      kind: 'ReleaseRecord',
+      version: '1.0.0',
+      tag: 'v1.0.0',
+      commitSha: SHA,
+    };
+    const releaseWith = (
+      assets: Array<{ id: number; name: string; size: number }>,
+    ) => ({
+      tag: 'v1.0.0',
+      url: 'https://github.com/o/r/releases/tag/v1.0.0',
+      publishedAt: '2026-10-06T12:00:00Z',
+      draft: false,
+      prerelease: false,
+      assets,
+    });
+
+    async function releaseApp(
+      releases: GithubActionsClient['listReleases'],
+      options: { credentials?: unknown; allow?: boolean } = {},
+    ) {
+      const router = await createRouter({
+        logger: {
+          warn: jest.fn(),
+          info: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          child: jest.fn(),
+        } as never,
+        catalog: catalog as never,
+        httpAuth: {
+          credentials: async () =>
+            options.credentials ?? {
+              principal: { type: 'service', subject: 'plugin:composer' },
+            },
+        } as never,
+        github: {
+          ...github,
+          listReleases: releases,
+          downloadReleaseAsset: async () => ({
+            ok: true,
+            value: Buffer.from(JSON.stringify(record)),
+          }),
+          getCommitSha: async () => ({ ok: true, value: SHA }),
+        },
+        permissions: {
+          authorize: async () => [
+            {
+              result:
+                options.allow === false
+                  ? AuthorizeResult.DENY
+                  : AuthorizeResult.ALLOW,
+            },
+          ],
+        } as never,
+      });
+      const server = express();
+      server.use(router);
+      return server;
+    }
+
+    const query = '/release-record?repoUrl=https://github.com/o/r&version=1.0';
+
+    it('answers the record, the release and the commit the tag points at', async () => {
+      const server = await releaseApp(async () => ({
+        ok: true,
+        value: [releaseWith([{ id: 5, name: 'nexora-release.json', size: 200 }])],
+      }));
+      const response = await get(server, query);
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        available: true,
+        release: {
+          tag: 'v1.0.0',
+          url: 'https://github.com/o/r/releases/tag/v1.0.0',
+          publishedAt: '2026-10-06T12:00:00Z',
+          commit: SHA,
+        },
+        record,
+      });
+    });
+
+    it('says when the version has no release, and when the release has no record', async () => {
+      const none = await releaseApp(async () => ({ ok: true, value: [] }));
+      expect((await get(none, query)).body).toEqual({
+        available: false,
+        reason: 'no-release',
+      });
+      const bare = await releaseApp(async () => ({
+        ok: true,
+        value: [releaseWith([])],
+      }));
+      expect((await get(bare, query)).body).toMatchObject({
+        available: false,
+        reason: 'no-release-record',
+        release: { tag: 'v1.0.0' },
+      });
+    });
+
+    it('refuses an oversized asset without downloading it', async () => {
+      const server = await releaseApp(async () => ({
+        ok: true,
+        value: [
+          releaseWith([{ id: 5, name: 'nexora-release.json', size: 10_000_000 }]),
+        ],
+      }));
+      expect((await get(server, query)).body).toMatchObject({
+        available: false,
+        reason: 'invalid-release-record',
+      });
+    });
+
+    it('needs a repository URL and a version', async () => {
+      const server = await releaseApp(async () => ({ ok: true, value: [] }));
+      expect(
+        (await get(server, '/release-record?repoUrl=https://github.com/o/r'))
+          .status,
+      ).toBe(400);
+      expect((await get(server, '/release-record?version=1.0')).status).toBe(400);
+    });
+
+    it('lets a person read it only with data-product.view', async () => {
+      const user = {
+        principal: { type: 'user', userEntityRef: 'user:default/x' },
+      };
+      const denied = await releaseApp(async () => ({ ok: true, value: [] }), {
+        credentials: user,
+        allow: false,
+      });
+      expect((await get(denied, query)).status).toBe(403);
+      const allowed = await releaseApp(async () => ({ ok: true, value: [] }), {
+        credentials: user,
+      });
+      expect((await get(allowed, query)).status).toBe(200);
+    });
+  });
 });

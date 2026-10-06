@@ -60,9 +60,11 @@ import {
   type ContractCompatReport,
   type ContractExchange,
   type JsonSchemaLike,
+  versionLabelsEquivalent,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import type { CiEvidenceClient } from './ci-evidence-client';
+import type { ReleaseRecordClient } from './release-record-client';
 import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
@@ -276,6 +278,8 @@ export interface ComposerServiceOptions {
   policyResolverClient?: PolicyResolverClient;
   /** NXD-123. Test evidence from a product repository's CI. */
   ciEvidenceClient?: CiEvidenceClient;
+  /** NXD-133. Release records from a product repository's GitHub Releases. */
+  releaseRecordClient?: ReleaseRecordClient;
   /**
    * Shared SSE client registry. Injected by the router so upgrade notifications
    * can push events to connected consumers without any property bag tricks.
@@ -304,6 +308,7 @@ export class ComposerService {
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly policyResolverClient?: PolicyResolverClient;
   private readonly ciEvidenceClient?: CiEvidenceClient;
+  private readonly releaseRecordClient?: ReleaseRecordClient;
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
 
   constructor(options: ComposerServiceOptions) {
@@ -315,6 +320,7 @@ export class ComposerService {
     this.validationDecisionResolver = options.validationDecisionResolver;
     this.policyResolverClient = options.policyResolverClient;
     this.ciEvidenceClient = options.ciEvidenceClient;
+    this.releaseRecordClient = options.releaseRecordClient;
     this.sseClients = options.sseClients ?? new Map();
   }
 
@@ -2333,6 +2339,12 @@ export class ComposerService {
     baselineId: string,
     request: { releaseCommitSha?: unknown; artifactDigest?: unknown },
     actor: string,
+    /**
+     * NXD-133. When a person triggers an import, `actor` is that person (the
+     * audit trail says who did it) and `recordedBy` names where the values
+     * came from, because provenance is never asserted by a human.
+     */
+    options?: { recordedBy?: string; reason?: string },
   ): Promise<ProductBaseline> {
     const audit = this.beginAudit(actor);
     const baseline = await this.repository.getProductBaseline(baselineId);
@@ -2377,12 +2389,13 @@ export class ComposerService {
     const provenance: ReleaseProvenance = {
       ...incoming,
       provenanceTimestamp: new Date().toISOString(),
-      provenanceRecordedBy: actor,
+      provenanceRecordedBy: options?.recordedBy ?? actor,
     };
     const updated: ProductBaseline = { ...baseline, provenance };
     await this.repository.updateProductBaseline(updated);
     await this.audit(audit, 'PRODUCT_BASELINE', baselineId, 'PROVENANCE_RECORDED', {
       newValue: JSON.stringify(provenance),
+      ...(options?.reason ? { reason: options.reason } : {}),
     });
     return { ...updated, revision: (baseline.revision || 1) + 1 };
   }
@@ -2537,6 +2550,123 @@ export class ComposerService {
         .map(r => r.requirementRef)
         .filter(ref => !evidenced.has(ref)),
       unknownRequirements: [...unknown].sort(),
+    };
+  }
+
+  /**
+   * Record the commit and image digest of a version's release build, read
+   * from the GitHub Release the product's release workflow published (NXD-133;
+   * the workflow is NXD-132).
+   *
+   * Pull, as for test evidence (NXD-123): a person with product.manage
+   * presses the button, but every value comes from GitHub, never from them.
+   * The record is written to the version's APPROVED baseline through
+   * `recordBaselineProvenance`, so NXD-052's rules hold unchanged: same
+   * build again is a no-op, a different build is a 409. `provenanceRecordedBy`
+   * names the release, not the person — that field means "who asserted what
+   * was built", and a person must not be able to assert it. The person is the
+   * audit event's actor.
+   *
+   * Refused, each with the reason in the message:
+   * - no APPROVED baseline (the release build follows approval, NXD-052);
+   * - no release for the version, two releases for it, or no readable record;
+   * - a record whose version is not this version, whose tag is not the
+   *   release's tag, or whose commit is not the commit the tag points at.
+   */
+  async importReleaseProvenance(
+    productVersionId: string,
+    actor: string,
+  ): Promise<{
+    baseline: ProductBaseline;
+    release: { tag: string; url: string; commit: string };
+    image: { repository?: string; digest: string; reference?: string };
+    alreadyRecorded: boolean;
+  }> {
+    if (!this.releaseRecordClient) {
+      throw new ConflictError('Release provenance import is not configured on this instance.');
+    }
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product?.repositoryUrl) {
+      throw new ConflictError(
+        'This product has no repository URL, so there is no release to read.',
+      );
+    }
+    const baselines = await this.repository.listProductBaselines(productVersionId);
+    const baseline = baselines.find(b => b.status === 'APPROVED');
+    if (!baseline) {
+      throw new ConflictError(
+        `Version ${version.version} has no approved baseline. The release build ` +
+          'is recorded against the approved baseline it was built from; approve one first.',
+      );
+    }
+
+    const lookup = await this.releaseRecordClient.getReleaseRecord(
+      product.repositoryUrl,
+      version.version,
+    );
+    if (!lookup.available || !lookup.release || !lookup.record) {
+      const why: Record<string, string> = {
+        'no-release': `the repository has no published release v${version.version} (a tag v${version.version} runs the release workflow)`,
+        'ambiguous-release': `more than one release names this version (${(lookup.tags ?? []).join(', ')}); delete all but one`,
+        'no-release-record': `release ${lookup.release?.tag ?? ''} carries no nexora-release.json`,
+        'invalid-release-record': `the release's nexora-release.json is not a release record${lookup.problem ? ` (${lookup.problem})` : ''}`,
+        inaccessible: 'Nexora cannot read the repository’s releases',
+        'not-found': 'the repository was not found',
+      };
+      throw new ConflictError(
+        `No release provenance to import: ${why[lookup.reason ?? ''] ?? lookup.reason ?? 'unknown'}.`,
+      );
+    }
+
+    const { release, record } = lookup;
+    const tagCommit = release.commit ?? '';
+    const image = (record.image ?? {}) as Record<string, unknown>;
+    const problems: string[] = [];
+    if (!versionLabelsEquivalent(String(record.version ?? ''), version.version)) {
+      problems.push(
+        `the record is for version ${String(record.version)}, not ${version.version}`,
+      );
+    }
+    if (record.tag !== release.tag) {
+      problems.push(`the record names tag ${String(record.tag)}, the release is ${release.tag}`);
+    }
+    if (
+      !tagCommit ||
+      String(record.commitSha ?? '').toLowerCase() !== tagCommit.toLowerCase()
+    ) {
+      problems.push(
+        `the record names commit ${String(record.commitSha)}, but ${release.tag} points at ${tagCommit || 'an unknown commit'}`,
+      );
+    }
+    if (problems.length > 0) {
+      throw new ConflictError(
+        `The release record of ${release.tag} does not describe this version: ${problems.join('; ')}.`,
+      );
+    }
+
+    const before = baseline.provenance;
+    const updated = await this.recordBaselineProvenance(
+      baseline.id,
+      { releaseCommitSha: record.commitSha, artifactDigest: image.digest },
+      actor,
+      {
+        recordedBy: fitColumn(`github-release:${release.url}`),
+        reason: `Imported from ${release.url}`,
+      },
+    );
+    return {
+      baseline: updated,
+      release: { tag: release.tag, url: release.url, commit: tagCommit },
+      image: {
+        repository: typeof image.repository === 'string' ? image.repository : undefined,
+        digest: String(image.digest),
+        reference: typeof image.reference === 'string' ? image.reference : undefined,
+      },
+      alreadyRecorded: before !== undefined,
     };
   }
 

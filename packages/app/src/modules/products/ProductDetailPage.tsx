@@ -614,6 +614,16 @@ export function ProductDetailPage() {
                     }
                   : undefined
               }
+              onImportReleaseProvenance={
+                selectedVersionId
+                  ? async () => {
+                      const result =
+                        await client.importReleaseProvenance(selectedVersionId);
+                      await loadVersionScoped(selectedVersionId);
+                      return result;
+                    }
+                  : undefined
+              }
             />
           )}
 

@@ -47,6 +47,15 @@ export interface TestEvidenceImport {
   unknownRequirements: string[];
 }
 
+/** NXD-133: what importing a version's release provenance recorded. */
+export interface ReleaseProvenanceImport {
+  baseline: ProductBaseline;
+  release: { tag: string; url: string; commit: string };
+  image: { repository?: string; digest: string; reference?: string };
+  /** The same build was already on the baseline; nothing was written. */
+  alreadyRecorded: boolean;
+}
+
 export interface ProductTraceability {
   productId: string;
   componentCount: number;
@@ -133,6 +142,8 @@ export interface ComposerClient {
   ): Promise<ProductRequirementCoverage>;
   /** NXD-123: record the newest CI run's test evidence for this version. */
   importTestEvidence(versionId: string): Promise<TestEvidenceImport>;
+  /** NXD-133: record the version's release build on its approved baseline. */
+  importReleaseProvenance(versionId: string): Promise<ReleaseProvenanceImport>;
   /** Contracts this component provides. Keyed by component, listed by coordinate. */
   listComponentContracts(componentId: string): Promise<DataContract[]>;
   /** Contracts this version consumes — the other side of the exchange. */
@@ -218,6 +229,8 @@ export function useComposerClient(): ComposerClient {
       request('GET', `/versions/${versionId}/requirement-coverage`),
     importTestEvidence: versionId =>
       request('POST', `/versions/${versionId}/test-evidence/import`, {}),
+    importReleaseProvenance: versionId =>
+      request('POST', `/versions/${versionId}/release-provenance/import`, {}),
     listComponentContracts: componentId =>
       request('GET', `/components/${componentId}/contracts`),
     listVersionDependencies: versionId =>

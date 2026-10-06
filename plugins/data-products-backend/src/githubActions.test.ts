@@ -251,5 +251,86 @@ describe('createGithubActionsClient', () => {
       });
     });
   });
+
+  describe('releases (NXD-133)', () => {
+    const credentialsProvider = {
+      getCredentials: async () => ({
+        type: 'token' as const,
+        token: 'tok',
+        headers: { Authorization: 'Bearer tok' },
+      }),
+    };
+    const client = (fetchFn: jest.Mock) =>
+      createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+
+    it('lists releases with their assets', async () => {
+      const fetchFn = jest.fn(async () =>
+        jsonResponse(200, [
+          {
+            tag_name: 'v1.0.0',
+            html_url: 'https://github.com/o/r/releases/tag/v1.0.0',
+            published_at: '2026-10-06T12:00:00Z',
+            draft: false,
+            prerelease: false,
+            assets: [{ id: 5, name: 'nexora-release.json', size: 600 }],
+          },
+        ]),
+      );
+      expect(await client(fetchFn).listReleases!(repo)).toEqual({
+        ok: true,
+        value: [
+          {
+            tag: 'v1.0.0',
+            url: 'https://github.com/o/r/releases/tag/v1.0.0',
+            publishedAt: '2026-10-06T12:00:00Z',
+            draft: false,
+            prerelease: false,
+            assets: [{ id: 5, name: 'nexora-release.json', size: 600 }],
+          },
+        ],
+      });
+      expect(String((fetchFn.mock.calls[0] as unknown[])[0])).toContain(
+        '/releases?per_page=100',
+      );
+    });
+
+    it('asks for an asset as bytes, not as its JSON description', async () => {
+      const fetchFn = jest.fn(async () => ({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => Buffer.from('{"kind":"ReleaseRecord"}'),
+      }));
+      const result = await client(fetchFn).downloadReleaseAsset!(repo, 5);
+      expect(result.ok && result.value.toString()).toBe('{"kind":"ReleaseRecord"}');
+      const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toContain('/releases/assets/5');
+      expect((init.headers as Record<string, string>).Accept).toBe(
+        'application/octet-stream',
+      );
+    });
+
+    it('resolves the commit a tag points at', async () => {
+      const fetchFn = jest.fn(async () => jsonResponse(200, { sha: 'f'.repeat(40) }));
+      expect(await client(fetchFn).getCommitSha!(repo, 'v1.0.0')).toEqual({
+        ok: true,
+        value: 'f'.repeat(40),
+      });
+      expect(String((fetchFn.mock.calls[0] as unknown[])[0])).toContain(
+        '/commits/v1.0.0',
+      );
+    });
+
+    it('maps a missing repository to not-found', async () => {
+      const fetchFn = jest.fn(async () => jsonResponse(404, {}));
+      expect(await client(fetchFn).listReleases!(repo)).toEqual({
+        ok: false,
+        reason: 'not-found',
+      });
+    });
+  });
 });
 

@@ -27,6 +27,12 @@ import { GithubActionsClient, publicCiStatus, unknownCiStatus } from './types';
 import { resolveCiStatus } from './resolveCiStatus';
 import { parseGithubUrl } from './resolveRepository';
 import { parseEvidence, readZip, TEST_EVIDENCE_ARTIFACT } from './testEvidence';
+import {
+  findReleaseForVersion,
+  MAX_RECORD_BYTES,
+  parseReleaseRecord,
+  RELEASE_RECORD_ASSET,
+} from './releaseRecord';
 
 export interface RouterOptions {
   logger: LoggerService;
@@ -73,6 +79,29 @@ export async function createRouter(
   });
 
   /**
+   * The Product Composer reads CI facts as a service; a person needs
+   * data-product.view (NXD-123, NXD-133).
+   */
+  async function authorizeViewOrService(req: express.Request): Promise<void> {
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+    if (credentials.principal.type !== 'user') {
+      return;
+    }
+    if (!permissions) {
+      throw new NotAllowedError('Permission service is not configured');
+    }
+    const [decision] = await permissions.authorize(
+      [{ permission: dataProductViewPermission }],
+      { credentials },
+    );
+    if (decision.result !== AuthorizeResult.ALLOW) {
+      throw new NotAllowedError();
+    }
+  }
+
+  /**
    * GET /ci-evidence?repoUrl=… (NXD-123)
    *
    * The test evidence of a product repository's newest completed CI run: the
@@ -83,21 +112,7 @@ export async function createRouter(
    */
   router.get('/ci-evidence', async (req, res) => {
     try {
-      const credentials = await httpAuth.credentials(req, {
-        allow: ['user', 'service'],
-      });
-      if (credentials.principal.type === 'user') {
-        if (!permissions) {
-          throw new NotAllowedError('Permission service is not configured');
-        }
-        const [decision] = await permissions.authorize(
-          [{ permission: dataProductViewPermission }],
-          { credentials },
-        );
-        if (decision.result !== AuthorizeResult.ALLOW) {
-          throw new NotAllowedError();
-        }
-      }
+      await authorizeViewOrService(req);
       const repo = parseGithubUrl(String(req.query.repoUrl ?? '').trim());
       if (!repo) {
         throw new InputError('repoUrl must be a GitHub repository URL');
@@ -152,6 +167,119 @@ export async function createRouter(
       );
       res.status(502).json({
         error: `The test evidence could not be read: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
+  });
+
+  /**
+   * GET /release-record?repoUrl=…&version=… (NXD-133)
+   *
+   * The release record a product repository's release workflow published for
+   * a version (NXD-132): the GitHub Release tagged `v` + that version (`1.0`
+   * and `1.0.0` alike), its `nexora-release.json`, and the commit the tag
+   * actually points at, so the Composer can refuse a record whose commit is
+   * not the tagged one. Read by the Composer as a service, and by a person
+   * with data-product.view, like /ci-evidence.
+   */
+  router.get('/release-record', async (req, res) => {
+    try {
+      await authorizeViewOrService(req);
+      const repo = parseGithubUrl(String(req.query.repoUrl ?? '').trim());
+      if (!repo) {
+        throw new InputError('repoUrl must be a GitHub repository URL');
+      }
+      const version = String(req.query.version ?? '').trim();
+      if (!version) {
+        throw new InputError('version is required');
+      }
+      if (
+        !github.listReleases ||
+        !github.downloadReleaseAsset ||
+        !github.getCommitSha
+      ) {
+        res.json({ available: false, reason: 'unavailable' });
+        return;
+      }
+      const releases = await github.listReleases(repo);
+      if (!releases.ok) {
+        res.json({ available: false, reason: releases.reason });
+        return;
+      }
+      const lookup = findReleaseForVersion(releases.value, version);
+      if (!lookup.found) {
+        res.json({ available: false, reason: lookup.reason, tags: lookup.tags });
+        return;
+      }
+      const { release } = lookup;
+      const releaseInfo = {
+        tag: release.tag,
+        url: release.url,
+        publishedAt: release.publishedAt,
+      };
+      const asset = release.assets.find(a => a.name === RELEASE_RECORD_ASSET);
+      if (!asset) {
+        res.json({
+          available: false,
+          reason: 'no-release-record',
+          release: releaseInfo,
+        });
+        return;
+      }
+      if (asset.size > MAX_RECORD_BYTES) {
+        res.json({
+          available: false,
+          reason: 'invalid-release-record',
+          release: releaseInfo,
+        });
+        return;
+      }
+      const [bytes, tagCommit] = await Promise.all([
+        github.downloadReleaseAsset(repo, asset.id),
+        github.getCommitSha(repo, release.tag),
+      ]);
+      if (!bytes.ok) {
+        res.json({ available: false, reason: bytes.reason, release: releaseInfo });
+        return;
+      }
+      if (!tagCommit.ok) {
+        res.json({
+          available: false,
+          reason: tagCommit.reason,
+          release: releaseInfo,
+        });
+        return;
+      }
+      const parsed = parseReleaseRecord(bytes.value);
+      if (!parsed.ok) {
+        res.json({
+          available: false,
+          reason: 'invalid-release-record',
+          problem: parsed.problem,
+          release: releaseInfo,
+        });
+        return;
+      }
+      res.json({
+        available: true,
+        release: { ...releaseInfo, commit: tagCommit.value },
+        record: parsed.record,
+      });
+    } catch (error) {
+      if (error instanceof NotAllowedError) {
+        res.status(403).json({ error: error.message || 'Not allowed' });
+        return;
+      }
+      if (error instanceof InputError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      logger.warn(
+        `release-record failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      res.status(502).json({
+        error: `The release record could not be read: ${
           error instanceof Error ? error.message : String(error)
         }`,
       });

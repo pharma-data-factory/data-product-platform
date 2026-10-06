@@ -7,7 +7,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { TestsTab, importSummaryLines } from './TestsTab';
-import type { TestEvidenceImport } from '../api';
+import type { ReleaseProvenanceImport, TestEvidenceImport } from '../api';
 
 const coverage = {
   total: 2,
@@ -62,5 +62,57 @@ describe('TestsTab CI evidence import (NXD-123)', () => {
   it('offers no import without a way to run one', () => {
     render(<TestsTab coverage={coverage} baselines={[]} error={null} />);
     expect(screen.queryByRole('button', { name: 'Import CI evidence' })).not.toBeInTheDocument();
+  });
+});
+
+describe('TestsTab release provenance import (NXD-133)', () => {
+  const approved = { id: 'b1', baselineVersion: '1', status: 'APPROVED' } as any;
+  const draft = { id: 'b2', baselineVersion: '2', status: 'DRAFT' } as any;
+  const imported: ReleaseProvenanceImport = {
+    baseline: { ...approved, provenance: { releaseCommitSha: 'a'.repeat(40) } },
+    release: { tag: 'v1.0.0', url: 'https://github.com/o/r/releases/tag/v1.0.0', commit: 'abc1234'.padEnd(40, '0') },
+    image: { digest: `sha256:${'b'.repeat(64)}`, reference: `ghcr.io/o/r@sha256:${'b'.repeat(64)}` },
+    alreadyRecorded: false,
+  };
+  const button = () => screen.queryByRole('button', { name: 'Import release provenance' });
+
+  it('offers the import only once a baseline is approved', () => {
+    const onImport = jest.fn();
+    const { rerender } = render(
+      <TestsTab coverage={coverage} baselines={[draft]} error={null} onImportReleaseProvenance={onImport} />,
+    );
+    expect(button()).not.toBeInTheDocument();
+    rerender(
+      <TestsTab coverage={coverage} baselines={[approved]} error={null} onImportReleaseProvenance={onImport} />,
+    );
+    expect(button()).toBeInTheDocument();
+  });
+
+  it('links the release and names the baseline it was recorded on', async () => {
+    const onImport = jest.fn().mockResolvedValue(imported);
+    render(<TestsTab coverage={coverage} baselines={[approved]} error={null} onImportReleaseProvenance={onImport} />);
+    fireEvent.click(button()!);
+    expect(await screen.findByRole('link', { name: 'v1.0.0' })).toHaveAttribute(
+      'href',
+      'https://github.com/o/r/releases/tag/v1.0.0',
+    );
+    expect(screen.getByText(/commit abc1234 · recorded on baseline 1/)).toBeInTheDocument();
+    expect(screen.getByText(imported.image.reference!)).toBeInTheDocument();
+  });
+
+  it('says when the build was already recorded', async () => {
+    const onImport = jest.fn().mockResolvedValue({ ...imported, alreadyRecorded: true });
+    render(<TestsTab coverage={coverage} baselines={[approved]} error={null} onImportReleaseProvenance={onImport} />);
+    fireEvent.click(button()!);
+    expect(await screen.findByText(/already recorded on baseline 1/)).toBeInTheDocument();
+  });
+
+  it('shows the refusal verbatim', async () => {
+    const onImport = jest
+      .fn()
+      .mockRejectedValue(new Error('No release provenance to import: the repository has no published release v1.0.'));
+    render(<TestsTab coverage={coverage} baselines={[approved]} error={null} onImportReleaseProvenance={onImport} />);
+    fireEvent.click(button()!);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no published release v1\.0/);
   });
 });

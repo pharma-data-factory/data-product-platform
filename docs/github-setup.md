@@ -21,6 +21,7 @@ without any of them; Guest sign-in needs no GitHub at all.
 | People sign in with GitHub | OAuth App | 1, 5, 6 |
 | *Create* publishes repositories | GitHub App, installed on the organization | 2, 3, 5, 6 |
 | CI status on the product page | GitHub App with Actions read | 2 |
+| Release provenance on the product page (NXD-133) | GitHub App with Contents read — already granted for *Create* | 2 |
 | Team membership follows Nexora roles (NXD-108) | GitHub App with Members read & write, plus teams | 2, 4, 5 |
 
 **Prerequisites:**
@@ -49,7 +50,7 @@ Field by field: [OAuth App settings](#oauth-app-settings-field-by-field).
    | Section | Permission | Access | Needed for |
    | --- | --- | --- | --- |
    | Repository | Administration | Read and write | *Create* makes the repository |
-   | Repository | Contents | Read and write | Pushing the generated source |
+   | Repository | Contents | Read and write | Pushing the generated source; reading a product's releases and `nexora-release.json` (NXD-133) |
    | Repository | Metadata | Read-only (mandatory) | — |
    | Repository | Workflows | Read and write | Pushing `.github/workflows/ci.yml` |
    | Repository | Actions | Read-only | CI status on the product page |
@@ -276,7 +277,7 @@ Minimum permissions for this Golden Path:
 | Permission | Access | Why |
 | --- | --- | --- |
 | Administration | Read and write | Create the repository |
-| Contents | Read and write | Push generated source |
+| Contents | Read and write | Push generated source; read releases for *Import release provenance* |
 | Metadata | Read-only | Repository metadata |
 | Workflows | Read and write | Push `.github/workflows/ci.yml` |
 | Actions | Read-only | Read latest workflow run status on Data Product detail. If this permission is missing or GitHub is unavailable, the CI Quality Gate stays `UNKNOWN`. Do not treat that as a product failure. |

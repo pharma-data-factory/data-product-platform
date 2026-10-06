@@ -702,6 +702,7 @@ export {
   isVersionLabel,
   nextMajorVersionLabel,
   parseVersionLabel,
+  versionLabelsEquivalent,
   validateBaselineLabel,
   validateDataContractSchemaType,
   validateProduct,

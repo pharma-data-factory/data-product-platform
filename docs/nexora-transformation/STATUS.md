@@ -232,6 +232,13 @@ four quick wins F1–F4, one commit and one record each.
   Nexora will pull it (4b). `openapi.yaml` now documents all 24 operations,
   and a route-coverage test keeps it so. Not yet run live. See
   [`NXD-132`](DECISIONS.md).
+- **MVP1 step 4b: Nexora reads the release record into the approved
+  baseline.** *Import release provenance* on the Tests tab. data-products
+  finds the version's GitHub Release (`1.0` ≡ `v1.0.0`) and reads
+  `nexora-release.json` and the tag's commit. Composer refuses a record for
+  another version, tag or commit, and writes through NXD-052's write-once
+  path. The release, not the person, is the recorder; the person is the
+  audit actor. See [`NXD-133`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
