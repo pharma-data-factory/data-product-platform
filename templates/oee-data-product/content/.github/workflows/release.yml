@@ -1,0 +1,88 @@
+# Release: a tag v<version> builds, pushes and records one image (NXD-132).
+#
+# 1. The same quality gate as every pull request (ci.yml).
+# 2. The tag must be v + nexora.yaml metadata.version, and the manifest's image
+#    repository must be the one this repository can publish to.
+# 3. The image is pushed to GHCR with an SBOM and a build provenance
+#    attestation, tagged with the version and the commit.
+# 4. A GitHub Release v<version> carries nexora-release.json: version, full
+#    commit SHA, image digest.
+#
+# Nexora reads that file from the release (pull, as for test evidence,
+# NXD-123). This workflow holds no Nexora credential and needs no secret beyond
+# the GITHUB_TOKEN every run has.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+      packages: write # push to ghcr.io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install pyyaml
+
+      - name: Check the tag against nexora.yaml
+        id: manifest
+        run: python scripts/nexora_release.py check "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" >> "$GITHUB_OUTPUT"
+
+      # SBOM and provenance attestations need a Buildx builder.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.manifest.outputs.repository }}:${{ steps.manifest.outputs.version }}
+            ${{ steps.manifest.outputs.repository }}:sha-${{ steps.manifest.outputs.short_sha }}
+          sbom: true
+          provenance: mode=max
+
+      - name: Write the release record
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >
+          python scripts/nexora_release.py record
+          --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA"
+          --digest "$DIGEST" --run-url "$RUN_URL"
+          > nexora-release.json
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.manifest.outputs.repository }}@${{ steps.build.outputs.digest }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" nexora-release.json
+          --verify-tag --title "$GITHUB_REF_NAME" --notes "Image: $IMAGE"

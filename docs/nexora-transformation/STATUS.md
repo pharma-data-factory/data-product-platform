@@ -225,6 +225,13 @@ four quick wins F1–F4, one commit and one record each.
   `fetch:template`. All four unread `dataproduct.yaml` files are gone.
   `asyncapi.yaml` is now valid AsyncAPI 3.0 and says *receive*. Topics stay
   config until a provider binds them. See [`NXD-131`](DECISIONS.md).
+- **MVP1 step 4a: a version tag builds, pushes and records one image.** The
+  OEE skeleton gains `release.yml`. A `v*` tag runs the same gate, checks the
+  tag against `nexora.yaml`, pushes to GHCR with SBOM and provenance, and
+  publishes `nexora-release.json` on a GitHub Release. No Nexora secret:
+  Nexora will pull it (4b). `openapi.yaml` now documents all 24 operations,
+  and a route-coverage test keeps it so. Not yet run live. See
+  [`NXD-132`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

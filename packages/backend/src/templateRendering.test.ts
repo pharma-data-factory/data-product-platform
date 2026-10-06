@@ -330,6 +330,115 @@ describe('the OEE Golden Path renders a manifest the registry accepts (NXD-131)'
     expect([...declared].sort()).toEqual([...passed].sort());
   });
 
+  /**
+   * NXD-132. The release workflow is copied, not templated, so every GitHub
+   * expression must arrive intact; and it may hold no Nexora credential,
+   * because Nexora pulls the release record (NXD-123's model).
+   */
+  describe('.github/workflows/release.yml (NXD-132)', () => {
+    let text: string;
+    let workflow: any;
+    let ci: any;
+    beforeAll(() => {
+      text = fs.readFileSync(
+        path.join(workspacePath, '.github/workflows/release.yml'),
+        'utf8',
+      );
+      workflow = yaml.parse(text);
+      ci = yaml.parse(
+        fs.readFileSync(
+          path.join(workspacePath, '.github/workflows/ci.yml'),
+          'utf8',
+        ),
+      );
+    });
+
+    const steps = () => workflow.jobs.release.steps as any[];
+    const stepNamed = (name: string) => steps().find(s => s.name === name);
+
+    it('arrives uninterpreted by the template engine', () => {
+      expect(text).toContain('${{ steps.build.outputs.digest }}');
+      expect(text).toContain('${{ github.token }}');
+    });
+
+    it('runs on a version tag, after the same gate as every pull request', () => {
+      expect(workflow.on.push.tags).toEqual(['v*']);
+      expect(workflow.jobs['quality-gate'].uses).toBe(
+        './.github/workflows/ci.yml',
+      );
+      expect(ci.on).toHaveProperty('workflow_call');
+      expect(workflow.jobs.release.needs).toBe('quality-gate');
+    });
+
+    it('asks for no more than it uses, and for no secret but its own token', () => {
+      expect(workflow.permissions).toEqual({ contents: 'read' });
+      expect(workflow.jobs.release.permissions).toEqual({
+        contents: 'write',
+        packages: 'write',
+      });
+      const secrets = text.match(/secrets\.[A-Za-z_]+/g) ?? [];
+      expect([...new Set(secrets)]).toEqual(['secrets.GITHUB_TOKEN']);
+    });
+
+    it('checks the tag against the manifest before it builds anything', () => {
+      const names = steps().map(s => s.name);
+      expect(names.indexOf('Check the tag against nexora.yaml')).toBeLessThan(
+        names.indexOf('Build and push'),
+      );
+      expect(stepNamed('Check the tag against nexora.yaml').run).toContain(
+        'scripts/nexora_release.py check',
+      );
+      expect(
+        fs.existsSync(path.join(workspacePath, 'scripts/nexora_release.py')),
+      ).toBe(true);
+    });
+
+    it('pushes the image with an SBOM and provenance, tagged with the version', () => {
+      const build = stepNamed('Build and push');
+      expect(build.uses).toMatch(/^docker\/build-push-action@/);
+      expect(build.with.push).toBe(true);
+      expect(build.with.sbom).toBe(true);
+      expect(build.with.provenance).toBe('mode=max');
+      expect(build.with.tags).toContain(
+        '${{ steps.manifest.outputs.repository }}:${{ steps.manifest.outputs.version }}',
+      );
+      // NXD-126: attestations need a Buildx builder, set up before the build.
+      const names = steps().map(s => s.name);
+      expect(names.indexOf('Set up Docker Buildx')).toBeLessThan(
+        names.indexOf('Build and push'),
+      );
+    });
+
+    it('publishes nexora-release.json on a GitHub Release for that tag', () => {
+      expect(stepNamed('Write the release record').run).toContain(
+        '> nexora-release.json',
+      );
+      const publish = stepNamed('Publish the GitHub Release').run;
+      expect(publish).toContain(
+        'gh release create "$GITHUB_REF_NAME" nexora-release.json',
+      );
+      expect(publish).toContain('--verify-tag');
+    });
+
+    it('passes step outputs through env, never into a run script', () => {
+      for (const s of steps().filter(x => x.run)) {
+        expect([s.name, /\$\{\{/.test(s.run)]).toEqual([s.name, false]);
+      }
+    });
+
+    it('lists the release and OpenAPI coverage tests in the gate, and they exist', () => {
+      const command = ci.jobs['quality-gate'].with['unit-tests'] as string;
+      for (const file of [
+        'tests/test_release.py',
+        'tests/test_openapi_coverage.py',
+      ]) {
+        expect(command).toContain(file);
+        expect(fs.existsSync(path.join(workspacePath, file))).toBe(true);
+      }
+      expect(ci.jobs['quality-gate'].with['lint-command']).toContain('scripts');
+    });
+  });
+
   describe('contracts/asyncapi.yaml', () => {
     let doc: any;
     beforeAll(() => {

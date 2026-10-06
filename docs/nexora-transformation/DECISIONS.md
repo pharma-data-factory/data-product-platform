@@ -7544,3 +7544,129 @@ reads. The preparation also found:
   (deleted), `packages/backend/src/{templateRendering,oeeGoldenPath}.test.ts`,
   `packages/platform-common/src/{index,manifestSchemaValidator}.ts`
   (`nexoraManifestSchemaValidator` exported), the four documents above.
+
+### NXD-132 — A version tag builds, pushes and records one image; the product repository holds no Nexora credential
+
+- Date: 2026-10-06
+- Slice: MVP1 step 4a. Decided by the user: R1–R8 as proposed, with one
+  refinement to R4 recorded below.
+
+**Context.**
+
+- The OEE product CI tested and built an image, then discarded it: it pushed
+  nothing, tagged nothing and released nothing.
+- `NXD-052` lets CI *push* provenance to a baseline, but only with a service
+  token, which means a Nexora secret in every product repository.
+- `NXD-123` chose *pull* for test evidence for exactly that reason.
+- Two smaller findings:
+  - Composer names a first version `1.0` (`nextMajorVersionLabel`), while the
+    template writes `1.0.0`.
+  - `contracts/openapi.yaml` documented 4 of the app's 24 operations.
+
+**Decision.**
+
+- **`.github/workflows/release.yml` in the OEE skeleton**, triggered by `v*`
+  tags. It is copied, not templated, and is listed in `copyWithoutTemplating`.
+  1. **The same gate as every pull request.** `ci.yml` gains `workflow_call`,
+     and the release job `needs` it. Nothing builds on a red gate.
+  2. **`scripts/nexora_release.py check`.** The tag must be `v` +
+     `nexora.yaml` `metadata.version`. The manifest's image repository must
+     be `ghcr.io/<owner/repo lowercased>`. Every mismatch is named at once.
+  3. **Buildx, GHCR login with `GITHUB_TOKEN`, `docker/build-push-action`.**
+     The push carries an SBOM and `provenance: mode=max`, and is tagged
+     `:<version>` and `:sha-<commit>`. The Buildx step is there because of
+     `NXD-126`.
+  4. **`scripts/nexora_release.py record` writes `nexora-release.json`.**
+     It contains the artifact coordinate, version, tag, full commit SHA, the
+     image repository, digest and reference, the run URL and the build time.
+     It refuses an abbreviated SHA or a malformed digest, with the grammars
+     `NXD-052` applies.
+  5. **`gh release create <tag> nexora-release.json --verify-tag`.**
+- **Pull, not push (R1).** The workflow references no secret but
+  `GITHUB_TOKEN`. Nexora reads the record from the release (step 4b). The
+  GitHub App already has *Contents: read*, which covers releases and their
+  assets.
+- **A GitHub Release, not an Actions artifact, carries the record (R2).** An
+  artifact expires after at most 90 days, which is too short for the evidence
+  behind a released GxP version.
+- **Least privilege:**
+  - the workflow itself has `contents: read`;
+  - the release job has `contents: write` (the release) and
+    `packages: write` (GHCR);
+  - every step output reaches a `run` script through `env`, never through
+    interpolation.
+- **Actions on major tags (R5)**, as in the rest of the skeleton.
+- **The tag-to-version matching (R3)** is semantic (`1.0` ≡ `1.0.0`) and is
+  implemented where it is used, in 4b. Nothing in 4a compares against a
+  Composer label.
+
+**R4, refined: route coverage instead of equality.** R4 said to generate the
+document once and check for drift. Generated from the app, it is OpenAPI
+3.1 with 24 operations and almost no response shapes, because the routes
+return plain dicts. The hand-written file carries what the app does not
+declare: the typed `OeeResult`, the query parameters, and 400/404/503.
+Equality would have traded that for less.
+
+- The file stays hand-written, and remains OpenAPI 3.0.3, because it uses
+  `nullable` 17 times.
+- The 20 missing operations were added once, from the app's generated schema
+  translated to 3.0 (`anyOf`/`null` → `nullable`), together with the
+  `HTTPValidationError` and `ValidationError` schemas they reference. The
+  insertion is textual: the original 73 lines are unchanged.
+- The result validates with `openapi-spec-validator`, as did the original.
+- `tests/test_openapi_coverage.py` now fails when the app serves an undocumented
+  route or the file documents one that no longer exists. Path parameter
+  names are normalised, so `{equipmentId}` and `{equipment_id}` count as one
+  route.
+
+**Also in the skeleton.**
+
+- `tests/test_release.py`, 10 tests: check and record logic, and the shipped
+  manifest releasing under its own version.
+- Both new test files are listed in `ci.yml`'s unit tests. `scripts/` is
+  linted and compiled.
+- `pyyaml` is declared in the `dev` extras. It previously arrived only through
+  `uvicorn[standard]`.
+- `docs/ci-cd.md` explains how to release. It also says that a GitHub Release
+  is a build, not a Nexora release.
+
+**Verified.**
+
+- **Platform:** `templateRendering.test.ts`, under the real `fetch:template`
+  with realistic values, gains 8 assertions on the rendered workflow:
+  - GitHub expressions arrive intact;
+  - tag trigger, gate via `ci.yml` with `workflow_call`, `needs`;
+  - exact permissions, and `secrets.GITHUB_TOKEN` as the only secret;
+  - the check runs before the build;
+  - push, SBOM, provenance and version tag, with Buildx before the build;
+  - release with `nexora-release.json` and `--verify-tag`;
+  - no `${{ }}` inside any `run`;
+  - the new tests are listed in the gate and exist.
+- **Mutation check:** without `workflow_call` in `ci.yml`, the gate
+  assertion fails.
+- **Product, outside the repository:** the skeleton was rendered with
+  realistic values into `/tmp` and installed in a throwaway virtualenv.
+  - `ruff check app tests dataprod scripts` is clean.
+  - The tests are **86 of 86** green: 76 existing and 10 new.
+  - The script, run as the workflow runs it, prints the outputs on a matching
+    tag. It refuses `v2.0.0` against `other/repo`, naming both problems, with
+    exit 1. It writes a well-formed record.
+
+**Not done, named.**
+
+- **No live run yet.** A real tag needs a repository with this workflow.
+  `oee-e2e-test-20261005-d` predates it, so a live proof means committing
+  `release.yml`, the scripts and `nexora.yaml` there before tagging. That is
+  an outward-facing act, awaiting the user's go.
+- **Step 4b:** Nexora reading `nexora-release.json` and writing commit SHA and
+  digest to the approved baseline.
+- `actionlint` is not run; the workflow is checked structurally.
+- The release workflow is in the OEE skeleton only.
+
+- Affected components: `templates/oee-data-product/template.yaml`
+  (`copyWithoutTemplating`), `templates/oee-data-product/content/` —
+  `.github/workflows/release.yml` (new), `.github/workflows/ci.yml`,
+  `scripts/nexora_release.py` (new), `tests/test_release.py` (new),
+  `tests/test_openapi_coverage.py` (new), `contracts/openapi.yaml`,
+  `pyproject.toml`, `docs/ci-cd.md`;
+  `packages/backend/src/templateRendering.test.ts`.
