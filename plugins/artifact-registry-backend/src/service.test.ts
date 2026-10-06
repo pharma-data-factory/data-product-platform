@@ -175,6 +175,61 @@ describe('ArtifactRegistryService', () => {
       ).rejects.toThrow(/Invalid artifact manifest/);
     });
 
+    describe('runtime, interfaces and config (NXD-130)', () => {
+      const runnable = {
+        runtime: {
+          kind: 'container',
+          image: { repository: 'ghcr.io/acme/sap-odata' },
+          ports: [{ name: 'http', containerPort: 8080 }],
+          health: { type: 'http', port: 'http', path: '/health' },
+        },
+        interfaces: [
+          { name: 'orders', type: 'api', direction: 'provides', port: 'http' },
+        ],
+        config: [{ key: 'SAP_URL', type: 'url', required: true }],
+      };
+
+      it('registers a manifest that says how it runs, and keeps it', async () => {
+        const { version } = await service.registerArtifactVersion(
+          manifest({ spec: runnable }),
+          actor,
+        );
+        expect(version.manifest?.spec?.runtime).toEqual(runnable.runtime);
+      });
+
+      it('refuses malformed sections at the gate, naming every field', async () => {
+        const broken = {
+          ...runnable,
+          runtime: {
+            ...runnable.runtime,
+            image: { repository: 'ghcr.io/acme/sap-odata:1.0' },
+            restart: 'always',
+          },
+          interfaces: [
+            { name: 'orders', type: 'api', direction: 'provides', port: 'grpc' },
+          ],
+          config: [{ key: 'SAP_TOKEN', type: 'secret', required: true, defaultValue: 'x' }],
+        };
+        const refusal = service.registerArtifactVersion(
+          manifest({ spec: broken }),
+          actor,
+        );
+        await expect(refusal).rejects.toThrow(/spec\.runtime\.image\.repository/);
+        await expect(refusal).rejects.toThrow(/spec\.runtime\.restart is not a known field/);
+        await expect(refusal).rejects.toThrow(/spec\.interfaces\[0\]\.port "grpc" names no port/);
+        await expect(refusal).rejects.toThrow(/spec\.config\[0\]\.defaultValue is not allowed here/);
+      });
+
+      it('refuses runtime on a kind that does not run', async () => {
+        await expect(
+          service.registerArtifactVersion(
+            manifest({ kind: 'POLICY_PACK', spec: { runtime: runnable.runtime } }),
+            actor,
+          ),
+        ).rejects.toThrow(/spec\.runtime is only meaningful for kinds DATA_PRODUCT, CONNECTOR/);
+      });
+    });
+
     it('refuses a namespace no publisher owns', async () => {
       await expect(
         service.registerArtifactVersion(

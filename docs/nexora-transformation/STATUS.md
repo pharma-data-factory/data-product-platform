@@ -211,6 +211,14 @@ four quick wins F1–F4, one commit and one record each.
   backend pulls it with a service token and executes it, Docker Compose
   first. This refines NXD-074's "does not deploy" to "does not execute".
   Record only, no code. See [`NXD-129`](DECISIONS.md).
+- **MVP1 step 1, the schema: `nexora.yaml` is the canonical Data Product
+  manifest.** `nexora-manifest.schema.json` (JSON Schema 2020-12) in
+  `platform-common` adds `metadata.license`, `spec.runtime`,
+  `spec.interfaces` and `spec.config` to `nexora.dev/v1alpha1`, additively;
+  21 of 21 shipped manifests stay valid. **Enforced** at the registry's
+  registration gate through `validateRunnableManifestSections` (ajv,
+  approved). Not in `validateArtifactManifest`, because the browser runs
+  that. Cross-field port and uniqueness rules are code beside it. See [`NXD-130`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

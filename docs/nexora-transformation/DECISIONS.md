@@ -7226,3 +7226,204 @@ to be done. Read literally, that sentence ends MVP1 at the Catalog.
   `docs/nexora-transformation/STATUS.md`,
   `docs/architecture/TARGET_OPERATING_MODEL.md` (§6.3 annotation),
   `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.6 annotation).
+
+### NXD-130 — `nexora.yaml` is the canonical Data Product manifest, and it states how it runs
+
+- Date: 2026-10-06
+- Slice: MVP1 step 1 — the schema, enforced at the registry's gate.
+- Decided by: the user (MVP1 assessment, 2026-10-06). `ajv` approved as a
+  direct dependency of `platform-common` (`DEPENDENCY_CHANGE_REQUIRED`,
+  2026-10-06).
+
+**Context.** A Data Product had four descriptions, linked only by
+`catalogEntityRef`, with nothing keeping them in step:
+
+1. the catalog `Component` with about thirty flat `dataprod.platform/*`
+   annotations, parsed by two different TypeScript parsers;
+2. `dataproduct.yaml` in four templates, which **no code reads**, in two
+   incompatible shapes (`platform.nexora.io/v1alpha1` and `dataprod.platform/v1`).
+   The OEE copy contradicts its own `catalog-info.yaml` (websocket vs SSE);
+3. the `nexora.yaml` ArtifactManifest, validated and loaded by the registry,
+   but a listing rather than a runtime description;
+4. the Composer `Product` / `ProductVersion` record.
+
+None of them could state a license, a container, a port, an event channel or
+an install-time configuration. `NXD-129` needs exactly those.
+
+**Decision.**
+
+- **`nexora.yaml` is the canonical descriptor.** It is the existing
+  `ArtifactManifest`, `apiVersion: nexora.dev/v1alpha1`, kind `DATA_PRODUCT`
+  (or `CONNECTOR`). It lives at the root of the product repository.
+  - The catalog entity becomes a projection of it.
+  - The ArtifactVersion holds it as published.
+  - The Composer record governs its versions.
+  - Making the projections real is later work. This record fixes which
+    description wins.
+- **Its contract is a JSON Schema (draft 2020-12):**
+  `packages/platform-common/src/nexora-manifest.schema.json`, exported as
+  `NEXORA_MANIFEST_SCHEMA`. It states the whole manifest, not only the new
+  parts, so a product repository, a community publisher or a runtime provider
+  can check a manifest without running Nexora. The TypeScript types in
+  `artifact.ts` gain the same fields.
+- **Additive under `v1alpha1`.** Nothing is removed or tightened, so no
+  apiVersion bump is needed. A bump would also have left every registered
+  version on the old one (`NXD-030`). All 21 manifests in `catalog/artifacts/`
+  stay valid; this was checked, see *Verified*.
+
+**The new fields.**
+
+- `metadata.license`: an SPDX expression.
+- `spec.runtime` (`kind: container`):
+  - `image.repository`;
+  - named `ports`;
+  - `health` (`http` with a path, or `tcp`);
+  - `resources.limits` (`cpu`, `memory` as Kubernetes quantities).
+- `spec.interfaces[]`:
+  - `name`, `type` (`api` | `event`) and `direction` (`provides` |
+    `consumes`);
+  - an optional DataContract `contract` coordinate (`NXD-048`);
+  - an optional `document`, typed by `DATA_CONTRACT_SCHEMA_TYPES`;
+  - an api carries `port` (required to provide one, forbidden to consume one)
+    and `basePath`;
+  - an event carries `channel` and `mechanisms`, both required.
+- `spec.config[]`: `ConfigKeySchema` from W2-2, reused rather than restated.
+
+**The choices that are not obvious.**
+
+- **The image digest is never authored.** The repository is written without
+  tag or digest. The tag is `metadata.version`. The digest is a fact of the
+  release, recorded when CI builds it; `ReleaseProvenance` already carries a
+  `sha256` digest. This is `NXD-019`'s rule again: the thing being released
+  may not state the outcome of its own release. The schema has no field for
+  it, and a test says so.
+- **The repository must be fully qualified.** `nginx` and `library/nginx`
+  are refused. A short name resolves against whoever reads it, which is the
+  non-portable coordinate `NXD-074` named as T1's constraint.
+- **Channels are logical, not topics.**
+  - `equipment/{equipmentId}/state` uses AsyncAPI's parameter syntax.
+  - Broker wildcards (`+`, `#`) are refused, because what a channel maps to
+    on a broker is bound at installation (`NXD-129`).
+- **`mechanisms` is required for every event.** Every template today speaks
+  MQTT through paho directly, and the platform has no event abstraction. A
+  manifest that left the transport out would claim a neutrality the code does
+  not have. Requiring `mechanisms: [mqtt]` states the coupling that exists, and
+  tells an installation which bindings it may choose from. The vocabulary is
+  open and kebab-case, as for `deliveryMechanism` (`NXD-049`).
+- **The new sections are closed (`additionalProperties: false`).** That keeps
+  `restart: always`, a Compose network or a Kubernetes annotation from
+  creeping into a provider-neutral description. `spec` itself stays open,
+  because `spec.marketplace` and similar blocks belong to their own adapters
+  (`NXD-018`).
+- **Only `DATA_PRODUCT` and `CONNECTOR` may declare runtime, interfaces or
+  config** (`RUNNABLE_ARTIFACT_KINDS`). A policy pack that "runs" is a
+  category error. Adding a kind is a one-line, reviewed change.
+- **A secret carries no value.** A `secret` key may not have a
+  `defaultValue` or an `example`. Anything written in a manifest is published
+  with it. The value arrives at installation, by reference.
+- **An api's document is OpenAPI; an event's document is anything but.**
+  This keeps the two document families from being swapped silently.
+
+**Alternatives considered.**
+
+- *Keep `dataproduct.yaml` as the descriptor.* Rejected: it has no reader,
+  two shapes, and contradicts the files it sits beside.
+- *Make the catalog entity canonical.* Rejected:
+  - Annotations are flat strings with no schema.
+  - The catalog is the topology and discovery layer, while Nexora's stores
+    are authoritative for lifecycle (`TARGET_ARCHITECTURE.md`).
+- *A new kind or apiVersion for runnable products.* Rejected: it would be a
+  second manifest family with its own loader, and every listing would have to
+  move.
+- *AsyncAPI as the manifest.* Rejected: it describes messaging only, not a
+  container, its configuration or its APIs. AsyncAPI and OpenAPI are what
+  `interfaces[].document` points at.
+
+**Enforcement: where, and why not everywhere.**
+
+- **The registry's registration gate evaluates the new sections.**
+  `registerArtifactVersion` runs `validateArtifactManifest` and then
+  `validateRunnableManifestSections` (new, `manifestSchemaValidator.ts`).
+  The manifest loader registers through the same method, so it is one gate
+  for API and disk alike. A refusal names every field, for example
+  `spec.runtime.restart is not a known field` or
+  `spec.config[1].defaultValue is not allowed here`.
+- **Not inside `validateArtifactManifest`.** That function also runs in the
+  browser: the Marketplace calls it through `marketplaceViewOfManifest`.
+  ajv compiles schemas into functions at runtime, which the Marketplace page
+  should not do. Every manifest the Marketplace reads has passed the gate.
+  The compiler is built lazily on the first call, so importing
+  `platform-common` costs nothing.
+- **The rule "only runnable kinds" is hand-written** in
+  `validateArtifactManifest`, beside the GOLDEN_PATH `components` rule. It
+  needs no schema engine, so it holds wherever a manifest is read.
+  `RUNNABLE_ARTIFACT_KINDS` and the schema's list are held equal by test.
+- **The older fields stay with the hand-written validator.** Evaluating the
+  whole schema at the gate would report each of their problems twice, in two
+  wordings. Instead, a test checks every shipped manifest against both.
+- **The schema could be read the same way it is enforced.** A forbidden field
+  is a `false` subschema, not a `not` clause, so a refusal names the field
+  rather than reading "must NOT be valid". The sections the gate evaluates
+  are top-level `$defs` (`license`, `runtime`, `interfaces`, `config`),
+  because ajv resolves a subschema by pointer only there.
+- **The `$id` is `urn:nexora:schema:manifest:v1alpha1`.** It is a URN
+  because no hosted copy exists, and an `https:` id would claim one. The
+  first draft had a `/` inside the URN. ajv then resolves no fragment against
+  it; the validator's guard for an unresolvable pointer caught this in the
+  first test run.
+- **Rules JSON Schema cannot state** are code in the same module:
+  - a health check's or interface's `port` must name a declared port, which
+    also means a provided api needs a `runtime` with ports;
+  - port names, interface names and config keys must each be unique.
+
+**Verified.**
+
+- `manifestSchema.test.ts` (new, 128 tests):
+  - **Vocabularies:** every enum in the schema equals its constant in code:
+    kinds, distribution, usage kinds, runtime kinds, protocols, health types,
+    interface types and directions, document types, config types, runnable
+    kinds.
+  - **Grammars:** the segment, version and coordinate patterns agree with
+    `isNameSegment`, `parseVersionLabel` and `parseArtifactRef` on accepted
+    and refused samples.
+  - **New patterns:** image, channel, path, quantities and config keys
+    behave as stated; every `$ref` resolves.
+  - **Whole manifests, with ajv:**
+    - all 21 shipped manifests are valid against the full schema, against
+      `validateArtifactManifest` and against the gate;
+    - a complete Data Product passes all three;
+    - 17 malformed variants are refused by the schema *and* by the gate with
+      a message naming the field;
+    - runtime on a TEMPLATE is refused by the hand-written rule;
+    - the three cross-field rules each refuse what the schema accepts.
+- `service.test.ts` (artifact-registry-backend), three new tests: a runnable
+  manifest registers and is stored verbatim; a malformed one is refused at
+  the gate with all four broken fields named; runtime on a POLICY_PACK is
+  refused.
+- **Lockfile:** three lines, the workspace entry and the existing
+  `ajv@npm:^8.20.0` range. No new package; 8.20.0 was already resolved.
+- **Gates:** `yarn tsc` clean; lint clean in both workspaces;
+  `guard:platform` reports `GUARDRAILS_OK`.
+- **Repo-wide, `CI=true`, PostgreSQL up:** 2749 of 2750 pass. The one failure
+  is `compatibilityPolicyParity`'s Python leg. This container has no
+  interpreter with `pydantic`, and the test refuses to skip under CI, as
+  designed; CI provides one. Untouched by this change.
+
+**Not done, named.**
+
+- The four `dataproduct.yaml` files are not deleted yet. They go in the slice
+  in which the OEE template ships a `nexora.yaml` (MVP1 step 3).
+- **Not modelled yet:** permissions a product needs (they belong with the
+  installation grant of `NXD-129`), persistent storage, and a command or
+  arguments.
+- The catalog annotations still duplicate version, domain and contracts.
+  Deriving them from the manifest is a later slice.
+- The Marketplace and anything else reading a manifest outside the registry
+  sees the new sections unchecked unless it calls the gate's function.
+
+- Affected components: `packages/platform-common/` —
+  `src/nexora-manifest.schema.json` (new), `src/manifestSchema.ts` (new),
+  `src/manifestSchemaValidator.ts` (new), `src/manifestSchema.test.ts` (new),
+  `src/artifact.ts`, `src/index.ts`, `package.json` (`ajv`);
+  `yarn.lock`; `plugins/artifact-registry-backend/src/service.ts`
+  (+ `service.test.ts`).

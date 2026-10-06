@@ -14,6 +14,7 @@ import {
   isPublisherTrustLevel,
   parseArtifactRef,
   validateArtifactManifest,
+  validateRunnableManifestSections,
   artifactAvailableInEdition,
   DISTRIBUTION_CHANNELS,
   PUBLISHER_TRUST_LEVELS,
@@ -185,7 +186,13 @@ export class ArtifactRegistryService {
     input: unknown,
     actor: string,
   ): Promise<RegisterArtifactVersionResult> {
-    const issues = validateArtifactManifest(input);
+    // The runtime, interface, config and license sections are checked against
+    // the published schema here, at the one gate every manifest passes, rather
+    // than in validateArtifactManifest, which the browser also runs (NXD-130).
+    const issues = [
+      ...validateArtifactManifest(input),
+      ...validateRunnableManifestSections(input),
+    ];
     if (issues.length > 0) {
       throw new InputError(`Invalid artifact manifest: ${issues.join('; ')}`);
     }

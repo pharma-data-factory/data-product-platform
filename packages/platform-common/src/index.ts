@@ -626,15 +626,27 @@ export {
   parseArtifactRef,
   validateArtifactManifest,
   PUBLISHER_TRUST_LEVELS,
+  RUNNABLE_ARTIFACT_KINDS,
+  ARTIFACT_RUNTIME_KINDS,
+  ARTIFACT_PORT_PROTOCOLS,
+  ARTIFACT_HEALTH_CHECK_TYPES,
+  ARTIFACT_INTERFACE_TYPES,
+  ARTIFACT_INTERFACE_DIRECTIONS,
 } from './artifact';
+export { NEXORA_MANIFEST_SCHEMA } from './manifestSchema';
+export { validateRunnableManifestSections } from './manifestSchemaValidator';
 export type {
   Artifact,
   ArtifactCertificationStatus,
   ArtifactCompositionComponent,
   ArtifactCoordinate,
+  ArtifactHealthCheck,
+  ArtifactInterface,
   ArtifactKind,
   ArtifactLifecycle,
   ArtifactManifest,
+  ArtifactRuntime,
+  ArtifactRuntimePort,
   ArtifactVersion,
   EditionCatalogue,
   PlatformEdition,
