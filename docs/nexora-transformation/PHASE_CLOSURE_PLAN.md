@@ -623,6 +623,13 @@ deploys; Nexora governs and records (`NXD-074`,
 `TARGET_OPERATING_MODEL.md` §6.3). The audit's "Deployment — MISSING" stays
 closed rather than worked off.
 
+> **Refined 2026-10-06 ([`NXD-129`](DECISIONS.md)).** Execution stays out of
+> Core, but not out of scope. T6's verb now writes governed desired state that
+> a runtime provider outside the Backstage backend executes, Docker Compose
+> first. Three slices follow in order: the installations store, the provider
+> API, and the Compose provider. The manifest those slices rely on is
+> [`NXD-130`](DECISIONS.md).
+
 **Relation to §9.4.** T1 is already ranked there and closes Phase 7; the rest is
 new work that did not exist as a plan. Whether the topology track runs before,
 after or interleaved with the §9.4 backlog is a product decision — it is stated

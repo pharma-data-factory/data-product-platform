@@ -7118,3 +7118,111 @@ three acts that put a product into use were not.
   (+ `productSignatures.test.ts`, `db/migrations.postgres.test.ts`),
   `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/OverviewTab.tsx,tabs/ApprovalDialog.tsx}`
   (+ tests).
+
+### NXD-129 — An installation is governed desired state; a runtime provider outside Core executes it
+
+- Date: 2026-10-06
+- Slice: target-architecture record, MVP1 step 2. No behaviour. Refines
+  `NXD-074` and opens the topology track's T6 to execution.
+- Decided by: the user (MVP1 assessment, 2026-10-06)
+
+**Context.** The MVP1 journey ends in *Install → Run*. The assessment of
+2026-10-06 (commit `62667a3`) found that no execution path exists anywhere:
+`plugins/` and `packages/` contain no container, Compose or Kubernetes client.
+Generated products are started by hand from their own `docker-compose.yml`.
+"Installation" in code means only the identity of a Nexora instance
+(`GET /installation`, `NXD-078`). `NXD-074` recorded *"Nexora governs; it
+does not deploy"* so that "Deployment — MISSING" would stop reading as work
+to be done. Read literally, that sentence ends MVP1 at the Catalog.
+
+**Decision.**
+
+- **Nexora owns the Installation; it does not execute it.**
+  - An Installation is a governed record in a Nexora plugin. It holds:
+    - the artifact coordinate at a released version, and with it the image
+      digest recorded at release (`NXD-130`);
+    - the target it is meant for;
+    - configuration values validated against the manifest's `spec.config`,
+      with secrets held by reference and never by value;
+    - a desired state and an observed state;
+    - an append-only audit trail.
+  - Installing, upgrading and removing are changes to desired state. They are
+    permissioned like every other registry act.
+- **A runtime provider executes.** It is a separate process **outside the
+  Backstage backend**, so the backend gains no container client, no host
+  credentials and no new dependency.
+  - The provider *pulls*. It authenticates as a service principal: one
+    `backend.auth.externalAccess` entry, with its own `subject`, per provider
+    or target. This is the `NXD-087` pattern, and the same channel CI already
+    uses for provenance.
+  - It reads the desired installations for its target, renders them for its
+    own technology, runs them, and reports observed state back.
+- **The first provider is Docker Compose on one host.** Kubernetes, edge
+  agents and cloud runtimes are further providers. None of them changes Core.
+  `TARGET_ARCHITECTURE.md` already lists *Runtime* under PROVIDERS. This
+  record gives that word a seam.
+- **What the provider may rely on.**
+  - Only the manifest's `spec.runtime`, `spec.interfaces` and `spec.config`
+    (`NXD-130`), plus the installation's values and the release's digest.
+  - Nothing provider-specific is authored in a manifest. A broker topic, a
+    host port or a namespace is a property of the target, bound at
+    installation.
+
+**What `NXD-074` keeps, and what changes.**
+
+- **Kept:** Nexora runs no workload in its own process. GitHub still builds
+  the image and may still deploy for anyone who prefers it; a GitHub-driven
+  rollout can itself be a provider. Release provenance (`NXD-052`) remains
+  the way Nexora learns what was built.
+- **Changed:** "Deployment" is no longer out of scope. Taking up a *released
+  artifact* onto a target is in scope through a provider. "Nexora does not
+  deploy" now reads "Nexora does not execute".
+
+**Why pull, not push.**
+
+- An OT network or a site seldom accepts inbound connections from a central
+  platform, but it can almost always reach out.
+- Nexora holds no credentials to any host.
+- A provider that cannot reach Nexora keeps running what it last ran.
+  Nothing restarts because the control plane is down.
+
+**Alternatives considered.**
+
+- *The backend runs `docker` / `kubectl` itself.* Rejected:
+  - Core would hold credentials to every host.
+  - Core would grow one client per runtime, against "Core stays small".
+  - A Docker or Kubernetes client is a dependency that `AGENTS.md` places
+    behind approval for a capability that does not belong in Core.
+- *GitHub Actions deploys, as the only path.* Rejected as the only path:
+  - It needs runner reachability into OT networks.
+  - It makes GitHub the store of what is installed where. Per
+    `NEXORA_STRATEGY.md`, GitHub is a provider, not domain truth.
+  - It stays possible as one provider.
+- *Keep `NXD-074` unchanged.* Rejected: MVP1 would stop at the Catalog, and
+  the topology track's T6 would be a verb with nothing behind it.
+
+**Consequences.**
+
+- Nothing is built by this record. Three slices follow, in this order:
+  1. the installations store and its routes;
+  2. the provider API (read desired state, post observed state);
+  3. the Docker Compose provider.
+- **Which plugin owns installations** — `artifact-registry-backend` or a new
+  `installations-backend` — is decided in the first slice, on the evidence of
+  which routes it needs.
+- **A runtime target is not an installation identity.** `NXD-078` identifies
+  a *Nexora instance*. A target is a place a provider runs workloads. The two
+  must not share a table or a name.
+- **Open, not technical:**
+  - Whether installing a GMP-relevant product is a signed act, as releasing
+    one is since `NXD-128`.
+  - Whether an installation needs its own qualification record (IQ). These
+    are QA decisions and must be taken before the first slice reaches a GxP
+    product.
+- `TARGET_OPERATING_MODEL.md` §6.3 and `PHASE_CLOSURE_PLAN.md` §9.6 are
+  annotated, not rewritten (`NXD-084`).
+
+- Affected components: none in code. `docs/nexora-transformation/DECISIONS.md`,
+  `docs/nexora-transformation/STATUS.md`,
+  `docs/architecture/TARGET_OPERATING_MODEL.md` (§6.3 annotation),
+  `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.6 annotation).

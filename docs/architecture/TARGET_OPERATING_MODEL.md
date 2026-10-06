@@ -250,6 +250,13 @@ per site and makes that bound defensible.
 
 ### 6.3 Nexora governs; it does not deploy
 
+> **Refined 2026-10-06 by [`NXD-129`](../nexora-transformation/DECISIONS.md).**
+> The section below stands as written for workloads Nexora would run itself:
+> it runs none. What changed is that taking a *released artifact* up onto a
+> target is now in scope. An Installation is governed desired state in Nexora,
+> and a runtime provider outside Core pulls it and executes it, the first one
+> being Docker Compose. "Does not deploy" now reads "does not execute".
+
 Microservice deployment is GitHub's. Nexora records what was approved, what was
 verified, what was validated, and refuses a release that cannot show it.
 

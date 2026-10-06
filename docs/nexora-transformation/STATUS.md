@@ -206,6 +206,11 @@ four quick wins F1–F4, one commit and one record each.
   approval, baseline approval and release need a justification and the PIN;
   NONE confirms. Every act is recorded append-only and listed on the product
   page. See [`NXD-128`](DECISIONS.md).
+- **MVP1 step 2, decided: the runtime provider seam.** An Installation is
+  governed desired state in Nexora. A runtime provider outside the Backstage
+  backend pulls it with a service token and executes it, Docker Compose
+  first. This refines NXD-074's "does not deploy" to "does not execute".
+  Record only, no code. See [`NXD-129`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
