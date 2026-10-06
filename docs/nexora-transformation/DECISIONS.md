@@ -7787,3 +7787,33 @@ talks to GitHub, Composer asks it, and a person triggers the import.
   `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/TestsTab.tsx}`
   (+ `TestsTab.test.tsx`); `docs/github-setup.md`;
   `templates/oee-data-product/content/docs/ci-cd.md`.
+
+### NXD-134 — NXD-128 shipped a lint error the gate it claimed did not run
+
+- Date: 2026-10-06
+- Slice: defect, found while landing `NXD-133`
+
+**What happened.** `signedVersionTransition` (`NXD-128`, `62667a3`) chose its
+signature meaning with a nested ternary, which `no-nested-ternary` forbids.
+`NXD-128`'s commit says "tsc and lint clean", but lint was evidently run only
+on the changed lines' workspace slice, not with `lint:all`, which is what CI
+runs. So every push since `62667a3` has had a red lint step. It was found
+when `yarn lint` in `composer-backend` refused `NXD-133`'s first gate run, and
+confirmed on an untouched checkout of `HEAD`.
+
+**Fix.** The two signed transitions are a lookup
+(`APPROVED → VERSION_APPROVED`, `RELEASED → VERSION_RELEASED`). Anything else
+is unsigned, exactly as before. No behaviour change.
+
+**Verified.**
+
+- `yarn lint:all` is clean repo-wide.
+- `productSignatures.test.ts` passes 7/7, and `composer-backend` 393/393.
+- `yarn tsc` is clean.
+
+**Lesson, stated once.** A gate claimed in a commit message is the gate CI
+runs, not a narrower local one. The gates for `NXD-129`…`NXD-133` were
+per-workspace `yarn lint` runs, and composer's run is the one that caught
+this.
+
+- Affected components: `plugins/composer-backend/src/service.ts`.

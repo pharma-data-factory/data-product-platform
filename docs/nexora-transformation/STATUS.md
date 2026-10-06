@@ -239,6 +239,10 @@ four quick wins F1–F4, one commit and one record each.
   another version, tag or commit, and writes through NXD-052's write-once
   path. The release, not the person, is the recorder; the person is the
   audit actor. See [`NXD-133`](DECISIONS.md).
+- **Defect: a lint error since NXD-128.** A nested ternary in
+  `signedVersionTransition` kept CI's `lint:all` red from `62667a3` on. It is
+  now a lookup, with no behaviour change, and `lint:all` is clean. See
+  [`NXD-134`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

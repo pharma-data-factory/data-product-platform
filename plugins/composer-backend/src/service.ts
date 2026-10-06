@@ -1706,12 +1706,11 @@ export class ComposerService {
     actor: string,
     verifyPin: (pin: string) => Promise<string>,
   ): Promise<ProductVersion> {
-    const meaning: ProductSignatureMeaning | undefined =
-      request.targetStatus === 'APPROVED'
-        ? 'VERSION_APPROVED'
-        : request.targetStatus === 'RELEASED'
-          ? 'VERSION_RELEASED'
-          : undefined;
+    const signedMeanings: Partial<Record<string, ProductSignatureMeaning>> = {
+      APPROVED: 'VERSION_APPROVED',
+      RELEASED: 'VERSION_RELEASED',
+    };
+    const meaning = signedMeanings[request.targetStatus];
     if (!meaning) {
       return this.transitionProductVersionStatus(versionId, request, actor);
     }
