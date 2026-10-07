@@ -7210,6 +7210,9 @@ to be done. Read literally, that sentence ends MVP1 at the Catalog.
 - **Which plugin owns installations** — `artifact-registry-backend` or a new
   `installations-backend` — is decided in the first slice, on the evidence of
   which routes it needs.
+  **Decided 2026-10-07 in [`NXD-139`](DECISIONS.md):** a new
+  `installations-backend`, because slice 2 needs a write route for a service
+  principal, which the registry refuses by design (`NXD-087`).
 - **A runtime target is not an installation identity.** `NXD-078` identifies
   a *Nexora instance*. A target is a place a provider runs workloads. The two
   must not share a table or a name.
@@ -7219,6 +7222,12 @@ to be done. Read literally, that sentence ends MVP1 at the Catalog.
   - Whether an installation needs its own qualification record (IQ). These
     are QA decisions and must be taken before the first slice reaches a GxP
     product.
+  - **Both decided by the user 2026-10-07, in [`NXD-139`](DECISIONS.md):**
+    installing, upgrading and removing a GMP-relevant product is a signed act
+    (justification and PIN, the `NXD-128` rule). A GMP installation is
+    qualified only when QA signs an IQ record built from the provider's
+    evidence. The schema and states exist since `NXD-139`; evidence intake
+    and the sign-off are later slices.
 - `TARGET_OPERATING_MODEL.md` §6.3 and `PHASE_CLOSURE_PLAN.md` §9.6 are
   annotated, not rewritten (`NXD-084`).
 
@@ -8260,3 +8269,298 @@ the user wants self-reset, it is a one-line removal in
   `packages/app/src/modules/products/tabs/ApprovalDialog.tsx`;
   `packages/app/e2e-tests/urs-approval-chain.spec.ts`;
   `docs/compliance/traceability-and-gmp.md`.
+
+### NXD-139 — An installation is a record Nexora keeps; installing a GMP product is signed, and qualified only when QA signs its IQ
+
+- Date: 2026-10-07
+- Slice: MVP1 step 6, slice 1 of [`NXD-129`](DECISIONS.md): the
+  installations store and its routes. Not the provider API (slice 2), not
+  the Compose provider (slice 3), not the Marketplace *Install* page (MVP1
+  step 7).
+- Decided by: the user (QA decisions, 2026-10-07) + slice 1 of `NXD-129`.
+
+**Context.** After `NXD-137` a released, built version sits in the registry
+with its image digest, and nothing can say where it is meant to run.
+`NXD-129` defined the Installation as governed desired state and left three
+questions to this slice: which plugin owns it, whether installing a GMP
+product is a signed act, and whether an installation needs an IQ.
+
+**Decision: which plugin owns installations.** A new
+`plugins/installations-backend` (pluginId `installations`), not
+`artifact-registry-backend`. The evidence is the routes each slice needs:
+
+- **Slice 2 needs a write route for a service principal.** The provider
+  posts observed state with its `externalAccess` token. In the registry, *no
+  write route admits a service principal*, and a test pins it (`NXD-087`):
+  a consuming installation reads and never writes. Putting the provider's
+  write into the registry would break that rule for one route. In its own
+  plugin the rule stays whole.
+- **The registry already uses the word.** `GET /installation` and
+  `installation.ts` there are `NXD-078`'s instance identity. `NXD-129` says
+  the two must not share a name. `/installations` beside `/installation` in
+  one router would do just that.
+- **What the store needs from the registry is one read.** It needs a
+  version's lifecycle, manifest and `releaseBuild`. The registry's public
+  `GET /artifacts/:ns/:name/versions/:version` gives exactly that, on behalf
+  of the person acting. No private database is read (AGENTS.md).
+- **No new npm dependency.** The plugin uses only packages the other
+  backend plugins already declare. `yarn.lock` gains 19 lines: the workspace
+  entry and the backend's dependency on it.
+
+**Decision: the data model.** Five tables, all in the new plugin. Named so
+they cannot be confused with `NXD-078`: `runtime_targets` and
+`artifact_installations`. The types are `RuntimeTarget` and
+`ArtifactInstallation`, in `platform-common/src/artifact-installation.ts`.
+
+- **`runtime_targets`.** A place a provider runs workloads. It holds a unique
+  name, `provider_kind` (for example `docker-compose`) and
+  `provider_subject`. The subject is the `externalAccess` subject that may
+  act as this target's provider in slice 2; it may be empty until a provider
+  is bound. Registering one needs `installation.target.manage` (admin) and
+  is audited.
+- **`artifact_installations`.** One row per installation. The installation
+  name is unique on its target and defaults to the artifact name.
+  - **Desired:** state `PRESENT | ABSENT`; the coordinate, version and
+    registry version id; `image_repository` and `image_digest`, copied from
+    the version's `releaseBuild` and never taken from the request; the
+    configuration; its hash; `desired_revision`; who changed it and when.
+  - **Observed:** state, the desired revision it answers, image digest,
+    config hash, message, who reported and when. All nullable. **Only the
+    provider API writes them (slice 2).** No route in this slice does, so
+    slice 2 adds a route and no migration.
+  - **Classification and qualification:** `gmp_relevant` and
+    `gmp_classification_source` as of the last act, and
+    `qualification_status`.
+- **`installation_acts`.** Every install, upgrade and removal as attested.
+  It has the `product_signatures` shape (`NXD-128`): act, desired revision,
+  coordinate, digest, config hash, justification, who, when, whether GMP
+  and why, and the second factor (empty for a confirmation). Append-only.
+- **`installation_audit_events`.** What changed: the desired state before
+  and after, with the act id. Append-only.
+- **`installation_qualifications`.** The IQ record, one per desired
+  revision of a GMP installation. It holds the expected digest, config hash
+  and target. The columns for the provider's observed facts, for who
+  recorded the evidence, and for QA's sign-off and its act are there, but
+  empty. This table is not append-only: evidence and sign-off fill one row
+  in later slices. Each such change will be guarded by revision and written
+  to the audit trail.
+- **Append-only on PostgreSQL** through `installations_append_only()`, this
+  plugin's own trigger function in the `NXD-092` shape. Row triggers refuse
+  UPDATE and DELETE; a statement trigger refuses TRUNCATE. No foreign key
+  points into either trail.
+- **One transaction per act.** The desired state, the act record, the audit
+  event and the IQ record are written together. The row update is guarded
+  by revision, and a concurrent writer gets a 409 with nothing written.
+  This closes, for installations, the gap `NXD-128` named for product
+  signatures: there, the record is written after the change.
+
+**Decision: what may be installed, and with which configuration.**
+
+- **Only a RELEASED version with a release build.** Any other lifecycle is
+  a 409. A RELEASED version without `releaseBuild` is a 409 as well: only a
+  version registered from a release can be run (`NXD-137`). The digest
+  installed is the one recorded at release.
+- **Configuration is validated against that version's `spec.config`.**
+  `validateInstallationConfig` in platform-common refuses:
+  - an undeclared key;
+  - a required key with neither a value nor a `defaultValue`;
+  - a `number`, `boolean` or `url` value that is not one. Accepted values
+    are stored as environment-variable strings;
+  - all issues are named in one refusal. Defaults are not copied in: the
+    stored configuration is what the installer chose.
+- **Secrets by reference, never by value.**
+  - A `secret` key takes `{ "secretRef": "<name>" }`. A literal value is
+    refused, and the refusal does not echo it.
+  - A reference must be a lowercase secret name
+    (`[a-z0-9]+([-._/][a-z0-9]+)*`, at most 253 characters), so most pasted
+    passwords fail the grammar. That refusal does not echo the value either.
+  - A non-secret key cannot take a reference.
+  - The provider resolves references on its target (slice 3).
+- **The configuration hash** (`sha256:` over the canonical form, keys
+  sorted) is computed in platform-common, so a provider can compute the same
+  hash over what it applied. An IQ compares the two.
+
+**Decision: installing, upgrading, removing.** Each is a change of desired
+state under `installation.manage` (owner tier, beside `artifact.publish`).
+Each increments `desired_revision`.
+
+- **Install** (`POST /installations`): target, `artifactRef`, optional
+  name, config, signature. A second installation with the same name on a
+  target is a 409, including one already desired ABSENT. Reviving a removed
+  name is not offered.
+- **Upgrade** (`POST /installations/:id/upgrade`): another version of the
+  same artifact, or a new configuration, or both. Each is checked as at
+  install. An omitted config keeps the current one, re-validated against the
+  new manifest. An upgrade that changes neither is a 409.
+- **Remove** (`POST /installations/:id/remove`): desired `ABSENT`. The row
+  and its trail stay.
+
+**The user's QA decisions (2026-10-07), part of this record.**
+
+1. **Installing, upgrading or removing a GMP-relevant product is an
+   electronic signature.**
+   - GMP-relevant means INDIRECT, DIRECT or unanswered, the `NXD-128` rule.
+     Such an act needs a justification and the actor's PIN. The PIN is
+     verified in the URS Composer on the actor's behalf (`POST
+     /signing-pin/verify`), so it is the one credential and the one lockout
+     of `NXD-119`. This plugin holds no copy of either.
+   - The client, `createHttpPinVerifier`, has the same contract as
+     composer's and validation-expert's. Each plugin owns its client, as
+     each owns its schema (`NXD-092`).
+   - **Not GMP-relevant:** permission, audit and a confirmation
+     (`signature.confirmed: true`, refused without it). No PIN.
+   - Every act is recorded in `installation_acts`.
+   - **Order, as in `NXD-128`:**
+     1. Is the act allowed? Permission, target, released and built version,
+        config, state.
+     2. The classification.
+     3. Justification and PIN present.
+     4. The PIN check.
+     5. One transaction.
+
+     A refused act therefore costs no PIN attempt. A test pins the call
+     order `read → classify → pin`.
+2. **IQ from provider evidence.**
+   - For a GMP installation, every install or upgrade opens an IQ record
+     for that desired revision: `PENDING_EVIDENCE`, with the digest, config
+     hash and target it must show.
+   - The states are `NOT_REQUIRED` (not GMP-relevant), `PENDING_EVIDENCE`,
+     `EVIDENCE_RECORDED` (the provider's observed facts are on the record
+     and match) and `QUALIFIED` (QA signed). Only `QUALIFIED` means the
+     installation is qualified.
+   - **This slice writes only `NOT_REQUIRED` and `PENDING_EVIDENCE`.**
+     Evidence intake (from the provider's observed state, slice 2 or after)
+     and QA's sign-off route (a signed act in `installation_acts`) are later
+     slices. Their columns are in the schema now.
+   - Removal opens no IQ and leaves the last one as it was. A
+     decommissioning record is not modelled.
+
+**Where the GMP classification comes from.**
+
+- **The Composer product record**, not the registry. The manifest and the
+  ArtifactVersion hold no GxP field. The link is `NXD-137`'s
+  `product_versions.artifact_ref`: a product governs an artifact when one of
+  its versions was registered as any version of it.
+- The new composer route `GET /artifacts/:namespace/:name/gmp-classification`
+  (`product.read` for a person, or a service) answers `governed`,
+  `gmpRelevant` and the products. The store asks it on the actor's behalf.
+  - A governing product decides by its `gxpRelevance`; only NONE is not
+    GMP-relevant (`PRODUCT`).
+  - **No governing product** — a community or listing artifact — is not
+    GMP-relevant (`NO_PRODUCT`). This is the user's "non-GMP / community
+    products".
+  - **A Composer that cannot answer** (refusal, error, unreadable answer)
+    makes the act GMP-relevant (`UNAVAILABLE`). An outage asks for the
+    signature; it never waives it.
+- The source is recorded on every act and on the installation.
+
+**Routes** (all `user` credentials only; none admits a service principal
+until the provider API exists, pinned by test):
+
+| Route | Permission |
+| --- | --- |
+| `GET /targets`, `GET /targets/:id` | `installation.read` |
+| `POST /targets` | `installation.target.manage` |
+| `GET /installations[?targetId]`, `GET /installations/:id` | `installation.read` |
+| `GET /installations/:id/{acts,audit,qualifications}` | `installation.read` |
+| `POST /installations`, `…/:id/upgrade`, `…/:id/remove` | `installation.manage` |
+
+The three permissions are new in platform-common: read for VIEWER, manage
+for owners, target management for admins. A refused permission asks no
+other plugin anything. Statuses: 400 for correctable input (config, secret,
+missing justification or PIN, missing confirmation), 403 for a wrong PIN or
+permission, 404 for an unknown target, installation or version, 409 for a
+version not RELEASED or not built, a name taken, an empty upgrade or a
+concurrent change.
+
+**Verified.**
+
+- `installations-backend`, 42 tests, 4 suites, `CI=true` with PostgreSQL:
+  - **service, 24:**
+    - a target registers once and is audited;
+    - a RELEASED version installs at its recorded digest;
+    - CERTIFIED, unbuilt and unknown versions, a malformed coordinate and an
+      unknown target are refused;
+    - config is validated against the version's `spec.config`, and a
+      literal secret is refused while a reference is stored;
+    - an installation name is taken once per target;
+    - a GMP act needs justification and PIN and records both; a wrong PIN
+      changes nothing;
+    - four refused acts and a name clash cost no PIN attempt, and the call
+      order is `read → classify → pin`;
+    - `UNAVAILABLE` counts as GMP; an IQ is opened `PENDING_EVIDENCE` with
+      the expected facts;
+    - a non-GMP act needs a confirmation, asks no PIN, is recorded and
+      opens no IQ (`NOT_REQUIRED`);
+    - an upgrade moves to the new version's digest, or to a new config alone,
+      and an empty upgrade is refused at no PIN cost;
+    - removal desires ABSENT, keeps the trail and opens no IQ; a removed
+      installation cannot be upgraded or removed again; a GMP removal is
+      signed;
+    - the audit records before and after; a concurrent change writes
+      nothing; the repository has no update or delete for the trails;
+  - **router, 7:** permission per route; the caller's own credentials
+    reach registry, classifier and PIN check; a refused permission asks
+    nothing; 400, 403, 404 and 409 per refusal; **no route admits a service
+    principal** (11 routes, all 403); 401 without credentials; `/health` is
+    open;
+  - **clients, 7:** on-behalf-of tokens and URLs for all three; 404, 403 and
+    5xx mapping; the classifier never weakens (403, 500 and an unreadable
+    answer all give `UNAVAILABLE`, GMP); the URS Composer's lockout message
+    is passed through verbatim;
+  - **PostgreSQL, 4:**
+    - applies twice; names are unique case-insensitively; the installation
+      row stays editable, observed columns included;
+    - `installation_acts` and `installation_audit_events` refuse UPDATE,
+      DELETE and TRUNCATE (matched on the trigger's message), and insert
+      still works;
+    - one IQ per desired revision.
+- `platform-common`, +12: config validation (types, every issue at once,
+  literal secret refused and not echoed, bad reference not echoed,
+  reference on a non-secret refused, defaults), the secret-name grammar, the
+  order-independent hash, and the three permission tiers. 618 tests green.
+- `composer-backend`, +5: ungoverned, governing product (case-insensitive,
+  any version), NONE against unanswered, no prefix false match; the route
+  for a person with `product.read`, for a service, and 403 without. The
+  `substr` lookup was checked on PostgreSQL as well.
+- **Gates:** `yarn tsc` clean; `yarn lint:all` exit 0; `yarn
+  guard:platform` `FAIL: 0`, `GUARDRAILS_OK`; `check-doc-links` clean.
+  Repo-wide `CI=true` with PostgreSQL: 2910 of 2911 pass, 290 suites, which
+  is 59 more than `NXD-137`. The one failure is `compatibilityPolicyParity`'s
+  Python leg: there is no `pydantic` here, as before. It is untouched by this
+  change.
+
+**Not changed, named.**
+
+- **No provider API, no provider, no UI.** No route writes observed state,
+  takes in IQ evidence or records QA's sign-off. Nothing executes anything.
+  The Marketplace *Install* page is MVP1 step 7.
+- **No live run.** The plugin is wired into `packages/backend` but was not
+  exercised against the running instance.
+- **Installing does not ask the Nexora release gate.** A RELEASED registry
+  version is installable even when its product version is not RELEASED in
+  the Composer: the `NXD-137` finding, now one step further on. For a GxP
+  product it should be asked; this is a decision for the next slice.
+- **"No governing product" means not GMP-relevant**, as the user decided for
+  community products. An internal artifact that no Composer product governs
+  is therefore installed with a confirmation. If that is too wide, the rule
+  belongs with the publisher's trust level.
+- **No segregation of duties between installer and IQ signer** yet; it
+  belongs with the sign-off route.
+- The PIN client is the third copy of the same 40 lines (composer,
+  validation-expert, installations). Extracting them into one node-library
+  is named, not done.
+- `permissions-inventory.md` in platform-common was already stale (it
+  counts 45). It is not updated here.
+
+- Affected components: `plugins/installations-backend/` (new:
+  `package.json`, `.eslintrc.js`,
+  `src/{index,plugin,router,service,repository,clients}.ts`,
+  `src/db/migrations.ts`, `src/__testUtils__/fixtures.ts`, and tests
+  `service`, `router`, `clients`, `db/migrations.postgres`);
+  `packages/platform-common/src/{artifact-installation,permissions,index}.ts`
+  (+ `artifact-installation.test.ts`, `artifactPermissions.test.ts`);
+  `plugins/composer-backend/src/{repository,repository-interface,service,router}.ts`
+  (+ `artifactGmpClassification.test.ts`);
+  `packages/backend/{package.json,src/index.ts}`; `yarn.lock` (workspace
+  entry only).

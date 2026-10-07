@@ -181,6 +181,23 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToProductVersion(r));
   }
 
+  /**
+   * NXD-139. The product versions whose registry version (NXD-137) is any
+   * version of `namespace/name`. Compared case-insensitively, as the
+   * registry compares coordinates.
+   */
+  async listProductVersionsForArtifact(
+    namespace: string,
+    name: string,
+  ): Promise<ProductVersion[]> {
+    const prefix = `${namespace}/${name}@`.toLowerCase();
+    const rows = await this.db('product_versions')
+      .whereNotNull('artifact_ref')
+      .whereRaw('substr(lower(artifact_ref), 1, ?) = ?', [prefix.length, prefix])
+      .select();
+    return rows.map((r: any) => this.rowToProductVersion(r));
+  }
+
   async updateProductVersion(version: ProductVersion): Promise<void> {
     await this.db('product_versions').where({ id: version.id }).update({
       status: version.status,

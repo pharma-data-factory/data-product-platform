@@ -58,6 +58,9 @@ backend.add(import('@internal/plugin-validation-expert-backend'));
 backend.add(import('@internal/plugin-urs-composer-backend'));
 backend.add(import('@internal/plugin-composer-backend'));
 backend.add(import('@internal/plugin-artifact-registry-backend'));
+// NXD-139. Governed desired state of released artifacts on runtime targets;
+// executes nothing (NXD-129).
+backend.add(import('@internal/plugin-installations-backend'));
 backend.add(import('@internal/plugin-directory-backend'));
 backend.add(import('@internal/plugin-model-company-backend'));
 backend.add(import('@internal/plugin-users-backend'));

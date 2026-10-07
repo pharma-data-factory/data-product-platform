@@ -305,6 +305,36 @@ export async function createRouter(
     },
   );
 
+  /**
+   * GET /artifacts/:namespace/:name/gmp-classification (NXD-139)
+   *
+   * Whether the products governing a registry artifact are GMP-relevant.
+   * Read by the installations store, on behalf of the person installing, to
+   * decide whether the act is an electronic signature; by a service or by a
+   * person with product.read.
+   */
+  router.get(
+    '/artifacts/:namespace/:name/gmp-classification',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        res.json(
+          await service.getArtifactGmpClassification(
+            req.params.namespace,
+            req.params.name,
+          ),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   /** GET /products/:id/signatures (NXD-128): approvals and releases as attested. */
   router.get(
     '/products/:id/signatures',

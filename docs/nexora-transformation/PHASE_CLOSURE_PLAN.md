@@ -630,6 +630,11 @@ closed rather than worked off.
 > first. Three slices follow in order: the installations store, the provider
 > API, and the Compose provider. The manifest those slices rely on is
 > [`NXD-130`](DECISIONS.md).
+>
+> **Slice 1 done 2026-10-07 ([`NXD-139`](DECISIONS.md)).** The installations
+> store is `installations-backend`: targets, desired and observed state,
+> signed acts for GMP products, and an IQ record awaiting provider evidence.
+> The provider API and the Compose provider remain.
 
 **Relation to §9.4.** T1 is already ranked there and closes Phase 7; the rest is
 new work that did not exist as a plan. Whether the topology track runs before,

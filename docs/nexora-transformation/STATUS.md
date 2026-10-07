@@ -273,6 +273,18 @@ four quick wins F1–F4, one commit and one record each.
   seat why it cannot change it. *Reset signing PIN* is on Admin → Users &
   Roles. No demo-seat exemption; `demo-pm`'s PIN is left as it is. OIDC
   step-up remains the target. See [`NXD-138`](DECISIONS.md).
+- **MVP1 step 6, slice 1 of NXD-129: the installations store.** A new
+  `installations-backend` holds runtime targets and installations: a
+  RELEASED, built registry version at its recorded digest, on one target,
+  with configuration validated against `spec.config`; a secret is a
+  reference only. Desired and observed state are separate columns; only the
+  provider API (slice 2) will write the observed ones. Installing, upgrading
+  and removing a GMP-relevant product needs a justification and the PIN
+  (the user's QA decision); otherwise a confirmation. Every act is recorded
+  in one transaction, in append-only trails. A GMP install opens an IQ
+  record `PENDING_EVIDENCE`; evidence intake and QA sign-off come later.
+  The GMP classification comes from the Composer product that governs the
+  artifact. No provider, no UI, no live run yet. See [`NXD-139`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

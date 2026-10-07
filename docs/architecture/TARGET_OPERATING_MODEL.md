@@ -256,6 +256,9 @@ per site and makes that bound defensible.
 > target is now in scope. An Installation is governed desired state in Nexora,
 > and a runtime provider outside Core pulls it and executes it, the first one
 > being Docker Compose. "Does not deploy" now reads "does not execute".
+>
+> **The store exists since 2026-10-07 ([`NXD-139`](../nexora-transformation/DECISIONS.md)):**
+> `installations-backend` holds the desired state. No provider executes it yet.
 
 Microservice deployment is GitHub's. Nexora records what was approved, what was
 verified, what was validated, and refuses a release that cannot show it.

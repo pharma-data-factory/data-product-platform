@@ -78,6 +78,9 @@ export {
   artifactPublishPermission,
   artifactDeprecatePermission,
   publisherManagePermission,
+  installationReadPermission,
+  installationManagePermission,
+  installationTargetManagePermission,
   platformPermissions,
   VIEWER_PERMISSION_NAMES,
   DEVELOPER_PERMISSION_NAMES,
@@ -636,6 +639,35 @@ export {
   validateArtifactReleaseBuild,
 } from './artifact';
 export { NEXORA_MANIFEST_SCHEMA } from './manifestSchema';
+export {
+  INSTALLATION_ACTS,
+  INSTALLATION_DESIRED_STATES,
+  INSTALLATION_OBSERVED_STATES,
+  INSTALLATION_QUALIFICATION_STATUSES,
+  GMP_CLASSIFICATION_SOURCES,
+  isSecretReference,
+  isValidSecretRef,
+  validateInstallationConfig,
+  canonicalInstallationConfig,
+  computeInstallationConfigHash,
+} from './artifact-installation';
+export type {
+  ArtifactInstallation,
+  GmpClassificationSource,
+  InstallationAct,
+  InstallationActRecord,
+  InstallationConfig,
+  InstallationConfigValue,
+  InstallationDesired,
+  InstallationDesiredState,
+  InstallationObserved,
+  InstallationObservedState,
+  InstallationQualification,
+  InstallationQualificationStatus,
+  InstallationSignatureInput,
+  RuntimeTarget,
+  SecretReference,
+} from './artifact-installation';
 export {
   nexoraManifestSchemaValidator,
   validateRunnableManifestSections,

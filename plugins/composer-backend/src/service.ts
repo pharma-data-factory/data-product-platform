@@ -507,6 +507,51 @@ export class ComposerService {
   }
 
   /**
+   * Whether an artifact is GMP-relevant, from the Composer products that
+   * govern it (NXD-139).
+   *
+   * A product governs an artifact when one of its versions was registered as
+   * a version of it (`artifactRef`, NXD-137). The registry's manifest holds
+   * no GxP classification, so this record is the only place it exists. As
+   * in NXD-128, only an explicit NONE is not GMP-relevant; several governing
+   * products are GMP-relevant if any one is. No governing product answers
+   * `governed: false` — a community or listing artifact.
+   */
+  async getArtifactGmpClassification(
+    namespace: string,
+    name: string,
+  ): Promise<{
+    namespace: string;
+    name: string;
+    governed: boolean;
+    gmpRelevant: boolean;
+    products: Array<{ id: string; name: string; gxpRelevance?: string }>;
+  }> {
+    const versions = await this.repository.listProductVersionsForArtifact(
+      namespace,
+      name,
+    );
+    const products = [];
+    for (const productId of new Set(versions.map(v => v.productId))) {
+      const product = await this.repository.getProduct(productId);
+      if (product) {
+        products.push({
+          id: product.id,
+          name: product.name,
+          gxpRelevance: product.gxpRelevance,
+        });
+      }
+    }
+    return {
+      namespace,
+      name,
+      governed: products.length > 0,
+      gmpRelevant: products.some(p => p.gxpRelevance !== 'NONE'),
+      products,
+    };
+  }
+
+  /**
    * The test evidence recorded for a version, per bound requirement: the
    * newest execution of each test case (NXD-124). The Validation Expert's
    * product evidence review reads this; it is what "verified" means here.
