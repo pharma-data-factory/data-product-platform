@@ -75,10 +75,10 @@ describe('GMP classifier', () => {
     expect(h.tokens[0]).toEqual({ onBehalfOf: CREDENTIALS, targetPluginId: 'composer' });
   });
 
-  it('classifies an artifact no product governs as not GMP-relevant', async () => {
+  it('classifies an artifact no product governs as GMP-relevant (NXD-140)', async () => {
     const h = harness(200, { governed: false, gmpRelevant: false });
     expect(await createHttpGmpClassifier({ ...h.options, logger })(CREDENTIALS, artifact)).toEqual({
-      gmpRelevant: false,
+      gmpRelevant: true,
       source: 'NO_PRODUCT',
     });
   });

@@ -285,6 +285,11 @@ four quick wins F1–F4, one commit and one record each.
   record `PENDING_EVIDENCE`; evidence intake and QA sign-off come later.
   The GMP classification comes from the Composer product that governs the
   artifact. No provider, no UI, no live run yet. See [`NXD-139`](DECISIONS.md).
+- **Two rules confirmed by the user.** An artifact that no Composer
+  product governs is now installed as GMP-relevant: justification, PIN and
+  an IQ record. Only a governing product answering NONE waives the
+  signature. An administrator still cannot reset their own signing PIN; that
+  rule from NXD-138 is now decided, not proposed. See [`NXD-140`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

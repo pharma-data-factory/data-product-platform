@@ -78,7 +78,9 @@ export type InstallationQualificationStatus =
  *   the coordinate as `artifactRef`, NXD-137); its `gxpRelevance` decides,
  *   NONE being the only answer that is not GMP-relevant (NXD-128).
  * - `NO_PRODUCT`: the Composer answered that no product governs the
- *   artifact — a community or listing artifact. Not GMP-relevant.
+ *   artifact — a community or listing artifact. GMP-relevant (NXD-140):
+ *   nobody has answered the GxP question for it, and an unanswered
+ *   question counts as GMP, as it does on a product (NXD-128).
  * - `UNAVAILABLE`: the Composer could not answer. Treated as GMP-relevant,
  *   so an outage asks for more, never for less.
  */

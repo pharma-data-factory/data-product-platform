@@ -112,7 +112,8 @@ export interface GmpClassification {
  * Whether an artifact is GMP-relevant, from the Composer product that
  * governs it (NXD-139). Never throws: a Composer that cannot answer makes
  * the act GMP-relevant (`UNAVAILABLE`), so an outage asks for the signature
- * rather than waiving it.
+ * rather than waiving it. An artifact no product governs is GMP-relevant
+ * too (`NO_PRODUCT`, NXD-140): only a product answering NONE waives it.
  */
 export type GmpClassifier = (
   credentials: unknown,
@@ -140,7 +141,7 @@ export function createHttpGmpClassifier(
         gmpRelevant?: boolean;
       };
       if (body.governed === false) {
-        return { gmpRelevant: false, source: 'NO_PRODUCT' };
+        return { gmpRelevant: true, source: 'NO_PRODUCT' };
       }
       if (body.governed === true && typeof body.gmpRelevant === 'boolean') {
         return { gmpRelevant: body.gmpRelevant, source: 'PRODUCT' };

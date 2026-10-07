@@ -234,7 +234,7 @@ describe('InstallationsService', () => {
 
   describe('a product that is not GMP-relevant', () => {
     beforeEach(() => {
-      world.state.classification = { gmpRelevant: false, source: 'NO_PRODUCT' };
+      world.state.classification = { gmpRelevant: false, source: 'PRODUCT' };
     });
 
     it('needs a confirmation, no PIN, and is recorded', async () => {
@@ -250,7 +250,7 @@ describe('InstallationsService', () => {
         expect.objectContaining({
           act: 'INSTALL',
           gmpRelevant: false,
-          gmpClassificationSource: 'NO_PRODUCT',
+          gmpClassificationSource: 'PRODUCT',
           justification: '',
         }),
       );

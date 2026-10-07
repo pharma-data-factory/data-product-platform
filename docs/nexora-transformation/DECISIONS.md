@@ -8564,3 +8564,57 @@ concurrent change.
   (+ `artifactGmpClassification.test.ts`);
   `packages/backend/{package.json,src/index.ts}`; `yarn.lock` (workspace
   entry only).
+
+### NXD-140 — An artifact no product governs is installed as GMP; an administrator cannot reset their own PIN
+
+- Date: 2026-10-07
+- Slice: follow-up to [`NXD-138`](DECISIONS.md) and [`NXD-139`](DECISIONS.md),
+  before either is pushed.
+- Decided by: the user (2026-10-07), accepting both recommendations.
+
+**Context.** `NXD-138` and `NXD-139` each named one rule for review that the
+user had not asked for or had only decided in outline:
+
+1. `NXD-138` refuses an administrator's reset of their own seat (403).
+2. `NXD-139` classified an artifact that no Composer product governs as not
+   GMP-relevant (`NO_PRODUCT`), which installed it with a confirmation.
+
+**Decision 1: the self-reset refusal stays.** It is confirmed as the rule,
+no longer a proposal. A reset followed by the free first enrolment would let
+an administrator's session replace that administrator's PIN, which is the
+bypass `NXD-136` closes. Another administrator resets it. A single-admin
+installation needs a second administrator for this one act.
+
+**Decision 2: no governing product means GMP-relevant (fail-closed).**
+`NO_PRODUCT` now gives `gmpRelevant: true`. Install, upgrade and remove need
+a justification and the PIN, and an install or upgrade opens an IQ record
+`PENDING_EVIDENCE`.
+
+- **Why.** Nobody has answered the GxP question for such an artifact. On a
+  product an unanswered `gxpRelevance` already counts as GMP (`NXD-128`),
+  and a Composer that cannot answer counts as GMP (`UNAVAILABLE`,
+  `NXD-139`). The old rule was the one place where *no answer* waived the
+  signature. In a GxP environment, an internal artifact that nobody
+  registered as a product would have been installed on a confirmation.
+- **What waives it now.** Only a governing product whose `gxpRelevance` is
+  NONE (`PRODUCT`, `gmpRelevant: false`).
+- **Cost.** Community and listing artifacts carry the full GMP ceremony
+  until something answers for them. The way to relieve that is a rule on the
+  publisher's trust level or a target that declares itself non-GxP, as a
+  later decision. It is not done here.
+- The source is still recorded as `NO_PRODUCT`, so the act shows *why* it
+  counted as GMP.
+
+**Verified.** `CI=true` with PostgreSQL: `installations-backend` 42 tests
+and `platform-common` `artifact-installation` pass (51 in 5 suites). The
+classifier test now expects `NO_PRODUCT` to be GMP-relevant. The service's
+non-GMP case is now a governing product answering NONE (`PRODUCT`), the only
+input that still waives the signature.
+
+**Not changed, named.** No publisher-trust or target-level waiver. The
+`NXD-139` note "No governing product means not GMP-relevant" is superseded
+by this record.
+
+- Affected components: `plugins/installations-backend/src/clients.ts`
+  (+ `clients.test.ts`, `service.test.ts`);
+  `packages/platform-common/src/artifact-installation.ts` (doc comment).
