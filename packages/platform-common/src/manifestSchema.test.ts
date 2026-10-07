@@ -215,6 +215,32 @@ describe('nexora manifest schema — the new fields', () => {
   });
 
   it.each([
+    ['/app/data', true],
+    ['/var/lib/oee', true],
+    ['/data/sqlite.v1', true],
+    ['/', false],
+    ['app/data', false],
+    ['/app/data/', false],
+    ['/app/../etc', false],
+    ['/app/./data', false],
+    ['/app//data', false],
+    ['/app/my data', false],
+  ])('storage mountPath %p → %p', (value, ok) => {
+    expect(
+      pattern(runtime.storage.items.properties.mountPath).test(value),
+    ).toBe(ok);
+  });
+
+  it.each([
+    ['1Gi', true],
+    ['512Mi', true],
+    ['1G', false],
+    ['0Gi', false],
+  ])('storage size %p → %p', (value, ok) => {
+    expect(pattern(runtime.storage.items.properties.size).test(value)).toBe(ok);
+  });
+
+  it.each([
     ['MQTT_HOST', true],
     ['A1_B', true],
     ['mqtt_host', false],
@@ -239,6 +265,7 @@ describe('nexora manifest schema — the new fields', () => {
       runtime.ports.items,
       runtime.health,
       runtime.resources,
+      runtime.storage.items,
       defs.interface,
       iface.document,
       defs.configKey,
@@ -307,6 +334,7 @@ function dataProduct(): Node {
         ports: [{ name: 'http', containerPort: 8080 }],
         health: { type: 'http', port: 'http', path: '/health' },
         resources: { limits: { cpu: '500m', memory: '512Mi' } },
+        storage: [{ name: 'data', mountPath: '/app/data', size: '1Gi' }],
       },
       interfaces: [
         {
@@ -478,6 +506,27 @@ describe('nexora manifest schema — whole manifests', () => {
       /spec\.interfaces\[2\]\.port is not allowed here/,
     ],
     [
+      'storage at a relative path',
+      m => {
+        m.spec.runtime.storage[0].mountPath = 'data';
+      },
+      /spec\.runtime\.storage\[0\]\.mountPath "data" is not valid\. Absolute path/,
+    ],
+    [
+      'storage without a path',
+      m => {
+        delete m.spec.runtime.storage[0].mountPath;
+      },
+      /spec\.runtime\.storage\[0\]\.mountPath is required/,
+    ],
+    [
+      'a host path for storage',
+      m => {
+        m.spec.runtime.storage[0].hostPath = '/srv/oee';
+      },
+      /spec\.runtime\.storage\[0\]\.hostPath is not a known field/,
+    ],
+    [
       'a blank license',
       m => {
         m.metadata.license = ' ';
@@ -536,6 +585,21 @@ describe('nexora manifest schema — whole manifests', () => {
         'spec.runtime.ports: name "http" is declared more than once',
         'spec.interfaces: name "oee-api" is declared more than once',
         'spec.config: key "MQTT_HOST" is declared more than once',
+      ]);
+    });
+
+    it('refuses storage areas that share a name or a path, or nest', () => {
+      const manifest = dataProduct();
+      manifest.spec.runtime.storage.push(
+        { name: 'data', mountPath: '/app/data' },
+        { name: 'cache', mountPath: '/app/data/cache' },
+        { name: 'other', mountPath: '/app/database' },
+      );
+      expect(validate(manifest)).toBe(true);
+      expect(validateRunnableManifestSections(manifest)).toEqual([
+        'spec.runtime.storage: name "data" is declared more than once',
+        'spec.runtime.storage: mountPath "/app/data" is declared more than once',
+        'spec.runtime.storage: mountPath "/app/data/cache" lies inside "/app/data"',
       ]);
     });
   });

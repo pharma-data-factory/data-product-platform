@@ -7427,6 +7427,8 @@ an install-time configuration. `NXD-129` needs exactly those.
 - **Not modelled yet:** permissions a product needs (they belong with the
   installation grant of `NXD-129`), persistent storage, and a command or
   arguments.
+  **Persistent storage modelled 2026-10-07 in [`NXD-142`](DECISIONS.md):**
+  `spec.runtime.storage`.
 - The catalog annotations still duplicate version, domain and contracts.
   Deriving them from the manifest is a later slice.
 - The Marketplace and anything else reading a manifest outside the registry
@@ -7545,6 +7547,8 @@ reads. The preparation also found:
 - The OEE product keeps state in a volume (`/app/data`, SQLite) that
   `NXD-130` cannot express. It must be modelled before the Compose provider
   reinstalls anything.
+  **Done 2026-10-07 in [`NXD-142`](DECISIONS.md):** the template declares
+  `data` at `/app/data`.
 - The other three data-product templates do not ship a `nexora.yaml` yet.
 
 - Affected components: `templates/oee-data-product/content/nexora.yaml`
@@ -8753,3 +8757,100 @@ without a Marketplace block.**
   `src/components/{InstallCard,MarketplaceDetailPage}.tsx`
   (+ `install.test.ts`, `components/InstallCard.test.tsx`,
   `offeringSource.test.ts`).
+
+### NXD-142 — A Data Product declares the state it keeps; where that state lives is the installation's
+
+- Date: 2026-10-07
+- Slice: MVP1, the precondition `NXD-131` named for step 8: storage must be
+  modelled before the Compose provider runs anything.
+- Decided by: the user ("ja" to "storage in the schema first", 2026-10-07);
+  the shape below was chosen here and is named for review.
+
+**Context.** The OEE product keeps its time series and reason codes in
+SQLite at `/app/data/oee.db` (`TIMESERIES_SQLITE_PATH` in the Dockerfile).
+Its hand-written `docker-compose.yml` mounts a named volume there. `nexora.yaml`
+(`NXD-130`) could not say so: `spec.runtime` is closed, and `NXD-130` listed
+persistent storage under *Not modelled yet*. A provider that ran the product
+from its manifest alone would have written the database into the container
+layer, and the first upgrade, which replaces the container, would have
+deleted it. For a GMP product that is lost data, not an inconvenience.
+
+**Decision.**
+
+- **`spec.runtime.storage` is a list of persistent areas.** Each entry has:
+  - `name`: a coordinate segment, unique in the list;
+  - `mountPath`: an absolute container path. Not `/`, no `.` or `..`
+    segments, no trailing slash, no spaces;
+  - `size` (optional): a Kubernetes quantity (`1Gi`). It is the space the
+    workload expects. A provider that cannot reserve space may ignore it;
+  - `description` (optional).
+  The entry is closed (`additionalProperties: false`), like the rest of
+  `spec.runtime`.
+- **What the declaration promises.** The provider supplies each area per
+  installation. Its content survives a restart and an upgrade of that
+  installation. Two installations never share an area.
+- **What a manifest cannot say.**
+  - What backs the area: a host directory, a Docker volume, a
+    PersistentVolumeClaim or a cloud disk. That is the target's.
+  - Whether the data is kept, archived or deleted when the installation is
+    removed. That is the installation's, and for a GMP product a retention
+    decision. A product author cannot decide it for every site that runs
+    the product.
+  - Read-only mounts, sharing between products, and access modes. Nothing
+    needs them yet.
+- **Rules JSON Schema cannot state** are in `validateRunnableManifestSections`.
+  Two areas with the same name or the same `mountPath` are refused, and so
+  is an area inside another (`/app/data/cache` inside `/app/data`). With
+  nested areas, the provider would decide which one a file lands in, and so
+  which one survives.
+- **The OEE template declares `data` at `/app/data`.** A rendering test
+  holds the manifest, the Dockerfile and the Compose file in step. The
+  database path must lie inside a declared area, and the Compose file must
+  mount exactly the declared paths.
+
+**Alternatives considered.**
+
+- *A `volumes` block in Compose's vocabulary.* Rejected. `NXD-129` permits
+  nothing provider-specific in a manifest, and `hostPath` or a volume driver
+  would bind the product to one runtime.
+- *A boolean `stateful: true` plus a data directory in `spec.config`.*
+  Rejected. The provider would have to guess which configuration value is a
+  path. A product with two stores could not say so.
+- *Leave it to the installation.* Rejected. The person installing would
+  have to know the image's internal paths. Forgetting one would lose data
+  silently, on the first upgrade.
+
+**Verified.**
+
+- `platform-common` `manifestSchema.test.ts`, +18:
+  - which `mountPath` and `size` values are accepted;
+  - the entry is closed;
+  - the complete Data Product fixture now carries storage;
+  - three refusals through schema and gate: a relative path, a missing
+    path, a `hostPath`;
+  - one cross-field case naming a duplicate name, a duplicate path and a
+    nested path. A sibling with a shared prefix (`/app/database` beside
+    `/app/data`) is not refused.
+- `packages/backend` `templateRendering.test.ts`, +1: the rendered OEE
+  manifest declares the directory of the image's database, and its Compose
+  file mounts the same paths. The schema and gate tests that already exist
+  pass on the rendered manifest with storage.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- No consumer reads `storage` yet. The Compose provider (step 8) is the
+  first, and the installations store does not record a backing or a
+  retention choice. Retention on removal must be decided before a GMP
+  installation can be removed without losing its records. It belongs with
+  the removal flow and is a QA decision.
+- Already-registered versions (the `NXD-137` product `…@1.0.0`) carry no
+  storage. A provider must treat their state as unprotected. Only a new
+  release from the updated template fixes that.
+- The other three data-product templates still ship no `nexora.yaml`.
+
+- Affected components: `packages/platform-common/src/` —
+  `nexora-manifest.schema.json`, `artifact.ts` (`ArtifactRuntimeStorage`),
+  `index.ts`, `manifestSchemaValidator.ts` (+ `manifestSchema.test.ts`);
+  `templates/oee-data-product/content/nexora.yaml`;
+  `packages/backend/src/templateRendering.test.ts`.

@@ -301,6 +301,30 @@ describe('the OEE Golden Path renders a manifest the registry accepts (NXD-131)'
     );
   });
 
+  it('declares as storage the directory the image keeps its database in', () => {
+    const dockerfile = fs.readFileSync(
+      path.join(workspacePath, 'Dockerfile'),
+      'utf8',
+    );
+    const compose = yaml.parse(
+      fs.readFileSync(path.join(workspacePath, 'docker-compose.yml'), 'utf8'),
+    );
+    const [service] = Object.values<any>(compose.services);
+    const database = /ENV TIMESERIES_SQLITE_PATH=(\S+)/.exec(dockerfile)?.[1];
+    const mountPaths: string[] = manifest.spec.runtime.storage.map(
+      (area: any) => area.mountPath,
+    );
+    // A database outside every declared area is lost on the first upgrade.
+    expect(database).toBeDefined();
+    expect(
+      mountPaths.some(mount => database!.startsWith(`${mount}/`)),
+    ).toBe(true);
+    // The hand-written Compose file mounts the same directories.
+    expect(
+      (service.volumes as string[]).map(volume => volume.split(':')[1]).sort(),
+    ).toEqual([...mountPaths].sort());
+  });
+
   it('points every interface document at a file that exists', () => {
     const paths: string[] = manifest.spec.interfaces
       .filter((iface: any) => iface.document)

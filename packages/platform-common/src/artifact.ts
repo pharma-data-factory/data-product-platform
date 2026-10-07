@@ -415,6 +415,22 @@ export interface ArtifactRuntime {
       memory?: string;
     };
   };
+  /** State kept across a restart or an upgrade (NXD-142). */
+  storage?: ArtifactRuntimeStorage[];
+}
+
+/**
+ * One persistent area the provider supplies per installation. What backs it
+ * and whether it outlives the installation are the target's and the
+ * installation's to decide, not the author's (NXD-142).
+ */
+export interface ArtifactRuntimeStorage {
+  name: string;
+  /** Absolute container path, e.g. `/app/data`. */
+  mountPath: string;
+  /** Kubernetes quantity the workload expects: `1Gi`. A hint, not a limit. */
+  size?: string;
+  description?: string;
 }
 
 export interface ArtifactRuntimePort {

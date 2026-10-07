@@ -37,6 +37,14 @@ spec:
       type: http
       port: http
       path: /health
+    # The SQLite store (TIMESERIES_SQLITE_PATH in the Dockerfile) must survive
+    # a restart and an upgrade. What backs it, and whether it is kept when the
+    # installation is removed, is decided by the target and the installation
+    # (NXD-142).
+    storage:
+      - name: data
+        mountPath: /app/data
+        description: OEE time series and reason codes (oee.db).
   interfaces:
     - name: oee
       type: api

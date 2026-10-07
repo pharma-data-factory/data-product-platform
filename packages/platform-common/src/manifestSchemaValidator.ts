@@ -135,6 +135,8 @@ function crossFieldIssues(spec: unknown): string[] {
     );
   }
 
+  issues.push(...storageIssues(runtime?.storage));
+
   if (Array.isArray(interfaces)) {
     const names: string[] = [];
     interfaces.forEach((item: Record<string, unknown>, index: number) => {
@@ -155,6 +157,35 @@ function crossFieldIssues(spec: unknown): string[] {
     issues.push(...duplicates('spec.config', 'key', keys));
   }
 
+  return issues;
+}
+
+/**
+ * Two areas at the same path, or one inside the other, leave it to the
+ * provider which one a file lands in — and so which one survives (NXD-142).
+ */
+function storageIssues(storage: unknown): string[] {
+  if (!Array.isArray(storage)) return [];
+  const entries = storage as Array<Record<string, unknown>>;
+  const names = entries
+    .map(entry => entry?.name)
+    .filter((name): name is string => typeof name === 'string');
+  const issues = duplicates('spec.runtime.storage', 'name', names);
+
+  const paths = entries
+    .map(entry => entry?.mountPath)
+    .filter((path): path is string => typeof path === 'string');
+  issues.push(...duplicates('spec.runtime.storage', 'mountPath', paths));
+  const distinct = [...new Set(paths)];
+  for (const outer of distinct) {
+    for (const inner of distinct) {
+      if (inner.startsWith(`${outer}/`)) {
+        issues.push(
+          `spec.runtime.storage: mountPath "${inner}" lies inside "${outer}"`,
+        );
+      }
+    }
+  }
   return issues;
 }
 

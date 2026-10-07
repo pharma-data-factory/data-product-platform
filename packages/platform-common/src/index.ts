@@ -684,6 +684,7 @@ export type {
   ArtifactManifest,
   ArtifactRuntime,
   ArtifactRuntimePort,
+  ArtifactRuntimeStorage,
   ArtifactReleaseBuild,
   ArtifactVersion,
   EditionCatalogue,

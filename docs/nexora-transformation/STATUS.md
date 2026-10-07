@@ -299,6 +299,14 @@ four quick wins F1–F4, one commit and one record each.
   ask for, read in advance from a new classification route. Verified live up
   to the dialog. No install was run live, because there is no runtime target
   and no demo seat may register one. See [`NXD-141`](DECISIONS.md).
+- **MVP1, before step 8: storage in the manifest.** `nexora.yaml` can now
+  declare the state a product keeps (`spec.runtime.storage`: name, absolute
+  `mountPath`, optional size). The provider supplies each area per
+  installation, and it survives restart and upgrade. What backs it and
+  whether it is kept on removal belong to the target and the installation.
+  The OEE template declares `/app/data`, where its SQLite database lives.
+  A test keeps the manifest, Dockerfile and Compose file in step. See
+  [`NXD-142`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
