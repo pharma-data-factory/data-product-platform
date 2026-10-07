@@ -253,6 +253,7 @@ four quick wins F1–F4, one commit and one record each.
   without the current one, so a session alone resets a Part 11 second factor.
   Proposed fix: change needs the current PIN, plus an audited admin reset. Not
   in force; ranked in the closure plan. See [`NXD-136`](DECISIONS.md).
+  _Decided 2026-10-07 and in force since `NXD-138`, the last item below._
 - **MVP1 step 5: a recorded release becomes a registry version.** The import
   registers the build as a DRAFT ArtifactVersion on the importer's behalf,
   from the `nexora.yaml` at the tagged commit, with image, digest, commit and
@@ -262,6 +263,16 @@ four quick wins F1–F4, one commit and one record each.
   reached RELEASED with digest `sha256:6e696d5f…`. Found: no SoD in the
   registry; COMMUNITY publishers can publish despite the claim; publish does
   not ask the release gate. See [`NXD-137`](DECISIONS.md).
+- **A signing PIN can no longer be replaced by the session it protects.**
+  The user decided `NXD-136` (options 1 + 2). A first PIN is free. A change
+  needs the current PIN: missing → 400, wrong → 403 and counted, locked →
+  403. A platform administrator (`platform.user.manage`) can clear a seat's
+  PIN, failed attempts and lockout, with a reason, audited append-only as
+  `PIN_RESET`, never set one, and never their own. The URS Composer's PIN
+  dialog asks for the current PIN only when one exists and tells a locked
+  seat why it cannot change it. *Reset signing PIN* is on Admin → Users &
+  Roles. No demo-seat exemption; `demo-pm`'s PIN is left as it is. OIDC
+  step-up remains the target. See [`NXD-138`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

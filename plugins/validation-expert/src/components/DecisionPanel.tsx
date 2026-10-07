@@ -519,6 +519,9 @@ export function SignDialog(props: {
 
 function PinDialog(props: { open: boolean; onClose: () => void }) {
   const api = useApi(validationExpertApiRef);
+  // NXD-138: changing an existing PIN needs the current one; the URS
+  // Composer refuses a change without it and says so.
+  const [current, setCurrent] = useState('');
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -526,6 +529,7 @@ function PinDialog(props: { open: boolean; onClose: () => void }) {
 
   useEffect(() => {
     if (!props.open) {
+      setCurrent('');
       setPin('');
       setConfirm('');
       setError(null);
@@ -541,7 +545,7 @@ function PinDialog(props: { open: boolean; onClose: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      await api.setSigningPin(pin);
+      await api.setSigningPin(pin, current || undefined);
       props.onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -556,8 +560,20 @@ function PinDialog(props: { open: boolean; onClose: () => void }) {
       <DialogContent>
         <Typography variant="body2" paragraph>
           One PIN for every signature on the platform — URS approvals and
-          validation decisions. At least six characters.
+          validation decisions. At least six characters. Changing a PIN you
+          already have needs the current one; a forgotten or locked PIN is
+          reset by a platform administrator.
         </Typography>
+        <TextField
+          id="signing-pin-current"
+          label="Current PIN (only when changing)"
+          type="password"
+          fullWidth
+          value={current}
+          onChange={e => setCurrent(e.target.value)}
+          margin="normal"
+          autoComplete="off"
+        />
         <TextField
           id="signing-pin-new"
           label="New PIN"

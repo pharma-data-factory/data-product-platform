@@ -140,8 +140,10 @@ test.describe('URS approval chain', () => {
         status,
       });
     }
-    await reviewer.json('put', '/signing-pin', { pin: PIN });
-    await quality.json('put', '/signing-pin', { pin: PIN });
+    // NXD-138: changing an existing PIN needs the current one. A first
+    // enrolment ignores it, so this works on a fresh stack and on a rerun.
+    await reviewer.json('put', '/signing-pin', { pin: PIN, currentPin: PIN });
+    await quality.json('put', '/signing-pin', { pin: PIN, currentPin: PIN });
 
     // ── Author: create and submit the baseline, in the browser ─────────
     const authorPage = await seat(browser, AUTHOR);

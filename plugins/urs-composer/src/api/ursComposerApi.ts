@@ -31,6 +31,7 @@ import {
   SubmitBaselineRequest,
   ApproveStepRequest,
   MyApprovalRoles,
+  SigningPinStatus,
   RejectStepRequest,
   RequirementSetListResponse,
   CapabilityListResponse,
@@ -604,11 +605,24 @@ export class URSComposerApi {
   // ============================================================================
 
   /**
-   * PUT /signing-pin
-   * Set the caller's own signing PIN. Never sent anywhere else.
+   * GET /signing-pin
+   * Whether the caller has a signing PIN, and until when it is locked
+   * (NXD-138). Decides whether the PIN page asks for the current PIN.
    */
-  async setSigningPin(pin: string): Promise<void> {
-    await this.put<{ ok: boolean }>('/signing-pin', { pin });
+  async getSigningPinStatus(): Promise<SigningPinStatus> {
+    return this.get<SigningPinStatus>('/signing-pin');
+  }
+
+  /**
+   * PUT /signing-pin
+   * Set the caller's own signing PIN. Never sent anywhere else. Changing an
+   * existing PIN needs the current one (NXD-138).
+   */
+  async setSigningPin(pin: string, currentPin?: string): Promise<void> {
+    await this.put<{ ok: boolean }>(
+      '/signing-pin',
+      currentPin ? { pin, currentPin } : { pin },
+    );
   }
 
   /**

@@ -135,7 +135,8 @@ export function ApprovalDialog(props: {
             <Typography variant="caption" color="textSecondary">
               No PIN yet? Set it with “Set signing PIN” on any requirement set in
               the <Link href="/urs-composer">URS Composer</Link>; it is one PIN for
-              every signature.
+              every signature. Forgotten or locked? A platform administrator
+              can reset it, and you set a new one there.
             </Typography>
           </>
         ) : null}

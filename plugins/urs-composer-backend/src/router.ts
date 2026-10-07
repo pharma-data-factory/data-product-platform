@@ -34,6 +34,7 @@ import {
   ursSignPermission,
   ursChangeRequestManagePermission,
   businessCapabilityManagePermission,
+  platformUserManagePermission,
 } from '@internal/platform-common';
 import { URSService } from './service';
 import {
@@ -1180,21 +1181,93 @@ export async function createRouter(
   });
 
   /**
+   * GET /signing-pin
+   * Whether the caller has a signing PIN and whether it is locked (NXD-138).
+   * The caller's own only; never the hash.
+   */
+  router.get('/signing-pin', async (req, res) => {
+    try {
+      const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
+      res.json(await service.getSigningPinStatus(actor));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
    * PUT /signing-pin
-   * Set or replace the caller's own signing PIN.
+   * Set the caller's first signing PIN, or change it (NXD-138).
+   *
+   * Body `{ pin, currentPin? }`. A first PIN needs nothing more. Changing an
+   * existing one needs `currentPin`: without it 400 (the request lacks what
+   * the change requires, as a signature without a PIN does, NXD-128); with a
+   * wrong one 403, counted as a failed attempt; a locked seat 403 with the
+   * time it is locked until.
    *
    * There is no route to set someone else's PIN, and there will not be: an
-   * administrator who could do that could sign in another person's name.
+   * administrator who could do that could sign in another person's name. An
+   * administrator can only clear one (`POST /signing-pin/reset`).
    */
   router.put('/signing-pin', async (req, res) => {
     try {
       const actor = await authorize(permissions, httpAuth, req, ursSignPermission);
-      const { pin } = req.body as { pin?: string };
+      const { pin, currentPin } = req.body as {
+        pin?: string;
+        currentPin?: string;
+      };
       if (!pin) {
         res.status(400).json({ error: 'pin is required' });
         return;
       }
-      await service.setSigningPin(actor, pin);
+      if (currentPin !== undefined && typeof currentPin !== 'string') {
+        res.status(400).json({ error: 'currentPin must be a string' });
+        return;
+      }
+      await service.setSigningPin(actor, pin, currentPin || undefined);
+      res.status(204).end();
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /**
+   * POST /signing-pin/reset
+   * A platform administrator clears another seat's signing PIN (NXD-138).
+   *
+   * Body `{ userEntityRef, reason }`. Needs `platform.user.manage`, the
+   * administrator's user-management permission (NXD-104), not `urs.sign`.
+   * Clears the PIN with its failed attempts and lockout, audits who, whom,
+   * when and why, and sets nothing: a body carrying a PIN is refused, so the
+   * seat enrols again itself. Not one's own seat (403); no credential 404.
+   */
+  router.post('/signing-pin/reset', async (req, res) => {
+    try {
+      const actor = await authorize(
+        permissions,
+        httpAuth,
+        req,
+        platformUserManagePermission,
+      );
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if ('pin' in body || 'newPin' in body || 'currentPin' in body) {
+        res.status(400).json({
+          error:
+            'An administrator can clear a signing PIN, never set one. Send ' +
+            'userEntityRef and reason only; the seat enrols its new PIN itself.',
+        });
+        return;
+      }
+      if (!requireBody(res, body, 'userEntityRef', 'reason')) return;
+      if (
+        typeof body.userEntityRef !== 'string' ||
+        typeof body.reason !== 'string'
+      ) {
+        res
+          .status(400)
+          .json({ error: 'userEntityRef and reason must be strings' });
+        return;
+      }
+      await service.resetSigningPin(actor, body.userEntityRef, body.reason);
       res.status(204).end();
     } catch (err) {
       respondError(res, logger, err);

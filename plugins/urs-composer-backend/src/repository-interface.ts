@@ -268,6 +268,12 @@ export interface IURSRepository {
     lockedUntil: Date | null,
   ): Promise<void>;
 
+  /**
+   * Remove a credential: PIN, failed-attempt counter and lockout together
+   * (NXD-138, administrator reset). The seat must enrol again.
+   */
+  deleteSignatureCredential(userRef: string): Promise<void>;
+
   // ============================================================================
   // TRANSACTIONS (P1A)
   // ============================================================================

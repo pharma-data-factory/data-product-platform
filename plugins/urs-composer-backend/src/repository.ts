@@ -816,6 +816,10 @@ export class URSRepository implements IURSRepository {
     });
   }
 
+  async deleteSignatureCredential(userRef: string): Promise<void> {
+    this.signatureCredentials.delete(userRef);
+  }
+
   // ============================================================================
   // P1A: TRANSACTIONS (No-op for in-memory)
   // ============================================================================

@@ -63,7 +63,12 @@ export interface SignatureCredentialStore {
     failedAttempts: number,
     lockedUntil: Date | null,
   ): Promise<void>;
+  /** Remove a credential entirely (NXD-138: administrator reset). */
+  deleteSignatureCredential(userRef: string): Promise<void>;
 }
+
+/** What an enrolment did: a first PIN, or a change of an existing one. */
+export type EnrolmentOutcome = 'ENROLLED' | 'CHANGED';
 
 // Wrapped by hand rather than with promisify, whose typings do not cover the
 // options argument that carries the cost parameters.
@@ -86,13 +91,28 @@ export class SignaturePinReAuth implements ReAuthProvider {
   constructor(private readonly store: SignatureCredentialStore) {}
 
   /**
-   * Set or replace a user's signing PIN.
+   * Set the first signing PIN, or change an existing one (NXD-138).
    *
-   * Only the user themselves may do this — an administrator who could set
-   * another user's PIN could sign in their name, which would defeat the
-   * purpose. Enforced by the caller in the router.
+   * - **First enrolment is free.** No PIN exists, so there is nothing to
+   *   prove; being signed in is all a first PIN can rest on. `currentPin` is
+   *   ignored.
+   * - **A change needs the current PIN.** Otherwise whoever holds the session
+   *   (a stolen token, an unlocked workstation) could replace the second
+   *   factor and sign as the seat, and the two factors would be one
+   *   (NXD-136). The current PIN goes through `verify`, so a wrong one counts
+   *   as a failed attempt and a locked credential cannot be changed at all.
+   * - A forgotten PIN is not changed here: a platform administrator clears it
+   *   (`clear`), and the seat enrols again.
+   *
+   * Only the user themselves may enrol. An administrator who could set
+   * another user's PIN could sign in their name; enforced by the caller,
+   * which takes the user from the token.
    */
-  async enroll(userRef: string, pin: string): Promise<void> {
+  async enroll(
+    userRef: string,
+    pin: string,
+    currentPin?: string,
+  ): Promise<EnrolmentOutcome> {
     if (pin.length < MIN_PIN_LENGTH) {
       throw new InputError(
         `Signing PIN must be at least ${MIN_PIN_LENGTH} characters.`,
@@ -100,6 +120,29 @@ export class SignaturePinReAuth implements ReAuthProvider {
     }
 
     const existing = await this.store.getSignatureCredential(userRef);
+    if (existing) {
+      if (!currentPin) {
+        throw new InputError(
+          'A signing PIN is already set for this account. Changing it requires ' +
+            'the current PIN (currentPin). If it is forgotten, a platform ' +
+            'administrator can reset it.',
+        );
+      }
+      const check = await this.verify(userRef, currentPin);
+      if (!check.ok) {
+        if (check.lockedUntil) {
+          throw new NotAllowedError(
+            `Too many failed signing attempts. Locked until ${check.lockedUntil.toISOString()}. ` +
+              'A locked PIN cannot be changed; wait until then, or ask a ' +
+              'platform administrator to reset it.',
+          );
+        }
+        throw new NotAllowedError(
+          'The current signing PIN is wrong. The PIN was not changed.',
+        );
+      }
+    }
+
     const salt = randomBytes(SALT_BYTES).toString('hex');
     const hash = await derive(pin, salt);
 
@@ -110,11 +153,37 @@ export class SignaturePinReAuth implements ReAuthProvider {
       algo: SCRYPT_ALGO,
       createdAt: existing?.createdAt ?? new Date(),
       updatedAt: new Date(),
-      // Re-enrolling clears a lockout; the user has proven possession of the
-      // account through the normal login.
+      // A change has just verified the current PIN, which already cleared
+      // the counter; a first enrolment starts from zero.
       failedAttempts: 0,
       lockedUntil: undefined,
     });
+    return existing ? 'CHANGED' : 'ENROLLED';
+  }
+
+  /**
+   * Clear a user's credential (NXD-138: administrator reset).
+   *
+   * Removes the PIN together with its failed-attempt counter and lockout. It
+   * never sets a PIN: the seat must enrol again, as a first enrolment, before
+   * its next signature, so the person who cleared it cannot sign as the seat.
+   *
+   * `record` is called with the credential about to be removed, before it is
+   * removed: the caller writes the audit event there, so that a failed audit
+   * write leaves the credential in place rather than gone and unrecorded.
+   * Answers false, and calls nothing, when there was no credential.
+   */
+  async clear(
+    userRef: string,
+    record: (removed: SignatureCredential) => Promise<void>,
+  ): Promise<boolean> {
+    const existing = await this.store.getSignatureCredential(userRef);
+    if (!existing) {
+      return false;
+    }
+    await record(existing);
+    await this.store.deleteSignatureCredential(userRef);
+    return true;
   }
 
   async verify(userRef: string, secret: string): Promise<ReAuthResult> {

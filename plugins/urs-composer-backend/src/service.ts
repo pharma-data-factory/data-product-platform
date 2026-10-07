@@ -72,6 +72,11 @@ import {
 import { assertTransition } from './domain/transitions';
 import type { LLMClient, GeneratedRequirement } from './llm-client';
 
+/** A user entity reference, `user:<namespace>/<name>` (NXD-138 reset target). */
+const USER_ENTITY_REF = /^user:[a-z0-9][a-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** Upper bound on an administrator's reset reason. */
+const MAX_RESET_REASON_LENGTH = 1000;
+
 export interface URSServiceOptions {
   logger: LoggerService;
   repository: IURSRepository;
@@ -1755,19 +1760,119 @@ export class URSService {
     return reAuth.name;
   }
 
-  /** Set or replace the caller's own signing PIN. */
-  async setSigningPin(actor: string, pin: string): Promise<void> {
+  /**
+   * Set the caller's first signing PIN, or change it (NXD-138).
+   *
+   * A change needs the current PIN: the rule is in `SignaturePinReAuth.enroll`,
+   * so that no caller can enrol around it. A first PIN is audited as
+   * `PIN_SET`, a change as `PIN_CHANGED`.
+   */
+  async setSigningPin(
+    actor: string,
+    pin: string,
+    currentPin?: string,
+  ): Promise<void> {
     const audit = this.beginAudit(actor);
-    await new SignaturePinReAuth(this.repository).enroll(actor, pin);
+    const outcome = await new SignaturePinReAuth(this.repository).enroll(
+      actor,
+      pin,
+      currentPin,
+    );
 
     await this.writeAudit(audit, this.repository, {
       id: this.generateUUID(),
       entityType: 'SIGNATURE_CREDENTIAL',
       entityId: actor,
-      eventType: 'PIN_SET',
+      eventType: outcome === 'CHANGED' ? 'PIN_CHANGED' : 'PIN_SET',
       actor,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Whether the caller has a signing PIN, and until when it is locked
+   * (NXD-138). Lets the PIN page ask for the current PIN only when there is
+   * one, and say that a locked seat cannot change it. Never the hash.
+   */
+  async getSigningPinStatus(
+    actor: string,
+  ): Promise<{ enrolled: boolean; lockedUntil?: string }> {
+    const credential = await this.repository.getSignatureCredential(actor);
+    if (!credential) {
+      return { enrolled: false };
+    }
+    const locked =
+      credential.lockedUntil && credential.lockedUntil > new Date()
+        ? credential.lockedUntil.toISOString()
+        : undefined;
+    return locked ? { enrolled: true, lockedUntil: locked } : { enrolled: true };
+  }
+
+  /**
+   * A platform administrator clears another seat's signing PIN (NXD-138).
+   *
+   * - Clears, never sets: the PIN, its failed-attempt counter and its lockout
+   *   go together, and the seat enrols again, as a first enrolment, before
+   *   its next signature. The administrator therefore cannot sign as the seat.
+   * - A reason is required, and the act is audited as `PIN_RESET` on the
+   *   seat's credential: who reset whom, when, why, and the lockout state it
+   *   lifted. In the same transaction as the removal, before it.
+   * - Not one's own seat. A reset followed by a free first enrolment would
+   *   let an administrator's session replace that administrator's PIN, which
+   *   is the bypass NXD-136 closes; another administrator resets it.
+   * - Authorization (`platform.user.manage`) is the router's.
+   */
+  async resetSigningPin(
+    actor: string,
+    targetUserRef: string,
+    reason: string,
+  ): Promise<void> {
+    const target = targetUserRef.trim();
+    const why = reason.trim();
+    if (!USER_ENTITY_REF.test(target)) {
+      throw new InputError(
+        `userEntityRef must be a user entity reference such as user:default/jdoe; got "${targetUserRef}".`,
+      );
+    }
+    if (!why) {
+      throw new InputError('A reason is required to reset a signing PIN.');
+    }
+    if (why.length > MAX_RESET_REASON_LENGTH) {
+      throw new InputError(
+        `The reason may be at most ${MAX_RESET_REASON_LENGTH} characters.`,
+      );
+    }
+    if (target === actor) {
+      throw new NotAllowedError(
+        'An administrator cannot reset their own signing PIN: the reset and ' +
+          'the free enrolment after it would let one session replace its own ' +
+          'second factor. Ask another platform administrator.',
+      );
+    }
+
+    const audit = this.beginAudit(actor);
+    const cleared = await this.repository.withTransaction(repo =>
+      new SignaturePinReAuth(repo).clear(target, removed =>
+        this.writeAudit(audit, repo, {
+          id: this.generateUUID(),
+          entityType: 'SIGNATURE_CREDENTIAL',
+          entityId: target,
+          eventType: 'PIN_RESET',
+          oldValue: {
+            failedAttempts: removed.failedAttempts,
+            lockedUntil: removed.lockedUntil
+              ? new Date(removed.lockedUntil).toISOString()
+              : null,
+          },
+          newValue: { reason: why, resetBy: actor },
+          actor,
+          timestamp: new Date(),
+        }),
+      ),
+    );
+    if (!cleared) {
+      throw new NotFoundError(`${target} has no signing PIN to reset.`);
+    }
   }
 
   async listSignatures(versionId: string): Promise<Signature[]> {

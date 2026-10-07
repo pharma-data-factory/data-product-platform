@@ -1362,6 +1362,10 @@ export class PostgresURSRepository implements IURSRepository {
       .update({ failed_attempts: failedAttempts, locked_until: lockedUntil });
   }
 
+  async deleteSignatureCredential(userRef: string): Promise<void> {
+    await this.db('signature_credentials').where({ user_ref: userRef }).del();
+  }
+
   // ============================================================================
   // TRANSACTIONS
   // ============================================================================

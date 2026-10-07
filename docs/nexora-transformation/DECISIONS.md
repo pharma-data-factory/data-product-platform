@@ -7914,6 +7914,10 @@ this.
 - Status: **proposed.** Recorded as a follow-up ticket at the user's
   direction. Ranked in `PHASE_CLOSURE_PLAN.md` §9.4 (rank 10). Nothing is
   changed by this record.
+- **Decided 2026-10-07 by the user: options 1 and 2. In force through
+  `NXD-138`, which supersedes this record's proposal.** The title's
+  "(proposed, not in force)" and the text below are kept as written on
+  2026-10-06.
 
 **Finding (`NXD-135`).** `PUT /urs-composer/signing-pin` enrols the caller's
 PIN through `SignaturePinReAuth.enroll`, and it does so **whether or not a PIN
@@ -8080,3 +8084,179 @@ about builds at all.
   (+ tests);
   `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/TestsTab.tsx,tabs/RegistryPublication.tsx}`
   (+ tests).
+
+### NXD-138 — Changing a signing PIN needs the current one, and an administrator can clear a PIN but never set one
+
+- Date: 2026-10-07
+- Decided by: the user, on `NXD-136` (options 1 and 2), which this record
+  puts in force.
+- Slice: the closure plan's §9.4 rank 10.
+
+**Context.** `NXD-135` found, and `NXD-136` recorded, that
+`PUT /urs-composer/signing-pin` replaced a PIN without asking for the current
+one. Whoever held a seat's session could therefore re-issue the seat's second
+factor and sign as the seat. That one PIN serves every signature on the
+platform: URS approvals, validation decisions (`NXD-119`), and product
+approval and release (`NXD-128`).
+
+**Decision (the user's choice).**
+
+1. **A first enrolment is free; a change needs the current PIN.**
+   - The rule is in `SignaturePinReAuth.enroll`, the one place a PIN is
+     written, so no caller can enrol around it. It returns `ENROLLED` or
+     `CHANGED`; the audit says `PIN_SET` or `PIN_CHANGED`.
+   - The current PIN goes through `verify`, the same path and lockout as a
+     signature. A wrong one counts as a failed attempt. A locked seat cannot
+     change its PIN, not even with the right one.
+   - **Status codes.** A change without `currentPin` is **400**, because the
+     request lacks what the change requires (a signature without a PIN is 400
+     too, `NXD-128`), and no attempt is counted. A wrong current PIN is
+     **403**, and so is a locked seat, which names the time it is locked
+     until.
+   - On a first enrolment `currentPin` is ignored, so a caller that always
+     sends it works on a fresh seat and on a rerun. The e2e spec now does.
+2. **An administrator can clear a PIN, never set one.**
+   `POST /urs-composer/signing-pin/reset` with `{ userEntityRef, reason }`.
+   - **Who may.** `platform.user.manage`, the existing user-management
+     permission of PLATFORM_ADMIN, which already authorizes
+     `users-backend`. No new permission and no new role.
+   - **What it does.** It removes the credential: PIN, `failed_attempts`
+     and `locked_until` together, so the reset lifts a lockout, as the user
+     chose. The seat must enrol again, as a first enrolment, before its next
+     signature.
+   - **Never set.** A body that carries `pin`, `newPin` or `currentPin` is
+     refused with 400. `PUT /signing-pin` takes the user from the token only,
+     as before.
+   - **Reason and audit.** A reason is required (400 without one, at most
+     1000 characters). The reset writes `PIN_RESET` on the seat's
+     `SIGNATURE_CREDENTIAL` to the append-only audit trail: actor (who),
+     entity (whom), timestamp (when), `newValue.reason` (why), and in
+     `oldValue` the attempts and lockout it lifted.
+   - **Order.** The audit event and the removal run in one transaction, with
+     the event first (`SignaturePinReAuth.clear` calls the recorder before it
+     deletes). A failed audit write leaves the credential where it was.
+   - **Errors.** A seat without a PIN is 404, and nothing is audited. A
+     malformed reference is 400.
+3. **No exemption for demo seats.** Live runs use an administrator reset.
+   `demo-pm`'s PIN from `NXD-135` is left as it is.
+4. **OIDC step-up stays the long-term target.** `OidcStepUpReAuth` remains a
+   stub that refuses.
+
+**Decided here, beyond the user's four points, and named for review: an
+administrator cannot reset their own seat (403).** A reset followed by the free
+first enrolment would let an administrator's session replace that
+administrator's own PIN, which is exactly the bypass `NXD-136` closes. Another
+administrator resets it. This is stricter than the decision, never looser. If
+the user wants self-reset, it is a one-line removal in
+`URSService.resetSigningPin`.
+
+**Pages.**
+
+- **URS Composer, *Set signing PIN*.** The dialog reads the new
+  `GET /signing-pin`, which answers `{ enrolled, lockedUntil? }`, the
+  caller's own and never the hash.
+  - With a PIN, it is titled *Change signing PIN* and asks for the current
+    PIN; Save stays disabled without it.
+  - A locked seat is told that its PIN is locked until when, that a locked
+    PIN cannot be changed, and that it can wait or ask an administrator.
+    It is offered no Save.
+- **Admin → Users & Roles.** Every user gains *Reset signing PIN*. It opens
+  a dialog with a required reason and no PIN field, and shows a refusal in
+  the server's words.
+- **Validation Expert's PIN dialog** (`DecisionPanel`) gains an optional
+  *Current PIN (only when changing)* and sends it. Without it, a change is
+  refused with the server's message.
+- **Product `ApprovalDialog`.** The "No PIN yet?" hint now adds that an
+  administrator resets a forgotten or locked PIN.
+  `composer-backend/src/pin-verifier.ts` is unchanged: it calls
+  `/signing-pin/verify`, whose behaviour did not change, and already passes
+  the refusal through.
+
+**Verified.**
+
+- **Domain** (`domain/reauth.test.ts`, 21 tests, +9 and 1 replaced):
+  - a first enrolment needs no current PIN;
+  - a change without one is refused, the hash is unchanged, and no attempt
+    is counted;
+  - the right current PIN changes the PIN;
+  - a wrong one is refused and counted, and five lock the seat;
+  - a locked seat cannot change, even with the right PIN;
+  - `clear` removes PIN and lockout, records before it deletes, leaves the
+    credential when the record fails, and calls nothing for a seat without
+    a PIN;
+  - after `clear`, a free enrolment works.
+
+  The old test "re-enrolling lifts a lockout" asserted the behaviour this
+  record removes, and is replaced by the locked-seat test.
+- **HTTP** (`signing-pin-change-reset-http.test.ts`, 14 tests, real
+  router over a socket):
+  - first enrol 204 and status `enrolled`;
+  - change without the current PIN 400 (PIN kept), wrong 403 (counted),
+    right 204 (`PIN_SET`, `PIN_CHANGED`), locked 403 `Locked until … cannot
+    be changed`;
+  - `PUT` sets only the token's own PIN, whatever the body names;
+  - reset authorized by `platform.user.manage`; non-admin 403 with nothing
+    changed;
+  - no or blank reason 400;
+  - a body with `pin`, `newPin` or `currentPin` 400;
+  - reset 204 clears PIN and lockout, with `PIN_RESET` by the admin, about
+    the seat, reason trimmed, lockout in `oldValue`, correlation id set;
+  - after reset, verify answers "No signing PIN", a free enrolment is 204
+    and signs (`PIN_SET`, `PIN_RESET`, `PIN_SET`);
+  - own seat 403 while another admin succeeds;
+  - no PIN 404 and nothing audited; malformed reference 400.
+- **PostgreSQL** (`signing-pin-reset.postgres.test.ts`, 2 tests, against
+  the test container on :5435):
+  - the row is gone and exactly one `PIN_RESET` row holds the reason;
+  - that row refuses UPDATE and DELETE (`URS_APPEND_ONLY`);
+  - re-enrolment verifies;
+  - a failing audit write rolls the reset back, and the row and its lockout
+    stay.
+- **Existing contract:** `signing-pin-verify-http.test.ts` passes unchanged
+  (4 tests). `urs-composer-backend` 36 suites, 491 tests green.
+- **Frontend:**
+  - `SigningPinDialog.test.tsx` (4): no current field for a first PIN;
+    current field required and sent for a change; a refusal verbatim;
+    locked message and no Save;
+  - `ursComposerApi.test.ts` (+2): `currentPin` sent; status read;
+  - `SigningPinResetDialog.test.tsx` (2): reason required, body is
+    `{ userEntityRef, reason }` with no PIN, refusal verbatim.
+  - `plugins/urs-composer`: 109 tests, of which 9 fail, all in
+    `CreateWizard.test.tsx`. These are the pre-existing failures of §9.4
+    rank 8, and no new one.
+- **Gates.**
+  - `yarn tsc` clean; `yarn lint:all` exit 0 with no warnings;
+    `yarn guard:platform` `FAIL: 0`, `GUARDRAILS_OK`;
+    `node scripts/check-doc-links.mjs` all links resolve.
+  - `CI=true yarn test:all` with PostgreSQL: 2877 of 2878 tests, 286 of 287
+    suites. The one failure is `compatibilityPolicyParity`'s Python leg,
+    because this container has no `pydantic`. It is pre-existing.
+- **Not run live.** No running stack in this slice. The first live use will
+  be an administrator reset before a signature, per point 3.
+
+**Not changed, named.**
+
+- `signature_credentials` has no history of its own. The audit trail is the
+  history: `PIN_SET`, `PIN_CHANGED`, `PIN_RESET`.
+- The admin page addresses a seat as `user:default/<name>`, as the catalog
+  users it lists are all in `default`. The route takes any user reference.
+- The admin page does not show whether a seat has a PIN. A reset of a seat
+  without one answers 404, shown in the dialog. Showing the state would need
+  an admin read of other seats' credential status, which is not added.
+- A first enrolment still rests on the session alone. That is the decision
+  (option 1); option 3, a fresh sign-in or OIDC step-up for (re-)enrolment,
+  would close it.
+- `demo-pm`'s PIN from `NXD-135` stays enrolled (point 3).
+
+- Affected components:
+  `plugins/urs-composer-backend/src/{domain/reauth,service,router,repository,repository-interface,postgres-repository}.ts`
+  (+ `domain/reauth.test.ts`, `signing-pin-change-reset-http.test.ts`,
+  `signing-pin-reset.postgres.test.ts`);
+  `plugins/urs-composer/src/{api/ursComposerApi.ts,api/types.ts,components/SigningPinDialog/SigningPinDialog.tsx}`
+  (+ `SigningPinDialog.test.tsx`, `ursComposerApi.test.ts`);
+  `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx}`;
+  `packages/app/src/modules/admin/{UsersRolesPage.tsx,SigningPinResetDialog.tsx}`
+  (+ `SigningPinResetDialog.test.tsx`);
+  `packages/app/src/modules/products/tabs/ApprovalDialog.tsx`;
+  `packages/app/e2e-tests/urs-approval-chain.spec.ts`;
+  `docs/compliance/traceability-and-gmp.md`.

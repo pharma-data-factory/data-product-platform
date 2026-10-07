@@ -365,6 +365,42 @@ describe('URSComposerApi', () => {
       );
     });
 
+    test('setSigningPin sends the current PIN when changing one (NXD-138)', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        json: async () => {
+          throw new SyntaxError('Unexpected end of JSON input');
+        },
+      });
+
+      await createApi().setSigningPin('second-pin-2', 'first-pin-1');
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/signing-pin'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ pin: 'second-pin-2', currentPin: 'first-pin-1' }),
+        }),
+      );
+    });
+
+    test('getSigningPinStatus reads the caller’s own status (NXD-138)', async () => {
+      (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ enrolled: true, lockedUntil: '2026-10-07T12:15:00.000Z' }),
+      });
+
+      await expect(createApi().getSigningPinStatus()).resolves.toEqual({
+        enrolled: true,
+        lockedUntil: '2026-10-07T12:15:00.000Z',
+      });
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/signing-pin$/),
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
     test('listSignatures unwraps the items the route wraps them in', async () => {
       (fetchApi.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,

@@ -228,9 +228,10 @@ export interface ValidationExpertApi {
   ): Promise<ValidationDecisionState>;
   /**
    * Set the caller's own signing PIN. It lives in the URS Composer: one
-   * signing credential for every signature on the platform.
+   * signing credential for every signature on the platform. Changing an
+   * existing PIN needs the current one (NXD-138).
    */
-  setSigningPin(pin: string): Promise<void>;
+  setSigningPin(pin: string, currentPin?: string): Promise<void>;
 }
 
 export const validationExpertApiRef = createApiRef<ValidationExpertApi>({
@@ -419,12 +420,12 @@ export class ValidationExpertClient implements ValidationExpertApi {
     );
   }
 
-  async setSigningPin(pin: string): Promise<void> {
+  async setSigningPin(pin: string, currentPin?: string): Promise<void> {
     const base = await this.options.discoveryApi.getBaseUrl('urs-composer');
     const response = await this.options.fetchApi.fetch(`${base}/signing-pin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin }),
+      body: JSON.stringify(currentPin ? { pin, currentPin } : { pin }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
