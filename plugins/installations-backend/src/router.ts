@@ -29,6 +29,7 @@ import {
   BasicPermission,
 } from '@backstage/plugin-permission-common';
 import {
+  isArtifactSegment,
   installationManagePermission,
   installationReadPermission,
   installationTargetManagePermission,
@@ -156,6 +157,30 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       await authorize(req, installationReadPermission);
       res.json(await service.getTarget(req.params.id));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  // ==========================================================================
+  // CLASSIFICATION
+  // ==========================================================================
+
+  /**
+   * GET /artifacts/:namespace/:name/gmp-classification (NXD-141)
+   *
+   * What an act on this artifact will ask for, so the Install dialog shows a
+   * signature or a confirmation before anyone types. The same classifier the
+   * act uses, on the caller's behalf; the act classifies again and decides.
+   */
+  router.get('/artifacts/:namespace/:name/gmp-classification', async (req, res) => {
+    try {
+      const { credentials } = await authorize(req, installationReadPermission);
+      const { namespace, name } = req.params;
+      if (!isArtifactSegment(namespace) || !isArtifactSegment(name)) {
+        throw new InputError(`Invalid artifact coordinate "${namespace}/${name}"`);
+      }
+      res.json(await options.classify(credentials, { namespace, name }));
     } catch (err) {
       respondError(res, logger, err);
     }

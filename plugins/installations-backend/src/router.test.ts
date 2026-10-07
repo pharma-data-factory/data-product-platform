@@ -218,12 +218,30 @@ describe('installations router', () => {
       [`/installations/${id}/acts`, 'GET'],
       [`/installations/${id}/audit`, 'GET'],
       [`/installations/${id}/qualifications`, 'GET'],
+      ['/artifacts/pharma/oee/gmp-classification', 'GET'],
     ] as const) {
       const response = await request(path, method, method === 'POST' ? {} : undefined);
       expect([method, path, response.status]).toEqual([method, path, 403]);
     }
     principal = 'none';
     expect((await request('/installations')).status).toBe(401);
+  });
+
+  it('tells the dialog what an act will ask for, under installation.read (NXD-141)', async () => {
+    world.state.classification = { gmpRelevant: true, source: 'NO_PRODUCT' };
+    const response = await request('/artifacts/pharma/oee/gmp-classification');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ gmpRelevant: true, source: 'NO_PRODUCT' });
+    expect(checked).toEqual(['installation.read']);
+    expect(handedCredentials).toEqual([
+      { principal: { type: 'user', userEntityRef: OPERATOR } },
+    ]);
+    expect(world.classify).toHaveBeenCalledWith({ namespace: 'pharma', name: 'oee' });
+
+    expect((await request('/artifacts/Pharma/oee/gmp-classification')).status).toBe(400);
+    denied.add('installation.read');
+    expect((await request('/artifacts/pharma/oee/gmp-classification')).status).toBe(403);
+    expect(world.classify).toHaveBeenCalledTimes(1);
   });
 
   it('answers /health without credentials', async () => {

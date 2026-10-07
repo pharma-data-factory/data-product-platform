@@ -698,12 +698,14 @@ export {
   MARKETPLACE_OFFERING_STATUSES,
   MARKETPLACE_SPEC_KEY,
   UNCERTIFIED_STATUS,
+  installableVersions,
   manifestsFromRegistry,
   marketplaceOfferingsFromRegistry,
   marketplaceViewOfManifest,
   representativeVersion,
 } from './marketplace-artifact';
 export type {
+  InstallableVersionView,
   MarketplaceManifestView,
   MarketplaceOfferingStatus,
   MarketplaceOfferingView,

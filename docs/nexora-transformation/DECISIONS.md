@@ -8618,3 +8618,138 @@ by this record.
 - Affected components: `plugins/installations-backend/src/clients.ts`
   (+ `clients.test.ts`, `service.test.ts`);
   `packages/platform-common/src/artifact-installation.ts` (doc comment).
+
+### NXD-141 — A released, built Data Product is listed in the Marketplace and installed from it
+
+- Date: 2026-10-07
+- Slice: MVP1 step 7 of [`NXD-129`](DECISIONS.md): *Install* in the
+  Marketplace, on the store [`NXD-139`](DECISIONS.md) built, with the rule
+  [`NXD-140`](DECISIONS.md) fixed.
+- Decided by: the user ("next: step 7", 2026-10-07); the listing rule below
+  was decided here and is named for review.
+
+**Context.** After `NXD-139` the installations store accepts an install, and
+nothing in the UI can send one. A first look found a second gap in front of
+the first: **the product `NXD-137` released was not in the Marketplace at
+all.** The Marketplace read only manifests carrying a `spec.marketplace`
+block, and `nexora.yaml` (`NXD-130`) states how a product runs, not which
+shelf it sits on. An *Install* button would have had no page to sit on.
+
+**Decision 1: a runnable Data Product with an installable version is listed
+without a Marketplace block.**
+
+- *Installable* means what the store checks (`NXD-139`): RELEASED, declares
+  `spec.runtime`, has a release build. `installableVersions()` in
+  platform-common computes it, newest first, with each version's digest and
+  `spec.config`. The store re-checks; this only keeps the dialog from
+  offering a version it would refuse.
+- The card is read from the manifest and the registry: name, description,
+  version, provider (the namespace), category *Data Products* (what its kind
+  already names), and the release page as documentation. Nothing else is
+  invented.
+- **Why this rule.** RELEASED is the registry's word for "approved for
+  consumption", and a build is what an installation runs. A product that has
+  both and still could not be found would make the release meaningless to a
+  consumer. A manifest that has a Marketplace block keeps it; this rule only
+  fills the gap.
+- Every offering now carries its registry coordinate
+  (`artifactNamespace`, `artifactName`) and `installableVersions`.
+
+**Decision 2: the dialog asks what the store will ask, before anyone types.**
+
+- New read route in `installations-backend`:
+  `GET /artifacts/:namespace/:name/gmp-classification`, under
+  `installation.read`, user credentials only. It runs the classifier the act
+  uses, on the caller's behalf, so the dialog shows a signature or a
+  confirmation by the same rule (`NXD-140`). The act classifies again and
+  decides.
+- If the route cannot answer, the dialog asks for the signature, as the
+  store would.
+
+**Decision 3: what the Marketplace shows and offers.**
+
+- On the detail page of an installable product, an *Install* card:
+  - the artifact's installations, with target, version, desired state,
+    observed state ("no provider has reported" until one does) and
+    qualification status;
+  - **Install** for a role holding `installation.manage` (owners, admins),
+    computed with `permissionsForRole`. It is a hint for the button only, not
+    a new dependency, and the store checks the permission itself. Without a
+    registered target the card says so instead.
+- The dialog offers a version (with its digest), a target, a name (default:
+  the artifact name) and one field per `spec.config` key. A secret field
+  takes a secret *name* and is sent as `{ secretRef }`. An empty field is
+  left unset, so the manifest default applies. The configuration is
+  validated with the store's own `validateInstallationConfig` as the person
+  types, and every problem is named before anyone signs.
+- GMP-relevant: the meaning, why it is signed (governing product, no
+  governing product, or classification unreadable), the note that an IQ is
+  opened and QA signs it, a required justification and the PIN. Otherwise:
+  a confirmation box and an optional justification.
+- A refusal is shown in the store's words; the PIN field is cleared.
+- **The Entry card of an installable product drops three create-time rows**
+  (*Owner: Assigned during create*, *GitHub Repository: Created in this
+  installation's configured organisation*, the *Golden Path documentation*
+  link). They describe a Golden Path and were false for a released build.
+  The card shows the release page instead.
+
+**Verified.**
+
+- `platform-common` `marketplace-artifact`, +4: a released, built product
+  without a Marketplace block is listed with coordinate, digest and config;
+  a runnable product with no installable version is not; only RELEASED,
+  built, runnable versions are offered, newest first (`1.10.0` before
+  `1.0.0`); a Marketplace offering carries its coordinate and no installable
+  version.
+- `installations-backend` router, +1, and the service-principal test now
+  covers the new route: 200 with the classifier's answer and the caller's
+  own credentials, 400 for a bad coordinate, 403 without `installation.read`
+  (classifier not asked), 403 for a service principal.
+- `marketplace`, +11: `installConfigFromForm` (empty unset, secret as a
+  reference, every problem named, a pasted secret not echoed) and the card
+  and dialog (only this artifact's installations; Install only with the
+  permission and a target; a failed load says so; a GMP install sends the
+  justification, the PIN and the configuration; a refusal is shown verbatim
+  and clears the PIN; a literal secret blocks signing; a non-GMP install
+  asks only for a confirmation; an unreadable classification asks for the
+  signature).
+- `CI=true` with PostgreSQL: `marketplace`, `installations-backend` and
+  `platform-common` 708 tests in 43 suites pass. `yarn lint:all` and `tsc`
+  are clean.
+- **Live, against the running instance** (demo mode, local PostgreSQL):
+  - the registry listing now yields the `NXD-137` product
+    `pharma-data-factory/oee-e2e-test-20261005-d`, as *Data Products*,
+    version `1.0.0` at `sha256:6e696d5f…`, 14 configuration keys, its GitHub
+    release as documentation (13 offerings from 22 artifacts);
+  - the classification route answers `{ gmpRelevant: true, source: PRODUCT }`
+    for it as `demo-pm`;
+  - the detail page, as `demo-pm`, shows the *Install* card with "Not
+    installed on any target" and "No runtime target is registered yet", and
+    the reduced Entry card.
+
+**Not changed, named.**
+
+- **No install was performed live.** There is no runtime target, and none
+  could be registered: `POST /targets` needs `installation.target.manage`,
+  which only the admin tier holds, and no demo seat is an administrator.
+  Seeding one into the database by hand was refused by this session's
+  permission check and was not attempted another way. The dialog's install
+  path is verified by tests only.
+- **No UI to register a runtime target.** Only the API. It belongs with the
+  provider (step 8), which defines what a target is.
+- **No upgrade or removal in the UI.** The store has both routes.
+- **The listing rule is wider than "GMP-ready".** A COMMUNITY publisher's
+  released build is now listed too, with the existing community warning.
+  Installing it is signed (`NXD-140`). Whether publish should check the
+  Nexora release gate is still the open `NXD-137` finding.
+- The other three templates still ship no `nexora.yaml`, so only OEE
+  products can reach this page.
+
+- Affected components:
+  `packages/platform-common/src/{marketplace-artifact,index}.ts`
+  (+ `marketplace-artifact.test.ts`);
+  `plugins/installations-backend/src/router.ts` (+ `router.test.ts`);
+  `plugins/marketplace/src/{installationsApi,install,plugin,data}.ts(x)`,
+  `src/components/{InstallCard,MarketplaceDetailPage}.tsx`
+  (+ `install.test.ts`, `components/InstallCard.test.tsx`,
+  `offeringSource.test.ts`).

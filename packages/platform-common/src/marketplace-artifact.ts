@@ -34,6 +34,7 @@ import {
   type ArtifactKind,
   type ArtifactManifest,
 } from './artifact';
+import type { ConfigKeySchema } from './platform-component-library';
 import { parseVersionLabel } from './product';
 
 // ============================================================================
@@ -130,6 +131,23 @@ export interface MarketplaceOfferingView extends MarketplaceManifestView {
   publisherTrustLevel: string;
   /** True when the publisher is outside the Nexora organisation. */
   externalPublisher: boolean;
+  /** The registry coordinate the offering was read from (NXD-141). */
+  artifactNamespace: string;
+  artifactName: string;
+  /**
+   * The versions an installation may name, newest first (NXD-141): RELEASED,
+   * runnable and built. Empty for anything that cannot be installed.
+   */
+  installableVersions: InstallableVersionView[];
+}
+
+/** A version the Install dialog may offer (NXD-141). */
+export interface InstallableVersionView {
+  version: string;
+  /** The digest an installation of it runs at (NXD-137). */
+  imageDigest: string;
+  /** The manifest's `spec.config`, the form the dialog renders. */
+  config: ConfigKeySchema[];
 }
 
 // ============================================================================
@@ -243,7 +261,73 @@ export interface RegistryArtifactWithVersions {
     /** Set by review and certification. Absent until one of them has run. */
     certificationStatus?: string;
     manifest?: unknown;
+    /** The release build (NXD-137); only its digest is read here. */
+    releaseBuild?: { imageDigest: string; releaseUrl?: string };
   }[];
+}
+
+/**
+ * The versions of an artifact an installation may name, newest first
+ * (NXD-141): RELEASED, declaring how it runs, and built. The same three
+ * conditions the installations store checks (NXD-139); the store re-checks,
+ * this only keeps the dialog from offering a version it would refuse.
+ */
+export function installableVersions(
+  artifact: Pick<RegistryArtifactWithVersions, 'versions'>,
+): InstallableVersionView[] {
+  return (artifact.versions ?? [])
+    .filter(
+      version =>
+        version.lifecycle === 'RELEASED' &&
+        version.releaseBuild?.imageDigest &&
+        (version.manifest as ArtifactManifest | undefined)?.spec?.runtime !==
+          undefined,
+    )
+    .sort((a, b) => compareVersionLabels(b.version, a.version))
+    .map(version => ({
+      version: version.version,
+      imageDigest: version.releaseBuild?.imageDigest ?? '',
+      config: [
+        ...(((version.manifest as ArtifactManifest).spec?.config ??
+          []) as ConfigKeySchema[]),
+      ],
+    }));
+}
+
+/**
+ * The card of a runnable Data Product whose manifest carries no Marketplace
+ * block (NXD-141).
+ *
+ * `nexora.yaml` (NXD-130) states how a product runs and nothing about a shelf,
+ * so without this a released, built product never reached the Marketplace and
+ * could not be installed from it. RELEASED is already the registry's word for
+ * "approved for consumption"; that, plus a build, is what earns the card.
+ * Every field is read from the manifest or the registry; none is invented
+ * beyond the category its kind already names.
+ */
+function runnableProductView(
+  manifest: ArtifactManifest,
+  artifact: RegistryArtifactWithVersions,
+  releaseUrl: string | undefined,
+): MarketplaceManifestView | undefined {
+  if (
+    manifest.kind !== 'DATA_PRODUCT' ||
+    !manifest.metadata.description ||
+    validateArtifactManifest(manifest).length > 0
+  ) {
+    return undefined;
+  }
+  return {
+    id: manifest.metadata.name,
+    name: manifest.metadata.displayName ?? manifest.metadata.name,
+    category: 'Data Products',
+    version: manifest.metadata.version,
+    description: manifest.metadata.description,
+    provider: artifact.namespace,
+    compatibility: 'Container image, installed on a runtime target',
+    status: 'available',
+    documentation: releaseUrl ?? '',
+  };
 }
 
 /**
@@ -331,10 +415,22 @@ export function marketplaceOfferingsFromRegistry(
     if (!version?.manifest) {
       continue;
     }
-    const view = marketplaceViewOfManifest(version.manifest as ArtifactManifest);
+    const installable = installableVersions(artifact);
+    const view =
+      marketplaceViewOfManifest(version.manifest as ArtifactManifest) ??
+      (installable.length > 0
+        ? runnableProductView(
+            version.manifest as ArtifactManifest,
+            artifact,
+            version.releaseBuild?.releaseUrl,
+          )
+        : undefined);
     if (view) {
       offerings.push({
         ...view,
+        artifactNamespace: artifact.namespace,
+        artifactName: artifact.name,
+        installableVersions: installable,
         certificationStatus: version.certificationStatus ?? UNCERTIFIED_STATUS,
         // Phase 7 (P7-S3): propagate publisher trust to the Marketplace so UI
         // can show trust badges and disclaimers for vendor artifacts.

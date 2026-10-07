@@ -16,7 +16,10 @@ import {
   visibleDistribution,
   type CommercialCardStatus,
 } from '@internal/platform-common';
-import type { PlatformRole } from '@internal/platform-common';
+import type {
+  InstallableVersionView,
+  PlatformRole,
+} from '@internal/platform-common';
 
 export const MARKETPLACE_CATEGORIES = [
   'Templates',
@@ -92,6 +95,11 @@ export interface MarketplaceItem {
   publisherTrustLevel: string;
   /** True when the publisher is outside the Nexora organisation. Phase 7 (P7-S4). */
   externalPublisher: boolean;
+  /** The registry coordinate (NXD-141). Absent only on hand-built items. */
+  artifactNamespace?: string;
+  artifactName?: string;
+  /** Released, built, runnable versions, newest first (NXD-141). */
+  installableVersions?: InstallableVersionView[];
 }
 
 function refersTo(ref: string, product: DataProduct): boolean {

@@ -290,6 +290,15 @@ four quick wins F1–F4, one commit and one record each.
   an IQ record. Only a governing product answering NONE waives the
   signature. An administrator still cannot reset their own signing PIN; that
   rule from NXD-138 is now decided, not proposed. See [`NXD-140`](DECISIONS.md).
+- **MVP1 step 7: Install in the Marketplace.** A released, built Data
+  Product is now listed in the Marketplace even without a `spec.marketplace`
+  block. Before this, the product released in NXD-137 was not listed at all.
+  Its page has an *Install* card: where it is installed, and for owners and
+  admins a dialog with version, target, name, the `spec.config` fields
+  (secrets by reference) and the signature or confirmation the store will
+  ask for, read in advance from a new classification route. Verified live up
+  to the dialog. No install was run live, because there is no runtime target
+  and no demo seat may register one. See [`NXD-141`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
