@@ -142,7 +142,25 @@ export async function createRouter(
         res.json({ available: false, reason: 'unavailable' });
         return;
       }
-      const run = await github.getLatestCompletedRun(repo);
+      // NXD-151. Evidence is the default branch's, from a push: what was
+      // merged. Before, the newest completed run of any branch was taken, so
+      // a pull request's tests could be recorded as the version's evidence.
+      // `branch` names another branch explicitly; its push runs only.
+      const requested = typeof req.query.branch === 'string' ? req.query.branch.trim() : '';
+      let branch = requested;
+      if (!branch) {
+        if (!github.getDefaultBranch) {
+          res.json({ available: false, reason: 'unavailable' });
+          return;
+        }
+        const found = await github.getDefaultBranch(repo);
+        if (!found.ok) {
+          res.json({ available: false, reason: found.reason });
+          return;
+        }
+        branch = found.value;
+      }
+      const run = await github.getLatestCompletedRun(repo, { branch, event: 'push' });
       if (!run.ok) {
         res.json({ available: false, reason: run.reason });
         return;
@@ -156,6 +174,7 @@ export async function createRouter(
         url: run.value.htmlUrl,
         commit: run.value.headSha,
         branch: run.value.headBranch,
+        event: run.value.event,
         conclusion: run.value.conclusion,
         completedAt: run.value.completedAt,
       };

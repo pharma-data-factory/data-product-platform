@@ -215,3 +215,96 @@ describe('importTestEvidence (NXD-123)', () => {
   });
 });
 
+
+/**
+ * NXD-151. The same import, without a person: each product's newest DRAFT
+ * version with bound requirements, as `system:ci-evidence-sync`.
+ */
+describe('syncCiEvidence (NXD-151)', () => {
+  let db: Knex;
+  let repository: ComposerRepository;
+  let service: ComposerService;
+  const client: CiEvidenceClient & { getLatestEvidence: jest.Mock } = {
+    getLatestEvidence: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    db = knex({ client: 'better-sqlite3', connection: { filename: ':memory:' }, useNullAsDefault: true });
+    repository = await ComposerRepository.create({ getClient: () => db });
+    service = new ComposerService({
+      logger: mockLogger,
+      repository,
+      ursBaselineResolver: resolver,
+      ciEvidenceClient: client,
+    });
+    client.getLatestEvidence.mockReset();
+    client.getLatestEvidence.mockResolvedValue(
+      evidence([{ suite: 'unit', testCase: 't::calc', outcome: 'passed', requirements: ['URS-EPM-001'] }]),
+    );
+  });
+
+  afterEach(async () => {
+    await db?.destroy();
+  });
+
+  async function product(name: string, repositoryUrl?: string) {
+    return service.createProduct(
+      { name, productType: 'DATA_PRODUCT', ...(repositoryUrl ? { repositoryUrl } : {}) } as any,
+      actor,
+    );
+  }
+
+  it('imports into the newest bound DRAFT version only, once, as the sync actor', async () => {
+    const p = await product('oee-line-3', 'https://github.com/pharma-data-factory/oee.git');
+    const older = await service.createProductVersion(p.id, { version: '1.0' }, actor);
+    await service.bindUrsBaseline(older.id, BASELINE, actor);
+    // A later draft is the one under development.
+    await new Promise(r => setTimeout(r, 5));
+    const newer = await service.createProductVersion(p.id, { version: '1.1' }, actor);
+    await service.bindUrsBaseline(newer.id, BASELINE, actor);
+
+    const first = await service.syncCiEvidence();
+    expect(first.imported).toBe(1);
+    expect(first.versions).toEqual([
+      expect.objectContaining({ versionId: newer.id, imported: 1, alreadyRecorded: 0 }),
+    ]);
+    const evidence1 = await service.getVersionTestEvidence(newer.id);
+    expect(JSON.stringify(evidence1)).toContain('t::calc');
+    // An execution belongs to the requirement version (NXD-123), which both
+    // drafts share through one baseline: the older one sees it too. The sync
+    // chose the newer one; it did not import twice.
+    expect(client.getLatestEvidence).toHaveBeenCalledTimes(1);
+
+    const audit = await db('composer_audit_events').where({ actor: 'system:ci-evidence-sync' }).count({ n: '*' });
+    expect(Number(audit[0].n)).toBeGreaterThan(0);
+
+    // The same run again records nothing.
+    const second = await service.syncCiEvidence();
+    expect(second.imported).toBe(0);
+    expect(second.versions[0]).toEqual(expect.objectContaining({ imported: 0, alreadyRecorded: 1 }));
+  });
+
+  it('leaves a version past DRAFT alone, and skips products it cannot serve without stopping', async () => {
+    const approved = await product('approved-one', 'https://github.com/acme/a');
+    const v = await service.createProductVersion(approved.id, { version: '1.0' }, actor);
+    await service.bindUrsBaseline(v.id, BASELINE, actor);
+    await db('product_versions').where({ id: v.id }).update({ status: 'APPROVED' });
+
+    await product('no-repo');
+    const unbound = await product('unbound', 'https://github.com/acme/u');
+    await service.createProductVersion(unbound.id, { version: '1.0' }, actor);
+    const bound = await product('bound', 'https://github.com/acme/b');
+    const bv = await service.createProductVersion(bound.id, { version: '1.0' }, actor);
+    await service.bindUrsBaseline(bv.id, BASELINE, actor);
+
+    const result = await service.syncCiEvidence();
+    expect(result.versions.map(o => [o.versionId === bv.id, o.skipped ?? 'ok'])).toEqual(
+      expect.arrayContaining([
+        [false, expect.stringMatching(/No URS baseline is bound/)],
+        [true, 'ok'],
+      ]),
+    );
+    expect(result.versions.some(o => o.versionId === v.id)).toBe(false);
+    expect(result.imported).toBe(1);
+  });
+});

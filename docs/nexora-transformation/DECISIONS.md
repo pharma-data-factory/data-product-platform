@@ -9828,3 +9828,109 @@ of which `NXD-149` itself had introduced.
   `tests/test_contract.py`, `requirements.txt`, `Dockerfile`,
   `.github/workflows/ci.yml`, `nexora.yaml`;
   `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-151 — CI evidence is the default branch's, and Nexora imports it without a button
+
+- Date: 2026-10-08
+- Slice: §9.7 S5 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), part
+  a. The pull request preview is S5b.
+- Decided by: the user ("S5", 2026-10-08). The rules below (which runs
+  count, which version receives them) were chosen here and are named for
+  review.
+
+**Context.** `NXD-123` built *Import CI evidence*. A person presses it, and
+Nexora pulls the newest CI run's `nexora-test-evidence` and records one
+test execution per matched requirement. The user expects validation evidence
+to arrive on its own once code is created, as the base for AI-assisted
+build (S6).
+
+**Found.** **The import could record a pull request's tests as the
+version's evidence.**
+- `getLatestCompletedRun` asked GitHub for the newest completed run of
+  `ci.yml`, of any branch and any event. `ci.yml` runs on every pull
+  request.
+- Pressing the button while a pull request had the newest run recorded
+  tests of code that was never merged, possibly never reviewed, as
+  verification of the version's requirements.
+
+**Decision.**
+
+- **Evidence is what was merged.**
+  - `GET /ci-evidence` (data-products) resolves the repository's default
+    branch and takes the newest completed run of `ci.yml` for that branch
+    and `event=push`.
+  - `branch=` names another branch explicitly, still push runs only.
+  - If the default branch cannot be read, the answer is `available: false`
+    with the reason, not a guess.
+  - The run's `branch` and `event` are in the answer.
+- **Nexora imports on its own.**
+  - A scheduled task in composer-backend (`composer-ci-evidence-sync`,
+    every `composer.ciEvidence.syncIntervalMinutes`, default 15, `0`
+    disables) runs `importTestEvidence` for each product that has a
+    repository.
+  - It imports into the product's newest DRAFT version that has
+    requirements bound. The actor is `system:ci-evidence-sync`, in the
+    audit trail.
+  - It is idempotent, because a run is recorded once (`NXD-123`).
+  - A product it cannot serve (no repository, no run, no artifact, no
+    bound requirement) is reported in the pass result, not raised. One
+    product does not stop the pass.
+- **A version past DRAFT is not touched.** Under approval, a release
+  candidate, or released, a version keeps the evidence it has unless a
+  person imports more. An approval must not change underneath the approver.
+
+**Alternatives considered.**
+
+- *A GitHub webhook on `workflow_run`.* Rejected for now. Nexora would have
+  to be reachable from GitHub, and `NXD-123` chose pull so that it need not
+  be. The interval bounds the delay at 15 minutes.
+- *Import into every open version.* Rejected. An execution belongs to the
+  *requirement version* (`NXD-123`), so versions bound to one baseline
+  already share it. Importing per version would only repeat the GitHub
+  call. A version under approval is excluded on purpose (above).
+- *Count pull-request runs as evidence.* Rejected: that is the defect.
+  What a pull request would verify is S5b's preview, never recorded.
+
+**Verified.**
+
+- `data-products-backend`:
+  - `ciEvidenceRoute.test.ts` (new, 4): default branch, push only; a named
+    branch, push only; unknown default → unavailable, no guess; branch and
+    event in the answer.
+  - `githubActions.test.ts` +2: the run query carries `branch` and `event`;
+    the default branch is read from the repository.
+  - 140/140.
+- `composer-backend` `testEvidenceImport.test.ts` +2:
+  - the newest bound DRAFT is chosen, imported once as the sync actor, and
+    the same run again records nothing;
+  - an APPROVED version is left alone;
+  - products without a repository or a binding are skipped without
+    stopping the pass.
+- **Live**, against the running instance:
+  - `GET /api/data-products/ci-evidence` for
+    `pharma-data-factory/oee-e2e-test-20261005-d` answered run
+    `37492605890`, `branch: main`, `event: push`, commit `431fd71`, with 86
+    results;
+  - the scheduler registered the task (PT15M) and its first pass ran
+    after one minute: 0 imported across 0 draft versions. The development
+    database has no DRAFT version with a repository and a bound baseline.
+    The `NXD-137` product's version is APPROVED and was, correctly, not
+    touched.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- **Commit linkage.** Evidence of the default branch's head is attached to
+  the draft whatever commit the draft will be built from. Tying a version
+  to a commit before its release is not modelled.
+- **No UI change.** The Tests tab shows the imported executions as before.
+  It does not say when the last sync ran.
+- **Pull requests (S5b):** a read-only preview, per open pull request, of
+  which bound requirements its run would verify and whether the coverage
+  part of the release gate would pass.
+
+- Affected components: `plugins/data-products-backend/src/` — `types.ts`,
+  `githubActions.ts`, `router.ts` (+ `ciEvidenceRoute.test.ts` (new),
+  `githubActions.test.ts`); `plugins/composer-backend/src/` — `service.ts`
+  (`syncCiEvidence`, `CI_EVIDENCE_SYNC_ACTOR`), `plugin.ts` (scheduled
+  task) (+ `testEvidenceImport.test.ts`).

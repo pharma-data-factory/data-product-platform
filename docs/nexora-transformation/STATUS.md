@@ -381,6 +381,13 @@ four quick wins F1–F4, one commit and one record each.
   Its manifest no longer claims storage: assets are kept in memory, and the
   persistence settings were read by no code. Making AAS a full official data
   product is S4a-2. See [`NXD-150`](DECISIONS.md).
+- **S5: CI evidence arrives on its own.** Every 15 minutes Nexora imports
+  each product's newest default-branch CI evidence into its newest DRAFT
+  version with requirements bound, as `system:ci-evidence-sync`. Versions
+  under approval are not touched. Found and fixed: the manual import took
+  the newest run of any branch, so a pull request's unmerged tests could
+  count as the version's verification. The pull request preview is S5b. See
+  [`NXD-151`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

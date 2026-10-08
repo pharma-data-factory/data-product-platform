@@ -121,8 +121,9 @@ export const composerPlugin = createBackendPlugin({
         discovery: coreServices.discovery,
         auth: coreServices.auth,
         config: coreServices.rootConfig,
+        scheduler: coreServices.scheduler,
       },
-      async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config }) {
+      async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config, scheduler }) {
         const repository = await ComposerRepository.create(database);
         // Every one of these degrades quietly on failure — by design, but the
         // logger is what makes the degradation visible. Without it a broken
@@ -178,6 +179,25 @@ export const composerPlugin = createBackendPlugin({
           path: '/health',
           allow: 'unauthenticated',
         });
+
+        // NXD-151. CI evidence reaches Nexora without a button. 0 disables.
+        const syncMinutes =
+          config.getOptionalNumber('composer.ciEvidence.syncIntervalMinutes') ?? 15;
+        if (syncMinutes > 0) {
+          await scheduler.scheduleTask({
+            id: 'composer-ci-evidence-sync',
+            frequency: { minutes: syncMinutes },
+            timeout: { minutes: 10 },
+            initialDelay: { minutes: 1 },
+            fn: async () => {
+              const result = await service.syncCiEvidence();
+              logger.info(
+                `CI evidence sync: ${result.imported} execution(s) imported across ` +
+                  `${result.versions.length} draft version(s)`,
+              );
+            },
+          });
+        }
 
         // 7-R5: Register Nexora Core as a PLATFORM_PRODUCT on first startup.
         bootstrapPlatformProduct({ repository, logger }).catch(() => {/* non-fatal */});

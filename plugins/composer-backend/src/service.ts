@@ -115,6 +115,10 @@ import type { PolicyResolverClient } from './policy-resolver-client';
  * `ProductRequirement.requirementRef` holds. What was missing is anyone asking
  * for it from the product side.
  */
+
+/** The actor of evidence Nexora imported on its own (NXD-151). */
+export const CI_EVIDENCE_SYNC_ACTOR = 'system:ci-evidence-sync';
+
 export interface ValidationCoverageSummary {
   contextId: string;
   /** True only when the context carries an APPROVED ValidationDecision. */
@@ -2503,6 +2507,65 @@ export class ComposerService {
       ...(options?.reason ? { reason: options.reason } : {}),
     });
     return { ...updated, revision: (baseline.revision || 1) + 1 };
+  }
+
+  /**
+   * NXD-151. Imports CI evidence for every product without a person pressing
+   * the button: the default branch's newest push run (data-products filters
+   * it), into each product's newest DRAFT version that has requirements
+   * bound. A version past DRAFT — under approval, a release candidate,
+   * released — keeps the evidence it has unless a person imports more: an
+   * approval must not change underneath the approver.
+   *
+   * Idempotent, because `importTestEvidence` records a run once. A product
+   * with nothing to import (no repository, no run, no artifact, no bound
+   * requirement) is reported, not raised; one product's failure does not
+   * stop the pass.
+   */
+  async syncCiEvidence(actor = CI_EVIDENCE_SYNC_ACTOR): Promise<{
+    imported: number;
+    versions: Array<{
+      productId: string;
+      versionId: string;
+      imported?: number;
+      alreadyRecorded?: number;
+      skipped?: string;
+    }>;
+  }> {
+    const outcome: Awaited<ReturnType<ComposerService['syncCiEvidence']>> = {
+      imported: 0,
+      versions: [],
+    };
+    const pageSize = 200;
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await this.repository.listProducts(pageSize, offset);
+      for (const product of page.items) {
+        if (!product.repositoryUrl) continue;
+        const drafts = (await this.repository.listProductVersions(product.id))
+          .filter(v => v.status === 'DRAFT')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const version = drafts[0];
+        if (!version) continue;
+        try {
+          const result = await this.importTestEvidence(version.id, actor);
+          outcome.imported += result.imported;
+          outcome.versions.push({
+            productId: product.id,
+            versionId: version.id,
+            imported: result.imported,
+            alreadyRecorded: result.alreadyRecorded,
+          });
+        } catch (error) {
+          outcome.versions.push({
+            productId: product.id,
+            versionId: version.id,
+            skipped: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (offset + pageSize >= page.total) break;
+    }
+    return outcome;
   }
 
   /**

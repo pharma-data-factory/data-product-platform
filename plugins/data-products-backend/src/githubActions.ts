@@ -128,12 +128,27 @@ export function createGithubActionsClient(options: {
       return { ok: true, value: firstRun(allRuns.value) };
     },
 
-    async getLatestCompletedRun(repo) {
+    async getLatestCompletedRun(repo, filter) {
+      const query = [
+        'status=completed',
+        ...(filter?.branch ? [`branch=${encodeURIComponent(filter.branch)}`] : []),
+        ...(filter?.event ? [`event=${encodeURIComponent(filter.event)}`] : []),
+        'per_page=1',
+      ].join('&');
       const runs = await authorizedRequest(
         repo,
-        `${repoPath(repo)}/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=completed&per_page=1`,
+        `${repoPath(repo)}/actions/workflows/${CI_WORKFLOW_FILE}/runs?${query}`,
       );
       return runs.ok ? { ok: true, value: firstRun(runs.value) } : runs;
+    },
+
+    async getDefaultBranch(repo) {
+      const info = await authorizedRequest(repo, repoPath(repo));
+      if (!info.ok) return info;
+      const branch = (info.value as { default_branch?: unknown }).default_branch;
+      return typeof branch === 'string' && branch
+        ? { ok: true, value: branch }
+        : { ok: false, reason: 'unavailable' };
     },
 
     async downloadArtifact(repo, runId, name) {
@@ -320,6 +335,7 @@ function firstRun(body: unknown): GithubWorkflowRun | undefined {
     headBranch: typeof run.head_branch === 'string' ? run.head_branch : '',
     headSha: typeof run.head_sha === 'string' ? run.head_sha : '',
     htmlUrl: typeof run.html_url === 'string' ? run.html_url : '',
+    ...(typeof run.event === 'string' ? { event: run.event } : {}),
     startedAt: [run.run_started_at, run.created_at].find(
       (value): value is string => typeof value === 'string',
     ),

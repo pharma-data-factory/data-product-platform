@@ -208,6 +208,30 @@ describe('createGithubActionsClient', () => {
       );
     });
 
+    it('narrows the completed run to a branch and an event (NXD-151)', async () => {
+      const fetchFn = jest.fn(async () => jsonResponse(200, { workflow_runs: [{ id: 8, event: 'push' }] }));
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      const run = await client.getLatestCompletedRun!(repo, { branch: 'release/1.x', event: 'push' });
+      expect(run).toMatchObject({ ok: true, value: { id: 8, event: 'push' } });
+      expect(String((fetchFn.mock.calls[0] as unknown[])[0])).toContain(
+        '/actions/workflows/ci.yml/runs?status=completed&branch=release%2F1.x&event=push&per_page=1',
+      );
+    });
+
+    it('reads the default branch from the repository (NXD-151)', async () => {
+      const fetchFn = jest.fn(async () => jsonResponse(200, { default_branch: 'trunk' }));
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      expect(await client.getDefaultBranch!(repo)).toEqual({ ok: true, value: 'trunk' });
+    });
+
     it('downloads the named, unexpired artifact of a run as bytes', async () => {
       const zipBytes = Buffer.from('PK-zip-bytes');
       const fetchFn = jest.fn(async (url: string) => {

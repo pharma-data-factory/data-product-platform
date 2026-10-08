@@ -59,6 +59,8 @@ export interface GithubWorkflowRun {
   headBranch: string;
   headSha: string;
   htmlUrl: string;
+  /** `push`, `pull_request`, `workflow_call`, … (NXD-151). */
+  event?: string;
   startedAt?: string;
   completedAt?: string;
 }
@@ -77,10 +79,17 @@ export interface GithubActionsClient {
     repo: GithubRepoRef,
     runId: number,
   ): Promise<QualityStage[]>;
-  /** NXD-123. The newest completed run of the CI workflow. */
+  /**
+   * NXD-123. The newest completed run of the CI workflow; NXD-151 narrows it
+   * to a branch and an event, so a pull request's run is not taken for the
+   * default branch's.
+   */
   getLatestCompletedRun?(
     repo: GithubRepoRef,
+    filter?: { branch?: string; event?: string },
   ): Promise<GithubFetchResult<GithubWorkflowRun | undefined>>;
+  /** NXD-151. The repository's default branch. */
+  getDefaultBranch?(repo: GithubRepoRef): Promise<GithubFetchResult<string>>;
   /** NXD-123. A run's artifact by name, as the zip GitHub serves. */
   downloadArtifact?(
     repo: GithubRepoRef,
