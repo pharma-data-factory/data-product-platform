@@ -1,8 +1,9 @@
 /**
  * Artifact Registry schema.
  *
- * Three tables: who may publish (`publishers`), what exists
- * (`artifacts`) and what was released (`artifact_versions`).
+ * Four tables: who may publish (`publishers`), what exists
+ * (`artifacts`), what was released (`artifact_versions`), and who moved a
+ * version through its lifecycle (`artifact_version_transitions`, NXD-146).
  *
  * Identity is enforced here, not only in the service, for the reason recorded
  * in NXD-009: an application-level uniqueness check does not survive two
@@ -84,6 +85,54 @@ export async function up(knex: Knex): Promise<void> {
   await createCaseInsensitiveIndexes(knex);
   await addPublisherTrustColumns(knex);
   await addReleaseBuildColumns(knex);
+  await createTransitionTrail(knex);
+}
+
+/**
+ * NXD-146: every lifecycle transition, with its actor. Before this the
+ * registry recorded none: a RELEASED version could not say who reviewed,
+ * certified or published it, and segregation of duties had nothing to be
+ * decided from. Append-only in PostgreSQL by this plugin's own trigger
+ * function, NXD-092's shape; SQLite backs the unit suites and the triggers
+ * are proven in `migrations.postgres.test.ts`.
+ */
+async function createTransitionTrail(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('artifact_version_transitions'))) {
+    await knex.schema.createTable('artifact_version_transitions', table => {
+      table.string('id', 255).primary();
+      table.string('artifact_version_id', 255).notNullable().index();
+      table.string('act', 16).notNullable();
+      table.string('from_lifecycle', 32).notNullable();
+      table.string('to_lifecycle', 32).notNullable();
+      table.string('from_certification_status', 32).nullable();
+      table.string('to_certification_status', 32).nullable();
+      table.string('actor', 255).notNullable();
+      table.timestamp('occurred_at').notNullable();
+      table.text('details').notNullable();
+    });
+  }
+  if (knex.client.config.client !== 'pg') return;
+  await knex.raw(`
+    CREATE OR REPLACE FUNCTION artifact_registry_append_only()
+    RETURNS trigger AS $fn$
+    BEGIN
+      RAISE EXCEPTION
+        'ARTIFACT_REGISTRY_APPEND_ONLY: % is append-only; % is not permitted',
+        TG_TABLE_NAME, TG_OP USING ERRCODE = '23514';
+    END;
+    $fn$ LANGUAGE plpgsql
+  `);
+  const table = 'artifact_version_transitions';
+  const triggers: Array<[string, string]> = [
+    [`${table}_append_only`, `BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW`],
+    [`${table}_no_truncate`, `BEFORE TRUNCATE ON ${table} FOR EACH STATEMENT`],
+  ];
+  for (const [name, definition] of triggers) {
+    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON ${table}`);
+    await knex.raw(
+      `CREATE TRIGGER ${name} ${definition} EXECUTE FUNCTION artifact_registry_append_only()`,
+    );
+  }
 }
 
 /**
@@ -139,6 +188,7 @@ async function createCaseInsensitiveIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('artifact_version_transitions');
   await knex.schema.dropTableIfExists('artifact_versions');
   await knex.schema.dropTableIfExists('artifacts');
   await knex.schema.dropTableIfExists('publishers');

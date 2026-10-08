@@ -8,7 +8,13 @@
 
 import { randomUUID } from 'crypto';
 import { parse as parseYaml } from 'yaml';
-import { ConflictError, InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  NotFoundError,
+  ServiceUnavailableError,
+} from '@backstage/errors';
 import {
   formatArtifactRef,
   isArtifactSegment,
@@ -31,8 +37,18 @@ import {
   isRunnableArtifactVersion,
   validateArtifactReleaseBuild,
   type ArtifactReleaseBuild,
+  type ArtifactReleaseStatus,
+  type ArtifactTransitionAct,
 } from '@internal/platform-common';
 import type { ArtifactRegistryRepository } from './repository';
+
+/**
+ * Asks the Composer whether a product version registered as this coordinate
+ * is RELEASED (NXD-146). Throws when the Composer cannot answer.
+ */
+export type ReleaseStatusReader = (
+  coordinate: ArtifactCoordinate,
+) => Promise<ArtifactReleaseStatus>;
 
 export interface CreatePublisherRequest {
   namespace: string;
@@ -67,6 +83,11 @@ export class ArtifactRegistryService {
   constructor(
     private readonly repository: ArtifactRegistryRepository,
     private readonly edition?: ResolvedEdition,
+    /**
+     * NXD-146. Without it nothing can be published: the release gate cannot
+     * be asked, and an unasked gate is not a passed one.
+     */
+    private readonly readReleaseStatus?: ReleaseStatusReader,
   ) {}
 
   /**
@@ -505,7 +526,7 @@ export class ArtifactRegistryService {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'DRAFT', 'submitted');
     await this.assertPublisherMembership(version, actor, 'submit');
-    return this.applyTransition(version, { lifecycle: 'TESTING' });
+    return this.applyTransition(version, 'SUBMIT', actor, { lifecycle: 'TESTING' });
   }
 
   /**
@@ -522,7 +543,8 @@ export class ArtifactRegistryService {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'TESTING', 'reviewed');
     await this.assertPublisherMembership(version, actor, 'review');
-    return this.applyTransition(version, { certificationStatus: 'TESTED' });
+    await this.assertSegregation(version, actor, 'REVIEW');
+    return this.applyTransition(version, 'REVIEW', actor, { certificationStatus: 'TESTED' });
   }
 
   /**
@@ -546,7 +568,9 @@ export class ArtifactRegistryService {
     }
     this.assertReleaseBuild(version, 'certified');
     await this.assertPublisherMembership(version, actor, 'certify');
-    return this.applyTransition(version, {
+    await this.assertPublisherTrust(version, 'certified');
+    await this.assertSegregation(version, actor, 'CERTIFY');
+    return this.applyTransition(version, 'CERTIFY', actor, {
       lifecycle: 'CERTIFIED',
       certificationStatus: 'CERTIFIED',
     });
@@ -561,7 +585,11 @@ export class ArtifactRegistryService {
     this.assertLifecycle(version, 'CERTIFIED', 'published');
     this.assertReleaseBuild(version, 'published');
     await this.assertPublisherMembership(version, actor, 'publish');
-    return this.applyTransition(version, { lifecycle: 'RELEASED' });
+    await this.assertPublisherTrust(version, 'published');
+    const releaseGate = await this.assertProductReleased(version);
+    return this.applyTransition(version, 'PUBLISH', actor, { lifecycle: 'RELEASED' }, {
+      releaseGate,
+    });
   }
 
   /** Withdraws a released version from recommended use. */
@@ -572,7 +600,7 @@ export class ArtifactRegistryService {
     const version = await this.requireArtifactVersion(id);
     this.assertLifecycle(version, 'RELEASED', 'deprecated');
     await this.assertPublisherMembership(version, actor, 'deprecate');
-    return this.applyTransition(version, { lifecycle: 'DEPRECATED' });
+    return this.applyTransition(version, 'DEPRECATE', actor, { lifecycle: 'DEPRECATED' });
   }
 
   /**
@@ -618,6 +646,117 @@ export class ArtifactRegistryService {
     }
   }
 
+  /** Every transition of a version, oldest first (NXD-146). */
+  async listTransitions(id: string) {
+    await this.requireArtifactVersion(id);
+    return this.repository.listTransitions(id);
+  }
+
+  /**
+   * Segregation of duties (NXD-146), as the URS chain and product approvals
+   * already require (NXD-057, NXD-072): whoever submitted a version may not
+   * review or certify it, and whoever reviewed it may not certify it. So a
+   * certified version names at least three people — or two, where the
+   * submitter also publishes, which only makes available what someone else
+   * certified.
+   *
+   * The submitter is the actor of the last SUBMIT; a version submitted before
+   * transitions were recorded falls back to its creator, who registered it.
+   */
+  private async assertSegregation(
+    version: ArtifactVersion,
+    actor: string,
+    act: 'REVIEW' | 'CERTIFY',
+  ): Promise<void> {
+    const transitions = await this.repository.listTransitions(version.id);
+    const lastBy = (a: ArtifactTransitionAct) =>
+      [...transitions].reverse().find(t => t.act === a)?.actor;
+    const submitter = lastBy('SUBMIT') ?? version.createdBy;
+    const verb = act === 'REVIEW' ? 'review' : 'certify';
+    if (actor === submitter) {
+      throw new NotAllowedError(
+        `${actor} submitted artifact version ${version.id} and cannot ${verb} it: ` +
+          'segregation of duties requires another person.',
+      );
+    }
+    if (act === 'CERTIFY') {
+      const reviewer = lastBy('REVIEW');
+      if (reviewer && actor === reviewer) {
+        throw new NotAllowedError(
+          `${actor} reviewed artifact version ${version.id} and cannot certify it: ` +
+            'segregation of duties requires another person.',
+        );
+      }
+    }
+  }
+
+  /**
+   * A COMMUNITY publisher's versions may be submitted and reviewed, but not
+   * certified or published until a platform administrator promotes the
+   * publisher to PARTNER — what self-registration has always said, and what
+   * nothing enforced until NXD-146.
+   */
+  private async assertPublisherTrust(version: ArtifactVersion, verb: string): Promise<void> {
+    const artifact = await this.repository.getArtifact(version.artifactId);
+    const publisher = artifact ? await this.repository.getPublisher(artifact.publisherId) : undefined;
+    if (publisher?.trustLevel === 'COMMUNITY') {
+      throw new NotAllowedError(
+        `Artifact version ${version.id} cannot be ${verb}: its publisher ` +
+          `"${publisher.namespace}" is COMMUNITY. A platform administrator must ` +
+          'promote it to PARTNER first.',
+      );
+    }
+  }
+
+  /**
+   * The Nexora release gate at publish (NXD-146). A version of an artifact
+   * some Composer product governs is published only when a product version
+   * registered as exactly this coordinate is RELEASED — whatever the
+   * product's GxP relevance (the user's decision of 2026-10-08). An artifact
+   * no product governs (a community or listing artifact) has no product
+   * release to wait for; its publisher's trust and the certification decide.
+   * If the Composer cannot answer, nothing is published.
+   */
+  private async assertProductReleased(
+    version: ArtifactVersion,
+  ): Promise<Record<string, unknown>> {
+    const artifact = await this.repository.getArtifact(version.artifactId);
+    if (!artifact) throw new NotFoundError(`Artifact ${version.artifactId} not found`);
+    const coordinate = { namespace: artifact.namespace, name: artifact.name, version: version.version };
+    const ref = formatArtifactRef(coordinate);
+    if (!this.readReleaseStatus) {
+      throw new ServiceUnavailableError(
+        `${ref} cannot be published: the Nexora release gate cannot be asked on this instance`,
+      );
+    }
+    let status: ArtifactReleaseStatus;
+    try {
+      status = await this.readReleaseStatus(coordinate);
+    } catch (error) {
+      throw new ServiceUnavailableError(
+        `${ref} cannot be published: the Nexora release gate did not answer ` +
+          `(${error instanceof Error ? error.message : String(error)})`,
+      );
+    }
+    if (status.governed && !status.released) {
+      const versions = status.productVersions.length
+        ? status.productVersions
+            .map(v => `${v.productName} ${v.version} is ${v.status}`)
+            .join('; ')
+        : 'no product version is registered as this version';
+      throw new ConflictError(
+        `${ref} cannot be published: a Composer product governs it, and its release ` +
+          `in Nexora has not happened (${versions}). Release the product version first.`,
+      );
+    }
+    return {
+      governed: status.governed,
+      releasedProductVersions: status.productVersions
+        .filter(v => v.status === 'RELEASED')
+        .map(v => v.id),
+    };
+  }
+
   private async requireArtifactVersion(id: string): Promise<ArtifactVersion> {
     const version = await this.repository.getArtifactVersionById(id);
     if (!version) {
@@ -658,19 +797,39 @@ export class ArtifactRegistryService {
 
   private async applyTransition(
     version: ArtifactVersion,
+    act: ArtifactTransitionAct,
+    actor: string,
     patch: {
       lifecycle?: ArtifactLifecycle;
       certificationStatus?: ArtifactCertificationStatus;
     },
+    details: Record<string, unknown> = {},
   ): Promise<ArtifactVersion> {
     // The precondition was checked against a row read a moment ago. Guarding
     // the write on that row's revision is what makes the check binding: a
     // concurrent transition bumps the revision, this update matches nothing,
     // and the loser is told to re-read rather than silently overwriting.
+    // The transition record goes in the same transaction (NXD-146).
     const applied = await this.repository.updateArtifactVersion(
       version.id,
       patch,
       version.revision,
+      {
+        id: randomUUID(),
+        artifactVersionId: version.id,
+        act,
+        fromLifecycle: version.lifecycle,
+        toLifecycle: patch.lifecycle ?? version.lifecycle,
+        ...(version.certificationStatus
+          ? { fromCertificationStatus: version.certificationStatus }
+          : {}),
+        ...((patch.certificationStatus ?? version.certificationStatus)
+          ? { toCertificationStatus: patch.certificationStatus ?? version.certificationStatus }
+          : {}),
+        actor,
+        occurredAt: new Date(),
+        details,
+      },
     );
     if (!applied) {
       throw new ConflictError(

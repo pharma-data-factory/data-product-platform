@@ -637,6 +637,7 @@ export {
   ARTIFACT_INTERFACE_DIRECTIONS,
   isRunnableArtifactVersion,
   validateArtifactReleaseBuild,
+  ARTIFACT_TRANSITION_ACTS,
 } from './artifact';
 export { NEXORA_MANIFEST_SCHEMA } from './manifestSchema';
 export {
@@ -691,6 +692,9 @@ export type {
   ArtifactRuntimeStorage,
   ArtifactReleaseBuild,
   ArtifactVersion,
+  ArtifactVersionTransition,
+  ArtifactTransitionAct,
+  ArtifactReleaseStatus,
   EditionCatalogue,
   PlatformEdition,
   ResolvedEdition,

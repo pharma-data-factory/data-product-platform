@@ -79,6 +79,38 @@ describe('artifact GMP classification (NXD-139)', () => {
     expect((await service.getArtifactGmpClassification('acme', 'unanswered')).gmpRelevant).toBe(true);
   });
 
+  // NXD-146: what the registry asks before it publishes.
+  it('answers whether a product version registered as exactly this version is released', async () => {
+    expect(await service.getArtifactReleaseStatus('pharma', 'oee', '1.0.0')).toEqual({
+      namespace: 'pharma',
+      name: 'oee',
+      version: '1.0.0',
+      governed: false,
+      released: false,
+      productVersions: [],
+    });
+
+    const product = await governing('pharma/oee@1.0.0', 'NONE');
+    const [pv] = await repository.listProductVersionsForArtifact('pharma', 'oee');
+    const unreleased = await service.getArtifactReleaseStatus('Pharma', 'OEE', '1.0.0');
+    expect(unreleased).toEqual(
+      expect.objectContaining({
+        governed: true,
+        released: false,
+        productVersions: [
+          { id: pv.id, productId: product.id, productName: product.name, version: '1.0', status: 'DRAFT' },
+        ],
+      }),
+    );
+    // Another version of a governed artifact: governed, and nothing registered as it.
+    expect(await service.getArtifactReleaseStatus('pharma', 'oee', '1.1.0')).toEqual(
+      expect.objectContaining({ governed: true, released: false, productVersions: [] }),
+    );
+
+    await db('product_versions').where({ id: pv.id }).update({ status: 'RELEASED' });
+    expect((await service.getArtifactReleaseStatus('pharma', 'oee', '1.0.0')).released).toBe(true);
+  });
+
   it('does not match another artifact sharing a prefix', async () => {
     await governing('pharma/oee-extra@1.0.0', 'DIRECT');
     expect((await service.getArtifactGmpClassification('pharma', 'oee')).governed).toBe(false);
@@ -141,6 +173,23 @@ describe('GET /artifacts/:namespace/:name/gmp-classification (NXD-139)', () => {
     expect(checked).toEqual(['product.read']);
 
     principal = 'user';
+    decision = AuthorizeResult.DENY;
+    expect((await fetch(path)).status).toBe(403);
+  });
+
+  it('serves the release status to the registry as a service, and to a person with product.read (NXD-146)', async () => {
+    const path = `${server.url}/artifacts/pharma/oee/versions/1.0.0/release-status`;
+    principal = 'service';
+    const asService = await fetch(path);
+    expect(asService.status).toBe(200);
+    expect(await asService.json()).toEqual(
+      expect.objectContaining({ version: '1.0.0', governed: false, released: false }),
+    );
+    expect(checked).toEqual([]);
+
+    principal = 'user';
+    expect((await fetch(path)).status).toBe(200);
+    expect(checked).toEqual(['product.read']);
     decision = AuthorizeResult.DENY;
     expect((await fetch(path)).status).toBe(403);
   });

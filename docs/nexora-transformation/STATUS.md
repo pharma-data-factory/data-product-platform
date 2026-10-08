@@ -342,6 +342,15 @@ four quick wins F1–F4, one commit and one record each.
   of them now use the shared one, under which only an explicit NONE is
   exempt. As a result, a product that has not answered is now also asked
   for its criticality. See [`NXD-145`](DECISIONS.md).
+- **S2: registry governance.** Every lifecycle transition is now recorded,
+  append-only, with its actor; before this the registry recorded none. The
+  submitter may not review or certify, and the reviewer may not certify.
+  A COMMUNITY publisher may not certify or publish. A version of a
+  governed artifact is published only once its product version is
+  RELEASED in Nexora; if the Composer cannot answer, nothing is published.
+  Live finding: the OEE version published on 2026-10-07 would not pass
+  this rule. It stays published, because the rule is not retroactive. See
+  [`NXD-146`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

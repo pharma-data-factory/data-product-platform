@@ -9261,3 +9261,143 @@ group). No demo seat could register a runtime target
   (+ `ProductDetailPage.test.tsx`, now "4 unanswered");
   `app-config.demo.yaml` (+ `packages/backend/src/startup.test.ts`);
   `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.7 added, §9.6 note).
+
+### NXD-146 — The registry records who moved a version, keeps the submitter from certifying it, and publishes a governed version only after its product release
+
+- Date: 2026-10-08
+- Slice: §9.7 S2 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track.
+- Decided by: the user (2026-10-08).
+  - Segregation of duties as recommended: the submitter may not review or
+    certify, the reviewer may not certify, the submitter may publish.
+  - A COMMUNITY publisher may not certify or publish.
+  - Publish requires the Nexora release of the governing product version,
+    for GMP and NONE products alike.
+  - An artifact no product governs needs no product release; its
+    publisher's trust and the certification decide.
+
+**Context.** `NXD-137` found three things wrong with the registry and fixed
+none:
+
+1. One person submitted, reviewed, certified and published.
+2. Self-registration promised that a COMMUNITY publisher could not publish
+   until promoted, and the COMMUNITY publisher's version was published.
+3. Publish never asked whether the governing product had been released in
+   Nexora.
+
+Building this found a fourth, underneath the first: **the registry recorded
+no transition at all.** `applyTransition` stored the new lifecycle and
+revision. A RELEASED version could not say who reviewed, certified or
+published it. That is why segregation of duties had nothing to be decided
+from.
+
+**Decision.**
+
+- **A transition trail.**
+  - `artifact_version_transitions` records act, from/to lifecycle, from/to
+    certification status, actor, time and details. It is append-only in
+    PostgreSQL through this plugin's own trigger function
+    (`artifact_registry_append_only()`, the `NXD-092` shape).
+  - It is written in the same transaction as the version's update, so no
+    version reaches a state without a record of who moved it there.
+  - `GET /artifact-versions/:id/transitions` reads it, under
+    `artifact.read` or as a service.
+- **Segregation of duties**, decided from the trail.
+  - The submitter (actor of the last SUBMIT) may not review or certify.
+  - The reviewer (last REVIEW) may not certify.
+  - A version submitted before the trail existed takes its creator as
+    submitter: the creator registered it.
+  - The refusal is a 403 and names the rule.
+  - Publish and deprecate are not restricted. Publishing makes available
+    what someone else certified.
+- **Trust.** Certify and publish are refused while the artifact's
+  publisher is COMMUNITY. This is the promise self-registration always
+  made. Submit and review stay open, so a community version can be readied
+  while promotion is pending.
+- **The release gate at publish.**
+  - The registry asks the Composer through a new route,
+    `GET /artifacts/:ns/:name/versions/:version/release-status` (service,
+    or a person with `product.read`). The call uses the registry's own
+    service credentials, because publishing is the registry's rule and not
+    a view of the person who presses the button.
+  - If any Composer product governs the artifact, at any version, publish
+    needs a product version registered as exactly this coordinate to be
+    RELEASED. Otherwise the request is refused (409), naming the product
+    versions and their status.
+  - An artifact no product governs is published on trust and certification
+    alone.
+  - If the Composer cannot answer, or no reader is configured, nothing is
+    published (503). An unasked gate is not a passed one.
+  - The PUBLISH record holds what the gate answered.
+
+**Alternatives considered.**
+
+- *Actor columns on `artifact_versions` (`reviewed_by`, `certified_by`).*
+  Rejected. They are overwritten by the next cycle and hold no history. A
+  trail answers every later question.
+- *Ask the Composer on behalf of the publishing person.* Rejected. A
+  publisher without `product.read` would then be refused for reasons
+  unrelated to the release, and the gate's answer would depend on who
+  asked.
+- *Require a product release only for GMP products.* Rejected by the user,
+  for one rule across products.
+
+**Verified.**
+
+- `service.test.ts`, +7:
+  - submitter and reviewer refused at each step, the submitter allowed to
+    publish;
+  - a legacy TESTING version takes its creator as submitter;
+  - five transitions recorded in order with actors and the gate's answer;
+  - a refused transition records nothing;
+  - COMMUNITY refused at certify;
+  - publish refused while the product version is APPROVED, and refused
+    when nothing is registered as the version; allowed once RELEASED;
+  - nothing published when the gate errors or is not configured.
+- Updated tests: the namespace walk and the NXD-137 build walks now use
+  three people.
+- `router.test.ts`: the lifecycle walk uses three people and reads the
+  trail. A segregation refusal is a 403.
+- `releaseStatusClient.test.ts` (new): the registry's own credentials
+  reach the Composer route, and a refusal is an error, not an answer.
+- `migrations.postgres.test.ts`, +1, against PostgreSQL: the trail refuses
+  UPDATE, DELETE and TRUNCATE, and re-applying recreates the triggers.
+- `artifactGmpClassification.test.ts` (composer), +2: the release status,
+  case-insensitive, for exact and other versions, and the route for a
+  service and for a person.
+- **Live**, against the running instance after a hot reload:
+  - The new Composer route answers for the `NXD-137` artifact
+    `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0`: governed, **not
+    released**. Product version 1.0 is APPROVED.
+  - The registry's trail for that version is empty, because it was
+    published before the trail existed.
+- See the commit body for the gates and the repo-wide run.
+
+**Found, named.**
+
+- **The released OEE version would not pass this rule.** `…@1.0.0` was
+  published in the `NXD-137` run while its product version was APPROVED,
+  which is NXD-137 finding 3, now measured. It stays RELEASED: the rule is
+  not retroactive, and it is the version installed in the paused live run.
+  The next OEE release has to go through the product release first.
+- **The registry's call to the Composer with its own credentials** was not
+  exercised live: no certified, governed version was there to publish. It
+  will be exercised in the resumed live run.
+
+**Not changed, named.**
+
+- Group membership is not resolved: an actor is compared by entity ref.
+  Two seats of one person count as two people. That limit is `NXD-014`'s
+  and was already there.
+- The Tests tab's registry card (`NXD-137`) shows the refusals but not the
+  trail.
+- A refusal still reaches the page with its error-type prefix
+  (`NotAllowedError: …`, NXD-137 finding 4).
+
+- Affected components: `plugins/artifact-registry-backend/src/` —
+  `db/migrations.ts`, `repository.ts`, `service.ts`, `router.ts`,
+  `plugin.ts`, `releaseStatusClient.ts` (new) (+ `service.test.ts`,
+  `router.test.ts`, `releaseStatusClient.test.ts` (new),
+  `db/migrations.postgres.test.ts`); `plugins/composer-backend/src/` —
+  `service.ts`, `router.ts` (+ `artifactGmpClassification.test.ts`);
+  `packages/platform-common/src/artifact.ts`, `index.ts`.

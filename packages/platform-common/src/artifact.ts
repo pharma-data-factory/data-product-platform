@@ -871,3 +871,57 @@ export {
   validateEditionCatalogue,
   artifactAvailableInEdition,
 } from './editions';
+
+// ---------------------------------------------------------------------------
+// Lifecycle transitions and the release gate at publish (NXD-146)
+// ---------------------------------------------------------------------------
+
+/** The five acts that move an artifact version through its lifecycle. */
+export const ARTIFACT_TRANSITION_ACTS = [
+  'SUBMIT',
+  'REVIEW',
+  'CERTIFY',
+  'PUBLISH',
+  'DEPRECATE',
+] as const;
+export type ArtifactTransitionAct = (typeof ARTIFACT_TRANSITION_ACTS)[number];
+
+/**
+ * One lifecycle transition as it happened: who, when, from which state to
+ * which. Append-only. Segregation of duties is decided from these records,
+ * so a review or a certification names a person, not merely a permission.
+ */
+export interface ArtifactVersionTransition {
+  id: string;
+  artifactVersionId: string;
+  act: ArtifactTransitionAct;
+  fromLifecycle: ArtifactLifecycle;
+  toLifecycle: ArtifactLifecycle;
+  fromCertificationStatus?: ArtifactCertificationStatus;
+  toCertificationStatus?: ArtifactCertificationStatus;
+  actor: string;
+  occurredAt: Date;
+  details: Record<string, unknown>;
+}
+
+/**
+ * Whether the Composer product versions governing one artifact version have
+ * been released (NXD-146). `governed` is whether any Composer product
+ * governs the artifact at all, at any version; `released` is whether one of
+ * the product versions registered as exactly this artifact version is
+ * RELEASED.
+ */
+export interface ArtifactReleaseStatus {
+  namespace: string;
+  name: string;
+  version: string;
+  governed: boolean;
+  released: boolean;
+  productVersions: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    version: string;
+    status: string;
+  }>;
+}

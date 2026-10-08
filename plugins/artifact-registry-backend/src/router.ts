@@ -15,6 +15,7 @@ import {
   InputError,
   NotAllowedError,
   NotFoundError,
+  ServiceUnavailableError,
 } from '@backstage/errors';
 import {
   HttpAuthService,
@@ -176,6 +177,13 @@ function respondError(
   // the caller's request conflicts with the stored state, not a server fault.
   if (error instanceof ConflictError) {
     res.status(409).json({ error: String(error) });
+    return;
+  }
+  // The Nexora release gate could not be asked (NXD-146): not the caller's
+  // fault, and not a pass either.
+  if (error instanceof ServiceUnavailableError) {
+    logger.error(`Dependency unavailable: ${error.message}`);
+    res.status(503).json({ error: String(error) });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -591,6 +599,22 @@ export async function createRouter(
       }
     });
   }
+
+  /**
+   * GET /artifact-versions/:id/transitions (NXD-146) — who moved the version
+   * through its lifecycle, and when. Read permission, or a service.
+   */
+  router.get(
+    '/artifact-versions/:id/transitions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorizeReadOrService(permissions, httpAuth, req, artifactReadPermission);
+        res.json({ items: await service.listTransitions(req.params.id) });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
 
   transitionRoute(
     '/artifact-versions/:id/submit',

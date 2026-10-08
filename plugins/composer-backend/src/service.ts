@@ -57,6 +57,7 @@ import {
   validateTestExecution,
   latestExecutionPerCase,
   evaluateContractCompatibility,
+  type ArtifactReleaseStatus,
   type ContractCompatReport,
   type ContractExchange,
   type JsonSchemaLike,
@@ -549,6 +550,42 @@ export class ComposerService {
       governed: products.length > 0,
       gmpRelevant: products.some(p => isGmpRelevant(p.gxpRelevance)),
       products,
+    };
+  }
+
+  /**
+   * Whether the product versions governing one registry version are
+   * released (NXD-146). The registry asks before it publishes: a version of
+   * an artifact some Composer product governs may be published only once one
+   * of the product versions registered as exactly that coordinate is
+   * RELEASED. An artifact no product governs answers `governed: false`.
+   */
+  async getArtifactReleaseStatus(
+    namespace: string,
+    name: string,
+    version: string,
+  ): Promise<ArtifactReleaseStatus> {
+    const versions = await this.repository.listProductVersionsForArtifact(namespace, name);
+    const ref = `${namespace}/${name}@${version}`.toLowerCase();
+    const exact = versions.filter(v => v.artifactRef?.toLowerCase() === ref);
+    const nameOf = new Map<string, string>();
+    for (const productId of new Set(exact.map(v => v.productId))) {
+      const product = await this.repository.getProduct(productId);
+      nameOf.set(productId, product?.name ?? productId);
+    }
+    return {
+      namespace,
+      name,
+      version,
+      governed: versions.length > 0,
+      released: exact.some(v => v.status === 'RELEASED'),
+      productVersions: exact.map(v => ({
+        id: v.id,
+        productId: v.productId,
+        productName: nameOf.get(v.productId) ?? v.productId,
+        version: v.version,
+        status: v.status,
+      })),
     };
   }
 

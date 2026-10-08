@@ -56,6 +56,8 @@ describe('Artifact Registry router', () => {
    * error Backstage actually throws.
    */
   let principal: 'user' | 'service' | 'none';
+  /** The person a user principal is (NXD-146: the lifecycle needs several). */
+  let caller: string;
   /** Every `opts` object the router passed to `httpAuth.credentials`. */
   let credentialRequests: Array<{
     allow?: string[];
@@ -72,7 +74,13 @@ describe('Artifact Registry router', () => {
     const repository = await ArtifactRegistryRepository.create({
       getClient: () => db,
     });
-    service = new ArtifactRegistryService(repository);
+    service = new ArtifactRegistryService(repository, undefined, async c => ({
+      ...c,
+      governed: false,
+      released: false,
+      productVersions: [],
+    }));
+    caller = actor;
     checked = [];
     decision = AuthorizeResult.ALLOW;
     principal = 'user';
@@ -101,7 +109,7 @@ describe('Artifact Registry router', () => {
           }
           return principal === 'service'
             ? { principal: { type: 'service', subject: SERVICE_SUBJECT } }
-            : { principal: { type: 'user', userEntityRef: actor } };
+            : { principal: { type: 'user', userEntityRef: caller } };
         },
       } as never,
       permissions: {
@@ -366,16 +374,18 @@ describe('Artifact Registry router', () => {
       // Registering content must never publish it.
       expect(version.lifecycle).toBe('DRAFT');
 
-      const steps: Array<[string, string, string | undefined]> = [
-        ['submit', 'TESTING', undefined],
+      // Three people (NXD-146): whoever submits may not review or certify.
+      const steps: Array<[string, string, string | undefined, string]> = [
+        ['submit', 'TESTING', undefined, actor],
         // Review records evidence without moving the lifecycle.
-        ['review', 'TESTING', 'TESTED'],
-        ['certify', 'CERTIFIED', 'CERTIFIED'],
-        ['publish', 'RELEASED', 'CERTIFIED'],
-        ['deprecate', 'DEPRECATED', 'CERTIFIED'],
+        ['review', 'TESTING', 'TESTED', 'user:default/reviewer'],
+        ['certify', 'CERTIFIED', 'CERTIFIED', 'user:default/certifier'],
+        ['publish', 'RELEASED', 'CERTIFIED', actor],
+        ['deprecate', 'DEPRECATED', 'CERTIFIED', actor],
       ];
 
-      for (const [act, lifecycle, certificationStatus] of steps) {
+      for (const [act, lifecycle, certificationStatus, who] of steps) {
+        caller = who;
         const response = await request(
           `/artifact-versions/${version.id}/${act}`,
           'POST',
@@ -397,6 +407,27 @@ describe('Artifact Registry router', () => {
           certificationStatus,
         ]);
       }
+
+      // Who did what, readable under artifact.read.
+      caller = actor;
+      const trail = await request(`/artifact-versions/${version.id}/transitions`);
+      expect(trail.status).toBe(200);
+      const { items } = (await trail.json()) as { items: Array<{ act: string; actor: string }> };
+      expect(items.map(t => `${t.act}:${t.actor}`)).toEqual([
+        `SUBMIT:${actor}`,
+        'REVIEW:user:default/reviewer',
+        'CERTIFY:user:default/certifier',
+        `PUBLISH:${actor}`,
+        `DEPRECATE:${actor}`,
+      ]);
+    });
+
+    it('answers a segregation-of-duties refusal with 403', async () => {
+      const id = await seedVersion();
+      await request(`/artifact-versions/${id}/submit`, 'POST');
+      const response = await request(`/artifact-versions/${id}/review`, 'POST');
+      expect(response.status).toBe(403);
+      expect(((await response.json()) as { error: string }).error).toMatch(/segregation of duties/);
     });
 
     it('refuses to certify a version nobody reviewed', async () => {

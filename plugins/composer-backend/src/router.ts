@@ -335,6 +335,31 @@ export async function createRouter(
     },
   );
 
+  /**
+   * GET /artifacts/:namespace/:name/versions/:version/release-status (NXD-146)
+   *
+   * Whether a product version registered as this registry version is
+   * RELEASED. Read by the Artifact Registry before it publishes, as a
+   * service; by a person with product.read.
+   */
+  router.get(
+    '/artifacts/:namespace/:name/versions/:version/release-status',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        const { namespace, name, version } = req.params;
+        res.json(await service.getArtifactReleaseStatus(namespace, name, version));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   /** GET /products/:id/signatures (NXD-128): approvals and releases as attested. */
   router.get(
     '/products/:id/signatures',
