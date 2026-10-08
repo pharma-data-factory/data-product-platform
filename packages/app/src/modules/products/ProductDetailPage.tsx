@@ -627,6 +627,11 @@ export function ProductDetailPage() {
               }
               artifactRef={selectedVersion?.artifactRef}
               registry={registry}
+              onPreviewPullRequests={
+                selectedVersionId
+                  ? () => client.getPullRequestEvidence(selectedVersionId)
+                  : undefined
+              }
             />
           )}
 

@@ -25,8 +25,26 @@ export interface CiEvidence {
   }>;
 }
 
+/** NXD-152. One open pull request and its own CI run's evidence. */
+export interface PullRequestEvidence extends Omit<CiEvidence, 'run'> {
+  number: number;
+  title: string;
+  url: string;
+  headRef: string;
+  headSha: string;
+  author?: string;
+  draft: boolean;
+  /** The run tested an older head than the pull request now has. */
+  stale?: boolean;
+  run?: CiEvidence['run'] & { event?: string };
+}
+
 export interface CiEvidenceClient {
   getLatestEvidence(repositoryUrl: string): Promise<CiEvidence>;
+  /** NXD-152. Read-only: never recorded as a version's evidence. */
+  getPullRequestEvidence?(
+    repositoryUrl: string,
+  ): Promise<{ available: boolean; reason?: string; pullRequests: PullRequestEvidence[] }>;
 }
 
 export function createHttpCiEvidenceClient(options: {
@@ -41,24 +59,25 @@ export function createHttpCiEvidenceClient(options: {
   fetchImpl?: typeof fetch;
 }): CiEvidenceClient {
   const doFetch = options.fetchImpl ?? ((...args) => fetch(...args));
+  async function get<T>(path: string): Promise<T> {
+    const base = await options.discovery.getBaseUrl('data-products');
+    const { token } = await options.auth.getPluginRequestToken({
+      onBehalfOf: await options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'data-products',
+    });
+    const response = await doFetch(`${base}${path}`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    const body = (await response.json().catch(() => ({}))) as T & { error?: string };
+    if (!response.ok) {
+      throw new Error(body.error ?? `data-products answered ${response.status}`);
+    }
+    return body;
+  }
   return {
-    async getLatestEvidence(repositoryUrl) {
-      const base = await options.discovery.getBaseUrl('data-products');
-      const { token } = await options.auth.getPluginRequestToken({
-        onBehalfOf: await options.auth.getOwnServiceCredentials(),
-        targetPluginId: 'data-products',
-      });
-      const response = await doFetch(
-        `${base}/ci-evidence?repoUrl=${encodeURIComponent(repositoryUrl)}`,
-        { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` } },
-      );
-      const body = (await response.json().catch(() => ({}))) as CiEvidence & {
-        error?: string;
-      };
-      if (!response.ok) {
-        throw new Error(body.error ?? `data-products answered ${response.status}`);
-      }
-      return body;
-    },
+    getLatestEvidence: repositoryUrl =>
+      get<CiEvidence>(`/ci-evidence?repoUrl=${encodeURIComponent(repositoryUrl)}`),
+    getPullRequestEvidence: repositoryUrl =>
+      get(`/ci-evidence/pull-requests?repoUrl=${encodeURIComponent(repositoryUrl)}`),
   };
 }

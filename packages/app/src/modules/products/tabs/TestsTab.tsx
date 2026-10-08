@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NEXORA_CARD, NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { Box, Button, Chip, Link, Typography } from '@material-ui/core';
 import type {
+  PullRequestEvidencePreview,
   RegistryClient,
   ReleaseProvenanceImport,
   TestEvidenceImport,
@@ -41,6 +42,11 @@ interface TestsTabProps {
    */
   artifactRef?: string;
   registry?: RegistryClient;
+  /**
+   * NXD-152. What each open pull request's CI run would verify of this
+   * version's requirements. Read-only; absent when no version is selected.
+   */
+  onPreviewPullRequests?: () => Promise<PullRequestEvidencePreview>;
 }
 
 /** One line on what the import did in the Artifact Registry (NXD-137). */
@@ -82,6 +88,99 @@ export function importSummaryLines(result: TestEvidenceImport): string[] {
   return lines;
 }
 
+type PullRequestRow = PullRequestEvidencePreview['pullRequests'][number];
+
+const PR_REASON: Record<string, string> = {
+  'no-completed-run': 'no completed CI run for this pull request yet',
+  'no-evidence-artifact': 'its CI run uploaded no test evidence',
+  inaccessible: 'Nexora cannot read this repository’s CI',
+  'not-found': 'the run or its evidence was not found',
+};
+
+/** What one pull request would do to this version's verification (NXD-152). */
+export function pullRequestLines(pr: PullRequestRow): string[] {
+  if (!pr.available || !pr.coverage) {
+    return [`No preview: ${PR_REASON[pr.reason ?? ''] ?? pr.reason ?? 'unknown'}.`];
+  }
+  const c = pr.coverage;
+  const verdict = c.wouldPassCoverage ? 'would pass.' : 'would not pass.';
+  const lines = [
+    `${c.verified} of ${c.total} requirements would be verified — the gate's coverage ${verdict}`,
+  ];
+  if (c.newlyVerified.length) lines.push(`Newly verified: ${c.newlyVerified.join(', ')}`);
+  if (c.newlyUnverified.length) {
+    lines.push(`No longer verified (a test now fails): ${c.newlyUnverified.join(', ')}`);
+  }
+  if (c.unknownRequirements.length) {
+    lines.push(`Tests name requirements this version does not carry: ${c.unknownRequirements.join(', ')}`);
+  }
+  if (pr.stale) lines.push('The run tested an older commit than the pull request now has.');
+  return lines;
+}
+
+function PullRequestPreview(props: { onPreview: () => Promise<PullRequestEvidencePreview> }) {
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<PullRequestEvidencePreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setPreview(await props.onPreview());
+    } catch (e) {
+      setPreview(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section aria-label="Pull request evidence" style={{ ...CARD_STYLE, marginBottom: 16 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" style={{ gap: 12 }}>
+        <Typography variant="body2">
+          What open pull requests would verify, from their own CI runs. A preview
+          only: nothing is recorded until the change is merged.
+        </Typography>
+        <Button variant="outlined" disabled={busy} onClick={run}>
+          {busy ? 'Checking…' : 'Check open pull requests'}
+        </Button>
+      </Box>
+      {preview && !preview.available ? (
+        <Typography variant="body2" color="textSecondary" style={{ marginTop: 8 }}>
+          No preview: {PR_REASON[preview.reason ?? ''] ?? preview.reason ?? 'unknown'}.
+        </Typography>
+      ) : null}
+      {preview?.available && preview.pullRequests.length === 0 ? (
+        <Typography variant="body2" color="textSecondary" style={{ marginTop: 8 }}>
+          No open pull requests.
+        </Typography>
+      ) : null}
+      {preview?.pullRequests.map(pr => (
+        <Box key={pr.number} mt={1}>
+          <Typography variant="body2">
+            <Link href={pr.url} target="_blank" rel="noopener noreferrer">
+              #{pr.number}
+            </Link>{' '}
+            {pr.title}
+            {pr.draft ? ' (draft)' : ''}
+            {pr.author ? ` · ${pr.author}` : ''}
+          </Typography>
+          {pullRequestLines(pr).map(line => (
+            <Typography key={line} variant="body2" color="textSecondary">
+              {line}
+            </Typography>
+          ))}
+        </Box>
+      ))}
+      {error ? (
+        <Typography role="alert" variant="body2" style={{ color: NEXORA_TONE.danger.text, marginTop: 8 }}>
+          {error}
+        </Typography>
+      ) : null}
+    </section>
+  );
+}
+
 function EvidenceImport(props: { onImport: () => Promise<TestEvidenceImport> }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TestEvidenceImport | null>(null);
@@ -103,7 +202,8 @@ function EvidenceImport(props: { onImport: () => Promise<TestEvidenceImport> }) 
       <Box display="flex" alignItems="center" justifyContent="space-between" style={{ gap: 12 }}>
         <Typography variant="body2">
           Test evidence comes from the product repository’s CI: each test names
-          the requirements it verifies, and the newest completed run is read.
+          the requirements it verifies, and the default branch’s newest run is
+          read. Nexora also reads it on its own while the version is a draft.
         </Typography>
         <Button variant="outlined" disabled={busy} onClick={run}>
           {busy ? 'Importing…' : 'Import CI evidence'}
@@ -206,6 +306,7 @@ export function TestsTab({
   onImportReleaseProvenance,
   artifactRef,
   registry,
+  onPreviewPullRequests,
 }: TestsTabProps) {
   // The import answers the registry coordinate before the version list is
   // reloaded; the card should not wait for that.
@@ -226,6 +327,9 @@ export function TestsTab({
         </Typography>
         {onImportEvidence && coverage && coverage.byRequirement.length > 0 ? (
           <EvidenceImport onImport={onImportEvidence} />
+        ) : null}
+        {onPreviewPullRequests && coverage && coverage.byRequirement.length > 0 ? (
+          <PullRequestPreview onPreview={onPreviewPullRequests} />
         ) : null}
         {!coverage || coverage.byRequirement.length === 0 ? (
           <Typography variant="body2" color="textSecondary">

@@ -1541,6 +1541,14 @@ export class ComposerService {
    */
   async getRequirementCoverage(
     productVersionId: string,
+    options: {
+      /**
+       * NXD-152. Executions that are not recorded, counted as if they were —
+       * a pull request's run, for a preview. The rule stays this one; only
+       * the evidence it reads is widened, and nothing is written.
+       */
+      hypotheticalExecutions?: TestExecution[];
+    } = {},
   ): Promise<ProductRequirementCoverage> {
     const version = await this.repository.getProductVersion(productVersionId);
     if (!version) {
@@ -1566,9 +1574,10 @@ export class ComposerService {
       requirement.ursRequirementVersionId,
       requirement.requirementRef,
     ]);
-    const executions = await this.repository.listTestExecutions(
-      requirementKeys,
-    );
+    const executions = [
+      ...(await this.repository.listTestExecutions(requirementKeys)),
+      ...(options.hypotheticalExecutions ?? []),
+    ];
     // Grouped by the key CI posted against, not by link. A failing run
     // produces no VERIFIED_BY link — that would be a contradiction in terms —
     // so a coverage rule that reached the evidence only through links could
@@ -2566,6 +2575,134 @@ export class ComposerService {
       if (offset + pageSize >= page.total) break;
     }
     return outcome;
+  }
+
+  /**
+   * What each open pull request would verify (NXD-152). Its own CI run's
+   * evidence is counted as the newest run, through the same coverage rule
+   * the release gate uses, and compared with coverage as recorded. Nothing
+   * is written: a pull request's tests are not the version's evidence
+   * (NXD-151). Only whether the coverage part of the gate would pass is
+   * answered; the gate has other conditions.
+   */
+  async previewPullRequestEvidence(productVersionId: string): Promise<{
+    available: boolean;
+    reason?: string;
+    current: { verified: number; total: number };
+    pullRequests: Array<{
+      number: number;
+      title: string;
+      url: string;
+      headRef: string;
+      draft: boolean;
+      author?: string;
+      stale?: boolean;
+      run?: { id: number; url: string; commit: string; conclusion: string | null };
+      available: boolean;
+      reason?: string;
+      coverage?: {
+        verified: number;
+        total: number;
+        wouldPassCoverage: boolean;
+        newlyVerified: string[];
+        newlyUnverified: string[];
+        byRequirement: Record<string, { passed: number; failed: number }>;
+        unknownRequirements: string[];
+      };
+    }>;
+  }> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
+    const product = await this.repository.getProduct(version.productId);
+    const requirements = await this.repository.listProductRequirements(productVersionId);
+    const current = await this.getRequirementCoverage(productVersionId);
+    const counts = { verified: current.verified, total: current.total };
+    if (!product?.repositoryUrl) {
+      return { available: false, reason: 'no-repository', current: counts, pullRequests: [] };
+    }
+    if (requirements.length === 0) {
+      return { available: false, reason: 'no-requirements-bound', current: counts, pullRequests: [] };
+    }
+    if (!this.ciEvidenceClient?.getPullRequestEvidence) {
+      return { available: false, reason: 'unavailable', current: counts, pullRequests: [] };
+    }
+    const listing = await this.ciEvidenceClient.getPullRequestEvidence(product.repositoryUrl);
+    if (!listing.available) {
+      return { available: false, reason: listing.reason, current: counts, pullRequests: [] };
+    }
+    const byRef = new Map(requirements.map(r => [r.requirementRef, r]));
+    const wasVerified = new Set(
+      current.byRequirement.filter(row => row.verified).map(row => row.requirementRef),
+    );
+    const pullRequests = [];
+    for (const pr of listing.pullRequests) {
+      const base = {
+        number: pr.number,
+        title: pr.title,
+        url: pr.url,
+        headRef: pr.headRef,
+        draft: pr.draft,
+        ...(pr.author ? { author: pr.author } : {}),
+        ...(pr.stale !== undefined ? { stale: pr.stale } : {}),
+        ...(pr.run
+          ? { run: { id: pr.run.id, url: pr.run.url, commit: pr.run.commit, conclusion: pr.run.conclusion } }
+          : {}),
+      };
+      if (!pr.available || !pr.run || !pr.results) {
+        pullRequests.push({ ...base, available: false, ...(pr.reason ? { reason: pr.reason } : {}) });
+        continue;
+      }
+      const executedAt = new Date(pr.run.completedAt ?? Date.now());
+      const hypothetical: TestExecution[] = [];
+      const tally: Record<string, { passed: number; failed: number }> = {};
+      const unknown = new Set<string>();
+      for (const result of pr.results) {
+        if (result.outcome === 'skipped') continue;
+        for (const ref of result.requirements) {
+          const requirement = byRef.get(ref);
+          if (!requirement) {
+            unknown.add(ref);
+            continue;
+          }
+          const passed = result.outcome === 'passed';
+          hypothetical.push({
+            id: `preview:${pr.number}:${hypothetical.length}`,
+            requirementVersionId: requirement.ursRequirementVersionId,
+            testSuite: fitColumn(result.testCase.split('::')[0] || result.suite),
+            testCase: fitColumn(result.testCase),
+            status: passed ? 'PASSED' : 'FAILED',
+            executedAt,
+            executionArtifactUrl: pr.run.url,
+            correlationId: `preview:${pr.number}`,
+            createdBy: CI_EVIDENCE_SYNC_ACTOR,
+            createdAt: executedAt,
+          });
+          const t = (tally[ref] ??= { passed: 0, failed: 0 });
+          if (passed) t.passed++;
+          else t.failed++;
+        }
+      }
+      const preview = await this.getRequirementCoverage(productVersionId, {
+        hypotheticalExecutions: hypothetical,
+      });
+      const nowVerified = new Set(
+        preview.byRequirement.filter(row => row.verified).map(row => row.requirementRef),
+      );
+      pullRequests.push({
+        ...base,
+        available: true,
+        coverage: {
+          verified: preview.verified,
+          total: preview.total,
+          wouldPassCoverage: preview.verified === preview.total,
+          newlyVerified: [...nowVerified].filter(ref => !wasVerified.has(ref)).sort(),
+          newlyUnverified: [...wasVerified].filter(ref => !nowVerified.has(ref)).sort(),
+          byRequirement: tally,
+          unknownRequirements: [...unknown].sort(),
+        },
+      });
+    }
+    return { available: true, current: counts, pullRequests };
   }
 
   /**

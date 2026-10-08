@@ -388,6 +388,13 @@ four quick wins F1–F4, one commit and one record each.
   the newest run of any branch, so a pull request's unmerged tests could
   count as the version's verification. The pull request preview is S5b. See
   [`NXD-151`](DECISIONS.md).
+- **S5b: a pull request shows what it would verify.** On the Tests tab,
+  *Check open pull requests* takes each open PR's own CI run. It runs the
+  results through the release gate's own coverage rule, as hypothetical
+  newest runs, and says whether coverage would pass, what becomes verified
+  and what a failing test would revoke. Nothing is recorded. Live: the
+  route chain answers; the product repository has no open PR yet. See
+  [`NXD-152`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

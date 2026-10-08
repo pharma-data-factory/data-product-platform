@@ -48,6 +48,34 @@ export interface TestEvidenceImport {
   unknownRequirements: string[];
 }
 
+/** NXD-152: what each open pull request would verify; nothing recorded. */
+export interface PullRequestEvidencePreview {
+  available: boolean;
+  reason?: string;
+  current: { verified: number; total: number };
+  pullRequests: Array<{
+    number: number;
+    title: string;
+    url: string;
+    headRef: string;
+    draft: boolean;
+    author?: string;
+    stale?: boolean;
+    run?: { id: number; url: string; commit: string; conclusion: string | null };
+    available: boolean;
+    reason?: string;
+    coverage?: {
+      verified: number;
+      total: number;
+      wouldPassCoverage: boolean;
+      newlyVerified: string[];
+      newlyUnverified: string[];
+      byRequirement: Record<string, { passed: number; failed: number }>;
+      unknownRequirements: string[];
+    };
+  }>;
+}
+
 /** NXD-133: what importing a version's release provenance recorded. */
 export interface ReleaseProvenanceImport {
   baseline: ProductBaseline;
@@ -163,6 +191,8 @@ export interface ComposerClient {
   importTestEvidence(versionId: string): Promise<TestEvidenceImport>;
   /** NXD-133: record the version's release build on its approved baseline. */
   importReleaseProvenance(versionId: string): Promise<ReleaseProvenanceImport>;
+  /** NXD-152: what open pull requests would verify. Read-only. */
+  getPullRequestEvidence(versionId: string): Promise<PullRequestEvidencePreview>;
   /** Contracts this component provides. Keyed by component, listed by coordinate. */
   listComponentContracts(componentId: string): Promise<DataContract[]>;
   /** Contracts this version consumes — the other side of the exchange. */
@@ -255,6 +285,8 @@ export function useComposerClient(): ComposerClient {
       request('POST', `/versions/${versionId}/test-evidence/import`, {}),
     importReleaseProvenance: versionId =>
       request('POST', `/versions/${versionId}/release-provenance/import`, {}),
+    getPullRequestEvidence: versionId =>
+      request('GET', `/versions/${versionId}/pull-request-evidence`),
     listComponentContracts: componentId =>
       request('GET', `/components/${componentId}/contracts`),
     listVersionDependencies: versionId =>

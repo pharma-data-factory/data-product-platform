@@ -308,3 +308,105 @@ describe('syncCiEvidence (NXD-151)', () => {
     expect(result.imported).toBe(1);
   });
 });
+
+/**
+ * NXD-152. What a pull request would verify: its own run, counted through
+ * the gate's coverage rule as the newest run, compared with what is
+ * recorded, and nothing written.
+ */
+describe('previewPullRequestEvidence (NXD-152)', () => {
+  let db: Knex;
+  let service: ComposerService;
+  let versionId: string;
+  const client: CiEvidenceClient & { getLatestEvidence: jest.Mock; getPullRequestEvidence: jest.Mock } = {
+    getLatestEvidence: jest.fn(),
+    getPullRequestEvidence: jest.fn(),
+  };
+
+  const pr = (number: number, results: CiEvidence['results'], extra: Record<string, unknown> = {}) => ({
+    number,
+    title: `PR ${number}`,
+    url: `https://github.com/pharma-data-factory/oee/pull/${number}`,
+    headRef: `ai/${number}`,
+    headSha: 'f'.repeat(40),
+    draft: false,
+    available: true,
+    stale: false,
+    run: { id: 100 + number, url: `${RUN_URL}-pr${number}`, commit: 'f'.repeat(40), conclusion: 'success', completedAt: '2026-10-08T12:00:00Z' },
+    results,
+    ...extra,
+  });
+
+  beforeEach(async () => {
+    db = knex({ client: 'better-sqlite3', connection: { filename: ':memory:' }, useNullAsDefault: true });
+    const repository = await ComposerRepository.create({ getClient: () => db });
+    service = new ComposerService({ logger: mockLogger, repository, ursBaselineResolver: resolver, ciEvidenceClient: client });
+    const product = await service.createProduct(
+      { name: 'oee-line-3', productType: 'DATA_PRODUCT', repositoryUrl: 'https://github.com/pharma-data-factory/oee.git' } as any,
+      actor,
+    );
+    const version = await service.createProductVersion(product.id, { version: '1.0' }, actor);
+    await service.bindUrsBaseline(version.id, BASELINE, actor);
+    versionId = version.id;
+    // Recorded: URS-EPM-001 passes on the default branch.
+    client.getLatestEvidence.mockResolvedValue(
+      evidence([{ suite: 'unit', testCase: 't::calc', outcome: 'passed', requirements: ['URS-EPM-001'] }]),
+    );
+    await service.importTestEvidence(versionId, actor);
+  });
+
+  afterEach(async () => {
+    await db?.destroy();
+  });
+
+  it('shows what each pull request would verify or revoke, and writes nothing', async () => {
+    client.getPullRequestEvidence.mockResolvedValue({
+      available: true,
+      pullRequests: [
+        pr(12, [
+          { suite: 'unit', testCase: 't::window', outcome: 'passed', requirements: ['URS-EPM-002', 'URS-EPM-777'] },
+          { suite: 'unit', testCase: 't::calc', outcome: 'passed', requirements: ['URS-EPM-001'] },
+        ]),
+        pr(13, [{ suite: 'unit', testCase: 't::calc', outcome: 'failed', requirements: ['URS-EPM-001'] }], { stale: true }),
+        { ...pr(14, undefined), available: false, reason: 'no-evidence-artifact', results: undefined },
+      ],
+    });
+    const before = await db('test_executions').count({ n: '*' });
+
+    const preview = await service.previewPullRequestEvidence(versionId);
+
+    expect(preview.current).toEqual({ verified: 1, total: 2 });
+    const [p12, p13, p14] = preview.pullRequests;
+    expect(p12.coverage).toEqual({
+      verified: 2,
+      total: 2,
+      wouldPassCoverage: true,
+      newlyVerified: ['URS-EPM-002'],
+      newlyUnverified: [],
+      byRequirement: { 'URS-EPM-001': { passed: 1, failed: 0 }, 'URS-EPM-002': { passed: 1, failed: 0 } },
+      unknownRequirements: ['URS-EPM-777'],
+    });
+    // A newer failing run of the same test case revokes, as in the gate.
+    expect(p13).toEqual(
+      expect.objectContaining({
+        stale: true,
+        coverage: expect.objectContaining({ verified: 0, wouldPassCoverage: false, newlyUnverified: ['URS-EPM-001'] }),
+      }),
+    );
+    expect(p14).toEqual(expect.objectContaining({ available: false, reason: 'no-evidence-artifact' }));
+    expect(p14.coverage).toBeUndefined();
+
+    expect(await db('test_executions').count({ n: '*' })).toEqual(before);
+    expect((await service.getRequirementCoverage(versionId)).verified).toBe(1);
+  });
+
+  it('says why there is no preview', async () => {
+    client.getPullRequestEvidence.mockResolvedValue({ available: false, reason: 'inaccessible', pullRequests: [] });
+    expect(await service.previewPullRequestEvidence(versionId)).toEqual({
+      available: false,
+      reason: 'inaccessible',
+      current: { verified: 1, total: 2 },
+      pullRequests: [],
+    });
+  });
+});

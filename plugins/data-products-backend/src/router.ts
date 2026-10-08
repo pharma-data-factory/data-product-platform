@@ -214,6 +214,101 @@ export async function createRouter(
   });
 
   /**
+   * GET /ci-evidence/pull-requests?repoUrl=… (NXD-152)
+   *
+   * For each open pull request (at most ten, most recently updated first):
+   * the newest completed `pull_request` run of `ci.yml` for its head branch,
+   * and that run's test evidence, parsed. Read-only, for a preview of what
+   * the pull request would verify: nothing here is ever recorded as a
+   * version's evidence (NXD-151 keeps that to the default branch). A run
+   * that tested an older head than the pull request now has is marked
+   * `stale`.
+   */
+  router.get('/ci-evidence/pull-requests', async (req, res) => {
+    try {
+      await authorizeViewOrService(req);
+      const repo = parseGithubUrl(String(req.query.repoUrl ?? '').trim());
+      if (!repo) {
+        throw new InputError('repoUrl must be a GitHub repository URL');
+      }
+      if (!github.listOpenPullRequests || !github.getLatestCompletedRun || !github.downloadArtifact) {
+        res.json({ available: false, reason: 'unavailable', pullRequests: [] });
+        return;
+      }
+      const prs = await github.listOpenPullRequests(repo, 10);
+      if (!prs.ok) {
+        res.json({ available: false, reason: prs.reason, pullRequests: [] });
+        return;
+      }
+      const pullRequests = [];
+      for (const pr of prs.value) {
+        const base = {
+          number: pr.number,
+          title: pr.title,
+          url: pr.htmlUrl,
+          headRef: pr.headRef,
+          headSha: pr.headSha,
+          draft: pr.draft,
+          ...(pr.author ? { author: pr.author } : {}),
+        };
+        const run = await github.getLatestCompletedRun(repo, {
+          branch: pr.headRef,
+          event: 'pull_request',
+        });
+        if (!run.ok || !run.value) {
+          pullRequests.push({
+            ...base,
+            available: false,
+            reason: run.ok ? 'no-completed-run' : run.reason,
+          });
+          continue;
+        }
+        const runInfo = {
+          id: run.value.id,
+          url: run.value.htmlUrl,
+          commit: run.value.headSha,
+          branch: run.value.headBranch,
+          event: run.value.event,
+          conclusion: run.value.conclusion,
+          completedAt: run.value.completedAt,
+        };
+        const stale = Boolean(pr.headSha) && run.value.headSha !== pr.headSha;
+        const zip = await github.downloadArtifact(repo, run.value.id, TEST_EVIDENCE_ARTIFACT);
+        if (!zip.ok || !zip.value) {
+          pullRequests.push({
+            ...base,
+            available: false,
+            reason: zip.ok ? 'no-evidence-artifact' : zip.reason,
+            run: runInfo,
+            stale,
+          });
+          continue;
+        }
+        const { results } = parseEvidence(readZip(zip.value));
+        pullRequests.push({ ...base, available: true, run: runInfo, stale, results });
+      }
+      res.json({ available: true, pullRequests });
+    } catch (error) {
+      if (error instanceof NotAllowedError) {
+        res.status(403).json({ error: error.message || 'Not allowed' });
+        return;
+      }
+      if (error instanceof InputError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      logger.warn(
+        `ci-evidence/pull-requests failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      res.status(502).json({
+        error: `The pull request evidence could not be read: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
+  });
+
+  /**
    * GET /release-record?repoUrl=…&version=… (NXD-133)
    *
    * The release record a product repository's release workflow published for

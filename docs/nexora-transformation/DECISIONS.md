@@ -9934,3 +9934,91 @@ version's evidence.**
   `githubActions.test.ts`); `plugins/composer-backend/src/` — `service.ts`
   (`syncCiEvidence`, `CI_EVIDENCE_SYNC_ACTOR`), `plugin.ts` (scheduled
   task) (+ `testEvidenceImport.test.ts`).
+
+### NXD-152 — A pull request shows what it would verify before anyone merges it, and nothing it shows is recorded
+
+- Date: 2026-10-08
+- Slice: §9.7 S5b of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md).
+- Decided by: the user ("ok S5b", 2026-10-08). The shape below was chosen
+  here and is named for review.
+
+**Context.** `NXD-151` made recorded evidence the default branch's only. A
+pull request's tests still matter before the merge, when a person decides
+whether to merge. S6 (AI-assisted build) depends on it: an AI's pull request
+has to show what it verifies before a person judges it.
+
+**Decision.**
+
+- **`GET /ci-evidence/pull-requests`** (data-products, read or service):
+  - lists the open pull requests, at most ten, most recently updated first;
+  - for each, takes the newest completed `ci.yml` run with
+    `event=pull_request` on its head branch, plus that run's evidence;
+  - a run that tested an older head than the pull request now has is
+    marked `stale`;
+  - a pull request without a run or an artifact says which is missing.
+- **`GET /versions/:id/pull-request-evidence`** (Composer, `product.read`):
+  - for each pull request, its results are mapped to the version's bound
+    requirements and passed to `getRequirementCoverage` as
+    `hypotheticalExecutions`, newest by the run's completion time;
+  - the coverage rule is therefore the one the release gate uses, including
+    "a later failing run of the same test case revokes";
+  - the answer per pull request is verified of total, whether the gate's
+    **coverage** part would pass, newly verified, newly unverified, a tally
+    per requirement, and ids the version does not carry;
+  - nothing is written, and the recorded coverage is unchanged afterwards
+    (tested).
+- **The Tests tab** gains *Check open pull requests*. It loads on click,
+  not on opening the tab, because each pull request costs GitHub calls. Each
+  pull request is linked with its lines. The import card's text now says the
+  default branch's run is read, and read automatically for drafts.
+
+**Alternatives considered.**
+
+- *A second coverage computation for previews.* Rejected. Two rules drift.
+  The gate's function takes hypothetical executions instead, and the preview
+  cannot disagree with the gate on coverage.
+- *Post the preview to GitHub as a commit status or check.* Rejected for
+  now. Nexora would need write access to product repositories, which
+  `NXD-132` kept out. The GitHub App could do it later, as a decision of
+  its own.
+
+**Verified.**
+
+- data-products:
+  - `ciEvidenceRoute.test.ts` +2: each pull request's own `pull_request`
+    run on its head branch; missing run or artifact named; stale marked;
+  - `githubActions.test.ts` +1: open pull requests parsed, query bounded;
+  - 143/143.
+- composer `testEvidenceImport.test.ts` +2:
+  - a pull request that adds a passing test for an unverified requirement
+    would verify it and pass coverage, with unknown ids named;
+  - a pull request whose run fails a test that passes on the default branch
+    would revoke it;
+  - one without evidence has no coverage;
+  - `test_executions` and recorded coverage are unchanged;
+  - an unavailable listing says why.
+- app `TestsTab.test.tsx` +2: the lines per pull request; loads on click
+  only, links the pull request.
+- **Live**, against the running instance and the `NXD-137` repository:
+  - data-products answered `pullRequests: []`;
+  - the Composer preview for version 1.0 answered `current: 5 of 5`,
+    `pullRequests: []`, with 200.
+  - The repository has no open pull request. One was not opened for the
+    check, because that is a write to the user's product repository. The
+    first real case will be S6's.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- Only the gate's coverage part is previewed. Approvals, baselines and
+  policy are not.
+- Forks: a fork's pull request is found by head-branch name, so two forks
+  with the same branch name are not told apart.
+- Ten pull requests at most per call.
+
+- Affected components: `plugins/data-products-backend/src/` — `types.ts`,
+  `githubActions.ts`, `router.ts` (+ tests); `plugins/composer-backend/src/`
+  — `ci-evidence-client.ts`, `service.ts` (`previewPullRequestEvidence`,
+  `getRequirementCoverage`'s `hypotheticalExecutions`), `router.ts`
+  (+ `testEvidenceImport.test.ts`); `packages/app/src/modules/products/` —
+  `api.ts`, `ProductDetailPage.tsx`, `tabs/TestsTab.tsx` (+ test).

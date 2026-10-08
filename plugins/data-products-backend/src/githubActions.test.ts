@@ -222,6 +222,27 @@ describe('createGithubActionsClient', () => {
       );
     });
 
+    it('lists open pull requests with their head (NXD-152)', async () => {
+      const fetchFn = jest.fn(async () =>
+        jsonResponse(200, [
+          { number: 3, title: 'T', html_url: 'u', head: { ref: 'ai/x', sha: 's' }, user: { login: 'claude' }, draft: true },
+          { title: 'not a pull request' },
+        ]),
+      );
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      expect(await client.listOpenPullRequests!(repo, 10)).toEqual({
+        ok: true,
+        value: [{ number: 3, title: 'T', htmlUrl: 'u', headRef: 'ai/x', headSha: 's', author: 'claude', draft: true }],
+      });
+      expect(String((fetchFn.mock.calls[0] as unknown[])[0])).toContain(
+        '/pulls?state=open&sort=updated&direction=desc&per_page=10',
+      );
+    });
+
     it('reads the default branch from the repository (NXD-151)', async () => {
       const fetchFn = jest.fn(async () => jsonResponse(200, { default_branch: 'trunk' }));
       const client = createGithubActionsClient({

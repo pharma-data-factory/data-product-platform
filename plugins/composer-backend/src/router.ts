@@ -1180,6 +1180,24 @@ export async function createRouter(
   );
 
   /**
+   * GET /versions/:id/pull-request-evidence (NXD-152)
+   * What each open pull request's CI run would verify of this version's
+   * requirements, and whether the gate's coverage part would then pass.
+   * Read-only; nothing is recorded.
+   */
+  router.get(
+    '/versions/:id/pull-request-evidence',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.previewPullRequestEvidence(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
    * POST /versions/:id/release-provenance/import (NXD-133)
    * Read the release record the product's release workflow published for
    * this version and write its commit and image digest to the approved

@@ -88,3 +88,77 @@ describe('GET /ci-evidence (NXD-151)', () => {
     });
   });
 });
+
+describe('GET /ci-evidence/pull-requests (NXD-152)', () => {
+  let github: any;
+  let listener: { url: string; close: () => Promise<void> };
+  const SHA = 'b'.repeat(40);
+
+  beforeEach(async () => {
+    github = {
+      getLatestRun: async () => ({ ok: true, value: undefined }),
+      getFailedStages: async () => [],
+      listOpenPullRequests: jest.fn(async () => ({
+        ok: true,
+        value: [
+          { number: 12, title: 'Implement URS-EPM-003', htmlUrl: 'https://github.com/acme/oee/pull/12', headRef: 'ai/urs-epm-003', headSha: SHA, draft: false, author: 'claude' },
+          { number: 11, title: 'Old work', htmlUrl: 'https://github.com/acme/oee/pull/11', headRef: 'feature/x', headSha: 'c'.repeat(40), draft: true },
+        ],
+      })),
+      getLatestCompletedRun: jest.fn(async (_repo: unknown, filter: { branch: string }) =>
+        filter.branch === 'ai/urs-epm-003'
+          ? { ok: true, value: { id: 41, name: 'CI', status: 'completed', conclusion: 'success', headBranch: filter.branch, headSha: SHA, htmlUrl: 'https://github.com/acme/oee/actions/runs/41', event: 'pull_request', completedAt: '2026-10-08T12:00:00Z' } }
+          : { ok: true, value: undefined },
+      ),
+      downloadArtifact: jest.fn(async () => ({ ok: true, value: undefined })),
+    };
+    const router = await createRouter({
+      logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn(), child: jest.fn() } as never,
+      catalog: { getEntityByRef: jest.fn(), refreshEntity: jest.fn() } as never,
+      httpAuth: {
+        credentials: jest.fn(async () => ({ principal: { type: 'service', subject: 'plugin:composer' } })),
+      } as never,
+      github,
+      permissions: { authorize: async () => [{ result: AuthorizeResult.ALLOW }] } as never,
+    });
+    const server = express();
+    server.use(router);
+    listener = await listenOnFetchablePort(server);
+  });
+
+  afterEach(async () => {
+    await listener.close();
+  });
+
+  it('reads each open pull request’s own pull_request run, and says what is missing', async () => {
+    const body = await (
+      await fetch(`${listener.url}/ci-evidence/pull-requests?repoUrl=${encodeURIComponent('https://github.com/acme/oee')}`)
+    ).json();
+    expect(github.listOpenPullRequests).toHaveBeenCalledWith(expect.objectContaining({ repo: 'oee' }), 10);
+    expect(github.getLatestCompletedRun).toHaveBeenCalledWith(expect.anything(), {
+      branch: 'ai/urs-epm-003',
+      event: 'pull_request',
+    });
+    expect(body.pullRequests).toEqual([
+      expect.objectContaining({
+        number: 12,
+        available: false,
+        reason: 'no-evidence-artifact',
+        stale: false,
+        run: expect.objectContaining({ id: 41, event: 'pull_request' }),
+      }),
+      expect.objectContaining({ number: 11, available: false, reason: 'no-completed-run', draft: true }),
+    ]);
+  });
+
+  it('marks a run that tested an older head as stale', async () => {
+    github.listOpenPullRequests.mockResolvedValueOnce({
+      ok: true,
+      value: [{ number: 12, title: 't', htmlUrl: 'u', headRef: 'ai/urs-epm-003', headSha: 'd'.repeat(40), draft: false }],
+    });
+    const body = await (
+      await fetch(`${listener.url}/ci-evidence/pull-requests?repoUrl=${encodeURIComponent('https://github.com/acme/oee')}`)
+    ).json();
+    expect(body.pullRequests[0].stale).toBe(true);
+  });
+});

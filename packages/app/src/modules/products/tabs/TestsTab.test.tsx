@@ -6,8 +6,8 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { TestsTab, importSummaryLines, registrationLine } from './TestsTab';
-import type { ReleaseProvenanceImport, TestEvidenceImport } from '../api';
+import { TestsTab, importSummaryLines, pullRequestLines, registrationLine } from './TestsTab';
+import type { PullRequestEvidencePreview, ReleaseProvenanceImport, TestEvidenceImport } from '../api';
 
 const coverage = {
   total: 2,
@@ -168,5 +168,56 @@ describe('TestsTab registry card (NXD-137)', () => {
     expect(
       registrationLine({ status: 'failed', reason: 'The Artifact Registry refused the build: no publisher.' }),
     ).toBe('The Artifact Registry refused the build: no publisher.');
+  });
+});
+
+describe('TestsTab pull request preview (NXD-152)', () => {
+  const preview: PullRequestEvidencePreview = {
+    available: true,
+    current: { verified: 1, total: 2 },
+    pullRequests: [
+      {
+        number: 12,
+        title: 'Implement URS-EPM-002',
+        url: 'https://github.com/o/r/pull/12',
+        headRef: 'ai/urs-epm-002',
+        draft: false,
+        author: 'claude',
+        stale: true,
+        available: true,
+        coverage: {
+          verified: 2,
+          total: 2,
+          wouldPassCoverage: true,
+          newlyVerified: ['URS-EPM-002'],
+          newlyUnverified: [],
+          byRequirement: {},
+          unknownRequirements: ['URS-EPM-777'],
+        },
+      },
+      { number: 11, title: 'Old work', url: 'u', headRef: 'x', draft: true, available: false, reason: 'no-evidence-artifact' },
+    ],
+  };
+
+  it('says what a pull request would verify, revoke or not know', () => {
+    expect(pullRequestLines(preview.pullRequests[0])).toEqual([
+      "2 of 2 requirements would be verified — the gate's coverage would pass.",
+      'Newly verified: URS-EPM-002',
+      'Tests name requirements this version does not carry: URS-EPM-777',
+      'The run tested an older commit than the pull request now has.',
+    ]);
+    expect(pullRequestLines(preview.pullRequests[1])).toEqual([
+      'No preview: its CI run uploaded no test evidence.',
+    ]);
+  });
+
+  it('loads on click, not when the tab opens', async () => {
+    const onPreview = jest.fn().mockResolvedValue(preview);
+    render(<TestsTab coverage={coverage} baselines={[]} error={null} onPreviewPullRequests={onPreview} />);
+    expect(onPreview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Check open pull requests' }));
+    expect(await screen.findByRole('link', { name: '#12' })).toHaveAttribute('href', 'https://github.com/o/r/pull/12');
+    expect(screen.getByText('Newly verified: URS-EPM-002')).toBeInTheDocument();
+    expect(screen.getByText(/Old work \(draft\)/)).toBeInTheDocument();
   });
 });

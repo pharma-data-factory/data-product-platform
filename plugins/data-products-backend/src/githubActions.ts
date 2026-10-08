@@ -142,6 +142,29 @@ export function createGithubActionsClient(options: {
       return runs.ok ? { ok: true, value: firstRun(runs.value) } : runs;
     },
 
+    async listOpenPullRequests(repo, limit) {
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/pulls?state=open&sort=updated&direction=desc&per_page=${Math.max(1, Math.min(limit, 100))}`,
+      );
+      if (!listing.ok) return listing;
+      const rows = Array.isArray(listing.value) ? (listing.value as Array<Record<string, any>>) : [];
+      return {
+        ok: true,
+        value: rows
+          .filter(pr => typeof pr.number === 'number' && pr.head && typeof pr.head.ref === 'string')
+          .map(pr => ({
+            number: pr.number,
+            title: typeof pr.title === 'string' ? pr.title : '',
+            htmlUrl: typeof pr.html_url === 'string' ? pr.html_url : '',
+            headRef: pr.head.ref,
+            headSha: typeof pr.head.sha === 'string' ? pr.head.sha : '',
+            ...(typeof pr.user?.login === 'string' ? { author: pr.user.login } : {}),
+            draft: pr.draft === true,
+          })),
+      };
+    },
+
     async getDefaultBranch(repo) {
       const info = await authorizedRequest(repo, repoPath(repo));
       if (!info.ok) return info;

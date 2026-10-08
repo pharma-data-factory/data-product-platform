@@ -65,6 +65,17 @@ export interface GithubWorkflowRun {
   completedAt?: string;
 }
 
+/** NXD-152. An open pull request, as far as evidence needs it. */
+export interface GithubPullRequest {
+  number: number;
+  title: string;
+  htmlUrl: string;
+  headRef: string;
+  headSha: string;
+  author?: string;
+  draft: boolean;
+}
+
 export type GithubFetchFailure = 'inaccessible' | 'unavailable' | 'not-found';
 
 export type GithubFetchResult<T> =
@@ -90,6 +101,11 @@ export interface GithubActionsClient {
   ): Promise<GithubFetchResult<GithubWorkflowRun | undefined>>;
   /** NXD-151. The repository's default branch. */
   getDefaultBranch?(repo: GithubRepoRef): Promise<GithubFetchResult<string>>;
+  /** NXD-152. Open pull requests, newest first, at most `limit`. */
+  listOpenPullRequests?(
+    repo: GithubRepoRef,
+    limit: number,
+  ): Promise<GithubFetchResult<GithubPullRequest[]>>;
   /** NXD-123. A run's artifact by name, as the zip GitHub serves. */
   downloadArtifact?(
     repo: GithubRepoRef,
