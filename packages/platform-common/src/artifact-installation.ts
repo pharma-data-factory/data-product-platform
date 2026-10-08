@@ -21,6 +21,7 @@
 
 import { createHash } from 'crypto';
 import type { ConfigKeySchema } from './platform-component-library';
+import type { ArtifactRuntime } from './artifact';
 
 /** The three acts that change an installation's desired state. */
 export const INSTALLATION_ACTS = ['INSTALL', 'UPGRADE', 'REMOVE'] as const;
@@ -33,7 +34,7 @@ export type InstallationDesiredState =
 
 /**
  * What a provider last reported. Written only by the provider API
- * (NXD-129 slice 2); until a provider reports, an installation has no
+ * (NXD-143); until a provider reports, an installation has no
  * observed state at all, which is not the same as `UNKNOWN`.
  */
 export const INSTALLATION_OBSERVED_STATES = [
@@ -59,8 +60,9 @@ export type InstallationObservedState =
  *   the desired state; QA has not signed.
  * - `QUALIFIED`: QA has signed the IQ. Only now is the installation qualified.
  *
- * Evidence intake and the QA sign-off are later slices; this slice only ever
- * writes `NOT_REQUIRED` and `PENDING_EVIDENCE`.
+ * Acts write `NOT_REQUIRED` and `PENDING_EVIDENCE`; a provider's report that
+ * matches the desire writes `EVIDENCE_RECORDED` (NXD-143). QA's sign-off,
+ * the only way to `QUALIFIED`, is a later slice.
  */
 export const INSTALLATION_QUALIFICATION_STATUSES = [
   'NOT_REQUIRED',
@@ -306,7 +308,7 @@ export interface InstallationDesired {
   changedAt: Date;
 }
 
-/** What a provider reports. Absent until one does (NXD-129 slice 2). */
+/** What a provider reports. Absent until one does (NXD-143). */
 export interface InstallationObserved {
   state: InstallationObservedState;
   desiredRevision?: number;
@@ -359,9 +361,9 @@ export interface InstallationActRecord {
 
 /**
  * The IQ record of one desired revision of a GMP-relevant installation.
- * Created `PENDING_EVIDENCE` by an install or upgrade; the evidence fields
- * are filled from the provider's report and the sign-off by QA in later
- * slices (NXD-139).
+ * Created `PENDING_EVIDENCE` by an install or upgrade (NXD-139); the evidence
+ * fields are filled from a matching provider report (NXD-143), the sign-off
+ * by QA in a later slice.
  */
 export interface InstallationQualification {
   id: string;
@@ -391,4 +393,102 @@ export interface InstallationSignatureInput {
   pin?: string;
   /** Required for a product that is not GMP-relevant. */
   confirmed?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Provider API (NXD-129 slice 2, NXD-143)
+// ---------------------------------------------------------------------------
+
+/**
+ * One installation as its target's provider reads it: the desired state, and
+ * the released manifest's `spec.runtime` (ports, health, resources, storage)
+ * so the provider needs no second credential for the registry.
+ *
+ * `blocked` names why the provider must not apply this desire — the version
+ * it pins is no longer the one the registry answers for it — and is absent
+ * otherwise. A blocked installation is listed, not hidden, so a provider can
+ * report it rather than silently skip it.
+ */
+export interface ProviderDesiredInstallation {
+  id: string;
+  name: string;
+  namespace: string;
+  artifactName: string;
+  gmpRelevant: boolean;
+  desired: InstallationDesired;
+  runtime?: ArtifactRuntime;
+  blocked?: string;
+}
+
+/** `GET /provider/targets/:targetId/desired`. */
+export interface ProviderDesiredState {
+  target: Pick<RuntimeTarget, 'id' | 'name' | 'providerKind'>;
+  installations: ProviderDesiredInstallation[];
+  generatedAt: string;
+}
+
+/** `POST /provider/targets/:targetId/installations/:id/observed`. */
+export interface ObservedStateReport {
+  state: InstallationObservedState;
+  /** The desired revision this observation answers. */
+  desiredRevision: number;
+  /** The digest of the image actually running, `sha256:<64 hex>`. */
+  imageDigest?: string;
+  /** `computeInstallationConfigHash` of the configuration actually applied. */
+  configHash?: string;
+  message?: string;
+}
+
+const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const OBSERVED_MESSAGE_MAX = 1000;
+
+/**
+ * Validates a provider's report. Returns the normalised report, or every
+ * issue found. Whether the revision exists is the store's question, not
+ * this function's.
+ */
+export function validateObservedStateReport(
+  input: unknown,
+): { report?: ObservedStateReport; issues: string[] } {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return { issues: ['the report must be an object'] };
+  }
+  const raw = input as Record<string, unknown>;
+  const issues: string[] = [];
+  const state = raw.state as InstallationObservedState;
+  if (!INSTALLATION_OBSERVED_STATES.includes(state)) {
+    issues.push(`state must be one of ${INSTALLATION_OBSERVED_STATES.join(', ')}`);
+  }
+  const desiredRevision = raw.desiredRevision;
+  if (
+    typeof desiredRevision !== 'number' ||
+    !Number.isInteger(desiredRevision) ||
+    desiredRevision < 1
+  ) {
+    issues.push('desiredRevision must be a positive integer');
+  }
+  for (const key of ['imageDigest', 'configHash'] as const) {
+    const value = raw[key];
+    if (value !== undefined && (typeof value !== 'string' || !SHA256_PATTERN.test(value))) {
+      issues.push(`${key} must be sha256:<64 lowercase hex>`);
+    }
+  }
+  if (raw.message !== undefined && typeof raw.message !== 'string') {
+    issues.push('message must be a string');
+  }
+  if (issues.length > 0) return { issues };
+  const message =
+    typeof raw.message === 'string'
+      ? raw.message.trim().slice(0, OBSERVED_MESSAGE_MAX)
+      : '';
+  return {
+    report: {
+      state,
+      desiredRevision: desiredRevision as number,
+      ...(raw.imageDigest ? { imageDigest: raw.imageDigest as string } : {}),
+      ...(raw.configHash ? { configHash: raw.configHash as string } : {}),
+      ...(message ? { message } : {}),
+    },
+    issues: [],
+  };
 }

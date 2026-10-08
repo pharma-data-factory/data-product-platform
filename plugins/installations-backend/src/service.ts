@@ -34,6 +34,7 @@ import {
   isArtifactSegment,
   parseArtifactRef,
   validateInstallationConfig,
+  validateObservedStateReport,
   type ArtifactCoordinate,
   type ArtifactInstallation,
   type ArtifactManifest,
@@ -41,8 +42,11 @@ import {
   type InstallationAct,
   type InstallationActRecord,
   type InstallationConfig,
+  type InstallationObserved,
   type InstallationQualification,
   type InstallationSignatureInput,
+  type ProviderDesiredInstallation,
+  type ProviderDesiredState,
   type RuntimeTarget,
 } from '@internal/platform-common';
 import type { GmpClassification } from './clients';
@@ -160,6 +164,10 @@ export class InstallationsService {
     return this.repository.listTargets();
   }
 
+  async findTarget(id: string): Promise<RuntimeTarget | undefined> {
+    return this.repository.getTarget(id);
+  }
+
   async getTarget(id: string): Promise<RuntimeTarget> {
     const target = await this.repository.getTarget(id);
     if (!target) throw new NotFoundError(`Runtime target ${id} not found`);
@@ -191,6 +199,179 @@ export class InstallationsService {
   async listQualifications(id: string): Promise<InstallationQualification[]> {
     await this.getInstallation(id);
     return this.repository.listQualifications(id);
+  }
+
+  // -- provider API (NXD-143) ---------------------------------------------
+
+  /**
+   * What the target's provider is to make true: every installation on the
+   * target, PRESENT and ABSENT, with the released manifest's runtime. A
+   * version the registry no longer answers for as pinned is listed blocked.
+   */
+  async desiredStateFor(
+    target: RuntimeTarget,
+    readVersion: ActContext['readVersion'],
+  ): Promise<ProviderDesiredState> {
+    const installations = await this.repository.listInstallations({ targetId: target.id });
+    const versions = new Map<string, Promise<ArtifactVersion | undefined>>();
+    const items = await Promise.all(
+      installations.map(async (installation): Promise<ProviderDesiredInstallation> => {
+        const { desired } = installation;
+        const coordinate: ArtifactCoordinate = {
+          namespace: installation.namespace,
+          name: installation.artifactName,
+          version: desired.version,
+        };
+        const ref = formatArtifactRef(coordinate);
+        if (!versions.has(ref)) versions.set(ref, readVersion(coordinate));
+        const version = await versions.get(ref)!;
+        const base: ProviderDesiredInstallation = {
+          id: installation.id,
+          name: installation.name,
+          namespace: installation.namespace,
+          artifactName: installation.artifactName,
+          gmpRelevant: installation.gmpRelevant,
+          desired,
+        };
+        if (!version || version.id !== desired.artifactVersionId) {
+          const answer = version ? `answers ${version.id}` : 'no longer has it';
+          return {
+            ...base,
+            blocked: `${ref} is pinned as version ${desired.artifactVersionId}, but the registry ${answer}`,
+          };
+        }
+        const runtime = (version.manifest as ArtifactManifest | undefined)?.spec?.runtime;
+        return runtime ? { ...base, runtime } : base;
+      }),
+    );
+    return {
+      target: { id: target.id, name: target.name, providerKind: target.providerKind },
+      installations: items,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * A provider's report on one installation of its target.
+   *
+   * The observed state is written every time; the audit trail records only
+   * a change of what was observed (state, revision, digest, configuration),
+   * not every poll. When the report shows the current desired revision
+   * RUNNING at the desired digest with the desired configuration, and the
+   * installation awaits IQ evidence, the evidence is recorded (NXD-139's
+   * EVIDENCE_RECORDED). A report that contradicts the desire records none:
+   * the IQ is made from facts that match, never from facts that differ.
+   */
+  async reportObserved(
+    target: RuntimeTarget,
+    installationId: string,
+    input: unknown,
+    reporter: string,
+  ): Promise<ArtifactInstallation> {
+    const installation = await this.repository.getInstallation(installationId);
+    if (!installation || installation.targetId !== target.id) {
+      throw new NotFoundError(
+        `Installation ${installationId} is not on runtime target "${target.name}"`,
+      );
+    }
+    const { report, issues } = validateObservedStateReport(input);
+    if (!report) {
+      throw new InputError(`Invalid observed state: ${issues.join('; ')}`);
+    }
+    if (report.desiredRevision > installation.desired.revision) {
+      throw new ConflictError(
+        `Installation ${installationId} has desired revision ` +
+          `${installation.desired.revision}; a report cannot answer revision ` +
+          `${report.desiredRevision}`,
+      );
+    }
+
+    const now = new Date();
+    const observed: InstallationObserved = {
+      state: report.state,
+      desiredRevision: report.desiredRevision,
+      ...(report.imageDigest ? { imageDigest: report.imageDigest } : {}),
+      ...(report.configHash ? { configHash: report.configHash } : {}),
+      ...(report.message ? { message: report.message } : {}),
+      reportedBy: reporter,
+      reportedAt: now,
+    };
+    const { desired } = installation;
+    const matchesDesired =
+      desired.state === 'PRESENT' &&
+      report.state === 'RUNNING' &&
+      report.desiredRevision === desired.revision &&
+      report.imageDigest === desired.imageDigest &&
+      report.configHash === desired.configHash;
+
+    const facts = (o: InstallationObserved | undefined) =>
+      o
+        ? {
+            state: o.state,
+            desiredRevision: o.desiredRevision ?? null,
+            imageDigest: o.imageDigest ?? null,
+            configHash: o.configHash ?? null,
+          }
+        : null;
+    const before = facts(installation.observed);
+    const after = facts(observed);
+    const changed = JSON.stringify(before) !== JSON.stringify(after);
+
+    const { evidenceRecorded } = await this.repository.recordObserved({
+      installationId,
+      observed,
+      ...(changed
+        ? {
+            audit: {
+              id: randomUUID(),
+              eventType: 'OBSERVED_STATE_CHANGED',
+              installationId,
+              targetId: target.id,
+              actor: reporter,
+              occurredAt: now,
+              details: {
+                before,
+                after,
+                desiredRevision: desired.revision,
+                matchesDesired,
+                ...(observed.message ? { message: observed.message } : {}),
+              },
+            },
+          }
+        : {}),
+      ...(matchesDesired && installation.qualificationStatus === 'PENDING_EVIDENCE'
+        ? {
+            evidence: {
+              desiredRevision: desired.revision,
+              targetId: target.id,
+              audit: {
+                id: randomUUID(),
+                eventType: 'IQ_EVIDENCE_RECORDED',
+                installationId,
+                targetId: target.id,
+                actor: reporter,
+                occurredAt: now,
+                details: {
+                  desiredRevision: desired.revision,
+                  imageDigest: observed.imageDigest,
+                  configHash: observed.configHash,
+                  targetId: target.id,
+                },
+              },
+            },
+          }
+        : {}),
+    });
+    return {
+      ...installation,
+      observed,
+      ...(evidenceRecorded
+        ? {
+            qualificationStatus: 'EVIDENCE_RECORDED' as const,
+            revision: installation.revision + 1,
+          }
+        : {}),
+    };
   }
 
   // -- acts ----------------------------------------------------------------

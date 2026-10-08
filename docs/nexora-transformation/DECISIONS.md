@@ -8854,3 +8854,151 @@ deleted it. For a GMP product that is lost data, not an inconvenience.
   `index.ts`, `manifestSchemaValidator.ts` (+ `manifestSchema.test.ts`);
   `templates/oee-data-product/content/nexora.yaml`;
   `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-143 — A runtime provider reads its target's desired state and reports what runs; a matching report is IQ evidence
+
+- Date: 2026-10-08
+- Slice: MVP1 step 8, part 1 — slice 2 of [`NXD-129`](DECISIONS.md), the
+  provider API. Part 2, the Docker Compose provider, is `NXD-144`.
+- Decided by: the user ("ja", 2026-10-08) to the recommendation to build the
+  provider API first, with IQ evidence intake in the same slice. The shape
+  below was chosen here and is named for review.
+
+**Context.** `NXD-139` built the installations store with desired state, an
+IQ record per GMP desired revision, and observed-state columns that no route
+wrote. `NXD-129` sequenced the provider API second. It is the half that lets
+something outside Core run an installation without Core deploying anything.
+Reading the store for this slice found a defect that had no effect yet: every
+act wrote the whole installation row back, observed columns included, as it
+had read them. Once a provider reports, an act that reads just before a
+report and writes just after it would have erased the report.
+
+**Decision.**
+
+- **Two routes, under `/provider/targets/:targetId`.**
+  - `GET …/desired` returns every installation on the target, PRESENT and
+    ABSENT (an ABSENT one is still something the provider must act on).
+    Each item carries its desired state and the released manifest's
+    `spec.runtime`: ports, health, resources and `NXD-142`'s storage. The
+    provider therefore needs no second credential for the registry.
+  - `POST …/installations/:id/observed` takes `ObservedStateReport`:
+    `state`, `desiredRevision`, optional `imageDigest`, `configHash` and
+    `message`. Both shapes, and `validateObservedStateReport`, live in
+    `platform-common`. The Compose provider will import them, as it already
+    must import `computeInstallationConfigHash`.
+- **Who may call them.**
+  - The routes accept only a service principal. The person routes accept
+    only a user. Both halves are pinned by test.
+  - The caller's `externalAccess` subject must equal the target's
+    `providerSubject`. A service principal has no catalog identity, so
+    `NXD-087`'s rule holds and the permission framework is not consulted.
+    Here the binding on the target, not the token alone, is the
+    authorization. A token issued for `release-pipeline` reaches none of
+    these routes.
+  - An unknown target and a target bound to someone else get the same 403.
+    A token holder learns nothing about targets that are not theirs.
+- **The runtime is read when the provider asks, never copied in advance.**
+  The installations plugin reads the version from the registry on the
+  provider's behalf, once per pinned version per request. If the registry
+  no longer answers for the pin with the same `ArtifactVersion` id, the
+  installation is listed as `blocked`, with the reason and without a
+  runtime. A provider can report it, but it cannot apply a desire that has
+  lost its version. The installation is not hidden.
+- **What a report changes.**
+  - The observed columns, every time.
+  - Never the installation's `revision`. A provider that polls every few
+    seconds must not make a person's act fail as stale.
+  - A report for a revision above the desired one is refused (409). A report
+    for an installation on another target is refused (404).
+  - An act no longer writes the observed columns. This fixes the defect
+    named in the context.
+- **What the audit trail records.** It records `OBSERVED_STATE_CHANGED` when
+  state, revision, digest or configuration hash change, not on every poll.
+  The provider's subject is the actor. The record holds the facts before and
+  after, and whether they match the desire.
+- **IQ evidence.**
+  - A report counts as evidence when it shows the current desired revision
+    `RUNNING`, at the desired digest and with the desired configuration
+    hash, and the installation is PRESENT and `PENDING_EVIDENCE`.
+  - In one transaction, the evidence then fills the IQ record of that
+    revision (observed digest, hash, target, recorded by, at) and moves both
+    the record and the installation to `EVIDENCE_RECORDED`.
+  - The update is guarded on the desired revision. A report of the old
+    revision after an upgrade qualifies nothing.
+  - The update does move the installation's revision, because the
+    qualification status is also an act's column. An act that read the
+    installation before the evidence arrived is therefore refused as stale,
+    and does not write back `PENDING_EVIDENCE`.
+  - A report that differs from the desire records no evidence. The IQ is
+    made from facts that match.
+- **A local provider token.** `app-config.service-token.yaml` gains a second
+  static token, subject `provider:local-compose`. It is local only and
+  loaded only by naming the file (`NXD-087`). Production configures no
+  provider token yet.
+
+**Alternatives considered.**
+
+- *Snapshot the runtime into the desired state at install time.* Rejected
+  for now. It needs a migration, and the pin check already catches a version
+  that changed under an installation. If registry availability starts to
+  matter on a provider's poll path, a snapshot becomes the stronger choice.
+- *Let the permission framework decide for the provider, with a role for
+  service principals.* Rejected. A service principal has no catalog identity
+  to hold a role (`NXD-087`). A binding per target is narrower than any role
+  could be: one provider, one target.
+- *Audit every report.* Rejected. It turns the trail into a heartbeat log in
+  which the real changes are hard to find. `reportedAt` already shows the
+  last contact.
+- *Record evidence from any `RUNNING` report and let QA compare.* Rejected.
+  `NXD-139` defines `EVIDENCE_RECORDED` as facts that are on the record *and
+  match*. Mismatching facts are visible in the observed state and in the
+  audit trail (`matchesDesired: false`). They are not evidence.
+
+**Verified.**
+
+- `provider.test.ts` (new, 11 tests): reading desired state, including
+  ABSENT and storage; a blocked pin, for a changed id and for a missing
+  version; one registry read per version; refusing malformed, foreign and
+  future-revision reports; auditing a change but not a repeat; evidence
+  recorded once; no evidence from four kinds of mismatch, from the old
+  revision after an upgrade, or for a non-GMP installation; an act keeps a
+  report; a stale act after evidence is refused.
+- `router.test.ts`: the old "no service principal anywhere" test is now
+  "none on a person's route". Two new tests: the provider routes refuse a
+  user, an unbound subject, an unknown target and a target without a
+  provider, never consult the permission framework, hand the provider's own
+  credentials to the registry, and map refusals to 400, 404 and 409.
+- `migrations.postgres.test.ts`, +1, against real PostgreSQL (`CI=true`):
+  the service takes a report and its evidence through the append-only
+  triggers, with timestamps read back as dates.
+- `platform-common` `artifact-installation.test.ts`, +2: the report
+  validator normalises, truncates the message, and names every issue at
+  once.
+- See the commit body for the gates and the repo-wide run. Nothing was run
+  live: there is still no registered target, and no provider exists yet.
+
+**Not changed, named.**
+
+- **Drift after evidence.** A later report that differs from the desire
+  (another digest, for example) is recorded and audited. It does not revoke
+  `EVIDENCE_RECORDED` or a later `QUALIFIED`. Whether drift reopens the IQ
+  is a QA decision, and it belongs with the sign-off.
+- **QA's sign-off**, the only way to `QUALIFIED`, still has no route. Its
+  columns exist.
+- **Binding a provider to an existing target.** `providerSubject` can only
+  be set when the target is registered. No route changes it.
+- **Production** has no provider token, and no rule for which subjects may
+  be bound.
+- **Rate.** Reports are not rate-limited, and a read of desired state is
+  not audited.
+- **The UI** already showed `observed.state` and the qualification status on
+  the Marketplace Install card (`NXD-141`). It is unchanged.
+
+- Affected components: `packages/platform-common/src/artifact-installation.ts`
+  (`ProviderDesiredState`, `ProviderDesiredInstallation`,
+  `ObservedStateReport`, `validateObservedStateReport`), `index.ts`
+  (+ `artifact-installation.test.ts`); `plugins/installations-backend/src/`
+  — `router.ts`, `service.ts`, `repository.ts` (`recordObserved`; the act
+  patch no longer writes observed columns), comments in `plugin.ts` and
+  `db/migrations.ts` (+ `provider.test.ts` new, `router.test.ts`,
+  `db/migrations.postgres.test.ts`); `app-config.service-token.yaml`.

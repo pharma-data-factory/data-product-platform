@@ -1,11 +1,13 @@
 /**
  * Installations HTTP surface (NXD-129 slice 1, NXD-139).
  *
- * Every route names the permission that guards it. Every route admits a
- * person only: the routes a runtime provider calls with a service principal
- * (read desired state, report observed state) are slice 2, and until then
- * no route here accepts one — pinned by test, as NXD-087 pinned the
- * registry's writes.
+ * Every person's route names the permission that guards it, and admits a
+ * person only. The two provider routes under `/provider/targets/:targetId`
+ * (NXD-129 slice 2, NXD-143) are the reverse: they admit a service principal
+ * only, and only the one whose `externalAccess` subject is the target's
+ * `providerSubject`. A service principal carries no catalog identity, so
+ * the permission framework has nothing to decide for it; the binding on the
+ * target is the authorization. Both halves are pinned by test.
  */
 
 import express from 'express';
@@ -33,6 +35,7 @@ import {
   installationManagePermission,
   installationReadPermission,
   installationTargetManagePermission,
+  type RuntimeTarget,
 } from '@internal/platform-common';
 import type {
   ArtifactVersionReader,
@@ -123,6 +126,26 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
         return options.pinVerifier(credentials, pin);
       },
     };
+  }
+
+  /**
+   * The provider of `targetId`, or a refusal. An unknown target and a target
+   * bound to someone else are refused alike, so a token holder learns
+   * nothing about targets that are not theirs.
+   */
+  async function authorizeProvider(
+    req: express.Request,
+    targetId: string,
+  ): Promise<{ subject: string; credentials: BackstageCredentials; target: RuntimeTarget }> {
+    const credentials = await httpAuth.credentials(req, { allow: ['service'] });
+    const subject = credentials.principal.subject;
+    const target = await service.findTarget(targetId);
+    if (!target || !target.providerSubject || target.providerSubject !== subject) {
+      throw new NotAllowedError(
+        `"${subject}" is not the provider of runtime target ${targetId}`,
+      );
+    }
+    return { subject, credentials, target };
   }
 
   router.use(express.json());
@@ -261,6 +284,34 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       await authorize(req, installationReadPermission);
       res.json({ items: await service.listQualifications(req.params.id) });
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  // ==========================================================================
+  // PROVIDER API (NXD-143) — service principal, bound to the target
+  // ==========================================================================
+
+  /** GET /provider/targets/:targetId/desired — what the provider is to make true. */
+  router.get('/provider/targets/:targetId/desired', async (req, res) => {
+    try {
+      const { credentials, target } = await authorizeProvider(req, req.params.targetId);
+      res.json(
+        await service.desiredStateFor(target, coordinate =>
+          options.readArtifactVersion(credentials, coordinate),
+        ),
+      );
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /** POST /provider/targets/:targetId/installations/:id/observed — what it found. */
+  router.post('/provider/targets/:targetId/installations/:id/observed', async (req, res) => {
+    try {
+      const { subject, target } = await authorizeProvider(req, req.params.targetId);
+      res.json(await service.reportObserved(target, req.params.id, req.body, subject));
     } catch (err) {
       respondError(res, logger, err);
     }

@@ -25,8 +25,12 @@
 # resolve and the permission framework is not consulted. What a service may
 # therefore do is decided entirely by which routes accept `service` at all.
 # Today that is the artifact registry's six read routes, POST
-# /policies/resolve, and the Composer's two write-once CI routes. Nothing
-# here widens that set; this file only lets you present the credential.
+# /policies/resolve, the Composer's two write-once CI routes, and the
+# installations provider API (NXD-143) — which additionally requires the
+# subject to be the runtime target's `providerSubject`, so the second token
+# below reaches only a target registered with `provider:local-compose`.
+# Nothing here widens that set; this file only lets you present the
+# credential.
 #
 # NEVER load this file in the production image, and never copy this token
 # into one. Production reads ${NEXORA_PROVENANCE_TOKEN} from the environment
@@ -44,3 +48,9 @@ backend:
         options:
           token: dev-consumer-token-not-a-secret
           subject: installation:plant-basel
+      # The local Docker Compose provider (NXD-129 slice 3). Register a
+      # target with providerSubject `provider:local-compose` to bind it.
+      - type: static
+        options:
+          token: dev-provider-token-not-a-secret
+          subject: provider:local-compose

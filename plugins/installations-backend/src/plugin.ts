@@ -4,7 +4,7 @@
  * Owns governed desired state: which released artifact version runs on which
  * runtime target, with which configuration, and every act that changed it.
  * It executes nothing. A runtime provider outside the Backstage backend
- * pulls desired state and reports what it observes (slices 2 and 3), so this
+ * pulls desired state and reports what it observes (NXD-143), so this
  * plugin holds no container client, no host credential and no dependency the
  * other backend plugins do not already have.
  */

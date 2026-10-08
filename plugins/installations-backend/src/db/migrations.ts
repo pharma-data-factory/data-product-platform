@@ -6,9 +6,8 @@
  *   called "installations" or "instances": `NXD-078`'s installation identity
  *   is a Nexora instance, and the two must not share a table or a name.
  * - `artifact_installations` — governed desired state, and the observed
- *   state a provider reports. The observed columns exist now and stay empty
- *   until the provider API (slice 2) writes them, so slice 2 adds a route,
- *   not a migration.
+ *   state a provider reports. The observed columns are written only by the
+ *   provider API (NXD-143), which added routes and no migration.
  * - `installation_acts` — every install, upgrade and removal as attested
  *   (the `product_signatures` shape of NXD-128). Append-only.
  * - `installation_audit_events` — what changed, before and after. Append-only.
@@ -64,7 +63,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('desired_changed_by', 255).notNullable();
       table.timestamp('desired_changed_at').notNullable();
 
-      // Observed state: written only by the provider API (slice 2).
+      // Observed state: written only by the provider API (NXD-143).
       table.string('observed_state', 16).nullable();
       table.integer('observed_desired_revision').nullable();
       table.string('observed_image_digest', 80).nullable();
@@ -126,8 +125,8 @@ export async function up(knex: Knex): Promise<void> {
       table.string('expected_image_digest', 80).notNullable();
       table.string('expected_config_hash', 80).notNullable();
       table.string('expected_target_id', 255).notNullable();
-      // Evidence (from the provider's report) and sign-off (by QA): later
-      // slices. The columns are here so those slices add routes, not schema.
+      // Evidence from a matching provider report (NXD-143); sign-off by QA
+      // in a later slice, which adds a route, not schema.
       table.string('observed_image_digest', 80).nullable();
       table.string('observed_config_hash', 80).nullable();
       table.string('observed_target_id', 255).nullable();

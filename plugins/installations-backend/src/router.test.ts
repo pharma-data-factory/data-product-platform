@@ -1,8 +1,9 @@
 /**
  * Installations HTTP surface (NXD-139): which permission guards which route,
  * which status each refusal becomes, that the caller's own credentials reach
- * the registry, the classifier and the PIN check, and that no route admits a
- * service principal before the provider API exists (slice 2).
+ * the registry, the classifier and the PIN check; that no person's route
+ * admits a service principal, and that the provider routes admit only the
+ * service principal bound to the target (NXD-143).
  */
 
 import express from 'express';
@@ -11,6 +12,7 @@ import { AuthenticationError, NotAllowedError } from '@backstage/errors';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { listenOnFetchablePort as listen } from '@internal/backend-test-utils';
 import {
+  DIGEST_1,
   OPERATOR,
   RIGHT_PIN,
   fakeWorld,
@@ -28,6 +30,8 @@ describe('installations router', () => {
   let checked: string[];
   let denied: Set<string>;
   let principal: 'user' | 'service' | 'none';
+  /** The externalAccess subject a service principal presents. */
+  let serviceSubject: string;
   /** The credentials each client was handed. */
   let handedCredentials: unknown[];
 
@@ -38,6 +42,7 @@ describe('installations router', () => {
     checked = [];
     denied = new Set();
     principal = 'user';
+    serviceSubject = 'provider:basel';
     handedCredentials = [];
 
     const router = await createRouter({
@@ -50,7 +55,9 @@ describe('installations router', () => {
               ? new AuthenticationError('No credentials presented')
               : new NotAllowedError(`This endpoint does not allow '${principal}' credentials`);
           }
-          return { principal: { type: 'user', userEntityRef: OPERATOR } };
+          return principal === 'service'
+            ? { principal: { type: 'service', subject: serviceSubject } }
+            : { principal: { type: 'user', userEntityRef: OPERATOR } };
         },
       } as never,
       permissions: {
@@ -98,6 +105,7 @@ describe('installations router', () => {
     const response = await request('/targets', 'POST', {
       name: 'basel-line-3',
       providerKind: 'docker-compose',
+      providerSubject: 'provider:basel',
     });
     expect(response.status).toBe(201);
     return ((await response.json()) as { id: string }).id;
@@ -202,7 +210,7 @@ describe('installations router', () => {
     expect((await request('/installations/nope')).status).toBe(404);
   });
 
-  it('admits no service principal on any route before the provider API exists', async () => {
+  it('admits no service principal on any person’s route', async () => {
     const targetId = await target();
     const id = await installed(targetId);
     principal = 'service';
@@ -225,6 +233,82 @@ describe('installations router', () => {
     }
     principal = 'none';
     expect((await request('/installations')).status).toBe(401);
+  });
+
+  describe('the provider routes (NXD-143)', () => {
+    function report(targetId: string, id: string, body: unknown) {
+      return request(`/provider/targets/${targetId}/installations/${id}/observed`, 'POST', body);
+    }
+
+    it('admit only the service principal bound to the target', async () => {
+      const targetId = await target();
+      const id = await installed(targetId);
+      const unbound = await request('/targets', 'POST', { name: 'unbound', providerKind: 'docker-compose' });
+      const unboundId = ((await unbound.json()) as { id: string }).id;
+      const running = { state: 'RUNNING', desiredRevision: 1 };
+
+      // A person, however permitted, is not a provider.
+      expect((await request(`/provider/targets/${targetId}/desired`)).status).toBe(403);
+      expect((await report(targetId, id, running)).status).toBe(403);
+
+      principal = 'service';
+      serviceSubject = 'release-pipeline';
+      expect((await request(`/provider/targets/${targetId}/desired`)).status).toBe(403);
+      expect((await report(targetId, id, running)).status).toBe(403);
+
+      // An unknown target and a target with no provider are refused alike.
+      serviceSubject = 'provider:basel';
+      const unknown = await request('/provider/targets/nope/desired');
+      expect(unknown.status).toBe(403);
+      expect(((await unknown.json()) as { error: string }).error).toMatch(
+        /"provider:basel" is not the provider of runtime target nope/,
+      );
+      expect((await request(`/provider/targets/${unboundId}/desired`)).status).toBe(403);
+
+      principal = 'none';
+      expect((await request(`/provider/targets/${targetId}/desired`)).status).toBe(401);
+      // The permission framework is never consulted for a provider.
+      expect(checked.filter(name => name !== 'installation.target.manage' && name !== 'installation.manage')).toEqual([]);
+    });
+
+    it('serve desired state with the provider’s credentials, and take its report', async () => {
+      const targetId = await target();
+      const id = await installed(targetId);
+      principal = 'service';
+      handedCredentials = [];
+
+      const desired = await request(`/provider/targets/${targetId}/desired`);
+      expect(desired.status).toBe(200);
+      const body = (await desired.json()) as {
+        installations: Array<{ id: string; desired: { imageDigest: string; configHash: string } }>;
+      };
+      expect(body.installations.map(i => i.id)).toEqual([id]);
+      expect(handedCredentials).toEqual([{ principal: { type: 'service', subject: 'provider:basel' } }]);
+
+      const { configHash } = body.installations[0].desired;
+      expect((await report(targetId, id, { state: 'NOPE', desiredRevision: 1 })).status).toBe(400);
+      expect((await report(targetId, 'nope', { state: 'RUNNING', desiredRevision: 1 })).status).toBe(404);
+      expect((await report(targetId, id, { state: 'RUNNING', desiredRevision: 5 })).status).toBe(409);
+      const ok = await report(targetId, id, {
+        state: 'RUNNING',
+        desiredRevision: 1,
+        imageDigest: DIGEST_1,
+        configHash,
+      });
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toEqual(
+        expect.objectContaining({
+          qualificationStatus: 'EVIDENCE_RECORDED',
+          observed: expect.objectContaining({ state: 'RUNNING', reportedBy: 'provider:basel' }),
+        }),
+      );
+
+      principal = 'user';
+      const iq = await request(`/installations/${id}/qualifications`);
+      expect(((await iq.json()) as { items: Array<{ status: string }> }).items[0].status).toBe(
+        'EVIDENCE_RECORDED',
+      );
+    });
   });
 
   it('tells the dialog what an act will ask for, under installation.read (NXD-141)', async () => {

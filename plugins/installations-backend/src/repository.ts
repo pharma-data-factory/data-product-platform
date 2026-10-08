@@ -16,6 +16,7 @@ import type {
   InstallationActRecord,
   InstallationConfig,
   InstallationDesiredState,
+  InstallationObserved,
   InstallationObservedState,
   InstallationQualification,
   InstallationQualificationStatus,
@@ -153,7 +154,22 @@ export class InstallationsRepository {
       if (write.expectedRevision === undefined) {
         await trx('artifact_installations').insert(row);
       } else {
-        const { id, created_by: _c, created_at: _a, ...patch } = row;
+        // The observed columns are the provider's (NXD-143): an act read them
+        // before it decided, and writing them back would overwrite a report
+        // that arrived in between.
+        const {
+          id,
+          created_by: _c,
+          created_at: _a,
+          observed_state: _os,
+          observed_desired_revision: _odr,
+          observed_image_digest: _oid,
+          observed_config_hash: _och,
+          observed_message: _om,
+          observed_reported_by: _orb,
+          observed_reported_at: _ora,
+          ...patch
+        } = row;
         const updated = await trx('artifact_installations')
           .where({ id, revision: write.expectedRevision })
           .update(patch);
@@ -167,6 +183,85 @@ export class InstallationsRepository {
         );
       }
       return true;
+    });
+  }
+
+  /**
+   * Writes a provider's report (NXD-143): the observed columns only, so the
+   * report neither needs nor moves the installation's revision — a provider
+   * polling every few seconds must not make a person's act fail as stale.
+   *
+   * With `evidence`, the same transaction fills the IQ record of the
+   * revision the report answers and moves the installation to
+   * EVIDENCE_RECORDED. That part is guarded: it happens only while the
+   * installation still desires that revision and still awaits evidence, and
+   * it moves the revision, because the qualification status is the act's
+   * column too. Returns whether the evidence was recorded.
+   */
+  async recordObserved(write: {
+    installationId: string;
+    observed: InstallationObserved;
+    audit?: InstallationAuditEvent;
+    evidence?: {
+      desiredRevision: number;
+      targetId: string;
+      audit: InstallationAuditEvent;
+    };
+  }): Promise<{ evidenceRecorded: boolean }> {
+    return this.db.transaction(async trx => {
+      const { observed } = write;
+      await trx('artifact_installations')
+        .where({ id: write.installationId })
+        .update({
+          observed_state: observed.state,
+          observed_desired_revision: observed.desiredRevision ?? null,
+          observed_image_digest: observed.imageDigest ?? null,
+          observed_config_hash: observed.configHash ?? null,
+          observed_message: observed.message ?? null,
+          observed_reported_by: observed.reportedBy,
+          observed_reported_at: observed.reportedAt,
+        });
+      if (write.audit) await this.insertAudit(trx, write.audit);
+      if (!write.evidence) return { evidenceRecorded: false };
+
+      const { desiredRevision, targetId } = write.evidence;
+      const moved = await trx('artifact_installations')
+        .where({
+          id: write.installationId,
+          desired_revision: desiredRevision,
+          desired_state: 'PRESENT',
+          qualification_status: 'PENDING_EVIDENCE',
+        })
+        .update({
+          qualification_status: 'EVIDENCE_RECORDED',
+          revision: trx.raw('revision + 1'),
+        });
+      if (moved === 0) return { evidenceRecorded: false };
+      const filled = await trx('installation_qualifications')
+        .where({
+          installation_id: write.installationId,
+          desired_revision: desiredRevision,
+          status: 'PENDING_EVIDENCE',
+        })
+        .update({
+          status: 'EVIDENCE_RECORDED',
+          observed_image_digest: observed.imageDigest,
+          observed_config_hash: observed.configHash,
+          observed_target_id: targetId,
+          evidence_recorded_by: observed.reportedBy,
+          evidence_recorded_at: observed.reportedAt,
+          revision: trx.raw('revision + 1'),
+        });
+      if (filled === 0) {
+        // The installation awaited evidence but its IQ record did not: the
+        // two disagree, and neither is changed.
+        throw new Error(
+          `Installation ${write.installationId} awaits evidence for revision ` +
+            `${desiredRevision} but has no pending IQ record for it`,
+        );
+      }
+      await this.insertAudit(trx, write.evidence.audit);
+      return { evidenceRecorded: true };
     });
   }
 

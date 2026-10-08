@@ -4,13 +4,19 @@
  * SQLite backs the unit suites and has no triggers of this kind, so the two
  * properties only the database can keep are proven here: the act and audit
  * trails refuse UPDATE, DELETE and TRUNCATE (NXD-092's pattern), and target
- * and installation names are unique case-insensitively.
+ * and installation names are unique case-insensitively. And one property of
+ * the provider API (NXD-143) that SQLite cannot prove for PostgreSQL: a
+ * report and its IQ evidence are written in one transaction that the
+ * append-only triggers let through.
  *
  * Follows NXD-005: skips without PostgreSQL, fails in CI where one exists.
  */
 
 import type { Knex } from 'knex';
 import { createTestSchema, type TestSchema } from '@internal/backend-test-utils';
+import { DIGEST_1, RIGHT_PIN, fakeWorld } from '../__testUtils__/fixtures';
+import { InstallationsRepository } from '../repository';
+import { InstallationsService } from '../service';
 import { up } from './migrations';
 
 const actor = 'user:default/migration-probe';
@@ -96,7 +102,7 @@ describe('installations migration on PostgreSQL', () => {
     // The installation itself stays editable: desired state changes; the
     // trails that describe the changes do not.
     await db('artifact_installations').where({ id: 'i-a' }).update({ desired_state: 'ABSENT' });
-    // The observed columns exist for the provider API (slice 2).
+    // The observed columns are written by the provider API (NXD-143).
     await db('artifact_installations')
       .where({ id: 'i-a' })
       .update({ observed_state: 'RUNNING', observed_reported_by: 'provider:basel' });
@@ -162,6 +168,49 @@ describe('installations migration on PostgreSQL', () => {
       details: '{}',
     });
     expect(await db('installation_audit_events').count({ n: '*' }).first()).toEqual({ n: '2' });
+  }, 60000);
+
+  it('takes a provider report and its IQ evidence through the real service', async () => {
+    if (skip('provider report')) return;
+    const repository = await InstallationsRepository.create({ getClient: () => schema.db });
+    const service = new InstallationsService(repository);
+    const world = fakeWorld();
+    const target = await service.registerTarget(
+      { name: 'line-provider', providerKind: 'docker-compose', providerSubject: 'provider:basel' },
+      actor,
+    );
+    const installed = await service.install(
+      {
+        targetId: target.id,
+        artifactRef: 'pharma/oee@1.0.0',
+        config: { EQUIPMENT_ID: 'filler-01' },
+        signature: { justification: 'go-live', pin: RIGHT_PIN },
+      },
+      world.ctx(),
+    );
+    const report = {
+      state: 'RUNNING',
+      desiredRevision: 1,
+      imageDigest: DIGEST_1,
+      configHash: installed.desired.configHash,
+    };
+    await service.reportObserved(target, installed.id, report, 'provider:basel');
+    await service.reportObserved(target, installed.id, report, 'provider:basel');
+    const stored = await service.getInstallation(installed.id);
+    expect(stored).toEqual(
+      expect.objectContaining({ qualificationStatus: 'EVIDENCE_RECORDED', revision: 2 }),
+    );
+    expect(stored.observed?.reportedAt).toBeInstanceOf(Date);
+    const [iq] = await service.listQualifications(installed.id);
+    expect(iq).toEqual(
+      expect.objectContaining({ status: 'EVIDENCE_RECORDED', observedTargetId: target.id }),
+    );
+    expect(iq.evidenceRecordedAt).toBeInstanceOf(Date);
+    expect((await service.listAuditEvents(installed.id)).map(e => e.eventType)).toEqual([
+      'INSTALLATION_REQUESTED',
+      'OBSERVED_STATE_CHANGED',
+      'IQ_EVIDENCE_RECORDED',
+    ]);
   }, 60000);
 
   it('keeps one IQ record per desired revision', async () => {

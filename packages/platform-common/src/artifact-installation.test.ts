@@ -1,5 +1,6 @@
 /**
- * Installation configuration against a manifest's `spec.config` (NXD-139).
+ * Installation configuration against a manifest's `spec.config` (NXD-139),
+ * and a provider's observed-state report (NXD-143).
  */
 
 import {
@@ -7,6 +8,7 @@ import {
   computeInstallationConfigHash,
   isValidSecretRef,
   validateInstallationConfig,
+  validateObservedStateReport,
 } from './artifact-installation';
 import type { ConfigKeySchema } from './platform-component-library';
 
@@ -117,5 +119,53 @@ describe('the configuration hash', () => {
     expect(a).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(computeInstallationConfigHash({ A: '1', B: '3', S: { secretRef: 'x' } })).not.toBe(a);
     expect(canonicalInstallationConfig({ B: '2', A: '1' })).toBe('{"A":"1","B":"2"}');
+  });
+});
+
+describe('validateObservedStateReport', () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+
+  it('normalises a valid report', () => {
+    expect(
+      validateObservedStateReport({
+        state: 'RUNNING',
+        desiredRevision: 3,
+        imageDigest: digest,
+        configHash: digest,
+        message: `  ${'x'.repeat(1200)}  `,
+      }),
+    ).toEqual({
+      report: {
+        state: 'RUNNING',
+        desiredRevision: 3,
+        imageDigest: digest,
+        configHash: digest,
+        message: 'x'.repeat(1000),
+      },
+      issues: [],
+    });
+    expect(validateObservedStateReport({ state: 'ABSENT', desiredRevision: 1, message: ' ' })).toEqual({
+      report: { state: 'ABSENT', desiredRevision: 1 },
+      issues: [],
+    });
+  });
+
+  it('names every issue at once', () => {
+    expect(validateObservedStateReport([]).issues).toEqual(['the report must be an object']);
+    expect(
+      validateObservedStateReport({
+        state: 'running',
+        desiredRevision: 1.5,
+        imageDigest: 'sha256:ABC',
+        configHash: 7,
+        message: {},
+      }).issues,
+    ).toEqual([
+      expect.stringMatching(/^state must be one of UNKNOWN, PENDING/),
+      'desiredRevision must be a positive integer',
+      'imageDigest must be sha256:<64 lowercase hex>',
+      'configHash must be sha256:<64 lowercase hex>',
+      'message must be a string',
+    ]);
   });
 });

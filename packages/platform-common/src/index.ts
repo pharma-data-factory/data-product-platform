@@ -650,6 +650,7 @@ export {
   validateInstallationConfig,
   canonicalInstallationConfig,
   computeInstallationConfigHash,
+  validateObservedStateReport,
 } from './artifact-installation';
 export type {
   ArtifactInstallation,
@@ -665,6 +666,9 @@ export type {
   InstallationQualification,
   InstallationQualificationStatus,
   InstallationSignatureInput,
+  ObservedStateReport,
+  ProviderDesiredInstallation,
+  ProviderDesiredState,
   RuntimeTarget,
   SecretReference,
 } from './artifact-installation';

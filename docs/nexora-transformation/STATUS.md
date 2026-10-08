@@ -307,6 +307,18 @@ four quick wins F1–F4, one commit and one record each.
   The OEE template declares `/app/data`, where its SQLite database lives.
   A test keeps the manifest, Dockerfile and Compose file in step. See
   [`NXD-142`](DECISIONS.md).
+- **MVP1 step 8, part 1: the provider API.** A runtime provider reads its
+  target's desired state, each installation with its released runtime
+  (ports, health, storage), and reports what runs. Only the service
+  principal named as the target's `providerSubject` may call either route,
+  and no person may. A report updates the observed state without moving the
+  installation's revision. The audit trail records changes, not polls. A
+  report showing the desired revision RUNNING at the desired digest and
+  configuration records the IQ evidence (`EVIDENCE_RECORDED`). Found and
+  fixed: every act wrote the observed columns back as it had read them,
+  which would have erased a report that arrived in between. Not yet: QA
+  sign-off, drift handling, rebinding a provider. See
+  [`NXD-143`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
