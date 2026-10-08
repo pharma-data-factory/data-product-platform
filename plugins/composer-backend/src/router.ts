@@ -1198,6 +1198,56 @@ export async function createRouter(
   );
 
   /**
+   * POST /versions/:id/ai-builds (NXD-153)
+   * Assign bound requirements of a DRAFT version to the AI build in the
+   * product's repository: recorded, then dispatched. Body: optional
+   * `requirementRefs` (default all bound) and `note`. product.manage.
+   */
+  router.post(
+    '/versions/:id/ai-builds',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res
+          .status(201)
+          .json(await service.issueAiBuildAssignment(req.params.id, req.body ?? {}, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /** GET /versions/:id/ai-builds (NXD-153): the version's assignments, newest first. */
+  router.get(
+    '/versions/:id/ai-builds',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({ items: await service.listAiBuildAssignments(req.params.id) });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /ai-builds/:id/refresh (NXD-153)
+   * Record what GitHub shows of the assignment: run, pull request, merge.
+   * product.manage, because it writes the outcome and its audit events.
+   */
+  router.post(
+    '/ai-builds/:id/refresh',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res.json(await service.refreshAiBuildAssignment(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
    * POST /versions/:id/release-provenance/import (NXD-133)
    * Read the release record the product's release workflow published for
    * this version and write its commit and image digest to the approved

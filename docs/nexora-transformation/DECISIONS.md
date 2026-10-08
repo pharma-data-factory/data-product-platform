@@ -10022,3 +10022,225 @@ has to show what it verifies before a person judges it.
   `getRequirementCoverage`'s `hypotheticalExecutions`), `router.ts`
   (+ `testEvidenceImport.test.ts`); `packages/app/src/modules/products/` —
   `api.ts`, `ProductDetailPage.tsx`, `tabs/TestsTab.tsx` (+ test).
+
+### NXD-153 — Nexora assigns requirements to Claude Code in the product repository, records what it was told and what was merged, and writes no code
+
+- Date: 2026-10-08
+- Slice: §9.7 S6 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md).
+- Decided by: the user ("Ok dann bauen S6", 2026-10-08). The user's
+  decisions of 2026-10-08 hold: the key is the organisation secret
+  `ANTHROPIC_API_KEY`, a person merges, and the validation decision stays
+  human (`NXD-003`). The shape below was chosen here and is named for
+  review.
+
+**Context.** A product's code must become buildable with AI once its
+repository is on GitHub. `NXD-152` shows what a pull request would verify
+before anyone merges it. `NXD-132` keeps every Nexora credential out of
+product repositories. `NXD-064` C-3 requires an AI's output to be stored
+with the model and what it was given.
+
+**Decision.**
+
+- **An assignment** (Composer, `POST /versions/:id/ai-builds`,
+  `product.manage`):
+  - covers the bound requirements of a **DRAFT** version, all by default
+    or a subset by id, at most 25, plus an optional note of up to 2000
+    characters;
+  - is refused without a repository or a URS binding, and when
+    `composer.aiBuild.enabled` is off (501). It is off by default, because
+    each assignment is a paid model run.
+- **Recorded before it is dispatched.** The new table
+  `ai_build_assignments` stores:
+  - the requirement refs with their URS requirement version ids and
+    content hashes, and the note;
+  - the model and the sha256 of the payload as sent;
+  - who issued it and when;
+  - the outcome: run, pull request, head commit, merge time and **merge
+    commit**.
+
+  The requirement text is not copied. `product_requirements` is the
+  immutable snapshot it came from. The assignment columns are written once.
+  Only the outcome columns are updated.
+- **Audit events:** `AI_BUILD_ASSIGNED`, then `AI_BUILD_DISPATCHED` or
+  `AI_BUILD_NOT_DISPATCHED` (with a reason), then one event per status
+  change: `RUNNING`, `RUN_FAILED`, `NO_CHANGE`, `PR_OPEN`, `MERGED` or
+  `CLOSED`.
+- **The dispatch is a `repository_dispatch` event** of type
+  `nexora-ai-build`, sent by data-products, the one plugin that talks to
+  GitHub (`NXD-123`):
+  - The App's existing *Contents: write* covers it. **No new write
+    permission.**
+  - Only a service may call `POST /ai-build/dispatch`. A person goes
+    through the Composer, which records the assignment first.
+  - Before it dispatches, data-products checks that the default branch has
+    `.github/workflows/nexora-ai-build.yml`. GitHub accepts a dispatch that
+    nothing listens for, so without the check such an assignment would
+    wait for ever.
+  - The payload limits are GitHub's: at most 10 top-level keys, and here at
+    most 60 kB.
+- **Status.** `GET /ai-build/status` finds two things, read-only:
+  - the run, by the assignment id in its `run-name`;
+  - the pull request from `nexora/ai-<id>`, in any state. It searches
+    `head=owner:branch`, so a fork's branch of the same name is never
+    taken.
+
+  `POST /ai-builds/:id/refresh` (`product.manage`) records what it found.
+  A pull request decides the status. Without one, the run decides.
+- **The workflow**, shipped in all five data-product Golden Paths,
+  copied without templating:
+  1. Runs on the dispatch only. Top-level `contents: read`. The job asks for
+     `contents`, `pull-requests` and `actions` write.
+  2. `scripts/nexora_ai_build.py prepare` validates the payload, naming
+     every problem at once:
+     - a UUID assignment id;
+     - a model id matching `claude-…`, so a payload cannot smuggle CLI
+       flags;
+     - 1 to 25 requirements with requirement ids.
+
+     It writes the prompt to `.nexora-ai-build/`, which is kept out of git.
+     The prompt points at `agent-instructions.md` and tells the AI to tag
+     tests with `@pytest.mark.urs`. It quotes the requirements as JSON
+     *data* and names what may not change.
+  3. `anthropics/claude-code-action@v1` runs with the organisation key:
+     - the model comes from the validated step output, never from the raw
+       payload;
+     - tools: Read, Edit, Write, Glob and Grep, plus Bash for `pytest` and
+       `ruff` only;
+     - no git, no `gh`, and no credential: the checkout does not persist
+       one.
+  4. `check` refuses the whole change if the AI touched any of these:
+     - a controlled artefact of `agent-instructions.md` §1 or
+       `catalog-info.yaml`;
+     - anything under `.github/`;
+     - `tests/conftest.py`, the evidence hooks;
+     - the Nexora scripts;
+     - a **new test file that `ci.yml` would never run**.
+
+     A change must not be able to judge itself. Lint and test leftovers are
+     neither refused nor committed. Exactly the paths `check` passed are
+     committed.
+  5. The workflow pushes `nexora/ai-<id>` and opens the pull request, with
+     the assignment, model, requirements, changed files and the AI's notes
+     in its description. It then runs `gh workflow run ci.yml` on the
+     branch. Nothing merges.
+- **`ci.yml` gains `workflow_dispatch`, and the PR preview accepts a
+  `workflow_dispatch` run on the head branch.** The newer of that run and
+  any `pull_request` run counts. A pull request opened with `GITHUB_TOKEN`
+  starts no `pull_request` run, so without this the AI's pull request would
+  have shown no evidence in `NXD-152`. The default branch's evidence stays
+  `push`-only (`NXD-151`).
+- **`agent-instructions.md` corrected in all five Golden Paths:**
+  - its traceability section named a `# Satisfies:` comment; the evidence
+    hooks read `@pytest.mark.urs`, and a comment is not evidence;
+  - it listed `.github/workflows/` as freely editable; the AI build may not
+    touch it.
+- **The Development tab** gains *AI build*: assign with an optional note,
+  list with status, pull request, run and merge commit, and refresh.
+  It says why a version that is not a draft cannot be assigned.
+
+**Alternatives considered.**
+
+- *`workflow_dispatch`.* Rejected. It needs *Actions: write* for the App, a
+  new write permission. Its inputs are flat strings, whereas
+  `client_payload` carries the requirements as JSON.
+- *Let the action open the pull request.* Rejected. `claude-code-action`
+  does not open pull requests in automation mode. Letting the AI run git
+  would put the commit before the check.
+- *A GitHub App token in the workflow, so its pull request triggers CI
+  normally.* Rejected. That is a Nexora credential in the product
+  repository (`NXD-132`).
+- *Replace the listed test files in `ci.yml` with `pytest tests/`.* Not
+  done here. The four list-based templates name their files on purpose, so
+  the AI is told to extend listed files and a new file is refused. A
+  decision of its own.
+- *Store the prompt.* Rejected, as for spec drafts (`NXD-064` C-3). The
+  payload hash plus the requirement snapshot reconstruct it.
+
+**Verified.**
+
+- data-products:
+  - `aiBuildRoute.test.ts` (8) covers four things:
+    - dispatch with the workflow present;
+    - no dispatch without the workflow;
+    - GitHub's refusal passed on, oversized or malformed payloads refused,
+      and a person refused (403);
+    - status by run title and branch, and the PR preview taking a newer
+      `workflow_dispatch` run.
+  - `githubActions.test.ts` +4: the POST body, a refusal as a reason,
+    finding the pull request with its merge commit, and finding the run by
+    marker.
+- composer `aiBuildAssignment.test.ts` (6):
+  - recorded then dispatched, with exactly the payload;
+  - a subset, and an unknown id refused;
+  - NOT_DISPATCHED kept, with its reason, including when data-products is
+    down;
+  - refused when off, unbound or not a draft;
+  - RUNNING → PR_OPEN → MERGED with the merge commit, one audit event per
+    change and none for an unchanged refresh;
+  - RUN_FAILED, NO_CHANGE, and an unreadable GitHub as 503.
+- Templates:
+  - `tests/test_ai_build.py` (7) in each of the five, run with each
+    template's own `ci.yml`.
+  - `prepare`, `check` and the commit step were run against a scratch git
+    copy of the OEE template. Changed, deleted and new files were
+    committed; a cache directory and the prompt were not; a new unlisted
+    test file was refused.
+- backend `templateRendering.test.ts` +20 (four per Golden Path, all five
+  rendered):
+  - workflow, script and test identical to OEE's, uninterpreted;
+  - the trigger, the permissions, and `ANTHROPIC_API_KEY` as the only
+    secret;
+  - no persisted credential, and no git or `gh` for the AI;
+  - check before commit, and no merge;
+  - no expression interpolated into a `run`;
+  - `ci.yml` dispatchable and running the test;
+  - the instructions corrected.
+- app `AiBuildCard.test.tsx` (3), `ProductDetailPage.test.tsx` +1 (the
+  selected draft is assigned).
+- **Live**, against the running instance, read-only on GitHub:
+  - `POST /ai-build/dispatch` for `oee-e2e-test-20261005-c` answered
+    `dispatched: false, reason: no-ai-build-workflow`, and nothing was
+    sent: the repository predates this record;
+  - status and the PR preview answered;
+  - a person's token was refused (403);
+  - the Composer refused an assignment with 501, because the AI build is
+    off there.
+- See the commit body for the gates.
+
+**Not changed, named.**
+
+- **Not run end to end.** That needs four things:
+  - a repository with the workflow (a new product, or the workflow added
+    to an existing one, which is a write to the user's repository);
+  - `ANTHROPIC_API_KEY` set as an organisation secret;
+  - "Allow GitHub Actions to create and approve pull requests";
+  - `NEXORA_AI_BUILD_ENABLED=true`.
+
+  The first real run will show whether the action's tool list suffices.
+- **The App needs *Pull requests: Read*** for private repositories. It is
+  now documented; `NXD-152` already needed it, without saying so.
+- *Who* merged is GitHub's to show. Nexora records when and as which
+  commit; the list endpoint does not carry `merged_by`.
+- Status is refreshed by a person's click, not on a schedule.
+- The AI could write a test that asserts nothing and tag it. The check
+  cannot see that. The reviewer can, and the pull request names every
+  changed file.
+- One assignment runs at a time per repository (`concurrency`). The UI
+  assigns all bound requirements; choosing a subset is API-only.
+- Functional specification items (Stage 3) are not yet part of the
+  assignment, only requirements.
+
+- Affected components:
+  - `plugins/data-products-backend/src/`: `types.ts`, `githubActions.ts`,
+    `router.ts`, `aiBuildRoute.test.ts`, `githubActions.test.ts`.
+  - `plugins/composer-backend/src/`: `ai-build-client.ts`, `types.ts`,
+    `db/migrations.ts`, `repository*.ts`, `service.ts`, `router.ts`,
+    `plugin.ts`, `aiBuildAssignment.test.ts`.
+  - `packages/app/src/modules/products/`: `api.ts`,
+    `ProductDetailPage.tsx`, `tabs/DevelopmentTab.tsx`,
+    `tabs/AiBuildCard.tsx` (+ tests).
+  - The five data-product templates: `nexora-ai-build.yml`,
+    `scripts/nexora_ai_build.py`, `tests/test_ai_build.py`, `ci.yml`,
+    `template.yaml`, `agent-instructions.md`, and AAS `.gitignore`.
+  - `packages/backend/src/templateRendering.test.ts`, `app-config.yaml`,
+    `.env.example`, `docs/github-setup.md`.

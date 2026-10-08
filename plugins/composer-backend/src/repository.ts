@@ -20,6 +20,7 @@ import {
   TestExecution,
   ProductBaseline,
   ProductRequirement,
+  AIBuildAssignment,
   AISpecDraft,
   AISpecDraftStatus,
   FunctionalSpecification,
@@ -677,6 +678,46 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToFunctionalSpecification(r));
   }
 
+  // ── AI build assignments (NXD-153) ────────────────────────────────────────
+
+  async createAiBuildAssignment(a: AIBuildAssignment): Promise<void> {
+    await this.db('ai_build_assignments').insert({
+      id: a.id,
+      product_id: a.productId,
+      product_version_id: a.productVersionId,
+      version_label: a.versionLabel,
+      requirements: JSON.stringify(a.requirements),
+      note: a.note ?? null,
+      model_id: a.modelId,
+      payload_hash: a.payloadHash,
+      repository_url: a.repositoryUrl,
+      branch: a.branch,
+      issued_by: a.issuedBy,
+      issued_at: a.issuedAt,
+      ...aiBuildOutcomeColumns(a),
+    });
+  }
+
+  async getAiBuildAssignment(id: string): Promise<AIBuildAssignment | null> {
+    const row = await this.db('ai_build_assignments').where({ id }).first();
+    return row ? rowToAiBuildAssignment(row) : null;
+  }
+
+  async listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]> {
+    const rows = await this.db('ai_build_assignments')
+      .where({ product_version_id: productVersionId })
+      .orderBy('issued_at', 'desc')
+      .select();
+    return rows.map(rowToAiBuildAssignment);
+  }
+
+  async updateAiBuildOutcome(
+    id: string,
+    outcome: Parameters<IComposerRepository['updateAiBuildOutcome']>[1],
+  ): Promise<void> {
+    await this.db('ai_build_assignments').where({ id }).update(aiBuildOutcomeColumns(outcome));
+  }
+
   // ── AI Spec Drafts (MVP1 item 6 / NXD-064 C-3) ────────────────────────────
 
   async createSpecDraft(draft: AISpecDraft): Promise<void> {
@@ -1094,4 +1135,49 @@ function toIsoString(value: unknown): string {
     return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
   }
   return '';
+}
+
+function aiBuildOutcomeColumns(o: Parameters<IComposerRepository['updateAiBuildOutcome']>[1]) {
+  return {
+    status: o.status,
+    dispatch_reason: o.dispatchReason ?? null,
+    run_url: o.runUrl ?? null,
+    run_conclusion: o.runConclusion ?? null,
+    pull_request_number: o.pullRequestNumber ?? null,
+    pull_request_url: o.pullRequestUrl ?? null,
+    pull_request_head_sha: o.pullRequestHeadSha ?? null,
+    merged_at: o.mergedAt ?? null,
+    merge_commit_sha: o.mergeCommitSha ?? null,
+    closed_at: o.closedAt ?? null,
+    updated_at: o.updatedAt,
+  };
+}
+
+function rowToAiBuildAssignment(row: any): AIBuildAssignment {
+  const optional = <T>(value: T | null | undefined) => (value === null || value === undefined ? undefined : value);
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productVersionId: row.product_version_id,
+    versionLabel: row.version_label,
+    status: row.status,
+    requirements: JSON.parse(row.requirements),
+    note: optional(row.note),
+    modelId: row.model_id,
+    payloadHash: row.payload_hash,
+    repositoryUrl: row.repository_url,
+    branch: row.branch,
+    issuedBy: row.issued_by,
+    issuedAt: row.issued_at,
+    dispatchReason: optional(row.dispatch_reason),
+    runUrl: optional(row.run_url),
+    runConclusion: optional(row.run_conclusion),
+    pullRequestNumber: optional(row.pull_request_number) === undefined ? undefined : Number(row.pull_request_number),
+    pullRequestUrl: optional(row.pull_request_url),
+    pullRequestHeadSha: optional(row.pull_request_head_sha),
+    mergedAt: optional(row.merged_at),
+    mergeCommitSha: optional(row.merge_commit_sha),
+    closedAt: optional(row.closed_at),
+    updatedAt: row.updated_at,
+  };
 }

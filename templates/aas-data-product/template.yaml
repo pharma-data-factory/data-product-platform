@@ -111,6 +111,7 @@ spec:
           - .github/workflows/data-product-quality.yml
           # GitHub expressions, not template values (NXD-132).
           - .github/workflows/release.yml
+          - .github/workflows/nexora-ai-build.yml
           # Its GitHub expressions were rendered to empty strings, so the
           # quality gate's `if [ "" != "success" ]` failed every run (NXD-149).
           - .github/workflows/ci.yml

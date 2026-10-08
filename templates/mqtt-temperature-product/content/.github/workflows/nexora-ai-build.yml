@@ -1,0 +1,95 @@
+name: Nexora AI build
+# Nexora finds this run by the assignment id in its title (NXD-153).
+run-name: Nexora AI build ${{ github.event.client_payload.assignmentId }}
+
+# NXD-153. Nexora dispatches an assignment: approved requirements of a product
+# version, to implement. Claude Code writes code and requirement-tagged tests,
+# this workflow checks that nothing controlled was touched and opens a pull
+# request from nexora/ai-<assignment id>. A person reviews it and merges it,
+# or does not. Nothing here merges, tags or releases.
+#
+# Needs the organisation secret ANTHROPIC_API_KEY, and "Allow GitHub Actions
+# to create and approve pull requests" in the organisation's or repository's
+# Actions settings. The repository holds no Nexora credential (NXD-132).
+on:
+  repository_dispatch:
+    types: [nexora-ai-build]
+
+permissions:
+  contents: read
+
+# One assignment at a time per repository; a second waits.
+concurrency:
+  group: nexora-ai-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # push the assignment's branch
+      pull-requests: write # open its pull request
+      actions: write # start ci.yml on the branch: a pull request opened with GITHUB_TOKEN starts no pull_request run
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The AI gets no credential: the push below passes the token itself.
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Read the assignment
+        id: assignment
+        env:
+          NEXORA_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: python scripts/nexora_ai_build.py prepare >> "$GITHUB_OUTPUT"
+
+      - name: Install
+        run: |
+          if [ -f pyproject.toml ]; then pip install -e ".[dev]"; else pip install -r requirements.txt; fi
+          pip install ruff
+
+      - name: Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Read .nexora-ai-build/prompt.md and carry out the assignment in it.
+          claude_args: >-
+            --model ${{ steps.assignment.outputs.model }}
+            --max-turns 80
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(pytest:*),Bash(python -m pytest:*),Bash(ruff:*)"
+
+      - name: Check what changed
+        id: check
+        env:
+          NEXORA_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: python scripts/nexora_ai_build.py check >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXORA_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          ASSIGNMENT_ID: ${{ steps.assignment.outputs.assignment_id }}
+          BRANCH: ${{ steps.assignment.outputs.branch }}
+          BASE: ${{ github.event.repository.default_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python scripts/nexora_ai_build.py pr-body --run-url "$RUN_URL" > "$RUNNER_TEMP/pr-body.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          # Exactly the paths the check passed; nothing it filtered out.
+          git add -A --pathspec-from-file=.nexora-ai-build/files --pathspec-file-nul
+          git commit -m "feat: nexora ai build ${ASSIGNMENT_ID}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          gh pr create --base "$BASE" --head "$BRANCH" \
+            --title "Nexora AI build ${ASSIGNMENT_ID}" --body-file "$RUNNER_TEMP/pr-body.md"
+          gh workflow run ci.yml --ref "$BRANCH"

@@ -48,6 +48,39 @@ export interface TestEvidenceImport {
   unknownRequirements: string[];
 }
 
+/** NXD-153: an AI build assignment and what GitHub shows of it. */
+export interface AiBuildAssignment {
+  id: string;
+  productVersionId: string;
+  versionLabel: string;
+  status:
+    | 'DISPATCHED'
+    | 'NOT_DISPATCHED'
+    | 'RUNNING'
+    | 'RUN_FAILED'
+    | 'NO_CHANGE'
+    | 'PR_OPEN'
+    | 'MERGED'
+    | 'CLOSED';
+  requirements: Array<{ requirementRef: string; ursRequirementVersionId: string; contentHash: string }>;
+  note?: string;
+  modelId: string;
+  payloadHash: string;
+  branch: string;
+  issuedBy: string;
+  issuedAt: string;
+  dispatchReason?: string;
+  runUrl?: string;
+  runConclusion?: string;
+  pullRequestNumber?: number;
+  pullRequestUrl?: string;
+  pullRequestHeadSha?: string;
+  mergedAt?: string;
+  mergeCommitSha?: string;
+  closedAt?: string;
+  updatedAt: string;
+}
+
 /** NXD-152: what each open pull request would verify; nothing recorded. */
 export interface PullRequestEvidencePreview {
   available: boolean;
@@ -193,6 +226,15 @@ export interface ComposerClient {
   importReleaseProvenance(versionId: string): Promise<ReleaseProvenanceImport>;
   /** NXD-152: what open pull requests would verify. Read-only. */
   getPullRequestEvidence(versionId: string): Promise<PullRequestEvidencePreview>;
+  /** NXD-153: the version's AI build assignments, newest first. */
+  listAiBuilds(versionId: string): Promise<AiBuildAssignment[]>;
+  /** NXD-153: assign bound requirements (all by default) to the AI build. */
+  issueAiBuild(
+    versionId: string,
+    input: { requirementRefs?: string[]; note?: string },
+  ): Promise<AiBuildAssignment>;
+  /** NXD-153: record what GitHub shows of an assignment. */
+  refreshAiBuild(assignmentId: string): Promise<AiBuildAssignment>;
   /** Contracts this component provides. Keyed by component, listed by coordinate. */
   listComponentContracts(componentId: string): Promise<DataContract[]>;
   /** Contracts this version consumes — the other side of the exchange. */
@@ -287,6 +329,14 @@ export function useComposerClient(): ComposerClient {
       request('POST', `/versions/${versionId}/release-provenance/import`, {}),
     getPullRequestEvidence: versionId =>
       request('GET', `/versions/${versionId}/pull-request-evidence`),
+    listAiBuilds: versionId =>
+      request('GET', `/versions/${versionId}/ai-builds`).then(
+        (body: { items: AiBuildAssignment[] }) => body.items,
+      ),
+    issueAiBuild: (versionId, input) =>
+      request('POST', `/versions/${versionId}/ai-builds`, input),
+    refreshAiBuild: assignmentId =>
+      request('POST', `/ai-builds/${assignmentId}/refresh`, {}),
     listComponentContracts: componentId =>
       request('GET', `/components/${componentId}/contracts`),
     listVersionDependencies: versionId =>

@@ -37,6 +37,10 @@ const client = {
   getProductTraceability: jest.fn(),
   // NXD-128.
   listProductSignatures: jest.fn(),
+  // NXD-153.
+  listAiBuilds: jest.fn(async () => []),
+  issueAiBuild: jest.fn(),
+  refreshAiBuild: jest.fn(),
   addProductComponent: jest.fn(),
   createTraceabilityLink: jest.fn(),
   createProductVersion: jest.fn(),
@@ -599,6 +603,27 @@ describe('ProductDetailPage — Development tab', () => {
       'href',
       '/catalog/default/component/batch-genealogy',
     );
+  });
+
+  it('assigns the selected draft version to the AI build (NXD-153)', async () => {
+    client.getProduct.mockResolvedValue({ ...PRODUCT, repositoryUrl: 'https://github.com/acme/batch-genealogy' });
+    client.listProductVersions.mockResolvedValue([VERSION_DRAFT]);
+    client.issueAiBuild.mockResolvedValue({
+      id: 'a1', productVersionId: 'v1', versionLabel: '1.0.0', status: 'DISPATCHED', requirements: [],
+      modelId: 'claude-opus-5-5', payloadHash: 'sha256:x', branch: 'nexora/ai-a1',
+      issuedBy: 'user:default/mo', issuedAt: '2026-10-08T14:00:00Z', updatedAt: '2026-10-08T14:00:00Z',
+    });
+
+    await renderPage();
+    await openDevelopment();
+
+    expect(await screen.findByText('No assignment for this version yet.')).toBeInTheDocument();
+    expect(client.listAiBuilds).toHaveBeenCalledWith('v1');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Assign to AI build' }));
+    });
+    expect(client.issueAiBuild).toHaveBeenCalledWith('v1', {});
+    expect(await screen.findByText('Dispatched')).toBeInTheDocument();
   });
 
   it('says what is missing, and why, for a product with no repository', async () => {

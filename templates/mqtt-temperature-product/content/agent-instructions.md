@@ -40,7 +40,9 @@ The following areas are **your responsibility** — implement, refactor, test:
 - `app/` — all domain logic (business rules, models, calculations)
 - `tests/` — unit, component, and integration tests
 - `Dockerfile` and `docker-compose.yml` — containerisation
-- `.github/workflows/` — CI quality gate scripts
+- `.github/workflows/` — CI quality gate scripts, when a person asks you to. Never
+  in the Nexora AI build, which refuses any change under `.github/` and to
+  `tests/conftest.py` (NXD-153): a change must not be able to judge itself.
 - `README.md` — documentation
 - Any new file that is not in the controlled list above
 
@@ -68,12 +70,22 @@ transport, storage, or observability that a platform component already covers.
 Every test, feature, and implementation decision should be traceable to a
 requirement. The approved requirements are in `urs.yaml`. Reference them in:
 
-- Test function names and docstrings: `# Satisfies: URS-EPM-001`
+- Tests: the marker `@pytest.mark.urs("URS-EPM-001")` on a test, or
+  `pytestmark = pytest.mark.urs("URS-EPM-001")` for a module. The marker is
+  what the evidence hooks in `tests/conftest.py` read; a comment is not
+  evidence.
 - PR descriptions: "This addresses requirement URS-EPM-003"
 - Commit messages: `feat(domain): satisfy URS-EPM-004`
 
 The platform CI gate checks traceability coverage. Tests without requirement
 references do not count toward the validation coverage score.
+
+**Nexora AI build (NXD-153).** Nexora may dispatch an assignment to
+`.github/workflows/nexora-ai-build.yml`: approved requirements to implement.
+Claude Code then works in this repository and the workflow opens a pull request
+from `nexora/ai-<assignment id>`. It refuses controlled files, workflows, the
+evidence hooks, and a new test file CI does not run. A person reviews the pull
+request and what its CI run would verify, and merges it or not.
 
 ---
 

@@ -284,6 +284,59 @@ export interface AISpecDraft {
   productId?: string;
 }
 
+/**
+ * NXD-153. Where an AI build assignment stands, as GitHub shows it.
+ * NOT_DISPATCHED: Nexora recorded it, GitHub never received it (reason).
+ * NO_CHANGE: the run succeeded and proposed nothing.
+ */
+export type AIBuildAssignmentStatus =
+  | 'DISPATCHED'
+  | 'NOT_DISPATCHED'
+  | 'RUNNING'
+  | 'RUN_FAILED'
+  | 'NO_CHANGE'
+  | 'PR_OPEN'
+  | 'MERGED'
+  | 'CLOSED';
+
+/**
+ * NXD-153. An assignment to build a product version's requirements in its
+ * repository, and what became of it. The assignment part — requirements,
+ * note, model, payload hash, who and when — is written once and never
+ * updated; only the outcome columns follow GitHub.
+ */
+export interface AIBuildAssignment {
+  id: string;
+  productId: string;
+  productVersionId: string;
+  versionLabel: string;
+  status: AIBuildAssignmentStatus;
+  /** The bound requirements assigned, with the content hash they had. */
+  requirements: Array<{
+    requirementRef: string;
+    ursRequirementVersionId: string;
+    contentHash: string;
+  }>;
+  note?: string;
+  modelId: string;
+  /** sha256 of the payload as dispatched. */
+  payloadHash: string;
+  repositoryUrl: string;
+  branch: string;
+  issuedBy: string;
+  issuedAt: string;
+  dispatchReason?: string;
+  runUrl?: string;
+  runConclusion?: string;
+  pullRequestNumber?: number;
+  pullRequestUrl?: string;
+  pullRequestHeadSha?: string;
+  mergedAt?: string;
+  mergeCommitSha?: string;
+  closedAt?: string;
+  updatedAt: string;
+}
+
 export interface GenerateProductSpecRequest {
   ursBaselineId: string;
 }

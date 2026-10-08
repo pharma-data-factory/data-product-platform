@@ -10,6 +10,9 @@ on:
       - main
   # The release workflow runs this same gate before it builds (NXD-132).
   workflow_call:
+  # The AI build starts this gate on its branch: a pull request it opens with
+  # GITHUB_TOKEN starts no pull_request run (NXD-153).
+  workflow_dispatch:
 
 jobs:
   lint:

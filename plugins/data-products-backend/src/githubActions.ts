@@ -11,6 +11,7 @@ import {
   GithubFetchFailure,
   GithubRelease,
   GithubFetchResult,
+  GithubPullRequestState,
   GithubRepoRef,
   GithubWorkflowRun,
   QualityStage,
@@ -36,6 +37,7 @@ export function createGithubActionsClient(options: {
     repo: GithubRepoRef,
     path: string,
     accept = 'application/vnd.github+json',
+    init?: { method: 'POST'; body: unknown },
   ): Promise<GithubFetchResult<Response>> {
     const integration = integrations.github.byUrl(repo.url);
     if (!integration) {
@@ -67,7 +69,16 @@ export function createGithubActionsClient(options: {
     }
 
     try {
-      const response = await fetchFn(`${apiBase}${path}`, { headers });
+      const response = await fetchFn(
+        `${apiBase}${path}`,
+        init
+          ? {
+              method: init.method,
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify(init.body),
+            }
+          : { headers },
+      );
       if (response.status === 401 || response.status === 403 || response.status === 404) {
         return { ok: false, reason: statusToReason(response.status) };
       }
@@ -162,6 +173,65 @@ export function createGithubActionsClient(options: {
             ...(typeof pr.user?.login === 'string' ? { author: pr.user.login } : {}),
             draft: pr.draft === true,
           })),
+      };
+    },
+
+    async dispatchRepositoryEvent(repo, eventType, clientPayload) {
+      const sent = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/dispatches`,
+        'application/vnd.github+json',
+        { method: 'POST', body: { event_type: eventType, client_payload: clientPayload } },
+      );
+      return sent.ok ? { ok: true, value: undefined } : sent;
+    },
+
+    async findPullRequestByHead(repo, branch) {
+      // `head` takes `owner:branch`: only the repository's own branch, never
+      // a fork's of the same name.
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/pulls?state=all&head=${encodeURIComponent(
+          `${repo.owner}:${branch}`,
+        )}&per_page=1`,
+      );
+      if (!listing.ok) return listing;
+      const pr = Array.isArray(listing.value)
+        ? (listing.value[0] as Record<string, any> | undefined)
+        : undefined;
+      if (!pr || typeof pr.number !== 'number' || pr.head?.ref !== branch) {
+        return { ok: true, value: undefined };
+      }
+      const state: GithubPullRequestState = {
+        number: pr.number,
+        title: typeof pr.title === 'string' ? pr.title : '',
+        htmlUrl: typeof pr.html_url === 'string' ? pr.html_url : '',
+        headRef: pr.head.ref,
+        headSha: typeof pr.head.sha === 'string' ? pr.head.sha : '',
+        ...(typeof pr.user?.login === 'string' ? { author: pr.user.login } : {}),
+        draft: pr.draft === true,
+        state: pr.state === 'closed' ? 'closed' : 'open',
+        merged: typeof pr.merged_at === 'string',
+        ...(typeof pr.merged_at === 'string' ? { mergedAt: pr.merged_at } : {}),
+        ...(typeof pr.merged_at === 'string' && typeof pr.merge_commit_sha === 'string'
+          ? { mergeCommitSha: pr.merge_commit_sha }
+          : {}),
+        ...(typeof pr.closed_at === 'string' ? { closedAt: pr.closed_at } : {}),
+      };
+      return { ok: true, value: state };
+    },
+
+    async findWorkflowRun(repo, workflowFile, marker) {
+      const runs = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/actions/workflows/${encodeURIComponent(workflowFile)}/runs?per_page=30`,
+      );
+      if (!runs.ok) {
+        return runs.reason === 'not-found' ? { ok: true, value: undefined } : runs;
+      }
+      return {
+        ok: true,
+        value: parseRuns(runs.value).find(run => run.displayTitle?.includes(marker)),
       };
     },
 
@@ -337,11 +407,20 @@ function statusToReason(status: number): GithubFetchFailure {
 }
 
 function firstRun(body: unknown): GithubWorkflowRun | undefined {
+  return parseRuns(body)[0];
+}
+
+function parseRuns(body: unknown): GithubWorkflowRun[] {
   const runs =
     body && typeof body === 'object' && Array.isArray((body as { workflow_runs?: unknown }).workflow_runs)
       ? (body as { workflow_runs: unknown[] }).workflow_runs
       : [];
-  const raw = runs[0];
+  return runs
+    .map(parseRun)
+    .filter((run): run is GithubWorkflowRun => run !== undefined);
+}
+
+function parseRun(raw: unknown): GithubWorkflowRun | undefined {
   if (!raw || typeof raw !== 'object') {
     return undefined;
   }
@@ -359,6 +438,7 @@ function firstRun(body: unknown): GithubWorkflowRun | undefined {
     headSha: typeof run.head_sha === 'string' ? run.head_sha : '',
     htmlUrl: typeof run.html_url === 'string' ? run.html_url : '',
     ...(typeof run.event === 'string' ? { event: run.event } : {}),
+    ...(typeof run.display_title === 'string' ? { displayTitle: run.display_title } : {}),
     startedAt: [run.run_started_at, run.created_at].find(
       (value): value is string => typeof value === 'string',
     ),

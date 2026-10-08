@@ -99,6 +99,7 @@ spec:
           - .github/workflows/data-product-quality.yml
           # GitHub expressions, not template values (NXD-132).
           - .github/workflows/release.yml
+          - .github/workflows/nexora-ai-build.yml
         values:
           name: ${{ parameters.name }}
           title: ${{ parameters.name }}

@@ -395,6 +395,19 @@ four quick wins F1–F4, one commit and one record each.
   and what a failing test would revoke. Nothing is recorded. Live: the
   route chain answers; the product repository has no open PR yet. See
   [`NXD-152`](DECISIONS.md).
+- **S6: requirements go to Claude Code in the product repository.** On the
+  Development tab, *Assign to AI build* sends a draft version's bound
+  requirements to the product repository as a `repository_dispatch`. No new
+  App permission is needed. The repository's `nexora-ai-build.yml`, now in
+  all five data-product Golden Paths, runs Claude Code with the
+  organisation's `ANTHROPIC_API_KEY`. It refuses any change to controlled
+  files, workflows, the evidence hooks or the CI test list, then opens a
+  pull request and starts CI on it. Nexora records the model, the
+  requirement hashes, the payload hash, who and when, then the run, the
+  pull request and the merge commit, each step as an audit event. It
+  writes no code and merges nothing. Off by default
+  (`NEXORA_AI_BUILD_ENABLED`). Not yet run end to end, because no
+  repository has the workflow yet. See [`NXD-153`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

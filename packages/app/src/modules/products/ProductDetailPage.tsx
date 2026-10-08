@@ -360,6 +360,11 @@ export function ProductDetailPage() {
   // keeps the call current while the loader changes only with the version.
   const clientRef = useRef(client);
   clientRef.current = client;
+  // NXD-153. The list loader changes only with the version, as above.
+  const listAiBuilds = useCallback(
+    () => clientRef.current.listAiBuilds(selectedVersionId),
+    [selectedVersionId],
+  );
   const loadGate = useCallback(
     () => clientRef.current.checkReleaseGate(selectedVersionId),
     [selectedVersionId],
@@ -589,7 +594,24 @@ export function ProductDetailPage() {
           )}
 
           {tab === 'development' && (
-            <DevelopmentTab product={product} baselines={baselines} />
+            <DevelopmentTab
+              product={product}
+              baselines={baselines}
+              aiBuild={
+                selectedVersionId
+                  ? {
+                      list: listAiBuilds,
+                      issue: note =>
+                        client.issueAiBuild(selectedVersionId, note ? { note } : {}),
+                      refresh: id => client.refreshAiBuild(id),
+                      blockedReason:
+                        selectedVersion && selectedVersion.status !== 'DRAFT'
+                          ? `Code is built for a draft version; ${selectedVersion.version} is ${selectedVersion.status}.`
+                          : undefined,
+                    }
+                  : undefined
+              }
+            />
           )}
 
           {tab === 'contracts' && (

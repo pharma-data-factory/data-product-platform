@@ -61,6 +61,8 @@ export interface GithubWorkflowRun {
   htmlUrl: string;
   /** `push`, `pull_request`, `workflow_call`, … (NXD-151). */
   event?: string;
+  /** The run's title; NXD-153 puts the assignment id into it (`run-name`). */
+  displayTitle?: string;
   startedAt?: string;
   completedAt?: string;
 }
@@ -74,6 +76,16 @@ export interface GithubPullRequest {
   headSha: string;
   author?: string;
   draft: boolean;
+}
+
+/** NXD-153. A pull request in any state, found by its head branch. */
+export interface GithubPullRequestState extends GithubPullRequest {
+  state: 'open' | 'closed';
+  merged: boolean;
+  mergedAt?: string;
+  /** The commit the merge put on the base branch: the AI's code, as merged. */
+  mergeCommitSha?: string;
+  closedAt?: string;
 }
 
 export type GithubFetchFailure = 'inaccessible' | 'unavailable' | 'not-found';
@@ -106,6 +118,26 @@ export interface GithubActionsClient {
     repo: GithubRepoRef,
     limit: number,
   ): Promise<GithubFetchResult<GithubPullRequest[]>>;
+  /**
+   * NXD-153. Fires a `repository_dispatch` event. The App's existing
+   * *Contents: write* covers it; nothing is written to the repository.
+   */
+  dispatchRepositoryEvent?(
+    repo: GithubRepoRef,
+    eventType: string,
+    clientPayload: Record<string, unknown>,
+  ): Promise<GithubFetchResult<void>>;
+  /** NXD-153. The repository's own pull request whose head is `branch`, in any state. */
+  findPullRequestByHead?(
+    repo: GithubRepoRef,
+    branch: string,
+  ): Promise<GithubFetchResult<GithubPullRequestState | undefined>>;
+  /** NXD-153. The newest run of `workflowFile` whose title contains `marker`. */
+  findWorkflowRun?(
+    repo: GithubRepoRef,
+    workflowFile: string,
+    marker: string,
+  ): Promise<GithubFetchResult<GithubWorkflowRun | undefined>>;
   /** NXD-123. A run's artifact by name, as the zip GitHub serves. */
   downloadArtifact?(
     repo: GithubRepoRef,

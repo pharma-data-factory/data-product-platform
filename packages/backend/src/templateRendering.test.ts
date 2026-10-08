@@ -734,3 +734,131 @@ describe.each([
     expect(workflows).toContain('name: nexora-test-evidence');
   });
 });
+
+/**
+ * NXD-153 (supplier track S6). Every data-product Golden Path ships the AI
+ * build: the workflow Nexora dispatches, its script and its test, OEE's byte
+ * for byte, uninterpreted; a CI gate the workflow can start on its branch;
+ * and agent instructions that name the marker the evidence hooks read.
+ */
+describe.each([
+  'oee-data-product',
+  'mqtt-temperature-product',
+  'rest-equipment-product',
+  'machine-state-consumer',
+  'aas-data-product',
+])('the %s Golden Path ships the AI build (NXD-153)', template => {
+  const step = localFetchTemplateSteps().find(s => s.template === template)!;
+  const FORM: Record<string, unknown> = {
+    name: 'line-1-product',
+    title: 'line-1-product',
+    description: 'Data product for line 1',
+    owner: 'group:default/team-a',
+    domain: 'manufacturing',
+    site: 'basel',
+    area: 'filling',
+    line: 'line-1',
+    equipmentId: 'filler-01',
+    defaultWindow: 'HOUR',
+    machineStateTopic: 'pharma/oee/+/state',
+    counterTopic: 'pharma/oee/+/count',
+    mqttTopic: 'pharma/temperature/+',
+    contextUrlRef: 'SOURCE_API_URL',
+    topicPattern: 'pharma/+/+/+/+/machine/state',
+    unsComponent: 'unified-namespace',
+    assetSource: 'mqtt',
+    restEndpoint: '/api/v1/assets/{assetId}',
+    system: 'data-platform',
+    ursBaselineId: 'unbound',
+    destination: { host: 'github.com', owner: 'Pharma-Data-Factory', repo: 'line-1-product' },
+  };
+  const OEE = path.join(TEMPLATES_DIR, 'oee-data-product', 'content');
+  let workspacePath: string;
+  const read = (file: string) => fs.readFileSync(path.join(workspacePath, file), 'utf8');
+
+  beforeAll(async () => {
+    const values = Object.fromEntries(
+      Object.entries(step.input.values).map(([key, value]) => {
+        if (typeof value === 'string' && !value.includes('${{')) return [key, value];
+        if (!(key in FORM)) throw new Error(`templateRendering: no realistic value for "${key}"`);
+        return [key, FORM[key]];
+      }),
+    );
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), `nexora-ai-${template}-`));
+    const action = createFetchTemplateAction({
+      reader: {} as any,
+      integrations: { byHost: () => undefined, byUrl: () => undefined } as any,
+    });
+    await action.handler({
+      input: { ...step.input, values },
+      workspacePath,
+      logger,
+      templateInfo: { baseUrl: pathToFileURL(step.templateFile).href },
+      output: jest.fn(),
+      createTemporaryDirectory: async () =>
+        fs.mkdtempSync(path.join(os.tmpdir(), `nexora-ai-${template}-tmp-`)),
+      checkpoint: async ({ fn }: { fn: () => any }) => fn(),
+      getInitiatorCredentials: async () => ({}),
+    } as any);
+  }, 60000);
+
+  afterAll(() => {
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  });
+
+  it('ships OEE’s AI build workflow, script and test verbatim, uninterpreted', () => {
+    for (const file of [
+      '.github/workflows/nexora-ai-build.yml',
+      'scripts/nexora_ai_build.py',
+      'tests/test_ai_build.py',
+    ]) {
+      expect([file, read(file) === fs.readFileSync(path.join(OEE, file), 'utf8')]).toEqual([file, true]);
+    }
+    expect(read('.github/workflows/nexora-ai-build.yml')).toContain(
+      '${{ github.event.client_payload.assignmentId }}',
+    );
+  });
+
+  it('runs on Nexora’s dispatch only, asks for what it uses, and holds no Nexora credential', () => {
+    const text = read('.github/workflows/nexora-ai-build.yml');
+    const workflow = yaml.parse(text);
+    expect(workflow.on).toEqual({ repository_dispatch: { types: ['nexora-ai-build'] } });
+    expect(workflow.permissions).toEqual({ contents: 'read' });
+    expect(workflow.jobs.build.permissions).toEqual({
+      contents: 'write',
+      'pull-requests': 'write',
+      actions: 'write',
+    });
+    expect([...text.matchAll(/secrets\.([A-Z_]+)/g)].map(m => m[1])).toEqual(['ANTHROPIC_API_KEY']);
+    const steps = workflow.jobs.build.steps as any[];
+    expect(steps.find(s => s.name === 'Checkout').with['persist-credentials']).toBe(false);
+    const claude = steps.find(s => s.name === 'Claude Code');
+    expect(claude.uses).toBe('anthropics/claude-code-action@v1');
+    // The model comes from the validated assignment, never from the raw payload.
+    expect(claude.with.claude_args).toContain('--model ${{ steps.assignment.outputs.model }}');
+    expect(claude.with.claude_args).not.toMatch(/Bash\(git|Bash\(gh|Bash\(\*|Bash"/);
+    // The check runs between the AI and the commit, and nothing merges.
+    const names = steps.map(s => s.name);
+    expect(names.indexOf('Check what changed')).toBeGreaterThan(names.indexOf('Claude Code'));
+    expect(names.indexOf('Open the pull request')).toBeGreaterThan(names.indexOf('Check what changed'));
+    expect(text).not.toMatch(/gh pr merge|--admin|git push --force/);
+    // Every expression reaches a run script through env, never interpolated.
+    for (const s of steps.filter(candidate => candidate.run)) {
+      expect([s.name, /\$\{\{/.test(s.run)]).toEqual([s.name, false]);
+    }
+  });
+
+  it('has a CI gate the AI build can start on its branch, which runs the AI build test', () => {
+    const ci = yaml.parse(read('.github/workflows/ci.yml'));
+    expect(ci.on).toHaveProperty('workflow_dispatch');
+    expect(/tests\/test_ai_build\.py|pytest tests\//.test(JSON.stringify(ci.jobs))).toBe(true);
+  });
+
+  it('tells an agent the marker the evidence hooks read, and that the AI build may not touch workflows', () => {
+    const instructions = read('agent-instructions.md');
+    expect(instructions).toContain('@pytest.mark.urs("URS-EPM-001")');
+    expect(instructions).not.toContain('# Satisfies:');
+    expect(instructions).toContain('nexora-ai-build.yml');
+    expect(read('.gitignore')).toMatch(/^\.ruff_cache\/$/m);
+  });
+});

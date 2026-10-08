@@ -661,6 +661,39 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  // NXD-153. An AI build assignment and what became of it, as NXD-064 C-3
+  // keeps a spec draft: the model, what it was given (as a hash), who issued
+  // it and when, then the run and the pull request. `requirements` is the
+  // assigned refs with their content hashes, not their text: the text is in
+  // `product_requirements`, a snapshot that does not change.
+  if (!(await knex.schema.hasTable('ai_build_assignments'))) {
+    await knex.schema.createTable('ai_build_assignments', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255).notNullable().index();
+      table.string('product_version_id', 255).notNullable().index();
+      table.string('version_label', 64).notNullable();
+      table.string('status', 32).notNullable();
+      table.text('requirements').notNullable();
+      table.text('note').nullable();
+      table.string('model_id', 255).notNullable();
+      table.string('payload_hash', 128).notNullable();
+      table.string('repository_url', 1024).notNullable();
+      table.string('branch', 255).notNullable();
+      table.string('issued_by', 255).notNullable();
+      table.string('issued_at', 64).notNullable();
+      table.string('dispatch_reason', 255).nullable();
+      table.string('run_url', 1024).nullable();
+      table.string('run_conclusion', 64).nullable();
+      table.integer('pull_request_number').nullable();
+      table.string('pull_request_url', 1024).nullable();
+      table.string('pull_request_head_sha', 64).nullable();
+      table.string('merged_at', 64).nullable();
+      table.string('merge_commit_sha', 64).nullable();
+      table.string('closed_at', 64).nullable();
+      table.string('updated_at', 64).notNullable();
+    });
+  }
+
   await makeAuditTrailAppendOnly(knex);
 }
 
@@ -1152,6 +1185,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('ai_build_assignments');
   await knex.schema.dropTableIfExists('ai_spec_drafts');
   // Before product_versions: functional_specifications carries a foreign key
   // into it.

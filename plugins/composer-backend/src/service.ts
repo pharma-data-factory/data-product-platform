@@ -66,6 +66,7 @@ import {
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import type { CiEvidenceClient } from './ci-evidence-client';
+import type { AiBuildClient, AiBuildStatus } from './ai-build-client';
 import type { ReleaseRecordClient, ReleaseRecordLookup } from './release-record-client';
 import type {
   RegisteredReleaseBuild,
@@ -87,6 +88,8 @@ import {
   DataContract,
   TransitionProductVersionRequest,
   AISpecDraft,
+  AIBuildAssignment,
+  AIBuildAssignmentStatus,
   AuditContext,
   TestExecution,
   ProductSignature,
@@ -118,6 +121,25 @@ import type { PolicyResolverClient } from './policy-resolver-client';
 
 /** The actor of evidence Nexora imported on its own (NXD-151). */
 export const CI_EVIDENCE_SYNC_ACTOR = 'system:ci-evidence-sync';
+
+/** NXD-153. Keeps an assignment within GitHub's dispatch payload limit. */
+const AI_BUILD_MAX_REQUIREMENTS = 25;
+
+/**
+ * NXD-153. A pull request decides; without one, the run does. `undefined`
+ * when GitHub shows nothing yet.
+ */
+function aiBuildStatusFrom(status: AiBuildStatus): AIBuildAssignmentStatus | undefined {
+  const pr = status.pullRequest;
+  if (pr) {
+    if (pr.merged) return 'MERGED';
+    return pr.state === 'closed' ? 'CLOSED' : 'PR_OPEN';
+  }
+  const run = status.run;
+  if (!run) return undefined;
+  if (run.status !== 'completed') return 'RUNNING';
+  return run.conclusion === 'success' ? 'NO_CHANGE' : 'RUN_FAILED';
+}
 
 export interface ValidationCoverageSummary {
   contextId: string;
@@ -291,6 +313,12 @@ export interface ComposerServiceOptions {
   /** NXD-133. Release records from a product repository's GitHub Releases. */
   releaseRecordClient?: ReleaseRecordClient;
   /**
+   * NXD-153. Dispatches AI build assignments; absent when the AI build is not
+   * enabled. `model` is the model the product repository's workflow is told
+   * to use.
+   */
+  aiBuild?: { client: AiBuildClient; model: string };
+  /**
    * Shared SSE client registry. Injected by the router so upgrade notifications
    * can push events to connected consumers without any property bag tricks.
    */
@@ -328,6 +356,7 @@ export class ComposerService {
   private readonly policyResolverClient?: PolicyResolverClient;
   private readonly ciEvidenceClient?: CiEvidenceClient;
   private readonly releaseRecordClient?: ReleaseRecordClient;
+  private readonly aiBuild?: { client: AiBuildClient; model: string };
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
 
   constructor(options: ComposerServiceOptions) {
@@ -340,6 +369,7 @@ export class ComposerService {
     this.policyResolverClient = options.policyResolverClient;
     this.ciEvidenceClient = options.ciEvidenceClient;
     this.releaseRecordClient = options.releaseRecordClient;
+    this.aiBuild = options.aiBuild;
     this.sseClients = options.sseClients ?? new Map();
   }
 
@@ -2531,6 +2561,191 @@ export class ComposerService {
    * requirement) is reported, not raised; one product's failure does not
    * stop the pass.
    */
+  /**
+   * NXD-153. Assign a draft version's bound requirements to the AI build in
+   * the product's repository. The assignment is recorded before it is
+   * dispatched, so a dispatch never happens that Nexora does not know of; a
+   * dispatch GitHub did not take leaves it NOT_DISPATCHED with the reason.
+   * The workflow there writes code and requirement-tagged tests and opens a
+   * pull request. Nexora writes no code and merges nothing.
+   */
+  async issueAiBuildAssignment(
+    productVersionId: string,
+    request: { requirementRefs?: unknown; note?: unknown },
+    actor: string,
+  ): Promise<AIBuildAssignment> {
+    if (!this.aiBuild) {
+      throw new NotImplementedError('The AI build is not enabled (composer.aiBuild.enabled)');
+    }
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
+    if (version.status !== 'DRAFT') {
+      throw new ConflictError(
+        `Version ${version.version} is ${version.status}; code is built for a DRAFT version only`,
+      );
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product?.repositoryUrl) {
+      throw new ConflictError('The product has no repository to build in');
+    }
+    const bound = await this.repository.listProductRequirements(productVersionId);
+    if (bound.length === 0) {
+      throw new ConflictError('Bind an approved URS baseline before assigning requirements');
+    }
+    let selected = bound;
+    if (request.requirementRefs !== undefined) {
+      if (
+        !Array.isArray(request.requirementRefs) ||
+        request.requirementRefs.some(ref => typeof ref !== 'string')
+      ) {
+        throw new InputError('requirementRefs must be a list of requirement ids');
+      }
+      const wanted = new Set(request.requirementRefs as string[]);
+      const unknown = [...wanted].filter(ref => !bound.some(r => r.requirementRef === ref));
+      if (unknown.length > 0) {
+        throw new InputError(`Not bound to version ${version.version}: ${unknown.join(', ')}`);
+      }
+      selected = bound.filter(r => wanted.has(r.requirementRef));
+      if (selected.length === 0) {
+        throw new InputError('Assign at least one requirement');
+      }
+    }
+    if (selected.length > AI_BUILD_MAX_REQUIREMENTS) {
+      throw new InputError(
+        `At most ${AI_BUILD_MAX_REQUIREMENTS} requirements per assignment; ${selected.length} selected`,
+      );
+    }
+    if (request.note !== undefined && typeof request.note !== 'string') {
+      throw new InputError('note must be text');
+    }
+    const note = (request.note as string | undefined)?.trim() || undefined;
+    if (note && note.length > 2000) {
+      throw new InputError('note is longer than 2000 characters');
+    }
+
+    const id = randomUUID();
+    const payload = {
+      assignmentId: id,
+      model: this.aiBuild.model,
+      product: product.name,
+      version: version.version,
+      requirements: selected.map(r => ({
+        id: r.requirementRef,
+        title: r.title,
+        statement: r.statement,
+        ...(r.priority ? { priority: r.priority } : {}),
+      })),
+      ...(note ? { note } : {}),
+    };
+    const now = new Date().toISOString();
+    const assignment: AIBuildAssignment = {
+      id,
+      productId: product.id,
+      productVersionId,
+      versionLabel: version.version,
+      status: 'DISPATCHED',
+      requirements: selected.map(r => ({
+        requirementRef: r.requirementRef,
+        ursRequirementVersionId: r.ursRequirementVersionId,
+        contentHash: r.contentHash ?? '',
+      })),
+      ...(note ? { note } : {}),
+      modelId: this.aiBuild.model,
+      payloadHash: `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`,
+      repositoryUrl: product.repositoryUrl,
+      branch: `nexora/ai-${id}`,
+      issuedBy: actor,
+      issuedAt: now,
+      updatedAt: now,
+    };
+    const audit = this.beginAudit(actor);
+    await this.repository.createAiBuildAssignment(assignment);
+    await this.audit(audit, 'AI_BUILD_ASSIGNMENT', id, 'AI_BUILD_ASSIGNED', {
+      newValue: JSON.stringify({
+        productVersionId,
+        version: version.version,
+        requirements: assignment.requirements.map(r => r.requirementRef),
+        modelId: assignment.modelId,
+        payloadHash: assignment.payloadHash,
+      }),
+    });
+
+    let reason: string | undefined;
+    try {
+      const sent = await this.aiBuild.client.dispatch(product.repositoryUrl, payload);
+      reason = sent.dispatched ? undefined : sent.reason ?? 'unavailable';
+    } catch (error) {
+      this.logger.warn(
+        `AI build dispatch for ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      reason = 'unavailable';
+    }
+    if (reason) {
+      const outcome = { status: 'NOT_DISPATCHED' as const, dispatchReason: reason, updatedAt: new Date().toISOString() };
+      await this.repository.updateAiBuildOutcome(id, outcome);
+      await this.audit(audit, 'AI_BUILD_ASSIGNMENT', id, 'AI_BUILD_NOT_DISPATCHED', { reason });
+      return { ...assignment, ...outcome };
+    }
+    await this.audit(audit, 'AI_BUILD_ASSIGNMENT', id, 'AI_BUILD_DISPATCHED', {
+      newValue: JSON.stringify({ repositoryUrl: assignment.repositoryUrl, branch: assignment.branch }),
+    });
+    return assignment;
+  }
+
+  async listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
+    return this.repository.listAiBuildAssignments(productVersionId);
+  }
+
+  /**
+   * NXD-153. Bring an assignment up to what GitHub shows: its run and the
+   * pull request from its branch. Every change of status is an audit event,
+   * so who merged what the AI proposed, and when, is on the record with the
+   * merge commit.
+   */
+  async refreshAiBuildAssignment(id: string, actor: string): Promise<AIBuildAssignment> {
+    const assignment = await this.repository.getAiBuildAssignment(id);
+    if (!assignment) throw new NotFoundError(`AI build assignment ${id} not found`);
+    if (assignment.status === 'NOT_DISPATCHED') {
+      return assignment;
+    }
+    if (!this.aiBuild) {
+      throw new NotImplementedError('The AI build is not enabled (composer.aiBuild.enabled)');
+    }
+    const status = await this.aiBuild.client.getStatus(assignment.repositoryUrl, id);
+    if (!status.available) {
+      throw new ServiceUnavailableError(`GitHub could not be read: ${status.reason ?? 'unavailable'}`);
+    }
+    const next = aiBuildStatusFrom(status) ?? assignment.status;
+    const outcome = {
+      status: next,
+      runUrl: status.run?.url ?? assignment.runUrl,
+      runConclusion: status.run?.conclusion ?? assignment.runConclusion,
+      pullRequestNumber: status.pullRequest?.number ?? assignment.pullRequestNumber,
+      pullRequestUrl: status.pullRequest?.url ?? assignment.pullRequestUrl,
+      pullRequestHeadSha: status.pullRequest?.headSha ?? assignment.pullRequestHeadSha,
+      mergedAt: status.pullRequest?.mergedAt ?? assignment.mergedAt,
+      mergeCommitSha: status.pullRequest?.mergeCommitSha ?? assignment.mergeCommitSha,
+      closedAt: status.pullRequest?.closedAt ?? assignment.closedAt,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.repository.updateAiBuildOutcome(id, outcome);
+    if (next !== assignment.status) {
+      await this.audit(this.beginAudit(actor), 'AI_BUILD_ASSIGNMENT', id, `AI_BUILD_${next}`, {
+        oldValue: assignment.status,
+        newValue: JSON.stringify({
+          status: next,
+          ...(outcome.runUrl ? { runUrl: outcome.runUrl } : {}),
+          ...(outcome.pullRequestUrl ? { pullRequestUrl: outcome.pullRequestUrl } : {}),
+          ...(outcome.pullRequestHeadSha ? { headSha: outcome.pullRequestHeadSha } : {}),
+          ...(outcome.mergeCommitSha ? { mergeCommitSha: outcome.mergeCommitSha } : {}),
+        }),
+      });
+    }
+    return { ...assignment, ...outcome };
+  }
+
   async syncCiEvidence(actor = CI_EVIDENCE_SYNC_ACTOR): Promise<{
     imported: number;
     versions: Array<{

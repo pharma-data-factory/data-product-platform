@@ -23,6 +23,7 @@ without any of them; Guest sign-in needs no GitHub at all.
 | CI status on the product page | GitHub App with Actions read | 2 |
 | Release provenance on the product page (NXD-133) | GitHub App with Contents read — already granted for *Create* | 2 |
 | Team membership follows Nexora roles (NXD-108) | GitHub App with Members read & write, plus teams | 2, 4, 5 |
+| Pull request previews and the AI build (NXD-152, NXD-153) | GitHub App with Pull requests read; Contents write is already granted | 2, [AI build](#ai-build-nxd-153) |
 
 **Prerequisites:**
 
@@ -54,6 +55,7 @@ Field by field: [OAuth App settings](#oauth-app-settings-field-by-field).
    | Repository | Metadata | Read-only (mandatory) | — |
    | Repository | Workflows | Read and write | Pushing `.github/workflows/ci.yml` |
    | Repository | Actions | Read-only | CI status on the product page |
+   | Repository | Pull requests | Read-only | What open pull requests would verify (NXD-152); finding an AI build's pull request and its merge (NXD-153) |
    | **Organization** | **Members** | **Read and write** | Team sync only (NXD-108) |
 
    **Organization permissions** is a separate, **collapsed** section below the
@@ -281,8 +283,35 @@ Minimum permissions for this Golden Path:
 | Metadata | Read-only | Repository metadata |
 | Workflows | Read and write | Push `.github/workflows/ci.yml` |
 | Actions | Read-only | Read latest workflow run status on Data Product detail. If this permission is missing or GitHub is unavailable, the CI Quality Gate stays `UNKNOWN`. Do not treat that as a product failure. |
+| Pull requests | Read-only | Pull request previews (NXD-152) and the AI build's pull request (NXD-153). Without it a private repository's pull requests read as `inaccessible`. |
 
 Do not grant organization admin, delete-repo, or unrelated write permissions.
+
+### AI build (NXD-153)
+
+Nexora can assign a draft version's requirements to Claude Code in the
+product repository. Nexora sends a `repository_dispatch` event, which the
+App's existing *Contents: write* covers. The repository's own workflow,
+`.github/workflows/nexora-ai-build.yml`, which every data-product Golden Path
+ships, writes the code and opens a pull request. Nexora holds no model key,
+writes no code and merges nothing.
+
+1. **Organization secret `ANTHROPIC_API_KEY`.** Organization → **Settings** →
+   *Secrets and variables* → **Actions** → **New organization secret**. Give
+   access to the product repositories. The workflow reads it, and no other
+   secret.
+2. **Let workflows open pull requests.** Organization → **Settings** →
+   *Actions* → *General* → *Workflow permissions* → tick **Allow GitHub
+   Actions to create and approve pull requests**. A repository can only use
+   this setting when the organization allows it. Without it,
+   `gh pr create` fails and the assignment shows *Run failed*.
+3. **Enable it in Nexora:** `NEXORA_AI_BUILD_ENABLED=true`, then restart.
+   `composer.aiBuild.model` picks the model (default `claude-opus-5-5`).
+   Each assignment is a paid model run.
+
+A repository created before NXD-153 has no such workflow. Nexora then
+records the assignment as *Not dispatched* with that reason, and sends
+nothing.
 
 ### Optional: GitHub team sync (NXD-108)
 

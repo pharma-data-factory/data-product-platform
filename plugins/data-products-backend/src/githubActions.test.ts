@@ -243,6 +243,92 @@ describe('createGithubActionsClient', () => {
       );
     });
 
+    it('fires a repository_dispatch event with a JSON body (NXD-153)', async () => {
+      const fetchFn = jest.fn(async () => ({ ok: true, status: 204 }) as Response);
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      expect(
+        await client.dispatchRepositoryEvent!(repo, 'nexora-ai-build', { assignmentId: 'a' }),
+      ).toEqual({ ok: true, value: undefined });
+      const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('https://api.github.com/repos/pharma-data-factory/cold-room-temperature/dispatches');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(String(init.body))).toEqual({
+        event_type: 'nexora-ai-build',
+        client_payload: { assignmentId: 'a' },
+      });
+      expect((init.headers as Record<string, string>).Authorization).toMatch(/^Bearer /);
+    });
+
+    it('a refused dispatch is a reason, not a throw (NXD-153)', async () => {
+      const fetchFn = jest.fn(async () => jsonResponse(403, {}));
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      expect(await client.dispatchRepositoryEvent!(repo, 'e', {})).toEqual({
+        ok: false,
+        reason: 'inaccessible',
+      });
+    });
+
+    it('finds the repository’s own pull request by head branch, merged or not (NXD-153)', async () => {
+      const fetchFn = jest.fn(async () =>
+        jsonResponse(200, [
+          {
+            number: 8, title: 'AI build', html_url: 'https://github.com/x/pull/8', state: 'closed',
+            head: { ref: 'nexora/ai-1', sha: 'abc' }, user: { login: 'github-actions[bot]' },
+            merged_at: '2026-10-08T15:00:00Z', closed_at: '2026-10-08T15:00:00Z', merge_commit_sha: 'm1',
+          },
+        ]),
+      );
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      expect(await client.findPullRequestByHead!(repo, 'nexora/ai-1')).toEqual({
+        ok: true,
+        value: {
+          number: 8, title: 'AI build', htmlUrl: 'https://github.com/x/pull/8', headRef: 'nexora/ai-1',
+          headSha: 'abc', author: 'github-actions[bot]', draft: false, state: 'closed', merged: true,
+          mergedAt: '2026-10-08T15:00:00Z', mergeCommitSha: 'm1', closedAt: '2026-10-08T15:00:00Z',
+        },
+      });
+      expect(String((fetchFn.mock.calls[0] as unknown[])[0])).toContain(
+        '/pulls?state=all&head=pharma-data-factory%3Anexora%2Fai-1&per_page=1',
+      );
+    });
+
+    it('finds a workflow run by a marker in its title; no workflow is no run (NXD-153)', async () => {
+      const fetchFn = jest
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            workflow_runs: [
+              { id: 1, display_title: 'Nexora AI build other', status: 'completed' },
+              { id: 2, display_title: 'Nexora AI build wanted', status: 'in_progress', html_url: 'u' },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(404, {}));
+      const client = createGithubActionsClient({
+        config,
+        fetchFn: fetchFn as unknown as typeof fetch,
+        credentialsProvider,
+      });
+      const found = await client.findWorkflowRun!(repo, 'nexora-ai-build.yml', 'wanted');
+      expect(found).toEqual({ ok: true, value: expect.objectContaining({ id: 2, status: 'in_progress' }) });
+      expect(await client.findWorkflowRun!(repo, 'nexora-ai-build.yml', 'wanted')).toEqual({
+        ok: true,
+        value: undefined,
+      });
+    });
+
     it('reads the default branch from the repository (NXD-151)', async () => {
       const fetchFn = jest.fn(async () => jsonResponse(200, { default_branch: 'trunk' }));
       const client = createGithubActionsClient({

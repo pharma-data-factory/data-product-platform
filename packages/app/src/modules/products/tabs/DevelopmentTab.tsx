@@ -2,6 +2,7 @@ import { Box, Chip, Typography } from '@material-ui/core';
 import { Link } from '@backstage/core-components';
 import { NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import type { Product, ProductBaseline } from '@internal/platform-common';
+import { AiBuildActions, AiBuildCard } from './AiBuildCard';
 
 /**
  * Where the code lives, and what the last build of it produced.
@@ -30,6 +31,8 @@ interface DevelopmentTabProps {
   product: Product;
   /** `null` while loading; the page owns the fetch. */
   baselines: ProductBaseline[] | null;
+  /** NXD-153. Absent without a selected version or a repository. */
+  aiBuild?: AiBuildActions;
 }
 
 function Field({
@@ -64,7 +67,7 @@ export function catalogPathOf(entityRef: string): string | undefined {
   return `/catalog/${namespace}/${kind.toLowerCase()}/${name}`;
 }
 
-export function DevelopmentTab({ product, baselines }: DevelopmentTabProps) {
+export function DevelopmentTab({ product, baselines, aiBuild }: DevelopmentTabProps) {
   const catalogPath = product.catalogEntityRef
     ? catalogPathOf(product.catalogEntityRef)
     : undefined;
@@ -163,6 +166,8 @@ export function DevelopmentTab({ product, baselines }: DevelopmentTabProps) {
           </Typography>
         )}
       </Box>
+
+      {product.repositoryUrl && aiBuild ? <AiBuildCard {...aiBuild} /> : null}
     </Box>
   );
 }

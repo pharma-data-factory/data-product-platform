@@ -20,6 +20,7 @@ import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
+import { createHttpAiBuildClient } from './ai-build-client';
 import { createHttpCiEvidenceClient } from './ci-evidence-client';
 import { createHttpReleaseRecordClient } from './release-record-client';
 import { createHttpPinVerifier } from './pin-verifier';
@@ -108,6 +109,9 @@ function createLLMClient(config: Config, logger: any): ComposerLLMClient {
   });
 }
 
+/** NXD-153. The default model for the AI build; `composer.aiBuild.model` overrides it. */
+export const DEFAULT_AI_BUILD_MODEL = 'claude-opus-5-5';
+
 export const composerPlugin = createBackendPlugin({
   pluginId: 'composer',
   register(env) {
@@ -161,6 +165,16 @@ export const composerPlugin = createBackendPlugin({
           policyResolverClient,
           ciEvidenceClient: createHttpCiEvidenceClient({ discovery, auth }),
           releaseRecordClient: createHttpReleaseRecordClient({ discovery, auth }),
+          // NXD-153. Off unless enabled: a dispatch starts a paid model run in
+          // the product repository, with the organisation's key.
+          ...(config.getOptionalBoolean('composer.aiBuild.enabled')
+            ? {
+                aiBuild: {
+                  client: createHttpAiBuildClient({ discovery, auth }),
+                  model: config.getOptionalString('composer.aiBuild.model') ?? DEFAULT_AI_BUILD_MODEL,
+                },
+              }
+            : {}),
         });
 
         httpRouter.use(

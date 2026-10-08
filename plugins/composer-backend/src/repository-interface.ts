@@ -11,6 +11,7 @@ import {
   TestExecution,
   ProductBaseline,
   ProductRequirement,
+  AIBuildAssignment,
   AISpecDraft,
   AISpecDraftStatus,
   FunctionalSpecification,
@@ -189,6 +190,28 @@ export interface IComposerRepository {
   ): Promise<FunctionalSpecification[]>;
 
   // AI Spec Drafts (MVP1 item 6 / NXD-064 C-3)
+  /** NXD-153. */
+  createAiBuildAssignment(assignment: AIBuildAssignment): Promise<void>;
+  getAiBuildAssignment(id: string): Promise<AIBuildAssignment | null>;
+  listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]>;
+  /** Only the outcome columns; the assignment itself is never updated. */
+  updateAiBuildOutcome(
+    id: string,
+    outcome: Pick<
+      AIBuildAssignment,
+      | 'status'
+      | 'dispatchReason'
+      | 'runUrl'
+      | 'runConclusion'
+      | 'pullRequestNumber'
+      | 'pullRequestUrl'
+      | 'pullRequestHeadSha'
+      | 'mergedAt'
+      | 'mergeCommitSha'
+      | 'closedAt'
+      | 'updatedAt'
+    >,
+  ): Promise<void>;
   createSpecDraft(draft: AISpecDraft): Promise<void>;
   getSpecDraft(id: string): Promise<AISpecDraft | null>;
   listSpecDraftsForBaseline(ursBaselineId: string): Promise<AISpecDraft[]>;

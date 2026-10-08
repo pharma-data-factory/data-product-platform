@@ -50,6 +50,24 @@ export interface RouterOptions {
   consumeAllowedOrigins?: readonly string[];
 }
 
+/** NXD-153. The AI build's workflow, event and branch, shared with the templates. */
+export const AI_BUILD_WORKFLOW_FILE = 'nexora-ai-build.yml';
+const AI_BUILD_WORKFLOW_PATH = `.github/workflows/${AI_BUILD_WORKFLOW_FILE}`;
+export const AI_BUILD_EVENT = 'nexora-ai-build';
+const AI_BUILD_MAX_PAYLOAD_BYTES = 60_000;
+const AI_BUILD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const aiBuildBranch = (assignmentId: string) => `nexora/ai-${assignmentId}`;
+
+type RunLookup = Awaited<ReturnType<NonNullable<GithubActionsClient['getLatestCompletedRun']>>>;
+
+/** NXD-153. The later-completed of two run lookups; a failure only if both fail. */
+function newestRun(a: RunLookup, b: RunLookup): RunLookup {
+  if (!a.ok) return b.ok && b.value ? b : a;
+  if (!b.ok || !b.value) return a;
+  if (!a.value) return b;
+  return (b.value.completedAt ?? '') > (a.value.completedAt ?? '') ? b : a;
+}
+
 /** NXD-137. The manifest text, or why there is none to hand on. */
 function releaseManifest(
   read: Awaited<ReturnType<NonNullable<GithubActionsClient['getFileAtRef']>>> | undefined,
@@ -251,10 +269,19 @@ export async function createRouter(
           draft: pr.draft,
           ...(pr.author ? { author: pr.author } : {}),
         };
-        const run = await github.getLatestCompletedRun(repo, {
-          branch: pr.headRef,
-          event: 'pull_request',
-        });
+        // NXD-153. A pull request opened by a workflow's GITHUB_TOKEN starts
+        // no `pull_request` run; the AI build dispatches ci.yml on the head
+        // branch instead. The newer of the two counts.
+        const run = newestRun(
+          await github.getLatestCompletedRun(repo, {
+            branch: pr.headRef,
+            event: 'pull_request',
+          }),
+          await github.getLatestCompletedRun(repo, {
+            branch: pr.headRef,
+            event: 'workflow_dispatch',
+          }),
+        );
         if (!run.ok || !run.value) {
           pullRequests.push({
             ...base,
@@ -307,6 +334,158 @@ export async function createRouter(
       });
     }
   });
+
+  /**
+   * POST /ai-build/dispatch (NXD-153)
+   *
+   * Fires the `nexora-ai-build` repository_dispatch event that a Golden
+   * Path's `.github/workflows/nexora-ai-build.yml` listens for. Services only:
+   * the Composer authorizes the person, issues and records the assignment,
+   * and hands over the payload. Refused, with a reason, when the repository's
+   * default branch has no such workflow, because GitHub accepts a dispatch
+   * that nothing listens for and the assignment would wait for ever.
+   */
+  router.post('/ai-build/dispatch', async (req, res) => {
+    try {
+      await httpAuth.credentials(req, { allow: ['service'] });
+      const repo = parseGithubUrl(String(req.body?.repoUrl ?? '').trim());
+      if (!repo) {
+        throw new InputError('repoUrl must be a GitHub repository URL');
+      }
+      const payload = req.body?.payload;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new InputError('payload must be an object');
+      }
+      if (!AI_BUILD_ID.test(String((payload as { assignmentId?: unknown }).assignmentId ?? ''))) {
+        throw new InputError('payload.assignmentId must be a UUID');
+      }
+      if (Object.keys(payload).length > 10) {
+        // GitHub's limit for client_payload.
+        throw new InputError('payload has more than 10 top-level properties');
+      }
+      if (Buffer.byteLength(JSON.stringify(payload)) > AI_BUILD_MAX_PAYLOAD_BYTES) {
+        throw new InputError(`payload is larger than ${AI_BUILD_MAX_PAYLOAD_BYTES} bytes`);
+      }
+      if (!github.dispatchRepositoryEvent || !github.getDefaultBranch || !github.getFileAtRef) {
+        res.json({ dispatched: false, reason: 'unavailable' });
+        return;
+      }
+      const branch = await github.getDefaultBranch(repo);
+      if (!branch.ok) {
+        res.json({ dispatched: false, reason: branch.reason });
+        return;
+      }
+      const workflow = await github.getFileAtRef(repo, AI_BUILD_WORKFLOW_PATH, branch.value);
+      if (!workflow.ok) {
+        res.json({ dispatched: false, reason: workflow.reason });
+        return;
+      }
+      if (workflow.value === undefined) {
+        res.json({ dispatched: false, reason: 'no-ai-build-workflow' });
+        return;
+      }
+      const sent = await github.dispatchRepositoryEvent(repo, AI_BUILD_EVENT, payload);
+      if (!sent.ok) {
+        res.json({ dispatched: false, reason: sent.reason });
+        return;
+      }
+      res.json({
+        dispatched: true,
+        repository: `${repo.owner}/${repo.repo}`,
+        defaultBranch: branch.value,
+        branch: aiBuildBranch(String((payload as { assignmentId: string }).assignmentId)),
+      });
+    } catch (error) {
+      respondRouteError(res, error, 'ai-build/dispatch');
+    }
+  });
+
+  /**
+   * GET /ai-build/status?repoUrl=…&assignmentId=… (NXD-153)
+   *
+   * What GitHub shows of one assignment: the AI build run whose title carries
+   * the assignment id, and the pull request from `nexora/ai-<id>`, open,
+   * merged or closed. Read-only.
+   */
+  router.get('/ai-build/status', async (req, res) => {
+    try {
+      await authorizeViewOrService(req);
+      const repo = parseGithubUrl(String(req.query.repoUrl ?? '').trim());
+      if (!repo) {
+        throw new InputError('repoUrl must be a GitHub repository URL');
+      }
+      const assignmentId = String(req.query.assignmentId ?? '');
+      if (!AI_BUILD_ID.test(assignmentId)) {
+        throw new InputError('assignmentId must be a UUID');
+      }
+      if (!github.findWorkflowRun || !github.findPullRequestByHead) {
+        res.json({ available: false, reason: 'unavailable' });
+        return;
+      }
+      const run = await github.findWorkflowRun(repo, AI_BUILD_WORKFLOW_FILE, assignmentId);
+      if (!run.ok) {
+        res.json({ available: false, reason: run.reason });
+        return;
+      }
+      const pr = await github.findPullRequestByHead(repo, aiBuildBranch(assignmentId));
+      if (!pr.ok) {
+        res.json({ available: false, reason: pr.reason });
+        return;
+      }
+      res.json({
+        available: true,
+        branch: aiBuildBranch(assignmentId),
+        ...(run.value
+          ? {
+              run: {
+                id: run.value.id,
+                url: run.value.htmlUrl,
+                status: run.value.status,
+                conclusion: run.value.conclusion,
+                startedAt: run.value.startedAt,
+                completedAt: run.value.completedAt,
+              },
+            }
+          : {}),
+        ...(pr.value
+          ? {
+              pullRequest: {
+                number: pr.value.number,
+                title: pr.value.title,
+                url: pr.value.htmlUrl,
+                headSha: pr.value.headSha,
+                state: pr.value.state,
+                merged: pr.value.merged,
+                ...(pr.value.author ? { author: pr.value.author } : {}),
+                ...(pr.value.mergedAt ? { mergedAt: pr.value.mergedAt } : {}),
+                ...(pr.value.mergeCommitSha ? { mergeCommitSha: pr.value.mergeCommitSha } : {}),
+                ...(pr.value.closedAt ? { closedAt: pr.value.closedAt } : {}),
+              },
+            }
+          : {}),
+      });
+    } catch (error) {
+      respondRouteError(res, error, 'ai-build/status');
+    }
+  });
+
+  function respondRouteError(res: express.Response, error: unknown, route: string): void {
+    if (error instanceof NotAllowedError || (error as { name?: string })?.name === 'NotAllowedError') {
+      res.status(403).json({ error: (error as Error).message || 'Not allowed' });
+      return;
+    }
+    if ((error as { name?: string })?.name === 'AuthenticationError') {
+      res.status(401).json({ error: (error as Error).message || 'Not authenticated' });
+      return;
+    }
+    if (error instanceof InputError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`${route} failed: ${message}`);
+    res.status(502).json({ error: `GitHub could not be reached: ${message}` });
+  }
 
   /**
    * GET /release-record?repoUrl=…&version=… (NXD-133)
