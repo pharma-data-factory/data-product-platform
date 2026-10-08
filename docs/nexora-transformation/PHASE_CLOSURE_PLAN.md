@@ -640,6 +640,10 @@ closed rather than worked off.
 > [`NXD-144`](DECISIONS.md)).** The live run against the released OEE product
 > stopped at the image pull: the GHCR package is private and no credential
 > on the host may read it. It resumes after §9.7 S3, without a manual login.
+>
+> **Live run done 2026-10-08 ([`NXD-148`](DECISIONS.md)), after S3.** The
+> installed product ran healthy, and its IQ record reached
+> `EVIDENCE_RECORDED` from the provider's report. QA sign-off remains.
 
 **Relation to §9.4.** T1 is already ranked there and closes Phase 7; the rest is
 new work that did not exist as a plan. Whether the topology track runs before,

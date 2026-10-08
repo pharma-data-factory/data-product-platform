@@ -358,6 +358,13 @@ four quick wins F1–F4, one commit and one record each.
   local registry: refused without the credential, running with it. The
   live run now needs only a token with `read:packages`, placed as a secret
   file. See [`NXD-147`](DECISIONS.md).
+- **MVP1 live: install → run → IQ evidence.** The released OEE product,
+  installed in Nexora as a signed GMP act, was pulled from private GHCR
+  through the target's credential reference. It ran healthy on the local
+  Docker host and was reported RUNNING. The provider's facts (digest,
+  configuration hash, target) matched the desire, so the IQ record moved to
+  `EVIDENCE_RECORDED` without anyone typing a value. QA sign-off is the
+  open step. See [`NXD-148`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

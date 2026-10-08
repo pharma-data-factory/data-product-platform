@@ -9511,3 +9511,89 @@ GitHub token had `read:packages`.
   (+ `provider.test.ts`, `router.test.ts`, `service.test.ts`);
   `packages/runtime-provider-compose/src/` — `docker.ts`, `reconcile.ts`
   (+ `reconcile.test.ts`).
+
+### NXD-148 — The live run: a released product installed in Nexora runs on a target, and what runs becomes IQ evidence
+
+- Date: 2026-10-08
+- Slice: MVP1 step 8, the live run deferred by `NXD-143` and `NXD-144`,
+  resumed after §9.7 S3 (`NXD-147`).
+- Decided by: the user approved each environment step: the app restart
+  with `app-config.service-token.yaml`, the `demo-admin` seat, the PIN
+  reset, and a token with `read:packages`, stored by the user as a secret
+  file.
+
+**What ran.** Against the running development instance (PostgreSQL,
+`AUTH_DEMO_ENABLED`, the service-token overlay):
+
+1. **Target.** `demo-admin` registered `local-compose` through
+   `POST /targets`, bound to `provider:local-compose`.
+2. **PIN.** `demo-admin` cleared `demo-pm`'s signing PIN with a reason.
+   `NXD-138`'s audited reset was used for real for the first time; the PIN
+   from `NXD-135` had been held only in `/tmp`. `demo-pm` enrolled a new
+   one.
+3. **Install.** `demo-pm` installed
+   `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0` (the `NXD-137`
+   version) as `oee-filler-01`. The Composer classified the product as
+   governing and GMP-relevant, so it was a signed act (justification and
+   PIN). The response was 201, with `qualificationStatus:
+   PENDING_EVIDENCE` and an IQ record for revision 1.
+4. **First provider pass**, with no registry credential: the provider read
+   desired state and reported FAILED r1 with GHCR's "token does not match
+   expected scopes". Neither the `.env` PAT (`repo, workflow, write:org`)
+   nor the credential-store token had `read:packages`. The run stopped
+   here, and the user ordered the supplier track (§9.7) first.
+5. **After S3.** The target's `registryCredentials` were set through the
+   new PUT, as a reference to `ghcr/pull-token`. The user wrote the token
+   into the target's secret directory.
+   - The first attempt was refused by GHCR at login. The file held five
+     tokens back to back, because the hidden input had been pasted several
+     times. Found by inspecting the shape only (prefix, length, count). The
+     value was never read out.
+   - Re-stored once, with a length check. The login succeeded.
+6. **Run.**
+   - The provider logged in, in its isolated config, and pulled the image
+     by digest. It reported `applied → PENDING r1` while the image's
+     HEALTHCHECK started.
+   - 30 s later the container was `healthy`, on host port 1026.
+     `GET /health` answered `{"status":"UP","version":"1.0.0"}`.
+   - The second pass reported `unchanged → RUNNING r1`.
+7. **Evidence.**
+   - Nexora holds `observed`: RUNNING, revision 1, digest
+     `sha256:6e696d5f…fd810`, config hash `sha256:11f8e298…8594`, reported
+     by `provider:local-compose`. Both values equal the desired state.
+   - The installation and its IQ record moved to `EVIDENCE_RECORDED`. The
+     record carries observed digest, hash and target and
+     `evidenceRecordedBy: provider:local-compose`.
+   - The audit trail reads `INSTALLATION_REQUESTED` (demo-pm), three
+     `OBSERVED_STATE_CHANGED` and `IQ_EVIDENCE_RECORDED` (all
+     provider:local-compose).
+8. **Route authorization, live.** The provider token got 200 on its
+   target. The consumer token (`installation:plant-basel`) got 403, demo-pm
+   (a user) 403, and no token 401.
+
+**Found.**
+
+- **Repeated failures are not audited, by design, and that held.** The
+  three FAILED r1 reports (wrong scope, unauthorized, refused login)
+  carried the same facts (state, revision, no digest), so only the first
+  was audited. `reportedAt` and the message moved each time. Whether a
+  changed *message* should count as a change is open.
+- **The pulled version declares no storage.** `…@1.0.0` predates
+  `NXD-142`, so the provider created no volume, and the OEE database lives
+  in the container layer until a release from the updated template.
+  `NXD-142` already named this.
+- **The installed version would not be publishable today.** `NXD-146`
+  measured it: its product version is APPROVED, not RELEASED.
+
+**Not shown.** QA's sign-off to `QUALIFIED`: no route exists (`NXD-143`).
+An upgrade and a removal through Nexora were not run live. The provider's
+own tests and the `NXD-144` smoke test cover them.
+
+**State left running.** The container
+`nexora-local-compose-oee-filler-01-app-1` keeps running. The target,
+installation and records stay in the development database. The token file
+is `/tmp/live/secrets/ghcr/pull-token` (0600) and will be gone after a
+workspace restart.
+
+- Affected components: none. This is a record of a run. Code and tests are
+  in `NXD-143`, `NXD-144` and `NXD-147`.
