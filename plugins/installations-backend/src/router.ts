@@ -176,6 +176,17 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     }
   });
 
+  /** PUT /targets/:id/registry-credentials — references only (NXD-147). */
+  router.put('/targets/:id/registry-credentials', async (req, res) => {
+    try {
+      const { actor } = await authorize(req, installationTargetManagePermission);
+      const body = (req.body ?? {}) as { registryCredentials?: unknown };
+      res.json(await service.setRegistryCredentials(req.params.id, body.registryCredentials, actor));
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
   router.get('/targets/:id', async (req, res) => {
     try {
       await authorize(req, installationReadPermission);

@@ -377,7 +377,12 @@ describe('InstallationsService', () => {
       // The repository's only writes to the trails are inserts; the database
       // refuses the rest on PostgreSQL (migrations.postgres.test.ts).
       const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(repository));
-      expect(methods.filter(m => /^(update|delete|remove)/i.test(m))).toEqual([]);
+      // The one update is of a target, a mutable record (NXD-147); it writes
+      // its audit event by insert. Anything else named so is a new way to
+      // change something and must be looked at.
+      expect(methods.filter(m => /^(update|delete|remove)/i.test(m))).toEqual([
+        'updateTargetRegistryCredentials',
+      ]);
     });
   });
 });

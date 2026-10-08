@@ -23,11 +23,12 @@
 
 import { mkdir, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
-import type {
-  InstallationObservedState,
-  ObservedStateReport,
-  ProviderDesiredInstallation,
-  ProviderDesiredState,
+import {
+  registryHostOf,
+  type InstallationObservedState,
+  type ObservedStateReport,
+  type ProviderDesiredInstallation,
+  type ProviderDesiredState,
 } from '@internal/platform-common';
 import type { NexoraApi } from './api';
 import {
@@ -182,8 +183,14 @@ async function reconcileOne(
       } else {
         await rm(join(dir, 'secrets.env'), { force: true });
       }
+      let dockerConfig: string | undefined;
       try {
-        await docker.up(project, dir);
+        dockerConfig = await loginFor(item, state, options);
+      } catch (error) {
+        return failed(String((error as Error).message));
+      }
+      try {
+        await docker.up(project, dir, dockerConfig);
       } catch (error) {
         return failed(`apply of revision ${desired.revision} failed: ${String((error as Error).message)}`);
       }
@@ -198,6 +205,40 @@ async function reconcileOne(
   } catch (error) {
     return failed(String((error as Error).message ?? error));
   }
+}
+
+/**
+ * Logs in to the image's registry when the target names a credential for it
+ * (NXD-147), into one isolated Docker client configuration per target, and
+ * returns that directory. No credential for the registry: the host's own
+ * client configuration is used, as before, and a private image fails to pull
+ * with the registry's own message.
+ */
+async function loginFor(
+  item: ProviderDesiredInstallation,
+  state: ProviderDesiredState,
+  options: ReconcileOptions,
+): Promise<string | undefined> {
+  const registry = registryHostOf(item.desired.imageRepository);
+  const credential = state.target.registryCredentials?.find(c => c.registry === registry);
+  if (!credential) return undefined;
+  const password = await options.resolveSecret(credential.secretRef);
+  if (password === undefined) {
+    throw new Error(
+      `the registry credential for ${registry} refers to secret "${credential.secretRef}", ` +
+        "which this target's secret store does not hold",
+    );
+  }
+  const dockerConfig = join(options.workDir, '.docker', state.target.name);
+  try {
+    await options.docker.login(dockerConfig, registry, credential.username ?? 'nexora', password);
+  } catch (error) {
+    // The registry's refusal names no secret; ours names the reference.
+    throw new Error(
+      `login to ${registry} with secret "${credential.secretRef}" failed: ${(error as Error).message}`,
+    );
+  }
+  return dockerConfig;
 }
 
 /** What runs, as Docker tells it; undefined when nothing does. */

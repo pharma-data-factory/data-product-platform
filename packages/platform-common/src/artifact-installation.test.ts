@@ -9,6 +9,8 @@ import {
   isValidSecretRef,
   validateInstallationConfig,
   validateObservedStateReport,
+  validateRegistryCredentials,
+  registryHostOf,
 } from './artifact-installation';
 import type { ConfigKeySchema } from './platform-component-library';
 
@@ -167,5 +169,51 @@ describe('validateObservedStateReport', () => {
       'configHash must be sha256:<64 lowercase hex>',
       'message must be a string',
     ]);
+  });
+});
+
+describe('validateRegistryCredentials (NXD-147)', () => {
+  it('accepts references, normalising the host', () => {
+    expect(
+      validateRegistryCredentials([
+        { registry: 'GHCR.io', username: 'schmeckm', secretRef: 'ghcr/pull-token' },
+        { registry: 'registry.example.com:5000', secretRef: 'internal/pull' },
+      ]),
+    ).toEqual({
+      credentials: [
+        { registry: 'ghcr.io', username: 'schmeckm', secretRef: 'ghcr/pull-token' },
+        { registry: 'registry.example.com:5000', secretRef: 'internal/pull' },
+      ],
+      issues: [],
+    });
+    expect(validateRegistryCredentials(undefined)).toEqual({ credentials: [], issues: [] });
+  });
+
+  it('refuses a credential value, without echoing it, and every malformed entry', () => {
+    const { credentials, issues } = validateRegistryCredentials([
+      { registry: 'ghcr.io', secretRef: 'a', password: 'ghp_secret' },
+      { registry: 'https://ghcr.io', secretRef: 'a' },
+      { registry: 'ghcr.io', secretRef: 'ghp_Secret' },
+      { registry: 'ghcr.io', secretRef: 'a' },
+      { registry: 'ghcr.io', secretRef: 'b' },
+      'x',
+    ]);
+    expect(credentials).toEqual([]);
+    expect(issues).toEqual([
+      'registryCredentials[0] may hold registry, username and secretRef only (got password)',
+      'registryCredentials[1].registry must be a registry host such as ghcr.io',
+      expect.stringMatching(/^registryCredentials\[2\]\.secretRef is not a secret name/),
+      'registryCredentials[4].registry ghcr.io is listed twice',
+      'registryCredentials[5] must be an object',
+    ]);
+    expect(issues.join(' ')).not.toContain('ghp_secret');
+    expect(validateRegistryCredentials({}).issues).toEqual(['registryCredentials must be a list']);
+  });
+
+  it('finds the registry of an image as Docker does', () => {
+    expect(registryHostOf('ghcr.io/pharma/oee')).toBe('ghcr.io');
+    expect(registryHostOf('localhost:5000/oee')).toBe('localhost:5000');
+    expect(registryHostOf('library/nginx')).toBe('docker.io');
+    expect(registryHostOf('nginx')).toBe('docker.io');
   });
 });

@@ -35,6 +35,7 @@ import {
   parseArtifactRef,
   validateInstallationConfig,
   validateObservedStateReport,
+  validateRegistryCredentials,
   type ArtifactCoordinate,
   type ArtifactInstallation,
   type ArtifactManifest,
@@ -69,6 +70,7 @@ export interface RegisterTargetRequest {
   description?: string;
   providerKind?: string;
   providerSubject?: string;
+  registryCredentials?: unknown;
 }
 
 export interface InstallRequest {
@@ -139,6 +141,12 @@ export class InstallationsService {
       throw new ConflictError(`Runtime target "${name}" already exists (${existing.id})`);
     }
     const providerSubject = request.providerSubject?.trim();
+    const { credentials: registryCredentials, issues } = validateRegistryCredentials(
+      request.registryCredentials,
+    );
+    if (issues.length > 0) {
+      throw new InputError(`Invalid registry credentials: ${issues.join('; ')}`);
+    }
     const target: RuntimeTarget = {
       id: randomUUID(),
       name,
@@ -146,6 +154,7 @@ export class InstallationsService {
       ...(request.description ? { description: request.description } : {}),
       providerKind,
       ...(providerSubject ? { providerSubject } : {}),
+      ...(registryCredentials.length ? { registryCredentials } : {}),
       createdBy: actor,
       createdAt: new Date(),
       revision: 1,
@@ -156,8 +165,47 @@ export class InstallationsService {
       targetId: target.id,
       actor,
       occurredAt: target.createdAt,
-      details: { name, providerKind, providerSubject: providerSubject ?? null },
+      details: {
+        name,
+        providerKind,
+        providerSubject: providerSubject ?? null,
+        registryCredentials,
+      },
     });
+  }
+
+  /**
+   * Replaces how a target's provider authenticates to registries (NXD-147).
+   * References only: the request is refused if it carries anything but a
+   * registry, a user name and a secret reference.
+   */
+  async setRegistryCredentials(
+    id: string,
+    input: unknown,
+    actor: string,
+  ): Promise<RuntimeTarget> {
+    const target = await this.getTarget(id);
+    const { credentials, issues } = validateRegistryCredentials(input);
+    if (issues.length > 0) {
+      throw new InputError(`Invalid registry credentials: ${issues.join('; ')}`);
+    }
+    const updated = await this.repository.updateTargetRegistryCredentials(
+      id,
+      credentials,
+      target.revision,
+      {
+        id: randomUUID(),
+        eventType: 'TARGET_REGISTRY_CREDENTIALS_CHANGED',
+        targetId: id,
+        actor,
+        occurredAt: new Date(),
+        details: { before: target.registryCredentials ?? [], after: credentials },
+      },
+    );
+    if (!updated) {
+      throw new ConflictError(`Runtime target ${id} changed while it was being updated; re-read it and retry`);
+    }
+    return this.getTarget(id);
   }
 
   async listTargets(): Promise<RuntimeTarget[]> {
@@ -249,7 +297,14 @@ export class InstallationsService {
       }),
     );
     return {
-      target: { id: target.id, name: target.name, providerKind: target.providerKind },
+      target: {
+        id: target.id,
+        name: target.name,
+        providerKind: target.providerKind,
+        ...(target.registryCredentials?.length
+          ? { registryCredentials: target.registryCredentials }
+          : {}),
+      },
       installations: items,
       generatedAt: new Date().toISOString(),
     };

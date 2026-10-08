@@ -9401,3 +9401,113 @@ from.
   `db/migrations.postgres.test.ts`); `plugins/composer-backend/src/` —
   `service.ts`, `router.ts` (+ `artifactGmpClassification.test.ts`);
   `packages/platform-common/src/artifact.ts`, `index.ts`.
+
+### NXD-147 — A runtime target names the registry credentials its provider pulls with, by reference only
+
+- Date: 2026-10-08
+- Slice: §9.7 S3 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track.
+- Decided by: the user (2026-10-08). The paused live run is to resume
+  without a manual `docker login`. The shape is chosen here and named for
+  review.
+
+**Context.** The live run of 2026-10-08 installed the released OEE product
+and stopped at the pull: product images are pushed to GHCR as private
+packages (`release.yml`, `NXD-132`), and the provider held no credential
+(`NXD-144`, "private images"). The only workaround was a `docker login` on
+the host, which puts a person's token into the host user's Docker config,
+for every target on that host, with no record in Nexora. Neither available
+GitHub token had `read:packages`.
+
+**Decision.**
+
+- **A target holds registry credential references.**
+  - `registryCredentials` is a list of `{ registry, username?, secretRef }`.
+    The `secretRef` names a secret in the target's own store, as a
+    configuration secret does (`NXD-139`). Nexora never holds the value.
+  - `validateRegistryCredentials` (platform-common) normalises the host,
+    allows one entry per registry, and refuses any other key (a `password`
+    or `token` is refused, and its value is not echoed).
+  - The list is set at registration, or replaced through
+    `PUT /targets/:id/registry-credentials` under
+    `installation.target.manage`.
+  - A change is guarded by the target's revision and audited as
+    `TARGET_REGISTRY_CREDENTIALS_CHANGED`, before and after.
+  - The provider receives the list with the target in its desired state.
+- **The provider logs in, isolated per target.**
+  - Before `compose up`, it finds the credential for the image's registry
+    (`registryHostOf`, as Docker resolves a repository) and resolves the
+    secret from its store.
+  - It runs `docker --config <workdir>/.docker/<target> login
+    --password-stdin`, then `compose up` with that `DOCKER_CONFIG`.
+  - The password never appears on a command line. The host user's Docker
+    configuration is not touched. One target's credentials are not another
+    target's.
+  - With no credential for the registry, the host's own configuration is
+    used, as before.
+  - A missing secret or a refused login is reported FAILED for the desired
+    revision, naming the reference and never the value.
+
+**Alternatives considered.**
+
+- *Make product images public.* Possible per product, but it is not a
+  default: a GxP product's image is not necessarily public. Changing GHCR
+  visibility also needs a token with package admin rights, which the
+  product workflow's `GITHUB_TOKEN` does not have. Not built.
+- *Write the Docker `config.json` directly instead of `docker login`.*
+  Rejected. `login` checks the credential against the registry, so a wrong
+  token fails as a login error and not as a misleading pull error.
+- *Store the credential in Nexora and hand it to the provider.* Rejected.
+  Nexora would hold a registry secret for every site, and the provider API
+  would carry it on every poll.
+
+**Verified.**
+
+- `platform-common` `artifact-installation.test.ts`, +3: references
+  accepted and normalised; a value refused without echo; malformed hosts,
+  references and duplicates named at once; `registryHostOf` as Docker
+  resolves it.
+- `installations-backend`:
+  - `provider.test.ts` +2: references held, served to the provider,
+    replaced, cleared, audited before and after; a target registered with
+    a value refused.
+  - `router.test.ts` +1: the PUT route under
+    `installation.target.manage` only, 400 for a value, 403 for a service
+    principal.
+  - The repository guard test now names the one allowed `update…` method
+    (a target is a mutable record) instead of allowing none.
+  - The PostgreSQL suite: 5/5 with `CI=true`.
+- `runtime-provider-compose` `reconcile.test.ts`, +3: login for the
+  image's registry into the isolated config, then `up` with it; no login
+  when no credential matches; FAILED naming the reference for a missing
+  secret and for a refused login, without the value.
+- **Against real Docker**, with a password-protected local registry
+  (`registry:2`, htpasswd) holding an image:
+  - without a credential, the provider reported FAILED with "no basic
+    auth credentials";
+  - with the target's reference to a secret file, it logged in, ran the
+    image and reported RUNNING with the pushed digest;
+  - removal reported ABSENT;
+  - the isolated config is mode 0700/0600, and the host user's
+    `~/.docker/config.json` gained no entry.
+  - Registry, images and files were removed afterwards.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- **The live run still needs a token** with `read:packages` for the
+  `pharma-data-factory` packages. It is placed once as a file in the
+  target's secret store. S3 makes that a governed reference instead of a
+  host login; it cannot create the token.
+- The isolated Docker config holds the credential as Docker stores it
+  (base64), on the provider host, as any `docker login` does. A credential
+  helper is not used.
+- There is no UI for registry credentials yet; the API sets them.
+
+- Affected components: `packages/platform-common/src/artifact-installation.ts`
+  (`RegistryCredentialRef`, `validateRegistryCredentials`, `registryHostOf`),
+  `index.ts` (+ test); `plugins/installations-backend/src/` —
+  `db/migrations.ts`, `repository.ts`, `service.ts`, `router.ts`
+  (+ `provider.test.ts`, `router.test.ts`, `service.test.ts`);
+  `packages/runtime-provider-compose/src/` — `docker.ts`, `reconcile.ts`
+  (+ `reconcile.test.ts`).

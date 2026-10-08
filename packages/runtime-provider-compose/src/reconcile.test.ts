@@ -48,10 +48,19 @@ describe('reconcile', () => {
   let items: ProviderDesiredInstallation[];
   let docker: Docker;
   let upFails: string | undefined;
+  let loginFails: string | undefined;
+  let registryCredentials: Array<{ registry: string; username?: string; secretRef: string }> | undefined;
+  let logins: Array<{ dockerConfig: string; registry: string; username: string; password: string }>;
+  let upConfigs: Array<string | undefined>;
 
   const api: NexoraApi = {
     desired: async () => ({
-      target: { id: 'target-1', name: 'basel-line-3', providerKind: 'docker-compose' },
+      target: {
+        id: 'target-1',
+        name: 'basel-line-3',
+        providerKind: 'docker-compose',
+        ...(registryCredentials ? { registryCredentials } : {}),
+      },
       installations: items,
       generatedAt: new Date().toISOString(),
     }),
@@ -67,9 +76,19 @@ describe('reconcile', () => {
     calls = [];
     reports = [];
     upFails = undefined;
+    loginFails = undefined;
+    registryCredentials = undefined;
+    logins = [];
+    upConfigs = [];
     docker = {
-      up: async (project, dir) => {
+      login: async (dockerConfig, registry, username, password) => {
+        calls.push(`login ${registry}`);
+        if (loginFails) throw new Error(loginFails);
+        logins.push({ dockerConfig, registry, username, password });
+      },
+      up: async (project, dir, dockerConfig) => {
         calls.push(`up ${project}`);
+        upConfigs.push(dockerConfig);
         if (upFails) throw new Error(upFails);
         const compose = JSON.parse(await readFile(join(dir, 'compose.json'), 'utf8'));
         const labels = compose.services.app.labels;
@@ -102,7 +121,8 @@ describe('reconcile', () => {
       api,
       docker,
       workDir,
-      resolveSecret: async ref => (ref === 'mqtt/password' ? 's3cret' : undefined),
+      resolveSecret: async ref =>
+        ({ 'mqtt/password': 's3cret', 'ghcr/pull-token': 'ghp_pull' } as Record<string, string>)[ref],
     });
 
   it('applies a PRESENT installation nothing runs for, and reports what started', async () => {
@@ -229,6 +249,55 @@ describe('reconcile', () => {
     docker.repoDigests = async () => [`mirror.local/oee@${DIGEST}`];
     await pass();
     expect(reports[0].report.imageDigest).toBeUndefined();
+  });
+
+  describe('private registries (NXD-147)', () => {
+    it('logs in with the target’s credential for the image’s registry, in an isolated config', async () => {
+      items = [desiredItem()];
+      registryCredentials = [
+        { registry: 'docker.io', secretRef: 'nope' },
+        { registry: 'ghcr.io', username: 'schmeckm', secretRef: 'ghcr/pull-token' },
+      ];
+      expect((await pass())[0].action).toBe('applied');
+      expect(calls).toEqual(['login ghcr.io', `up ${PROJECT}`]);
+      expect(logins).toEqual([
+        {
+          dockerConfig: join(workDir, '.docker', 'basel-line-3'),
+          registry: 'ghcr.io',
+          username: 'schmeckm',
+          password: 'ghp_pull',
+        },
+      ]);
+      expect(upConfigs).toEqual([join(workDir, '.docker', 'basel-line-3')]);
+    });
+
+    it('pulls with the host’s own config when the target names no credential for the registry', async () => {
+      items = [desiredItem()];
+      registryCredentials = [{ registry: 'registry.example.com', secretRef: 'ghcr/pull-token' }];
+      await pass();
+      expect(calls).toEqual([`up ${PROJECT}`]);
+      expect(upConfigs).toEqual([undefined]);
+    });
+
+    it('reports FAILED, naming the reference, when the secret is missing or the login is refused', async () => {
+      items = [desiredItem()];
+      registryCredentials = [{ registry: 'ghcr.io', secretRef: 'ghcr/other' }];
+      await pass();
+      expect(reports[0].report).toEqual({
+        state: 'FAILED',
+        desiredRevision: 3,
+        message: expect.stringMatching(/registry credential for ghcr\.io refers to secret "ghcr\/other"/),
+      });
+
+      registryCredentials = [{ registry: 'ghcr.io', secretRef: 'ghcr/pull-token' }];
+      loginFails = 'unauthorized: denied';
+      await pass();
+      expect(reports[1].report.message).toBe(
+        'login to ghcr.io with secret "ghcr/pull-token" failed: unauthorized: denied',
+      );
+      expect(reports[1].report.message).not.toContain('ghp_pull');
+      expect(calls).toEqual(['login ghcr.io']);
+    });
   });
 });
 

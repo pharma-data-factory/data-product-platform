@@ -116,6 +116,65 @@ describe('InstallationsService — provider API', () => {
     });
   });
 
+  describe('registry credentials (NXD-147)', () => {
+    it('holds references only, serves them to the provider, and audits a change', async () => {
+      const t = await service.registerTarget(
+        {
+          name: 'line-private',
+          providerKind: 'docker-compose',
+          providerSubject: PROVIDER,
+          registryCredentials: [{ registry: 'ghcr.io', secretRef: 'ghcr/pull-token' }],
+        },
+        'user:default/admin',
+      );
+      expect(t.registryCredentials).toEqual([{ registry: 'ghcr.io', secretRef: 'ghcr/pull-token' }]);
+      expect((await service.desiredStateFor(t, world.readVersion)).target.registryCredentials).toEqual([
+        { registry: 'ghcr.io', secretRef: 'ghcr/pull-token' },
+      ]);
+
+      await expect(
+        service.setRegistryCredentials(t.id, [{ registry: 'ghcr.io', secretRef: 'x', token: 'ghp_x' }], 'user:default/admin'),
+      ).rejects.toThrow(/may hold registry, username and secretRef only \(got token\)/);
+
+      const changed = await service.setRegistryCredentials(
+        t.id,
+        [{ registry: 'ghcr.io', username: 'bot', secretRef: 'ghcr/rotated' }],
+        'user:default/admin',
+      );
+      expect(changed).toEqual(
+        expect.objectContaining({
+          revision: 2,
+          registryCredentials: [{ registry: 'ghcr.io', username: 'bot', secretRef: 'ghcr/rotated' }],
+        }),
+      );
+      const cleared = await service.setRegistryCredentials(t.id, [], 'user:default/admin');
+      expect(cleared.registryCredentials).toBeUndefined();
+      const events = await repository.listAuditEvents({ targetId: t.id });
+      expect(events.map(e => e.eventType)).toEqual([
+        'TARGET_REGISTERED',
+        'TARGET_REGISTRY_CREDENTIALS_CHANGED',
+        'TARGET_REGISTRY_CREDENTIALS_CHANGED',
+      ]);
+      expect(events[1].details).toEqual({
+        before: [{ registry: 'ghcr.io', secretRef: 'ghcr/pull-token' }],
+        after: [{ registry: 'ghcr.io', username: 'bot', secretRef: 'ghcr/rotated' }],
+      });
+    });
+
+    it('refuses a target registered with a credential value', async () => {
+      await expect(
+        service.registerTarget(
+          {
+            name: 'line-bad',
+            providerKind: 'docker-compose',
+            registryCredentials: [{ registry: 'ghcr.io', password: 'ghp_x', secretRef: 'a' }],
+          },
+          'user:default/admin',
+        ),
+      ).rejects.toThrow(/Invalid registry credentials/);
+    });
+  });
+
   describe('reporting observed state', () => {
     it('refuses a malformed report, another target’s installation and a future revision', async () => {
       const t = await target();

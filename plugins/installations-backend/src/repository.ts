@@ -20,6 +20,7 @@ import type {
   InstallationObservedState,
   InstallationQualification,
   InstallationQualificationStatus,
+  RegistryCredentialRef,
   RuntimeTarget,
 } from '@internal/platform-common';
 import { up } from './db/migrations';
@@ -90,6 +91,9 @@ export class InstallationsRepository {
         description: target.description ?? null,
         provider_kind: target.providerKind,
         provider_subject: target.providerSubject ?? null,
+        registry_credentials: target.registryCredentials?.length
+          ? JSON.stringify(target.registryCredentials)
+          : null,
         created_by: target.createdBy,
         created_at: target.createdAt,
         revision: target.revision,
@@ -109,6 +113,29 @@ export class InstallationsRepository {
       .whereRaw('lower(name) = ?', [name.toLowerCase()])
       .first();
     return row ? this.toTarget(row) : undefined;
+  }
+
+  /**
+   * Replaces a target's registry credentials (NXD-147), guarded on the
+   * revision read, with its audit event in the same transaction.
+   */
+  async updateTargetRegistryCredentials(
+    id: string,
+    credentials: RegistryCredentialRef[],
+    expectedRevision: number,
+    audit: InstallationAuditEvent,
+  ): Promise<boolean> {
+    return this.db.transaction(async trx => {
+      const updated = await trx('runtime_targets')
+        .where({ id, revision: expectedRevision })
+        .update({
+          registry_credentials: credentials.length ? JSON.stringify(credentials) : null,
+          revision: expectedRevision + 1,
+        });
+      if (updated === 0) return false;
+      await this.insertAudit(trx, audit);
+      return true;
+    });
   }
 
   async listTargets(): Promise<RuntimeTarget[]> {
@@ -402,6 +429,9 @@ export class InstallationsRepository {
       description: row.description ?? undefined,
       providerKind: row.provider_kind,
       providerSubject: row.provider_subject ?? undefined,
+      ...(row.registry_credentials
+        ? { registryCredentials: fromJson<RegistryCredentialRef[]>(row.registry_credentials, []) }
+        : {}),
       createdBy: row.created_by,
       createdAt: toDate(row.created_at),
       revision: row.revision,

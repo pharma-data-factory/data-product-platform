@@ -268,6 +268,90 @@ export function computeInstallationConfigHash(config: InstallationConfig): strin
     .digest('hex')}`;
 }
 
+/**
+ * How a target's provider authenticates to one container registry (NXD-147):
+ * a reference into the target's secret store, never the credential. The
+ * provider resolves it where it runs, as it resolves a configuration secret.
+ */
+export interface RegistryCredentialRef {
+  /** Registry host, e.g. `ghcr.io`, `registry.example.com:5000`. */
+  registry: string;
+  /** Login name; registries that accept a token ignore it. */
+  username?: string;
+  /** The secret holding the password or token. */
+  secretRef: string;
+}
+
+const REGISTRY_HOST_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*(?::\d{1,5})?$/;
+const REGISTRY_USERNAME_PATTERN = /^[A-Za-z0-9._@-]{1,128}$/;
+
+/**
+ * Validates a target's registry credentials: each a registry host, an
+ * optional user name and a secret *reference*. One entry per registry.
+ */
+export function validateRegistryCredentials(
+  input: unknown,
+): { credentials: RegistryCredentialRef[]; issues: string[] } {
+  if (input === undefined || input === null) return { credentials: [], issues: [] };
+  if (!Array.isArray(input)) {
+    return { credentials: [], issues: ['registryCredentials must be a list'] };
+  }
+  const issues: string[] = [];
+  const credentials: RegistryCredentialRef[] = [];
+  const seen = new Set<string>();
+  input.forEach((raw, i) => {
+    const at = `registryCredentials[${i}]`;
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      issues.push(`${at} must be an object`);
+      return;
+    }
+    const entry = raw as Record<string, unknown>;
+    const unknownKeys = Object.keys(entry).filter(
+      k => !['registry', 'username', 'secretRef'].includes(k),
+    );
+    if (unknownKeys.length > 0) {
+      // A key such as `password` is refused without echoing its value.
+      issues.push(`${at} may hold registry, username and secretRef only (got ${unknownKeys.join(', ')})`);
+      return;
+    }
+    const registry = String(entry.registry ?? '').trim().toLowerCase();
+    if (!REGISTRY_HOST_PATTERN.test(registry)) {
+      issues.push(`${at}.registry must be a registry host such as ghcr.io`);
+      return;
+    }
+    if (seen.has(registry)) {
+      issues.push(`${at}.registry ${registry} is listed twice`);
+      return;
+    }
+    const secretRef = String(entry.secretRef ?? '');
+    if (!isValidSecretRef(secretRef)) {
+      issues.push(
+        `${at}.secretRef is not a secret name (lowercase segments separated by "/", ".", "-" or "_")`,
+      );
+      return;
+    }
+    const username = entry.username === undefined ? undefined : String(entry.username).trim();
+    if (username !== undefined && !REGISTRY_USERNAME_PATTERN.test(username)) {
+      issues.push(`${at}.username must be a login name`);
+      return;
+    }
+    seen.add(registry);
+    credentials.push({ registry, secretRef, ...(username ? { username } : {}) });
+  });
+  return { credentials: issues.length > 0 ? [] : credentials, issues };
+}
+
+/**
+ * The registry host of an image repository, as Docker resolves it: the first
+ * path segment when it looks like a host, otherwise Docker Hub.
+ */
+export function registryHostOf(imageRepository: string): string {
+  const first = imageRepository.split('/')[0];
+  return imageRepository.includes('/') && (first.includes('.') || first.includes(':') || first === 'localhost')
+    ? first.toLowerCase()
+    : 'docker.io';
+}
+
 /** A place a runtime provider runs workloads. Not a Nexora instance (NXD-078). */
 export interface RuntimeTarget {
   id: string;
@@ -283,6 +367,8 @@ export interface RuntimeTarget {
    * NXD-129 slice 2). Unset until a provider is bound.
    */
   providerSubject?: string;
+  /** How the provider authenticates to private registries (NXD-147). */
+  registryCredentials?: RegistryCredentialRef[];
   createdBy: string;
   createdAt: Date;
   revision: number;
@@ -430,7 +516,7 @@ export interface ProviderDesiredInstallation {
 
 /** `GET /provider/targets/:targetId/desired`. */
 export interface ProviderDesiredState {
-  target: Pick<RuntimeTarget, 'id' | 'name' | 'providerKind'>;
+  target: Pick<RuntimeTarget, 'id' | 'name' | 'providerKind' | 'registryCredentials'>;
   installations: ProviderDesiredInstallation[];
   generatedAt: string;
 }

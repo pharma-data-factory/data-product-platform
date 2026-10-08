@@ -133,6 +133,25 @@ describe('installations router', () => {
     expect(checked.slice(1)).toEqual(['installation.read', 'installation.read', 'installation.read']);
   });
 
+  it('changes registry credentials under installation.target.manage only (NXD-147)', async () => {
+    const id = await target();
+    const put = (body: unknown) =>
+      fetch(`${server.url}/targets/${id}/registry-credentials`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const ok = await put({ registryCredentials: [{ registry: 'ghcr.io', secretRef: 'ghcr/pull-token' }] });
+    expect(ok.status).toBe(200);
+    expect(checked.slice(-1)).toEqual(['installation.target.manage']);
+    expect((await put({ registryCredentials: [{ registry: 'ghcr.io', password: 'x', secretRef: 'a' }] })).status).toBe(400);
+    denied.add('installation.target.manage');
+    expect((await put({ registryCredentials: [] })).status).toBe(403);
+    principal = 'service';
+    denied.clear();
+    expect((await put({ registryCredentials: [] })).status).toBe(403);
+  });
+
   it('refuses a target to someone without installation.target.manage', async () => {
     denied.add('installation.target.manage');
     const response = await request('/targets', 'POST', { name: 'x', providerKind: 'docker-compose' });

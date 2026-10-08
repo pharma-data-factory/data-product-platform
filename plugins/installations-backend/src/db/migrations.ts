@@ -159,6 +159,19 @@ export async function up(knex: Knex): Promise<void> {
   );
 
   await makeTrailsAppendOnly(knex);
+  await addRegistryCredentials(knex);
+}
+
+/**
+ * NXD-147: how a target's provider authenticates to private registries —
+ * references into the target's secret store, as JSON. Nullable: a target
+ * that pulls only public images needs none.
+ */
+async function addRegistryCredentials(knex: Knex): Promise<void> {
+  if (await knex.schema.hasColumn('runtime_targets', 'registry_credentials')) return;
+  await knex.schema.alterTable('runtime_targets', table => {
+    table.text('registry_credentials').nullable();
+  });
 }
 
 /**

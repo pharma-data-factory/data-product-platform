@@ -652,6 +652,8 @@ export {
   canonicalInstallationConfig,
   computeInstallationConfigHash,
   validateObservedStateReport,
+  validateRegistryCredentials,
+  registryHostOf,
 } from './artifact-installation';
 export type {
   ArtifactInstallation,
@@ -670,6 +672,7 @@ export type {
   ObservedStateReport,
   ProviderDesiredInstallation,
   ProviderDesiredState,
+  RegistryCredentialRef,
   RuntimeTarget,
   SecretReference,
 } from './artifact-installation';

@@ -351,6 +351,13 @@ four quick wins F1–F4, one commit and one record each.
   Live finding: the OEE version published on 2026-10-07 would not pass
   this rule. It stays published, because the rule is not retroactive. See
   [`NXD-146`](DECISIONS.md).
+- **S3: a consumer can pull private images.** A runtime target names, for
+  each registry, a reference to a secret in its own store, never the
+  credential itself. The provider logs in with it in an isolated Docker
+  configuration per target, then pulls. Proven against a password-protected
+  local registry: refused without the credential, running with it. The
+  live run now needs only a token with `read:packages`, placed as a secret
+  file. See [`NXD-147`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

@@ -5,6 +5,7 @@
  */
 
 import { execFile } from 'child_process';
+import { mkdir } from 'fs/promises';
 
 export interface ContainerStatus {
   id: string;
@@ -20,8 +21,17 @@ export interface ContainerStatus {
 }
 
 export interface Docker {
-  /** `docker compose up -d` of the project in `dir`; pulls what is missing. */
-  up(project: string, dir: string): Promise<void>;
+  /**
+   * `docker compose up -d` of the project in `dir`; pulls what is missing,
+   * with the registry logins of `dockerConfig` when given (NXD-147).
+   */
+  up(project: string, dir: string, dockerConfig?: string): Promise<void>;
+  /**
+   * `docker login` into an isolated client configuration directory, never
+   * the host user's: the target's credentials stay the target's (NXD-147).
+   * The password goes over stdin, never onto a command line.
+   */
+  login(dockerConfig: string, registry: string, username: string, password: string): Promise<void>;
   /** `docker compose down`, never `-v`: the project's volumes are kept. */
   down(project: string): Promise<void>;
   /** The project's containers of `service`, running or not. */
@@ -32,12 +42,21 @@ export interface Docker {
 
 export class DockerCommandError extends Error {}
 
-function run(args: string[], cwd?: string): Promise<string> {
+function run(
+  args: string[],
+  cwd?: string,
+  options: { env?: NodeJS.ProcessEnv; stdin?: string } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       'docker',
       args,
-      { cwd, maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 },
+      {
+        cwd,
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 10 * 60 * 1000,
+        ...(options.env ? { env: { ...process.env, ...options.env } } : {}),
+      },
       (error, stdout, stderr) => {
         if (error) {
           const detail = String(stderr || error.message).trim().split('\n').slice(-5).join(' ');
@@ -47,6 +66,9 @@ function run(args: string[], cwd?: string): Promise<string> {
         resolve(String(stdout));
       },
     );
+    if (options.stdin !== undefined) {
+      child.stdin?.end(options.stdin);
+    }
   });
 }
 
@@ -85,11 +107,18 @@ export function parseInspect(output: string): ContainerStatus[] {
 
 export function createDockerCli(): Docker {
   return {
-    async up(project, dir) {
+    async up(project, dir, dockerConfig) {
       await run(
         ['compose', '-p', project, '-f', 'compose.json', 'up', '-d', '--remove-orphans', '--quiet-pull'],
         dir,
+        dockerConfig ? { env: { DOCKER_CONFIG: dockerConfig } } : {},
       );
+    },
+    async login(dockerConfig, registry, username, password) {
+      await mkdir(dockerConfig, { recursive: true, mode: 0o700 });
+      await run(['--config', dockerConfig, 'login', registry, '-u', username, '--password-stdin'], undefined, {
+        stdin: password,
+      });
     },
     async down(project) {
       await run(['compose', '-p', project, 'down', '--remove-orphans']);
