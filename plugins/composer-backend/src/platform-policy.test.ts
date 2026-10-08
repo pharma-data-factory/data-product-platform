@@ -80,6 +80,9 @@ describe('evaluatePlatformPolicy', () => {
       'owner-declared',
       'data-classification-declared',
       'gxp-relevance-declared',
+      // An unanswered product counts as GxP (NXD-145); the fixture's
+      // criticality is unset as well.
+      'gxp-criticality-declared',
     ]);
   });
 
@@ -91,6 +94,19 @@ describe('evaluatePlatformPolicy', () => {
     expect(findings.map(f => f.obligationId)).toContain(
       'gxp-criticality-declared',
     );
+  });
+
+  it('holds a product that has not answered to the GxP-only obligations too (NXD-145)', () => {
+    // Before NXD-145 only DIRECT and INDIRECT counted, so leaving the field
+    // empty escaped the criticality obligation.
+    const findings = evaluatePlatformPolicy(
+      product({ gxpRelevance: undefined, criticality: undefined }),
+    );
+
+    expect(findings.map(f => f.obligationId)).toEqual([
+      'gxp-relevance-declared',
+      'gxp-criticality-declared',
+    ]);
   });
 
   it('spares a non-GxP product the GxP-only obligations', () => {

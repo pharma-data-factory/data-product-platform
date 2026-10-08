@@ -673,4 +673,31 @@ describe('Slice 1a: the release gate becomes reachable from the normal path', ()
     const gate = await service.checkReleaseGate(version.id);
     expect(gate.blockers.map(b => b.code)).toContain('NO_URS_BASELINE');
   });
+
+  // NXD-145: a URS is a GxP instrument. A product that answers NONE may be
+  // released without one; a product that has not answered still may not.
+  it.each([
+    ['NONE', false],
+    ['INDIRECT', true],
+    ['DIRECT', true],
+    [undefined, true],
+  ])('with gxpRelevance %s, an unbound version raises NO_URS_BASELINE: %s', async (gxpRelevance, raised) => {
+    const repository = await ComposerRepository.create({ getClient: () => db });
+    const service = new ComposerService({ logger: mockLogger, repository });
+    const product = await service.createProduct(
+      {
+        name: `Product ${Math.random()}`,
+        productType: 'DATA_PRODUCT',
+        owner: 'group:default/platform-team',
+        ...(gxpRelevance ? { gxpRelevance } : {}),
+      },
+      actor,
+    );
+    const version = await service.createProductVersion(product.id, { version: '1.0' }, actor);
+    const baseline = await service.createProductBaseline(version.id, {}, actor);
+    await service.approveProductBaseline(baseline.id, approver);
+
+    const gate = await service.checkReleaseGate(version.id);
+    expect(gate.blockers.map(b => b.code).includes('NO_URS_BASELINE')).toBe(raised);
+  });
 });

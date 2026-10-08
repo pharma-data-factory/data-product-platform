@@ -9153,3 +9153,111 @@ or a developer machine.
   `main.ts`, `index.ts`, tests); `yarn.lock` (the workspace entry);
   `packages/platform-common/src/artifact-installation.ts` (`configSchema`);
   `plugins/installations-backend/src/service.ts` (+ `provider.test.ts`).
+
+### NXD-145 — A URS baseline is required only of a GMP product, and "is GMP" has one answer
+
+- Date: 2026-10-08
+- Slice: §9.7 S1 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track (added with this record).
+- Decided by: the user (2026-10-08). The supplier-side gaps are to be closed
+  before more consumer features, in the order S1 → S6, and the URS-for-every-
+  product friction is S1. The predicate rule is `NXD-119`'s and `NXD-140`'s,
+  applied here.
+
+**Context.** The release gate's `NO_URS_BASELINE` blocked every product
+whose approved baseline bound no URS baseline, whether the product was GxP
+relevant or not. The ecosystem assessment (2026-10-06) named this as
+friction for community and analytics products. A URS is a GxP instrument,
+and requiring one of a product that answers NONE made the gate a formality.
+The GxP-only policy pack already has the obligation `urs-baseline-bound`
+with `appliesTo: gxp`. `NO_URS_BASELINE` repeated it for everyone.
+
+Making the block conditional exposed a worse problem. The composer backend
+had **three** answers to "is this product GMP":
+
+- the signature path (`attest`, the validation-decision check and the GMP
+  classification served to installations): anything but an explicit NONE,
+  the `NXD-119` rule;
+- the policy-pack evaluation: set and not NONE, so a product with no answer
+  was *not* GxP;
+- the platform policy (`isGxpRelevant`): DIRECT or INDIRECT only, with a
+  comment that said the opposite ("GxP relevant unless it says otherwise").
+
+So a product that left the field empty was GMP for signatures, but escaped
+the GxP-only obligations of both policies. The platform policy already
+blocked it for not answering. It did not also ask for the criticality that
+a GMP product owes.
+
+**Decision.**
+
+- **One predicate.** Every check in `composer-backend` now uses
+  `isGmpRelevant` from `platform-common` (`NXD-119`): only an explicit
+  `NONE` is exempt. That covers `attest`, the policy pack, the platform
+  policy, the validation-decision check, the GMP classification route
+  (`NXD-139`) and the new URS condition. The Governance card's list of
+  outstanding obligations uses it too, so the page and the gate agree.
+- **`NO_URS_BASELINE` applies to GMP products only.** A product that answers
+  NONE may be released without a URS binding. A product with no answer, or
+  an unknown one, still may not.
+- **Consequence, accepted.** A product that has not answered is now also
+  asked for its criticality (`gxp-criticality-declared`), as GxP-only policy
+  pack obligations now apply to it. Answering the GxP question clears both:
+  NONE removes the criticality obligation, and anything else needs a
+  criticality.
+- **Case.** The platform policy upper-cased the value before comparing; the
+  shared predicate compares exactly. New writes are validated against
+  `GXP_RELEVANCE_LEVELS` (upper case), so this only affects a legacy row
+  holding `none`, which now counts as GMP. That is fail-closed, as
+  `NXD-140` decided for the unknown case.
+
+**Alternatives considered.**
+
+- *Drop `NO_URS_BASELINE` and leave it to the policy pack.* Rejected. The
+  pack applies only to a product that declares it. A GMP product that
+  declares no pack would then release with no requirements bound at all.
+- *Exempt "no answer" as well.* Rejected. It reverses `NXD-119` and
+  `NXD-140`: an unanswered GxP question counts as GMP everywhere else in
+  Nexora. The platform policy blocks the unanswered product regardless.
+
+**Verified.**
+
+- `productRequirements.test.ts`, +4: `NO_URS_BASELINE` for NONE (not
+  raised), INDIRECT, DIRECT and unanswered (raised).
+- `platform-policy.test.ts`, +1: an unanswered product is held to the
+  criticality obligation. One assertion updated: "every unmet obligation at
+  once" now lists four.
+- Updated because the rule moved, not because behaviour regressed:
+  - `versioning.test.ts`: the two `NO_URS_BASELINE` tests used a NONE
+    fixture and now reclassify the product as INDIRECT before asking the
+    gate. The "no platform obligation met" count is now 4.
+  - `releaseGateProgress.test.ts`: the starting count is 7 blockers, 4 of
+    them policy.
+  - `productUpdate.test.ts`: the count before is 4.
+- `composer-backend`: 410/410. See the commit body for the gates and the
+  repo-wide run.
+
+**Not changed, named.**
+
+- `urs-composer-backend` (`service.ts`, the workflow choice
+  `standard-gxp-urs` / `non-gxp-urs`) and the frontend's `ApprovalDialog`
+  and Governance form still spell the rule out locally. They agree with it
+  or only shape a form, and none decides a release.
+- The `ReleaseReadinessCard` label for `NO_URS_BASELINE` is unchanged. The
+  file holds the user's uncommitted work and was not touched.
+
+**Also in this commit, for the paused live run.** `app-config.demo.yaml`
+gains a seventh demo seat, `demo-admin` (`platform-admins`, no `urs-*`
+group). No demo seat could register a runtime target
+(`installation.target.manage`) or clear another seat's signing PIN
+(`NXD-138`). The live run used it for both through the API: the target
+`local-compose`, and resetting `demo-pm`'s PIN, which was held only in
+`/tmp` and lost on restart. `startup.test.ts` pins the seat.
+
+- Affected components: `plugins/composer-backend/src/service.ts`,
+  `platform-policy.ts` (+ `productRequirements.test.ts`,
+  `platform-policy.test.ts`, `versioning.test.ts`,
+  `releaseGateProgress.test.ts`, `productUpdate.test.ts`);
+  `packages/app/src/modules/products/tabs/GovernanceCard.tsx`
+  (+ `ProductDetailPage.test.tsx`, now "4 unanswered");
+  `app-config.demo.yaml` (+ `packages/backend/src/startup.test.ts`);
+  `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.7 added, §9.6 note).

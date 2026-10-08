@@ -17,7 +17,7 @@
  * skips what it does not understand is not a policy.
  */
 
-import type { Product } from '@internal/platform-common';
+import { isGmpRelevant, type Product } from '@internal/platform-common';
 
 // `platform-policy.document.json`, not `platform-policy.json`. The basename
 // has to differ from this module's: while they matched, `import ... from
@@ -45,10 +45,14 @@ export interface PlatformPolicy {
 
 export const PLATFORM_POLICY = policyDocument as PlatformPolicy;
 
-/** A product is GxP relevant unless it says otherwise. */
+/**
+ * A product is GxP relevant unless it says otherwise — the shared predicate
+ * (NXD-119, NXD-145). This function used to count only DIRECT and INDIRECT,
+ * the opposite of its own comment: a product with no answer escaped the
+ * GxP-only obligations it was then also blocked for not answering.
+ */
 function isGxpRelevant(product: Product): boolean {
-  const value = String(product.gxpRelevance ?? '').toUpperCase();
-  return value === 'DIRECT' || value === 'INDIRECT';
+  return isGmpRelevant(product.gxpRelevance);
 }
 
 function isSet(value: unknown): boolean {

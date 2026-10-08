@@ -329,6 +329,19 @@ four quick wins F1–F4, one commit and one record each.
   leave alone, upgrade with the data surviving, removal keeping the volume.
   It has not yet run against Nexora; that is the live run. See
   [`NXD-144`](DECISIONS.md).
+- **The live run paused at the image pull; the supplier track comes first.**
+  The released OEE product was installed (a signed GMP act) on a registered
+  target. The provider read it and reported FAILED: the GHCR package is
+  private, and no available token has `read:packages`. The user decided to
+  close the supplier-side gaps first, then automatic CI evidence, then
+  AI-assisted build (`PHASE_CLOSURE_PLAN.md` §9.7, S1–S6). The run resumes
+  after S3.
+- **S1: a URS baseline is required only of a GMP product.** A product
+  answering NONE may now be released without a URS binding. Making that
+  conditional exposed three different "is GMP" rules in the composer. All
+  of them now use the shared one, under which only an explicit NONE is
+  exempt. As a result, a product that has not answered is now also asked
+  for its criticality. See [`NXD-145`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

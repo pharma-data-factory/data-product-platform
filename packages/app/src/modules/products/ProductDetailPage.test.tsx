@@ -389,10 +389,12 @@ describe('ProductDetailPage — governance', () => {
   it('names the obligations the gate will refuse the product for', async () => {
     await renderPage();
 
-    expect(screen.getByText('3 unanswered')).toBeInTheDocument();
+    // Four, as the gate counts them (NXD-145): a product that has not
+    // answered the GxP question owes its criticality too.
+    expect(screen.getByText('4 unanswered')).toBeInTheDocument();
     expect(
       screen.getByText(
-        /refuse this product until it states its owner, data classification, GxP relevance/,
+        /refuse this product until it states its owner, data classification, GxP relevance, criticality/,
       ),
     ).toBeInTheDocument();
   });

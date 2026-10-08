@@ -65,9 +65,11 @@ describe('Release gate, as a user can reach it', () => {
     );
     const version = await service.createProductVersion(product.id, {}, AUTHOR);
 
-    // The starting position: four codes, six blockers. The version is still
-    // DRAFT, the product states none of its three obligations, it holds no
-    // component, and no baseline has been approved.
+    // The starting position: four codes, seven blockers. The version is still
+    // DRAFT, the product states none of its three obligations — and, having
+    // not answered the GxP question, is held to the GxP-only criticality
+    // obligation too (NXD-145) — it holds no component, and no baseline has
+    // been approved.
     const start = await service.checkReleaseGate(version.id);
     expect(codesOf(start)).toEqual([
       'INVALID_STATUS',
@@ -75,10 +77,10 @@ describe('Release gate, as a user can reach it', () => {
       'NO_COMPONENTS',
       'POLICY_OBLIGATION_UNMET',
     ]);
-    expect(start.blockers).toHaveLength(6);
+    expect(start.blockers).toHaveLength(7);
     expect(
       start.blockers.filter(b => b.code === 'POLICY_OBLIGATION_UNMET'),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
 
     // 2. Governance — the Batch 1 form. Previously impossible: no screen
     //    collected these and `updateProduct` dropped `dataClassification`.

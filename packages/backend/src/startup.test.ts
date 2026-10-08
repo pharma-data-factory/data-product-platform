@@ -190,6 +190,12 @@ describe('Backstage foundation', () => {
       [],
       // NXD-121: a second QA person, without the owner tier.
       ['urs-quality-reviewers'],
+      // The platform administrator: registers runtime targets and can clear
+      // another seat's signing PIN; signs nothing in the URS chain.
+      [],
+    ]);
+    expect(identities.find(i => i.name === 'demo-admin')?.memberOf).toEqual([
+      'platform-admins',
     ]);
     expect(identities.find(i => i.name === 'demo-validator')?.memberOf).toEqual([
       'platform-viewers',

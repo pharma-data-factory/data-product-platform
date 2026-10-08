@@ -61,6 +61,7 @@ import {
   type ContractExchange,
   type JsonSchemaLike,
   versionLabelsEquivalent,
+  isGmpRelevant,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import type { CiEvidenceClient } from './ci-evidence-client';
@@ -546,7 +547,7 @@ export class ComposerService {
       namespace,
       name,
       governed: products.length > 0,
-      gmpRelevant: products.some(p => p.gxpRelevance !== 'NONE'),
+      gmpRelevant: products.some(p => isGmpRelevant(p.gxpRelevance)),
       products,
     };
   }
@@ -1849,7 +1850,7 @@ export class ComposerService {
     input: ProductSignatureInput | undefined,
     verifyPin: (pin: string) => Promise<string>,
   ): Promise<{ justification: string; gmpRelevant: boolean; reauthMethod?: string }> {
-    const gmpRelevant = product?.gxpRelevance !== 'NONE';
+    const gmpRelevant = isGmpRelevant(product?.gxpRelevance);
     const justification = String(input?.justification ?? '').trim();
     if (!gmpRelevant) {
       return { justification, gmpRelevant };
@@ -2015,7 +2016,10 @@ export class ComposerService {
         }
         // Evaluate each obligation's `check` identifier against the product's
         // actual data. Unknown check IDs fail loudly (same rule as platform-policy.ts).
-        const isGxp = product.gxpRelevance && product.gxpRelevance !== 'NONE';
+        // NXD-145: the one GMP predicate. An unanswered classification
+        // counts as GxP here too, so a GxP-only obligation cannot be escaped
+        // by leaving the field empty.
+        const isGxp = isGmpRelevant(product.gxpRelevance);
         // Reuses the `components` already loaded above for the NO_COMPONENTS
         // check — same version, same query.
         const contractList: DataContract[] = [];
@@ -2088,12 +2092,19 @@ export class ComposerService {
       }
     }
 
-    // A product must say which requirements it implements before it is
-    // released. Creating one without a URS stays allowed — this is the single
-    // point where the binding becomes mandatory, so experimenting is free and
-    // nothing unattributed reaches production.
+    // A GMP-relevant product must say which requirements it implements before
+    // it is released. Creating one without a URS stays allowed — this is the
+    // single point where the binding becomes mandatory, so experimenting is
+    // free and nothing unattributed reaches GMP production. A product that
+    // answers NONE is exempt: a URS is a GxP instrument, and requiring one of
+    // a community or analytics product made the gate a formality. An unknown
+    // product counts as GMP, as everywhere else.
     const ursBaselineIds = approvedBaseline?.ursBaselineIds ?? [];
-    if (approvedBaseline && ursBaselineIds.length === 0) {
+    if (
+      approvedBaseline &&
+      ursBaselineIds.length === 0 &&
+      isGmpRelevant(product?.gxpRelevance)
+    ) {
       blockers.push({
         code: 'NO_URS_BASELINE',
         message:
@@ -2130,7 +2141,7 @@ export class ComposerService {
       // a decision under the GMP rule: the validation expert's and QA's
       // signatures. Otherwise a product could ride on a baseline that was
       // approved with one signature while no GMP product depended on it.
-      const gmpProduct = product.gxpRelevance !== 'NONE';
+      const gmpProduct = isGmpRelevant(product.gxpRelevance);
       for (const ursId of ursBaselineIds) {
         try {
           const resolver = this.validationDecisionResolver;

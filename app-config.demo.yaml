@@ -66,6 +66,7 @@ auth:
         - demo-quality
         - demo-validator
         - demo-qa-lead
+        - demo-admin
 
 users:
   # Written into platform_users on every non-production start, which the
@@ -110,6 +111,14 @@ users:
       memberOf:
         - platform-viewers
         - urs-quality-reviewers
+    # The MVP1 live run. The platform administrator: registers runtime targets
+    # (installation.target.manage) and can clear another seat's signing PIN
+    # (NXD-138). In no urs-* group, so it signs nothing in the approval chain,
+    # and ADMIN does not bypass the approval checks anyway.
+    - name: demo-admin
+      displayName: Ada Admin (demo)
+      memberOf:
+        - platform-admins
 
 ursComposer:
   persistence:
