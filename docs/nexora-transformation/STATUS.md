@@ -319,6 +319,16 @@ four quick wins F1–F4, one commit and one record each.
   which would have erased a report that arrived in between. Not yet: QA
   sign-off, drift handling, rebinding a provider. See
   [`NXD-143`](DECISIONS.md).
+- **MVP1 step 8, part 2: the Docker Compose provider.** A new package,
+  `runtime-provider-compose`, runs beside Docker, never in the backend. It
+  pulls its target's desired state and runs each installation as a Compose
+  project: the image by digest, a named volume per storage area, ephemeral
+  host ports, and secrets resolved from files into a 0600 env file. It
+  reports what Docker shows: labels, RepoDigests and health. Removal keeps
+  the volumes. Proven against real Docker with a public image: install,
+  leave alone, upgrade with the data surviving, removal keeping the volume.
+  It has not yet run against Nexora; that is the live run. See
+  [`NXD-144`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

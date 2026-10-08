@@ -83,6 +83,9 @@ describe('InstallationsService — provider API', () => {
       expect(item.runtime).toEqual(
         expect.objectContaining({ storage: [{ name: 'data', mountPath: '/app/data' }] }),
       );
+      expect(item.configSchema).toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: 'MQTT_PORT', defaultValue: '1883' })]),
+      );
       expect(item.blocked).toBeUndefined();
     });
 
@@ -96,6 +99,7 @@ describe('InstallationsService — provider API', () => {
       const [item] = (await service.desiredStateFor(t, world.readVersion)).installations;
       expect(item.blocked).toMatch(/pinned as version ver-1.0.0, but the registry answers ver-reregistered/);
       expect(item.runtime).toBeUndefined();
+      expect(item.configSchema).toBeUndefined();
 
       world.versions.delete('pharma/oee@1.0.0');
       const [gone] = (await service.desiredStateFor(t, world.readVersion)).installations;

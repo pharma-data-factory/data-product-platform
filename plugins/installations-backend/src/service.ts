@@ -240,8 +240,12 @@ export class InstallationsService {
             blocked: `${ref} is pinned as version ${desired.artifactVersionId}, but the registry ${answer}`,
           };
         }
-        const runtime = (version.manifest as ArtifactManifest | undefined)?.spec?.runtime;
-        return runtime ? { ...base, runtime } : base;
+        const spec = (version.manifest as ArtifactManifest | undefined)?.spec;
+        return {
+          ...base,
+          ...(spec?.runtime ? { runtime: spec.runtime } : {}),
+          ...(spec?.config ? { configSchema: spec.config } : {}),
+        };
       }),
     );
     return {

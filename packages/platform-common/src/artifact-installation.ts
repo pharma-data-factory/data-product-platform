@@ -402,7 +402,8 @@ export interface InstallationSignatureInput {
 /**
  * One installation as its target's provider reads it: the desired state, and
  * the released manifest's `spec.runtime` (ports, health, resources, storage)
- * so the provider needs no second credential for the registry.
+ * and `spec.config`, so the provider needs no second credential for the
+ * registry.
  *
  * `blocked` names why the provider must not apply this desire — the version
  * it pins is no longer the one the registry answers for it — and is absent
@@ -417,6 +418,13 @@ export interface ProviderDesiredInstallation {
   gmpRelevant: boolean;
   desired: InstallationDesired;
   runtime?: ArtifactRuntime;
+  /**
+   * The released manifest's `spec.config` (NXD-144). The stored
+   * configuration holds only what the installer chose; a key left out takes
+   * its `defaultValue` from here, which the provider applies and does not
+   * hash.
+   */
+  configSchema?: ConfigKeySchema[];
   blocked?: string;
 }
 

@@ -9002,3 +9002,154 @@ report and writes just after it would have erased the report.
   patch no longer writes observed columns), comments in `plugin.ts` and
   `db/migrations.ts` (+ `provider.test.ts` new, `router.test.ts`,
   `db/migrations.postgres.test.ts`); `app-config.service-token.yaml`.
+
+### NXD-144 — The Docker Compose provider runs what a target desires, outside Nexora, and never deletes a volume
+
+- Date: 2026-10-08
+- Slice: MVP1 step 8, part 2 — slice 3 of [`NXD-129`](DECISIONS.md).
+- Decided by: the user ("ja", 2026-10-08) to the recommendation that a
+  provider never deletes a storage area on removal, for GMP and non-GMP
+  installations alike, until QA decides retention. The rest of the shape
+  was chosen here and is named for review.
+
+**Context.** `NXD-143` gave a provider a way to read its target's desired
+state and to report what runs. Nothing ran yet. `NXD-129` says Nexora does
+not deploy. A provider outside the Backstage backend executes, with a pull
+model and a token bound to one target. Docker Compose is the first provider,
+because it needs nothing but a Docker host. That fits a pilot line, a lab,
+or a developer machine.
+
+**Decision.**
+
+- **A workspace package, `packages/runtime-provider-compose`.**
+  - It is a Node process that runs beside Docker, never inside the backend.
+  - It depends on `@internal/platform-common` only. It has no Docker SDK
+    and no YAML library. It calls the `docker` CLI through `execFile`, with
+    no shell, and writes the Compose file as JSON, which Compose reads as
+    YAML.
+  - `yarn.lock` gains only the workspace entry.
+  - It is started with `yarn workspace @internal/runtime-provider-compose
+    start [--once]`, through Backstage's own Node transform. Configuration
+    comes from the environment:
+    - `NEXORA_URL`, `NEXORA_PROVIDER_TOKEN`, `NEXORA_TARGET_ID`;
+    - optional: `NEXORA_PROVIDER_WORKDIR`, `NEXORA_PROVIDER_SECRETS_DIR`,
+      `NEXORA_PROVIDER_NETWORK`, `NEXORA_PROVIDER_INTERVAL_SECONDS`
+      (default 15).
+- **One Compose project per installation**, named
+  `nexora-<target>-<installation>`, with one service.
+  - The image is pinned by digest (`repository@sha256:…`) from the desired
+    state, never by tag.
+  - Configuration becomes environment variables. A manifest default fills
+    a key the installer left out.
+  - Secrets are resolved by reference from the target's secret store. For
+    this provider that is one file per reference under a directory, as
+    Docker and Kubernetes mount secrets. The values go into a `secrets.env`
+    file written with mode 0600, never into the Compose file. Nexora never
+    sees them.
+  - Each `NXD-142` storage area becomes a named volume of the project.
+  - Each port is published on an ephemeral host port. The port Docker
+    chooses is reported in the observation's message.
+  - `resources.limits` map to `deploy.resources.limits`.
+  - Labels on the container carry the installation id, the desired
+    revision, the configuration hash and the target.
+- **The reconcile rules.**
+  - **PRESENT** is applied (`docker compose up -d`) in three cases: nothing
+    runs, what runs answers another desired revision, or what runs has
+    stopped. A container running the current revision is left alone,
+    healthy or not. The provider reports DEGRADED; it does not restart its
+    way out of an unhealthy product.
+  - **ABSENT** is `docker compose down` without `-v`, and the volumes stay.
+    The secrets file is deleted. The report names the volumes kept.
+  - **Blocked** (`NXD-143`): nothing is applied, and what runs is reported
+    with the reason. A removal still happens, because taking a project down
+    needs no version.
+  - **A project that holds a container of another installation** is left
+    alone and reported FAILED.
+  - **A secret the store does not hold, or a failed apply** (a denied pull,
+    for example), is reported FAILED for the desired revision. The message
+    names the reference, never a value. The old container keeps running.
+  - One installation's failure does not stop the pass.
+- **What is reported is read back from Docker.**
+  - The revision and the configuration hash come from the running
+    container's labels.
+  - The digest comes from the image's `RepoDigests`, for the desired
+    repository only.
+  - The state comes from Docker's state and its HEALTHCHECK status:
+    running+healthy or running without a healthcheck is RUNNING; starting is
+    PENDING; unhealthy or restarting is DEGRADED; exited or dead is STOPPED.
+  - So `NXD-143`'s IQ evidence is what runs, not what the provider meant to
+    run. A failed upgrade leaves the old labels and the old digest, and they
+    match nothing.
+- **A correction to `NXD-143`.** The provider payload now carries the
+  released manifest's `spec.config` as `configSchema`. The store holds only
+  the configuration the installer chose (`NXD-139`), so without the schema
+  a provider could not have known a default such as `MQTT_PORT=1883`.
+  Defaults are applied, not hashed: the IQ compares the configuration as
+  stored.
+
+**Alternatives considered.**
+
+- *Run the provider inside the backend.* Rejected by `NXD-129` and
+  `NXD-074`. The backend would then hold a host credential: Docker socket
+  access, which is root on the host.
+- *dockerode or a YAML library.* Rejected for now. They would be two new
+  dependencies (`AGENTS.md`), for what `execFile` and JSON already do. If
+  the CLI's output format becomes a problem, dockerode is the candidate.
+- *Publish fixed host ports from the manifest.* Rejected. Two installations
+  of one product on one host would collide, and the manifest cannot know
+  the host.
+- *Restart an unhealthy container.* Rejected. Docker's restart policy
+  already handles a crash. A loop of re-applies would hide a defect that
+  the report should show.
+
+**Verified.**
+
+- `compose.test.ts` (8) and `reconcile.test.ts` (16), against a fake Docker
+  and a fake Nexora: the image by digest; defaults applied but not hashed;
+  secrets out of the Compose file and into a 0600 file; volume, ports and
+  limits; an external network; a missing secret refused without its value;
+  apply, leave alone (healthy and unhealthy), re-apply on another revision
+  and on a stopped container; removal keeping volumes and deleting the
+  secrets file; a blocked pin that applies nothing but still removes;
+  FAILED for a missing secret, a failed apply and a foreign container; one
+  failure not stopping the pass; no digest reported for another repository;
+  the state mapping.
+- `provider.test.ts` in `installations-backend`: `configSchema` is served,
+  and is absent for a blocked pin.
+- **Against real Docker** (Compose v2.40.3, `nginx:alpine` by digest), with
+  Nexora faked:
+  - install reported RUNNING with the real digest and an ephemeral host
+    port; a second pass left it alone;
+  - an upgrade to revision 2 recreated the container, and a file written
+    into the storage volume survived;
+  - removal took the container down and kept the volume, and `down` worked
+    without the Compose file.
+  - The smoke volume was removed afterwards.
+- See the commit body for the gates and the repo-wide run. **Not run
+  against Nexora yet.** That is the live run, `NXD-145`.
+
+**Not changed, named.**
+
+- **Orphans.** A project carrying this target's label that the desired
+  state no longer lists is neither removed nor reported. Nexora never
+  deletes an installation record, so this happens only if someone removes
+  one behind Nexora's back.
+- **Private images.** Pulling from a private GHCR repository needs `docker
+  login` on the host. The provider holds no registry credential.
+- **Networks.** An installation reaches a broker only through
+  `NEXORA_PROVIDER_NETWORK`, a single external network for the whole
+  target. No network is modelled per installation.
+- **`runtime.health` is not probed.** The image's own HEALTHCHECK is used
+  (the OEE image has one). An image without one reports RUNNING as soon as
+  it runs.
+- **Retention.** Volumes are never deleted, so disk use only grows. A
+  deliberate delete act, and QA's retention rule for GMP, are still open
+  (`NXD-142`).
+- **No production packaging.** There is no image and no service unit. The
+  provider runs from the repository.
+
+- Affected components: `packages/runtime-provider-compose/` (new: `api.ts`,
+  `compose.ts`, `config.ts`, `docker.ts`, `reconcile.ts`, `secrets.ts`,
+  `main.ts`, `index.ts`, tests); `yarn.lock` (the workspace entry);
+  `packages/platform-common/src/artifact-installation.ts` (`configSchema`);
+  `plugins/installations-backend/src/service.ts` (+ `provider.test.ts`).
