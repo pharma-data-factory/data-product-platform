@@ -374,6 +374,13 @@ four quick wins F1–F4, one commit and one record each.
   needs a repair slice: a dependency version that does not exist, three of
   its own tests broken, a lint that never fails. See
   [`NXD-149`](DECISIONS.md).
+- **S4a: the AAS Golden Path works.** It now installs (one pinned
+  dependency did not exist, five were unused), lints for real, and accepts
+  its own contract. Before, its model was snake_case and its contract
+  camelCase, so the ingestion API refused every event; it now answers 201.
+  Its manifest no longer claims storage: assets are kept in memory, and the
+  persistence settings were read by no code. Making AAS a full official data
+  product is S4a-2. See [`NXD-150`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

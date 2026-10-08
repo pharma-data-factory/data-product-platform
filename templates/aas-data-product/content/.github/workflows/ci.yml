@@ -14,7 +14,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    name: Lint and Format
+    name: Lint
 
     steps:
       - uses: actions/checkout@v4
@@ -28,20 +28,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Lint with pylint
-        run: |
-          pip install pylint
-          pylint app/ --disable=C0111,C0103,R0913 --exit-zero
-
-      - name: Format check with black
-        run: |
-          pip install black
-          black --check app/ tests/ || true
-
-      - name: Type check with mypy
-        run: |
-          pip install mypy
-          mypy app/ --ignore-missing-imports || true
+      # A lint that can fail (NXD-150). It ran pylint --exit-zero,
+      # black || true and mypy || true, so no finding ever stopped a build.
+      - name: Lint
+        run: ruff check app tests scripts && python -m compileall -q app scripts
 
   test:
     runs-on: ubuntu-latest
@@ -160,8 +150,10 @@ jobs:
 
     steps:
       - name: Check build status
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          if [ "${{ needs.build.result }}" != "success" ]; then
+          if [ "$BUILD_RESULT" != "success" ]; then
             echo "Build failed quality gate"
             exit 1
           fi

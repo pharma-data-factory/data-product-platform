@@ -9729,3 +9729,102 @@ pass until its gate does.
   pyyaml), `.gitignore`, `docs/ci-cd.md` (three);
   `templates/oee-data-product/content/docs/ci-cd.md`;
   `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-150 — The AAS Golden Path installs, accepts its own contract and has a lint that can fail; its manifest says it keeps no state
+
+- Date: 2026-10-08
+- Slice: §9.7 S4a of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md),
+  found by `NXD-149`.
+- Decided by: the user ("ja weiter", 2026-10-08) to the recommendation to
+  drop the unused dependencies and move AAS onto the shared gate. The second
+  half turned out to be the whole official data-product standard, not a
+  workflow switch. It is split off as S4a-2, and this record is S4a-1.
+
+**Context.** `NXD-149` found that a product generated from the AAS Golden
+Path could not install its dependencies, that three of its tests failed,
+and that its lint never failed. Repairing those found two more defects, one
+of which `NXD-149` itself had introduced.
+
+**Found.**
+
+1. **The product could not ingest a single event.**
+   - The model's fields are snake_case (`event_id`). The published
+     contract, `contracts/asset-event.schema.json`, is camelCase
+     (`eventId`).
+   - `validate_asset_event` checked `event.dict()`, the snake_case form,
+     against the camelCase contract, so every event failed with
+     "'eventId' is a required property". `POST /api/v1/assets` answered
+     every call with a validation error.
+   - The three failing tests were this defect, not bad test data, and one
+     of them could not have passed: it built an invalid event outside its
+     `pytest.raises`.
+2. **The product keeps no state, and `NXD-149`'s manifest said it did.**
+   - Assets live in `AASService.assets`, an in-memory dict.
+   - `AAS_PERSISTENCE`, `AAS_SQLITE_PATH` and `AAS_DB_URL` are settings
+     that no code reads.
+   - `NXD-149` declared a storage area for `aas.sqlite` and offered
+     `AAS_PERSISTENCE` and `AAS_DB_URL` as configuration: a promise and two
+     switches with nothing behind them.
+
+**Decision.**
+
+- **The model follows the contract.** `AssetEvent` has a camelCase alias
+  generator with `populate_by_name`, so the API accepts the contract's form
+  and the Python names alike. `to_contract()` returns the camelCase dump
+  that validation checks. The example in the OpenAPI schema is camelCase.
+- **The test checks what it says.** An empty `event_id` is refused when the
+  event is built. A contract violation is refused by the service.
+- **Dependencies are only what is installed and used.**
+  - Dropped: `aas-http-client==1.0.0` (does not exist on PyPI),
+    `sqlalchemy`, `psycopg2-binary`, `aiofiles`, `python-multipart` (none
+    imported).
+  - Kept: `basyx-python-sdk`, the product's domain and the prepared code
+    path, which installs; `python-dotenv`, which `pydantic-settings` needs
+    for `.env`.
+  - Added: `ruff`.
+  - Removed: the Dockerfile's `gcc` layer, which only `psycopg2` source
+    builds needed.
+  - No remaining version was changed.
+- **A lint that can fail.** `ci.yml` runs `ruff check app tests scripts`
+  and `compileall` instead of `pylint --exit-zero`, `black || true` and
+  `mypy || true`. Ruff's six findings (unused imports) were fixed.
+  `needs.build.result` reaches the quality gate's script through `env`
+  rather than inside `run`.
+- **The manifest says what the product does.** No storage, with a comment
+  that assets are held in memory until BaSyx persistence is built. The two
+  configuration keys nobody reads are removed. The rendering test now
+  requires storage exactly where a template keeps a database, and none
+  where it keeps none.
+
+**Verified.**
+
+- Rendered through the real `fetch:template`, then in a fresh venv:
+  - `pip install -r requirements.txt` succeeded;
+  - `pytest tests/` 21/21, including `test_release.py`, and evidence
+    written;
+  - the CI lint command was clean.
+- Docker: the image built without `gcc` and was `healthy` within 25 s.
+  - `GET /api/v1/health` answered UP.
+  - `POST /api/v1/assets` with the contract's camelCase event answered
+    **201**; before, every event was refused.
+  - The container and image were removed.
+- `templateRendering.test.ts` 67/67, with the storage check rewritten for
+  both cases.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named (S4a-2).**
+
+- AAS is still not an official data product
+  (`OFFICIAL_DATA_PRODUCT_TEMPLATES`): no vendored `dataprod/` SDK, no
+  quality, compatibility or platform-metadata tests, not on the shared
+  `data-product-quality.yml` gate.
+- Persistence is not built, so a restart loses every asset.
+- The security scan (`bandit`, `detect-secrets`) stays non-blocking
+  (`|| true`).
+- The pinned FastAPI/Pydantic versions are from 2023 and were not upgraded.
+
+- Affected components: `templates/aas-data-product/` — `content/app/models.py`,
+  `app/aas_service.py`, `app/main.py`, `tests/test_asset_ingestion.py`,
+  `tests/test_contract.py`, `requirements.txt`, `Dockerfile`,
+  `.github/workflows/ci.yml`, `nexora.yaml`;
+  `packages/backend/src/templateRendering.test.ts`.

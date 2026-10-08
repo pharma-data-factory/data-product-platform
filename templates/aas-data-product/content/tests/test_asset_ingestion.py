@@ -103,17 +103,20 @@ async def test_quality_check(aas_service, sample_asset_event):
 @pytest.mark.asyncio
 async def test_quality_check_invalid_event(aas_service):
     """Test quality check on invalid event."""
-    invalid_event = AssetEvent(
-        event_id="",  # Invalid: empty
-        asset_id="test",
-        timestamp=datetime.utcnow().isoformat() + "Z",
-        asset_type=AssetTypeEnum.EQUIPMENT,
-        submodel_elements={"test": "value"},
-    )
+    # An empty event_id is refused when the event is built, before the
+    # service sees it (the model's validator).
+    with pytest.raises(ValueError, match="event_id cannot be empty"):
+        AssetEvent(
+            event_id="",
+            asset_id="test",
+            timestamp=datetime.utcnow().isoformat() + "Z",
+            asset_type=AssetTypeEnum.EQUIPMENT,
+            submodel_elements={"test": "value"},
+        )
 
-    # Should fail validation due to empty event_id
-    with pytest.raises(Exception):
-        await aas_service.validate_asset_event(invalid_event)
+    # A contract violation the model lets through is refused by the service.
+    with pytest.raises(ValueError, match="Validation failed"):
+        await aas_service.validate_asset_event({"eventId": "x"})
 
 
 def test_asset_event_model():

@@ -38,14 +38,10 @@ spec:
       type: http
       port: http
       path: /api/v1/health
-    # The SQLite store (AAS_SQLITE_PATH, .data/aas.sqlite under /app) must
-    # survive a restart and an upgrade. What backs it, and whether it is kept
-    # when the installation is removed, is decided by the target and the
-    # installation (NXD-142).
-    storage:
-      - name: data
-        mountPath: /app/.data
-        description: Asset Administration Shells and ingested asset events (aas.sqlite).
+    # No storage: this product keeps its assets in memory (AASService.assets)
+    # until BaSyx persistence is implemented, so a restart loses them. The
+    # AAS_PERSISTENCE / AAS_SQLITE_PATH / AAS_DB_URL settings are read by no
+    # code and are not offered as configuration (NXD-150).
   interfaces:
     - name: assets
       type: api
@@ -78,15 +74,6 @@ spec:
       type: url
       required: true
       example: http://basyx-registry:4001
-    - key: AAS_PERSISTENCE
-      description: sqlite, or postgresql with AAS_DB_URL.
-      type: string
-      required: false
-      defaultValue: 'sqlite'
-    - key: AAS_DB_URL
-      description: PostgreSQL connection URL when AAS_PERSISTENCE is postgresql; it carries a password.
-      type: secret
-      required: false
     - key: SOURCE_SYSTEM
       description: mqtt, rest or file.
       type: string

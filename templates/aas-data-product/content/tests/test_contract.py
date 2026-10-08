@@ -1,6 +1,5 @@
 """Tests for data contract validation."""
 
-import pytest
 import json
 from pathlib import Path
 

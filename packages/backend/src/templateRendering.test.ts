@@ -533,7 +533,7 @@ describe('the OEE Golden Path renders a manifest the registry accepts (NXD-131)'
 describe.each([
   {
     template: 'mqtt-temperature-product',
-    database: 'SQLITE_PATH',
+    database: 'SQLITE_PATH' as string | undefined,
     internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'SQLITE_PATH'],
     declaredOnly: [] as string[],
   },
@@ -551,10 +551,12 @@ describe.each([
   },
   {
     template: 'aas-data-product',
-    database: 'AAS_SQLITE_PATH',
-    internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'HOST', 'PORT', 'AAS_SQLITE_PATH'],
-    // A connection URL with a password: a secret, never a Compose literal.
-    declaredOnly: ['AAS_DB_URL'],
+    // NXD-150: it keeps assets in memory; no code reads a database path.
+    database: undefined,
+    // Passed by the development Compose file, read by no code: not
+    // offered as configuration.
+    internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'HOST', 'PORT', 'AAS_SQLITE_PATH', 'AAS_PERSISTENCE'],
+    declaredOnly: [] as string[],
   },
 ])('the $template Golden Path is releasable and runnable (NXD-149)', ({
   template,
@@ -660,14 +662,25 @@ describe.each([
     );
   });
 
-  it('keeps its database inside a declared storage area, which Compose mounts', () => {
-    const mountPaths: string[] = manifest.spec.runtime.storage.map((a: any) => a.mountPath);
-    const db = path.posix.resolve('/app', String(service.environment[database]));
-    expect(mountPaths.some(mount => db.startsWith(`${mount}/`))).toBe(true);
+  // Storage exactly where the product keeps a database, and nowhere else: a
+  // product without one declares none rather than an area nothing writes to
+  // (NXD-150). The development Compose file may mount more.
+  it('declares storage where its database lives, and only there', () => {
+    const mountPaths: string[] = (manifest.spec.runtime.storage ?? []).map(
+      (area: any) => area.mountPath,
+    );
+    const databases = (database ? [String(service.environment[database])] : []).map(
+      file => path.posix.resolve('/app', file),
+    );
+    const covered = databases.filter(db =>
+      mountPaths.some(mount => db.startsWith(`${mount}/`)),
+    );
+    expect(covered).toEqual(databases);
+    expect(mountPaths.length).toBe(databases.length);
     const namedVolumes = (service.volumes as string[])
       .filter(volume => !volume.startsWith('.') && !volume.startsWith('/'))
       .map(volume => volume.split(':')[1]);
-    expect(namedVolumes.sort()).toEqual([...mountPaths].sort());
+    expect(mountPaths.filter(mount => !namedVolumes.includes(mount))).toEqual([]);
   });
 
   it('declares every variable the Compose file passes, except the internal ones', () => {
