@@ -97,6 +97,8 @@ spec:
         url: ./content
         copyWithoutTemplating:
           - .github/workflows/data-product-quality.yml
+          # GitHub expressions, not template values (NXD-132).
+          - .github/workflows/release.yml
         values:
           name: ${{ parameters.name }}
           title: ${{ parameters.name }}

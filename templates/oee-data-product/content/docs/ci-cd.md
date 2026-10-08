@@ -31,6 +31,11 @@ records against the version's approved baseline.
 
 To check a tag locally: `python scripts/nexora_release.py check v1.1.0 <owner>/<repo>`.
 
+After the build, the registry version is published only once the product
+version is released in Nexora, and by people other than the one who submitted
+it (NXD-146). The image is private on GHCR: a runtime target that installs it
+needs a registry credential reference with `read:packages` (NXD-147).
+
 ## OpenAPI
 
 `contracts/openapi.yaml` is written by hand. `tests/test_openapi_coverage.py`

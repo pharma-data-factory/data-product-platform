@@ -9597,3 +9597,135 @@ workspace restart.
 
 - Affected components: none. This is a record of a run. Code and tests are
   in `NXD-143`, `NXD-144` and `NXD-147`.
+
+### NXD-149 — Every data-product Golden Path is releasable and runnable, and the AAS one is named for repair
+
+- Date: 2026-10-08
+- Slice: §9.7 S4 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track.
+- Decided by: the user ("ok S4", 2026-10-08). What each manifest declares
+  was chosen here from each template's own code and is named for review.
+
+**Context.** Five Golden Paths create a data product. Only the OEE path
+shipped a `nexora.yaml` (`NXD-131`), a release workflow (`NXD-132`) and the
+test evidence hooks (`NXD-122`). A product created from the other four
+could not be registered as runnable (R8, `NXD-137`), built into a recorded
+image, installed (`NXD-139`) or run (`NXD-144`). Three of the four had no
+HEALTHCHECK, so a provider would have reported RUNNING for a container that
+answered nothing.
+
+**Decision.** `mqtt-temperature-product`, `rest-equipment-product`,
+`machine-state-consumer` and `aas-data-product` each ship the following.
+
+- **`nexora.yaml`**, built from the template's own code.
+  - Runtime: `ghcr.io/<owner>/<name>`, port `http` 8080, an HTTP health
+    route (`/health`; `/api/v1/health` for AAS).
+  - Storage: one area where the template's SQLite database already lives,
+    `/app/data` (`/app/.data` for AAS).
+  - Interfaces: the REST API it provides, the MQTT events it consumes, with
+    a logical channel and its JSON Schema contract, and the REST source it
+    reads.
+  - Config: exactly the variables its Compose file passes, except the
+    internal ones (service name and version, the database path, host and
+    port). AAS also declares `AAS_DB_URL` as a secret, because it carries a
+    password.
+- **`release.yml`, `scripts/nexora_release.py` and `tests/test_release.py`**
+  are OEE's, byte for byte. `release.yml` is copied without templating. Each
+  `ci.yml` is callable by the release (`workflow_call`), lints `scripts/`,
+  and runs the release test.
+- **The evidence hooks** of OEE's `conftest.py`, verbatim. `test-evidence/`
+  is in `.gitignore`. AAS, which does not use the shared quality workflow,
+  uploads the artifact from its own `ci.yml`.
+- **A HEALTHCHECK** in the three Dockerfiles that lacked one, the OEE line.
+- **`docs/ci-cd.md`** (three templates, and OEE) explains how to release a
+  version. It also notes that publishing waits for the product release
+  (`NXD-146`) and that a target needs a pull credential (`NXD-147`).
+
+**Found and fixed.** The AAS template's `ci.yml` went through the template
+engine, which renders every GitHub expression to an empty string. Every
+generated AAS repository therefore had `tags: :` in its build step, and the
+quality gate `if [ "" != "success" ]; then exit 1` failed **every run**.
+`ci.yml` holds no template value and is now copied without templating.
+
+**Found, named, not fixed: the AAS template needs a repair slice.**
+
+- `requirements.txt` pins `aas-http-client==1.0.0`, a version PyPI does not
+  have, so `pip install` fails, and with it the CI and the Docker build. No
+  code imports it. `basyx-python-sdk`, `sqlalchemy`, `psycopg2-binary`,
+  `aiofiles` and `python-dotenv` are not imported either.
+- With that pin removed, three of its own tests still fail, because their
+  sample data violates the template's own contract (`'eventId' is a
+  required property`).
+- Its lint never fails (`--exit-zero`, `|| true`). It is not on the shared
+  `data-product-quality.yml` gate and has no `dataprod/` package.
+- Its `ci.yml` writes `${{ needs.build.result }}` into a `run` script. The
+  release workflow forbids that.
+
+These need decisions: which dependencies to drop, and whether to move AAS
+onto the shared gate. The manifest, release files and hooks it now ships
+are correct, and `test_release.py` passes there (8/8). The release cannot
+pass until its gate does.
+
+**Alternatives considered.**
+
+- *Generate each manifest from the Compose file at Create.* Rejected. The
+  manifest is the product's declaration and is reviewed as code. The
+  rendering test holds it and the Compose file in step instead.
+- *One shared `release.yml` referenced from a central repository.*
+  Rejected for now. Each product repository must build without a call into
+  another repository the product does not control. Byte-identity is tested
+  instead.
+
+**Verified.**
+
+- `templateRendering.test.ts`: a new block parameterised over the four
+  templates, 9 checks each, rendering through the real `fetch:template`
+  with realistic values:
+  - schema, validator and registry gate;
+  - identity with catalog-info, and a lowercase image;
+  - HEALTHCHECK on the declared port and path;
+  - the database inside a declared storage area, mounted by Compose;
+  - config equal to what Compose passes;
+  - interface documents exist;
+  - release files equal to OEE's;
+  - the CI gate is callable, runs the release test, and has intact
+    expressions;
+  - evidence hooks equal to OEE's, gitignored, and uploaded.
+  - 67/67 in the file.
+- **Each rendered product, in a fresh Python 3.12 venv:**
+
+  | Product | ruff + compileall | CI unit-test command | Full `pytest` |
+  | --- | --- | --- | --- |
+  | mqtt-temperature | clean | 25 passed | 52 passed |
+  | rest-equipment | clean | 31 passed | 56 passed |
+  | machine-state-consumer | clean | 24 passed | 36 passed |
+
+  Each wrote `test-evidence/*.json`.
+- **Each of the three images built and run with Docker:** all reported
+  `healthy` within 30 s, with their database file in `/app/data`.
+  Containers and images were removed afterwards.
+- **AAS:** rendered, and the manifest passed schema, validator and gate.
+  Its CI expressions arrive intact. `pip install -r requirements.txt` fails
+  as described, and with the pin removed in a scratch copy, 18 passed and 3
+  failed (the pre-existing tests above).
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- The marketplace listings in `catalog/artifacts/nexora/*` describe the
+  *templates* and are not runnable products, so they gain no runtime.
+- No test of the three templates names a URS requirement yet. The hooks
+  record every test, and a product adds `@pytest.mark.urs(...)` against
+  its own URS.
+- The catalog-info comment "The release gate refuses to release an unbound
+  product" predates `NXD-145` (it is true for GMP products only). It is in
+  all templates and unchanged here.
+
+- Affected components: `templates/{mqtt-temperature-product,
+  rest-equipment-product,machine-state-consumer,aas-data-product}/` —
+  `template.yaml`; `content/nexora.yaml`, `.github/workflows/release.yml`
+  and `ci.yml`, `scripts/nexora_release.py`, `tests/test_release.py`,
+  `tests/conftest.py`, `Dockerfile` (three), `pyproject.toml` (three, +
+  pyyaml), `.gitignore`, `docs/ci-cd.md` (three);
+  `templates/oee-data-product/content/docs/ci-cd.md`;
+  `packages/backend/src/templateRendering.test.ts`.

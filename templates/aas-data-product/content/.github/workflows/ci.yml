@@ -8,6 +8,8 @@ on:
   pull_request:
     branches:
       - main
+  # The release workflow runs this same gate before it builds (NXD-132).
+  workflow_call:
 
 jobs:
   lint:
@@ -65,6 +67,17 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v --cov=app --cov-report=xml
+
+      # NXD-122. The per-requirement test outcomes the conftest hooks wrote,
+      # for Nexora to read (NXD-123).
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-test-evidence
+          path: test-evidence/
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3

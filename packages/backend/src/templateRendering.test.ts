@@ -520,3 +520,204 @@ describe('the OEE Golden Path renders a manifest the registry accepts (NXD-131)'
     });
   });
 });
+
+/**
+ * NXD-149 (supplier track S4). Every data-product Golden Path ships what the
+ * OEE one does: a manifest the registry accepts, with runtime, health and
+ * storage; the release workflow and its script, verbatim; and the test
+ * evidence hooks. Before this only OEE could be released, built and
+ * installed. The OEE-specific checks (AsyncAPI, OpenAPI coverage, the
+ * release workflow line by line) stay above; the release files here are
+ * held to being OEE's, byte for byte, so those checks cover them too.
+ */
+describe.each([
+  {
+    template: 'mqtt-temperature-product',
+    database: 'SQLITE_PATH',
+    internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'SQLITE_PATH'],
+    declaredOnly: [] as string[],
+  },
+  {
+    template: 'rest-equipment-product',
+    database: 'SQLITE_PATH',
+    internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'SQLITE_PATH'],
+    declaredOnly: [] as string[],
+  },
+  {
+    template: 'machine-state-consumer',
+    database: 'SQLITE_PATH',
+    internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'SQLITE_PATH'],
+    declaredOnly: [] as string[],
+  },
+  {
+    template: 'aas-data-product',
+    database: 'AAS_SQLITE_PATH',
+    internal: ['SERVICE_NAME', 'SERVICE_VERSION', 'HOST', 'PORT', 'AAS_SQLITE_PATH'],
+    // A connection URL with a password: a secret, never a Compose literal.
+    declaredOnly: ['AAS_DB_URL'],
+  },
+])('the $template Golden Path is releasable and runnable (NXD-149)', ({
+  template,
+  database,
+  internal,
+  declaredOnly,
+}) => {
+  const step = localFetchTemplateSteps().find(s => s.template === template)!;
+  const FORM: Record<string, unknown> = {
+    name: 'line-1-product',
+    title: 'line-1-product',
+    description: 'Data product for line 1',
+    owner: 'group:default/team-a',
+    domain: 'manufacturing',
+    mqttTopic: 'pharma/temperature/+',
+    topicPattern: 'pharma/+/+/+/+/machine/state',
+    unsComponent: 'unified-namespace',
+    assetSource: 'mqtt',
+    restEndpoint: '/api/v1/assets/{assetId}',
+    system: 'data-platform',
+    ursBaselineId: 'unbound',
+    destination: {
+      host: 'github.com',
+      owner: 'Pharma-Data-Factory',
+      repo: 'line-1-product',
+    },
+  };
+  const OEE = path.join(TEMPLATES_DIR, 'oee-data-product', 'content');
+
+  let workspacePath: string;
+  let manifest: any;
+  let entity: any;
+  let service: any;
+  const read = (file: string) =>
+    fs.readFileSync(path.join(workspacePath, file), 'utf8');
+
+  beforeAll(async () => {
+    const values = Object.fromEntries(
+      Object.entries(step.input.values).map(([key, value]) => {
+        if (typeof value === 'string' && !value.includes('${{')) {
+          return [key, value];
+        }
+        if (!(key in FORM)) {
+          throw new Error(`templateRendering: no realistic value for "${key}"`);
+        }
+        return [key, FORM[key]];
+      }),
+    );
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), `nexora-${template}-`));
+    await createFetchTemplateAction({
+      reader: {} as any,
+      integrations: { byHost: () => undefined, byUrl: () => undefined } as any,
+    }).handler({
+      input: { ...step.input, values },
+      workspacePath,
+      logger,
+      templateInfo: { baseUrl: pathToFileURL(step.templateFile).href },
+      output: jest.fn(),
+      createTemporaryDirectory: async () =>
+        fs.mkdtempSync(path.join(os.tmpdir(), 'nexora-s4-tmp-')),
+      checkpoint: async ({ fn }: { fn: () => any }) => fn(),
+      getInitiatorCredentials: async () => ({}),
+    } as any);
+    manifest = yaml.parse(read('nexora.yaml'));
+    entity = yaml.parseAllDocuments(read('catalog-info.yaml'))[0].toJSON();
+    // The product's own service: the one Compose builds from this repository.
+    service = Object.values<any>(yaml.parse(read('docker-compose.yml')).services).find(
+      (s: any) => s.build,
+    );
+  }, 60000);
+
+  afterAll(() => {
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  });
+
+  it('renders a manifest the schema, the validator and the registry gate accept', () => {
+    const validate = nexoraManifestSchemaValidator();
+    const valid = validate(manifest);
+    expect(validate.errors ?? []).toEqual([]);
+    expect(valid).toBe(true);
+    expect(validateArtifactManifest(manifest)).toEqual([]);
+    expect(validateRunnableManifestSections(manifest)).toEqual([]);
+  });
+
+  it('agrees with catalog-info.yaml, and names a lowercase image of the organisation', () => {
+    expect(manifest.metadata.name).toBe(entity.metadata.name);
+    expect(manifest.metadata.version).toBe(
+      entity.metadata.annotations['dataprod.platform/version'],
+    );
+    expect(manifest.metadata.namespace).toBe('pharma-data-factory');
+    expect(manifest.spec.runtime.image.repository).toBe(
+      'ghcr.io/pharma-data-factory/line-1-product',
+    );
+  });
+
+  it('probes, in its image, the port and health route the manifest declares', () => {
+    const dockerfile = read('Dockerfile');
+    const [port] = manifest.spec.runtime.ports;
+    expect(dockerfile).toMatch(new RegExp(`EXPOSE ${port.containerPort}\\b`));
+    expect(dockerfile).toMatch(/HEALTHCHECK /);
+    expect(dockerfile).toMatch(
+      new RegExp(`(127\\.0\\.0\\.1|localhost):${port.containerPort}${manifest.spec.runtime.health.path}['"]`),
+    );
+  });
+
+  it('keeps its database inside a declared storage area, which Compose mounts', () => {
+    const mountPaths: string[] = manifest.spec.runtime.storage.map((a: any) => a.mountPath);
+    const db = path.posix.resolve('/app', String(service.environment[database]));
+    expect(mountPaths.some(mount => db.startsWith(`${mount}/`))).toBe(true);
+    const namedVolumes = (service.volumes as string[])
+      .filter(volume => !volume.startsWith('.') && !volume.startsWith('/'))
+      .map(volume => volume.split(':')[1]);
+    expect(namedVolumes.sort()).toEqual([...mountPaths].sort());
+  });
+
+  it('declares every variable the Compose file passes, except the internal ones', () => {
+    const passed = Object.keys(service.environment).filter(key => !internal.includes(key));
+    const declared: string[] = manifest.spec.config.map((entry: any) => entry.key);
+    expect(declared.filter(key => !declaredOnly.includes(key)).sort()).toEqual(passed.sort());
+  });
+
+  it('points every interface document at a file that exists', () => {
+    const missing = manifest.spec.interfaces
+      .filter((iface: any) => iface.document)
+      .map((iface: any) => iface.document.path)
+      .filter((file: string) => !fs.existsSync(path.join(workspacePath, file)));
+    expect(missing).toEqual([]);
+  });
+
+  it('ships OEE’s release workflow, script and test verbatim, uninterpreted', () => {
+    for (const file of [
+      '.github/workflows/release.yml',
+      'scripts/nexora_release.py',
+      'tests/test_release.py',
+    ]) {
+      expect([file, read(file) === fs.readFileSync(path.join(OEE, file), 'utf8')]).toEqual([
+        file,
+        true,
+      ]);
+    }
+  });
+
+  it('runs the release test in a CI gate the release workflow can call', () => {
+    const ci = yaml.parse(read('.github/workflows/ci.yml'));
+    expect(ci.on).toHaveProperty('workflow_call');
+    const commands = JSON.stringify(ci.jobs);
+    // `pytest tests/` runs it as well as naming it does.
+    expect(/tests\/test_release\.py|pytest tests\//.test(commands)).toBe(true);
+    // GitHub expressions arrive intact (NXD-149 found aas's rendered empty).
+    expect(read('.github/workflows/ci.yml')).not.toMatch(/tags: :|if \[ "" /);
+  });
+
+  it('writes test evidence with the OEE hooks, and keeps it out of git', () => {
+    const hooks = (text: string) => text.slice(text.indexOf('# Test evidence for Nexora (NXD-122).'));
+    expect(hooks(read('tests/conftest.py'))).toBe(
+      hooks(fs.readFileSync(path.join(OEE, 'tests/conftest.py'), 'utf8')),
+    );
+    expect(read('.gitignore')).toMatch(/^test-evidence\/$/m);
+    const workflows = ['ci.yml', 'data-product-quality.yml']
+      .map(file => path.join('.github/workflows', file))
+      .filter(file => fs.existsSync(path.join(workspacePath, file)))
+      .map(read)
+      .join('\n');
+    expect(workflows).toContain('name: nexora-test-evidence');
+  });
+});

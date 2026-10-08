@@ -1,0 +1,74 @@
+# The canonical manifest of this Data Product (NXD-130).
+#
+# Schema: NEXORA_MANIFEST_SCHEMA in @internal/platform-common
+# (nexora-manifest.schema.json). The Nexora registry checks this file when a
+# version is registered and refuses it with every problem named.
+#
+# What this file deliberately does not say:
+# - the image tag or digest: the tag is metadata.version, the digest is
+#   recorded when CI builds the release;
+# - certification or validation status: those are outcomes of review, not
+#   declarations (NXD-019);
+# - where it runs, which broker it uses, or a host port: those belong to an
+#   installation (NXD-129).
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: ${{ values.destination.owner | lower }}
+  name: ${{ values.name }}
+  version: '${{ values.version }}'
+  displayName: ${{ values.title }}
+  description: ${{ values.description }}
+  # SPDX expression. Replace with the license this repository is published
+  # under, e.g. Apache-2.0.
+  license: LicenseRef-Proprietary
+  tags:
+    - equipment
+    - rest
+    - manufacturing
+spec:
+  runtime:
+    kind: container
+    image:
+      repository: ghcr.io/${{ values.destination.owner | lower }}/${{ values.name }}
+    ports:
+      - name: http
+        containerPort: 8080
+    health:
+      type: http
+      port: http
+      path: /health
+    # The SQLite store (SQLITE_PATH in the Dockerfile) must survive a restart
+    # and an upgrade. What backs it, and whether it is kept when the
+    # installation is removed, is decided by the target and the installation
+    # (NXD-142).
+    storage:
+      - name: data
+        mountPath: /app/data
+        description: Equipment records (equipment.db).
+  interfaces:
+    - name: equipment
+      type: api
+      direction: provides
+      description: Equipment records, source sync, quality and platform metadata over REST.
+      port: http
+      basePath: /api/v1
+    - name: equipment-source
+      type: api
+      direction: consumes
+      description: The REST system equipment records are synchronised from (SOURCE_API_URL).
+  # Until an installation binds channels to broker topics (NXD-129), the
+  # topics are configuration like any other value.
+  config:
+    - key: SOURCE_API_URL
+      description: Equipment source REST API. Empty disables the sync.
+      type: url
+      required: false
+    - key: SOURCE_API_TOKEN
+      type: secret
+      required: false
+    - key: SOURCE_API_TIMEOUT
+      description: Seconds per source request.
+      type: number
+      required: false
+      defaultValue: '10'

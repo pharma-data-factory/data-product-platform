@@ -4,10 +4,13 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The release workflow runs this same gate before it builds (NXD-132).
+  workflow_call:
 
 jobs:
   quality-gate:
     uses: ./.github/workflows/data-product-quality.yml
     with:
-      unit-tests: pytest tests/test_health.py tests/test_model.py tests/test_equipment.py tests/test_source.py tests/test_platform_metadata.py
+      lint-command: ruff check app tests dataprod scripts && python -m compileall -q app scripts
+      unit-tests: pytest tests/test_health.py tests/test_model.py tests/test_equipment.py tests/test_source.py tests/test_platform_metadata.py tests/test_release.py
       image-name: ${{ values.name }}

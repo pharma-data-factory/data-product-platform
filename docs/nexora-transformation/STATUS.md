@@ -365,6 +365,15 @@ four quick wins F1–F4, one commit and one record each.
   configuration hash, target) matched the desire, so the IQ record moved to
   `EVIDENCE_RECORDED` without anyone typing a value. QA sign-off is the
   open step. See [`NXD-148`](DECISIONS.md).
+- **S4: every data-product Golden Path is releasable and runnable.** The
+  four that lacked it now ship `nexora.yaml` (runtime, health, storage,
+  interfaces, config), OEE's release workflow and script verbatim, the test
+  evidence hooks, and a HEALTHCHECK. Three were rendered, tested, built and
+  run healthy. The fourth, AAS, had a quality gate that failed every run
+  (its GitHub expressions were rendered empty); that is fixed. It still
+  needs a repair slice: a dependency version that does not exist, three of
+  its own tests broken, a lint that never fails. See
+  [`NXD-149`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

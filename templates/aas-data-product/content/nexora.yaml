@@ -1,0 +1,123 @@
+# The canonical manifest of this Data Product (NXD-130).
+#
+# Schema: NEXORA_MANIFEST_SCHEMA in @internal/platform-common
+# (nexora-manifest.schema.json). The Nexora registry checks this file when a
+# version is registered and refuses it with every problem named.
+#
+# What this file deliberately does not say:
+# - the image tag or digest: the tag is metadata.version, the digest is
+#   recorded when CI builds the release;
+# - certification or validation status: those are outcomes of review, not
+#   declarations (NXD-019);
+# - where it runs, which broker it uses, or a host port: those belong to an
+#   installation (NXD-129).
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: ${{ values.destination.owner | lower }}
+  name: ${{ values.name }}
+  version: '${{ values.version }}'
+  displayName: ${{ values.title }}
+  description: ${{ values.description }}
+  # SPDX expression. Replace with the license this repository is published
+  # under, e.g. Apache-2.0.
+  license: LicenseRef-Proprietary
+  tags:
+    - aas
+    - asset-administration-shell
+    - manufacturing
+spec:
+  runtime:
+    kind: container
+    image:
+      repository: ghcr.io/${{ values.destination.owner | lower }}/${{ values.name }}
+    ports:
+      - name: http
+        containerPort: 8080
+    health:
+      type: http
+      port: http
+      path: /api/v1/health
+    # The SQLite store (AAS_SQLITE_PATH, .data/aas.sqlite under /app) must
+    # survive a restart and an upgrade. What backs it, and whether it is kept
+    # when the installation is removed, is decided by the target and the
+    # installation (NXD-142).
+    storage:
+      - name: data
+        mountPath: /app/.data
+        description: Asset Administration Shells and ingested asset events (aas.sqlite).
+  interfaces:
+    - name: assets
+      type: api
+      direction: provides
+      description: Asset Administration Shells, submodels and ingested asset events over REST.
+      port: http
+      basePath: /api/v1
+    - name: asset-events
+      type: event
+      direction: consumes
+      description: Asset events from the source system.
+      channel: assets/{assetId}/events
+      mechanisms:
+        - mqtt
+      document:
+        type: JSON_SCHEMA
+        path: contracts/asset-event.schema.json
+    - name: aas-repository
+      type: api
+      direction: consumes
+      description: The AAS repository and registry (AAS_REPOSITORY_URL, AAS_REGISTRY_URL), e.g. Eclipse BaSyx.
+  # Until an installation binds channels to broker topics (NXD-129), the
+  # topics are configuration like any other value.
+  config:
+    - key: AAS_REPOSITORY_URL
+      type: url
+      required: true
+      example: http://basyx-aas:4000
+    - key: AAS_REGISTRY_URL
+      type: url
+      required: true
+      example: http://basyx-registry:4001
+    - key: AAS_PERSISTENCE
+      description: sqlite, or postgresql with AAS_DB_URL.
+      type: string
+      required: false
+      defaultValue: 'sqlite'
+    - key: AAS_DB_URL
+      description: PostgreSQL connection URL when AAS_PERSISTENCE is postgresql; it carries a password.
+      type: secret
+      required: false
+    - key: SOURCE_SYSTEM
+      description: mqtt, rest or file.
+      type: string
+      required: false
+      defaultValue: '${{ values.assetSource }}'
+    - key: MQTT_BROKER_URL
+      type: url
+      required: false
+      example: mqtt://mosquitto:1883
+    - key: MQTT_TOPIC
+      type: string
+      required: false
+      defaultValue: '${{ values.mqttTopic }}'
+    - key: REST_ENDPOINT
+      type: string
+      required: false
+      defaultValue: '${{ values.restEndpoint }}'
+    - key: CORS_ORIGINS
+      description: JSON list of allowed origins.
+      type: string
+      required: false
+      defaultValue: '["*"]'
+    - key: OBSERVABILITY_ENABLED
+      type: boolean
+      required: false
+      defaultValue: 'true'
+    - key: METRICS_PORT
+      type: number
+      required: false
+      defaultValue: '8081'
+    - key: DEBUG
+      type: boolean
+      required: false
+      defaultValue: 'false'
