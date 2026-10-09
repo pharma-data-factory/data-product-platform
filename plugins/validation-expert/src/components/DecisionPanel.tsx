@@ -373,11 +373,12 @@ function Section(props: { children: React.ReactNode }) {
       p={2}
       aria-label="Validation decision"
       component="section"
-      style={{
-        border: `1px solid ${NX.border}`,
-        borderRadius: 8,
-        background: NX.card,
-      }}
+      // The theme's surface, not a fixed white: on the dark theme a fixed
+      // white card under theme-coloured text was unreadable.
+      bgcolor="background.paper"
+      border={1}
+      borderColor="divider"
+      borderRadius={8}
     >
       {props.children}
     </Box>

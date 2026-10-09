@@ -22,7 +22,7 @@ import {
   ValidationContextRequirement,
   ValidationRun,
 } from '../api';
-import { NX, PageShell, StatusChip } from './shared';
+import { PageShell, StatusChip } from './shared';
 import { DecisionPanel } from './DecisionPanel';
 
 function formatWhen(value?: string) {
@@ -266,11 +266,10 @@ export function ContextDetailPage() {
         mt={3}
         mb={2}
         p={2}
-        style={{
-          border: `1px solid ${NX.border}`,
-          borderRadius: 8,
-          background: NX.card,
-        }}
+        bgcolor="background.paper"
+        border={1}
+        borderColor="divider"
+        borderRadius={8}
       >
         <Typography variant="h6" gutterBottom>
           Approved URS reference

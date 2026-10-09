@@ -10584,3 +10584,28 @@ the consequence where the button was.
   `service.ts`, `router.ts`, `componentRemoval.test.ts`);
   `packages/app/src/modules/products/` (`api.ts`, `ProductDetailPage.tsx`,
   `tabs/ArchitectureTab.tsx` + test).
+
+### NXD-158 — The Validation Expert's pages take their surfaces and text from the theme, so they are readable on the dark theme
+
+- Date: 2026-10-09
+- Slice: found in the lifecycle walkthrough at step 10 (validation).
+- Decided by: the user ("die Farben sind nicht gut … weisser Hintergrund und
+  graue oder weisse Schrift", "die anderen Seiten haben das richtige Format",
+  2026-10-09).
+
+**Context.** The Validation Expert pages set 15 surface and text colours to
+fixed light-theme values (`NEXORA_CARD`, `NEXORA_SURFACE`, `NEXORA_TEXT`,
+`NEXORA_MUTED`, `NEXORA_BORDER`). The rest of their text uses MUI's theme
+colours. On the dark theme, that text turned light while the cards stayed
+white, so it was unreadable. The other pages follow the theme.
+
+**Decision.** Page background, cards, borders, titles and secondary text in
+`shared.tsx`, `OverviewPage.tsx`, `ContextPages.tsx` and `DecisionPanel.tsx`
+come from `theme.palette` (`background.default`, `background.paper`,
+`divider`, `text.primary`, `text.secondary`). Brand fills (status chips, the
+primary button gradient) keep their fixed colours, because each carries its
+own text colour.
+
+**Verified.** `plugins/validation-expert` 37/37; `yarn tsc` and the plugin's
+ESLint are clean. The page layout itself (named in the walkthrough as hard
+to read) is not changed here.

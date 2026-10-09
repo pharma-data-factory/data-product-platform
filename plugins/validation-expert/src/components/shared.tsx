@@ -1,6 +1,6 @@
 import { ComponentProps, ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Chip, makeStyles } from '@material-ui/core';
+import { Button, Chip, Theme, makeStyles } from '@material-ui/core';
 import {
   NEXORA_BORDER,
   NEXORA_CARD,
@@ -102,7 +102,9 @@ function chipToneFor(value: string): ChipTone {
   };
 }
 
-const useStyles = makeStyles({
+// Surfaces and text follow the theme (light or dark); brand colours stay
+// fixed, as fills with their own text colour.
+const useStyles = makeStyles((theme: Theme) => ({
   nav: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -110,8 +112,8 @@ const useStyles = makeStyles({
     marginBottom: 16,
   },
   navButton: {
-    borderColor: NX.border,
-    color: NX.text,
+    borderColor: theme.palette.divider,
+    color: theme.palette.text.primary,
     fontSize: 13,
     fontWeight: 600,
     letterSpacing: '0.02em',
@@ -126,19 +128,19 @@ const useStyles = makeStyles({
     letterSpacing: '0.04em',
   },
   page: {
-    background: NX.base,
+    background: theme.palette.background.default,
     minHeight: '100%',
     padding: 24,
   },
   title: {
-    color: NX.text,
+    color: theme.palette.text.primary,
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.02em',
     margin: '0 0 8px',
   },
   subtitle: {
-    color: NX.muted,
+    color: theme.palette.text.secondary,
     fontSize: 15,
     lineHeight: 1.55,
     margin: '0 0 20px',
@@ -158,7 +160,7 @@ const useStyles = makeStyles({
       color: NX.muted,
     },
   },
-});
+}));
 
 const LINKS = [
   { to: '/validation-expert', label: 'Overview' },

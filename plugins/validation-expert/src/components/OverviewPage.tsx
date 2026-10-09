@@ -2,17 +2,17 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { Grid, Typography, makeStyles } from '@material-ui/core';
+import { Grid, Theme, Typography, makeStyles } from '@material-ui/core';
 import { validationExpertApiRef, ValidationContext, ValidationOverview } from '../api';
 import { NX, PageShell, StatusChip } from './shared';
 import {
   NEXORA_GREY,
 } from '@internal/plugin-nexora-common';
 
-const useStyles = makeStyles({
+const useStyles = makeStyles((theme: Theme) => ({
   tile: {
-    background: NX.card,
-    border: `1px solid ${NX.border}`,
+    background: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: 16,
     boxSizing: 'border-box',
     display: 'flex',
@@ -44,7 +44,7 @@ const useStyles = makeStyles({
     },
   },
   title: {
-    color: NX.muted,
+    color: theme.palette.text.secondary,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 12,
     fontWeight: 600,
@@ -53,7 +53,7 @@ const useStyles = makeStyles({
     textTransform: 'uppercase',
   },
   value: {
-    color: NX.text,
+    color: theme.palette.text.primary,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 22,
     fontWeight: 600,
@@ -63,7 +63,7 @@ const useStyles = makeStyles({
     wordBreak: 'break-word',
   },
   detail: {
-    color: NX.muted,
+    color: theme.palette.text.secondary,
     fontSize: 13,
     lineHeight: 1.45,
     marginTop: 'auto',
@@ -75,7 +75,7 @@ const useStyles = makeStyles({
     gap: 10,
     marginTop: 2,
   },
-});
+}));
 
 function MetricCard({
   title,
