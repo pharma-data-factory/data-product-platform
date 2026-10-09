@@ -10374,3 +10374,73 @@ as well as, an Anthropic one. The Composer's spec generation
     `agent-instructions.md`.
   - `packages/backend/src/templateRendering.test.ts`, `app-config.yaml`,
     `.env.example`, `docs/github-setup.md`.
+
+### NXD-155 — The first AI build ran end to end: Claude Code wrote requirement-tagged tests, a person merged them, and Nexora recorded the merge commit
+
+- Date: 2026-10-09
+- Slice: the live run of `NXD-153` and `NXD-154`, as `NXD-148` was for `NXD-147`.
+- Decided by: the user, who ran it ("ok geamcht und jetzt wie weiter
+  testen", 2026-10-09) and merged the pull request. This record decides
+  nothing new. It records what the run showed and names what follows from
+  it.
+
+**What ran.**
+
+- Product `oee-ai-build-test-1`, created from the OEE Golden Path into
+  `pharma-data-factory`, private. Version 1.0 (DRAFT) was bound to the
+  approved URS baseline *Equipment Performance Management 1.0* (five
+  requirements).
+- Assignment `d00e3ce3-…`, agent Claude Code, model `claude-opus-5-5`, with
+  the note "Start with URS-EPM-003 and URS-EPM-001. Keep changes small."
+  - Dispatched at 18:56:27Z.
+  - The run succeeded in 2 min 20 s and opened pull request #1. Claude
+    added three tests to `tests/test_api.py` (+113 lines, no application
+    code), tagged `URS-EPM-003` and `URS-EPM-001`.
+  - The CI run started on the branch was green. *Check open pull requests*
+    showed 5 of 5 requirements would stay verified, none newly unverified.
+  - The user reviewed and merged it (merge commit `0a0b80b`, 19:08:58Z).
+  - *Refresh* recorded `MERGED` with the merge commit.
+- Assignment `a20f7609-…` was issued again by mistake five minutes later. It
+  ran and opened #2, which the user closed. *Refresh* recorded `CLOSED`.
+- The AI's notes in the pull request named, without changing them, three
+  test files that carry URS markers but are not in the CI test list, and
+  that one deployment serves one equipment asset.
+
+**What the run settled (open in `NXD-153`).**
+
+- The `--allowedTools` list sufficed. Claude read, edited, ran `pytest`
+  and `ruff`, and needed no git, no `gh`, and no `id-token`.
+- `gh pr create` with `GITHUB_TOKEN` works once the organisation allows
+  Actions to create pull requests.
+- The change check passed a test-only change.
+
+**Found, and what follows.**
+
+1. **GitHub Free.** Private repositories cannot use organisation secrets,
+   so the key had to be a repository secret. This is documented in
+   `docs/github-setup.md` and noted in `NXD-154`.
+2. **A second assignment can be issued while one is open.** The card
+   allowed it, and it produced a duplicate pull request. To do: refuse, or
+   ask for confirmation, while the version has an assignment that is
+   `DISPATCHED`, `RUNNING` or `PR_OPEN`.
+3. **The pull request showed "Checks 0"**, and GitHub held one workflow
+   for approval because the pull request came from `github-actions[bot]`.
+   The CI run Nexora reads was started by `workflow_dispatch` and is not
+   attached to the pull request. To do: say so in the pull request body,
+   with a link to that run.
+4. **Golden Path CI test lists.** The OEE template's `ci.yml` omits three
+   tagged test files (`test_quality.py`, `test_contract.py`,
+   `test_compatibility.py`), so they produce no evidence. This is the
+   `NXD-153` open item ("ci.yml test lists vs `pytest tests/`"), now with a
+   concrete case. To do: a decision, then the template change.
+5. **UI.** The baseline picker on the Requirements tab shows the baseline id,
+   not its name. The OEE template's *Default Calculation Window* field
+   showed `0` before a value was chosen.
+6. **Operating the dev workspace through the Ona gateway** needs
+   `scripts/ona-dev.sh serve` with a built frontend. The `control-plane-dev`
+   service runs container-local `start`, which shows "Failed to fetch" in
+   the browser. The database container had to be started by hand. This is
+   operational, not a product change.
+
+**Not run.** Codex. It needs an `OPENAI_API_KEY` in the repository; the
+`allow-bot-users` question in `NXD-154` stays open until then.

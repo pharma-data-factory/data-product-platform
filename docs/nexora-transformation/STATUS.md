@@ -415,6 +415,13 @@ four quick wins F1–F4, one commit and one record each.
   and checks the model id per agent. Nexora records the agent with the
   model. Codex is off by default (`NEXORA_AI_BUILD_CODEX_ENABLED`). Neither
   agent has run end to end yet. See [`NXD-154`](DECISIONS.md).
+- **S6 live run: Claude Code, end to end.** In `oee-ai-build-test-1`, Claude
+  Code added three requirement-tagged tests (URS-EPM-003, -001) in 2 min 20 s.
+  CI was green, the preview showed 5/5 still verified, a person merged the
+  pull request, and Nexora recorded `MERGED` with the merge commit. Follow-ups
+  are named in [`NXD-155`](DECISIONS.md): no second open assignment per
+  version, checks visible on the pull request, CI test lists, two UI labels.
+  Codex has not run yet.
 
 ## Previous Vertical Slices
 
