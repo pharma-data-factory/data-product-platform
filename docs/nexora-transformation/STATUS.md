@@ -433,6 +433,12 @@ four quick wins F1–F4, one commit and one record each.
   data contract stays. The Architecture tab shows each component's type,
   interface, ref, author and the requirements it implements, and lists links
   by name. See [`NXD-157`](DECISIONS.md).
+- **The whole lifecycle, once, in the UI.** `oee-ai-build-test-1` 1.0 went
+  from the approved EPM URS through AI-built tests, architecture, governance,
+  a signed product baseline, a signed version approval, an evidence review,
+  a two-signature validation decision and a signed release, to RELEASED.
+  Segregation of duties held. Fourteen findings are named, nine of them a UI
+  batch to do next. See [`NXD-159`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

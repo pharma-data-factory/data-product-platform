@@ -10609,3 +10609,82 @@ own text colour.
 **Verified.** `plugins/validation-expert` 37/37; `yarn tsc` and the plugin's
 ESLint are clean. The page layout itself (named in the walkthrough as hard
 to read) is not changed here.
+
+### NXD-159 — One product went from approved URS to RELEASED in the UI, every approval signed by someone other than its author; what the walk found
+
+- Date: 2026-10-09
+- Slice: the lifecycle walkthrough the user asked for ("der ganze Lifecycle
+  muss aufgezeigt werden von den URS bis zur Freigabe", 2026-10-09), after
+  [`NXD-155`](DECISIONS.md).
+- Decided by: the user, who did every step in the UI. This record decides
+  nothing. It records what ran and names the follow-ups the user asked to
+  have done.
+
+**What ran**, product `oee-ai-build-test-1`, version 1.0. Roles are demo
+identities.
+
+| Step | Who | Result |
+| --- | --- | --- |
+| URS baseline *Equipment Performance Management 1.0* | (approved 2026-10-01) | 5 requirements |
+| Product from the OEE Golden Path, version 1.0 bound to it | demo-author | DRAFT, 5 requirements |
+| AI build (`NXD-155`) | Claude Code + user merge | 3 tagged tests, CI green, Verified 5/5 |
+| Architecture: 4 components, 5 `IMPLEMENTS` links | demo-author | Implemented 5/5 |
+| Governance: owner, INDIRECT, INTERNAL, MEDIUM | guest / demo-author | policy obligations met |
+| Product baseline 1.0 created, then approved with PIN | guest, then demo-pm | APPROVED |
+| Version approved with PIN, then marked release candidate | demo-pm | RELEASE_CANDIDATE |
+| Product evidence review | demo-author | EVIDENCE-RUN-0007: 5/5 passed |
+| Validation decision: validation expert, then QA, each with PIN | demo-validator, demo-qa-lead | APPROVED |
+| Release gate | — | passed |
+| Release with PIN | demo-pm | RELEASED 20:37:37Z |
+
+Segregation of duties held: no one approved what they had created. Two PINs
+were unknown to the user; they were reset by `demo-admin` rather than
+guessed.
+
+**Found, and what follows.** Items 1–9 are the UI batch the user asked to
+have done after the walk. 10–14 are named, not yet decided.
+
+1. **Traceability** reads as a flat list. Make it tiles, one per requirement.
+2. The **owner field's placeholder** looks like a value. The user believed
+   the owner was set.
+3. **Release readiness** does not reload after *Save governance*. Its
+   refresh key holds no governance field. After an approval it does reload,
+   but a cleared check and a newly revealed one leave the count unchanged,
+   so it looks stale. It should say what changed.
+4. **The Golden Path asks for an owner but does not pass it** to
+   `nexora:product:create`, so a new product starts without one.
+5. **A validation expert cannot start the product evidence review.** It
+   needs `validation.run.start` (DEVELOPER); the validator seat is a VIEWER.
+   A developer had to start it.
+6. **The validation context page** is one long column, and what to do next
+   and who signs is buried. Make it a three-step decision (review → expert
+   → QA) above collapsible reference data.
+7. **The product's Validation tab** should link to its context and version.
+   The Validation Expert landing page shows Nexora's own platform validation
+   status, which reads as the product's.
+8. **The review button** can be pressed repeatedly: runs 0003–0007 came
+   from one intent. Disable it while a review runs. The coverage table lists
+   every run per requirement; show the newest.
+9. **A signature justification** of one word ("freigabe") was accepted for a
+   GMP decision. Require a meaningful one.
+10. **The version's `approvedBy`/`approvedAt` are overwritten by the
+    release.** The version record now shows the release time as its approval
+    time. The signature trail keeps both acts, so nothing is lost, but the
+    record misleads.
+11. **One person** (demo-pm) approved the product baseline, the version and
+    the release. That is allowed (the rule is only "not your own work"),
+    and it is to be decided whether release needs a second person.
+12. The validation decision lives on a context **shared by every product on
+    the URS baseline** (three here). It is recorded per version (`NXD-127`),
+    which held, but the page lists the other products' decisions next to
+    this one's.
+13. A component could not be removed (fixed in `NXD-157`). The validation
+    pages were unreadable on the dark theme (fixed in `NXD-158`).
+14. The selects (version, baseline, agent, calculation window) were
+    reported as showing ids or `0`. Those are the hidden form values in
+    copied page text (`NXD-156`); the visible labels were not checked with
+    the user.
+
+**Not run.** Step 12: publish, install and run the released version. It
+needs a release tag build in the product repository and a target, as
+`NXD-148` did for another product.
