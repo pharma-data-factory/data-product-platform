@@ -187,9 +187,12 @@ export interface ComposerClient {
     input: Record<string, unknown>,
   ): Promise<ProductComponent>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
+  /** NXD-157: remove a DRAFT version's component, with its links. */
+  deleteProductComponent(componentId: string): Promise<void>;
   createTraceabilityLink(
     input: Record<string, unknown>,
   ): Promise<TraceabilityLink>;
+  deleteTraceabilityLink(linkId: string): Promise<void>;
   getProductTraceability(productId: string): Promise<ProductTraceability>;
   checkReleaseGate(versionId: string): Promise<ReleaseGateResult>;
   transitionVersionStatus(
@@ -311,6 +314,10 @@ export function useComposerClient(): ComposerClient {
       request('POST', `/versions/${versionId}/components`, input),
     listProductComponents: versionId =>
       request('GET', `/versions/${versionId}/components`),
+    deleteProductComponent: componentId =>
+      request('DELETE', `/components/${componentId}`),
+    deleteTraceabilityLink: linkId =>
+      request('DELETE', `/traceability-links/${linkId}`),
     createTraceabilityLink: input =>
       request('POST', '/traceability-links', input),
     getProductTraceability: productId =>

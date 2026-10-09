@@ -253,6 +253,10 @@ export class ComposerRepository implements IComposerRepository {
     return row ? this.rowToProductComponent(row) : undefined;
   }
 
+  async deleteProductComponent(id: string): Promise<void> {
+    await this.db('product_components').where({ id }).del();
+  }
+
   async listProductComponents(versionId: string): Promise<ProductComponent[]> {
     const rows = await this.db('product_components')
       .where({ product_version_id: versionId })

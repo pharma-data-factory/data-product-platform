@@ -90,6 +90,8 @@ export interface IComposerRepository {
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;
   getProductComponent(id: string): Promise<ProductComponent | undefined>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
+  /** NXD-157. Removes the row only; the service removes its links first. */
+  deleteProductComponent(id: string): Promise<void>;
 
   createDataContract(contract: DataContract): Promise<DataContract>;
   getDataContract(id: string): Promise<DataContract | undefined>;

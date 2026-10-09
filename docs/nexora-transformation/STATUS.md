@@ -428,6 +428,11 @@ four quick wins F1–F4, one commit and one record each.
   The OEE Golden Path's CI now runs three requirement-tagged test files it
   had skipped, and a rendering test keeps every Golden Path from skipping
   one again. See [`NXD-156`](DECISIONS.md).
+- **Architecture, editable while DRAFT.** A component can be removed while
+  its version is DRAFT, with its links, each audited; one that provides a
+  data contract stays. The Architecture tab shows each component's type,
+  interface, ref, author and the requirements it implements, and lists links
+  by name. See [`NXD-157`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

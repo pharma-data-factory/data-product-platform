@@ -865,6 +865,57 @@ export class ComposerService {
     return component;
   }
 
+  /**
+   * NXD-157. Remove a component while its version is DRAFT, the same rule
+   * that lets it be added. Its traceability links go with it, each as its
+   * own audit event, so no link points at nothing. A component that provides
+   * a data contract is refused: other products may consume that contract.
+   */
+  async deleteProductComponent(id: string, actor: string): Promise<void> {
+    const component = await this.repository.getProductComponent(id);
+    if (!component) {
+      throw new NotFoundError(`Component ${id} not found`);
+    }
+    await this.requireDraftVersion(
+      component.productVersionId,
+      'A component can only be removed while the version is DRAFT — the ' +
+        'architecture of a version is part of what was approved.',
+    );
+    const contracts = await this.repository.listDataContracts(id);
+    if (contracts.length > 0) {
+      throw new ConflictError(
+        `Component ${component.name} provides ${contracts.length} data contract${
+          contracts.length === 1 ? '' : 's'
+        }, which other products may consume; it cannot be removed`,
+      );
+    }
+    const audit = this.beginAudit(actor);
+    const links = (await this.repository.listTraceabilityLinks([id])).filter(
+      link => link.sourceId === id || link.targetId === id,
+    );
+    for (const link of links) {
+      await this.repository.deleteTraceabilityLink(link.id);
+      await this.audit(audit, 'TRACEABILITY_LINK', link.id, 'TRACEABILITY_LINK_DELETED', {
+        reason: `component ${component.name} removed`,
+        oldValue: JSON.stringify({
+          sourceId: link.sourceId,
+          relationshipType: link.relationshipType,
+          targetId: link.targetId,
+        }),
+      });
+    }
+    await this.repository.deleteProductComponent(id);
+    await this.audit(audit, 'PRODUCT_COMPONENT', id, 'PRODUCT_COMPONENT_DELETED', {
+      oldValue: JSON.stringify({
+        productVersionId: component.productVersionId,
+        name: component.name,
+        componentType: component.componentType,
+        ref: component.ref,
+        interfaceType: component.interfaceType,
+      }),
+    });
+  }
+
   async listProductComponents(versionId: string): Promise<ProductComponent[]> {
     return this.repository.listProductComponents(versionId);
   }

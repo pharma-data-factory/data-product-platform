@@ -10516,3 +10516,71 @@ as well as, an Anthropic one. The Composer's spec generation
     `scripts/nexora_ai_build.py` and `tests/test_ai_build.py`;
   - the OEE template's `ci.yml`;
   - `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-157 — A DRAFT version's component can be removed, with its links, and the Architecture tab says what each component is and implements
+
+- Date: 2026-10-09
+- Slice: found in the lifecycle walkthrough after [`NXD-155`](DECISIONS.md), at step 6 (architecture).
+- Decided by: the user ("ja so lange im Draft modus sollte man löschen
+  können... ebenso ist die Darstellung ... sehr wenig", 2026-10-09). The
+  shapes below were chosen here and are named for review.
+
+**Context.** A component could be added to a DRAFT version but never
+removed, through the UI or the API, so a typo stayed on the version. The
+API could delete a traceability link (`NXD-072`), but the UI offered no
+way to. A component card showed only its name, type and ref. Links were
+listed as raw ids (`URS-EPM-003 —IMPLEMENTS→ 4f1c…`), and included every
+version's links.
+
+**Decision.**
+
+- **`DELETE /components/:id`** (`product.manage`, 204) removes a component
+  while its version is DRAFT. This is the rule that lets it be added, and
+  the refusal says so in the same words.
+  - Every traceability link to or from the component is removed first. Each
+    removal is its own `TRACEABILITY_LINK_DELETED` audit event, with the
+    link as `oldValue` and the reason "component <name> removed", so no link
+    points at nothing.
+  - The removal itself is `PRODUCT_COMPONENT_DELETED`, with the component
+    as `oldValue`.
+  - A component that provides a data contract is refused (409), because
+    other products may consume that contract.
+- **The Architecture tab:**
+  - Each component card shows its type as a chip, its interface, its ref,
+    who added it and when, its description, and the requirements it
+    implements, by id and title.
+  - The link list is narrowed to the selected version's components and
+    reads `URS-EPM-003 Equipment event ingestion —IMPLEMENTS→
+    event-ingestion`.
+  - While the version is DRAFT, components and links have **Remove**, which
+    asks in place, naming what goes, and removes only on *Confirm removal*.
+    After DRAFT nothing is offered.
+  - The link route keeps its `NXD-072` rule (no status guard); the UI simply
+    does not offer removal outside DRAFT.
+
+**Alternatives considered.** *Refuse a component with links.* Rejected: the
+links are the component's own and mean nothing without it; removing them
+with it, each audited, is what a person removing it intends. *`window.confirm`.*
+Rejected by the lint rule `no-alert`; the in-place confirmation also states
+the consequence where the button was.
+
+**Verified.**
+
+- composer `componentRemoval.test.ts` (3):
+  - removed with the links into and out of it, each audited, an unrelated
+    link kept;
+  - refused once the version is APPROVED, changing nothing;
+  - refused while it provides a contract; an unknown id is 404.
+  Composer total 431/431.
+- app `ArchitectureTab.test.tsx` (3):
+  - details, implements line and link by name, another version's link not
+    shown;
+  - removal only after *Confirm removal*, and nothing on *Cancel*;
+  - no removal outside DRAFT.
+  `ProductDetailPage.test.tsx` 25/25.
+- `yarn tsc` and `yarn lint:all` are clean.
+
+- Affected components: `plugins/composer-backend/src/` (`repository*.ts`,
+  `service.ts`, `router.ts`, `componentRemoval.test.ts`);
+  `packages/app/src/modules/products/` (`api.ts`, `ProductDetailPage.tsx`,
+  `tabs/ArchitectureTab.tsx` + test).

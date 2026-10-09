@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { NEXORA_GREY } from '@internal/plugin-nexora-common';
-import { Button, MenuItem, TextField, Typography } from '@material-ui/core';
+import {
+  Box,
+  Button,
+  Chip,
+  MenuItem,
+  TextField,
+  Typography,
+} from '@material-ui/core';
 import {
   COMPONENT_TYPES,
   INTERFACE_TYPES,
@@ -10,6 +17,7 @@ import type {
   ProductComponent,
   ProductRequirement,
   ProductVersion,
+  TraceabilityLink,
 } from '@internal/platform-common';
 import type { ProductTraceability } from '../api';
 
@@ -20,6 +28,70 @@ interface ArchitectureTabProps {
   traceability: ProductTraceability | null;
   onAddComponent: (input: Record<string, unknown>) => Promise<void>;
   onAddLink: (input: Record<string, unknown>) => Promise<void>;
+  /** NXD-157. Offered while the version is DRAFT. */
+  onRemoveComponent?: (componentId: string) => Promise<void>;
+  onRemoveLink?: (linkId: string) => Promise<void>;
+}
+
+/**
+ * NXD-157. Remove, then confirm in place: the question names what goes,
+ * and nothing is removed until the second click.
+ */
+function RemoveControl(props: {
+  label: string;
+  question: string;
+  onConfirm: () => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <Button
+        size="small"
+        aria-label={props.label}
+        onClick={() => setAsking(true)}
+      >
+        Remove
+      </Button>
+    );
+  }
+  return (
+    <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+      <Typography variant="body2" color="textSecondary">
+        {props.question}
+      </Typography>
+      <Button
+        size="small"
+        color="secondary"
+        onClick={() => {
+          setAsking(false);
+          props.onConfirm();
+        }}
+      >
+        Confirm removal
+      </Button>
+      <Button size="small" onClick={() => setAsking(false)}>
+        Cancel
+      </Button>
+    </Box>
+  );
+}
+
+/** What a component card says beneath its name; exported for the test. */
+export function componentDetails(component: ProductComponent): string[] {
+  const parts = [
+    component.interfaceType
+      ? `Interface ${component.interfaceType}`
+      : undefined,
+    component.ref ? `Ref ${component.ref}` : undefined,
+    component.createdBy
+      ? `added by ${component.createdBy}${
+          component.createdAt
+            ? ` on ${new Date(component.createdAt).toISOString().slice(0, 10)}`
+            : ''
+        }`
+      : undefined,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? [parts.join(' · ')] : [];
 }
 
 /**
@@ -51,9 +123,13 @@ export function ArchitectureTab({
   traceability,
   onAddComponent,
   onAddLink,
+  onRemoveComponent,
+  onRemoveLink,
 }: ArchitectureTabProps) {
   const [componentName, setComponentName] = useState('');
-  const [componentType, setComponentType] = useState<string>(COMPONENT_TYPES[0]);
+  const [componentType, setComponentType] = useState<string>(
+    COMPONENT_TYPES[0],
+  );
   const [componentRef, setComponentRef] = useState('');
   const [interfaceType, setInterfaceType] = useState('');
 
@@ -64,6 +140,31 @@ export function ArchitectureTab({
   const componentsLocked =
     !selectedVersion || selectedVersion.status !== 'DRAFT';
   const lockReason = componentHelperText(selectedVersion);
+  const editable = !componentsLocked;
+
+  // NXD-157. Names instead of ids: a link reads as requirement → component.
+  const nameOfComponent = (id: string) =>
+    components.find(c => c.id === id)?.name;
+  const requirementTitle = (ref: string) =>
+    requirements.find(r => r.requirementRef === ref)?.title;
+  const endpoint = (id: string) => {
+    const name = nameOfComponent(id);
+    if (name) return name;
+    const title = requirementTitle(id);
+    return title ? `${id} ${title}` : id;
+  };
+  // The product's links, narrowed to the selected version's components.
+  const ids = new Set(components.map(c => c.id));
+  const versionLinks: TraceabilityLink[] = (traceability?.links ?? []).filter(
+    link => ids.has(link.targetId) || ids.has(link.sourceId),
+  );
+  const implementedBy = (componentId: string) =>
+    versionLinks.filter(
+      link =>
+        link.targetId === componentId &&
+        link.relationshipType === 'IMPLEMENTS' &&
+        !ids.has(link.sourceId),
+    );
 
   const addComponent = async () => {
     if (!componentName.trim() || componentsLocked) {
@@ -188,17 +289,46 @@ export function ArchitectureTab({
                 marginBottom: 8,
               }}
             >
-              <Typography variant="subtitle1">
-                {component.name}{' '}
-                <span style={{ color: NEXORA_GREY[500] }}>
-                  {component.componentType}
-                </span>
-              </Typography>
-              {component.ref ? (
-                <Typography variant="body2" color="textSecondary">
-                  ref: {component.ref}
-                </Typography>
+              <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+                <Typography variant="subtitle1">{component.name}</Typography>
+                <Chip size="small" label={component.componentType} />
+                <span style={{ flex: 1 }} />
+                {editable && onRemoveComponent ? (
+                  <RemoveControl
+                    label={`Remove ${component.name}`}
+                    question={(() => {
+                      const links = versionLinks.filter(
+                        l =>
+                          l.targetId === component.id ||
+                          l.sourceId === component.id,
+                      ).length;
+                      return `Remove ${component.name}${
+                        links > 0
+                          ? ` and its ${links} traceability link${
+                              links === 1 ? '' : 's'
+                            }`
+                          : ''
+                      }? The removal is recorded in the audit trail.`;
+                    })()}
+                    onConfirm={() => onRemoveComponent(component.id)}
+                  />
+                ) : null}
+              </Box>
+              {component.description ? (
+                <Typography variant="body2">{component.description}</Typography>
               ) : null}
+              {componentDetails(component).map(line => (
+                <Typography key={line} variant="body2" color="textSecondary">
+                  {line}
+                </Typography>
+              ))}
+              <Typography variant="body2" color="textSecondary">
+                {implementedBy(component.id).length > 0
+                  ? `Implements ${implementedBy(component.id)
+                      .map(l => endpoint(l.sourceId))
+                      .join(', ')}`
+                  : 'Implements no requirement yet.'}
+              </Typography>
             </section>
           ))
         )}
@@ -284,13 +414,32 @@ export function ArchitectureTab({
             Link requirement
           </Button>
         </div>
-        {traceability && traceability.links.length > 0
-          ? traceability.links.map(link => (
-              <Typography key={link.id} variant="body2" style={{ marginTop: 4 }}>
-                {link.sourceId} —{link.relationshipType}→ {link.targetId}
-              </Typography>
-            ))
-          : null}
+        {versionLinks.map(link => (
+          <Box
+            key={link.id}
+            display="flex"
+            alignItems="center"
+            style={{ gap: 8, marginTop: 4 }}
+          >
+            <Typography variant="body2">
+              {endpoint(link.sourceId)} —{link.relationshipType}→{' '}
+              {endpoint(link.targetId)}
+            </Typography>
+            {editable && onRemoveLink ? (
+              <RemoveControl
+                label={`Remove link ${endpoint(link.sourceId)} to ${endpoint(
+                  link.targetId,
+                )}`}
+                question={`Remove the link ${endpoint(link.sourceId)} —${
+                  link.relationshipType
+                }→ ${endpoint(
+                  link.targetId,
+                )}? The removal is recorded in the audit trail.`}
+                onConfirm={() => onRemoveLink(link.id)}
+              />
+            ) : null}
+          </Box>
+        ))}
       </section>
     </>
   );

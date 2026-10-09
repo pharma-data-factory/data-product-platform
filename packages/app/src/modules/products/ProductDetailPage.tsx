@@ -334,6 +334,26 @@ export function ProductDetailPage() {
     }
   };
 
+  // NXD-157. Removal is offered for a DRAFT version only; the service
+  // refuses a component outside DRAFT on its own.
+  const removeComponent = async (componentId: string) => {
+    try {
+      await client.deleteProductComponent(componentId);
+      await load();
+    } catch (e) {
+      setError(e as Error);
+    }
+  };
+
+  const removeLink = async (linkId: string) => {
+    try {
+      await client.deleteTraceabilityLink(linkId);
+      await load();
+    } catch (e) {
+      setError(e as Error);
+    }
+  };
+
   const addLink = async (input: Record<string, unknown>) => {
     try {
       await client.createTraceabilityLink(input);
@@ -595,6 +615,8 @@ export function ProductDetailPage() {
               traceability={traceability}
               onAddComponent={addComponent}
               onAddLink={addLink}
+              onRemoveComponent={removeComponent}
+              onRemoveLink={removeLink}
             />
           )}
 

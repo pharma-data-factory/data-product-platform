@@ -982,6 +982,25 @@ export async function createRouter(
     },
   );
 
+  /**
+   * DELETE /components/:id (NXD-157)
+   * Remove a component of a DRAFT version, with its traceability links.
+   * product.manage. 409 for a version that is not DRAFT, or a component that
+   * provides a data contract.
+   */
+  router.delete(
+    '/components/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        await service.deleteProductComponent(req.params.id, actor);
+        res.status(204).end();
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.delete(
     '/traceability-links/:id',
     async (req: express.Request, res: express.Response) => {
