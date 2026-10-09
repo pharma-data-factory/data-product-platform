@@ -869,6 +869,16 @@ describe.each([
     expect(/tests\/test_ai_build\.py|pytest tests\//.test(JSON.stringify(ci.jobs))).toBe(true);
   });
 
+  it('runs in CI every test file that names a requirement, so none is evidence nobody collects (NXD-156)', () => {
+    const jobs = JSON.stringify(yaml.parse(read('.github/workflows/ci.yml')).jobs);
+    if (/pytest tests\/?(\s|"|$)/.test(jobs)) return;
+    const tagged = fs
+      .readdirSync(path.join(workspacePath, 'tests'))
+      .filter(file => /^test_.+\.py$/.test(file))
+      .filter(file => /^\s*(@pytest\.mark\.urs\(|pytestmark\s*=.*pytest\.mark\.urs\()/m.test(read(`tests/${file}`)));
+    expect(tagged.filter(file => !jobs.includes(`tests/${file}`))).toEqual([]);
+  });
+
   it('tells an agent the marker the evidence hooks read, and that the AI build may not touch workflows', () => {
     const instructions = read('agent-instructions.md');
     expect(instructions).toContain('@pytest.mark.urs("URS-EPM-001")');

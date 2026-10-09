@@ -2638,6 +2638,7 @@ export class ComposerService {
     if (note && note.length > 2000) {
       throw new InputError('note is longer than 2000 characters');
     }
+    await this.refuseWhileAiBuildOpen(productVersionId, actor);
 
     const id = randomUUID();
     const payload = {
@@ -2725,6 +2726,38 @@ export class ComposerService {
         ([agent, { model }]) => ({ agent, model }),
       ),
     };
+  }
+
+  /**
+   * NXD-156. One open assignment per version: a second one builds the same
+   * requirements again from the same base and opens a competing pull
+   * request. An assignment is open while it is dispatched, running or has
+   * an open pull request. Each one that looks open is refreshed first, so
+   * a pull request merged or closed on GitHub since the last refresh does
+   * not block; if GitHub cannot be read, the recorded status stands.
+   */
+  private async refuseWhileAiBuildOpen(productVersionId: string, actor: string): Promise<void> {
+    const OPEN: AIBuildAssignmentStatus[] = ['DISPATCHED', 'RUNNING', 'PR_OPEN'];
+    for (const recorded of await this.repository.listAiBuildAssignments(productVersionId)) {
+      if (!OPEN.includes(recorded.status)) continue;
+      let current = recorded;
+      try {
+        current = await this.refreshAiBuildAssignment(recorded.id, actor);
+      } catch (error) {
+        this.logger.warn(
+          `AI build ${recorded.id} could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      if (OPEN.includes(current.status)) {
+        const what =
+          current.status === 'PR_OPEN'
+            ? `has pull request #${current.pullRequestNumber} open; merge or close it`
+            : `is ${current.status === 'RUNNING' ? 'running' : 'dispatched'}; wait for its run, or cancel it on GitHub`;
+        throw new ConflictError(
+          `Assignment ${current.id} for version ${current.versionLabel} ${what}, then assign again`,
+        );
+      }
+    }
   }
 
   async listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]> {

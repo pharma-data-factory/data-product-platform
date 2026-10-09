@@ -120,6 +120,12 @@ export function AiBuildCard(props: AiBuildActions) {
     };
   }, [loadAgents]);
   const choosing = offered.length > 1;
+  // NXD-156. The backend refuses a second open assignment; say so before
+  // the click. It asks GitHub first, so the button stays: a pull request
+  // merged since the last refresh does not block.
+  const open = items?.find(a =>
+    ['DISPATCHED', 'RUNNING', 'PR_OPEN'].includes(a.status),
+  );
 
   const act = async (fn: () => Promise<AiBuildAssignment>) => {
     setBusy(true);
@@ -157,6 +163,13 @@ export function AiBuildCard(props: AiBuildActions) {
         requirement-tagged tests and opens a pull request. Check what it would
         verify on the Tests tab; a person merges it, or does not.
       </Typography>
+      {open && !props.blockedReason ? (
+        <Typography variant="body2" color="textSecondary" paragraph>
+          An assignment is still open ({STATUS[open.status].label.toLowerCase()}
+          ). A new one is refused until its run has finished and its pull
+          request is merged or closed; use Refresh to update it.
+        </Typography>
+      ) : null}
       {props.blockedReason ? (
         <Typography variant="body2" color="textSecondary" paragraph>
           {props.blockedReason}

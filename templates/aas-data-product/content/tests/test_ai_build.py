@@ -131,3 +131,12 @@ def test_the_pull_request_body_names_assignment_model_and_who_decides():
     assert "A person decides." in body
     assert "app/x.py" in body
     assert "Could not do X." in body
+    assert "- CI:" not in body
+
+
+def test_the_pull_request_body_links_the_ci_run_github_does_not_list_as_a_check():
+    assignment = ai_build.read_assignment(_payload())
+    ci = f"https://github.com/o/r/actions/workflows/ci.yml?query=branch%3Anexora/ai-{ID}"
+    body = ai_build.pr_body(assignment, "https://github.com/o/r/actions/runs/1", [], "", ci)
+    assert f"- CI: {ci}" in body
+    assert "approving it runs the same CI" in body

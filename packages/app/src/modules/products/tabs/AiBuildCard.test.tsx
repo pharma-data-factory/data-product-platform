@@ -147,6 +147,21 @@ describe('AiBuildCard (NXD-153)', () => {
     expect(refresh).toHaveBeenCalledWith('a1');
   });
 
+  it('says a new assignment is refused while one is open (NXD-156)', async () => {
+    render(
+      <AiBuildCard
+        list={async () => [{ ...base, status: 'PR_OPEN' as const }]}
+        issue={jest.fn()}
+        refresh={jest.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        /An assignment is still open \(pull request open/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('offers no assignment for a version that is not a draft, and shows an error as an alert', async () => {
     const list = jest.fn(async () => {
       throw new Error('composer answered 503');

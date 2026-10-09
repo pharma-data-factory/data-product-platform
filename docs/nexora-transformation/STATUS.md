@@ -422,6 +422,12 @@ four quick wins F1–F4, one commit and one record each.
   are named in [`NXD-155`](DECISIONS.md): no second open assignment per
   version, checks visible on the pull request, CI test lists, two UI labels.
   Codex has not run yet.
+- **S6 follow-ups.** A version takes one open AI build at a time: Nexora
+  asks GitHub, then refuses a second while a run or pull request is open.
+  The pull request links its CI run, which GitHub does not list as a check.
+  The OEE Golden Path's CI now runs three requirement-tagged test files it
+  had skipped, and a rendering test keeps every Golden Path from skipping
+  one again. See [`NXD-156`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

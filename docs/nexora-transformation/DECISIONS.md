@@ -10444,3 +10444,75 @@ as well as, an Anthropic one. The Composer's spec generation
 
 **Not run.** Codex. It needs an `OPENAI_API_KEY` in the repository; the
 `allow-bot-users` question in `NXD-154` stays open until then.
+
+### NXD-156 — One open AI build per version, its CI linked from the pull request, and every requirement-tagged test run in CI
+
+- Date: 2026-10-09
+- Slice: follow-ups 2–5 of [`NXD-155`](#nxd-155--the-first-ai-build-ran-end-to-end-claude-code-wrote-requirement-tagged-tests-a-person-merged-them-and-nexora-recorded-the-merge-commit), the first live run.
+- Decided by: the user ("ja 1-4 umsetzen", 2026-10-09). The shapes below
+  were chosen here and are named for review.
+
+**Decision.**
+
+- **One open assignment per version.** `POST /versions/:id/ai-builds`
+  answers 409 while the version has an assignment that is `DISPATCHED`,
+  `RUNNING` or `PR_OPEN`. The message names the assignment and what to do:
+  merge or close its pull request, or wait for its run.
+  - Each assignment that looks open is refreshed from GitHub first, as a
+    *Refresh* would, so a pull request merged or closed since the last
+    refresh does not block.
+  - If GitHub cannot be read, the recorded status stands and still refuses.
+  - The card says so above the button while an assignment is open. The
+    button stays, because the backend asks GitHub before it refuses.
+- **The pull request links its CI run.** The body gains a *CI* line: the
+  `ci.yml` runs on the assignment's branch. It also says that GitHub may
+  list no checks on the pull request, or hold a workflow for approval
+  because a bot opened it, and that approving it runs the same CI. The URL
+  reaches the script through `env`, like every other expression.
+- **The OEE Golden Path's CI runs every test file that names a
+  requirement.** `test_quality.py`, `test_contract.py` and
+  `test_compatibility.py` are added to its `ci.yml` list. They pass (95
+  tests across `tests/`, run in a scratch copy of the template). The other
+  four Golden Paths had no such gap.
+  - A rendering test for all five now fails when a test file with a
+    `pytest.mark.urs` marker is not run by `ci.yml`, unless CI runs
+    `pytest tests/`. With the old OEE `ci.yml` it fails and names exactly
+    those three files.
+  - This settles the `NXD-153` open item ("ci.yml test lists vs
+    `pytest tests/`") the narrow way: the lists stay, and a tagged file may
+    not be missing from them.
+
+**Not changed, named.**
+
+- `NXD-155` item 5 (UI) needs no change. The baseline picker's entries read
+  "<set> v1.0 — Equipment Performance Management (5 requirements)". What
+  appeared as an id, as `claude-code`, and as `0` for *Default Calculation
+  Window* is each select's hidden form value, included when the page's text
+  was copied: the Scaffolder form stores an enum by its index (0 = `HOUR`).
+  This is to be confirmed on screen with the user.
+- Repositories created before this record keep their workflow and their
+  `ci.yml`. `oee-ai-build-test-1` still omits the three files from CI; adding
+  them there is a change under `.github/`, and it is the user's.
+
+**Verified.**
+
+- composer `aiBuildAssignment.test.ts` +1:
+  - refused while GitHub shows the pull request open, and recorded
+    `PR_OPEN` on the way;
+  - refused when GitHub is unreadable;
+  - allowed once it is closed, recorded `CLOSED`.
+  Composer total 428/428.
+- backend `templateRendering.test.ts` +5 (one per Golden Path), 92/92. It
+  was also run against the old OEE `ci.yml`, where it fails.
+- templates: `tests/test_ai_build.py` +1 (10 in each of five), the CI link
+  and its absence.
+- app: `AiBuildCard.test.tsx` +1 (6/6); `ProductDetailPage.test.tsx` 25/25.
+- `yarn tsc`, `yarn lint:all` and `ruff check scripts tests` are clean.
+
+- Affected components:
+  - `plugins/composer-backend/src/service.ts`, `aiBuildAssignment.test.ts`;
+  - `packages/app/src/modules/products/tabs/AiBuildCard.tsx` (+ test);
+  - the five data-product templates' `nexora-ai-build.yml`,
+    `scripts/nexora_ai_build.py` and `tests/test_ai_build.py`;
+  - the OEE template's `ci.yml`;
+  - `packages/backend/src/templateRendering.test.ts`.

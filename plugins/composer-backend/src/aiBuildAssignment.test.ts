@@ -226,6 +226,52 @@ describe('AI build assignments (NXD-153)', () => {
     );
   });
 
+  it('refuses a second assignment while one is open, after asking GitHub, and allows it once that one is closed (NXD-156)', async () => {
+    await setUp();
+    const first = await service.issueAiBuildAssignment(versionId, {}, actor);
+    const pr = (state: string, merged = false) => ({
+      available: true,
+      pullRequest: {
+        number: 1,
+        title: 'AI build',
+        url: 'https://github.com/pharma-data-factory/oee/pull/1',
+        headSha: 'h1',
+        state,
+        merged,
+        ...(state === 'closed' ? { closedAt: '2026-10-09T19:10:00Z' } : {}),
+      },
+    });
+
+    // Recorded as DISPATCHED, but GitHub shows its pull request open.
+    client.getStatus.mockResolvedValueOnce(pr('open'));
+    await expect(
+      service.issueAiBuildAssignment(versionId, {}, actor),
+    ).rejects.toThrow(
+      `Assignment ${first.id} for version 1.0 has pull request #1 open; merge or close it, then assign again`,
+    );
+    expect((await repository.getAiBuildAssignment(first.id))?.status).toBe(
+      'PR_OPEN',
+    );
+
+    // GitHub unreadable: the recorded status stands, and still refuses.
+    client.getStatus.mockResolvedValueOnce({
+      available: false,
+      reason: 'unavailable',
+    });
+    await expect(
+      service.issueAiBuildAssignment(versionId, {}, actor),
+    ).rejects.toThrow('has pull request #1 open');
+
+    // Closed on GitHub since: refreshed on the way, then the new one goes out.
+    client.getStatus.mockResolvedValueOnce(pr('closed'));
+    const second = await service.issueAiBuildAssignment(versionId, {}, actor);
+    expect(second.status).toBe('DISPATCHED');
+    expect((await repository.getAiBuildAssignment(first.id))?.status).toBe(
+      'CLOSED',
+    );
+    expect(client.dispatch).toHaveBeenCalledTimes(2);
+  });
+
   it('assigns a subset by id, and refuses an id the version does not carry', async () => {
     await setUp();
     const one = await service.issueAiBuildAssignment(

@@ -14,9 +14,9 @@ Called by .github/workflows/nexora-ai-build.yml:
         never run. Writes the checked paths to .nexora-ai-build/files, which is
         exactly what gets committed, and prints changed=true|false.
 
-    python scripts/nexora_ai_build.py pr-body --run-url U
+    python scripts/nexora_ai_build.py pr-body --run-url U [--ci-url C]
         Prints the pull request description: the assignment, the agent and its
-        model, what changed, and that a person decides.
+        model, where its CI runs, what changed, and that a person decides.
 
 Nexora writes no code here and merges nothing. A person reviews the pull
 request and its evidence (NXD-152) and merges it, or does not.
@@ -234,7 +234,9 @@ def check_changes(changes: list[tuple[str, str]], ci_text: str, runs_every_test:
     return problems
 
 
-def pr_body(assignment: dict, run_url: str, changes: list[tuple[str, str]], notes: str) -> str:
+def pr_body(
+    assignment: dict, run_url: str, changes: list[tuple[str, str]], notes: str, ci_url: str = ""
+) -> str:
     lines = [
         (
             f"Nexora AI build assignment `{assignment['assignmentId']}` for "
@@ -243,6 +245,17 @@ def pr_body(assignment: dict, run_url: str, changes: list[tuple[str, str]], note
         "",
         f"- Agent: {AGENTS[assignment['agent']][0]}, model `{assignment['model']}`",
         f"- Run: {run_url}",
+        *(
+            # NXD-156. GitHub lists no checks on this pull request: it was
+            # opened with GITHUB_TOKEN, so CI is started on the branch instead.
+            [
+                f"- CI: {ci_url} (started on this branch; GitHub may list no checks here,",
+                "  or hold a workflow for approval because a bot opened this pull request:",
+                "  approving it runs the same CI)",
+            ]
+            if ci_url
+            else []
+        ),
         "- Requirements:",
         *[f"  - `{r['id']}` {r['title']}" for r in assignment["requirements"]],
         "",
@@ -275,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("check")
     body = commands.add_parser("pr-body")
     body.add_argument("--run-url", required=True)
+    body.add_argument("--ci-url", default="")
     args = parser.parse_args(argv)
 
     try:
@@ -302,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             notes_file = ROOT / WORK_DIR / "notes.md"
             notes = notes_file.read_text(encoding="utf-8") if notes_file.exists() else ""
-            print(pr_body(assignment, args.run_url, changed_files(), notes), end="")
+            print(pr_body(assignment, args.run_url, changed_files(), notes, args.ci_url), end="")
     except AssignmentError as error:
         print(f"::error::{error}", file=sys.stderr)
         return 1
