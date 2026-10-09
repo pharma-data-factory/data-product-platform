@@ -3,14 +3,16 @@ name: Nexora AI build
 run-name: Nexora AI build ${{ github.event.client_payload.assignmentId }}
 
 # NXD-153. Nexora dispatches an assignment: approved requirements of a product
-# version, to implement. Claude Code writes code and requirement-tagged tests,
-# this workflow checks that nothing controlled was touched and opens a pull
-# request from nexora/ai-<assignment id>. A person reviews it and merges it,
-# or does not. Nothing here merges, tags or releases.
+# version, to implement. A coding agent writes code and requirement-tagged
+# tests, this workflow checks that nothing controlled was touched and opens a
+# pull request from nexora/ai-<assignment id>. A person reviews it and merges
+# it, or does not. Nothing here merges, tags or releases.
 #
-# Needs the organisation secret ANTHROPIC_API_KEY, and "Allow GitHub Actions
-# to create and approve pull requests" in the organisation's or repository's
-# Actions settings. The repository holds no Nexora credential (NXD-132).
+# NXD-154. The assignment names the agent: Claude Code, with the organisation
+# secret ANTHROPIC_API_KEY, or OpenAI Codex, with OPENAI_API_KEY. Only the
+# chosen agent's step runs. Also needs "Allow GitHub Actions to create and
+# approve pull requests" in the organisation's or repository's Actions
+# settings. The repository holds no Nexora credential (NXD-132).
 on:
   repository_dispatch:
     types: [nexora-ai-build]
@@ -54,7 +56,21 @@ jobs:
           if [ -f pyproject.toml ]; then pip install -e ".[dev]"; else pip install -r requirements.txt; fi
           pip install ruff
 
+      - name: Check the agent's key
+        env:
+          AGENT: ${{ steps.assignment.outputs.agent }}
+          HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_OPENAI_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          if [ "$AGENT" = claude-code ] && [ "$HAS_ANTHROPIC_KEY" != true ]; then
+            echo "::error::Claude Code needs the organisation secret ANTHROPIC_API_KEY"; exit 1
+          fi
+          if [ "$AGENT" = codex ] && [ "$HAS_OPENAI_KEY" != true ]; then
+            echo "::error::OpenAI Codex needs the organisation secret OPENAI_API_KEY"; exit 1
+          fi
+
       - name: Claude Code
+        if: steps.assignment.outputs.agent == 'claude-code'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -65,6 +81,22 @@ jobs:
             --model ${{ steps.assignment.outputs.model }}
             --max-turns 80
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(pytest:*),Bash(python -m pytest:*),Bash(ruff:*)"
+
+      # Codex runs in its own sandbox: it may write in the checkout and run
+      # commands there, and loses sudo for the rest of the job. It gets no
+      # GitHub token; the check below decides what is committed.
+      - name: OpenAI Codex
+        if: steps.assignment.outputs.agent == 'codex'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .nexora-ai-build/prompt.md
+          model: ${{ steps.assignment.outputs.model }}
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+          # A repository_dispatch can only be sent with write access to this
+          # repository, by the Nexora GitHub App; let that bot start the run.
+          allow-bot-users: ${{ github.actor }}
 
       - name: Check what changed
         id: check

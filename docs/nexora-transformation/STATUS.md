@@ -408,6 +408,13 @@ four quick wins F1–F4, one commit and one record each.
   writes no code and merges nothing. Off by default
   (`NEXORA_AI_BUILD_ENABLED`). Not yet run end to end, because no
   repository has the workflow yet. See [`NXD-153`](DECISIONS.md).
+- **S6 follow-up: Claude Code or OpenAI Codex, per assignment.** The AI build
+  card lets a person choose the agent when both are offered. The workflow
+  runs `anthropics/claude-code-action` with `ANTHROPIC_API_KEY`, or
+  `openai/codex-action` (sandboxed to the checkout) with `OPENAI_API_KEY`,
+  and checks the model id per agent. Nexora records the agent with the
+  model. Codex is off by default (`NEXORA_AI_BUILD_CODEX_ENABLED`). Neither
+  agent has run end to end yet. See [`NXD-154`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

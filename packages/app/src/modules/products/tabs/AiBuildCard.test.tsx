@@ -26,6 +26,7 @@ const base: AiBuildAssignment = {
       contentHash: 'h2',
     },
   ],
+  agent: 'claude-code',
   modelId: 'claude-opus-5-5',
   payloadHash: 'sha256:x',
   branch: 'nexora/ai-a1',
@@ -44,7 +45,7 @@ describe('AiBuildCard (NXD-153)', () => {
         note: 'API first',
       }),
     ).toEqual([
-      'URS-EPM-001, URS-EPM-002 · claude-opus-5-5 · issued by user:default/pm at 2026-10-08T14:00:00Z',
+      'URS-EPM-001, URS-EPM-002 · Claude Code, claude-opus-5-5 · issued by user:default/pm at 2026-10-08T14:00:00Z',
       'Not dispatched: the repository has no .github/workflows/nexora-ai-build.yml on its default branch.',
       'Note: API first',
     ]);
@@ -56,6 +57,63 @@ describe('AiBuildCard (NXD-153)', () => {
         mergedAt: '2026-10-08T15:00:00Z',
       })[1],
     ).toBe('Merged as abcdef123456 at 2026-10-08T15:00:00Z.');
+    // An assignment from before NXD-154 names no agent; its model still shows.
+    expect(assignmentLines({ ...base, agent: undefined })[0]).toContain(
+      'URS-EPM-002 · claude-opus-5-5 · issued',
+    );
+  });
+
+  it('lets the person choose the agent when both are offered, and issues with it (NXD-154)', async () => {
+    const issue = jest.fn(async () => ({
+      ...base,
+      agent: 'codex' as const,
+      modelId: 'gpt-6.1-sol',
+    }));
+    render(
+      <AiBuildCard
+        list={async () => []}
+        agents={async () => ({
+          enabled: true,
+          defaultAgent: 'claude-code',
+          agents: [
+            { agent: 'claude-code', model: 'claude-opus-5-5' },
+            { agent: 'codex', model: 'gpt-6.1-sol' },
+          ],
+        })}
+        issue={issue}
+        refresh={jest.fn()}
+      />,
+    );
+    fireEvent.mouseDown(await screen.findByLabelText('Agent'));
+    fireEvent.click(
+      await screen.findByRole('option', { name: 'OpenAI Codex (gpt-6.1-sol)' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Assign to AI build' }));
+    await waitFor(() => expect(issue).toHaveBeenCalledWith(undefined, 'codex'));
+    expect(
+      await screen.findByText(/OpenAI Codex, gpt-6.1-sol/),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no choice when one agent is offered, and leaves the default to the backend (NXD-154)', async () => {
+    const issue = jest.fn(async () => base);
+    const agents = jest.fn(async () => ({
+      enabled: true,
+      defaultAgent: 'codex' as const,
+      agents: [{ agent: 'codex' as const, model: 'gpt-6.1-sol' }],
+    }));
+    render(
+      <AiBuildCard
+        list={async () => []}
+        agents={agents}
+        issue={issue}
+        refresh={jest.fn()}
+      />,
+    );
+    await waitFor(() => expect(agents).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Agent')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Assign to AI build' }));
+    await waitFor(() => expect(issue).toHaveBeenCalledWith(undefined));
   });
 
   it('issues an assignment with the note and lists it first, then refreshes it', async () => {

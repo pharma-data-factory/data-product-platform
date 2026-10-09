@@ -82,7 +82,8 @@ references do not count toward the validation coverage score.
 
 **Nexora AI build (NXD-153).** Nexora may dispatch an assignment to
 `.github/workflows/nexora-ai-build.yml`: approved requirements to implement.
-Claude Code then works in this repository and the workflow opens a pull request
+The coding agent the assignment names, Claude Code or OpenAI Codex (NXD-154),
+then works in this repository and the workflow opens a pull request
 from `nexora/ai-<assignment id>`. It refuses controlled files, workflows, the
 evidence hooks, and a new test file CI does not run. A person reviews the pull
 request and what its CI run would verify, and merges it or not.

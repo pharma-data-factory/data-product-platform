@@ -40,6 +40,7 @@ const client = {
   // NXD-153.
   listAiBuilds: jest.fn(async () => []),
   issueAiBuild: jest.fn(),
+  getAiBuildAgents: jest.fn(async () => ({ enabled: true, defaultAgent: 'claude-code', agents: [{ agent: 'claude-code', model: 'claude-opus-5-5' }] })),
   refreshAiBuild: jest.fn(),
   addProductComponent: jest.fn(),
   createTraceabilityLink: jest.fn(),

@@ -829,17 +829,32 @@ describe.each([
       'pull-requests': 'write',
       actions: 'write',
     });
-    expect([...text.matchAll(/secrets\.([A-Z_]+)/g)].map(m => m[1])).toEqual(['ANTHROPIC_API_KEY']);
+    expect(new Set([...text.matchAll(/secrets\.([A-Z_]+)/g)].map(m => m[1]))).toEqual(
+      new Set(['ANTHROPIC_API_KEY', 'OPENAI_API_KEY']),
+    );
     const steps = workflow.jobs.build.steps as any[];
     expect(steps.find(s => s.name === 'Checkout').with['persist-credentials']).toBe(false);
     const claude = steps.find(s => s.name === 'Claude Code');
     expect(claude.uses).toBe('anthropics/claude-code-action@v1');
+    expect(claude.if).toBe("steps.assignment.outputs.agent == 'claude-code'");
     // The model comes from the validated assignment, never from the raw payload.
     expect(claude.with.claude_args).toContain('--model ${{ steps.assignment.outputs.model }}');
     expect(claude.with.claude_args).not.toMatch(/Bash\(git|Bash\(gh|Bash\(\*|Bash"/);
+    // NXD-154. Codex runs only when the assignment names it, sandboxed to the
+    // checkout, with no GitHub token.
+    const codex = steps.find(s => s.name === 'OpenAI Codex');
+    expect(codex.uses).toBe('openai/codex-action@v1');
+    expect(codex.if).toBe("steps.assignment.outputs.agent == 'codex'");
+    expect(codex.with).toMatchObject({
+      model: '${{ steps.assignment.outputs.model }}',
+      'permission-profile': ':workspace',
+      'safety-strategy': 'drop-sudo',
+    });
+    expect(JSON.stringify(codex.with)).not.toMatch(/github\.token|GITHUB_TOKEN|unsafe/);
     // The check runs between the AI and the commit, and nothing merges.
     const names = steps.map(s => s.name);
     expect(names.indexOf('Check what changed')).toBeGreaterThan(names.indexOf('Claude Code'));
+    expect(names.indexOf('Check what changed')).toBeGreaterThan(names.indexOf('OpenAI Codex'));
     expect(names.indexOf('Open the pull request')).toBeGreaterThan(names.indexOf('Check what changed'));
     expect(text).not.toMatch(/gh pr merge|--admin|git push --force/);
     // Every expression reaches a run script through env, never interpolated.

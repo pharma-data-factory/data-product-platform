@@ -88,6 +88,7 @@ import {
   DataContract,
   TransitionProductVersionRequest,
   AISpecDraft,
+  AIBuildAgent,
   AIBuildAssignment,
   AIBuildAssignmentStatus,
   AuditContext,
@@ -314,10 +315,11 @@ export interface ComposerServiceOptions {
   releaseRecordClient?: ReleaseRecordClient;
   /**
    * NXD-153. Dispatches AI build assignments; absent when the AI build is not
-   * enabled. `model` is the model the product repository's workflow is told
-   * to use.
+   * enabled. NXD-154: `agents` are the coding agents offered, each with the
+   * model the product repository's workflow is told to use; `defaultAgent`
+   * runs when an assignment names none.
    */
-  aiBuild?: { client: AiBuildClient; model: string };
+  aiBuild?: AiBuildOptions;
   /**
    * Shared SSE client registry. Injected by the router so upgrade notifications
    * can push events to connected consumers without any property bag tricks.
@@ -335,6 +337,13 @@ function fitColumn(value: string, max = 255): string {
   }
   const hash = createHash('sha256').update(value).digest('hex').slice(0, 12);
   return `${value.slice(0, max - 13)}#${hash}`;
+}
+
+/** NXD-154. The coding agents the AI build offers, and which runs by default. */
+export interface AiBuildOptions {
+  client: AiBuildClient;
+  agents: Partial<Record<AIBuildAgent, { model: string }>>;
+  defaultAgent: AIBuildAgent;
 }
 
 /** NXD-137. What happened to the release build in the Artifact Registry. */
@@ -356,7 +365,7 @@ export class ComposerService {
   private readonly policyResolverClient?: PolicyResolverClient;
   private readonly ciEvidenceClient?: CiEvidenceClient;
   private readonly releaseRecordClient?: ReleaseRecordClient;
-  private readonly aiBuild?: { client: AiBuildClient; model: string };
+  private readonly aiBuild?: AiBuildOptions;
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
 
   constructor(options: ComposerServiceOptions) {
@@ -2571,11 +2580,18 @@ export class ComposerService {
    */
   async issueAiBuildAssignment(
     productVersionId: string,
-    request: { requirementRefs?: unknown; note?: unknown },
+    request: { requirementRefs?: unknown; note?: unknown; agent?: unknown },
     actor: string,
   ): Promise<AIBuildAssignment> {
     if (!this.aiBuild) {
       throw new NotImplementedError('The AI build is not enabled (composer.aiBuild.enabled)');
+    }
+    const agent = (request.agent ?? this.aiBuild.defaultAgent) as AIBuildAgent;
+    const model = typeof agent === 'string' ? this.aiBuild.agents[agent]?.model : undefined;
+    if (!model) {
+      throw new InputError(
+        `agent must be one of ${Object.keys(this.aiBuild.agents).join(', ')}`,
+      );
     }
     const version = await this.repository.getProductVersion(productVersionId);
     if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
@@ -2626,7 +2642,8 @@ export class ComposerService {
     const id = randomUUID();
     const payload = {
       assignmentId: id,
-      model: this.aiBuild.model,
+      agent,
+      model,
       product: product.name,
       version: version.version,
       requirements: selected.map(r => ({
@@ -2650,7 +2667,8 @@ export class ComposerService {
         contentHash: r.contentHash ?? '',
       })),
       ...(note ? { note } : {}),
-      modelId: this.aiBuild.model,
+      agent,
+      modelId: model,
       payloadHash: `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`,
       repositoryUrl: product.repositoryUrl,
       branch: `nexora/ai-${id}`,
@@ -2665,6 +2683,7 @@ export class ComposerService {
         productVersionId,
         version: version.version,
         requirements: assignment.requirements.map(r => r.requirementRef),
+        agent: assignment.agent,
         modelId: assignment.modelId,
         payloadHash: assignment.payloadHash,
       }),
@@ -2690,6 +2709,22 @@ export class ComposerService {
       newValue: JSON.stringify({ repositoryUrl: assignment.repositoryUrl, branch: assignment.branch }),
     });
     return assignment;
+  }
+
+  /** NXD-154. What the AI build offers; `enabled: false` when it is off. */
+  getAiBuildAgents(): {
+    enabled: boolean;
+    defaultAgent?: AIBuildAgent;
+    agents: Array<{ agent: AIBuildAgent; model: string }>;
+  } {
+    if (!this.aiBuild) return { enabled: false, agents: [] };
+    return {
+      enabled: true,
+      defaultAgent: this.aiBuild.defaultAgent,
+      agents: (Object.entries(this.aiBuild.agents) as Array<[AIBuildAgent, { model: string }]>).map(
+        ([agent, { model }]) => ({ agent, model }),
+      ),
+    };
   }
 
   async listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]> {

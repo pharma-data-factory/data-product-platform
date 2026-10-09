@@ -10244,3 +10244,124 @@ with the model and what it was given.
     `template.yaml`, `agent-instructions.md`, and AAS `.gitignore`.
   - `packages/backend/src/templateRendering.test.ts`, `app-config.yaml`,
     `.env.example`, `docs/github-setup.md`.
+
+### NXD-154 — The AI build runs Claude Code or OpenAI Codex, chosen per assignment, and records which
+
+- Date: 2026-10-09
+- Slice: follows §9.7 S6 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) (`NXD-153`).
+- Decided by: the user ("kann man auch mit Chatgpt arbeiten", then "oder
+  beides flexibel" and "Es sollte flexible sein", 2026-10-09). This amends
+  `NXD-153`'s decision that the key is `ANTHROPIC_API_KEY` alone: either
+  organisation secret may now be the one a run uses. A person still merges,
+  and the validation decision stays human (`NXD-003`). The shape below was
+  chosen here and is named for review.
+
+**Context.** `NXD-153` ran Claude Code only: the workflow had one agent
+step, the script accepted only `claude-*` model ids, and the record had no
+field for the agent. The organisation may hold an OpenAI key instead of, or
+as well as, an Anthropic one. The Composer's spec generation
+(`composer.ai.provider`) could already use either. The AI build could not.
+
+**Decision.**
+
+- **An assignment names its agent**, `claude-code` or `codex`, in the
+  optional `agent` field of `POST /versions/:id/ai-builds`. Without one,
+  `composer.aiBuild.defaultAgent` is used. An agent not offered is refused
+  (400), and nothing is recorded or sent.
+- **What is offered is configured**, under `composer.aiBuild.agents.<agent>`
+  with `enabled` and `model`:
+  - Claude Code is on unless switched off. Its model is still
+    `composer.aiBuild.model` when `agents.claude-code.model` is unset
+    (default `claude-opus-5-5`).
+  - Codex is off unless switched on (default model `gpt-6.1-sol`, OpenAI's
+    recommended Codex model as of 2026-10-09).
+  - A default that is not offered, or an AI build that offers nothing,
+    stops the backend at start.
+  - Environment: `NEXORA_AI_BUILD_CODEX_ENABLED`,
+    `NEXORA_AI_BUILD_CLAUDE_ENABLED`, `NEXORA_AI_BUILD_DEFAULT_AGENT`.
+- **Recorded:** the new nullable column `ai_build_assignments.agent`, the
+  `agent` in the dispatched payload (and so in its hash), and `agent` in the
+  `AI_BUILD_ASSIGNED` audit event. A row from before this record reads as
+  `claude-code`, which is what it ran.
+- **`GET /ai-build/agents`** (`product.read`) says what is offered, with
+  each agent's model and the default, or `enabled: false`.
+- **The workflow in all five data-product Golden Paths:**
+  - the script reads `agent`, falling back to `claude-code` for a dispatch
+    that names none, and checks the model id per agent: `claude-*` for
+    Claude Code, `gpt-*`, `codex-*` or `o<n>*` for Codex;
+  - *Check the agent's key* fails the run naming the missing organisation
+    secret, before any model runs;
+  - exactly one of *Claude Code* (`anthropics/claude-code-action@v1`,
+    unchanged) or *OpenAI Codex* (`openai/codex-action@v1`) runs. Codex runs
+    with `permission-profile: ':workspace'` and `safety-strategy:
+    drop-sudo`, from the prompt file, with the validated model. It gets no
+    GitHub token;
+  - the change check, the commit of exactly the checked paths, and the pull
+    request are unchanged and run after either agent;
+  - the pull request names the agent and the model.
+- **The AI build card** offers a choice of agent, with each agent's model,
+  when more than one is offered. With one agent, it shows no choice and the
+  backend's default runs. Each assignment's line names its agent.
+
+**Alternatives considered.**
+
+- *Replace Claude Code with Codex.* Rejected. The user asked for both.
+- *One agent per product, fixed at creation.* Rejected. The choice is
+  cheap per assignment, and the record already holds one row per
+  assignment.
+- *Pass `--allowedTools` to Codex as Claude Code gets it.* Not available.
+  Codex has no per-command allowlist; its sandbox profile confines writes to
+  the checkout. The guard that decides what is committed is the change
+  check after either agent, as in `NXD-153`.
+- *Let Codex choose its model (empty `model`).* Rejected. The record must
+  name the model that ran (`NXD-064` C-3).
+
+**Verified.**
+
+- composer `aiBuildAssignment.test.ts` +2:
+  - Codex chosen, its model dispatched, recorded and audited;
+  - `gemini`, `42` and `toString` refused without a dispatch;
+  - what is offered;
+  - a row without an agent reads as Claude Code.
+- composer `aiBuildAgents.test.ts` (3):
+  - Claude Code alone by default, with the legacy model key;
+  - Codex enabled, with either agent as the default;
+  - a default not offered, and nothing offered, refused.
+- Templates: `tests/test_ai_build.py` +2 (9 in each of the five):
+  - no agent means Claude Code;
+  - Codex with an OpenAI model accepted;
+  - each agent's model refused for the other agent;
+  - an unknown or non-text agent refused.
+- backend `templateRendering.test.ts`, per Golden Path:
+  - the two secrets, and each agent step conditional on the assignment;
+  - Codex sandboxed to the checkout, with no GitHub token;
+  - the check after both agents.
+- app `AiBuildCard.test.tsx` +2: the choice issues with the chosen agent;
+  one agent shows no choice. `ProductDetailPage.test.tsx` is unchanged
+  except for the client mock.
+
+**Not changed, named.**
+
+- **Neither agent has run end to end** (`NXD-153` still holds). For Codex,
+  the first run must also show whether `allow-bot-users: ${{ github.actor }}`
+  lets the Nexora App's dispatch through Codex's write-access check, and
+  whether `:workspace` lets `pytest` and `ruff` run.
+- A repository generated before this record has the `NXD-153` workflow. It
+  runs Claude Code whatever the assignment says, and refuses a Codex model
+  id: *Run failed*. Bringing an existing repository up to date is a write
+  to it, and is not done here.
+- Nexora cannot see which organisation secrets exist. Offer only agents
+  whose key is set; otherwise the run fails at *Check the agent's key*,
+  naming the missing secret.
+
+- Affected components:
+  - `plugins/composer-backend/src/`: `types.ts`, `db/migrations.ts`,
+    `repository.ts`, `service.ts`, `router.ts`, `plugin.ts`,
+    `aiBuildAssignment.test.ts`, `aiBuildAgents.test.ts`.
+  - `packages/app/src/modules/products/`: `api.ts`,
+    `ProductDetailPage.tsx`, `tabs/AiBuildCard.tsx` (+ tests).
+  - The five data-product templates: `nexora-ai-build.yml`,
+    `scripts/nexora_ai_build.py`, `tests/test_ai_build.py`,
+    `agent-instructions.md`.
+  - `packages/backend/src/templateRendering.test.ts`, `app-config.yaml`,
+    `.env.example`, `docs/github-setup.md`.

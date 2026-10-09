@@ -94,12 +94,22 @@ composer:
     # See ursComposer.ai.timeoutMs above.
     timeoutMs: 60000
   # NXD-153. The AI build: Nexora dispatches .github/workflows/nexora-ai-build.yml
-  # in a product repository, which runs Claude Code with the GitHub
-  # organisation's ANTHROPIC_API_KEY secret and opens a pull request. Nexora
-  # holds no model key for it. Off by default: each dispatch is a paid run.
+  # in a product repository, which runs a coding agent with the GitHub
+  # organisation's key secret and opens a pull request. Nexora holds no model
+  # key for it. Off by default: each dispatch is a paid run.
+  # NXD-154. Two agents, chosen per assignment: Claude Code (secret
+  # ANTHROPIC_API_KEY) and OpenAI Codex (secret OPENAI_API_KEY). Offer only
+  # those whose secret the organisation has.
   aiBuild:
     enabled: ${NEXORA_AI_BUILD_ENABLED:-false}
-    model: claude-opus-5-5
+    defaultAgent: ${NEXORA_AI_BUILD_DEFAULT_AGENT:-claude-code}
+    agents:
+      claude-code:
+        enabled: ${NEXORA_AI_BUILD_CLAUDE_ENABLED:-true}
+        model: claude-opus-5-5
+      codex:
+        enabled: ${NEXORA_AI_BUILD_CODEX_ENABLED:-false}
+        model: gpt-6.1-sol
 
 integrations:
   github:

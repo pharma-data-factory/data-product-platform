@@ -5,21 +5,27 @@ import {
   Button,
   Chip,
   Link,
+  MenuItem,
   TextField,
   Typography,
 } from '@material-ui/core';
-import type { AiBuildAssignment } from '../api';
+import type { AiBuildAgent, AiBuildAgents, AiBuildAssignment } from '../api';
 
 /**
  * NXD-153. Assign a draft version's bound requirements to the AI build in the
  * product's repository, and follow what became of each assignment. Nexora
- * dispatches and records; Claude Code writes the code in the repository's own
- * workflow, and a person merges the pull request there, or does not.
+ * dispatches and records; a coding agent writes the code in the repository's
+ * own workflow, and a person merges the pull request there, or does not.
+ * NXD-154: the agent is Claude Code or OpenAI Codex, chosen per assignment
+ * when the AI build offers both.
  */
 
 export interface AiBuildActions {
   list(): Promise<AiBuildAssignment[]>;
-  issue(note?: string): Promise<AiBuildAssignment>;
+  /** NXD-154. Without it, or with one agent offered, the backend's default runs. */
+  agents?(): Promise<AiBuildAgents>;
+  /** `agent` is passed only when the person chose among several. */
+  issue(note?: string, agent?: AiBuildAgent): Promise<AiBuildAssignment>;
   refresh(id: string): Promise<AiBuildAssignment>;
   /** Why a new assignment cannot be issued for this version, if it cannot. */
   blockedReason?: string;
@@ -39,6 +45,11 @@ const STATUS: Record<
   CLOSED: { label: 'Closed unmerged', tone: 'neutral' },
 };
 
+export const AGENT_LABEL: Record<AiBuildAgent, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'OpenAI Codex',
+};
+
 const DISPATCH_REASON: Record<string, string> = {
   'no-ai-build-workflow':
     'the repository has no .github/workflows/nexora-ai-build.yml on its default branch',
@@ -51,8 +62,8 @@ const DISPATCH_REASON: Record<string, string> = {
 export function assignmentLines(a: AiBuildAssignment): string[] {
   const lines = [
     `${a.requirements.map(r => r.requirementRef).join(', ')} · ${
-      a.modelId
-    } · issued by ${a.issuedBy} at ${a.issuedAt}`,
+      a.agent ? `${AGENT_LABEL[a.agent] ?? a.agent}, ` : ''
+    }${a.modelId} · issued by ${a.issuedBy} at ${a.issuedAt}`,
   ];
   if (a.status === 'NOT_DISPATCHED') {
     lines.push(
@@ -68,9 +79,11 @@ export function assignmentLines(a: AiBuildAssignment): string[] {
 }
 
 export function AiBuildCard(props: AiBuildActions) {
-  const { list } = props;
+  const { list, agents: loadAgents } = props;
   const [items, setItems] = useState<AiBuildAssignment[] | null>(null);
   const [note, setNote] = useState('');
+  const [offered, setOffered] = useState<AiBuildAgents['agents']>([]);
+  const [agent, setAgent] = useState<AiBuildAgent | ''>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +101,25 @@ export function AiBuildCard(props: AiBuildActions) {
       cancelled = true;
     };
   }, [list]);
+
+  useEffect(() => {
+    if (!loadAgents) return undefined;
+    let cancelled = false;
+    // Not knowing what is offered is no reason to hide the card: the
+    // backend's default agent still runs.
+    Promise.resolve()
+      .then(loadAgents)
+      .then(body => {
+        if (cancelled) return;
+        setOffered(body.agents);
+        setAgent(body.defaultAgent ?? body.agents[0]?.agent ?? '');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAgents]);
+  const choosing = offered.length > 1;
 
   const act = async (fn: () => Promise<AiBuildAssignment>) => {
     setBusy(true);
@@ -120,10 +152,10 @@ export function AiBuildCard(props: AiBuildActions) {
         AI build
       </Typography>
       <Typography variant="body2" color="textSecondary" paragraph>
-        Assigns this version's bound requirements to Claude Code in the
-        product's repository. It writes code and requirement-tagged tests and
-        opens a pull request. Check what it would verify on the Tests tab; a
-        person merges it, or does not.
+        Assigns this version's bound requirements to a coding agent, Claude Code
+        or OpenAI Codex, in the product's repository. It writes code and
+        requirement-tagged tests and opens a pull request. Check what it would
+        verify on the Tests tab; a person merges it, or does not.
       </Typography>
       {props.blockedReason ? (
         <Typography variant="body2" color="textSecondary" paragraph>
@@ -146,12 +178,35 @@ export function AiBuildCard(props: AiBuildActions) {
             fullWidth
             inputProps={{ maxLength: 2000 }}
           />
+          {choosing ? (
+            <TextField
+              id="ai-build-agent"
+              select
+              label="Agent"
+              value={agent}
+              onChange={e => setAgent(e.target.value as AiBuildAgent)}
+              size="small"
+              variant="outlined"
+              style={{ minWidth: 220 }}
+            >
+              {offered.map(o => (
+                <MenuItem key={o.agent} value={o.agent}>
+                  {AGENT_LABEL[o.agent] ?? o.agent} ({o.model})
+                </MenuItem>
+              ))}
+            </TextField>
+          ) : null}
           <Button
             variant="outlined"
             disabled={busy}
             onClick={async () => {
-              if (await act(() => props.issue(note.trim() || undefined)))
-                setNote('');
+              const text = note.trim() || undefined;
+              const issued = await act(() =>
+                choosing && agent
+                  ? props.issue(text, agent)
+                  : props.issue(text),
+              );
+              if (issued) setNote('');
             }}
           >
             {busy ? 'Working…' : 'Assign to AI build'}

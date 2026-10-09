@@ -15,7 +15,8 @@ import { Config } from '@backstage/config';
 import { getPublishReadiness } from './scm-publish-readiness';
 import { readLLMTimeoutMs } from '@internal/platform-common';
 import { createRouter } from './router';
-import { ComposerService } from './service';
+import { AiBuildOptions, ComposerService } from './service';
+import type { AIBuildAgent } from './types';
 import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
@@ -112,6 +113,44 @@ function createLLMClient(config: Config, logger: any): ComposerLLMClient {
 /** NXD-153. The default model for the AI build; `composer.aiBuild.model` overrides it. */
 export const DEFAULT_AI_BUILD_MODEL = 'claude-opus-5-5';
 
+/** NXD-154. The default model when the AI build runs OpenAI Codex. */
+export const DEFAULT_AI_BUILD_CODEX_MODEL = 'gpt-6.1-sol';
+
+/**
+ * NXD-154. The coding agents the AI build offers, read from
+ * `composer.aiBuild.agents.<agent>`. Claude Code is on unless switched off,
+ * and `composer.aiBuild.model` still names its model; Codex is off unless
+ * switched on. `defaultAgent` must be one that is on.
+ */
+export function readAiBuildAgents(config: Config): Pick<AiBuildOptions, 'agents' | 'defaultAgent'> {
+  const agents: AiBuildOptions['agents'] = {};
+  const claude = config.getOptionalConfig('composer.aiBuild.agents.claude-code');
+  if (claude?.getOptionalBoolean('enabled') ?? true) {
+    agents['claude-code'] = {
+      model:
+        claude?.getOptionalString('model') ??
+        config.getOptionalString('composer.aiBuild.model') ??
+        DEFAULT_AI_BUILD_MODEL,
+    };
+  }
+  const codex = config.getOptionalConfig('composer.aiBuild.agents.codex');
+  if (codex?.getOptionalBoolean('enabled') ?? false) {
+    agents.codex = { model: codex?.getOptionalString('model') ?? DEFAULT_AI_BUILD_CODEX_MODEL };
+  }
+  const offered = Object.keys(agents) as AIBuildAgent[];
+  if (offered.length === 0) {
+    throw new Error('composer.aiBuild is enabled but offers no agent: enable claude-code or codex');
+  }
+  const defaultAgent = (config.getOptionalString('composer.aiBuild.defaultAgent') ??
+    offered[0]) as AIBuildAgent;
+  if (!agents[defaultAgent]) {
+    throw new Error(
+      `composer.aiBuild.defaultAgent is ${defaultAgent}, which is not enabled; enabled: ${offered.join(', ')}`,
+    );
+  }
+  return { agents, defaultAgent };
+}
+
 export const composerPlugin = createBackendPlugin({
   pluginId: 'composer',
   register(env) {
@@ -171,7 +210,7 @@ export const composerPlugin = createBackendPlugin({
             ? {
                 aiBuild: {
                   client: createHttpAiBuildClient({ discovery, auth }),
-                  model: config.getOptionalString('composer.aiBuild.model') ?? DEFAULT_AI_BUILD_MODEL,
+                  ...readAiBuildAgents(config),
                 },
               }
             : {}),

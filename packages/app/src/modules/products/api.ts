@@ -48,6 +48,16 @@ export interface TestEvidenceImport {
   unknownRequirements: string[];
 }
 
+/** NXD-154: the coding agents the AI build can run. */
+export type AiBuildAgent = 'claude-code' | 'codex';
+
+/** NXD-154: what the AI build offers, and its default. */
+export interface AiBuildAgents {
+  enabled: boolean;
+  defaultAgent?: AiBuildAgent;
+  agents: Array<{ agent: AiBuildAgent; model: string }>;
+}
+
 /** NXD-153: an AI build assignment and what GitHub shows of it. */
 export interface AiBuildAssignment {
   id: string;
@@ -64,6 +74,8 @@ export interface AiBuildAssignment {
     | 'CLOSED';
   requirements: Array<{ requirementRef: string; ursRequirementVersionId: string; contentHash: string }>;
   note?: string;
+  /** NXD-154. Absent from a backend before the choice existed. */
+  agent?: AiBuildAgent;
   modelId: string;
   payloadHash: string;
   branch: string;
@@ -231,8 +243,10 @@ export interface ComposerClient {
   /** NXD-153: assign bound requirements (all by default) to the AI build. */
   issueAiBuild(
     versionId: string,
-    input: { requirementRefs?: string[]; note?: string },
+    input: { requirementRefs?: string[]; note?: string; agent?: AiBuildAgent },
   ): Promise<AiBuildAssignment>;
+  /** NXD-154: the coding agents the AI build offers. */
+  getAiBuildAgents(): Promise<AiBuildAgents>;
   /** NXD-153: record what GitHub shows of an assignment. */
   refreshAiBuild(assignmentId: string): Promise<AiBuildAssignment>;
   /** Contracts this component provides. Keyed by component, listed by coordinate. */
@@ -335,6 +349,7 @@ export function useComposerClient(): ComposerClient {
       ),
     issueAiBuild: (versionId, input) =>
       request('POST', `/versions/${versionId}/ai-builds`, input),
+    getAiBuildAgents: () => request('GET', '/ai-build/agents'),
     refreshAiBuild: assignmentId =>
       request('POST', `/ai-builds/${assignmentId}/refresh`, {}),
     listComponentContracts: componentId =>

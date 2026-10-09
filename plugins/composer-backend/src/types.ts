@@ -300,6 +300,13 @@ export type AIBuildAssignmentStatus =
   | 'CLOSED';
 
 /**
+ * NXD-154. The coding agent a product repository's AI build workflow runs:
+ * Claude Code with the organisation's ANTHROPIC_API_KEY, or OpenAI Codex with
+ * its OPENAI_API_KEY. Nexora holds neither key.
+ */
+export type AIBuildAgent = 'claude-code' | 'codex';
+
+/**
  * NXD-153. An assignment to build a product version's requirements in its
  * repository, and what became of it. The assignment part — requirements,
  * note, model, payload hash, who and when — is written once and never
@@ -318,6 +325,8 @@ export interface AIBuildAssignment {
     contentHash: string;
   }>;
   note?: string;
+  /** NXD-154. The agent the workflow was told to run. */
+  agent: AIBuildAgent;
   modelId: string;
   /** sha256 of the payload as dispatched. */
   payloadHash: string;

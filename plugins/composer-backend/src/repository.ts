@@ -688,6 +688,7 @@ export class ComposerRepository implements IComposerRepository {
       version_label: a.versionLabel,
       requirements: JSON.stringify(a.requirements),
       note: a.note ?? null,
+      agent: a.agent,
       model_id: a.modelId,
       payload_hash: a.payloadHash,
       repository_url: a.repositoryUrl,
@@ -1163,6 +1164,8 @@ function rowToAiBuildAssignment(row: any): AIBuildAssignment {
     status: row.status,
     requirements: JSON.parse(row.requirements),
     note: optional(row.note),
+    // NXD-154. Assignments issued before the choice existed ran Claude Code.
+    agent: row.agent ?? 'claude-code',
     modelId: row.model_id,
     payloadHash: row.payload_hash,
     repositoryUrl: row.repository_url,

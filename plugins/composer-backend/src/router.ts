@@ -1201,7 +1201,8 @@ export async function createRouter(
    * POST /versions/:id/ai-builds (NXD-153)
    * Assign bound requirements of a DRAFT version to the AI build in the
    * product's repository: recorded, then dispatched. Body: optional
-   * `requirementRefs` (default all bound) and `note`. product.manage.
+   * `requirementRefs` (default all bound), `note` and `agent` (NXD-154,
+   * default composer.aiBuild.defaultAgent). product.manage.
    */
   router.post(
     '/versions/:id/ai-builds',
@@ -1216,6 +1217,20 @@ export async function createRouter(
       }
     },
   );
+
+  /**
+   * GET /ai-build/agents (NXD-154)
+   * The coding agents the AI build offers, each with its model, and the
+   * default. `enabled: false` when the AI build is off.
+   */
+  router.get('/ai-build/agents', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      res.json(service.getAiBuildAgents());
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
 
   /** GET /versions/:id/ai-builds (NXD-153): the version's assignments, newest first. */
   router.get(

@@ -85,7 +85,11 @@ describe('AI build assignments (NXD-153)', () => {
         ? {
             aiBuild: {
               client: client as AiBuildClient,
-              model: 'claude-opus-5-5',
+              agents: {
+                'claude-code': { model: 'claude-opus-5-5' },
+                codex: { model: 'gpt-6.1-sol' },
+              },
+              defaultAgent: 'claude-code',
             },
           }
         : {}),
@@ -122,6 +126,7 @@ describe('AI build assignments (NXD-153)', () => {
     expect(assignment).toMatchObject({
       status: 'DISPATCHED',
       versionLabel: '1.0',
+      agent: 'claude-code',
       modelId: 'claude-opus-5-5',
       repositoryUrl: REPO,
       branch: `nexora/ai-${assignment.id}`,
@@ -145,6 +150,7 @@ describe('AI build assignments (NXD-153)', () => {
     expect(repoUrl).toBe(REPO);
     expect(payload).toEqual({
       assignmentId: assignment.id,
+      agent: 'claude-code',
       model: 'claude-opus-5-5',
       product: 'oee-line-3',
       version: '1.0',
@@ -171,6 +177,53 @@ describe('AI build assignments (NXD-153)', () => {
       'AI_BUILD_ASSIGNED',
       'AI_BUILD_DISPATCHED',
     ]);
+  });
+
+  it('runs the agent the assignment names, with its model, and refuses one not offered (NXD-154)', async () => {
+    await setUp();
+    const codex = await service.issueAiBuildAssignment(
+      versionId,
+      { agent: 'codex' },
+      actor,
+    );
+    expect(codex).toMatchObject({ agent: 'codex', modelId: 'gpt-6.1-sol' });
+    expect(client.dispatch.mock.calls[0][1]).toMatchObject({
+      agent: 'codex',
+      model: 'gpt-6.1-sol',
+    });
+    expect(await service.listAiBuildAssignments(versionId)).toEqual([codex]);
+    const assigned = await db('composer_audit_events')
+      .where({ event_type: 'AI_BUILD_ASSIGNED' })
+      .first();
+    expect(JSON.parse(assigned.new_value)).toMatchObject({
+      agent: 'codex',
+      modelId: 'gpt-6.1-sol',
+    });
+    for (const agent of ['gemini', 42, 'toString']) {
+      await expect(
+        service.issueAiBuildAssignment(versionId, { agent }, actor),
+      ).rejects.toThrow('agent must be one of claude-code, codex');
+    }
+    expect(client.dispatch).toHaveBeenCalledTimes(1);
+    expect(service.getAiBuildAgents()).toEqual({
+      enabled: true,
+      defaultAgent: 'claude-code',
+      agents: [
+        { agent: 'claude-code', model: 'claude-opus-5-5' },
+        { agent: 'codex', model: 'gpt-6.1-sol' },
+      ],
+    });
+  });
+
+  it('reads an assignment from before the agent was recorded as Claude Code (NXD-154)', async () => {
+    await setUp();
+    const a = await service.issueAiBuildAssignment(versionId, {}, actor);
+    await db('ai_build_assignments')
+      .where({ id: a.id })
+      .update({ agent: null });
+    expect((await repository.getAiBuildAssignment(a.id))?.agent).toBe(
+      'claude-code',
+    );
   });
 
   it('assigns a subset by id, and refuses an id the version does not carry', async () => {

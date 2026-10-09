@@ -1,4 +1,4 @@
-"""The AI build workflow's assignment, prompt and change check (NXD-153)."""
+"""The AI build workflow's assignment, prompt and change check (NXD-153, NXD-154)."""
 
 import importlib.util
 import json
@@ -36,6 +36,23 @@ def test_reads_a_well_formed_assignment_and_names_its_branch():
     assert ai_build.branch_for(assignment) == f"nexora/ai-{ID}"
 
 
+def test_an_assignment_without_an_agent_runs_claude_code():
+    assert ai_build.read_assignment(_payload())["agent"] == "claude-code"
+
+
+def test_runs_codex_with_an_openai_model_and_refuses_a_model_of_the_other_agent():
+    codex = ai_build.read_assignment(_payload(agent="codex", model="gpt-6.1-sol"))
+    assert (codex["agent"], codex["model"]) == ("codex", "gpt-6.1-sol")
+    with pytest.raises(ai_build.AssignmentError, match="model is not a model id for OpenAI Codex"):
+        ai_build.read_assignment(_payload(agent="codex", model="claude-opus-5-5"))
+    with pytest.raises(ai_build.AssignmentError, match="model is not a model id for Claude Code"):
+        ai_build.read_assignment(_payload(agent="claude-code", model="gpt-6.1-sol"))
+    with pytest.raises(ai_build.AssignmentError, match="agent is not one of claude-code, codex"):
+        ai_build.read_assignment(_payload(agent="gemini"))
+    with pytest.raises(ai_build.AssignmentError, match="agent is not one of"):
+        ai_build.read_assignment(_payload(agent=["codex"]))
+
+
 def test_refuses_a_malformed_assignment_naming_every_problem():
     with pytest.raises(ai_build.AssignmentError) as refused:
         ai_build.read_assignment(
@@ -48,7 +65,7 @@ def test_refuses_a_malformed_assignment_naming_every_problem():
     message = str(refused.value)
     for expected in (
         "assignmentId is not a UUID",
-        "model is not a Claude model id",
+        "model is not a model id for Claude Code",
         "requirements[0].id is not a requirement id",
         "requirements[0].title is missing",
     ):
@@ -109,7 +126,7 @@ def test_the_pull_request_body_names_assignment_model_and_who_decides():
     assignment = ai_build.read_assignment(_payload())
     body = ai_build.pr_body(assignment, "https://github.com/o/r/actions/runs/1", [("??", "app/x.py")], "Could not do X.")
     assert ID in body
-    assert "`claude-opus-5-5`" in body
+    assert "Agent: Claude Code, model `claude-opus-5-5`" in body
     assert "`URS-EPM-001` Availability" in body
     assert "A person decides." in body
     assert "app/x.py" in body

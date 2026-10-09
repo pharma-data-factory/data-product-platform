@@ -1,12 +1,12 @@
-"""Reads a Nexora AI build assignment and checks what the AI changed (NXD-153).
+"""Reads a Nexora AI build assignment and checks what the AI changed (NXD-153, NXD-154).
 
 Called by .github/workflows/nexora-ai-build.yml:
 
     python scripts/nexora_ai_build.py prepare
         Reads the dispatched assignment from $NEXORA_PAYLOAD, refuses a malformed
-        one, writes the prompt Claude Code works from to .nexora-ai-build/ (kept
-        out of git) and prints assignment_id=, model= and branch= lines for
-        $GITHUB_OUTPUT.
+        one, writes the prompt the coding agent works from to .nexora-ai-build/
+        (kept out of git) and prints assignment_id=, agent=, model= and branch=
+        lines for $GITHUB_OUTPUT.
 
     python scripts/nexora_ai_build.py check
         Exits non-zero naming every change the AI may not make: a controlled
@@ -15,8 +15,8 @@ Called by .github/workflows/nexora-ai-build.yml:
         exactly what gets committed, and prints changed=true|false.
 
     python scripts/nexora_ai_build.py pr-body --run-url U
-        Prints the pull request description: the assignment, the model, what
-        changed, and that a person decides.
+        Prints the pull request description: the assignment, the agent and its
+        model, what changed, and that a person decides.
 
 Nexora writes no code here and merges nothing. A person reviews the pull
 request and its evidence (NXD-152) and merges it, or does not.
@@ -37,7 +37,14 @@ WORK_DIR = ".nexora-ai-build"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 
 ASSIGNMENT_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-MODEL = re.compile(r"^claude-[a-z0-9][a-z0-9.-]{0,63}$")
+# NXD-154. The coding agents this workflow runs, and the model ids each accepts.
+# An assignment that names no agent comes from a Nexora before the choice
+# existed, and runs Claude Code.
+AGENTS = {
+    "claude-code": ("Claude Code", re.compile(r"^claude-[a-z0-9][a-z0-9.-]{0,63}$")),
+    "codex": ("OpenAI Codex", re.compile(r"^(gpt|codex|o[0-9])[a-z0-9.-]{0,63}$")),
+}
+DEFAULT_AGENT = "claude-code"
 REQUIREMENT_ID = re.compile(r"^[A-Z][A-Z0-9]*(-[A-Z0-9]+)+$")
 MAX_REQUIREMENTS = 25
 MAX_NOTE = 2000
@@ -81,8 +88,11 @@ def read_assignment(raw: str | None) -> dict:
     problems: list[str] = []
     if not ASSIGNMENT_ID.match(str(payload.get("assignmentId", ""))):
         problems.append("assignmentId is not a UUID")
-    if not MODEL.match(str(payload.get("model", ""))):
-        problems.append("model is not a Claude model id")
+    agent = payload.setdefault("agent", DEFAULT_AGENT)
+    if not isinstance(agent, str) or agent not in AGENTS:
+        problems.append(f"agent is not one of {', '.join(AGENTS)}")
+    elif not AGENTS[agent][1].match(str(payload.get("model", ""))):
+        problems.append(f"model is not a model id for {AGENTS[agent][0]}")
     for key in ("product", "version"):
         if not isinstance(payload.get(key), str) or not payload[key].strip():
             problems.append(f"{key} is missing")
@@ -118,7 +128,7 @@ def ci_runs_every_test() -> bool:
 
 
 def build_prompt(assignment: dict) -> str:
-    """What Claude Code is told. The requirements are data, quoted as JSON."""
+    """What the coding agent is told. The requirements are data, quoted as JSON."""
     requirements = json.dumps(assignment["requirements"], indent=2, ensure_ascii=False)
     if ci_runs_every_test():
         where_tests_go = "Put tests under `tests/`."
@@ -231,7 +241,7 @@ def pr_body(assignment: dict, run_url: str, changes: list[tuple[str, str]], note
             f"`{assignment['product']}` version `{assignment['version']}`."
         ),
         "",
-        f"- Model: `{assignment['model']}` (Claude Code)",
+        f"- Agent: {AGENTS[assignment['agent']][0]}, model `{assignment['model']}`",
         f"- Run: {run_url}",
         "- Requirements:",
         *[f"  - `{r['id']}` {r['title']}" for r in assignment["requirements"]],
@@ -275,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
             exclude_work_dir()
             (work / "prompt.md").write_text(build_prompt(assignment), encoding="utf-8")
             print(f"assignment_id={assignment['assignmentId']}")
+            print(f"agent={assignment['agent']}")
             print(f"model={assignment['model']}")
             print(f"branch={branch_for(assignment)}")
         elif args.command == "check":

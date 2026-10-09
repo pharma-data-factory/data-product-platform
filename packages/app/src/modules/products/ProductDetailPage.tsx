@@ -365,6 +365,11 @@ export function ProductDetailPage() {
     () => clientRef.current.listAiBuilds(selectedVersionId),
     [selectedVersionId],
   );
+  // NXD-154. What the AI build offers does not change with the version.
+  const loadAiBuildAgents = useCallback(
+    () => clientRef.current.getAiBuildAgents(),
+    [],
+  );
   const loadGate = useCallback(
     () => clientRef.current.checkReleaseGate(selectedVersionId),
     [selectedVersionId],
@@ -601,8 +606,12 @@ export function ProductDetailPage() {
                 selectedVersionId
                   ? {
                       list: listAiBuilds,
-                      issue: note =>
-                        client.issueAiBuild(selectedVersionId, note ? { note } : {}),
+                      agents: loadAiBuildAgents,
+                      issue: (note, agent) =>
+                        client.issueAiBuild(selectedVersionId, {
+                          ...(note ? { note } : {}),
+                          ...(agent ? { agent } : {}),
+                        }),
                       refresh: id => client.refreshAiBuild(id),
                       blockedReason:
                         selectedVersion && selectedVersion.status !== 'DRAFT'

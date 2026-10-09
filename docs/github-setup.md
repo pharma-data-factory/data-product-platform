@@ -287,26 +287,41 @@ Minimum permissions for this Golden Path:
 
 Do not grant organization admin, delete-repo, or unrelated write permissions.
 
-### AI build (NXD-153)
+### AI build (NXD-153, NXD-154)
 
-Nexora can assign a draft version's requirements to Claude Code in the
-product repository. Nexora sends a `repository_dispatch` event, which the
-App's existing *Contents: write* covers. The repository's own workflow,
+Nexora can assign a draft version's requirements to a coding agent in the
+product repository: Claude Code or OpenAI Codex, chosen per assignment
+(NXD-154). Nexora sends a `repository_dispatch` event, which the App's
+existing *Contents: write* covers. The repository's own workflow,
 `.github/workflows/nexora-ai-build.yml`, which every data-product Golden Path
 ships, writes the code and opens a pull request. Nexora holds no model key,
 writes no code and merges nothing.
 
-1. **Organization secret `ANTHROPIC_API_KEY`.** Organization → **Settings** →
-   *Secrets and variables* → **Actions** → **New organization secret**. Give
-   access to the product repositories. The workflow reads it, and no other
+1. **Organization secret for each agent you offer.** Organization →
+   **Settings** → *Secrets and variables* → **Actions** → **New organization
+   secret**. Give access to the product repositories.
+   - Claude Code: `ANTHROPIC_API_KEY`, from console.anthropic.com.
+   - OpenAI Codex: `OPENAI_API_KEY`, an API key from platform.openai.com. A
+     ChatGPT subscription is not an API key.
+   A run whose agent has no key fails at *Check the agent's key*, naming the
    secret.
-2. **Let workflows open pull requests.** Organization → **Settings** →
+2. **Allow the actions.** If the organization restricts actions, allow
+   `anthropics/claude-code-action` and/or `openai/codex-action`
+   (*Actions* → *General* → *Actions permissions*).
+3. **Let workflows open pull requests.** Organization → **Settings** →
    *Actions* → *General* → *Workflow permissions* → tick **Allow GitHub
    Actions to create and approve pull requests**. A repository can only use
    this setting when the organization allows it. Without it,
    `gh pr create` fails and the assignment shows *Run failed*.
-3. **Enable it in Nexora:** `NEXORA_AI_BUILD_ENABLED=true`, then restart.
-   `composer.aiBuild.model` picks the model (default `claude-opus-5-5`).
+4. **Enable it in Nexora:** `NEXORA_AI_BUILD_ENABLED=true`, then restart.
+   - Claude Code is offered by default; `composer.aiBuild.agents.claude-code.model`
+     picks its model (default `claude-opus-5-5`).
+   - `NEXORA_AI_BUILD_CODEX_ENABLED=true` also offers Codex;
+     `composer.aiBuild.agents.codex.model` picks its model (default
+     `gpt-6.1-sol`).
+   - `NEXORA_AI_BUILD_DEFAULT_AGENT` (`claude-code` or `codex`) runs when an
+     assignment names none. `NEXORA_AI_BUILD_CLAUDE_ENABLED=false` offers
+     Codex alone.
    Each assignment is a paid model run.
 
 A repository created before NXD-153 has no such workflow. Nexora then

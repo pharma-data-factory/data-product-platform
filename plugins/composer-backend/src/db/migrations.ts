@@ -693,6 +693,13 @@ export async function up(knex: Knex): Promise<void> {
       table.string('updated_at', 64).notNullable();
     });
   }
+  // NXD-154. Which coding agent the assignment ran. Nullable: rows from
+  // before the choice existed ran Claude Code, and are read as such.
+  if (!(await knex.schema.hasColumn('ai_build_assignments', 'agent'))) {
+    await knex.schema.alterTable('ai_build_assignments', table => {
+      table.string('agent', 32).nullable();
+    });
+  }
 
   await makeAuditTrailAppendOnly(knex);
 }
