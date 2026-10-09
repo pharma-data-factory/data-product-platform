@@ -305,6 +305,20 @@ writes no code and merges nothing.
      ChatGPT subscription is not an API key.
    A run whose agent has no key fails at *Check the agent's key*, naming the
    secret.
+
+   > **GitHub Free: set the key in every product repository.** On the Free
+   > plan, private repositories cannot use organization secrets. GitHub says
+   > so on the secrets page: *"Organization secrets cannot be used by private
+   > repositories with your plan."* The Golden Paths create private
+   > repositories, so an organization secret is never seen there. Until the
+   > organization is on a paid plan (Team or Enterprise), set the same secret
+   > in **each** product repository after creating it: repository →
+   > **Settings** → *Secrets and variables* → **Actions** → **New repository
+   > secret** (direct link:
+   > `https://github.com/<org>/<repo>/settings/secrets/actions`). Each new
+   > product needs this step. On a paid plan, one organization secret with
+   > access to *Private repositories* or *All repositories* covers every
+   > product, and nothing is needed per repository.
 2. **Allow the actions.** If the organization restricts actions, allow
    `anthropics/claude-code-action` and/or `openai/codex-action`
    (*Actions* → *General* → *Actions permissions*).
@@ -323,6 +337,10 @@ writes no code and merges nothing.
      assignment names none. `NEXORA_AI_BUILD_CLAUDE_ENABLED=false` offers
      Codex alone.
    Each assignment is a paid model run.
+
+**Per new product (GitHub Free only):** create the product, then set
+`ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` as a repository secret in its new
+repository before the first *Assign to AI build*.
 
 A repository created before NXD-153 has no such workflow. Nexora then
 records the assignment as *Not dispatched* with that reason, and sends

@@ -10353,6 +10353,15 @@ as well as, an Anthropic one. The Composer's spec generation
 - Nexora cannot see which organisation secrets exist. Offer only agents
   whose key is set; otherwise the run fails at *Check the agent's key*,
   naming the missing secret.
+- **Found on 2026-10-09, in the first setup:** on GitHub Free, private
+  repositories cannot use organisation secrets, and the Golden Paths create
+  private repositories. The `pharma-data-factory` organisation is on Free,
+  so the key must be set as a repository secret in each new product
+  repository. `docs/github-setup.md` (*Help → Installation → GitHub setup*)
+  now says so. A paid plan, or the move to Roche's organisation, makes one
+  organisation secret enough again. Nexora writing the secret into each
+  repository was considered and not done: Nexora would then hold the model
+  key, and the App would need *Secrets: write*.
 
 - Affected components:
   - `plugins/composer-backend/src/`: `types.ts`, `db/migrations.ts`,
