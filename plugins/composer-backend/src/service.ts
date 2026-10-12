@@ -63,6 +63,7 @@ import {
   type JsonSchemaLike,
   versionLabelsEquivalent,
   isGmpRelevant,
+  justificationProblem,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import type { CiEvidenceClient } from './ci-evidence-client';
@@ -1999,6 +2000,11 @@ export class ComposerService {
       throw new InputError(
         'This product is GMP-relevant: approving or releasing it needs a justification and your signing PIN.',
       );
+    }
+    // NXD-160. A reason in words, not a token.
+    const problem = justificationProblem(justification);
+    if (problem) {
+      throw new InputError(`This product is GMP-relevant: ${problem}`);
     }
     if (!input?.pin) {
       throw new InputError(

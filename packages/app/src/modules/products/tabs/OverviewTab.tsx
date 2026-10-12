@@ -119,6 +119,9 @@ export function OverviewTab({
             {selectedVersion && (
               <ReleaseReadinessCard
                 versionLabel={selectedVersion.version}
+                versionStatus={selectedVersion.status}
+                releasedAt={selectedVersion.approvedAt}
+                releasedBy={selectedVersion.approvedBy}
                 loadGate={loadGate}
                 coverage={coverage}
                 refreshKey={[

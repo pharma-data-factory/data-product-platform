@@ -89,11 +89,26 @@ describe('signed approval and release (NXD-128)', () => {
     await expect(
       service.signedVersionTransition(
         version.id,
-        { targetStatus: 'APPROVED', signature: { justification: 'ok' } },
+        { targetStatus: 'APPROVED', signature: { justification: 'Reviewed and approved.' } },
         REVIEWER,
         verifyPin,
       ),
     ).rejects.toThrow(/needs your signing PIN/);
+  });
+
+  it('a one-word justification is refused before any PIN is checked (NXD-160)', async () => {
+    const { product, version } = await draft('INDIRECT');
+    await expect(
+      service.signedVersionTransition(
+        version.id,
+        { targetStatus: 'APPROVED', signature: { justification: 'freigabe', pin: 'right-pin' } },
+        REVIEWER,
+        verifyPin,
+      ),
+    ).rejects.toThrow(/GMP-relevant: Say why in a sentence of at least two words/);
+    expect(verifyPin).not.toHaveBeenCalled();
+    expect((await service.getProductVersion(version.id))?.status).toBe('DRAFT');
+    expect(await service.listProductSignatures(product.id)).toEqual([]);
   });
 
   it('a wrong PIN changes nothing', async () => {
@@ -101,7 +116,7 @@ describe('signed approval and release (NXD-128)', () => {
     await expect(
       service.signedVersionTransition(
         version.id,
-        { targetStatus: 'APPROVED', signature: { justification: 'ok', pin: 'wrong' } },
+        { targetStatus: 'APPROVED', signature: { justification: 'Reviewed and approved.', pin: 'wrong' } },
         REVIEWER,
         verifyPin,
       ),
@@ -115,7 +130,7 @@ describe('signed approval and release (NXD-128)', () => {
     await expect(
       service.signedVersionTransition(
         version.id,
-        { targetStatus: 'APPROVED', signature: { justification: 'mine', pin: 'right-pin' } },
+        { targetStatus: 'APPROVED', signature: { justification: 'Approving my own work.', pin: 'right-pin' } },
         AUTHOR,
         verifyPin,
       ),
@@ -123,7 +138,7 @@ describe('signed approval and release (NXD-128)', () => {
     await expect(
       service.signedVersionTransition(
         version.id,
-        { targetStatus: 'RELEASED', signature: { justification: 'x', pin: 'right-pin' } },
+        { targetStatus: 'RELEASED', signature: { justification: 'Release gate is green.', pin: 'right-pin' } },
         REVIEWER,
         verifyPin,
       ),
@@ -144,7 +159,7 @@ describe('signed approval and release (NXD-128)', () => {
     const { product, version } = await draft('DIRECT');
     await service.signedVersionTransition(
       version.id,
-      { targetStatus: 'APPROVED', signature: { justification: 'ok', pin: 'right-pin' } },
+      { targetStatus: 'APPROVED', signature: { justification: 'Reviewed and approved.', pin: 'right-pin' } },
       REVIEWER,
       verifyPin,
     );
@@ -158,7 +173,7 @@ describe('signed approval and release (NXD-128)', () => {
     const { product, version } = await draft('DIRECT');
     const baseline = await service.createProductBaseline(version.id, {}, AUTHOR);
     await expect(
-      service.signedBaselineApproval(baseline.id, { justification: 'x', pin: 'right-pin' }, AUTHOR, verifyPin),
+      service.signedBaselineApproval(baseline.id, { justification: 'Release gate is green.', pin: 'right-pin' }, AUTHOR, verifyPin),
     ).rejects.toThrow(/Segregation of Duties/);
     expect(verifyPin).not.toHaveBeenCalled();
     const approved = await service.signedBaselineApproval(

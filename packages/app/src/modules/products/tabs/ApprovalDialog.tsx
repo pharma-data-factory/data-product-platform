@@ -20,6 +20,7 @@ import {
   Typography,
 } from '@material-ui/core';
 import { NEXORA_TONE } from '@internal/plugin-nexora-common';
+import { justificationProblem } from '@internal/platform-common';
 import type { SignatureInput } from '../api';
 
 export type ApprovalAct = 'VERSION_APPROVED' | 'VERSION_RELEASED' | 'BASELINE_APPROVED';
@@ -73,8 +74,14 @@ export function ApprovalDialog(props: {
     return null;
   }
 
+  // NXD-160. The server's rule, shown while typing rather than after a
+  // refused click.
+  const reasonProblem = justification.trim()
+    ? justificationProblem(justification)
+    : undefined;
   const canConfirm =
-    !busy && (!signed || (justification.trim().length > 0 && pin.length > 0));
+    !busy &&
+    (!signed || (!justificationProblem(justification) && pin.length > 0));
 
   const confirm = async () => {
     setBusy(true);
@@ -118,6 +125,12 @@ export function ApprovalDialog(props: {
           value={justification}
           onChange={e => setJustification(e.target.value)}
           margin="normal"
+          error={signed && Boolean(reasonProblem)}
+          helperText={
+            signed
+              ? reasonProblem ?? 'Why, in a sentence: it is part of the signed record.'
+              : undefined
+          }
         />
         {signed ? (
           <>

@@ -294,7 +294,22 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
    */
   router.post('/contexts/:id/evidence-review', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationRunStartPermission);
+      // NXD-160. A product evidence review reads recorded CI evidence and
+      // writes a review run; it decides nothing. Whoever may sign the
+      // decision may also start the review it signs on, so a validation
+      // expert does not need a developer to start it.
+      try {
+        await authorize(permissions, httpAuth, req, validationRunStartPermission);
+      } catch (denied) {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user'],
+          allowLimitedAccess: true,
+        });
+        const info = userInfo ? await userInfo.getUserInfo(credentials) : undefined;
+        if (signatureRoles(info?.ownershipEntityRefs ?? []).length === 0) {
+          throw denied;
+        }
+      }
       const executor = await resolveExecutor(httpAuth, userInfo, req);
       const productVersionId = String(req.body?.productVersionId ?? '').trim();
       if (!productVersionId) {

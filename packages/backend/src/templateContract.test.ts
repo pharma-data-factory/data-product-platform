@@ -225,6 +225,15 @@ describe('template registration and generation contract', () => {
         action: 'nexora:product:create',
         afterRegister: true,
       });
+      // NXD-160. The owner the form asks for reaches the product record; a
+      // product created without one is refused by the release gate.
+      const productStep = entity.spec.steps.find(
+        (step: { id: string }) => step.id === 'product',
+      ) as { input?: Record<string, unknown> };
+      expect([template.id, productStep.input?.owner]).toEqual([
+        template.id,
+        '${{ parameters.owner }}',
+      ]);
 
       // Every publishing template asks the author for an approved URS baseline
       // and verifies it before it publishes anything. The two always ship

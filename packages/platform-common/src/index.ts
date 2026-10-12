@@ -926,3 +926,4 @@ export {
 } from './llm-timeout';
 export { techDocsPath } from './techdocs';
 export type { TechDocsEntityLike } from './techdocs';
+export { justificationProblem, MIN_JUSTIFICATION_LENGTH } from './signatureJustification';

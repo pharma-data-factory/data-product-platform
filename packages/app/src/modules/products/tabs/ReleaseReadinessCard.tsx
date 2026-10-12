@@ -157,11 +157,22 @@ function Meter({
 
 export function ReleaseReadinessCard({
   versionLabel,
+  versionStatus,
+  releasedAt,
+  releasedBy,
   loadGate,
   refreshKey,
   coverage,
 }: {
   versionLabel: string;
+  /**
+   * NXD-160. A RELEASED or SUPERSEDED version is past the gate: the gate
+   * wants a release candidate, so asking it about a released version listed
+   * "Version must be RELEASE_CANDIDATE, got RELEASED" as a blocker.
+   */
+  versionStatus?: string;
+  releasedAt?: string | Date;
+  releasedBy?: string;
   /** The page owns the client; this card owns when to ask. */
   loadGate: () => Promise<ReleaseGateResult>;
   /** Changes whenever something the gate reads has changed. */
@@ -172,10 +183,16 @@ export function ReleaseReadinessCard({
   const theme = useTheme();
   const tone = tones(theme.palette.type === 'dark');
 
+  const pastGate = versionStatus === 'RELEASED' || versionStatus === 'SUPERSEDED';
   // refreshKey is a dependency on purpose: it is how a transition, a bound
   // baseline or new evidence re-runs the gate without the page wiring it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const load = useCallback(() => loadGate(), [loadGate, refreshKey]);
+  // A version past the gate is not asked (NXD-160).
+  const load = useCallback(
+    (): Promise<ReleaseGateResult> =>
+      pastGate ? Promise.resolve({ passed: true, blockers: [] }) : loadGate(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loadGate, refreshKey, pastGate],
+  );
   const { value: gate, loading, error, retry } = useLoadable(load);
 
   return (
@@ -194,7 +211,16 @@ export function ReleaseReadinessCard({
         {error && (
           <LoadError error={error} what="the release gate" onRetry={retry} />
         )}
-        {gate && !error && (
+        {pastGate ? (
+          <Typography className={classes.status} style={{ color: tone.good }}>
+            <CheckCircleIcon aria-hidden />{' '}
+            {versionStatus === 'RELEASED' ? 'Released' : 'Superseded'}
+            {releasedBy ? ` by ${releasedBy}` : ''}
+            {releasedAt ? `, ${new Date(releasedAt).toLocaleString()}` : ''} — the
+            release gate passed when it was released
+          </Typography>
+        ) : null}
+        {!pastGate && gate && !error && (
           <>
             {gate.passed ? (
               <Typography className={classes.status} style={{ color: tone.good }}>
@@ -260,7 +286,7 @@ export function ReleaseReadinessCard({
 
         {gate && !error && (
           <>
-            {!gate.passed && (
+            {!pastGate && !gate.passed && (
               <ul className={classes.blockers} aria-label="Release blockers">
                 {gate.blockers.map((blocker, index) => (
                   <li key={`${blocker.code}-${index}`} className={classes.blocker}>

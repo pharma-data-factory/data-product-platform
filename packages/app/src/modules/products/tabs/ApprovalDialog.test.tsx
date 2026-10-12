@@ -47,7 +47,7 @@ describe('ApprovalDialog (NXD-128)', () => {
     render(
       <ApprovalDialog act="BASELINE_APPROVED" subject="x 1.0" gxpRelevance="INDIRECT" onConfirm={onConfirm} onClose={jest.fn()} />,
     );
-    fireEvent.change(screen.getByLabelText(/Justification/), { target: { value: 'ok' } });
+    fireEvent.change(screen.getByLabelText(/Justification/), { target: { value: 'Reviewed and approved.' } });
     fireEvent.change(screen.getByLabelText(/Signing PIN/), { target: { value: 'wrong' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Re-authentication failed');

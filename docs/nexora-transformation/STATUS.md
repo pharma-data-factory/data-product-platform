@@ -439,6 +439,12 @@ four quick wins F1–F4, one commit and one record each.
   a two-signature validation decision and a signed release, to RELEASED.
   Segregation of duties held. Fourteen findings are named, nine of them a UI
   batch to do next. See [`NXD-159`](DECISIONS.md).
+- **UI batch, first part.** A one-word signature justification is refused,
+  in the dialog and on the server; the Golden Paths pass the owner their
+  form asks for; a validation expert can start the evidence review they
+  sign on; a released version's readiness card stops listing its own
+  status as a blocker. NXD-159 items 1–3 and 6–8 remain. See
+  [`NXD-160`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

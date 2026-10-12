@@ -10688,3 +10688,45 @@ have done after the walk. 10–14 are named, not yet decided.
 **Not run.** Step 12: publish, install and run the released version. It
 needs a release tag build in the product repository and a target, as
 `NXD-148` did for another product.
+
+### NXD-160 — A signature's justification is a reason in words, a Golden Path's owner reaches the product, and a validation expert can start the review they sign on
+
+- Date: 2026-10-12
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, items 4, 5 and 9,
+  and one defect the walk showed on the released version.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**A justification is a reason, not a token (item 9).** One rule,
+`justificationProblem` in `platform-common`: at least two words and ten
+characters. It is a floor, not a judgement of content. Composer's signed
+version transition and baseline approval, and the validation decision
+signature, refuse anything shorter, before any PIN is checked, so a refused
+signature changes nothing and spends no PIN attempt. The approval dialog
+runs the same function while the user types and keeps *Confirm* disabled.
+Tests that signed with `ok`, `x` or `mine` now sign with sentences.
+
+**The Golden Path's owner reaches the product (item 4).** Every template
+that runs `nexora:product:create` passes `owner: ${{ parameters.owner }}`.
+Before, the form asked for an owner and dropped it, the product started
+with none, and the release gate refused it. `templateContract.test.ts`
+asserts the input for every product-creating template.
+
+**A validation expert can start the product evidence review (item 5).**
+`POST /contexts/:id/evidence-review` still accepts `validation.run.start`;
+when that is denied, it also accepts anyone who holds a validation
+signature role (validation-experts, urs-quality-reviewers). The review
+reads recorded CI evidence and writes a review run; it decides nothing, and
+whoever may sign the decision may start the review it rests on. Nobody else
+gains it; `evidenceReviewAuthorization.test.ts` covers allowed, signer and
+neither.
+
+**A released version is past the gate.** The Release readiness card asked
+the gate about a RELEASED version and listed "Version must be
+RELEASE_CANDIDATE, got RELEASED" as a blocker. A RELEASED or SUPERSEDED
+version is no longer sent to the gate; the card says who released it and
+when.
+
+**Not in this record.** Items 1–3 and 6–8 of the batch remain open; so do
+the decisions 10–12. Item 10 matters to the card above: it shows
+`approvedBy`/`approvedAt`, which the release overwrites, so on a released
+version these are the release's, which is what the card claims.

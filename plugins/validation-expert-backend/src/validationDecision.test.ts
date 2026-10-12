@@ -248,6 +248,14 @@ describe('validation decision signatures (NXD-119)', () => {
         expert,
       ),
     ).rejects.toThrow(/justification is required/);
+    // NXD-160. A token is not a reason.
+    await expect(
+      service.signValidationDecision(
+        CONTEXT_ID,
+        { ...approve('VALIDATION_EXPERT'), justification: 'freigabe' },
+        expert,
+      ),
+    ).rejects.toThrow(/at least two words and 10 characters; "freigabe" records no reason/);
     await expect(
       service.signValidationDecision(
         CONTEXT_ID,

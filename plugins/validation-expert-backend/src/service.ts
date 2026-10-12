@@ -2,6 +2,7 @@ import { ConflictError, InputError, NotAllowedError } from '@backstage/errors';
 import {
   baselineNeedsGmpRule,
   isGmpRelevant,
+  justificationProblem,
   validationDecisionProgress,
   VALIDATION_SIGNATURE_ROLES,
 } from '@internal/platform-common';
@@ -994,6 +995,11 @@ export class ValidationExpertService {
     const justification = String(request.justification ?? '').trim();
     if (!justification) {
       throw new InputError('A justification is required for every signature.');
+    }
+    // NXD-160. A reason in words, not a token.
+    const problem = justificationProblem(justification);
+    if (problem) {
+      throw new InputError(problem);
     }
     if (!request.pin) {
       throw new InputError('The signing PIN is required.');

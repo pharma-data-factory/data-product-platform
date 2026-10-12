@@ -184,6 +184,9 @@ spec:
         description: ${{ parameters.description }}
         repositoryUrl: ${{ steps['publish'].output.remoteUrl }}
         catalogEntityRef: ${{ steps['register'].output.entityRef }}
+        # NXD-160. The owner the form asked for; without it the product
+        # started with none and the release gate refused it.
+        owner: ${{ parameters.owner }}
   output:
     links:
       - title: Repository
