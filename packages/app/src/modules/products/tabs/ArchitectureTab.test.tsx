@@ -4,9 +4,13 @@
  * the version is DRAFT, after asking.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ArchitectureTab, componentDetails } from './ArchitectureTab';
+import {
+  ArchitectureTab,
+  componentDetails,
+  requirementStages,
+} from './ArchitectureTab';
 
 const DRAFT: any = { id: 'v1', version: '1.0', status: 'DRAFT' };
 const COMPONENT: any = {
@@ -76,10 +80,9 @@ describe('ArchitectureTab (NXD-157)', () => {
     expect(
       screen.getByText('Implements URS-EPM-003 Equipment event ingestion'),
     ).toBeInTheDocument();
+    const tile = screen.getByRole('region', { name: 'URS-EPM-003' });
     expect(
-      screen.getByText(
-        /URS-EPM-003 Equipment event ingestion —IMPLEMENTS→ event-ingestion/,
-      ),
+      within(tile).getByText('IMPLEMENTS→ event-ingestion'),
     ).toBeInTheDocument();
     expect(screen.queryByText(/c-other/)).not.toBeInTheDocument();
   });
@@ -124,5 +127,45 @@ describe('ArchitectureTab (NXD-157)', () => {
     expect(
       screen.queryByRole('button', { name: /^Remove/ }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('requirement tiles (NXD-162)', () => {
+  const REQS: any[] = [
+    ...REQUIREMENTS,
+    { id: 'r4', requirementRef: 'URS-EPM-004', title: 'OEE calculation' },
+  ];
+
+  it('gives every requirement a tile, and says when one has no component', () => {
+    renderTab({ requirements: REQS });
+    const unlinked = screen.getByRole('region', { name: 'URS-EPM-004' });
+    expect(within(unlinked).getByText('OEE calculation')).toBeInTheDocument();
+    expect(
+      within(unlinked).getByText('No component linked yet.'),
+    ).toBeInTheDocument();
+    expect(within(unlinked).getByText('Not implemented')).toBeInTheDocument();
+  });
+
+  it('shows verified and validated in words when coverage is known', () => {
+    const coverage: any = {
+      byRequirement: [
+        { requirementRef: 'URS-EPM-003', verified: true, validated: undefined },
+      ],
+    };
+    renderTab({ coverage });
+    const tile = screen.getByRole('region', { name: 'URS-EPM-003' });
+    expect(within(tile).getByText('Implemented')).toBeInTheDocument();
+    expect(within(tile).getByText('Verified')).toBeInTheDocument();
+    expect(within(tile).getByText('Validation unknown')).toBeInTheDocument();
+  });
+
+  it('names each stage, unknown as unknown', () => {
+    expect(requirementStages(false, undefined)).toEqual(['Not implemented']);
+    expect(
+      requirementStages(true, { verified: false, validated: false } as any),
+    ).toEqual(['Implemented', 'Not verified', 'Not validated']);
+    expect(
+      requirementStages(true, { verified: true, validated: true } as any),
+    ).toEqual(['Implemented', 'Verified', 'Validated']);
   });
 });

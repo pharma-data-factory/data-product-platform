@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
@@ -100,5 +100,20 @@ describe('Validation Expert overview', () => {
 
     expect(screen.queryByLabelText('Open Candidate')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Open Validation Status')).not.toBeInTheDocument();
+  });
+});
+
+describe('Validation Expert overview sections (NXD-162)', () => {
+  it('keeps Nexora\'s own validation apart from data-product validation', async () => {
+    renderOverview();
+    await waitFor(() => {
+      expect(screen.getByText('NOT_VALIDATED')).toBeInTheDocument();
+    });
+    const platform = screen.getByRole('region', { name: 'Nexora platform validation' });
+    expect(within(platform).getByText('NOT_VALIDATED')).toBeInTheDocument();
+    expect(within(platform).getByText(/It says nothing about any data product/)).toBeInTheDocument();
+    const products = screen.getByRole('region', { name: 'Data-product validation' });
+    expect(within(products).getByLabelText('Open Contexts')).toBeInTheDocument();
+    expect(within(products).queryByText('NOT_VALIDATED')).toBeNull();
   });
 });

@@ -451,6 +451,12 @@ four quick wins F1–F4, one commit and one record each.
   review of unchanged evidence answers with the review on record instead of
   making another run, and the coverage table names the newest run. See
   [`NXD-161`](DECISIONS.md).
+- **UI batch, third part.** Traceability is one tile per requirement, with
+  its components and, in words, whether it is implemented, verified and
+  validated; a requirement without a component says so. The product's
+  Validation tab opens the selected version's decision, and the Validation
+  Expert landing page puts data-product validation first and Nexora's own
+  validation under its own heading. See [`NXD-162`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

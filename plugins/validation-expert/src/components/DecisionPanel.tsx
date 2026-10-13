@@ -97,8 +97,10 @@ export function DecisionPanel(props: {
   canStartReview?: boolean;
   /** Called after a review run was created, so the page can list it. */
   onRunCreated?: () => void;
+  /** NXD-162. The version to show first, e.g. from a product's Validation tab. */
+  initialVersionId?: string;
 }) {
-  const { contextId, canStartReview, onRunCreated } = props;
+  const { contextId, canStartReview, onRunCreated, initialVersionId } = props;
   const api = useApi(validationExpertApiRef);
   const [state, setState] = useState<DecisionStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export function DecisionPanel(props: {
   const [pinDialog, setPinDialog] = useState(false);
   // NXD-127: the decision shown is for one product version; the server picks
   // the newest bound one until the user picks another.
-  const [versionId, setVersionId] = useState<string | undefined>(undefined);
+  const [versionId, setVersionId] = useState<string | undefined>(initialVersionId);
 
   const load = useCallback(() => {
     setError(null);

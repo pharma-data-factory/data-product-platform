@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import {
@@ -136,6 +136,9 @@ export function ContextsPage() {
 
 export function ContextDetailPage() {
   const { contextId = '' } = useParams<{ contextId: string }>();
+  // NXD-162. `?version=` opens the decision of one product version.
+  const [searchParams] = useSearchParams();
+  const requestedVersion = searchParams.get('version') ?? undefined;
   const api = useApi(validationExpertApiRef);
   const identityApi = useApi(identityApiRef);
   const [context, setContext] = useState<ValidationContext | null>(null);
@@ -267,6 +270,7 @@ export function ContextDetailPage() {
       <DecisionPanel
         contextId={context.id}
         canStartReview={canStart}
+        initialVersionId={requestedVersion}
         onRunCreated={() => setRunsVersion(n => n + 1)}
       />
 

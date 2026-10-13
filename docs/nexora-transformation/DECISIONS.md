@@ -10767,3 +10767,38 @@ ones.
 **Not in this record.** Items 1, 6 and 7 of the batch and the decisions
 10–12 remain open.
 
+### NXD-162 — Traceability is a tile per requirement, and a product's validation is not confused with Nexora's own
+
+- Date: 2026-10-13
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, items 1 and 7.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**One tile per requirement (item 1).** The Architecture tab listed links as
+lines, `URS-EPM-003 … —IMPLEMENTS→ event-ingestion`, which repeated the
+requirement on every line and showed nothing for a requirement with no
+link, the case a reviewer is looking for. Each requirement of the bound
+baseline now has a tile: reference, title, its links (removable while
+DRAFT, as in `NXD-157`) and its stages in words, `Implemented` /
+`Not implemented`, `Verified` / `Not verified`, `Validated` /
+`Not validated` / `Validation unknown`. The stages come from the version's
+requirement coverage, the same source as the readiness meters; unknown
+stays unknown (`NXD-056`). A link that starts at no requirement of the
+version is still listed below the tiles.
+
+**A product's Validation tab opens its own decision (item 7).** The link
+went to the context, which opens on the newest version bound to the URS
+baseline, not necessarily the one being looked at. It now carries
+`?version=`, the context page passes it to the decision panel, and the link
+says which version it opens.
+
+**The landing page says whose validation it shows (item 7).** The Validation
+Expert overview began with Nexora's own candidate and `NOT_VALIDATED`, which
+read as the product's state. It now has two sections. *Data-product
+validation* comes first, with the contexts and how a version is decided.
+*Nexora platform validation* holds the platform's candidate, status, IQ, OQ,
+UAT, risks, findings and evidence, and says that it says nothing about any
+data product. No figure changed.
+
+**Not in this record.** Item 6 (the context page as a three-step decision)
+and the decisions 10–12 remain open.
+

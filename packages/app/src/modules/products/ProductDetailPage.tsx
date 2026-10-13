@@ -613,6 +613,7 @@ export function ProductDetailPage() {
               components={components}
               requirements={requirements}
               traceability={traceability}
+              coverage={coverage}
               onAddComponent={addComponent}
               onAddLink={addLink}
               onRemoveComponent={removeComponent}
@@ -688,7 +689,9 @@ export function ProductDetailPage() {
             />
           )}
 
-          {tab === 'validation' && <ValidationTab coverage={coverage} />}
+          {tab === 'validation' && (
+            <ValidationTab coverage={coverage} selectedVersion={selectedVersion} />
+          )}
           </InfoCard>
         </div>
       </Content>

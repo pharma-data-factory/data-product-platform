@@ -16,6 +16,8 @@ import {
 import type {
   ProductComponent,
   ProductRequirement,
+  ProductRequirementCoverage,
+  ProductRequirementCoverageRow,
   ProductVersion,
   TraceabilityLink,
 } from '@internal/platform-common';
@@ -26,6 +28,8 @@ interface ArchitectureTabProps {
   components: ProductComponent[];
   requirements: ProductRequirement[];
   traceability: ProductTraceability | null;
+  /** NXD-162. Each requirement tile shows its verified and validated state. */
+  coverage?: ProductRequirementCoverage | null;
   onAddComponent: (input: Record<string, unknown>) => Promise<void>;
   onAddLink: (input: Record<string, unknown>) => Promise<void>;
   /** NXD-157. Offered while the version is DRAFT. */
@@ -116,11 +120,29 @@ function componentHelperText(version?: ProductVersion): string | undefined {
   return undefined;
 }
 
+/**
+ * NXD-162. What a requirement tile says about its stages, in words: a chip's
+ * colour alone would carry the meaning (NXD-095). Without coverage only the
+ * mapping, which the links show, is known.
+ */
+export function requirementStages(
+  linked: boolean,
+  row: ProductRequirementCoverageRow | undefined,
+): string[] {
+  const stages = [linked ? 'Implemented' : 'Not implemented'];
+  if (!row) return stages;
+  stages.push(row.verified ? 'Verified' : 'Not verified');
+  if (row.validated === undefined) stages.push('Validation unknown');
+  else stages.push(row.validated ? 'Validated' : 'Not validated');
+  return stages;
+}
+
 export function ArchitectureTab({
   selectedVersion,
   components,
   requirements,
   traceability,
+  coverage,
   onAddComponent,
   onAddLink,
   onRemoveComponent,
@@ -414,32 +436,124 @@ export function ArchitectureTab({
             Link requirement
           </Button>
         </div>
-        {versionLinks.map(link => (
-          <Box
-            key={link.id}
-            display="flex"
-            alignItems="center"
-            style={{ gap: 8, marginTop: 4 }}
-          >
-            <Typography variant="body2">
-              {endpoint(link.sourceId)} —{link.relationshipType}→{' '}
-              {endpoint(link.targetId)}
-            </Typography>
-            {editable && onRemoveLink ? (
-              <RemoveControl
-                label={`Remove link ${endpoint(link.sourceId)} to ${endpoint(
-                  link.targetId,
-                )}`}
-                question={`Remove the link ${endpoint(link.sourceId)} —${
-                  link.relationshipType
-                }→ ${endpoint(
-                  link.targetId,
-                )}? The removal is recorded in the audit trail.`}
-                onConfirm={() => onRemoveLink(link.id)}
-              />
-            ) : null}
-          </Box>
-        ))}
+        {/*
+          NXD-162. One tile per requirement (NXD-159 item 1): the flat list
+          of links named the requirement on every line and showed nothing
+          for a requirement without one, which is the case that matters.
+        */}
+        <Box
+          aria-label="Requirement traceability"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: 12,
+            marginTop: 16,
+          }}
+        >
+          {requirements.map(requirement => {
+            const links = versionLinks.filter(
+              link => link.sourceId === requirement.requirementRef,
+            );
+            const row = coverage?.byRequirement.find(
+              r => r.requirementRef === requirement.requirementRef,
+            );
+            return (
+              <Box
+                key={requirement.id}
+                component="section"
+                aria-label={requirement.requirementRef}
+                p={1.5}
+                border={1}
+                borderColor="divider"
+                borderRadius={12}
+                bgcolor="background.paper"
+              >
+                <Typography variant="subtitle2">
+                  {requirement.requirementRef}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {requirement.title}
+                </Typography>
+                <Box
+                  display="flex"
+                  flexWrap="wrap"
+                  style={{ gap: 4, margin: '8px 0' }}
+                >
+                  {requirementStages(links.length > 0, row).map(stage => (
+                    <Chip
+                      key={stage}
+                      size="small"
+                      variant="outlined"
+                      label={stage}
+                    />
+                  ))}
+                </Box>
+                {links.length === 0 ? (
+                  <Typography variant="body2" color="textSecondary">
+                    No component linked yet.
+                  </Typography>
+                ) : (
+                  links.map(link => (
+                    <Box
+                      key={link.id}
+                      display="flex"
+                      alignItems="center"
+                      style={{ gap: 8 }}
+                    >
+                      <Typography variant="body2">
+                        {link.relationshipType}→ {endpoint(link.targetId)}
+                      </Typography>
+                      {editable && onRemoveLink ? (
+                        <RemoveControl
+                          label={`Remove link ${endpoint(
+                            link.sourceId,
+                          )} to ${endpoint(link.targetId)}`}
+                          question={`Remove the link ${endpoint(
+                            link.sourceId,
+                          )} —${link.relationshipType}→ ${endpoint(
+                            link.targetId,
+                          )}? The removal is recorded in the audit trail.`}
+                          onConfirm={() => onRemoveLink(link.id)}
+                        />
+                      ) : null}
+                    </Box>
+                  ))
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+        {/* Links that start at no requirement of this version, if any. */}
+        {versionLinks
+          .filter(
+            link => !requirements.some(r => r.requirementRef === link.sourceId),
+          )
+          .map(link => (
+            <Box
+              key={link.id}
+              display="flex"
+              alignItems="center"
+              style={{ gap: 8, marginTop: 4 }}
+            >
+              <Typography variant="body2">
+                {endpoint(link.sourceId)} —{link.relationshipType}→{' '}
+                {endpoint(link.targetId)}
+              </Typography>
+              {editable && onRemoveLink ? (
+                <RemoveControl
+                  label={`Remove link ${endpoint(link.sourceId)} to ${endpoint(
+                    link.targetId,
+                  )}`}
+                  question={`Remove the link ${endpoint(link.sourceId)} —${
+                    link.relationshipType
+                  }→ ${endpoint(
+                    link.targetId,
+                  )}? The removal is recorded in the audit trail.`}
+                  onConfirm={() => onRemoveLink(link.id)}
+                />
+              ) : null}
+            </Box>
+          ))}
       </section>
     </>
   );

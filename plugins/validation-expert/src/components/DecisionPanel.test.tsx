@@ -42,7 +42,11 @@ const COMPLETE = {
 
 function renderPanel(
   api: Record<string, jest.Mock>,
-  extra: { canStartReview?: boolean; onRunCreated?: () => void } = {},
+  extra: {
+    canStartReview?: boolean;
+    onRunCreated?: () => void;
+    initialVersionId?: string;
+  } = {},
 ) {
   return render(
     <MemoryRouter>
@@ -191,6 +195,12 @@ describe('DecisionPanel (NXD-120)', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByLabelText('Approve')).toBeDisabled();
     expect(within(dialog).getByLabelText('Reject')).toBeChecked();
+  });
+
+  it('opens on the version it was asked for (NXD-162)', async () => {
+    const api = { getDecisionState: jest.fn().mockResolvedValue(state()) };
+    renderPanel(api, { initialVersionId: 'v1' });
+    await waitFor(() => expect(api.getDecisionState).toHaveBeenCalledWith(CTX, 'v1'));
   });
 
   it('says when unchanged evidence made no new review (NXD-161)', async () => {
