@@ -701,7 +701,55 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  await addVersionReleaseColumns(knex);
+
   await makeAuditTrailAppendOnly(knex);
+}
+
+/**
+ * NXD-164. A release has its own who and when. Until now the release wrote
+ * `approved_by`/`approved_at`, so a released version showed its releaser as
+ * its approver (NXD-159 item 10) and no rule could compare the two.
+ *
+ * Backfilled once, when the columns are added: a released or superseded
+ * version's `approved_*` become its `released_*`, and the approval is read
+ * back from its VERSION_APPROVED signature (NXD-128). A version approved
+ * before signatures existed keeps what it had; the record holds no other.
+ */
+async function addVersionReleaseColumns(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('product_versions'))) return;
+  if (await knex.schema.hasColumn('product_versions', 'released_by')) return;
+  // A partial schema (older test fixtures) has nothing to backfill from.
+  if (!(await knex.schema.hasColumn('product_versions', 'approved_by'))) return;
+  await knex.schema.alterTable('product_versions', table => {
+    table.string('released_by', 255).nullable();
+    table.timestamp('released_at').nullable();
+  });
+  const released = await knex('product_versions')
+    .whereIn('status', ['RELEASED', 'SUPERSEDED'])
+    .select('id', 'approved_by', 'approved_at');
+  const hasSignatures = await knex.schema.hasTable('product_signatures');
+  for (const row of released) {
+    const update: Record<string, unknown> = {
+      released_by: row.approved_by,
+      released_at: row.approved_at,
+    };
+    const approval = hasSignatures
+      ? await knex('product_signatures')
+          .where({
+            entity_type: 'PRODUCT_VERSION',
+            entity_id: row.id,
+            meaning: 'VERSION_APPROVED',
+          })
+          .orderBy('signed_at', 'desc')
+          .first()
+      : undefined;
+    if (approval) {
+      update.approved_by = approval.signed_by;
+      update.approved_at = new Date(approval.signed_at);
+    }
+    await knex('product_versions').where({ id: row.id }).update(update);
+  }
 }
 
 /**

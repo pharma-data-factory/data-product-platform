@@ -1885,6 +1885,18 @@ export class ComposerService {
           `A different person must perform the approval.`,
       );
     }
+    // NXD-164. Release is a second person's act: not the version's
+    // approver. The walk (NXD-159 item 11) had one person approve
+    // the version and release it; the user decided that needs two.
+    if (targetStatus === 'RELEASED') {
+      if (version.approvedBy && actor === version.approvedBy) {
+        throw new NotAllowedError(
+          `Segregation of Duties violation: the approver of a product version ` +
+            `cannot release it. Actor "${actor}" approved version ${versionId}. ` +
+            `A different person must perform the release.`,
+        );
+      }
+    }
     return version;
   }
 
@@ -2033,9 +2045,14 @@ export class ComposerService {
       releaseCommitSha: request.releaseCommitSha ?? version.releaseCommitSha,
       artifactDigest: request.artifactDigest ?? version.artifactDigest,
     };
-    if (request.targetStatus === 'APPROVED' || request.targetStatus === 'RELEASED') {
+    // NXD-164. Approval and release each keep their own who and when.
+    if (request.targetStatus === 'APPROVED') {
       updated.approvedBy = actor;
       updated.approvedAt = new Date();
+    }
+    if (request.targetStatus === 'RELEASED') {
+      updated.releasedBy = actor;
+      updated.releasedAt = new Date();
     }
     await this.repository.updateProductVersion(updated);
     await this.audit(audit, 'PRODUCT_VERSION', versionId, 'STATUS_TRANSITION', {

@@ -344,8 +344,12 @@ export interface ProductVersion {
   artifactRef?: string;
   createdBy: string;
   createdAt: Date;
+  /** Who approved the version. A release no longer overwrites it (NXD-164). */
   approvedBy?: string;
   approvedAt?: Date;
+  /** NXD-164. Who released the version, a person other than its approver. */
+  releasedBy?: string;
+  releasedAt?: Date;
   revision: number;
 }
 

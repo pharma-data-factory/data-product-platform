@@ -463,6 +463,13 @@ four quick wins F1–F4, one commit and one record each.
   the URS reference, requirements, coverage and runs are folded below.
   NXD-159 items 1–9 are done; checked live on `oee-ai-build-test-1`.
   Decisions 10–12 remain. See [`NXD-163`](DECISIONS.md).
+- **Release is a second person's act.** Whoever approved a version may not
+  release it (the user's decision on NXD-159 item 11). A release records its
+  own `releasedBy`/`releasedAt` instead of overwriting the approval's, and
+  released versions were backfilled from their approval signatures. The
+  validation decision names its own product version only; the others on
+  the same URS baseline are listed apart, folded. See
+  [`NXD-164`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

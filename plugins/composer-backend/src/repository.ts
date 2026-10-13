@@ -210,6 +210,8 @@ export class ComposerRepository implements IComposerRepository {
       urs_baseline_id: version.ursBaselineId || null,
       approved_by: version.approvedBy || null,
       approved_at: version.approvedAt || null,
+      released_by: version.releasedBy || null,
+      released_at: version.releasedAt || null,
       revision: (version.revision || 1) + 1,
     });
   }
@@ -939,6 +941,8 @@ export class ComposerRepository implements IComposerRepository {
       createdAt: row.created_at,
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
+      releasedBy: row.released_by || undefined,
+      releasedAt: row.released_at || undefined,
       revision: row.revision,
     };
   }

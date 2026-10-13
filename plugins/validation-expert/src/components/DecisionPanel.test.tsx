@@ -9,7 +9,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
-import { DecisionPanel, decisionSteps, nextStepText } from './DecisionPanel';
+import {
+  DecisionPanel,
+  decisionSteps,
+  nextStepText,
+  otherVersionLines,
+} from './DecisionPanel';
 import { DecisionStateView, validationExpertApiRef } from '../api';
 
 const CTX = 'VALIDATION-CTX-OEE';
@@ -61,7 +66,7 @@ describe('DecisionPanel (NXD-120)', () => {
   it('states the GMP rule and the product it comes from', async () => {
     renderPanel({ getDecisionState: jest.fn().mockResolvedValue(state()) });
     expect(await screen.findByText('GMP-relevant')).toBeInTheDocument();
-    expect(screen.getByText(/oee-line-3 \(DIRECT\)/)).toBeInTheDocument();
+    expect(screen.getByText(/oee-line-3 1.0: GxP relevance DIRECT\./)).toBeInTheDocument();
     expect(
       screen.getByText('Waiting for the validation expert. QA approves after them.'),
     ).toBeInTheDocument();
@@ -254,8 +259,10 @@ describe('DecisionPanel (NXD-120)', () => {
     };
     renderPanel(api);
     expect(
-      await screen.findByText(/recorded per baseline before NXD-127 \(covers no version\): APPROVED/),
+      await screen.findByText('Recorded per baseline before NXD-127, covers no version: APPROVED'),
     ).toBeInTheDocument();
+    // NXD-164. The other version of the baseline is listed apart, undecided.
+    expect(screen.getByText('oee-line-3 1.1 (DRAFT): no decision')).toBeInTheDocument();
     fireEvent.mouseDown(screen.getByLabelText('Product version'));
     fireEvent.click(await screen.findByRole('option', { name: /oee-line-3 1.1/ }));
     await waitFor(() => expect(api.getDecisionState).toHaveBeenLastCalledWith(CTX, 'v2'));
@@ -340,5 +347,18 @@ describe('decision steps (NXD-163)', () => {
     const qa = within(steps).getByRole('listitem', { name: 'QA approves' });
     expect(within(qa).queryByRole('button')).toBeNull();
     expect(within(qa).getByText('Waiting')).toBeInTheDocument();
+  });
+});
+
+describe('other versions on the baseline (NXD-164)', () => {
+  it('lists every other version with its own decision, not the one shown', () => {
+    const lines = otherVersionLines(
+      state({
+        otherDecisions: [
+          { id: 'd2', contextId: CTX, productVersionId: 'v2', status: 'REJECTED' } as any,
+        ],
+      }),
+    );
+    expect(lines).toEqual(['oee-line-3 1.1 (DRAFT): decision REJECTED']);
   });
 });

@@ -427,6 +427,18 @@ describe('Phase 1: Versioning Foundation', () => {
       const gate = await service.checkReleaseGate(version.id);
       expect(gate.passed).toBe(true);
 
+      // NXD-164. The approver may not release what they approved.
+      await expect(
+        service.transitionProductVersionStatus(
+          version.id,
+          { targetStatus: 'RELEASED' },
+          approver,
+        ),
+      ).rejects.toThrow(/approver of a product version cannot release it/);
+      expect((await service.getProductVersion(version.id))?.status).toBe(
+        'RELEASE_CANDIDATE',
+      );
+
       const released = await service.transitionProductVersionStatus(
         version.id,
         { targetStatus: 'RELEASED', releaseCommitSha: 'abc123', artifactDigest: 'sha256:def456' },
@@ -435,7 +447,10 @@ describe('Phase 1: Versioning Foundation', () => {
       expect(released.status).toBe('RELEASED');
       expect(released.releaseCommitSha).toBe('abc123');
       expect(released.artifactDigest).toBe('sha256:def456');
-      expect(released.approvedBy).toBe(actor);
+      // NXD-164. The release keeps the approval's who; it has its own.
+      expect(released.approvedBy).toBe(approver);
+      expect(released.releasedBy).toBe(actor);
+      expect(released.releasedAt).toBeInstanceOf(Date);
     });
   });
 

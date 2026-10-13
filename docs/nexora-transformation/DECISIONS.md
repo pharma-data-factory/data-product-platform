@@ -10845,3 +10845,52 @@ shared by the products on one baseline; its other decisions are now folded,
 not separated). Step 12 of the lifecycle, publish, install and run, was not
 run.
 
+### NXD-164 — A version is released by someone other than its approver, and a release keeps its own who and when
+
+- Date: 2026-10-13
+- Slice: the decisions [`NXD-159`](DECISIONS.md) left open, items 10–12.
+- Decided by: the user, on item 11: "ja, zweite Person sollte nötig sein"
+  (2026-10-13). Items 10 and 12 as proposed in the plan of the same day.
+
+**Release needs a second person (item 11).** In the walk one person,
+demo-pm, approved the product baseline, approved the version and released
+it. That was allowed: the only rule was "not your own work". Now
+`assertVersionTransition` refuses a release by the version's approver with
+403, the same Segregation of Duties refusal the approval gives its author.
+It applies to the plain and the signed transition alike, before any PIN is
+checked, so a refused release spends no PIN attempt and changes nothing. The
+Overview tab says it before the click: on a release candidate it names the
+approver who may not release. Not decided, so not enforced: whether the
+version's *author* may release it, and whether the product baseline's
+approver may. Both are one condition each in the same place.
+
+**A release has its own who and when (item 10).** The release wrote
+`approvedBy`/`approvedAt`, so a released version showed its release as its
+approval, and the rule above could not have been checked at all: the
+approver was gone. `ProductVersion` gains `releasedBy`/`releasedAt`
+(columns `released_by`/`released_at`); APPROVED writes the one pair,
+RELEASED the other. The migration adds the columns and backfills once:
+every RELEASED or SUPERSEDED version's `approved_*` move to `released_*`, and
+its approval is read back from its `VERSION_APPROVED` signature (`NXD-128`).
+A version approved before signatures existed keeps what it had, because the
+record holds nothing else. The release readiness card reads the release
+pair. The test that asserted `approvedBy` equal to the releaser after a
+release asserted the defect; it now asserts both pairs.
+
+**One version's decision, the others apart (item 12).** The validation
+context belongs to the URS baseline and is shared by every product bound to
+it; the decision is per version (`NXD-127`) and that held. But the panel
+said "Products on this baseline: …" next to the GMP rule, and listed the
+other versions' decisions under the steps. It now states the GMP relevance
+of the shown version's own product, and lists every other version on the
+baseline, with its own decision or "no decision", in a folded section that
+says none of them is part of the decision shown. Decisions recorded per
+baseline before `NXD-127` are listed there too.
+
+**Checked live.** After a restart the migration ran on the workspace
+database: `oee-ai-build-test-1` 1.0 now shows approved 20:13:14 (from its
+signature) and released 20:37:37, both by demo-pm, which was allowed when it
+happened. A release refused for its approver was not tried live, because it
+needs a release candidate the demo data does not have without moving one;
+`versioning.test.ts` covers it, and the version stays RELEASE_CANDIDATE.
+

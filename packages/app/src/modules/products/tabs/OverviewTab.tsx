@@ -120,8 +120,8 @@ export function OverviewTab({
               <ReleaseReadinessCard
                 versionLabel={selectedVersion.version}
                 versionStatus={selectedVersion.status}
-                releasedAt={selectedVersion.approvedAt}
-                releasedBy={selectedVersion.approvedBy}
+                releasedAt={selectedVersion.releasedAt}
+                releasedBy={selectedVersion.releasedBy}
                 loadGate={loadGate}
                 coverage={coverage}
                 refreshKey={[
@@ -158,6 +158,18 @@ export function OverviewTab({
                 ))}
               </Box>
             )}
+            {/* NXD-164. Said before the click, not only in the refusal. */}
+            {selectedVersion?.status === 'RELEASE_CANDIDATE' &&
+            selectedVersion.approvedBy ? (
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                style={{ marginTop: -8, marginBottom: 16 }}
+              >
+                Release is a second person's act: anyone with release rights
+                except {selectedVersion.approvedBy}, who approved this version.
+              </Typography>
+            ) : null}
 
             {/*
               Before the gate, not only when it is reachable: a baseline is

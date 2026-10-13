@@ -195,6 +195,31 @@ export function decisionSteps(state: DecisionStateView): DecisionStep[] {
   ];
 }
 
+/**
+ * NXD-164. The other versions bound to the same URS baseline, each with its
+ * own decision, and decisions recorded per baseline before NXD-127.
+ */
+export function otherVersionLines(state: DecisionStateView): string[] {
+  const decisions = state.otherDecisions ?? [];
+  const lines = (state.versions ?? [])
+    .filter(v => v.id !== state.productVersionId)
+    .map(v => {
+      const decision = decisions.find(d => d.productVersionId === v.id);
+      return `${v.productName} ${v.version} (${v.status}): ${
+        decision ? `decision ${decision.status}` : 'no decision'
+      }`;
+    });
+  const legacy = decisions.filter(
+    d => !(state.versions ?? []).some(v => v.id === d.productVersionId),
+  );
+  return [
+    ...lines,
+    ...legacy.map(
+      d => `Recorded per baseline before NXD-127, covers no version: ${d.status}`,
+    ),
+  ];
+}
+
 export function DecisionPanel(props: {
   contextId: string;
   /** May start a product evidence review (validation.run.start). */
@@ -287,10 +312,16 @@ export function DecisionPanel(props: {
             validation expert or QA decides.
           </>
         )}{' '}
-        {state.products.length > 0
-          ? `Products on this baseline: ${state.products
-              .map(p => `${p.name} (${p.gxpRelevance ?? 'GxP relevance not answered'})`)
-              .join(', ')}.`
+        {/*
+          NXD-164. The rule follows this version's own product (NXD-127);
+          the other products on the baseline are listed below, folded
+          (NXD-159 item 12).
+        */}
+        {current
+          ? `${current.productName} ${current.version}: GxP relevance ${
+              state.products.find(p => p.id === current.productId)?.gxpRelevance ??
+              'not answered'
+            }.`
           : 'No product is bound to this baseline yet, so the GMP rule applies.'}
       </Typography>
       {state.classificationError ? (
@@ -396,59 +427,60 @@ export function DecisionPanel(props: {
         </Typography>
       )}
 
-      {state.signatures.length > 0 ||
-      (state.otherDecisions && state.otherDecisions.length > 0) ? (
+      {state.signatures.length > 0 ? (
         <Accordion variant="outlined" style={{ marginTop: 12 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="body2">Signature record</Typography>
+          </AccordionSummary>
+          <AccordionDetails style={{ display: 'block' }}>
+            <Table size="small" aria-label="Signatures">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Verdict</TableCell>
+                  <TableCell>Signed by</TableCell>
+                  <TableCell>When</TableCell>
+                  <TableCell>Justification</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {state.signatures.map(sig => (
+                  <TableRow key={sig.id}>
+                    <TableCell>{ROLE_LABEL[sig.role]}</TableCell>
+                    <TableCell>
+                      <StatusChip value={sig.verdict} />
+                    </TableCell>
+                    <TableCell>{sig.signedBy}</TableCell>
+                    <TableCell>{formatWhen(sig.signedAt)}</TableCell>
+                    <TableCell>{sig.justification}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </AccordionDetails>
+        </Accordion>
+      ) : null}
+
+      {otherVersionLines(state).length > 0 ? (
+        <Accordion variant="outlined">
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="body2">
-              Signature record and other decisions on this baseline
+              Other product versions on this baseline (
+              {otherVersionLines(state).length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails style={{ display: 'block' }}>
-            {state.signatures.length > 0 ? (
-              <Table size="small" aria-label="Signatures">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Role</TableCell>
-                    <TableCell>Verdict</TableCell>
-                    <TableCell>Signed by</TableCell>
-                    <TableCell>When</TableCell>
-                    <TableCell>Justification</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {state.signatures.map(sig => (
-                    <TableRow key={sig.id}>
-                      <TableCell>{ROLE_LABEL[sig.role]}</TableCell>
-                      <TableCell>
-                        <StatusChip value={sig.verdict} />
-                      </TableCell>
-                      <TableCell>{sig.signedBy}</TableCell>
-                      <TableCell>{formatWhen(sig.signedAt)}</TableCell>
-                      <TableCell>{sig.justification}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : null}
-            {state.otherDecisions && state.otherDecisions.length > 0 ? (
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                style={{ marginTop: 12 }}
-              >
-                Other decisions on this baseline:{' '}
-                {state.otherDecisions
-                  .map(d => {
-                    const v = versions.find(x => x.id === d.productVersionId);
-                    const label = v
-                      ? `${v.productName} ${v.version}`
-                      : 'recorded per baseline before NXD-127 (covers no version)';
-                    return `${label}: ${d.status}`;
-                  })
-                  .join(' · ')}
-              </Typography>
-            ) : null}
+            <Typography variant="body2" color="textSecondary" paragraph>
+              Each is decided on its own evidence; none of these is part of
+              the decision above.
+            </Typography>
+            <Box component="ul" aria-label="Other product versions" m={0} pl={2}>
+              {otherVersionLines(state).map(line => (
+                <li key={line}>
+                  <Typography variant="body2">{line}</Typography>
+                </li>
+              ))}
+            </Box>
           </AccordionDetails>
         </Accordion>
       ) : null}
