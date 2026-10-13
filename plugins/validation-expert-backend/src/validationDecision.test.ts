@@ -329,6 +329,26 @@ describe('product evidence review and the approval block (NXD-124)', () => {
     });
   });
 
+  it('answers a review of unchanged evidence with the review on record (NXD-161)', async () => {
+    let statuses: Record<string, string[]> = { 'URS-EPM-001': ['PASSED'] };
+    const { service } = makeService(classifierFor('DIRECT'), async id =>
+      evidenceReader(statuses)(id),
+    );
+    const first = await service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+    expect(first.reused).toBeUndefined();
+    const again = await service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+    expect(again).toMatchObject({ id: first.id, reused: true });
+
+    statuses = ALL_PASS;
+    const changed = await service.runProductEvidenceReview(CONTEXT_ID, 'v-1', executor);
+    expect(changed.id).not.toBe(first.id);
+    expect(changed.reused).toBeUndefined();
+    const evidenceRuns = (await service.listRunsForContext(CONTEXT_ID)).filter(
+      r => r.type === 'EVIDENCE',
+    );
+    expect(evidenceRuns).toHaveLength(2);
+  });
+
   it('refuses a version that is not bound to the context baseline', async () => {
     const { service } = makeService(
       classifierFor('DIRECT'),

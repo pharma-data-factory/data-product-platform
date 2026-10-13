@@ -129,6 +129,12 @@ export function OverviewTab({
                   selectedVersion.status,
                   selectedVersion.revision,
                   selectedVersion.ursBaselineId,
+                  // The gate's policy obligations read these (NXD-159 item 3).
+                  product.owner,
+                  product.gxpRelevance,
+                  product.dataClassification,
+                  product.criticality,
+                  product.lifecycle,
                   (baselines ?? []).map(b => `${b.id}:${b.status}`).join(','),
                   coverage
                     ? `${coverage.mapped}/${coverage.verified}/${coverage.validated}`

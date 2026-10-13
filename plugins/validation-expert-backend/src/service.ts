@@ -138,6 +138,22 @@ export interface ProductEvidenceStatus {
 /** The product evidence review's test for one requirement. */
 export const evidenceTestId = (requirementId: string) => `EVIDENCE-${requirementId}`;
 
+/** NXD-161. A review answered by the one already on record carries `reused`. */
+export type ProductEvidenceReview = ValidationRun & { reused?: true };
+
+/** Whether a recorded review reached the same verdict, requirement by requirement. */
+function sameResults(
+  run: ValidationRun,
+  results: Array<{ testId: string; status: string; actualResult: string }>,
+): boolean {
+  if (run.executions.length !== results.length) return false;
+  const recorded = new Map(run.executions.map(e => [e.testId, e]));
+  return results.every(r => {
+    const e = recorded.get(r.testId);
+    return e !== undefined && e.status === r.status && e.actualResult === r.actualResult;
+  });
+}
+
 export class ValidationExpertService {
   constructor(
     private readonly options: {
@@ -723,7 +739,7 @@ export class ValidationExpertService {
     contextId: string,
     productVersionId: string,
     executor: ExecutorIdentity,
-  ): Promise<ValidationRun> {
+  ): Promise<ProductEvidenceReview> {
     const context = await this.options.repository.getContext(contextId);
     if (!context) {
       throw new NotFoundError(`Validation context ${contextId} not found`);
@@ -739,17 +755,9 @@ export class ValidationExpertService {
       );
     }
 
-    const run = await this.options.repository.createRun({
-      type: 'EVIDENCE',
-      candidate: `${evidence.productName} ${evidence.version}`,
-      baselineId: context.source.baselineId,
-      contextId: context.id,
-      productVersionId,
-      createdBy: executor,
-    });
-    const now = new Date().toISOString();
+    const candidate = `${evidence.productName} ${evidence.version}`;
     const byRef = new Map(evidence.requirements.map(r => [r.requirementRef, r]));
-    run.executions = (context.source.requirementIds ?? []).map(requirementId => {
+    const results = (context.source.requirementIds ?? []).map(requirementId => {
       const executions = byRef.get(requirementId)?.executions ?? [];
       const failed = executions.filter(e => e.status !== 'PASSED');
       const runs = [
@@ -772,21 +780,42 @@ export class ValidationExpertService {
           executions.length === 1 ? '' : 's'
         } passed${runs.length ? ` (CI ${runs.join(', ')})` : ''}.`;
       }
-      return {
-        id: randomUUID(),
-        runId: run.id,
-        testId: evidenceTestId(requirementId),
-        type: 'EXTERNAL' as const,
-        status,
-        expectedResult:
-          `Every test case naming ${requirementId} passed in the product's CI.`,
-        actualResult,
-        executor,
-        startedAt: now,
-        completedAt: now,
-        evidenceIds: [],
-      };
+      return { requirementId, testId: evidenceTestId(requirementId), status, actualResult };
     });
+
+    // NXD-161. A review of unchanged evidence is the review already on
+    // record: the walk (NXD-159 item 8) made runs 0003–0007 from one intent,
+    // and five identical runs read as five reviews.
+    const latest = (await this.listRunsForContext(contextId))
+      .filter(r => r.type === 'EVIDENCE' && r.productVersionId === productVersionId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .pop();
+    if (latest && latest.candidate === candidate && sameResults(latest, results)) {
+      return { ...latest, reused: true };
+    }
+
+    const run = await this.options.repository.createRun({
+      type: 'EVIDENCE',
+      candidate,
+      baselineId: context.source.baselineId,
+      contextId: context.id,
+      productVersionId,
+      createdBy: executor,
+    });
+    const now = new Date().toISOString();
+    run.executions = results.map(result => ({
+      id: randomUUID(),
+      runId: run.id,
+      testId: result.testId,
+      type: 'EXTERNAL' as const,
+      status: result.status,
+      expectedResult: `Every test case naming ${result.requirementId} passed in the product's CI.`,
+      actualResult: result.actualResult,
+      executor,
+      startedAt: now,
+      completedAt: now,
+      evidenceIds: [],
+    }));
     run.status = 'COMPLETED';
     run.startedAt = now;
     run.completedAt = now;

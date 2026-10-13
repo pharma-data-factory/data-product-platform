@@ -10730,3 +10730,40 @@ when.
 the decisions 10–12. Item 10 matters to the card above: it shows
 `approvedBy`/`approvedAt`, which the release overwrites, so on a released
 version these are the release's, which is what the card claims.
+
+### NXD-161 — An unset owner reads as unset, release readiness says what a re-check changed, and unchanged evidence makes no second review
+
+- Date: 2026-10-13
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, items 2, 3 and 8.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**The owner field has no placeholder (item 2).** The grey
+`group:default/platform-team` inside the empty field read as a stored value,
+and the walk believed the owner was set. The example moves into the helper
+text, which says "Not set" and is shown as an error while the field is
+empty.
+
+**Release readiness follows governance and names what moved (item 3).** The
+card's `refreshKey` now holds owner, GxP relevance, data classification,
+criticality and lifecycle, the fields the gate's policy obligations read, so
+*Save governance* re-checks the gate. The card keeps the previous answer for
+the same version and, after a re-check, says "Since the last check: cleared
+…; new …" or "nothing changed". A blocker is the same blocker when its code
+and message are; a version switch starts over, because another version's
+blockers are not new.
+
+**A review of unchanged evidence is the review on record (item 8).** The
+button was already disabled while a request ran; runs 0003–0007 came from
+pressing it again after each one finished. `runProductEvidenceReview` now
+computes the verdict first and, when the newest EVIDENCE run of that version
+on that context has the same candidate and the same status and result for
+every requirement, returns that run with `reused: true` and records nothing.
+The route answers 200 instead of 201, and the panel says "No new evidence
+since EVIDENCE-RUN-nnnn; that review stands." Any changed result makes a new
+run as before. Runs already recorded stay; nothing is deleted. The context's
+coverage table shows the newest run per requirement and counts the earlier
+ones.
+
+**Not in this record.** Items 1, 6 and 7 of the batch and the decisions
+10–12 remain open.
+

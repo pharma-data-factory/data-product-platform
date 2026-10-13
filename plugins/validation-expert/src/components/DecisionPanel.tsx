@@ -317,13 +317,18 @@ function EvidenceSection(props: {
   const api = useApi(validationExpertApiRef);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unchanged, setUnchanged] = useState<string | null>(null);
   const evidence = state.evidence;
 
   async function start() {
     setBusy(true);
     setError(null);
+    setUnchanged(null);
     try {
-      await api.startEvidenceReview(contextId, productVersionId);
+      const run = await api.startEvidenceReview(contextId, productVersionId);
+      // NXD-161. Unchanged evidence makes no new run; say so, rather than
+      // let the page look as though nothing happened.
+      if (run.reused) setUnchanged(run.id);
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -355,6 +360,11 @@ function EvidenceSection(props: {
             {busy ? 'Reviewing…' : 'Run product evidence review'}
           </Button>
         </Box>
+      ) : null}
+      {unchanged ? (
+        <Typography role="status" variant="body2" color="textSecondary">
+          No new evidence since {unchanged}; that review stands.
+        </Typography>
       ) : null}
       {error ? (
         <Typography role="alert" variant="body2" style={{ color: NX.failFg }}>

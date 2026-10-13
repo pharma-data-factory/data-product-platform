@@ -36,6 +36,14 @@ function formatWhen(value?: string) {
   return new Date(parsed).toLocaleString();
 }
 
+/** The most recently created of `runIds`; the last one when runs are not loaded. */
+export function newestRunId(runIds: string[], runs: ValidationRun[] | null): string {
+  const created = new Map((runs ?? []).map(run => [run.id, run.createdAt]));
+  return [...runIds].sort((a, b) =>
+    (created.get(a) ?? '').localeCompare(created.get(b) ?? ''),
+  )[runIds.length - 1];
+}
+
 export function ContextsPage() {
   const api = useApi(validationExpertApiRef);
   const [items, setItems] = useState<ValidationContext[] | null>(null);
@@ -432,20 +440,24 @@ export function ContextDetailPage() {
                         {row.testIds.length ? row.testIds.join(', ') : '—'}
                       </TableCell>
                       <TableCell>
-                        {row.runIds.length
-                          ? row.runIds.map((runId, index) => (
-                              <span key={runId}>
-                                {index > 0 ? ', ' : null}
-                                <RouterLink
-                                  to={`/validation-expert/runs/${encodeURIComponent(
-                                    runId,
-                                  )}`}
-                                >
-                                  {runId}
-                                </RouterLink>
-                              </span>
-                            ))
-                          : '—'}
+                        {row.runIds.length ? (
+                          // NXD-161. The newest run decides; the earlier
+                          // ones are counted, not listed (NXD-159 item 8).
+                          <>
+                            <RouterLink
+                              to={`/validation-expert/runs/${encodeURIComponent(
+                                newestRunId(row.runIds, runs),
+                              )}`}
+                            >
+                              {newestRunId(row.runIds, runs)}
+                            </RouterLink>
+                            {row.runIds.length > 1
+                              ? ` (+${row.runIds.length - 1} earlier)`
+                              : null}
+                          </>
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

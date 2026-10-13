@@ -193,6 +193,22 @@ describe('DecisionPanel (NXD-120)', () => {
     expect(within(dialog).getByLabelText('Reject')).toBeChecked();
   });
 
+  it('says when unchanged evidence made no new review (NXD-161)', async () => {
+    const api = {
+      getDecisionState: jest.fn().mockResolvedValue(state({ evidence: COMPLETE })),
+      startEvidenceReview: jest
+        .fn()
+        .mockResolvedValue({ id: 'EVIDENCE-RUN-0001', reused: true }),
+    };
+    renderPanel(api, { canStartReview: true, onRunCreated: jest.fn() });
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Run product evidence review' }),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'No new evidence since EVIDENCE-RUN-0001; that review stands.',
+    );
+  });
+
   it('starts a product evidence review of a bound version and reloads (NXD-124)', async () => {
     const onRunCreated = jest.fn();
     const api = {

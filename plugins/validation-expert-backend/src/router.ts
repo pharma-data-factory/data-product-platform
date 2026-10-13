@@ -320,7 +320,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
         productVersionId,
         executor,
       );
-      res.status(201).json(run);
+      // NXD-161. Unchanged evidence answers with the review on record.
+      res.status(run.reused ? 200 : 201).json(run);
     } catch (error) {
       respondError(res, logger, error);
     }

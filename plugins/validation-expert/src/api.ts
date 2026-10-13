@@ -220,7 +220,11 @@ export interface ValidationExpertApi {
   /** NXD-119: classification, signatures, next role, the caller's roles. */
   getDecisionState(contextId: string, productVersionId?: string): Promise<DecisionStateView>;
   /** NXD-124: review a product version's CI evidence; answers the run. */
-  startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun>;
+  /** `reused` when the evidence is unchanged and the review on record stands (NXD-161). */
+  startEvidenceReview(
+    contextId: string,
+    productVersionId: string,
+  ): Promise<ValidationRun & { reused?: boolean }>;
   /** NXD-119: sign the decision; answers the new state. */
   signDecision(
     contextId: string,
@@ -403,8 +407,11 @@ export class ValidationExpertClient implements ValidationExpertApi {
     );
   }
 
-  startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun> {
-    return this.json<ValidationRun>(
+  startEvidenceReview(
+    contextId: string,
+    productVersionId: string,
+  ): Promise<ValidationRun & { reused?: boolean }> {
+    return this.json<ValidationRun & { reused?: boolean }>(
       `/contexts/${encodeURIComponent(contextId)}/evidence-review`,
       { method: 'POST', body: JSON.stringify({ productVersionId }) },
     );

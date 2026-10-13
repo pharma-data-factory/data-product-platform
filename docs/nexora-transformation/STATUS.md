@@ -445,6 +445,12 @@ four quick wins F1–F4, one commit and one record each.
   sign on; a released version's readiness card stops listing its own
   status as a blocker. NXD-159 items 1–3 and 6–8 remain. See
   [`NXD-160`](DECISIONS.md).
+- **UI batch, second part.** An unset owner reads as unset, with the example
+  beside the field instead of in it. Release readiness re-checks after a
+  governance save and says which blocker cleared and which appeared. A
+  review of unchanged evidence answers with the review on record instead of
+  making another run, and the coverage table names the newest run. See
+  [`NXD-161`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

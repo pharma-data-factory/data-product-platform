@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Progress } from '@backstage/core-components';
 import {
   Box,
@@ -53,6 +53,40 @@ const BLOCKER_TITLES: Record<string, string> = {
   POLICY_OBLIGATION_UNMET: 'A policy obligation is not met',
   POLICY_PACK_UNRESOLVABLE: 'The policy pack could not be resolved',
 };
+
+function blockerId(blocker: ReleaseGateBlocker): string {
+  return `${blocker.code}|${blocker.message}`;
+}
+
+export interface GateChange {
+  cleared: ReleaseGateBlocker[];
+  added: ReleaseGateBlocker[];
+}
+
+/**
+ * What a re-check changed. A cleared blocker and a newly revealed one leave
+ * the count where it was, so the count alone looked stale (NXD-159 item 3).
+ */
+export function gateChange(
+  before: ReleaseGateResult,
+  after: ReleaseGateResult,
+): GateChange {
+  const was = new Set(before.blockers.map(blockerId));
+  const is = new Set(after.blockers.map(blockerId));
+  return {
+    cleared: before.blockers.filter(b => !is.has(blockerId(b))),
+    added: after.blockers.filter(b => !was.has(blockerId(b))),
+  };
+}
+
+function describeChange(change: GateChange): string {
+  const parts = [
+    change.cleared.length > 0 &&
+      `cleared ${change.cleared.map(blockerTitle).join(', ')}`,
+    change.added.length > 0 && `new ${change.added.map(blockerTitle).join(', ')}`,
+  ].filter(Boolean);
+  return parts.length ? `${parts.join('; ')}.` : 'nothing changed.';
+}
 
 export function blockerTitle(blocker: ReleaseGateBlocker): string {
   return BLOCKER_TITLES[blocker.code] ?? blocker.code;
@@ -195,6 +229,23 @@ export function ReleaseReadinessCard({
   );
   const { value: gate, loading, error, retry } = useLoadable(load);
 
+  // The previous answer for this version, so a re-check can say what moved.
+  // A version switch starts over: its blockers are not "new".
+  const previous = useRef<{ version: string; gate: ReleaseGateResult } | null>(
+    null,
+  );
+  const [change, setChange] = useState<GateChange | null>(null);
+  useEffect(() => {
+    if (!gate || pastGate) return;
+    const last = previous.current;
+    if (last && last.version === versionLabel) {
+      if (last.gate !== gate) setChange(gateChange(last.gate, gate));
+    } else {
+      setChange(null);
+    }
+    previous.current = { version: versionLabel, gate };
+  }, [gate, versionLabel, pastGate]);
+
   return (
     <Card variant="outlined" style={{ marginBottom: 16 }}>
       <CardContent>
@@ -231,6 +282,15 @@ export function ReleaseReadinessCard({
               <Typography className={classes.status} style={{ color: tone.bad }}>
                 <ErrorIcon aria-hidden /> Blocked by {gate.blockers.length}{' '}
                 {gate.blockers.length === 1 ? 'check' : 'checks'}
+              </Typography>
+            )}
+            {change && (
+              <Typography
+                className={classes.blockerMessage}
+                aria-label="Since the last check"
+                style={{ marginTop: 4 }}
+              >
+                Since the last check: {describeChange(change)}
               </Typography>
             )}
           </>

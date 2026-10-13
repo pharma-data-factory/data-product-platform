@@ -170,8 +170,14 @@ export function GovernanceCard({ product, onSave }: GovernanceCardProps) {
         <TextField
           id="product-owner"
           label="Owner"
-          placeholder="group:default/platform-team"
-          helperText="Who is answerable for this product"
+          // No placeholder: a grey example in the field read as a stored
+          // value, and the walk (NXD-159 item 2) believed the owner was set.
+          helperText={
+            owner.trim()
+              ? 'Who is answerable for this product'
+              : 'Not set. Who is answerable, e.g. group:default/platform-team'
+          }
+          error={!owner.trim()}
           value={owner}
           onChange={e => setOwner(e.target.value)}
           style={{ minWidth: 280 }}
