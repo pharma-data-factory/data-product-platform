@@ -490,6 +490,10 @@ four quick wins F1–F4, one commit and one record each.
   recorded. Open: an audited publisher promotion, an honest Marketplace
   partner notice, QA sign-off to QUALIFIED, the service-token overlay in
   `ona-dev.sh serve`. See [`NXD-168`](DECISIONS.md).
+- **The light theme is light at the top too.** Page banners and the page
+  heroes of fifteen pages follow the theme chosen under Settings →
+  Appearance: light on the light theme, as before on the dark. See
+  [`NXD-169`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

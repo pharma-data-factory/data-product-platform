@@ -11088,3 +11088,54 @@ end to end on one product, its code written by the AI build.
 workspace restart.
 
 - Affected components: none. This is a record of a run.
+
+### NXD-169 — On the light theme the page banner and the page hero are light too
+
+- Date: 2026-10-13
+- Slice: after [`NXD-167`](DECISIONS.md). The user switched Settings →
+  Appearance to Light and found pages "sometimes with green headers,
+  sometimes dark"; they chose "everything light".
+
+**Context.** `NXD-167` made the canvas light but left two things that were
+the same on both themes:
+
+- **The page banner.** Both themes used one `pageThemes` map in
+  `packages/app/src/modules/theme/theme.ts`, navy into cyan with white type.
+  About 58 pages open under it (Home, Marketplace, URS Composer, Data
+  Products, Release & Governance, My Access, Users & Roles, …).
+- **The page hero.** Fourteen landing pages and `NexoraToolPage` hard-coded
+  the same navy gradient with light type, eyebrow and ghost buttons (Home,
+  Build, Admin, Developer Hub, Validate, My Products, Releases, Compose,
+  Platform Components, Assets, the two architecture pages, Model Company).
+
+`NXD-167` was checked against the operating system's colour scheme. The
+in-app switch was not checked; this record checks both.
+
+**Decision.**
+
+- **Banner.** The light theme gets its own page themes: white into
+  `NEXORA_SECTION`, navy type. The dark theme keeps `pageThemes`.
+- **Hero.** `NEXORA_HERO` in `plugins/nexora-common/src/tokens.ts` holds one
+  set per theme: dark is exactly the old gradient and colours; light is a
+  white card, navy type, `NEXORA_MUTED` copy, `NEXORA_CYAN_FG` eyebrow, a
+  cyan rule on the left edge and a navy-tinted ghost border. Components use
+  `NEXORA_HERO_VAR`, CSS custom properties that fall back to the dark value.
+  The theme provider (`packages/app/src/modules/theme/index.tsx`) sets them
+  from the theme the user picked, so the Settings switch decides, not the
+  operating system.
+- **Not changed.** The public landing page (`EcosystemPage`, sign-in) stays
+  dark, as does any diagram (Developer Hub and Compose architecture
+  pictures): they are illustrations, not page chrome.
+
+**Checked.** `tokens.contrast.test.ts` holds title, copy and eyebrow of
+both hero sets at ≥ 4.5:1 (both ends of the dark gradient), and that every
+part has a declaration per theme and a dark fallback. Screenshots of all 30
+sidebar routes with the app theme Light under a dark operating system
+scheme, and Home, Marketplace and Model Company on both themes: the light
+theme has no navy or cyan slab left; the dark theme is unchanged. Model
+Company's Stop and Reset buttons hard-coded white type and are on the hero
+colours now, after a first pass left them white on white.
+
+**Found, not fixed.** On the dark theme Model Company's white panels carry
+light-grey text ("Scenario …", the value-stream description): low contrast,
+older than this record.

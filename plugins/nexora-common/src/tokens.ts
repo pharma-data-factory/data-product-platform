@@ -135,3 +135,56 @@ export const NEXORA_STATUS = {
   neutralBg: NEXORA_TONE.neutral.bg,
   neutralFg: NEXORA_TONE.neutral.fg,
 } as const;
+
+/**
+ * NXD-169. The page hero, per theme: the large card at the top of a landing
+ * page. On the dark theme it is the navy gradient it always was; on the light
+ * theme a white card with navy type and a cyan rule on its left edge, so the
+ * light theme has no dark slab at the top of every page.
+ *
+ * Components never read these two sets directly. They use NEXORA_HERO_VAR,
+ * CSS custom properties the app's theme provider sets from the active theme
+ * (packages/app/src/modules/theme/index.tsx). Each property falls back to its
+ * dark value, so a surface rendered without the provider looks as before.
+ */
+export const NEXORA_HERO = {
+  dark: {
+    bg: `linear-gradient(180deg, ${NEXORA_NAVY_DARK} 0%, ${NEXORA_NAVY} 100%)`,
+    fg: NEXORA_GREY[50],
+    muted: NEXORA_GREY[300],
+    accent: NEXORA_CYAN_LIGHT,
+    ghostBorder: 'rgba(255,255,255,0.28)',
+    frame: 'none',
+  },
+  light: {
+    bg: NEXORA_CARD,
+    fg: NEXORA_NAVY,
+    muted: NEXORA_MUTED,
+    accent: NEXORA_CYAN_FG,
+    ghostBorder: 'rgba(10,25,41,0.28)',
+    frame: `inset 4px 0 0 ${NEXORA_CYAN}, 0 0 0 1px ${NEXORA_BORDER}`,
+  },
+} as const;
+
+export type NexoraHeroPart = keyof typeof NEXORA_HERO.dark;
+
+const heroVar = (part: NexoraHeroPart) =>
+  `var(--nx-hero-${part}, ${NEXORA_HERO.dark[part]})`;
+
+/** What a hero's styles use: `background: NEXORA_HERO_VAR.bg`, and so on. */
+export const NEXORA_HERO_VAR: Record<NexoraHeroPart, string> = {
+  bg: heroVar('bg'),
+  fg: heroVar('fg'),
+  muted: heroVar('muted'),
+  accent: heroVar('accent'),
+  ghostBorder: heroVar('ghostBorder'),
+  frame: heroVar('frame'),
+};
+
+/** The declarations that set one theme's hero properties, for a :root rule. */
+export function nexoraHeroDeclarations(variant: 'light' | 'dark'): string {
+  const set = NEXORA_HERO[variant];
+  return (Object.keys(set) as NexoraHeroPart[])
+    .map(part => `--nx-hero-${part}: ${set[part]};`)
+    .join(' ');
+}

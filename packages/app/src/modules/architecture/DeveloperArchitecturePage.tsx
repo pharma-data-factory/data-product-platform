@@ -10,9 +10,10 @@ import {
 import { LandingFooter, LandingNav, LandingStyles } from '../identity/PublicLanding';
 import { LandingI18nProvider } from '../identity/landingI18n';
 import { StoryStatusBadge } from '../identity/ArchitecturePrinciple';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import { C, PHARMA_NAVY, PHARMA_TEAL } from '../identity/landingTokens';
 import {
   NEXORA_GREY,
+  NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 
 const linkStyle = {
@@ -76,15 +77,16 @@ function Hero() {
       aria-label="Developer architecture overview"
       style={{
         padding: '128px 24px 64px',
-        background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
-        color: NEXORA_GREY[50],
+        background: NEXORA_HERO_VAR.bg,
+        boxShadow: NEXORA_HERO_VAR.frame,
+        color: NEXORA_HERO_VAR.fg,
       }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <p
           className="pdf-mono"
           style={{
-            color: PHARMA_TEAL_LIGHT,
+            color: NEXORA_HERO_VAR.accent,
             fontSize: 12,
             letterSpacing: '0.16em',
             textTransform: 'uppercase',
@@ -105,13 +107,13 @@ function Hero() {
         >
           How a developer builds a Data Product.
         </h1>
-        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: NEXORA_GREY[300], maxWidth: 760 }}>
+        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.7, color: NEXORA_HERO_VAR.muted, maxWidth: 760 }}>
           The public architecture story explains why Nexora exists.
           This page explains how a developer uses Catalog, Marketplace, Create,
           Golden Paths and Platform Components to ship an independently running
           Data Product.
         </p>
-        <p style={{ marginTop: 12, fontSize: 16, lineHeight: 1.7, color: NEXORA_GREY[400], maxWidth: 760 }}>
+        <p style={{ marginTop: 12, fontSize: 16, lineHeight: 1.7, color: NEXORA_HERO_VAR.muted, maxWidth: 760 }}>
           Detailed procedures stay in Developer Hub and TechDocs. This view does
           not replace that documentation.
         </p>

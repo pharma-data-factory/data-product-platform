@@ -68,9 +68,12 @@ export {
   NEXORA_SURFACE,
   NEXORA_TEXT,
   NEXORA_TONE,
+  NEXORA_HERO,
+  NEXORA_HERO_VAR,
+  nexoraHeroDeclarations,
 } from './tokens';
 export { withAlpha } from './tokens';
-export type { NexoraToneName } from './tokens';
+export type { NexoraToneName, NexoraHeroPart } from './tokens';
 export { IndustrialTestRoot } from './testUtils';
 export { LoadError } from './loading/LoadError';
 export { useLoadable } from './loading/useLoadable';

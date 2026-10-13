@@ -25,6 +25,7 @@ import {
   NEXORA_NAVY_LINE,
   NEXORA_NAVY_SOFT,
   NEXORA_ON_NAVY,
+  NEXORA_SECTION,
   withAlpha,
 } from '@internal/plugin-nexora-common';
 
@@ -90,6 +91,20 @@ const pageThemes = {
   }),
 };
 
+/**
+ * NXD-169. On the light theme the page banners are light too: white into the
+ * section grey, navy type. Until then both themes shared `pageThemes`, so a
+ * light page opened under a navy-to-cyan banner.
+ */
+const lightPageTheme = genPageTheme({
+  colors: [NEXORA_CARD, NEXORA_SECTION],
+  shape: shapes.wave,
+  options: { fontColor: NEXORA_NAVY },
+});
+const lightPageThemes = Object.fromEntries(
+  Object.keys(pageThemes).map(key => [key, lightPageTheme]),
+) as typeof pageThemes;
+
 /** Light Control Plane theme (default). */
 export const pharmaDataFactoryTheme = createUnifiedTheme({
   palette: {
@@ -143,7 +158,7 @@ export const pharmaDataFactoryTheme = createUnifiedTheme({
   },
   fontFamily: 'Inter, Segoe UI, system-ui, sans-serif',
   defaultPageTheme: 'home',
-  pageTheme: pageThemes,
+  pageTheme: lightPageThemes,
   components: {
     MuiButton: {
       styleOverrides: {

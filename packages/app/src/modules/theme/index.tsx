@@ -3,10 +3,20 @@ import DarkIcon from '@material-ui/icons/Brightness4';
 import { UnifiedThemeProvider } from '@backstage/theme';
 import { ThemeBlueprint } from '@backstage/plugin-app-react';
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
+import { nexoraHeroDeclarations } from '@internal/plugin-nexora-common';
 import {
   pharmaDataFactoryDarkTheme,
   pharmaDataFactoryTheme,
 } from './theme';
+
+/**
+ * NXD-169. Sets the page-hero custom properties (NEXORA_HERO_VAR) for the
+ * theme the user picked under Settings → Appearance, which may differ from
+ * the operating system's colour scheme.
+ */
+function HeroVars({ variant }: { variant: 'light' | 'dark' }) {
+  return <style>{`:root { ${nexoraHeroDeclarations(variant)} }`}</style>;
+}
 
 /**
  * Two branded themes enable Backstage's built-in top-right theme switch
@@ -23,6 +33,7 @@ const nexoraLightTheme = ThemeBlueprint.make({
       icon: <LightIcon />,
       Provider: ({ children }) => (
         <UnifiedThemeProvider theme={pharmaDataFactoryTheme}>
+          <HeroVars variant="light" />
           {children}
         </UnifiedThemeProvider>
       ),
@@ -40,6 +51,7 @@ const nexoraDarkTheme = ThemeBlueprint.make({
       icon: <DarkIcon />,
       Provider: ({ children }) => (
         <UnifiedThemeProvider theme={pharmaDataFactoryDarkTheme}>
+          <HeroVars variant="dark" />
           {children}
         </UnifiedThemeProvider>
       ),
