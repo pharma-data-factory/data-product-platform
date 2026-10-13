@@ -10976,3 +10976,42 @@ Validation Expert pages. Checked live as `demo-release` on both themes.
 
 **Not changed.** The platform-role mapping and the permission sets
 themselves; signatures already given under the alias are not revisited.
+
+### NXD-167 — On the light theme the canvas is light
+
+- Date: 2026-10-13
+- Slice: the light-theme defect noticed while checking [`NXD-166`](DECISIONS.md):
+  the page header was dark text on navy. The user: "fix it Light Theme".
+
+**Context.** `packages/app/public/index.html` paints `html`, `body` and
+`#root` `#05101C`, so that nothing flashes white while the app loads.
+Material UI v4 injects its `CssBaseline` above that inline style, so the
+theme's `background.default` never reached the canvas: it stayed navy on
+both themes. On the dark theme that is the theme's own colour. On the light
+theme every page without a surface of its own drew the light palette's
+dark text on navy. A contrast scan of the 19 sidebar routes as `demo-admin`
+found it on 15 of them: the BUI page header everywhere, the product list
+on Home, the section headings on Build, the intro lines on My Products,
+Validate and Admin, the tabs on every Data Product page, the Notifications
+filters, the Platform Architecture page. Pages that had met it before gave
+themselves a surface one by one (`NXD-158`, `NXD-166`, `ProductsPage`).
+
+**Decision.** `packages/app/src/modules/theme/lightCanvas.css`, imported in
+`packages/app/src/index.tsx` after the BUI styles. When BUI marks `<body>`
+`data-theme-mode='light'`, `html`, `body` and `#root` take `#F4F6F8`, the
+light theme's `background.default` (`NEXORA_SURFACE`). The dark theme, the
+load-time canvas and the sign-in landing page are unchanged. The heroes
+(Welcome, Build a Data Product, Developer Hub, Model Pharma) paint their own
+navy and keep it.
+
+**Rejected.** Pinning the BUI header to dark tokens on the light theme, and
+fixing the pages one at a time. Both leave the cause in place, and the
+header alone was a quarter of what the scan found.
+
+**Checked.** After the change the scan finds no dark-on-dark and no
+light-on-light text on 17 of the 19 routes. The two left are the same on
+the dark theme and deliberate: the dimmed footer version label and Model
+Company's disabled Start button while a simulation runs. Screenshots of Home,
+Build, Marketplace, Developer Hub, Model Company and Roles & permissions on
+the light theme. `pilotHardening.test.ts` holds the navy of `index.html`, the
+import and the light value together.

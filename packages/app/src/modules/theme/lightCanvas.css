@@ -1,0 +1,19 @@
+/*
+ * NXD-167. On the light theme the canvas is light.
+ *
+ * index.html paints html, body and #root #05101C so that nothing flashes
+ * white while the app loads, and Material UI v4 injects CssBaseline above
+ * that inline style, so `background.default` never reached the canvas. On
+ * the dark theme navy is the theme's own colour. On the light theme every
+ * page without a surface of its own, and the BUI page header, drew the light
+ * palette's dark text on navy.
+ *
+ * BUI sets data-theme-mode on <body>. Once it says light, the canvas takes
+ * the light theme's background.default (#F4F6F8, theme.ts). The page heroes
+ * paint their own navy and are unaffected.
+ */
+html:has(> body[data-theme-mode='light']),
+body[data-theme-mode='light'],
+body[data-theme-mode='light'] #root {
+  background: #f4f6f8;
+}

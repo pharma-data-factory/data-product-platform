@@ -93,6 +93,23 @@ describe('MVP 1.1 pilot hardening', () => {
     expect(groups.filter(g => /^urs-.*(reviewers|managers)$/.test(g))).toEqual([]);
   });
 
+  // NXD-167. index.html paints the canvas navy before the app loads; on the
+  // light theme the canvas must become the light palette's background.default.
+  it('gives the light theme a light canvas over the navy of index.html', () => {
+    expect(read('packages/app/public/index.html')).toMatch(
+      /html,\s*body,\s*#root\s*{\s*background: #05101C;/,
+    );
+    expect(read('packages/app/src/index.tsx')).toContain(
+      "import './modules/theme/lightCanvas.css';",
+    );
+    expect(read('plugins/nexora-common/src/tokens.ts')).toContain(
+      "export const NEXORA_SURFACE = '#F4F6F8';",
+    );
+    const css = read('packages/app/src/modules/theme/lightCanvas.css');
+    expect(css).toContain("body[data-theme-mode='light'] #root {");
+    expect(css).toContain('background: #f4f6f8;');
+  });
+
   it('labels AAS Control Plane persistence as an in-memory prototype', () => {
     expect(read('plugins/aas-backend/src/router.ts')).toContain("persistence: 'in-memory'");
     expect(read('plugins/aas-backend/src/router.ts')).toContain('prototype: true');

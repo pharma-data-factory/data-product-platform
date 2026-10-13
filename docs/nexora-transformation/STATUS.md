@@ -480,6 +480,10 @@ four quick wins F1–F4, one commit and one record each.
   is a seat for the three-person release; and a Roles & permissions page
   under Help & Docs shows who may do what, checked against the code. See
   [`NXD-166`](DECISIONS.md).
+- **The light theme has a light canvas.** The canvas stayed the navy of
+  `index.html` on the light theme, so the page header and every page without
+  a surface of its own drew dark text on navy, 15 of 19 sidebar routes. It
+  now takes the light theme's background. See [`NXD-167`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
