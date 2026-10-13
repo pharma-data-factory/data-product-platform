@@ -470,6 +470,10 @@ four quick wins F1–F4, one commit and one record each.
   validation decision names its own product version only; the others on
   the same URS baseline are listed apart, folded. See
   [`NXD-164`](DECISIONS.md).
+- **Release excludes the author and the baseline approver too.** A version
+  is released by someone who neither wrote it, nor approved it, nor approved
+  its product baseline; the Overview tab names them on a release candidate.
+  See [`NXD-165`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

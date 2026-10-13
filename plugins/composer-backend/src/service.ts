@@ -1885,16 +1885,27 @@ export class ComposerService {
           `A different person must perform the approval.`,
       );
     }
-    // NXD-164. Release is a second person's act: not the version's
-    // approver. The walk (NXD-159 item 11) had one person approve
-    // the version and release it; the user decided that needs two.
+    // NXD-164/165. Release is another person's act: not the version's
+    // approver, not its author, and not the approver of its product
+    // baseline. The walk (NXD-159 item 11) had one person approve the
+    // baseline, approve the version and release it; the user decided that
+    // the release needs someone who did none of those.
     if (targetStatus === 'RELEASED') {
-      if (version.approvedBy && actor === version.approvedBy) {
-        throw new NotAllowedError(
-          `Segregation of Duties violation: the approver of a product version ` +
-            `cannot release it. Actor "${actor}" approved version ${versionId}. ` +
+      const sod = (who: string) =>
+        new NotAllowedError(
+          `Segregation of Duties violation: ${who} cannot release it. ` +
+            `Actor "${actor}" is ${who} of version ${versionId}. ` +
             `A different person must perform the release.`,
         );
+      if (version.approvedBy && actor === version.approvedBy) {
+        throw sod('the approver');
+      }
+      if (actor === version.createdBy) {
+        throw sod('the author');
+      }
+      const baselines = await this.repository.listProductBaselines(versionId);
+      if (baselines.some(b => b.status === 'APPROVED' && b.approvedBy === actor)) {
+        throw sod('the approver of the product baseline');
       }
     }
     return version;

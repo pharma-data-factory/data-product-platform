@@ -10894,3 +10894,38 @@ happened. A release refused for its approver was not tried live, because it
 needs a release candidate the demo data does not have without moving one;
 `versioning.test.ts` covers it, and the version stays RELEASE_CANDIDATE.
 
+### NXD-165 — The release also excludes the version's author and the product baseline's approver
+
+- Date: 2026-10-13
+- Slice: the two questions [`NXD-164`](DECISIONS.md) left undecided.
+- Decided by: the user, "ja" to both (2026-10-13): the author of a version
+  and the approver of its product baseline may not release it either.
+
+**The rule.** `assertVersionTransition` refuses a release, with 403 and
+before any PIN is checked, when the actor is the version's approver
+(`NXD-164`), the version's author (`createdBy`), or the approver of an
+APPROVED product baseline of the version. The message names which of the
+three the actor is. The author rule completes the existing pair, *the
+author may not approve*: the author may now neither approve nor release.
+The baseline rule closes the case the walk showed (`NXD-159` item 11),
+where one person approved the baseline and could otherwise release after
+someone else approved the version. A release of a GMP product therefore
+takes at least three people: the author, an approver of version and
+baseline, and a releaser; the baseline and the version may be approved by
+different people.
+
+**Said before the click.** On a release candidate the Overview tab lists
+everyone excluded with the reason, one entry per person,
+`releaseExclusionText` in `OverviewTab.tsx`.
+
+**Tests.** `versioning.test.ts` refuses the approver and the author in the
+full lifecycle and releases with a third identity; a second test approves
+the baseline and the version by different people and refuses the baseline
+approver. The lifecycle test released as the author until now, which this
+record makes inadmissible.
+
+**Not changed.** Who may mark a version RELEASE_CANDIDATE, revert it, or
+supersede a released one. Records released before today are not revisited;
+`oee-ai-build-test-1` 1.0 was approved and released by one person under
+the rules of its time.
+

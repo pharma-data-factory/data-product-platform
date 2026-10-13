@@ -32,6 +32,31 @@ const TRANSITIONS: Record<string, Array<{ label: string; target: string }>> = {
   RELEASED: [{ label: 'Supersede', target: 'SUPERSEDED' }],
 };
 
+/**
+ * NXD-165. Who may not release this version: its author, its approver and
+ * the approver of its product baseline. The server enforces it; this names
+ * them before anyone presses Release.
+ */
+export function releaseExclusionText(
+  version: ProductVersion,
+  baselines: ProductBaseline[],
+): string {
+  const excluded = new Map<string, string[]>();
+  const add = (who: string | undefined, role: string) => {
+    if (!who) return;
+    excluded.set(who, [...(excluded.get(who) ?? []), role]);
+  };
+  add(version.createdBy, 'author');
+  add(version.approvedBy, 'approver of this version');
+  for (const b of baselines) {
+    if (b.status === 'APPROVED') add(b.approvedBy, 'approver of the product baseline');
+  }
+  const names = [...excluded].map(([who, roles]) => `${who} (${roles.join(', ')})`);
+  return `Release needs a further person: anyone with release rights except ${names.join(
+    ', ',
+  )}.`;
+}
+
 interface OverviewTabProps {
   product: Product;
   versions: ProductVersion[];
@@ -158,16 +183,14 @@ export function OverviewTab({
                 ))}
               </Box>
             )}
-            {/* NXD-164. Said before the click, not only in the refusal. */}
-            {selectedVersion?.status === 'RELEASE_CANDIDATE' &&
-            selectedVersion.approvedBy ? (
+            {/* NXD-164/165. Said before the click, not only in the refusal. */}
+            {selectedVersion?.status === 'RELEASE_CANDIDATE' ? (
               <Typography
                 variant="body2"
                 color="textSecondary"
                 style={{ marginTop: -8, marginBottom: 16 }}
               >
-                Release is a second person's act: anyone with release rights
-                except {selectedVersion.approvedBy}, who approved this version.
+                {releaseExclusionText(selectedVersion, baselines ?? [])}
               </Typography>
             ) : null}
 
