@@ -11,6 +11,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   MenuItem,
@@ -30,6 +33,7 @@ import {
   Typography,
 } from '@material-ui/core';
 import { useApi } from '@backstage/core-plugin-api';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import { Link as RouterLink } from 'react-router-dom';
 import type {
   ValidationSignatureRole,
@@ -89,6 +93,106 @@ export function nextStepText(state: DecisionStateView): string {
   return state.gmpRelevant
     ? 'Waiting for the validation expert. QA approves after them.'
     : 'Waiting for the validation expert.';
+}
+
+export type DecisionStepStatus = 'done' | 'next' | 'waiting' | 'rejected';
+
+export const STEP_STATUS_LABEL: Readonly<Record<DecisionStepStatus, string>> = {
+  done: 'Done',
+  next: 'Next',
+  waiting: 'Waiting',
+  rejected: 'Rejected',
+};
+
+export interface DecisionStep {
+  key: 'review' | 'VALIDATION_EXPERT' | 'QUALITY_ASSURANCE' | 'either';
+  title: string;
+  status: DecisionStepStatus;
+  /** Who did it and when, or who is to do it. */
+  detail: string;
+  /** Roles that sign in this step; empty for the review. */
+  roles: ValidationSignatureRole[];
+}
+
+/**
+ * NXD-163. The decision as the steps it is made of (NXD-159 item 6): the
+ * product evidence review, then the validation expert, then QA; for a
+ * product that is not GMP-relevant, the review and one signature. Pure, so
+ * the order and the wording are tested without a page.
+ */
+export function decisionSteps(state: DecisionStateView): DecisionStep[] {
+  const evidence = state.evidence;
+  const ended = Boolean(state.decision);
+  let reviewStatus: DecisionStepStatus = 'next';
+  if (evidence?.complete) reviewStatus = 'done';
+  else if (ended) reviewStatus = 'waiting';
+  const review: DecisionStep = {
+    key: 'review',
+    title: 'Product evidence review',
+    roles: [],
+    status: reviewStatus,
+    detail: evidence
+      ? `${evidence.runId}: ${evidence.passed} of ${evidence.total} requirements passed${
+          evidence.complete ? '.' : ' — every one must pass before anyone approves.'
+        }`
+      : 'No review yet. It reads the recorded CI evidence; anyone who may sign may start it.',
+  };
+
+  const signed = (role?: ValidationSignatureRole) =>
+    state.signatures.find(s => (role ? s.role === role : true));
+  const signatureStep = (
+    key: DecisionStep['key'],
+    title: string,
+    roles: ValidationSignatureRole[],
+    waitingFor: string,
+  ): DecisionStep => {
+    const sig = signed(key === 'either' ? undefined : (key as ValidationSignatureRole));
+    if (sig) {
+      return {
+        key,
+        title,
+        roles,
+        status: sig.verdict === 'APPROVED' ? 'done' : 'rejected',
+        detail: `${sig.verdict === 'APPROVED' ? 'Approved' : 'Rejected'} by ${
+          sig.signedBy
+        }, ${formatWhen(sig.signedAt)}: “${sig.justification}”`,
+      };
+    }
+    const due = !ended && roles.some(role => state.progress.nextRoles.includes(role));
+    let detail = waitingFor;
+    if (ended) detail = 'Not needed: the decision is made.';
+    else if (due) {
+      detail = `Signed by a member of ${roles.map(r => ROLE_GROUP[r]).join(' or ')}, with PIN.`;
+    }
+    return { key, title, roles, status: due ? 'next' : 'waiting', detail };
+  };
+
+  if (!state.gmpRelevant) {
+    return [
+      review,
+      signatureStep(
+        'either',
+        'Validation expert or QA signs',
+        ['VALIDATION_EXPERT', 'QUALITY_ASSURANCE'],
+        'After the review.',
+      ),
+    ];
+  }
+  return [
+    review,
+    signatureStep(
+      'VALIDATION_EXPERT',
+      'Validation expert signs',
+      ['VALIDATION_EXPERT'],
+      'After the review.',
+    ),
+    signatureStep(
+      'QUALITY_ASSURANCE',
+      'QA approves',
+      ['QUALITY_ASSURANCE'],
+      'After the validation expert has approved.',
+    ),
+  ];
 }
 
 export function DecisionPanel(props: {
@@ -196,16 +300,95 @@ export function DecisionPanel(props: {
       ) : null}
 
       {current ? (
-        <EvidenceSection
-          contextId={contextId}
-          productVersionId={current.id}
-          state={state}
-          canStart={Boolean(canStartReview) && !state.decision}
-          onCreated={() => {
-            load();
-            onRunCreated?.();
-          }}
-        />
+        <>
+          <Typography variant="body2" paragraph>
+            <strong>{nextStepText(state)}</strong>
+          </Typography>
+          {/*
+            NXD-163. The decision as its steps, in order, each saying who did
+            it or who is to do it, with its action in place (NXD-159 item 6).
+          */}
+          <Box
+            component="ol"
+            aria-label="Decision steps"
+            style={{ listStyle: 'none', margin: 0, padding: 0 }}
+          >
+            {decisionSteps(state).map((step, index) => {
+              const signers = mine.filter(role => step.roles.includes(role));
+              return (
+                <Box
+                  component="li"
+                  key={step.key}
+                  aria-label={step.title}
+                  mb={1}
+                  p={1.5}
+                  border={1}
+                  borderColor={step.status === 'next' ? 'primary.main' : 'divider'}
+                  borderRadius={8}
+                >
+                  <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+                    <Typography variant="subtitle2">
+                      {index + 1}. {step.title}
+                    </Typography>
+                    <StatusChip value={STEP_STATUS_LABEL[step.status]} />
+                  </Box>
+                  {step.key === 'review' ? (
+                    <EvidenceSection
+                      contextId={contextId}
+                      productVersionId={current.id}
+                      state={state}
+                      canStart={Boolean(canStartReview) && !state.decision}
+                      onCreated={() => {
+                        load();
+                        onRunCreated?.();
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="textSecondary">
+                      {step.detail}
+                    </Typography>
+                  )}
+                  {step.status === 'next' && step.roles.length > 0 ? (
+                    <Box
+                      mt={1}
+                      display="flex"
+                      style={{ gap: 12 }}
+                      flexWrap="wrap"
+                      alignItems="center"
+                    >
+                      {signers.map(role => (
+                        <Button
+                          key={role}
+                          variant="contained"
+                          color="primary"
+                          onClick={() => setSigningAs(role)}
+                        >
+                          Sign as {ROLE_LABEL[role].toLowerCase()}
+                        </Button>
+                      ))}
+                      {signers.length === 0 ? (
+                        <Typography variant="body2" color="textSecondary">
+                          {state.myRoles.length === 0
+                            ? `Signing needs ${step.roles
+                                .map(r => ROLE_GROUP[r])
+                                .join(' or ')} membership.`
+                            : `It is not your turn: ${step.roles
+                                .map(r => ROLE_LABEL[r])
+                                .join(' or ')} signs next.`}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                  ) : null}
+                </Box>
+              );
+            })}
+          </Box>
+          {!state.decision && state.myRoles.length > 0 ? (
+            <Button variant="text" onClick={() => setPinDialog(true)}>
+              Set signing PIN
+            </Button>
+          ) : null}
+        </>
       ) : (
         <Typography variant="body2" color="textSecondary" paragraph>
           No product version is bound to this baseline, so there is nothing to
@@ -213,79 +396,61 @@ export function DecisionPanel(props: {
         </Typography>
       )}
 
-      {current ? (
-        <Typography variant="body2" paragraph>
-          <strong>{nextStepText(state)}</strong>
-        </Typography>
-      ) : null}
-
-      {state.signatures.length > 0 ? (
-        <Table size="small" aria-label="Signatures">
-          <TableHead>
-            <TableRow>
-              <TableCell>Role</TableCell>
-              <TableCell>Verdict</TableCell>
-              <TableCell>Signed by</TableCell>
-              <TableCell>When</TableCell>
-              <TableCell>Justification</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {state.signatures.map(s => (
-              <TableRow key={s.id}>
-                <TableCell>{ROLE_LABEL[s.role]}</TableCell>
-                <TableCell>
-                  <StatusChip value={s.verdict} />
-                </TableCell>
-                <TableCell>{s.signedBy}</TableCell>
-                <TableCell>{formatWhen(s.signedAt)}</TableCell>
-                <TableCell>{s.justification}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : null}
-
-      {state.decision || !current ? null : (
-        <Box mt={2} display="flex" style={{ gap: 12 }} flexWrap="wrap" alignItems="center">
-          {mine.map(role => (
-            <Button
-              key={role}
-              variant="contained"
-              color="primary"
-              onClick={() => setSigningAs(role)}
-            >
-              Sign as {ROLE_LABEL[role].toLowerCase()}
-            </Button>
-          ))}
-          {mine.length === 0 ? (
-            <Typography variant="body2" color="textSecondary">
-              {state.myRoles.length === 0
-                ? `Signing needs ${due.map(r => ROLE_GROUP[r]).join(' or ')} membership.`
-                : `It is not your turn: ${due.map(r => ROLE_LABEL[r]).join(' or ')} signs next.`}
+      {state.signatures.length > 0 ||
+      (state.otherDecisions && state.otherDecisions.length > 0) ? (
+        <Accordion variant="outlined" style={{ marginTop: 12 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="body2">
+              Signature record and other decisions on this baseline
             </Typography>
-          ) : null}
-          {state.myRoles.length > 0 ? (
-            <Button variant="text" onClick={() => setPinDialog(true)}>
-              Set signing PIN
-            </Button>
-          ) : null}
-        </Box>
-      )}
-
-      {state.otherDecisions && state.otherDecisions.length > 0 ? (
-        <Typography variant="body2" color="textSecondary" style={{ marginTop: 12 }}>
-          Other decisions on this baseline:{' '}
-          {state.otherDecisions
-            .map(d => {
-              const v = versions.find(x => x.id === d.productVersionId);
-              const label = v
-                ? `${v.productName} ${v.version}`
-                : 'recorded per baseline before NXD-127 (covers no version)';
-              return `${label}: ${d.status}`;
-            })
-            .join(' · ')}
-        </Typography>
+          </AccordionSummary>
+          <AccordionDetails style={{ display: 'block' }}>
+            {state.signatures.length > 0 ? (
+              <Table size="small" aria-label="Signatures">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Verdict</TableCell>
+                    <TableCell>Signed by</TableCell>
+                    <TableCell>When</TableCell>
+                    <TableCell>Justification</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {state.signatures.map(sig => (
+                    <TableRow key={sig.id}>
+                      <TableCell>{ROLE_LABEL[sig.role]}</TableCell>
+                      <TableCell>
+                        <StatusChip value={sig.verdict} />
+                      </TableCell>
+                      <TableCell>{sig.signedBy}</TableCell>
+                      <TableCell>{formatWhen(sig.signedAt)}</TableCell>
+                      <TableCell>{sig.justification}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : null}
+            {state.otherDecisions && state.otherDecisions.length > 0 ? (
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                style={{ marginTop: 12 }}
+              >
+                Other decisions on this baseline:{' '}
+                {state.otherDecisions
+                  .map(d => {
+                    const v = versions.find(x => x.id === d.productVersionId);
+                    const label = v
+                      ? `${v.productName} ${v.version}`
+                      : 'recorded per baseline before NXD-127 (covers no version)';
+                    return `${label}: ${d.status}`;
+                  })
+                  .join(' · ')}
+              </Typography>
+            ) : null}
+          </AccordionDetails>
+        </Accordion>
       ) : null}
 
       <SignDialog

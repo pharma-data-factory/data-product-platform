@@ -457,6 +457,12 @@ four quick wins F1–F4, one commit and one record each.
   Validation tab opens the selected version's decision, and the Validation
   Expert landing page puts data-product validation first and Nexora's own
   validation under its own heading. See [`NXD-162`](DECISIONS.md).
+- **UI batch, last part.** The validation context page leads with the
+  decision as its steps (review → validation expert → QA), each saying who
+  did it or who is next, with its action in place; the signature record and
+  the URS reference, requirements, coverage and runs are folded below.
+  NXD-159 items 1–9 are done; checked live on `oee-ai-build-test-1`.
+  Decisions 10–12 remain. See [`NXD-163`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

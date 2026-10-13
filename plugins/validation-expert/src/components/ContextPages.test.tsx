@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { identityApiRef } from '@backstage/core-plugin-api';
@@ -159,6 +159,9 @@ describe('Validation contexts UI', () => {
     await waitFor(() => {
       expect(screen.getAllByText('IQ-RUN-0001').length).toBeGreaterThanOrEqual(1);
     });
+    // NXD-163. Reference data is folded; a folded section is not reachable.
+    expect(screen.queryByRole('link', { name: 'IQ-RUN-0001' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Linked runs' }));
     expect(screen.getAllByRole('link', { name: 'IQ-RUN-0001' })[0]).toHaveAttribute(
       'href',
       '/validation-expert/runs/IQ-RUN-0001',

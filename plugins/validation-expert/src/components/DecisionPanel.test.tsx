@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
-import { DecisionPanel, nextStepText } from './DecisionPanel';
+import { DecisionPanel, decisionSteps, nextStepText } from './DecisionPanel';
 import { DecisionStateView, validationExpertApiRef } from '../api';
 
 const CTX = 'VALIDATION-CTX-OEE';
@@ -262,3 +262,83 @@ describe('DecisionPanel (NXD-120)', () => {
   });
 });
 
+describe('decision steps (NXD-163)', () => {
+  const sig = (role: any, verdict: any = 'APPROVED') => ({
+    id: `s-${role}`,
+    contextId: CTX,
+    productVersionId: 'v1',
+    role,
+    verdict,
+    justification: 'Evidence reviewed and complete',
+    signedBy: role === 'VALIDATION_EXPERT' ? 'user:default/vera' : 'user:default/quentin',
+    signedAt: '2026-10-09T20:00:00Z',
+    reauthMethod: 'signature-pin',
+  });
+
+  it('orders a GMP decision as review, expert, QA, and marks what is next', () => {
+    const steps = decisionSteps(state());
+    expect(steps.map(s => [s.title, s.status])).toEqual([
+      ['Product evidence review', 'next'],
+      ['Validation expert signs', 'next'],
+      ['QA approves', 'waiting'],
+    ]);
+    expect(steps[2].detail).toBe('After the validation expert has approved.');
+  });
+
+  it('says who signed, when and why, once a step is done', () => {
+    const steps = decisionSteps(
+      state({
+        evidence: COMPLETE,
+        signatures: [sig('VALIDATION_EXPERT')],
+        progress: { complete: false, nextRoles: ['QUALITY_ASSURANCE'] },
+      }),
+    );
+    expect(steps.map(s => s.status)).toEqual(['done', 'done', 'next']);
+    expect(steps[1].detail).toMatch(
+      /^Approved by user:default\/vera, .*: “Evidence reviewed and complete”$/,
+    );
+    expect(steps[2].detail).toBe('Signed by a member of urs-quality-reviewers, with PIN.');
+  });
+
+  it('has one signature step for a product that is not GMP-relevant', () => {
+    const steps = decisionSteps(
+      state({
+        gmpRelevant: false,
+        progress: { complete: false, nextRoles: ['VALIDATION_EXPERT', 'QUALITY_ASSURANCE'] },
+      }),
+    );
+    expect(steps.map(s => s.title)).toEqual([
+      'Product evidence review',
+      'Validation expert or QA signs',
+    ]);
+  });
+
+  it('marks a rejection and needs no further step', () => {
+    const steps = decisionSteps(
+      state({
+        evidence: COMPLETE,
+        signatures: [sig('VALIDATION_EXPERT', 'REJECTED')],
+        progress: { complete: true, status: 'REJECTED', nextRoles: [] },
+        decision: { status: 'REJECTED' } as any,
+      }),
+    );
+    expect(steps.map(s => s.status)).toEqual(['done', 'rejected', 'waiting']);
+    expect(steps[2].detail).toBe('Not needed: the decision is made.');
+  });
+
+  it('puts the sign action in the step that is due', async () => {
+    renderPanel({
+      getDecisionState: jest.fn().mockResolvedValue(
+        state({ evidence: COMPLETE, myRoles: ['VALIDATION_EXPERT'] }),
+      ),
+    });
+    const steps = await screen.findByRole('list', { name: 'Decision steps' });
+    const expert = within(steps).getByRole('listitem', { name: 'Validation expert signs' });
+    expect(
+      within(expert).getByRole('button', { name: 'Sign as validation expert' }),
+    ).toBeInTheDocument();
+    const qa = within(steps).getByRole('listitem', { name: 'QA approves' });
+    expect(within(qa).queryByRole('button')).toBeNull();
+    expect(within(qa).getByText('Waiting')).toBeInTheDocument();
+  });
+});

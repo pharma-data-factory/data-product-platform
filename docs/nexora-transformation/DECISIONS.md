@@ -10802,3 +10802,46 @@ data product. No figure changed.
 **Not in this record.** Item 6 (the context page as a three-step decision)
 and the decisions 10–12 remain open.
 
+### NXD-163 — The validation context page leads with the decision as three steps, and folds what it rests on
+
+- Date: 2026-10-13
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, item 6, the last of
+  items 1–9.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**The decision as its steps.** The page was one long column: context data,
+then the decision panel with the GMP rule, the review, a sentence on who
+signs next, a signature table and the sign buttons, then four sections of
+reference data. What to do next and who signs was in the middle of it. The
+decision panel now shows an ordered list, *1. Product evidence review*,
+*2. Validation expert signs*, *3. QA approves*, or, for a product that is not
+GMP-relevant, the review and *Validation expert or QA signs*. Each step
+carries a status in words (Done, Next, Waiting, Rejected), who signed,
+when and with what justification, or who is to sign; the review button and
+the sign buttons sit in their step. `decisionSteps` in `DecisionPanel.tsx`
+derives the steps from the decision state, purely; the rule itself is still
+`validationDecisionProgress` (`NXD-119`), and the server re-checks every
+signature as before.
+
+**What it rests on is folded.** The signature table and the other versions'
+decisions on the same baseline move into one collapsed section under the
+steps. The approved URS reference, the baseline requirements, the
+requirement coverage and the linked runs become four collapsed sections
+under *Reference*. Nothing was removed; the status chip learns `Done`,
+`Next` and `Rejected`.
+
+**Checked live.** After a rebuild, as `demo-validator` on
+`VALIDATION-CTX-MUPNNM25?version=…`: the three steps show Done with
+demo-validator and demo-qa-lead as signers, the reference sections are
+folded. The Architecture tab shows five requirement tiles, the product's
+Validation tab links to version 1.0's decision, and the landing page shows
+the two sections (`NXD-162`). A second evidence review of the released
+version answered `200` with `EVIDENCE-RUN-0007` and `reused: true`, and
+recorded no run (`NXD-161`).
+
+**Still open from NXD-159.** The decisions 10 (`approvedBy` overwritten by
+the release), 11 (a second person for the release) and 12 (the context is
+shared by the products on one baseline; its other decisions are now folded,
+not separated). Step 12 of the lifecycle, publish, install and run, was not
+run.
+

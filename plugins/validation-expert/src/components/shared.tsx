@@ -55,6 +55,7 @@ function chipToneFor(value: string): ChipTone {
     upper === 'READY' ||
     upper === 'APPROVED' ||
     upper === 'CLOSED' ||
+    upper === 'DONE' ||
     upper.startsWith('PASS ')
   ) {
     return { backgroundColor: NX.passBg, color: NX.passFg };
@@ -64,6 +65,7 @@ function chipToneFor(value: string): ChipTone {
     upper === 'FAIL' ||
     upper === 'FAILED' ||
     upper === 'ERROR' ||
+    upper === 'REJECTED' ||
     upper.includes('FAIL')
   ) {
     return { backgroundColor: NX.failBg, color: NX.failFg };
@@ -87,6 +89,7 @@ function chipToneFor(value: string): ChipTone {
     upper === 'IN PROGRESS' ||
     upper === 'STARTED' ||
     upper === 'ACTIVE' ||
+    upper === 'NEXT' ||
     upper === 'PENDING'
   ) {
     return { backgroundColor: NX.infoBg, color: NX.infoFg };
