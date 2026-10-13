@@ -11015,3 +11015,76 @@ Company's disabled Start button while a simulation runs. Screenshots of Home,
 Build, Marketplace, Developer Hub, Model Company and Roles & permissions on
 the light theme. `pilotHardening.test.ts` holds the navy of `index.html`, the
 import and the light value together.
+
+### NXD-168 — The AI-built product runs: oee-ai-build-test-1 1.0.0 from tag to IQ evidence
+
+- Date: 2026-10-13
+- Slice: Phase 3 of the user's plan of 2026-10-13, step 12 of the lifecycle
+  walk ([`NXD-159`](DECISIONS.md)): publish, install, run.
+- Decided by: the user approved the tag push, stored a `read:packages`
+  token, chose to run the signed acts through the API with the demo
+  seats, and ran the publisher promotion themselves (see "Found").
+
+**What ran.** Against the development instance, on the product the AI
+build produced ([`NXD-155`](DECISIONS.md)) and the walk released
+([`NXD-159`](DECISIONS.md), [`NXD-164`](DECISIONS.md)):
+
+1. **Tag.** `v1.0.0` on `0a0b80b` (the merge of PR #1) in
+   `pharma-data-factory/oee-ai-build-test-1`. `release.yml` ran green, quality
+   gate included, and pushed
+   `ghcr.io/pharma-data-factory/oee-ai-build-test-1@sha256:f13662fb…dd1c7`
+   with SBOM and provenance attestation. The GitHub Release carries
+   `nexora-release.json`.
+2. **Import.** `demo-pm` imported the release provenance onto the approved
+   product baseline 1.0 (commit and digest, recorded by
+   `github-release:<url>`). The registry took it as DRAFT version
+   `608504c3…` of `pharma-data-factory/oee-ai-build-test-1@1.0.0`.
+3. **Registry.** SUBMIT `demo-pm`, REVIEW `demo-reviewer`, CERTIFY
+   `demo-quality`, PUBLISH `demo-release`: four people, as `NXD-146` demands.
+   The publish gate read the product version as RELEASED.
+4. **Install.** `demo-release` (PIN newly enrolled) installed it as
+   `oee-ai-filler-02`, `EQUIPMENT_ID=filler-02`, on `local-compose`. GMP
+   from the product's governance, so a signed act: 201,
+   `PENDING_EVIDENCE`.
+5. **Run.** The Compose provider logged in to GHCR with the stored token,
+   pulled by digest and reported `applied → PENDING r1`. The container was
+   healthy on host port 1025 (`GET /health` →
+   `{"status":"UP","service":"oee-ai-build-test-1","version":"1.0.0"}`); the
+   second pass reported `RUNNING r1`.
+6. **Evidence.** Observed digest and config hash equal the desired ones,
+   reported by `provider:local-compose`; installation and IQ are
+   `EVIDENCE_RECORDED`. Audit: `INSTALLATION_REQUESTED` (demo-release), two
+   `OBSERVED_STATE_CHANGED` and `IQ_EVIDENCE_RECORDED` (provider). The
+   Marketplace page shows the entry CERTIFIED and the installation RUNNING
+   with evidence recorded.
+
+With this, the walk from URS to a running, IQ-evidenced installation is done
+end to end on one product, its code written by the AI build.
+
+**Found.**
+
+- **The publisher had to be promoted, and the promotion leaves no trace.**
+  `pharma-data-factory` was COMMUNITY with `demo-pm` as its only member, so
+  nothing could be certified, and no second person could review. The user
+  ran `PATCH /publishers/:id/promote` (PARTNER, members demo-pm,
+  demo-reviewer, demo-quality, demo-release) as `demo-admin`; the
+  assistant's own call was refused by its permission classifier as a grant
+  of rights. `promotePublisher` records no actor, writes no audit event and
+  keeps `revision` at 1. Open: a promotion is an attributable, audited act.
+- **The Marketplace overclaims.** It says the artifact "has passed the
+  partner onboarding review". There is no such review; there was one admin
+  call. Open: say what happened, or build the review.
+- **QA's sign-off to `QUALIFIED` still has no route** (`NXD-143`,
+  `NXD-148`). The IQ stops at `EVIDENCE_RECORDED`.
+- **`scripts/ona-dev.sh serve` cannot load `app-config.service-token.yaml`.**
+  Two restarts for `NXD-166`/`NXD-167` dropped it unnoticed, and the
+  provider got 401 "Illegal token" until the instance was restarted with
+  it. Open: an `.env` switch for it, as for guest and demo.
+
+**State left running.** `oee-ai-filler-02` (port 1025) beside
+`oee-filler-01` (port 1026). The pull token is
+`/home/vscode/.nexora-secrets/ghcr/pull-token`, `demo-release`'s PIN
+`/home/vscode/.nexora-secrets/pins/demo-release.pin`; both survive a
+workspace restart.
+
+- Affected components: none. This is a record of a run.

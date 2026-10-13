@@ -484,6 +484,12 @@ four quick wins F1–F4, one commit and one record each.
   `index.html` on the light theme, so the page header and every page without
   a surface of its own drew dark text on navy, 15 of 19 sidebar routes. It
   now takes the light theme's background. See [`NXD-167`](DECISIONS.md).
+- **The AI-built product runs.** `oee-ai-build-test-1` 1.0.0 went from tag
+  to GHCR image, through import and a four-person registry lifecycle, to a
+  signed GMP installation the Compose provider runs, with IQ evidence
+  recorded. Open: an audited publisher promotion, an honest Marketplace
+  partner notice, QA sign-off to QUALIFIED, the service-token overlay in
+  `ona-dev.sh serve`. See [`NXD-168`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
