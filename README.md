@@ -433,7 +433,8 @@ Guest sign-in is opt-in and local-only:
 | `AUTH_GUEST_ENABLED=true`   | Shows **Continue as Guest**                                                                                |
 | `AUTH_GUEST_ROLE=viewer`    | Read-only (default)                                                                                        |
 | `AUTH_GUEST_ROLE=developer` | Additionally permits scaffolding, create, and URS authoring                                                |
-| `AUTH_DEMO_ENABLED=true`    | **Test system:** one sign-in per approval role — `demo-author`, `demo-reviewer`, `demo-pm`, `demo-quality`, `demo-validator`, `demo-qa-lead` |
+| `AUTH_GUEST_ROLE=owner`     | DATA_PRODUCT_OWNER: additionally manages products, approves and releases versions (NXD-166)                |
+| `AUTH_DEMO_ENABLED=true`    | **Test system:** one sign-in per approval role — `demo-author`, `demo-reviewer`, `demo-pm`, `demo-quality`, `demo-validator`, `demo-qa-lead`, `demo-release`, `demo-admin` |
 
 Guest resolves to **VIEWER**: catalog, marketplace and data-product read
 access, no scaffolding, no create. Raising it to `developer` is a deliberate
@@ -576,7 +577,7 @@ values marked below.
 | Start command                        | Files, in merge order                                                                                                                                          |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `yarn start`                         | `app-config.yaml`, `app-config.local.yaml`                                                                                                                     |
-| `scripts/ona-dev.sh start` / `serve` | the two above, then by `.env` flag: `.guest` (`AUTH_GUEST_ENABLED=true`), `.guest-developer` (`AUTH_GUEST_ROLE=developer`), `.demo` (`AUTH_DEMO_ENABLED=true`) |
+| `scripts/ona-dev.sh start` / `serve` | the two above, then by `.env` flag: `.guest` (`AUTH_GUEST_ENABLED=true`), `.guest-developer` (`AUTH_GUEST_ROLE=developer`) or `.guest-owner` (`AUTH_GUEST_ROLE=owner`), `.demo` (`AUTH_DEMO_ENABLED=true`) |
 | `docker compose up nexora`           | `app-config.yaml`, `.production`, `.docker-local`                                                                                                              |
 | Production image                     | `app-config.yaml`, `.production`, `.github`                                                                                                                    |
 
@@ -588,6 +589,7 @@ values marked below.
 | `app-config.local.yaml`            | Local developer overrides; contains a fixed dev auth key                                             | Optional `COMPOSER_AI_KEY`                                                                                                                                                    | No         |
 | `app-config.guest.yaml`            | Adds **Continue as Guest** (read-only VIEWER)                                                        | Nothing — switched on by `AUTH_GUEST_ENABLED=true`                                                                                                                            | No         |
 | `app-config.guest-developer.yaml`  | Raises Guest to DEVELOPER (scaffold, create, URS authoring; never approval)                          | Nothing — `AUTH_GUEST_ROLE=developer`                                                                                                                                         | No         |
+| `app-config.guest-owner.yaml`      | Raises Guest to DATA_PRODUCT_OWNER (also product versions, governance, approval and release)         | Nothing — `AUTH_GUEST_ROLE=owner`                                                                                                                                             | No         |
 | `app-config.demo.yaml`             | **Test system:** one sign-in per approval role — author, business reviewer, product manager, quality | Nothing — `AUTH_DEMO_ENABLED=true`. Refused under `auth.environment: production`                                                                                              | No         |
 | `app-config.github.yaml`           | GitHub App for publishing generated repositories                                                     | `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`, optional `GITHUB_WEBHOOK_SECRET`; optional `GITHUB_TEAM_SYNC_ENABLED`, `GITHUB_TEAM_SYNC_DRY_RUN` (team sync, NXD-108/116) | **Yes**    |
 | `app-config.production.yaml`       | Hosted profile: production auth (Catalog users only, no Guest), permissions on, rate limit           | `APP_BASE_URL`, `BACKEND_BASE_URL`, `AUTH_GITHUB_CALLBACK_URL`, optional `NEXORA_PROVENANCE_TOKEN`. `USERS_BOOTSTRAP_ADMIN` for the first admin                               | **Yes**    |

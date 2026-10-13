@@ -119,9 +119,13 @@ export class URSService {
    * A user can hold multiple approval roles simultaneously.
    *
    * The `urs-*` groups are the canonical mapping per ADR-004 and
-   * docs/rbac/platform-roles.md. The `business-capability-leads` and
-   * `data-product-owners` entries are retained as aliases so that users who
-   * could approve before this mapping was corrected keep their access.
+   * docs/rbac/platform-roles.md. The `business-capability-leads` entry is
+   * retained as an alias so that users who could approve before this mapping
+   * was corrected keep their access.
+   *
+   * NXD-166. `data-product-owners` is no longer PRODUCT_MANAGER. It made every
+   * product owner (all four demo seats, the owner Guest) able to approve URS
+   * step 2; the product-manager step is `urs-product-managers` only.
    */
   private static readonly GROUP_TO_APPROVAL_ROLE: Record<string, ApprovalRole> =
     {
@@ -131,7 +135,6 @@ export class URSService {
       'urs-product-managers': ApprovalRole.PRODUCT_MANAGER,
       'urs-quality-reviewers': ApprovalRole.QUALITY_REVIEWER,
       'business-capability-leads': ApprovalRole.BUSINESS_REVIEWER,
-      'data-product-owners': ApprovalRole.PRODUCT_MANAGER,
     };
 
   /**

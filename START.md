@@ -127,7 +127,9 @@ Two things to know:
 Guest is a VIEWER by default. To exercise the Define and Create journeys set
 `AUTH_GUEST_ROLE=developer` in `.env` and restart — see
 `app-config.guest-developer.yaml`, which also explains what it deliberately
-does not grant.
+does not grant. To manage a product past its first screen (versions,
+governance, approval, release) set `AUTH_GUEST_ROLE=owner` instead
+(`app-config.guest-owner.yaml`, NXD-166).
 
 GitHub sign-in additionally needs `AUTH_GITHUB_CLIENT_ID`,
 `AUTH_GITHUB_CLIENT_SECRET` and an OAuth App Redirect URI of exactly

@@ -927,3 +927,19 @@ export {
 export { techDocsPath } from './techdocs';
 export type { TechDocsEntityLike } from './techdocs';
 export { justificationProblem, MIN_JUSTIFICATION_LENGTH } from './signatureJustification';
+export {
+  DEMO_SEAT_HELP,
+  DOMAIN_GROUP_HELP,
+  PLATFORM_ROLE_HELP,
+  ROLE_PERMISSION_NAMES,
+  SEGREGATION_OF_DUTIES,
+  SIGN_IN_HELP,
+} from './rolesHelp';
+export type {
+  DemoSeatHelp,
+  DomainGroupHelp,
+  DutyRule,
+  PlatformRoleHelp,
+  RoleHighlight,
+  SignInHelp,
+} from './rolesHelp';

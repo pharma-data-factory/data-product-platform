@@ -10929,3 +10929,50 @@ supersede a released one. Records released before today are not revisited;
 `oee-ai-build-test-1` 1.0 was approved and released by one person under
 the rules of its time.
 
+
+### NXD-166 — Roles say what they grant: an in-app roles page, a release seat, and no product-owner stand-in for the product manager
+
+- Date: 2026-10-13
+- Slice: after [`NXD-164`](DECISIONS.md)/[`NXD-165`](DECISIONS.md), whose
+  three-person release had no seat to walk it with, and whose rules nobody
+  could read in the app.
+
+**No stand-in for step 2.** `GROUP_TO_APPROVAL_ROLE` in
+`plugins/urs-composer-backend/src/service.ts` no longer maps
+`data-product-owners` to `PRODUCT_MANAGER`. The alias made every product
+owner — all four demo seats with the owner tier, and the Guest set to
+`developer` — able to approve URS workflow step 2, so one identity could
+take steps 1 and 2. Step 2 is `urs-product-managers` only. The
+`business-capability-leads` alias for step 1 stays. `GET /approval-roles/me`
+answers `demo-author` with `AUTHOR` alone; the E2E approval chain takes
+step 2 as `demo-pm` instead of the reviewer.
+
+**Guest tiers named for what they give.** `AUTH_GUEST_ROLE=developer`
+(`app-config.guest-developer.yaml`) granted `data-product-owners`, so a
+"developer" Guest could approve and release product versions. It now gives
+DEVELOPER only. The owner tier is its own opt-in, `AUTH_GUEST_ROLE=owner`
+and `app-config.guest-owner.yaml`, loaded by `scripts/ona-dev.sh`. Neither
+grants a `urs-*` approval role. `pilotHardening.test.ts` resolves each
+file's groups with `resolvePlatformRole` and holds it to its tier.
+
+**A release seat.** `demo-release` (Rhea Release Manager) in
+`app-config.demo.yaml`: `data-product-owners` and nothing else. It writes and
+approves nothing, so the release's segregation of duties never excludes it,
+and the three-person release of NXD-165 can be walked with demo seats.
+
+**Roles & permissions page.** `/developer/roles`, under Help & Docs in the
+sidebar (`RolesHelpPage.tsx`). It shows the signed-in person's platform tier
+and approval roles, every platform role with what it may do, the approval
+and signature groups, the segregation-of-duties rules, the sign-in options
+and the demo seats. The words live in `packages/platform-common/src/rolesHelp.ts`;
+the groups and permissions come from `roles.ts` and `permissions.ts`.
+`rolesHelp.test.ts` checks that every permission a highlight names is held
+by that role, and `startup.test.ts` that the demo seats listed match
+`app-config.demo.yaml`, so the page cannot claim a right the code does not
+grant. The page brings its own surface from the theme (`background.default`,
+`text.primary`): `index.html` paints the canvas navy, so on the light theme
+bare MUI text was black on navy, the case `NXD-158` fixed for the
+Validation Expert pages. Checked live as `demo-release` on both themes.
+
+**Not changed.** The platform-role mapping and the permission sets
+themselves; signatures already given under the alias are not revisited.

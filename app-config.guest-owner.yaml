@@ -1,0 +1,31 @@
+# Raises the local Guest to DATA_PRODUCT_OWNER (NXD-166).
+#
+# Opt-in on top of app-config.guest.yaml, loaded instead of
+# app-config.guest-developer.yaml when the .env sets AUTH_GUEST_ROLE=owner.
+#
+# What it adds over developer: `product.manage`, which every route on the
+# Product page past "create product" takes — versions, governance, baselines
+# and transitions, including approving and releasing a version. And the coarse
+# `urs.approve` / `urs.sign`. Segregation of duties still holds: a URS step
+# needs its own urs-* approval role (none is granted here), and a version is
+# never approved by its author nor released by its author or approver
+# (NXD-164/165).
+#
+# Until NXD-166 this was what AUTH_GUEST_ROLE=developer did, under the wrong
+# name. Local development only; users-backend refuses it in production.
+#
+# Lowering the role: switch AUTH_GUEST_ROLE back to developer or viewer. The
+# developer list replaces this one on the next start. Removing the guest
+# setting entirely does not demote; see app-config.guest-developer.yaml.
+users:
+  guestGroups:
+    - guests
+    - data-product-developers
+    - urs-authors
+    - data-product-owners
+
+auth:
+  providers:
+    guest:
+      # @visibility frontend
+      userEntityRef: user:default/guest

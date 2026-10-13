@@ -68,6 +68,7 @@ BACKEND_SECRET=dev-local-auth-key
 #   AUTH_GUEST_ENABLED=true   shows "Continue as Guest"
 #   AUTH_GUEST_ROLE=viewer    read-only (default)
 #   AUTH_GUEST_ROLE=developer additionally allows scaffolding and create
+#   AUTH_GUEST_ROLE=owner     additionally manages, approves and releases products
 # AUTH_GUEST_ENABLED=true
 # AUTH_GUEST_ROLE=viewer
 
@@ -90,7 +91,10 @@ base_config_args() {
   guest_role="$(env_value AUTH_GUEST_ROLE)"
   if [ "$guest_enabled" = "true" ]; then
     out+=(--config "$ROOT/app-config.guest.yaml")
-    if [ "$guest_role" = "developer" ]; then
+    if [ "$guest_role" = "owner" ]; then
+      out+=(--config "$ROOT/app-config.guest-owner.yaml")
+      echo "Guest sign-in: enabled, role DATA_PRODUCT_OWNER (can approve and release products)" >&2
+    elif [ "$guest_role" = "developer" ]; then
       out+=(--config "$ROOT/app-config.guest-developer.yaml")
       echo "Guest sign-in: enabled, role DEVELOPER (can scaffold and create)" >&2
     else

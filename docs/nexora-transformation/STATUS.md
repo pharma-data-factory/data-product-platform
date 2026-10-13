@@ -474,6 +474,12 @@ four quick wins F1–F4, one commit and one record each.
   is released by someone who neither wrote it, nor approved it, nor approved
   its product baseline; the Overview tab names them on a release candidate.
   See [`NXD-165`](DECISIONS.md).
+- **Roles say what they grant.** A product owner is no longer a stand-in
+  for the product manager on URS step 2; the Guest set to `developer` is a
+  developer, with `AUTH_GUEST_ROLE=owner` as its own tier; `demo-release`
+  is a seat for the three-person release; and a Roles & permissions page
+  under Help & Docs shows who may do what, checked against the code. See
+  [`NXD-166`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

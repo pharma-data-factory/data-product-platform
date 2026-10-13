@@ -30,6 +30,9 @@ import {
 const AUTHOR = 'demo-author';
 const REVIEWER = 'demo-reviewer';
 const QUALITY = 'demo-quality';
+// NXD-166. Step 2 is the product manager's; data-product-owners no longer
+// stands in for it, so the reviewer cannot take it.
+const PM = 'demo-pm';
 const PIN = 'e2e-pin-4711';
 
 async function demoToken(
@@ -115,6 +118,7 @@ test.describe('URS approval chain', () => {
     const author = urs(request, await demoToken(request, AUTHOR));
     const reviewer = urs(request, await demoToken(request, REVIEWER));
     const quality = urs(request, await demoToken(request, QUALITY));
+    const pm = urs(request, await demoToken(request, PM));
 
     // ── Authoring, via the API ──────────────────────────────────────────
     const capabilities = await author.json('get', '/capabilities');
@@ -144,6 +148,7 @@ test.describe('URS approval chain', () => {
     // enrolment ignores it, so this works on a fresh stack and on a rerun.
     await reviewer.json('put', '/signing-pin', { pin: PIN, currentPin: PIN });
     await quality.json('put', '/signing-pin', { pin: PIN, currentPin: PIN });
+    await pm.json('put', '/signing-pin', { pin: PIN, currentPin: PIN });
 
     // ── Author: create and submit the baseline, in the browser ─────────
     const authorPage = await seat(browser, AUTHOR);
@@ -185,13 +190,16 @@ test.describe('URS approval chain', () => {
     );
     expect(refused.status()).toBe(403);
 
-    // ── Reviewer: steps 1 and 2 ─────────────────────────────────────────
+    // ── Reviewer: step 1. Product manager: step 2 ───────────────────────
     const reviewerPage = await seat(browser, REVIEWER);
     await openWorkflow(reviewerPage, set.id);
-    for (const _step of [1, 2]) {
-      await reviewerPage.getByRole('button', { name: 'Approve' }).first().click();
-      await signWithPin(reviewerPage);
-    }
+    await reviewerPage.getByRole('button', { name: 'Approve' }).first().click();
+    await signWithPin(reviewerPage);
+
+    const pmPage = await seat(browser, PM);
+    await openWorkflow(pmPage, set.id);
+    await pmPage.getByRole('button', { name: 'Approve' }).first().click();
+    await signWithPin(pmPage);
 
     // ── Quality: QA signature on the versions, then step 3 ──────────────
     const qualityPage = await seat(browser, QUALITY);
@@ -216,13 +224,13 @@ test.describe('URS approval chain', () => {
     const finished = await quality.json('get', `/approvals/${instance.id}`);
     expect(finished.status).toBe('APPROVED');
     // Who acted on each step, as the server recorded it: the reviewer took
-    // steps 1 and 2, quality took step 3, and the author took none.
+    // step 1, the product manager step 2, quality step 3, the author none.
     const actedBy = [...finished.steps]
       .sort((a: any, b: any) => a.sequence - b.sequence)
       .map((step: any) => step.actedBy as string);
     expect(actedBy).toEqual([
       expect.stringContaining(REVIEWER),
-      expect.stringContaining(REVIEWER),
+      expect.stringContaining(PM),
       expect.stringContaining(QUALITY),
     ]);
   });
