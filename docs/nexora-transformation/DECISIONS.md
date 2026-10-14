@@ -11329,3 +11329,42 @@ repository. That was already so before this record, with v3.
 - The platform jobs on `ubuntu-26.04` are proven by this pull request's
   own CI run.
 
+### NXD-173 — knex moves only with Backstage, and Dependabot watches the templates' workflows
+
+- Date: 2026-10-14
+- Slice: after [`NXD-172`](DECISIONS.md), the Dependabot triage.
+
+**Context.**
+
+- **Dependabot #9 fails `yarn tsc`.** The "non-backstage-minor-patch" group
+  raised `knex` from `^3.0.0` to `^3.3.0` in our plugins.
+  `@backstage/backend-plugin-api` keeps its own `knex` 3.1.0, so the tree
+  held two copies. Six `plugin.ts` files pass Backstage's `DatabaseService`
+  to a repository typed against our `knex`, and `Knex.Value` differs between
+  3.1 and 3.3: artifact-registry, composer, installations, urs-composer,
+  users and validation-expert. A `yarn dedupe` would move Backstage's own
+  dependency, which AGENTS.md routes through the Backstage upgrade gate.
+- **Dependabot never saw `templates/`.** The github-actions entry had
+  `directory: /`, which covers `/.github/workflows` only. That is how the
+  templates fell behind until `NXD-172`.
+
+**Decision.**
+
+- **`knex` belongs to the `backstage` group** and is excluded from the
+  minor/patch group. It moves when Backstage moves, through the same gate.
+- **The github-actions entry lists `/templates/*/content`** next to `/`.
+
+**Not verified.** GitHub's documentation confirms that `directories`
+accepts the `*` glob. It does not say whether Dependabot then reads
+`.github/workflows` inside each matched directory. Check after the merge:
+Insights → Dependency graph → Dependabot, "Check for updates".
+
+**Next.**
+
+- Dependabot #9 needs `@dependabot recreate` so that it is rebuilt without
+  `knex`. Its CI then shows whether the rest holds. That rest includes
+  `@types/jest` 29 → 30, a major inside a minor/patch group.
+- #10–#12 (jsdom, cross-env, node-gyp majors) are each to be judged on
+  their own.
+- #8 (Backstage, 62 packages) goes through the upgrade gate.
+
