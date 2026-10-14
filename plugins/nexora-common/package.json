@@ -17,9 +17,9 @@
     "clean": "backstage-cli package clean"
   },
   "dependencies": {
-    "@backstage/core-components": "^0.18.12",
-    "@backstage/core-plugin-api": "^1.12.8",
-    "@backstage/frontend-plugin-api": "^0.17.3",
+    "@backstage/core-components": "^0.18.14",
+    "@backstage/core-plugin-api": "^1.12.10",
+    "@backstage/frontend-plugin-api": "^0.18.1",
     "@backstage/theme": "^0.7.3",
     "@internal/platform-common": "workspace:^",
     "@material-ui/core": "^4.12.2"
