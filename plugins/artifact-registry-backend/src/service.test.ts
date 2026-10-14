@@ -150,6 +150,67 @@ describe('ArtifactRegistryService', () => {
         ),
       ).rejects.toThrow(/displayName/i);
     });
+
+    // NXD-171: a trust change is a grant and keeps a record of who and why.
+    it('records who promoted a publisher, from what to what, and why', async () => {
+      const hobby = await service.createPublisher(
+        { namespace: 'hobby', displayName: 'Hobby', trustLevel: 'COMMUNITY' },
+        actor,
+      );
+      const promoted = await service.promotePublisher(
+        hobby.id,
+        'PARTNER',
+        ['group:default/hobby-team'],
+        'user:default/admin',
+        '  Signed partner agreement PA-17  ',
+      );
+      expect(promoted.trustLevel).toBe('PARTNER');
+      expect(promoted.memberGroups).toEqual(['group:default/hobby-team']);
+      const changes = await service.listPublisherChanges(hobby.id);
+      expect(changes).toHaveLength(1);
+      expect(changes[0]).toMatchObject({
+        publisherId: hobby.id,
+        fromTrustLevel: 'COMMUNITY',
+        toTrustLevel: 'PARTNER',
+        fromMemberGroups: hobby.memberGroups,
+        toMemberGroups: ['group:default/hobby-team'],
+        reason: 'Signed partner agreement PA-17',
+        actor: 'user:default/admin',
+      });
+      expect(changes[0].occurredAt).toBeInstanceOf(Date);
+    });
+
+    it('keeps the member groups when a promotion names none', async () => {
+      const hobby = await service.createPublisher(
+        {
+          namespace: 'hobby',
+          displayName: 'Hobby',
+          trustLevel: 'COMMUNITY',
+          memberGroups: ['group:default/hobby-team'],
+        },
+        actor,
+      );
+      await service.promotePublisher(hobby.id, 'PARTNER', undefined, 'user:default/admin', 'Agreement');
+      const [change] = await service.listPublisherChanges(hobby.id);
+      expect(change.toMemberGroups).toEqual(['group:default/hobby-team']);
+      expect((await service.getPublisherByNamespace('hobby'))?.memberGroups).toEqual([
+        'group:default/hobby-team',
+      ]);
+    });
+
+    it('refuses a promotion without a reason, and records nothing', async () => {
+      const hobby = await service.createPublisher(
+        { namespace: 'hobby', displayName: 'Hobby', trustLevel: 'COMMUNITY' },
+        actor,
+      );
+      for (const reason of [undefined, '', '   ']) {
+        await expect(
+          service.promotePublisher(hobby.id, 'PARTNER', undefined, 'user:default/admin', reason),
+        ).rejects.toThrow(/reason is required/);
+      }
+      expect(await service.listPublisherChanges(hobby.id)).toEqual([]);
+      expect((await service.getPublisherByNamespace('hobby'))?.trustLevel).toBe('COMMUNITY');
+    });
   });
 
   describe('registration', () => {

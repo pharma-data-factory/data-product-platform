@@ -15,6 +15,7 @@ import type {
   ArtifactVersion,
   ArtifactVersionTransition,
   Publisher,
+  PublisherChange,
 } from '@internal/platform-common';
 import type { DistributionChannel } from '@internal/platform-common';
 import { up } from './db/migrations';
@@ -93,16 +94,55 @@ export class ArtifactRegistryRepository {
   }
 
   /** 7-R3: Update publisher trust level and optional member groups. */
+  /**
+   * Changes a publisher's trust and records the change, in one transaction
+   * (NXD-171): there is no trust level a publisher reached without a record
+   * of who granted it and why.
+   */
   async updatePublisher(
     id: string,
-    updates: { trustLevel?: Publisher['trustLevel']; memberGroups?: string[] },
+    updates: { trustLevel: Publisher['trustLevel']; memberGroups: string[] },
+    change: PublisherChange,
   ): Promise<Publisher | undefined> {
-    const patch: Record<string, unknown> = {};
-    if (updates.trustLevel !== undefined) patch.trust_level = updates.trustLevel;
-    if (updates.memberGroups !== undefined) patch.member_groups = JSON.stringify(updates.memberGroups);
-    if (Object.keys(patch).length === 0) return this.getPublisher(id);
-    await this.db('publishers').where({ id }).update(patch);
+    await this.db.transaction(async trx => {
+      await trx('publishers')
+        .where({ id })
+        .update({
+          trust_level: updates.trustLevel,
+          member_groups: JSON.stringify(updates.memberGroups),
+          updated_by: change.actor,
+          updated_at: change.occurredAt,
+        });
+      await trx('publisher_changes').insert({
+        id: change.id,
+        publisher_id: change.publisherId,
+        from_trust_level: change.fromTrustLevel,
+        to_trust_level: change.toTrustLevel,
+        from_member_groups: JSON.stringify(change.fromMemberGroups),
+        to_member_groups: JSON.stringify(change.toMemberGroups),
+        reason: change.reason,
+        actor: change.actor,
+        occurred_at: change.occurredAt,
+      });
+    });
     return this.getPublisher(id);
+  }
+
+  async listPublisherChanges(publisherId: string): Promise<PublisherChange[]> {
+    const rows = await this.db('publisher_changes')
+      .where({ publisher_id: publisherId })
+      .orderBy('occurred_at', 'asc');
+    return rows.map((row: any) => ({
+      id: row.id,
+      publisherId: row.publisher_id,
+      fromTrustLevel: row.from_trust_level,
+      toTrustLevel: row.to_trust_level,
+      fromMemberGroups: fromJson<string[]>(row.from_member_groups, []),
+      toMemberGroups: fromJson<string[]>(row.to_member_groups, []),
+      reason: row.reason,
+      actor: row.actor,
+      occurredAt: typeof row.occurred_at === 'number' ? new Date(row.occurred_at) : toDate(row.occurred_at),
+    }));
   }
 
   // -- artifacts -----------------------------------------------------------

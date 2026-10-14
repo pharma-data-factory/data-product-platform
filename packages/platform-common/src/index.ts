@@ -696,6 +696,7 @@ export type {
   ArtifactReleaseBuild,
   ArtifactVersion,
   ArtifactVersionTransition,
+  PublisherChange,
   ArtifactTransitionAct,
   ArtifactReleaseStatus,
   EditionCatalogue,

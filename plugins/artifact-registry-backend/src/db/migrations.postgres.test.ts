@@ -182,4 +182,32 @@ describe('artifact registry migration on PostgreSQL', () => {
     // Applying again recreates the triggers rather than failing on them.
     await up(db!);
   }, 60000);
+
+  // NXD-171: so is the record of who changed a publisher's trust.
+  it('makes the publisher change trail append-only', async () => {
+    if (!available) {
+      return;
+    }
+    await up(db!);
+    await db!('publisher_changes').insert({
+      id: 'pc-1',
+      publisher_id: 'p-1',
+      from_trust_level: 'COMMUNITY',
+      to_trust_level: 'PARTNER',
+      from_member_groups: '[]',
+      to_member_groups: '[]',
+      reason: 'agreement',
+      actor,
+      occurred_at: new Date(),
+    });
+    await expect(
+      db!('publisher_changes').where({ id: 'pc-1' }).update({ actor: 'someone-else' }),
+    ).rejects.toThrow(/ARTIFACT_REGISTRY_APPEND_ONLY: publisher_changes .* UPDATE/);
+    await expect(db!('publisher_changes').where({ id: 'pc-1' }).delete()).rejects.toThrow(
+      /ARTIFACT_REGISTRY_APPEND_ONLY: publisher_changes .* DELETE/,
+    );
+    await expect(db!.raw('truncate publisher_changes')).rejects.toThrow(
+      /ARTIFACT_REGISTRY_APPEND_ONLY: publisher_changes .* TRUNCATE/,
+    );
+  }, 60000);
 });

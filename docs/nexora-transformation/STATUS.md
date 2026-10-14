@@ -497,6 +497,11 @@ four quick wins F1–F4, one commit and one record each.
 - **PR #14's failing checks are fixed.** The release test releases as a third person, as
   `NXD-164` requires. Three regexes CodeQL flagged as polynomial are linear
   now. See [`NXD-170`](DECISIONS.md).
+- **A publisher's promotion keeps a record.** Who changed a publisher's
+  trust, from what to what and why, in an append-only trail; a reason is
+  required. The Marketplace no longer claims a partner onboarding review,
+  and `NEXORA_SERVICE_TOKEN_ENABLED` lets `serve` load the service tokens.
+  See [`NXD-171`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

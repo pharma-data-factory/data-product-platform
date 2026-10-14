@@ -7,6 +7,9 @@
 #              --config app-config.local.yaml \
 #              --config app-config.service-token.yaml
 #
+# or, for both `yarn start` and `scripts/ona-dev.sh serve`, by setting
+# NEXORA_SERVICE_TOKEN_ENABLED=true in .env (NXD-171).
+#
 # That is deliberate. app-config.local.yaml IS auto-loaded, so putting a
 # known token there would quietly give every developer machine a live
 # credential that anything on localhost could present. A credential should

@@ -175,10 +175,16 @@ export class ArtifactRegistryService {
    * Only PLATFORM_ADMIN may call this (enforced at the router layer).
    * 7-R3: Publisher PARTNER promotion workflow.
    */
+  /**
+   * Changes a publisher's trust level and, optionally, its member groups.
+   * The change is recorded with its actor and a reason in words (NXD-171).
+   */
   async promotePublisher(
     id: string,
     trustLevel: Publisher['trustLevel'],
-    memberGroups?: string[],
+    memberGroups: string[] | undefined,
+    actor: string,
+    reason: string | undefined,
   ): Promise<Publisher> {
     const publisher = await this.repository.getPublisher(id);
     if (!publisher) {
@@ -189,10 +195,28 @@ export class ArtifactRegistryService {
         `Invalid trustLevel "${trustLevel}". Expected: ${PUBLISHER_TRUST_LEVELS.join(', ')}`,
       );
     }
-    const updated = await this.repository.updatePublisher(id, {
-      trustLevel,
-      memberGroups,
-    });
+    const why = reason?.trim();
+    if (!why) {
+      throw new InputError(
+        'reason is required: say in words why this publisher\'s trust changes',
+      );
+    }
+    const toMemberGroups = memberGroups ?? publisher.memberGroups;
+    const updated = await this.repository.updatePublisher(
+      id,
+      { trustLevel, memberGroups: toMemberGroups },
+      {
+        id: randomUUID(),
+        publisherId: id,
+        fromTrustLevel: publisher.trustLevel,
+        toTrustLevel: trustLevel,
+        fromMemberGroups: publisher.memberGroups,
+        toMemberGroups,
+        reason: why,
+        actor,
+        occurredAt: new Date(),
+      },
+    );
     if (!updated) throw new NotFoundError(`Publisher ${id} not found after update`);
     return updated;
   }
@@ -644,6 +668,14 @@ export class ArtifactRegistryService {
           `Publisher members: ${publisher.memberGroups.join(', ')}`,
       );
     }
+  }
+
+  /** Every change to a publisher's trust, oldest first (NXD-171). */
+  async listPublisherChanges(id: string) {
+    if (!(await this.repository.getPublisher(id))) {
+      throw new NotFoundError(`Publisher ${id} not found`);
+    }
+    return this.repository.listPublisherChanges(id);
   }
 
   /** Every transition of a version, oldest first (NXD-146). */
