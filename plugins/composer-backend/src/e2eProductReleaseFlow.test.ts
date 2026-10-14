@@ -72,6 +72,8 @@ const mockLogger: any = {
 const AUTHOR = 'user:default/author';
 /** Separation of duties: the author of a version may not approve it. */
 const APPROVER = 'user:default/approver';
+/** NXD-164/165: neither the approver nor the author may release it. */
+const RELEASER = 'user:default/releaser';
 const PIN = 'signing-pin-e2e';
 const CAPABILITY = 'business-capability:make/equipment-performance-management';
 
@@ -385,7 +387,7 @@ describe('E2E: URS baseline → product → verified release', () => {
         composer.transitionProductVersionStatus(
           version.id,
           { targetStatus: 'RELEASED' },
-          APPROVER,
+          RELEASER,
         ),
       ).rejects.toThrow(/Release gate failed.*INCOMPLETE_TRACEABILITY/);
 
@@ -423,7 +425,7 @@ describe('E2E: URS baseline → product → verified release', () => {
       const releasedVersion = await composer.transitionProductVersionStatus(
         version.id,
         { targetStatus: 'RELEASED' },
-        APPROVER,
+        RELEASER,
       );
       expect(releasedVersion.status).toBe('RELEASED');
 

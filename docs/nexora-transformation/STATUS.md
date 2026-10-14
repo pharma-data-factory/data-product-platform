@@ -494,6 +494,9 @@ four quick wins F1–F4, one commit and one record each.
   heroes of fifteen pages follow the theme chosen under Settings →
   Appearance: light on the light theme, as before on the dark. See
   [`NXD-169`](DECISIONS.md).
+- **PR #14's failing checks are fixed.** The release test releases as a third person, as
+  `NXD-164` requires. Three regexes CodeQL flagged as polynomial are linear
+  now. See [`NXD-170`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

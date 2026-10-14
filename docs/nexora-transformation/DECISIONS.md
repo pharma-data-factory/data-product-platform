@@ -11139,3 +11139,41 @@ colours now, after a first pass left them white on white.
 **Found, not fixed.** On the dark theme Model Company's white panels carry
 light-grey text ("Scenario …", the value-stream description): low contrast,
 older than this record.
+
+### NXD-170 — PR #14's failing checks: the release test uses a releaser, and three flagged regexes are linear
+
+- Date: 2026-10-14
+- Slice: after [`NXD-169`](DECISIONS.md). Pull request #14 (this branch into
+  `main`, NXD-127…169) had two failing checks: `test` and CodeQL.
+
+**Context.**
+
+- **`test`.** `e2eProductReleaseFlow.test.ts` still released the version as
+  its approver. `NXD-164` forbids that, so the test failed on the
+  segregation-of-duties error instead of releasing. The commit for
+  `NXD-164` ran the tests it touched, not the full suite.
+- **CodeQL.** It raised three high alerts, "polynomial regular expression
+  on uncontrolled data":
+  - the trailing-slash strip of the provider's `baseUrl` in
+    `packages/runtime-provider-compose/src/api.ts`;
+  - the slug trim `/^-+|-+$/` in `createBusinessCapability` and
+    `createBusinessRole` (`plugins/urs-composer-backend/src/service.ts`).
+
+**Decision.**
+
+- **Releaser.** The test releases as `user:default/releaser`, who neither
+  wrote nor approved the version. The rule is unchanged; the test now
+  follows it.
+- **Trailing slashes.** The provider strips them with a loop, not a regex.
+- **Slug trim.** It trims a single `-` at each end. The replace before it
+  already collapses every run of non-alphanumerics to one `-`, so the
+  result is the same and the regex is linear.
+- **Not changed.** About twenty other copies of these two patterns elsewhere
+  in the tree. CodeQL raised no alert for them in this pull request.
+
+**Checked.** Full `yarn test:all`: 3195 of 3197 tests pass locally. The two
+failures were the release test, which now passes, and the Python SDK parity
+test, which fails locally with `CI=true` only because no SDK is installed
+here. CI installs the SDK. `runtime-provider-compose`: 27 of 27 tests pass.
+`urs-composer-backend`: 491 of 491 tests pass. ESLint is clean on the
+changed files.

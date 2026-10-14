@@ -29,7 +29,9 @@ export function createNexoraApi(options: {
   fetchImpl?: typeof fetch;
 }): NexoraApi {
   const doFetch = options.fetchImpl ?? ((...args) => fetch(...args));
-  const base = `${options.baseUrl.replace(/\/+$/, '')}/api/installations/provider/targets/${encodeURIComponent(
+  let baseUrl = options.baseUrl;
+  while (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+  const base = `${baseUrl}/api/installations/provider/targets/${encodeURIComponent(
     options.targetId,
   )}`;
 

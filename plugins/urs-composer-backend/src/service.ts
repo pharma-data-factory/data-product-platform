@@ -239,7 +239,7 @@ export class URSService {
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/^-|-$/g, '');
     const id = `business-capability:${domain}/${slug}`;
     const existing = await this.repository.getBusinessCapability(id);
     if (existing) {
@@ -374,7 +374,7 @@ export class URSService {
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/^-|-$/g, '');
     const id = `role:${slug}`;
     const existing = await this.repository.getBusinessRole(id);
     if (existing) {
