@@ -16,14 +16,14 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Lint
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -37,7 +37,7 @@ jobs:
         run: ruff check app tests scripts && python -m compileall -q app scripts
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Unit Tests
 
     services:
@@ -47,10 +47,10 @@ jobs:
           - 1883:1883
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -65,7 +65,7 @@ jobs:
       # for Nexora to read (NXD-123).
       - name: Upload test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nexora-test-evidence
           path: test-evidence/
@@ -73,19 +73,19 @@ jobs:
           retention-days: 90
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
 
   contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Data Contract Validation
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -100,14 +100,14 @@ jobs:
           print(f'Required fields: {schema.get(\"required\", [])}')"
 
   security:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Security Scan
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -126,18 +126,18 @@ jobs:
           detect-secrets scan --all-files --force-use-all-plugins || true
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Build Docker Image
     needs: [lint, test, contract, security]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v4
 
       - name: Build Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
@@ -146,7 +146,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   quality-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Quality Gate
     needs: [build]
     if: always()

@@ -15,7 +15,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # The URS and Validation suites carry the GxP invariants, the persistence
     # proofs and the URS -> Validation integration. They skip themselves when
@@ -40,10 +40,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -63,7 +63,7 @@ jobs:
         run: yarn lint:all
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -100,7 +100,7 @@ jobs:
   # first local runs found two defects no unit test could: the demo sign-in
   # buttons never rendered, and a created baseline did not appear until reload.
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     services:
@@ -129,10 +129,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -165,14 +165,14 @@ jobs:
           echo "::error::backend did not become ready"; tail -100 ../../backend-e2e.log; exit 1
 
       # Only this spec: the model-company journeys need the simulator stack.
-      # Google Chrome is preinstalled on ubuntu-latest, which is the channel
+      # Google Chrome is preinstalled on the GitHub-hosted Ubuntu image, the channel
       # @backstage/e2e-test-utils' generateProjects selects.
       - name: URS approval chain (Playwright)
         run: yarn playwright test packages/app/e2e-tests/urs-approval-chain.spec.ts
 
       - name: Upload report and backend log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-urs-approval-chain
           path: |
@@ -184,7 +184,7 @@ jobs:
   image:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
@@ -193,10 +193,10 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -224,10 +224,10 @@ jobs:
       # refuses them ("Attestation is not supported for the docker driver").
       # Hidden until NXD-125 let the job get past "Set up job" (NXD-126).
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -235,7 +235,7 @@ jobs:
 
       - name: Build and push production image
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: packages/backend/Dockerfile
@@ -259,7 +259,7 @@ jobs:
       # too. v0.36.0 pins its own actions by hash, so a pin here pins the
       # whole chain (NXD-125).
       - name: Scan image
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (commit, not the tag object)
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
@@ -269,7 +269,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload image scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
