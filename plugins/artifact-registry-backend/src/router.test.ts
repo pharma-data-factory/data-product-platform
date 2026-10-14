@@ -134,7 +134,7 @@ describe('Artifact Registry router', () => {
     await db?.destroy();
   });
 
-  function request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown) {
+  function request(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', body?: unknown) {
     return fetch(`${server.url}${path}`, {
       method,
       ...(body === undefined
@@ -549,6 +549,52 @@ describe('Artifact Registry router', () => {
 
       expect(response.status).toBe(403);
       expect(checked).toContain('artifact.read');
+    });
+  });
+
+  // NXD-171: the promotion names the person from the credentials, not the body.
+  describe('PATCH /publishers/:id/promote', () => {
+    async function community() {
+      return service.createPublisher(
+        { namespace: 'hobby', displayName: 'Hobby', trustLevel: 'COMMUNITY' },
+        actor,
+      );
+    }
+
+    it('records the caller and the reason', async () => {
+      const hobby = await community();
+      caller = 'user:default/admin';
+      const promoted = await request(`/publishers/${hobby.id}/promote`, 'PATCH', {
+        trustLevel: 'PARTNER',
+        reason: 'Signed partner agreement PA-17',
+        actor: 'user:default/somebody-else',
+      });
+      expect(promoted.status).toBe(200);
+      expect(checked).toContain('publisher.manage');
+      const changes = await request(`/publishers/${hobby.id}/changes`);
+      expect(changes.status).toBe(200);
+      const { items } = (await changes.json()) as {
+        items: Array<{ actor: string; reason: string; toTrustLevel: string }>;
+      };
+      expect(items).toEqual([
+        expect.objectContaining({
+          actor: 'user:default/admin',
+          reason: 'Signed partner agreement PA-17',
+          toTrustLevel: 'PARTNER',
+        }),
+      ]);
+    });
+
+    it('answers a promotion without a reason with 400', async () => {
+      const hobby = await community();
+      const refused = await request(`/publishers/${hobby.id}/promote`, 'PATCH', {
+        trustLevel: 'PARTNER',
+      });
+      expect(refused.status).toBe(400);
+    });
+
+    it('reports the changes of an unknown publisher as 404', async () => {
+      expect((await request('/publishers/nope/changes')).status).toBe(404);
     });
   });
 

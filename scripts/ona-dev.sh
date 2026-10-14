@@ -24,6 +24,8 @@
 #   3. Guest sign-in is opt-in via AUTH_GUEST_ENABLED / AUTH_GUEST_ROLE.
 #   4. The test identities (author, business reviewer, product manager,
 #      quality) are opt-in via AUTH_DEMO_ENABLED — app-config.demo.yaml.
+#   5. The local service tokens (consumer installation, Compose provider) are
+#      opt-in via NEXORA_SERVICE_TOKEN_ENABLED — app-config.service-token.yaml.
 #
 # Exposing a port is deliberately never automatic.
 set -euo pipefail
@@ -77,6 +79,10 @@ BACKEND_SECRET=dev-local-auth-key
 # without a GitHub account per role. Refused when auth.environment is
 # production. See app-config.demo.yaml.
 # AUTH_DEMO_ENABLED=true
+
+# Local service tokens, for the Compose runtime provider and a consuming
+# installation. Known values, local only. See app-config.service-token.yaml.
+# NEXORA_SERVICE_TOKEN_ENABLED=true
 EOF
 }
 
@@ -105,6 +111,16 @@ base_config_args() {
     fi
   else
     echo "Guest sign-in: disabled (set AUTH_GUEST_ENABLED=true in .env)" >&2
+  fi
+
+  # NXD-171: the service tokens stay an explicit act, as the file asks, but
+  # one that works in both modes. Before this `serve` had no way to load the
+  # file, so the provider was run through a script outside the repository.
+  if [ "$(env_value NEXORA_SERVICE_TOKEN_ENABLED)" = "true" ]; then
+    out+=(--config "$ROOT/app-config.service-token.yaml")
+    echo "Service tokens: enabled — installation:plant-basel, provider:local-compose" >&2
+  else
+    echo "Service tokens: disabled (set NEXORA_SERVICE_TOKEN_ENABLED=true in .env)" >&2
   fi
 
   # Last, so its auth.environment and persistence settings are not overridden

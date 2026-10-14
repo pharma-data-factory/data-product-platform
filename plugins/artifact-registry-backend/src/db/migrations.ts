@@ -4,6 +4,7 @@
  * Four tables: who may publish (`publishers`), what exists
  * (`artifacts`), what was released (`artifact_versions`), and who moved a
  * version through its lifecycle (`artifact_version_transitions`, NXD-146).
+ * Who changed a publisher's trust is `publisher_changes` (NXD-171).
  *
  * Identity is enforced here, not only in the service, for the reason recorded
  * in NXD-009: an application-level uniqueness check does not survive two
@@ -86,6 +87,41 @@ export async function up(knex: Knex): Promise<void> {
   await addPublisherTrustColumns(knex);
   await addReleaseBuildColumns(knex);
   await createTransitionTrail(knex);
+  await createPublisherChangeTrail(knex);
+}
+
+/**
+ * NXD-171: every change to a publisher's trust level or member groups, with
+ * its actor and reason. Before this a promotion to PARTNER, which lets a
+ * publisher's versions be certified and published, left no record of who
+ * granted it. Append-only like the transition trail, by the same function.
+ */
+async function createPublisherChangeTrail(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('publisher_changes'))) {
+    await knex.schema.createTable('publisher_changes', table => {
+      table.string('id', 255).primary();
+      table.string('publisher_id', 255).notNullable().index();
+      table.string('from_trust_level', 32).notNullable();
+      table.string('to_trust_level', 32).notNullable();
+      table.text('from_member_groups').notNullable();
+      table.text('to_member_groups').notNullable();
+      table.text('reason').notNullable();
+      table.string('actor', 255).notNullable();
+      table.timestamp('occurred_at').notNullable();
+    });
+  }
+  if (knex.client.config.client !== 'pg') return;
+  const table = 'publisher_changes';
+  const triggers: Array<[string, string]> = [
+    [`${table}_append_only`, `BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW`],
+    [`${table}_no_truncate`, `BEFORE TRUNCATE ON ${table} FOR EACH STATEMENT`],
+  ];
+  for (const [name, definition] of triggers) {
+    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON ${table}`);
+    await knex.raw(
+      `CREATE TRIGGER ${name} ${definition} EXECUTE FUNCTION artifact_registry_append_only()`,
+    );
+  }
 }
 
 /**
@@ -188,6 +224,7 @@ async function createCaseInsensitiveIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('publisher_changes');
   await knex.schema.dropTableIfExists('artifact_version_transitions');
   await knex.schema.dropTableIfExists('artifact_versions');
   await knex.schema.dropTableIfExists('artifacts');

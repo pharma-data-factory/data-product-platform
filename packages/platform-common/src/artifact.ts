@@ -905,6 +905,24 @@ export interface ArtifactVersionTransition {
 }
 
 /**
+ * One change to a publisher's trust level or member groups (NXD-171), with
+ * who made it, when and why. Append-only. A PARTNER publisher may have its
+ * versions certified and published, and its member groups decide who acts
+ * for it, so the change is a grant and keeps a record like any other.
+ */
+export interface PublisherChange {
+  id: string;
+  publisherId: string;
+  fromTrustLevel: PublisherTrustLevel;
+  toTrustLevel: PublisherTrustLevel;
+  fromMemberGroups: string[];
+  toMemberGroups: string[];
+  reason: string;
+  actor: string;
+  occurredAt: Date;
+}
+
+/**
  * Whether the Composer product versions governing one artifact version have
  * been released (NXD-146). `governed` is whether any Composer product
  * governs the artifact at all, at any version; `released` is whether one of

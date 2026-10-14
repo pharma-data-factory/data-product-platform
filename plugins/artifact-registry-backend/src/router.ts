@@ -339,17 +339,19 @@ export async function createRouter(
   /**
    * PATCH /publishers/:id/promote — promote a publisher's trust level.
    * Only PLATFORM_ADMIN (publisherManagePermission) may do this.
-   * Body: { trustLevel: 'PARTNER' | 'INTERNAL' | 'COMMUNITY', memberGroups?: string[] }
-   * 7-R3: Publisher PARTNER promotion workflow.
+   * Body: { trustLevel: 'PARTNER' | 'INTERNAL' | 'COMMUNITY', memberGroups?: string[], reason: string }
+   * 7-R3: Publisher PARTNER promotion workflow. NXD-171: recorded with the
+   * actor and the reason.
    */
   router.patch(
     '/publishers/:id/promote',
     async (req: express.Request, res: express.Response) => {
       try {
-        await authorize(permissions, httpAuth, req, publisherManagePermission);
-        const { trustLevel, memberGroups } = req.body as {
+        const actor = await authorize(permissions, httpAuth, req, publisherManagePermission);
+        const { trustLevel, memberGroups, reason } = req.body as {
           trustLevel?: string;
           memberGroups?: string[];
+          reason?: string;
         };
         if (!trustLevel) {
           res.status(400).json({ error: 'trustLevel is required' });
@@ -359,8 +361,26 @@ export async function createRouter(
           req.params.id,
           trustLevel as any,
           memberGroups,
+          actor,
+          reason,
         );
         res.json(updated);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /publishers/:id/changes (NXD-171) — who changed the publisher's
+   * trust, when and why. Read permission, or a service.
+   */
+  router.get(
+    '/publishers/:id/changes',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorizeReadOrService(permissions, httpAuth, req, artifactReadPermission);
+        res.json({ items: await service.listPublisherChanges(req.params.id) });
       } catch (err) {
         respondError(res, logger, err);
       }

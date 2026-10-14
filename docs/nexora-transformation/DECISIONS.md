@@ -11177,3 +11177,79 @@ test, which fails locally with `CI=true` only because no SDK is installed
 here. CI installs the SDK. `runtime-provider-compose`: 27 of 27 tests pass.
 `urs-composer-backend`: 491 of 491 tests pass. ESLint is clean on the
 changed files.
+
+### NXD-171 — A publisher's promotion is recorded with who and why, the Marketplace says what a Partner is, and `serve` loads the service tokens
+
+- Date: 2026-10-14
+- Slice: the open findings of [`NXD-168`](DECISIONS.md), after PR #14 was
+  merged into `main`.
+
+**Context.** `NXD-168` left three findings open:
+
+- **The promotion was unaudited.** `PATCH /publishers/:id/promote` changed a
+  publisher's trust level and member groups and recorded nothing: not who,
+  not when, not the level before. A PARTNER publisher may have its versions
+  certified and published, and its member groups decide who acts for it, so
+  the change is a grant. The `publishers` row even had `updated_by` and
+  `updated_at`, and the update did not write them.
+- **The Marketplace overclaimed.** On a PARTNER artifact it said "published
+  by a Nexora-certified Partner and has passed the partner onboarding
+  review". No onboarding review exists. A Partner is a publisher an
+  administrator promoted. The Community notice said "Partners go through a
+  formal certification process", which is not true either.
+- **`serve` could not load the service tokens.** `ona-dev.sh serve` had no
+  way to add `app-config.service-token.yaml`, so the Compose provider's
+  token worked only through a script under `/tmp`, which every workspace
+  restart deletes.
+
+**Decision.**
+
+- **A trail of trust changes.** `publisher_changes` records the level and
+  member groups before and after, the actor, the time and a reason. It is
+  written in the same transaction as the change, as `NXD-146` does for
+  version transitions, and is append-only in PostgreSQL by the same trigger
+  function. The update now also writes `updated_by` and `updated_at`.
+- **A reason in words.** The promotion requires a `reason`, which is
+  trimmed; without one the answer is 400 and nothing is written. The actor
+  comes from the credentials, never from the body. If the promotion names
+  no member groups, the existing ones are kept and recorded as unchanged.
+- **The trail is readable.** `GET /publishers/:id/changes` takes read
+  permission or a service principal, like the transition trail.
+- **The Marketplace says what is true.**
+  - On a Partner artifact: an administrator promoted the publisher, and
+    the registry records who did and why. That is not a review of the
+    publisher's organisation. Nexora reviews and certifies each version
+    before it is published, and the notice names this version's
+    certification.
+  - On a Community artifact: its versions can be certified and published
+    only after a promotion to Partner.
+- **A flag for the service tokens.** `NEXORA_SERVICE_TOKEN_ENABLED=true`
+  in `.env` adds `app-config.service-token.yaml` in both `start` and
+  `serve`. Loading the file stays an explicit act, as its header asks, but
+  the act is the same in both modes.
+
+**Not changed.** Who may promote is still `publisher.manage`
+(PLATFORM_ADMIN). No UI for the promotion and no electronic signature.
+Whether a promotion should be a signed act is open.
+
+**Found, not fixed.** The promotion of `pharma-data-factory` to PARTNER on
+2026-10-13 (`NXD-168`) predates the trail and has no record in it. The only
+record is `NXD-168` itself.
+
+**Checked.**
+
+- `artifact-registry-backend`: 155 of 155 tests pass. New:
+  - the service records actor, before and after, and the trimmed reason;
+  - member groups are kept when a promotion names none;
+  - without a reason the promotion is refused and nothing is recorded;
+  - the router takes the actor from the credentials, even when the body
+    names another;
+  - an unknown publisher's changes answer 404;
+  - on real PostgreSQL the trail refuses UPDATE, DELETE and TRUNCATE.
+- `yarn tsc` is clean.
+- Live in `serve` mode with the flag set:
+  - the startup log names the service tokens;
+  - a registry read answers 401 without a token and 200 with the consumer
+    token;
+  - `/publishers/:id/changes` answers.
+

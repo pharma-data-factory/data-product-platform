@@ -259,13 +259,18 @@ export function MarketplaceDetailPage() {
                   <Typography variant="body2" color="error" style={{ marginTop: 12 }}>
                     ⚠ Community publisher — this artifact has not been reviewed or certified
                     by Nexora. Use it at your own risk. Contact the publisher directly for
-                    support. Partners go through a formal certification process.
+                    support. A publisher's versions can be certified and published only
+                    after a platform administrator promotes it to Partner.
                   </Typography>
                 )}
                 {item.externalPublisher && item.publisherTrustLevel === 'PARTNER' && (
                   <Typography variant="body2" style={{ marginTop: 12 }}>
-                    ✓ This artifact is published by a Nexora-certified Partner and has
-                    passed the partner onboarding review.
+                    {/* NXD-171: a promotion is recorded, not an onboarding review. */}
+                    ✓ Published by a Partner. A platform administrator promoted this
+                    publisher to Partner, and the registry records who did and why. That
+                    is not a review of the publisher's organisation: Nexora reviews and
+                    certifies each version before it is published. This version:{' '}
+                    {item.certificationStatus}.
                   </Typography>
                 )}
               </InfoCard>
