@@ -11253,3 +11253,79 @@ record is `NXD-168` itself.
     token;
   - `/publishers/:id/changes` answers.
 
+### NXD-172 — The platform's and the templates' workflows run on current action majors and on an Ubuntu image they name
+
+- Date: 2026-10-14
+- Slice: after [`NXD-171`](DECISIONS.md). Every CI run warned that
+  `actions/checkout@v4`, `actions/setup-node@v4` and `actions/setup-python@v5`
+  target Node.js 20 and are forced onto Node.js 24. GitHub announced that
+  `ubuntu-latest` moves to Ubuntu 26.04 from 2026-10-19, completing by
+  2026-11-19. The user chose one record for all of it over the separate
+  Dependabot pull requests.
+
+**Context.**
+
+- **Dependabot does not reach `templates/`.** Dependabot opened #5, #6 and #7
+  for `.github/workflows` only. The workflows under `templates/*/content/`
+  are copied into every product repository Nexora generates, and they held
+  older majors still: 28 × `checkout@v4`, `setup-python@v4`/`@v5`,
+  `build-push-action@v4`, `setup-buildx-action@v2`, `codecov-action@v3`.
+  Every new product repository would have inherited the warning.
+- **Dependabot #5 (trivy) looked like a moved tag and is not one.** It swaps
+  pin `a9c7b0f…` for `ed142fd…`, both labelled v0.36.0. `git ls-remote`
+  shows `a9c7b0f` is the annotated tag object of `v0.36.0` and `ed142fd` the
+  commit it points to. The version is unchanged; the new pin names the
+  commit.
+- **`ubuntu-latest` changes under the workflows without a commit.** A CI run
+  is evidence of the code it ran on; an image that changes on its own makes
+  two runs of the same commit not the same run.
+
+**Decision.**
+
+- **Current majors in all 23 workflow files** (`.github/workflows`,
+  `templates/*/content/.github/workflows`, `uns/`):
+  - `checkout`, `setup-node`, `setup-python`, `upload-artifact`,
+    `build-push-action` and `codecov-action` go to v7;
+  - `setup-buildx-action`, `login-action` and `codeql-action` go to v4;
+  - the trivy pin names the v0.36.0 commit.
+- **Breaking changes checked against what the workflows use.** From each
+  action's release notes:
+  - `setup-python` v7 removed `pip-install`;
+  - `setup-buildx-action` v4 removed deprecated inputs (`install`);
+  - `build-push-action` v7 removed the `DOCKER_BUILD_*` variables;
+  - `checkout` v7 refuses fork pull requests under `pull_request_target`
+    and `workflow_run`;
+  - `setup-node` from v5 caches automatically, limited to npm from v6.
+
+  None of these inputs, variables or triggers appear in our workflows, and
+  the root `packageManager` is yarn.
+- **An Ubuntu image by name.** All 30 jobs run on `ubuntu-26.04` instead of
+  `ubuntu-latest`. The move to 26.04 happens in this commit, where its CI
+  run shows whether it holds, and not on a date GitHub picks. The next
+  image is a deliberate change too.
+- **Dependabot #5, #6 and #7 are superseded** by this record and can be
+  closed.
+
+**Not changed.**
+
+- `anthropics/claude-code-action@v1` and `openai/codex-action@v1` are
+  their latest majors already.
+- Product repositories that already exist keep their workflows. A template
+  reaches only repositories generated after it; `oee-ai-build-test-1`
+  changes only if its own workflows are edited.
+
+**Found, not fixed.** `codecov-action` from v4 needs a token to upload from
+a private repository. The AAS template sets none and no
+`fail_ci_if_error`, so the upload step fails quietly in a private product
+repository. That was already so before this record, with v3.
+
+**Checked.**
+
+- Every workflow file parses.
+- Full `yarn test:all`: 3203 of 3204 tests pass locally. The one failure is
+  the Python SDK parity test, which needs the SDK that only CI installs.
+- `oeeTestEvidence.test.ts` now expects `upload-artifact@v7` in the OEE
+  template.
+- The platform jobs on `ubuntu-26.04` are proven by this pull request's
+  own CI run.
+

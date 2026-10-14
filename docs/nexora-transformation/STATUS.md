@@ -502,6 +502,10 @@ four quick wins F1–F4, one commit and one record each.
   required. The Marketplace no longer claims a partner onboarding review,
   and `NEXORA_SERVICE_TOKEN_ENABLED` lets `serve` load the service tokens.
   See [`NXD-171`](DECISIONS.md).
+- **Workflows on current action majors and a named Ubuntu image.** The
+  platform's and the templates' 23 workflow files use current action majors
+  (Node 24) and run on `ubuntu-26.04` instead of `ubuntu-latest`;
+  Dependabot #5–#7 are superseded. See [`NXD-172`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

@@ -81,7 +81,7 @@ describe('OEE Golden Path test evidence (NXD-122)', () => {
     const upload = steps.find(s => s.name === 'Upload test evidence');
     expect(upload).toMatchObject({
       if: 'always()',
-      uses: 'actions/upload-artifact@v4',
+      uses: 'actions/upload-artifact@v7',
       with: { name: 'nexora-test-evidence', path: 'test-evidence/' },
     });
   });
