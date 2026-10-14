@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Progress } from '@backstage/core-components';
 import {
   Box,
@@ -53,6 +53,40 @@ const BLOCKER_TITLES: Record<string, string> = {
   POLICY_OBLIGATION_UNMET: 'A policy obligation is not met',
   POLICY_PACK_UNRESOLVABLE: 'The policy pack could not be resolved',
 };
+
+function blockerId(blocker: ReleaseGateBlocker): string {
+  return `${blocker.code}|${blocker.message}`;
+}
+
+export interface GateChange {
+  cleared: ReleaseGateBlocker[];
+  added: ReleaseGateBlocker[];
+}
+
+/**
+ * What a re-check changed. A cleared blocker and a newly revealed one leave
+ * the count where it was, so the count alone looked stale (NXD-159 item 3).
+ */
+export function gateChange(
+  before: ReleaseGateResult,
+  after: ReleaseGateResult,
+): GateChange {
+  const was = new Set(before.blockers.map(blockerId));
+  const is = new Set(after.blockers.map(blockerId));
+  return {
+    cleared: before.blockers.filter(b => !is.has(blockerId(b))),
+    added: after.blockers.filter(b => !was.has(blockerId(b))),
+  };
+}
+
+function describeChange(change: GateChange): string {
+  const parts = [
+    change.cleared.length > 0 &&
+      `cleared ${change.cleared.map(blockerTitle).join(', ')}`,
+    change.added.length > 0 && `new ${change.added.map(blockerTitle).join(', ')}`,
+  ].filter(Boolean);
+  return parts.length ? `${parts.join('; ')}.` : 'nothing changed.';
+}
 
 export function blockerTitle(blocker: ReleaseGateBlocker): string {
   return BLOCKER_TITLES[blocker.code] ?? blocker.code;
@@ -157,11 +191,22 @@ function Meter({
 
 export function ReleaseReadinessCard({
   versionLabel,
+  versionStatus,
+  releasedAt,
+  releasedBy,
   loadGate,
   refreshKey,
   coverage,
 }: {
   versionLabel: string;
+  /**
+   * NXD-160. A RELEASED or SUPERSEDED version is past the gate: the gate
+   * wants a release candidate, so asking it about a released version listed
+   * "Version must be RELEASE_CANDIDATE, got RELEASED" as a blocker.
+   */
+  versionStatus?: string;
+  releasedAt?: string | Date;
+  releasedBy?: string;
   /** The page owns the client; this card owns when to ask. */
   loadGate: () => Promise<ReleaseGateResult>;
   /** Changes whenever something the gate reads has changed. */
@@ -172,11 +217,34 @@ export function ReleaseReadinessCard({
   const theme = useTheme();
   const tone = tones(theme.palette.type === 'dark');
 
+  const pastGate = versionStatus === 'RELEASED' || versionStatus === 'SUPERSEDED';
   // refreshKey is a dependency on purpose: it is how a transition, a bound
   // baseline or new evidence re-runs the gate without the page wiring it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const load = useCallback(() => loadGate(), [loadGate, refreshKey]);
+  // A version past the gate is not asked (NXD-160).
+  const load = useCallback(
+    (): Promise<ReleaseGateResult> =>
+      pastGate ? Promise.resolve({ passed: true, blockers: [] }) : loadGate(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loadGate, refreshKey, pastGate],
+  );
   const { value: gate, loading, error, retry } = useLoadable(load);
+
+  // The previous answer for this version, so a re-check can say what moved.
+  // A version switch starts over: its blockers are not "new".
+  const previous = useRef<{ version: string; gate: ReleaseGateResult } | null>(
+    null,
+  );
+  const [change, setChange] = useState<GateChange | null>(null);
+  useEffect(() => {
+    if (!gate || pastGate) return;
+    const last = previous.current;
+    if (last && last.version === versionLabel) {
+      if (last.gate !== gate) setChange(gateChange(last.gate, gate));
+    } else {
+      setChange(null);
+    }
+    previous.current = { version: versionLabel, gate };
+  }, [gate, versionLabel, pastGate]);
 
   return (
     <Card variant="outlined" style={{ marginBottom: 16 }}>
@@ -194,7 +262,16 @@ export function ReleaseReadinessCard({
         {error && (
           <LoadError error={error} what="the release gate" onRetry={retry} />
         )}
-        {gate && !error && (
+        {pastGate ? (
+          <Typography className={classes.status} style={{ color: tone.good }}>
+            <CheckCircleIcon aria-hidden />{' '}
+            {versionStatus === 'RELEASED' ? 'Released' : 'Superseded'}
+            {releasedBy ? ` by ${releasedBy}` : ''}
+            {releasedAt ? `, ${new Date(releasedAt).toLocaleString()}` : ''} — the
+            release gate passed when it was released
+          </Typography>
+        ) : null}
+        {!pastGate && gate && !error && (
           <>
             {gate.passed ? (
               <Typography className={classes.status} style={{ color: tone.good }}>
@@ -205,6 +282,15 @@ export function ReleaseReadinessCard({
               <Typography className={classes.status} style={{ color: tone.bad }}>
                 <ErrorIcon aria-hidden /> Blocked by {gate.blockers.length}{' '}
                 {gate.blockers.length === 1 ? 'check' : 'checks'}
+              </Typography>
+            )}
+            {change && (
+              <Typography
+                className={classes.blockerMessage}
+                aria-label="Since the last check"
+                style={{ marginTop: 4 }}
+              >
+                Since the last check: {describeChange(change)}
               </Typography>
             )}
           </>
@@ -260,7 +346,7 @@ export function ReleaseReadinessCard({
 
         {gate && !error && (
           <>
-            {!gate.passed && (
+            {!pastGate && !gate.passed && (
               <ul className={classes.blockers} aria-label="Release blockers">
                 {gate.blockers.map((blocker, index) => (
                   <li key={`${blocker.code}-${index}`} className={classes.blocker}>

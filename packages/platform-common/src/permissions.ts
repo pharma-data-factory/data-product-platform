@@ -324,6 +324,37 @@ export const publisherManagePermission = createPermission({
   attributes: { action: 'update' },
 });
 
+/**
+ * Installations (NXD-139) — read runtime targets, installations, their acts
+ * and their qualification records.
+ */
+export const installationReadPermission = createPermission({
+  name: 'installation.read',
+  attributes: { action: 'read' },
+});
+
+/**
+ * Installations (NXD-139) — install, upgrade and remove: changes to an
+ * installation's desired state. Owner tier, beside `artifact.publish`:
+ * putting a released artifact into use on a target is the same weight of
+ * act as releasing it into the registry. For a GMP-relevant product the act
+ * is additionally an electronic signature.
+ */
+export const installationManagePermission = createPermission({
+  name: 'installation.manage',
+  attributes: { action: 'update' },
+});
+
+/**
+ * Installations (NXD-139) — register a runtime target. Admin-weight, like
+ * `publisher.manage`: a target decides which provider may run workloads
+ * where, not merely what runs.
+ */
+export const installationTargetManagePermission = createPermission({
+  name: 'installation.target.manage',
+  attributes: { action: 'update' },
+});
+
 export const platformPermissions = [
   marketplaceViewPermission,
   marketplaceAdminPermission,
@@ -378,6 +409,9 @@ export const platformPermissions = [
   artifactPublishPermission,
   artifactDeprecatePermission,
   publisherManagePermission,
+  installationReadPermission,
+  installationManagePermission,
+  installationTargetManagePermission,
 ];
 
 export const VIEWER_PERMISSION_NAMES = new Set([
@@ -398,6 +432,7 @@ export const VIEWER_PERMISSION_NAMES = new Set([
   'urs.read',
   'product.read',
   'artifact.read',
+  'installation.read',
 ]);
 
 export const DEVELOPER_PERMISSION_NAMES = new Set([
@@ -452,6 +487,8 @@ export const OWNER_PERMISSION_NAMES = new Set([
   'artifact.certify',
   'artifact.publish',
   'artifact.deprecate',
+  // NXD-139. Changing what runs on a target sits with releasing it.
+  'installation.manage',
 ]);
 
 export const ADMIN_PERMISSION_NAMES = new Set([
@@ -474,6 +511,7 @@ export const ADMIN_PERMISSION_NAMES = new Set([
   'business-capability.manage',
   'platform.user.manage',
   'publisher.manage',
+  'installation.target.manage',
   // validation.approve is not an administrator's (NXD-119): it is granted by
   // the validation-experts and urs-quality-reviewers domain groups only.
   // risk.accept and baseline.modify remain reserved.

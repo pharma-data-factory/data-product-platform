@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { identityApiRef } from '@backstage/core-plugin-api';
 import { TestApiProvider } from '@backstage/frontend-test-utils';
-import { ContextDetailPage, ContextsPage } from './ContextPages';
+import { ContextDetailPage, ContextsPage, newestRunId } from './ContextPages';
 import { validationExpertApiRef, ValidationContext } from '../api';
 
 const sampleContext: ValidationContext = {
@@ -159,6 +159,9 @@ describe('Validation contexts UI', () => {
     await waitFor(() => {
       expect(screen.getAllByText('IQ-RUN-0001').length).toBeGreaterThanOrEqual(1);
     });
+    // NXD-163. Reference data is folded; a folded section is not reachable.
+    expect(screen.queryByRole('link', { name: 'IQ-RUN-0001' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Linked runs' }));
     expect(screen.getAllByRole('link', { name: 'IQ-RUN-0001' })[0]).toHaveAttribute(
       'href',
       '/validation-expert/runs/IQ-RUN-0001',
@@ -170,5 +173,18 @@ describe('Validation contexts UI', () => {
     expect(screen.getByText('Requirement coverage (lite)')).toBeInTheDocument();
     expect(screen.getByText('1/2')).toBeInTheDocument();
     expect(screen.getByText('IQ-T-001')).toBeInTheDocument();
+  });
+});
+
+describe('newestRunId (NXD-161)', () => {
+  it('picks the most recently created run, not the first listed', () => {
+    const runs = [
+      { id: 'EVIDENCE-RUN-0007', createdAt: '2026-10-09T20:00:00Z' },
+      { id: 'EVIDENCE-RUN-0003', createdAt: '2026-10-09T19:00:00Z' },
+    ] as any;
+    expect(newestRunId(['EVIDENCE-RUN-0007', 'EVIDENCE-RUN-0003'], runs)).toBe(
+      'EVIDENCE-RUN-0007',
+    );
+    expect(newestRunId(['A', 'B'], null)).toBe('B');
   });
 });

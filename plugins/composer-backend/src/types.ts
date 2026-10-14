@@ -185,6 +185,39 @@ export interface TransitionProductVersionRequest {
   targetStatus: string;
   releaseCommitSha?: string;
   artifactDigest?: string;
+  /** NXD-128: required for APPROVED and RELEASED on a GMP-relevant product. */
+  signature?: ProductSignatureInput;
+}
+
+/**
+ * NXD-128. What a person attests by approving or releasing: the meaning is
+ * fixed by the act, the justification is theirs.
+ */
+export type ProductSignatureMeaning =
+  | 'VERSION_APPROVED'
+  | 'VERSION_RELEASED'
+  | 'BASELINE_APPROVED';
+
+export interface ProductSignatureInput {
+  justification?: string;
+  /** The signing PIN; verified in the URS Composer, never stored. */
+  pin?: string;
+}
+
+/** One approval or release, as attested. Append-only. */
+export interface ProductSignature {
+  id: string;
+  productId: string;
+  entityType: 'PRODUCT_VERSION' | 'PRODUCT_BASELINE';
+  entityId: string;
+  meaning: ProductSignatureMeaning;
+  justification: string;
+  signedBy: string;
+  signedAt: string;
+  /** Whether the product counted as GMP-relevant when it was signed. */
+  gmpRelevant: boolean;
+  /** The second factor verified (`signature-pin`); absent for a confirmation. */
+  reauthMethod?: string;
 }
 
 export interface CreateProductBaselineRequest {
@@ -249,6 +282,68 @@ export interface AISpecDraft {
    * proposal and a decision, and is worth being able to query.
    */
   productId?: string;
+}
+
+/**
+ * NXD-153. Where an AI build assignment stands, as GitHub shows it.
+ * NOT_DISPATCHED: Nexora recorded it, GitHub never received it (reason).
+ * NO_CHANGE: the run succeeded and proposed nothing.
+ */
+export type AIBuildAssignmentStatus =
+  | 'DISPATCHED'
+  | 'NOT_DISPATCHED'
+  | 'RUNNING'
+  | 'RUN_FAILED'
+  | 'NO_CHANGE'
+  | 'PR_OPEN'
+  | 'MERGED'
+  | 'CLOSED';
+
+/**
+ * NXD-154. The coding agent a product repository's AI build workflow runs:
+ * Claude Code with the organisation's ANTHROPIC_API_KEY, or OpenAI Codex with
+ * its OPENAI_API_KEY. Nexora holds neither key.
+ */
+export type AIBuildAgent = 'claude-code' | 'codex';
+
+/**
+ * NXD-153. An assignment to build a product version's requirements in its
+ * repository, and what became of it. The assignment part — requirements,
+ * note, model, payload hash, who and when — is written once and never
+ * updated; only the outcome columns follow GitHub.
+ */
+export interface AIBuildAssignment {
+  id: string;
+  productId: string;
+  productVersionId: string;
+  versionLabel: string;
+  status: AIBuildAssignmentStatus;
+  /** The bound requirements assigned, with the content hash they had. */
+  requirements: Array<{
+    requirementRef: string;
+    ursRequirementVersionId: string;
+    contentHash: string;
+  }>;
+  note?: string;
+  /** NXD-154. The agent the workflow was told to run. */
+  agent: AIBuildAgent;
+  modelId: string;
+  /** sha256 of the payload as dispatched. */
+  payloadHash: string;
+  repositoryUrl: string;
+  branch: string;
+  issuedBy: string;
+  issuedAt: string;
+  dispatchReason?: string;
+  runUrl?: string;
+  runConclusion?: string;
+  pullRequestNumber?: number;
+  pullRequestUrl?: string;
+  pullRequestHeadSha?: string;
+  mergedAt?: string;
+  mergeCommitSha?: string;
+  closedAt?: string;
+  updatedAt: string;
 }
 
 export interface GenerateProductSpecRequest {

@@ -15,12 +15,17 @@ import { Config } from '@backstage/config';
 import { getPublishReadiness } from './scm-publish-readiness';
 import { readLLMTimeoutMs } from '@internal/platform-common';
 import { createRouter } from './router';
-import { ComposerService } from './service';
+import { AiBuildOptions, ComposerService } from './service';
+import type { AIBuildAgent } from './types';
 import { ComposerRepository } from './repository';
 import { createHttpUrsBaselineResolver } from './urs-baseline-resolver';
 import { createHttpCatalogComponentLoader } from './catalog-component-loader';
 import { createHttpValidationDecisionResolver } from './validation-decision-resolver';
+import { createHttpAiBuildClient } from './ai-build-client';
 import { createHttpCiEvidenceClient } from './ci-evidence-client';
+import { createHttpReleaseRecordClient } from './release-record-client';
+import { createHttpPinVerifier } from './pin-verifier';
+import { createHttpReleaseRegistrar } from './release-registrar';
 import { createHttpPolicyResolverClient } from './policy-resolver-client';
 import { bootstrapPlatformProduct } from './platformProductBootstrap';
 import {
@@ -105,6 +110,47 @@ function createLLMClient(config: Config, logger: any): ComposerLLMClient {
   });
 }
 
+/** NXD-153. The default model for the AI build; `composer.aiBuild.model` overrides it. */
+export const DEFAULT_AI_BUILD_MODEL = 'claude-opus-5-5';
+
+/** NXD-154. The default model when the AI build runs OpenAI Codex. */
+export const DEFAULT_AI_BUILD_CODEX_MODEL = 'gpt-6.1-sol';
+
+/**
+ * NXD-154. The coding agents the AI build offers, read from
+ * `composer.aiBuild.agents.<agent>`. Claude Code is on unless switched off,
+ * and `composer.aiBuild.model` still names its model; Codex is off unless
+ * switched on. `defaultAgent` must be one that is on.
+ */
+export function readAiBuildAgents(config: Config): Pick<AiBuildOptions, 'agents' | 'defaultAgent'> {
+  const agents: AiBuildOptions['agents'] = {};
+  const claude = config.getOptionalConfig('composer.aiBuild.agents.claude-code');
+  if (claude?.getOptionalBoolean('enabled') ?? true) {
+    agents['claude-code'] = {
+      model:
+        claude?.getOptionalString('model') ??
+        config.getOptionalString('composer.aiBuild.model') ??
+        DEFAULT_AI_BUILD_MODEL,
+    };
+  }
+  const codex = config.getOptionalConfig('composer.aiBuild.agents.codex');
+  if (codex?.getOptionalBoolean('enabled') ?? false) {
+    agents.codex = { model: codex?.getOptionalString('model') ?? DEFAULT_AI_BUILD_CODEX_MODEL };
+  }
+  const offered = Object.keys(agents) as AIBuildAgent[];
+  if (offered.length === 0) {
+    throw new Error('composer.aiBuild is enabled but offers no agent: enable claude-code or codex');
+  }
+  const defaultAgent = (config.getOptionalString('composer.aiBuild.defaultAgent') ??
+    offered[0]) as AIBuildAgent;
+  if (!agents[defaultAgent]) {
+    throw new Error(
+      `composer.aiBuild.defaultAgent is ${defaultAgent}, which is not enabled; enabled: ${offered.join(', ')}`,
+    );
+  }
+  return { agents, defaultAgent };
+}
+
 export const composerPlugin = createBackendPlugin({
   pluginId: 'composer',
   register(env) {
@@ -118,8 +164,9 @@ export const composerPlugin = createBackendPlugin({
         discovery: coreServices.discovery,
         auth: coreServices.auth,
         config: coreServices.rootConfig,
+        scheduler: coreServices.scheduler,
       },
-      async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config }) {
+      async init({ httpRouter, logger, httpAuth, permissions, database, discovery, auth, config, scheduler }) {
         const repository = await ComposerRepository.create(database);
         // Every one of these degrades quietly on failure — by design, but the
         // logger is what makes the degradation visible. Without it a broken
@@ -156,6 +203,17 @@ export const composerPlugin = createBackendPlugin({
           validationDecisionResolver,
           policyResolverClient,
           ciEvidenceClient: createHttpCiEvidenceClient({ discovery, auth }),
+          releaseRecordClient: createHttpReleaseRecordClient({ discovery, auth }),
+          // NXD-153. Off unless enabled: a dispatch starts a paid model run in
+          // the product repository, with the organisation's key.
+          ...(config.getOptionalBoolean('composer.aiBuild.enabled')
+            ? {
+                aiBuild: {
+                  client: createHttpAiBuildClient({ discovery, auth }),
+                  ...readAiBuildAgents(config),
+                },
+              }
+            : {}),
         });
 
         httpRouter.use(
@@ -165,6 +223,8 @@ export const composerPlugin = createBackendPlugin({
             permissions,
             service,
             llmEnabled,
+            pinVerifier: createHttpPinVerifier({ discovery, auth }),
+            releaseRegistrar: createHttpReleaseRegistrar({ discovery, auth }),
             publishReadiness: getPublishReadiness(config),
           }),
         );
@@ -172,6 +232,25 @@ export const composerPlugin = createBackendPlugin({
           path: '/health',
           allow: 'unauthenticated',
         });
+
+        // NXD-151. CI evidence reaches Nexora without a button. 0 disables.
+        const syncMinutes =
+          config.getOptionalNumber('composer.ciEvidence.syncIntervalMinutes') ?? 15;
+        if (syncMinutes > 0) {
+          await scheduler.scheduleTask({
+            id: 'composer-ci-evidence-sync',
+            frequency: { minutes: syncMinutes },
+            timeout: { minutes: 10 },
+            initialDelay: { minutes: 1 },
+            fn: async () => {
+              const result = await service.syncCiEvidence();
+              logger.info(
+                `CI evidence sync: ${result.imported} execution(s) imported across ` +
+                  `${result.versions.length} draft version(s)`,
+              );
+            },
+          });
+        }
 
         // 7-R5: Register Nexora Core as a PLATFORM_PRODUCT on first startup.
         bootstrapPlatformProduct({ repository, logger }).catch(() => {/* non-fatal */});

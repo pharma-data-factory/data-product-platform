@@ -15,6 +15,7 @@ import {
   InputError,
   NotAllowedError,
   NotFoundError,
+  ServiceUnavailableError,
 } from '@backstage/errors';
 import {
   HttpAuthService,
@@ -176,6 +177,13 @@ function respondError(
   // the caller's request conflicts with the stored state, not a server fault.
   if (error instanceof ConflictError) {
     res.status(409).json({ error: String(error) });
+    return;
+  }
+  // The Nexora release gate could not be asked (NXD-146): not the caller's
+  // fault, and not a pass either.
+  if (error instanceof ServiceUnavailableError) {
+    logger.error(`Dependency unavailable: ${error.message}`);
+    res.status(503).json({ error: String(error) });
     return;
   }
   logger.error(`Unexpected error: ${error}`);
@@ -380,6 +388,35 @@ export async function createRouter(
   // ARTIFACTS
   // ==========================================================================
 
+  /**
+   * POST /artifacts/release-builds (NXD-137)
+   * Registers a runnable product's release build as a DRAFT version: the
+   * nexora.yaml text from the tagged commit and the image, digest, commit and
+   * release. Called by the Product Composer on behalf of the person who
+   * imported the release, so their artifact.create and the publisher's
+   * namespace apply.
+   */
+  router.post(
+    '/artifacts/release-builds',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(
+          permissions,
+          httpAuth,
+          req,
+          artifactCreatePermission,
+        );
+        const result = await service.registerReleaseBuild(
+          (req.body ?? {}) as { manifest?: unknown; release?: never },
+          actor,
+        );
+        res.status(result.alreadyRegistered ? 200 : 201).json(result);
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.post(
     '/artifacts',
     async (req: express.Request, res: express.Response) => {
@@ -562,6 +599,22 @@ export async function createRouter(
       }
     });
   }
+
+  /**
+   * GET /artifact-versions/:id/transitions (NXD-146) — who moved the version
+   * through its lifecycle, and when. Read permission, or a service.
+   */
+  router.get(
+    '/artifact-versions/:id/transitions',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorizeReadOrService(permissions, httpAuth, req, artifactReadPermission);
+        res.json({ items: await service.listTransitions(req.params.id) });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
 
   transitionRoute(
     '/artifact-versions/:id/submit',

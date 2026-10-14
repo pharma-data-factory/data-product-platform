@@ -17,21 +17,22 @@ import {
   filterReleaseCatalogRows,
   releaseCatalogRows,
 } from '@internal/platform-common';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import { C } from '../theme/tokens';
 import {
-  NEXORA_GREY,
+  NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
-    background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
+    background: NEXORA_HERO_VAR.bg,
+    boxShadow: NEXORA_HERO_VAR.frame,
     borderRadius: 16,
-    color: NEXORA_GREY[50],
+    color: NEXORA_HERO_VAR.fg,
     marginBottom: 24,
     padding: '32px 28px',
   },
   eyebrow: {
-    color: PHARMA_TEAL_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     fontWeight: 600,
@@ -46,7 +47,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   copy: {
-    color: NEXORA_GREY[300],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 16,
     maxWidth: 720,
   },

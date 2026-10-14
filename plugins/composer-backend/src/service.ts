@@ -57,12 +57,22 @@ import {
   validateTestExecution,
   latestExecutionPerCase,
   evaluateContractCompatibility,
+  type ArtifactReleaseStatus,
   type ContractCompatReport,
   type ContractExchange,
   type JsonSchemaLike,
+  versionLabelsEquivalent,
+  isGmpRelevant,
+  justificationProblem,
 } from '@internal/platform-common';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import type { CiEvidenceClient } from './ci-evidence-client';
+import type { AiBuildClient, AiBuildStatus } from './ai-build-client';
+import type { ReleaseRecordClient, ReleaseRecordLookup } from './release-record-client';
+import type {
+  RegisteredReleaseBuild,
+  ReleaseBuildRegistration,
+} from './release-registrar';
 import { evaluatePlatformPolicy } from './platform-policy';
 import {
   CreateDataContractRequest,
@@ -79,8 +89,14 @@ import {
   DataContract,
   TransitionProductVersionRequest,
   AISpecDraft,
+  AIBuildAgent,
+  AIBuildAssignment,
+  AIBuildAssignmentStatus,
   AuditContext,
   TestExecution,
+  ProductSignature,
+  ProductSignatureInput,
+  ProductSignatureMeaning,
 } from './types';
 import type { UrsBaselineResolver } from './urs-baseline-resolver';
 import type { CatalogComponentLoader } from './catalog-component-loader';
@@ -104,6 +120,29 @@ import type { PolicyResolverClient } from './policy-resolver-client';
  * `ProductRequirement.requirementRef` holds. What was missing is anyone asking
  * for it from the product side.
  */
+
+/** The actor of evidence Nexora imported on its own (NXD-151). */
+export const CI_EVIDENCE_SYNC_ACTOR = 'system:ci-evidence-sync';
+
+/** NXD-153. Keeps an assignment within GitHub's dispatch payload limit. */
+const AI_BUILD_MAX_REQUIREMENTS = 25;
+
+/**
+ * NXD-153. A pull request decides; without one, the run does. `undefined`
+ * when GitHub shows nothing yet.
+ */
+function aiBuildStatusFrom(status: AiBuildStatus): AIBuildAssignmentStatus | undefined {
+  const pr = status.pullRequest;
+  if (pr) {
+    if (pr.merged) return 'MERGED';
+    return pr.state === 'closed' ? 'CLOSED' : 'PR_OPEN';
+  }
+  const run = status.run;
+  if (!run) return undefined;
+  if (run.status !== 'completed') return 'RUNNING';
+  return run.conclusion === 'success' ? 'NO_CHANGE' : 'RUN_FAILED';
+}
+
 export interface ValidationCoverageSummary {
   contextId: string;
   /** True only when the context carries an APPROVED ValidationDecision. */
@@ -121,7 +160,7 @@ export interface ValidationDecisionResolver {
    * ValidationDecision. Returns false when no context or no decision exists,
    * or when the decision status is CONDITIONAL or REJECTED.
    */
-  hasApprovedDecision(baselineId: string): Promise<boolean>;
+  hasApprovedDecision(baselineId: string, productVersionId?: string): Promise<boolean>;
   /**
    * NXD-119. `APPROVED_GMP` when the decision carries the validation expert's
    * and QA's approval, `APPROVED` when it was approved under the
@@ -130,6 +169,8 @@ export interface ValidationDecisionResolver {
    */
   getDecisionApproval?(
     baselineId: string,
+    /** NXD-127: the decision is per product version. */
+    productVersionId?: string,
   ): Promise<'APPROVED_GMP' | 'APPROVED' | 'NONE'>;
   /**
    * Per-requirement validation coverage for a URS baseline, or `undefined`
@@ -142,6 +183,7 @@ export interface ValidationDecisionResolver {
    */
   getValidationCoverage?(
     baselineId: string,
+    productVersionId?: string,
   ): Promise<ValidationCoverageSummary | undefined>;
 }
 import {
@@ -270,6 +312,15 @@ export interface ComposerServiceOptions {
   policyResolverClient?: PolicyResolverClient;
   /** NXD-123. Test evidence from a product repository's CI. */
   ciEvidenceClient?: CiEvidenceClient;
+  /** NXD-133. Release records from a product repository's GitHub Releases. */
+  releaseRecordClient?: ReleaseRecordClient;
+  /**
+   * NXD-153. Dispatches AI build assignments; absent when the AI build is not
+   * enabled. NXD-154: `agents` are the coding agents offered, each with the
+   * model the product repository's workflow is told to use; `defaultAgent`
+   * runs when an assignment names none.
+   */
+  aiBuild?: AiBuildOptions;
   /**
    * Shared SSE client registry. Injected by the router so upgrade notifications
    * can push events to connected consumers without any property bag tricks.
@@ -289,6 +340,22 @@ function fitColumn(value: string, max = 255): string {
   return `${value.slice(0, max - 13)}#${hash}`;
 }
 
+/** NXD-154. The coding agents the AI build offers, and which runs by default. */
+export interface AiBuildOptions {
+  client: AiBuildClient;
+  agents: Partial<Record<AIBuildAgent, { model: string }>>;
+  defaultAgent: AIBuildAgent;
+}
+
+/** NXD-137. What happened to the release build in the Artifact Registry. */
+export interface ReleaseRegistrationOutcome {
+  status: 'registered' | 'already-registered' | 'failed' | 'skipped';
+  artifactRef?: string;
+  artifactVersionId?: string;
+  lifecycle?: string;
+  reason?: string;
+}
+
 export class ComposerService {
   private readonly logger: LoggerService;
   private readonly repository: IComposerRepository;
@@ -298,6 +365,8 @@ export class ComposerService {
   private readonly validationDecisionResolver?: ValidationDecisionResolver;
   private readonly policyResolverClient?: PolicyResolverClient;
   private readonly ciEvidenceClient?: CiEvidenceClient;
+  private readonly releaseRecordClient?: ReleaseRecordClient;
+  private readonly aiBuild?: AiBuildOptions;
   readonly sseClients: Map<string, Set<{ write(s: string): void }>>;
 
   constructor(options: ComposerServiceOptions) {
@@ -309,6 +378,8 @@ export class ComposerService {
     this.validationDecisionResolver = options.validationDecisionResolver;
     this.policyResolverClient = options.policyResolverClient;
     this.ciEvidenceClient = options.ciEvidenceClient;
+    this.releaseRecordClient = options.releaseRecordClient;
+    this.aiBuild = options.aiBuild;
     this.sseClients = options.sseClients ?? new Map();
   }
 
@@ -447,6 +518,7 @@ export class ComposerService {
       productName: string;
       version: string;
       status: string;
+      createdBy: string;
     }>;
   }> {
     const versions =
@@ -470,6 +542,88 @@ export class ComposerService {
         ...new Set(versions.map(v => v.createdBy).filter(Boolean)),
       ],
       versions: versions.map(v => ({
+        id: v.id,
+        productId: v.productId,
+        productName: nameOf.get(v.productId) ?? v.productId,
+        version: v.version,
+        status: v.status,
+        createdBy: v.createdBy,
+      })),
+    };
+  }
+
+  /**
+   * Whether an artifact is GMP-relevant, from the Composer products that
+   * govern it (NXD-139).
+   *
+   * A product governs an artifact when one of its versions was registered as
+   * a version of it (`artifactRef`, NXD-137). The registry's manifest holds
+   * no GxP classification, so this record is the only place it exists. As
+   * in NXD-128, only an explicit NONE is not GMP-relevant; several governing
+   * products are GMP-relevant if any one is. No governing product answers
+   * `governed: false` — a community or listing artifact.
+   */
+  async getArtifactGmpClassification(
+    namespace: string,
+    name: string,
+  ): Promise<{
+    namespace: string;
+    name: string;
+    governed: boolean;
+    gmpRelevant: boolean;
+    products: Array<{ id: string; name: string; gxpRelevance?: string }>;
+  }> {
+    const versions = await this.repository.listProductVersionsForArtifact(
+      namespace,
+      name,
+    );
+    const products = [];
+    for (const productId of new Set(versions.map(v => v.productId))) {
+      const product = await this.repository.getProduct(productId);
+      if (product) {
+        products.push({
+          id: product.id,
+          name: product.name,
+          gxpRelevance: product.gxpRelevance,
+        });
+      }
+    }
+    return {
+      namespace,
+      name,
+      governed: products.length > 0,
+      gmpRelevant: products.some(p => isGmpRelevant(p.gxpRelevance)),
+      products,
+    };
+  }
+
+  /**
+   * Whether the product versions governing one registry version are
+   * released (NXD-146). The registry asks before it publishes: a version of
+   * an artifact some Composer product governs may be published only once one
+   * of the product versions registered as exactly that coordinate is
+   * RELEASED. An artifact no product governs answers `governed: false`.
+   */
+  async getArtifactReleaseStatus(
+    namespace: string,
+    name: string,
+    version: string,
+  ): Promise<ArtifactReleaseStatus> {
+    const versions = await this.repository.listProductVersionsForArtifact(namespace, name);
+    const ref = `${namespace}/${name}@${version}`.toLowerCase();
+    const exact = versions.filter(v => v.artifactRef?.toLowerCase() === ref);
+    const nameOf = new Map<string, string>();
+    for (const productId of new Set(exact.map(v => v.productId))) {
+      const product = await this.repository.getProduct(productId);
+      nameOf.set(productId, product?.name ?? productId);
+    }
+    return {
+      namespace,
+      name,
+      version,
+      governed: versions.length > 0,
+      released: exact.some(v => v.status === 'RELEASED'),
+      productVersions: exact.map(v => ({
         id: v.id,
         productId: v.productId,
         productName: nameOf.get(v.productId) ?? v.productId,
@@ -710,6 +864,57 @@ export class ComposerService {
     await this.repository.createProductComponent(component);
     await this.audit(audit, 'PRODUCT_COMPONENT', component.id, 'PRODUCT_COMPONENT_CREATED');
     return component;
+  }
+
+  /**
+   * NXD-157. Remove a component while its version is DRAFT, the same rule
+   * that lets it be added. Its traceability links go with it, each as its
+   * own audit event, so no link points at nothing. A component that provides
+   * a data contract is refused: other products may consume that contract.
+   */
+  async deleteProductComponent(id: string, actor: string): Promise<void> {
+    const component = await this.repository.getProductComponent(id);
+    if (!component) {
+      throw new NotFoundError(`Component ${id} not found`);
+    }
+    await this.requireDraftVersion(
+      component.productVersionId,
+      'A component can only be removed while the version is DRAFT — the ' +
+        'architecture of a version is part of what was approved.',
+    );
+    const contracts = await this.repository.listDataContracts(id);
+    if (contracts.length > 0) {
+      throw new ConflictError(
+        `Component ${component.name} provides ${contracts.length} data contract${
+          contracts.length === 1 ? '' : 's'
+        }, which other products may consume; it cannot be removed`,
+      );
+    }
+    const audit = this.beginAudit(actor);
+    const links = (await this.repository.listTraceabilityLinks([id])).filter(
+      link => link.sourceId === id || link.targetId === id,
+    );
+    for (const link of links) {
+      await this.repository.deleteTraceabilityLink(link.id);
+      await this.audit(audit, 'TRACEABILITY_LINK', link.id, 'TRACEABILITY_LINK_DELETED', {
+        reason: `component ${component.name} removed`,
+        oldValue: JSON.stringify({
+          sourceId: link.sourceId,
+          relationshipType: link.relationshipType,
+          targetId: link.targetId,
+        }),
+      });
+    }
+    await this.repository.deleteProductComponent(id);
+    await this.audit(audit, 'PRODUCT_COMPONENT', id, 'PRODUCT_COMPONENT_DELETED', {
+      oldValue: JSON.stringify({
+        productVersionId: component.productVersionId,
+        name: component.name,
+        componentType: component.componentType,
+        ref: component.ref,
+        interfaceType: component.interfaceType,
+      }),
+    });
   }
 
   async listProductComponents(versionId: string): Promise<ProductComponent[]> {
@@ -1427,6 +1632,14 @@ export class ComposerService {
    */
   async getRequirementCoverage(
     productVersionId: string,
+    options: {
+      /**
+       * NXD-152. Executions that are not recorded, counted as if they were —
+       * a pull request's run, for a preview. The rule stays this one; only
+       * the evidence it reads is widened, and nothing is written.
+       */
+      hypotheticalExecutions?: TestExecution[];
+    } = {},
   ): Promise<ProductRequirementCoverage> {
     const version = await this.repository.getProductVersion(productVersionId);
     if (!version) {
@@ -1452,9 +1665,10 @@ export class ComposerService {
       requirement.ursRequirementVersionId,
       requirement.requirementRef,
     ]);
-    const executions = await this.repository.listTestExecutions(
-      requirementKeys,
-    );
+    const executions = [
+      ...(await this.repository.listTestExecutions(requirementKeys)),
+      ...(options.hypotheticalExecutions ?? []),
+    ];
     // Grouped by the key CI posted against, not by link. A failing run
     // produces no VERIFIED_BY link — that would be a contradiction in terms —
     // so a coverage rule that reached the evidence only through links could
@@ -1476,6 +1690,7 @@ export class ComposerService {
       try {
         validation = await this.validationDecisionResolver.getValidationCoverage(
           version.ursBaselineId,
+          version.id,
         );
       } catch (error) {
         // Unreachable is not "nothing is validated" — leave it undefined so
@@ -1623,23 +1838,27 @@ export class ComposerService {
     await this.audit(audit, 'TRACEABILITY_LINK', id, 'TRACEABILITY_LINK_DELETED');
   }
 
-  async transitionProductVersionStatus(
+  /**
+   * Whether `actor` may move the version to `targetStatus` now; throws if
+   * not, writes nothing. Shared by the plain and the signed transition, so a
+   * refused transition never costs a PIN attempt (NXD-128).
+   */
+  private async assertVersionTransition(
     versionId: string,
-    request: TransitionProductVersionRequest,
+    targetStatus: string,
     actor: string,
   ): Promise<ProductVersion> {
-    const audit = this.beginAudit(actor);
     const version = await this.repository.getProductVersion(versionId);
     if (!version) {
       throw new NotFoundError(`Product version ${versionId} not found`);
     }
     const allowed = VALID_TRANSITIONS[version.status] ?? [];
-    if (!allowed.includes(request.targetStatus)) {
+    if (!allowed.includes(targetStatus)) {
       throw new ConflictError(
-        `Invalid transition from ${version.status} to ${request.targetStatus}`,
+        `Invalid transition from ${version.status} to ${targetStatus}`,
       );
     }
-    if (request.targetStatus === 'RELEASED') {
+    if (targetStatus === 'RELEASED') {
       const gate = await this.checkReleaseGate(versionId);
       if (!gate.passed) {
         // A blocked gate is the platform working, not failing. 409 says
@@ -1659,13 +1878,176 @@ export class ComposerService {
     // 403, not 400 (NXD-072). This is a statement about who the caller is, not
     // about what they sent: there is no correction to the request body that
     // makes it succeed, and a 400 invites the author to go looking for one.
-    if (request.targetStatus === 'APPROVED' && actor === version.createdBy) {
+    if (targetStatus === 'APPROVED' && actor === version.createdBy) {
       throw new NotAllowedError(
         `Segregation of Duties violation: the author of a product version ` +
           `cannot approve it. Actor "${actor}" created version ${versionId}. ` +
           `A different person must perform the approval.`,
       );
     }
+    // NXD-164/165. Release is another person's act: not the version's
+    // approver, not its author, and not the approver of its product
+    // baseline. The walk (NXD-159 item 11) had one person approve the
+    // baseline, approve the version and release it; the user decided that
+    // the release needs someone who did none of those.
+    if (targetStatus === 'RELEASED') {
+      const sod = (who: string) =>
+        new NotAllowedError(
+          `Segregation of Duties violation: ${who} cannot release it. ` +
+            `Actor "${actor}" is ${who} of version ${versionId}. ` +
+            `A different person must perform the release.`,
+        );
+      if (version.approvedBy && actor === version.approvedBy) {
+        throw sod('the approver');
+      }
+      if (actor === version.createdBy) {
+        throw sod('the author');
+      }
+      const baselines = await this.repository.listProductBaselines(versionId);
+      if (baselines.some(b => b.status === 'APPROVED' && b.approvedBy === actor)) {
+        throw sod('the approver of the product baseline');
+      }
+    }
+    return version;
+  }
+
+  /**
+   * Approve or release a version as a person, with an electronic signature
+   * when the product is GMP-relevant (NXD-128). The entry point for people;
+   * `transitionProductVersionStatus` stays the plain state change.
+   *
+   * GMP-relevant (INDIRECT, DIRECT or unanswered): a justification and the
+   * signer's PIN, verified in the URS Composer like every signature on the
+   * platform. NONE: a justification is recorded when given, no PIN. Either
+   * way the act is written to `product_signatures`, after the transition
+   * succeeded. Other transitions (release candidate, revert) are not
+   * signed.
+   */
+  async signedVersionTransition(
+    versionId: string,
+    request: TransitionProductVersionRequest,
+    actor: string,
+    verifyPin: (pin: string) => Promise<string>,
+  ): Promise<ProductVersion> {
+    const signedMeanings: Partial<Record<string, ProductSignatureMeaning>> = {
+      APPROVED: 'VERSION_APPROVED',
+      RELEASED: 'VERSION_RELEASED',
+    };
+    const meaning = signedMeanings[request.targetStatus];
+    if (!meaning) {
+      return this.transitionProductVersionStatus(versionId, request, actor);
+    }
+    const version = await this.assertVersionTransition(
+      versionId,
+      request.targetStatus,
+      actor,
+    );
+    const product = await this.repository.getProduct(version.productId);
+    const attested = await this.attest(product, request.signature, verifyPin);
+    const updated = await this.transitionProductVersionStatus(versionId, request, actor);
+    await this.repository.addProductSignature({
+      id: randomUUID(),
+      productId: version.productId,
+      entityType: 'PRODUCT_VERSION',
+      entityId: versionId,
+      meaning,
+      justification: attested.justification,
+      signedBy: actor,
+      signedAt: new Date().toISOString(),
+      gmpRelevant: attested.gmpRelevant,
+      reauthMethod: attested.reauthMethod,
+    });
+    return updated;
+  }
+
+  /** Approve a baseline as a person, signed when GMP-relevant (NXD-128). */
+  async signedBaselineApproval(
+    baselineId: string,
+    signature: ProductSignatureInput | undefined,
+    actor: string,
+    verifyPin: (pin: string) => Promise<string>,
+  ): Promise<ProductBaseline> {
+    const baseline = await this.repository.getProductBaseline(baselineId);
+    if (!baseline) {
+      throw new NotFoundError(`Product baseline ${baselineId} not found`);
+    }
+    if (baseline.status !== 'DRAFT') {
+      throw new ConflictError(`Cannot approve baseline in status ${baseline.status}`);
+    }
+    if (actor === baseline.createdBy) {
+      throw new NotAllowedError(
+        `Segregation of Duties violation: the author of a product baseline ` +
+          `cannot approve it. Actor "${actor}" created baseline ${baselineId}. ` +
+          `A different person must perform the approval.`,
+      );
+    }
+    const version = await this.repository.getProductVersion(baseline.productVersionId);
+    const product = version ? await this.repository.getProduct(version.productId) : null;
+    const attested = await this.attest(product, signature, verifyPin);
+    const approved = await this.approveProductBaseline(baselineId, actor);
+    await this.repository.addProductSignature({
+      id: randomUUID(),
+      productId: version?.productId ?? '',
+      entityType: 'PRODUCT_BASELINE',
+      entityId: baselineId,
+      meaning: 'BASELINE_APPROVED',
+      justification: attested.justification,
+      signedBy: actor,
+      signedAt: new Date().toISOString(),
+      gmpRelevant: attested.gmpRelevant,
+      reauthMethod: attested.reauthMethod,
+    });
+    return approved;
+  }
+
+  async listProductSignatures(productId: string): Promise<ProductSignature[]> {
+    return this.repository.listProductSignatures(productId);
+  }
+
+  /**
+   * The justification and, for a GMP-relevant product, the verified PIN.
+   * Only an explicit NONE takes a product out (as NXD-119); an unknown
+   * product is treated as GMP-relevant.
+   */
+  private async attest(
+    product: Product | null,
+    input: ProductSignatureInput | undefined,
+    verifyPin: (pin: string) => Promise<string>,
+  ): Promise<{ justification: string; gmpRelevant: boolean; reauthMethod?: string }> {
+    const gmpRelevant = isGmpRelevant(product?.gxpRelevance);
+    const justification = String(input?.justification ?? '').trim();
+    if (!gmpRelevant) {
+      return { justification, gmpRelevant };
+    }
+    if (!justification) {
+      throw new InputError(
+        'This product is GMP-relevant: approving or releasing it needs a justification and your signing PIN.',
+      );
+    }
+    // NXD-160. A reason in words, not a token.
+    const problem = justificationProblem(justification);
+    if (problem) {
+      throw new InputError(`This product is GMP-relevant: ${problem}`);
+    }
+    if (!input?.pin) {
+      throw new InputError(
+        'This product is GMP-relevant: approving or releasing it needs your signing PIN.',
+      );
+    }
+    return { justification, gmpRelevant, reauthMethod: await verifyPin(String(input.pin)) };
+  }
+
+  async transitionProductVersionStatus(
+    versionId: string,
+    request: TransitionProductVersionRequest,
+    actor: string,
+  ): Promise<ProductVersion> {
+    const audit = this.beginAudit(actor);
+    const version = await this.assertVersionTransition(
+      versionId,
+      request.targetStatus,
+      actor,
+    );
 
     const oldStatus = version.status;
     const updated: ProductVersion = {
@@ -1674,9 +2056,14 @@ export class ComposerService {
       releaseCommitSha: request.releaseCommitSha ?? version.releaseCommitSha,
       artifactDigest: request.artifactDigest ?? version.artifactDigest,
     };
-    if (request.targetStatus === 'APPROVED' || request.targetStatus === 'RELEASED') {
+    // NXD-164. Approval and release each keep their own who and when.
+    if (request.targetStatus === 'APPROVED') {
       updated.approvedBy = actor;
       updated.approvedAt = new Date();
+    }
+    if (request.targetStatus === 'RELEASED') {
+      updated.releasedBy = actor;
+      updated.releasedAt = new Date();
     }
     await this.repository.updateProductVersion(updated);
     await this.audit(audit, 'PRODUCT_VERSION', versionId, 'STATUS_TRANSITION', {
@@ -1803,7 +2190,10 @@ export class ComposerService {
         }
         // Evaluate each obligation's `check` identifier against the product's
         // actual data. Unknown check IDs fail loudly (same rule as platform-policy.ts).
-        const isGxp = product.gxpRelevance && product.gxpRelevance !== 'NONE';
+        // NXD-145: the one GMP predicate. An unanswered classification
+        // counts as GxP here too, so a GxP-only obligation cannot be escaped
+        // by leaving the field empty.
+        const isGxp = isGmpRelevant(product.gxpRelevance);
         // Reuses the `components` already loaded above for the NO_COMPONENTS
         // check — same version, same query.
         const contractList: DataContract[] = [];
@@ -1876,12 +2266,19 @@ export class ComposerService {
       }
     }
 
-    // A product must say which requirements it implements before it is
-    // released. Creating one without a URS stays allowed — this is the single
-    // point where the binding becomes mandatory, so experimenting is free and
-    // nothing unattributed reaches production.
+    // A GMP-relevant product must say which requirements it implements before
+    // it is released. Creating one without a URS stays allowed — this is the
+    // single point where the binding becomes mandatory, so experimenting is
+    // free and nothing unattributed reaches GMP production. A product that
+    // answers NONE is exempt: a URS is a GxP instrument, and requiring one of
+    // a community or analytics product made the gate a formality. An unknown
+    // product counts as GMP, as everywhere else.
     const ursBaselineIds = approvedBaseline?.ursBaselineIds ?? [];
-    if (approvedBaseline && ursBaselineIds.length === 0) {
+    if (
+      approvedBaseline &&
+      ursBaselineIds.length === 0 &&
+      isGmpRelevant(product?.gxpRelevance)
+    ) {
       blockers.push({
         code: 'NO_URS_BASELINE',
         message:
@@ -1918,7 +2315,7 @@ export class ComposerService {
       // a decision under the GMP rule: the validation expert's and QA's
       // signatures. Otherwise a product could ride on a baseline that was
       // approved with one signature while no GMP product depended on it.
-      const gmpProduct = product.gxpRelevance !== 'NONE';
+      const gmpProduct = isGmpRelevant(product.gxpRelevance);
       for (const ursId of ursBaselineIds) {
         try {
           const resolver = this.validationDecisionResolver;
@@ -1926,9 +2323,10 @@ export class ComposerService {
           // approval is taken as complete, as it was before.
           let approval: 'APPROVED_GMP' | 'APPROVED' | 'NONE';
           if (resolver.getDecisionApproval) {
-            approval = await resolver.getDecisionApproval(ursId);
+            // NXD-127: the decision for this version, not for the baseline.
+            approval = await resolver.getDecisionApproval(ursId, versionId);
           } else {
-            approval = (await resolver.hasApprovedDecision(ursId))
+            approval = (await resolver.hasApprovedDecision(ursId, versionId))
               ? 'APPROVED_GMP'
               : 'NONE';
           }
@@ -2183,6 +2581,12 @@ export class ComposerService {
     baselineId: string,
     request: { releaseCommitSha?: unknown; artifactDigest?: unknown },
     actor: string,
+    /**
+     * NXD-133. When a person triggers an import, `actor` is that person (the
+     * audit trail says who did it) and `recordedBy` names where the values
+     * came from, because provenance is never asserted by a human.
+     */
+    options?: { recordedBy?: string; reason?: string },
   ): Promise<ProductBaseline> {
     const audit = this.beginAudit(actor);
     const baseline = await this.repository.getProductBaseline(baselineId);
@@ -2227,14 +2631,446 @@ export class ComposerService {
     const provenance: ReleaseProvenance = {
       ...incoming,
       provenanceTimestamp: new Date().toISOString(),
-      provenanceRecordedBy: actor,
+      provenanceRecordedBy: options?.recordedBy ?? actor,
     };
     const updated: ProductBaseline = { ...baseline, provenance };
     await this.repository.updateProductBaseline(updated);
     await this.audit(audit, 'PRODUCT_BASELINE', baselineId, 'PROVENANCE_RECORDED', {
       newValue: JSON.stringify(provenance),
+      ...(options?.reason ? { reason: options.reason } : {}),
     });
     return { ...updated, revision: (baseline.revision || 1) + 1 };
+  }
+
+  /**
+   * NXD-151. Imports CI evidence for every product without a person pressing
+   * the button: the default branch's newest push run (data-products filters
+   * it), into each product's newest DRAFT version that has requirements
+   * bound. A version past DRAFT — under approval, a release candidate,
+   * released — keeps the evidence it has unless a person imports more: an
+   * approval must not change underneath the approver.
+   *
+   * Idempotent, because `importTestEvidence` records a run once. A product
+   * with nothing to import (no repository, no run, no artifact, no bound
+   * requirement) is reported, not raised; one product's failure does not
+   * stop the pass.
+   */
+  /**
+   * NXD-153. Assign a draft version's bound requirements to the AI build in
+   * the product's repository. The assignment is recorded before it is
+   * dispatched, so a dispatch never happens that Nexora does not know of; a
+   * dispatch GitHub did not take leaves it NOT_DISPATCHED with the reason.
+   * The workflow there writes code and requirement-tagged tests and opens a
+   * pull request. Nexora writes no code and merges nothing.
+   */
+  async issueAiBuildAssignment(
+    productVersionId: string,
+    request: { requirementRefs?: unknown; note?: unknown; agent?: unknown },
+    actor: string,
+  ): Promise<AIBuildAssignment> {
+    if (!this.aiBuild) {
+      throw new NotImplementedError('The AI build is not enabled (composer.aiBuild.enabled)');
+    }
+    const agent = (request.agent ?? this.aiBuild.defaultAgent) as AIBuildAgent;
+    const model = typeof agent === 'string' ? this.aiBuild.agents[agent]?.model : undefined;
+    if (!model) {
+      throw new InputError(
+        `agent must be one of ${Object.keys(this.aiBuild.agents).join(', ')}`,
+      );
+    }
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
+    if (version.status !== 'DRAFT') {
+      throw new ConflictError(
+        `Version ${version.version} is ${version.status}; code is built for a DRAFT version only`,
+      );
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product?.repositoryUrl) {
+      throw new ConflictError('The product has no repository to build in');
+    }
+    const bound = await this.repository.listProductRequirements(productVersionId);
+    if (bound.length === 0) {
+      throw new ConflictError('Bind an approved URS baseline before assigning requirements');
+    }
+    let selected = bound;
+    if (request.requirementRefs !== undefined) {
+      if (
+        !Array.isArray(request.requirementRefs) ||
+        request.requirementRefs.some(ref => typeof ref !== 'string')
+      ) {
+        throw new InputError('requirementRefs must be a list of requirement ids');
+      }
+      const wanted = new Set(request.requirementRefs as string[]);
+      const unknown = [...wanted].filter(ref => !bound.some(r => r.requirementRef === ref));
+      if (unknown.length > 0) {
+        throw new InputError(`Not bound to version ${version.version}: ${unknown.join(', ')}`);
+      }
+      selected = bound.filter(r => wanted.has(r.requirementRef));
+      if (selected.length === 0) {
+        throw new InputError('Assign at least one requirement');
+      }
+    }
+    if (selected.length > AI_BUILD_MAX_REQUIREMENTS) {
+      throw new InputError(
+        `At most ${AI_BUILD_MAX_REQUIREMENTS} requirements per assignment; ${selected.length} selected`,
+      );
+    }
+    if (request.note !== undefined && typeof request.note !== 'string') {
+      throw new InputError('note must be text');
+    }
+    const note = (request.note as string | undefined)?.trim() || undefined;
+    if (note && note.length > 2000) {
+      throw new InputError('note is longer than 2000 characters');
+    }
+    await this.refuseWhileAiBuildOpen(productVersionId, actor);
+
+    const id = randomUUID();
+    const payload = {
+      assignmentId: id,
+      agent,
+      model,
+      product: product.name,
+      version: version.version,
+      requirements: selected.map(r => ({
+        id: r.requirementRef,
+        title: r.title,
+        statement: r.statement,
+        ...(r.priority ? { priority: r.priority } : {}),
+      })),
+      ...(note ? { note } : {}),
+    };
+    const now = new Date().toISOString();
+    const assignment: AIBuildAssignment = {
+      id,
+      productId: product.id,
+      productVersionId,
+      versionLabel: version.version,
+      status: 'DISPATCHED',
+      requirements: selected.map(r => ({
+        requirementRef: r.requirementRef,
+        ursRequirementVersionId: r.ursRequirementVersionId,
+        contentHash: r.contentHash ?? '',
+      })),
+      ...(note ? { note } : {}),
+      agent,
+      modelId: model,
+      payloadHash: `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`,
+      repositoryUrl: product.repositoryUrl,
+      branch: `nexora/ai-${id}`,
+      issuedBy: actor,
+      issuedAt: now,
+      updatedAt: now,
+    };
+    const audit = this.beginAudit(actor);
+    await this.repository.createAiBuildAssignment(assignment);
+    await this.audit(audit, 'AI_BUILD_ASSIGNMENT', id, 'AI_BUILD_ASSIGNED', {
+      newValue: JSON.stringify({
+        productVersionId,
+        version: version.version,
+        requirements: assignment.requirements.map(r => r.requirementRef),
+        agent: assignment.agent,
+        modelId: assignment.modelId,
+        payloadHash: assignment.payloadHash,
+      }),
+    });
+
+    let reason: string | undefined;
+    try {
+      const sent = await this.aiBuild.client.dispatch(product.repositoryUrl, payload);
+      reason = sent.dispatched ? undefined : sent.reason ?? 'unavailable';
+    } catch (error) {
+      this.logger.warn(
+        `AI build dispatch for ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      reason = 'unavailable';
+    }
+    if (reason) {
+      const outcome = { status: 'NOT_DISPATCHED' as const, dispatchReason: reason, updatedAt: new Date().toISOString() };
+      await this.repository.updateAiBuildOutcome(id, outcome);
+      await this.audit(audit, 'AI_BUILD_ASSIGNMENT', id, 'AI_BUILD_NOT_DISPATCHED', { reason });
+      return { ...assignment, ...outcome };
+    }
+    await this.audit(audit, 'AI_BUILD_ASSIGNMENT', id, 'AI_BUILD_DISPATCHED', {
+      newValue: JSON.stringify({ repositoryUrl: assignment.repositoryUrl, branch: assignment.branch }),
+    });
+    return assignment;
+  }
+
+  /** NXD-154. What the AI build offers; `enabled: false` when it is off. */
+  getAiBuildAgents(): {
+    enabled: boolean;
+    defaultAgent?: AIBuildAgent;
+    agents: Array<{ agent: AIBuildAgent; model: string }>;
+  } {
+    if (!this.aiBuild) return { enabled: false, agents: [] };
+    return {
+      enabled: true,
+      defaultAgent: this.aiBuild.defaultAgent,
+      agents: (Object.entries(this.aiBuild.agents) as Array<[AIBuildAgent, { model: string }]>).map(
+        ([agent, { model }]) => ({ agent, model }),
+      ),
+    };
+  }
+
+  /**
+   * NXD-156. One open assignment per version: a second one builds the same
+   * requirements again from the same base and opens a competing pull
+   * request. An assignment is open while it is dispatched, running or has
+   * an open pull request. Each one that looks open is refreshed first, so
+   * a pull request merged or closed on GitHub since the last refresh does
+   * not block; if GitHub cannot be read, the recorded status stands.
+   */
+  private async refuseWhileAiBuildOpen(productVersionId: string, actor: string): Promise<void> {
+    const OPEN: AIBuildAssignmentStatus[] = ['DISPATCHED', 'RUNNING', 'PR_OPEN'];
+    for (const recorded of await this.repository.listAiBuildAssignments(productVersionId)) {
+      if (!OPEN.includes(recorded.status)) continue;
+      let current = recorded;
+      try {
+        current = await this.refreshAiBuildAssignment(recorded.id, actor);
+      } catch (error) {
+        this.logger.warn(
+          `AI build ${recorded.id} could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      if (OPEN.includes(current.status)) {
+        const what =
+          current.status === 'PR_OPEN'
+            ? `has pull request #${current.pullRequestNumber} open; merge or close it`
+            : `is ${current.status === 'RUNNING' ? 'running' : 'dispatched'}; wait for its run, or cancel it on GitHub`;
+        throw new ConflictError(
+          `Assignment ${current.id} for version ${current.versionLabel} ${what}, then assign again`,
+        );
+      }
+    }
+  }
+
+  async listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
+    return this.repository.listAiBuildAssignments(productVersionId);
+  }
+
+  /**
+   * NXD-153. Bring an assignment up to what GitHub shows: its run and the
+   * pull request from its branch. Every change of status is an audit event,
+   * so who merged what the AI proposed, and when, is on the record with the
+   * merge commit.
+   */
+  async refreshAiBuildAssignment(id: string, actor: string): Promise<AIBuildAssignment> {
+    const assignment = await this.repository.getAiBuildAssignment(id);
+    if (!assignment) throw new NotFoundError(`AI build assignment ${id} not found`);
+    if (assignment.status === 'NOT_DISPATCHED') {
+      return assignment;
+    }
+    if (!this.aiBuild) {
+      throw new NotImplementedError('The AI build is not enabled (composer.aiBuild.enabled)');
+    }
+    const status = await this.aiBuild.client.getStatus(assignment.repositoryUrl, id);
+    if (!status.available) {
+      throw new ServiceUnavailableError(`GitHub could not be read: ${status.reason ?? 'unavailable'}`);
+    }
+    const next = aiBuildStatusFrom(status) ?? assignment.status;
+    const outcome = {
+      status: next,
+      runUrl: status.run?.url ?? assignment.runUrl,
+      runConclusion: status.run?.conclusion ?? assignment.runConclusion,
+      pullRequestNumber: status.pullRequest?.number ?? assignment.pullRequestNumber,
+      pullRequestUrl: status.pullRequest?.url ?? assignment.pullRequestUrl,
+      pullRequestHeadSha: status.pullRequest?.headSha ?? assignment.pullRequestHeadSha,
+      mergedAt: status.pullRequest?.mergedAt ?? assignment.mergedAt,
+      mergeCommitSha: status.pullRequest?.mergeCommitSha ?? assignment.mergeCommitSha,
+      closedAt: status.pullRequest?.closedAt ?? assignment.closedAt,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.repository.updateAiBuildOutcome(id, outcome);
+    if (next !== assignment.status) {
+      await this.audit(this.beginAudit(actor), 'AI_BUILD_ASSIGNMENT', id, `AI_BUILD_${next}`, {
+        oldValue: assignment.status,
+        newValue: JSON.stringify({
+          status: next,
+          ...(outcome.runUrl ? { runUrl: outcome.runUrl } : {}),
+          ...(outcome.pullRequestUrl ? { pullRequestUrl: outcome.pullRequestUrl } : {}),
+          ...(outcome.pullRequestHeadSha ? { headSha: outcome.pullRequestHeadSha } : {}),
+          ...(outcome.mergeCommitSha ? { mergeCommitSha: outcome.mergeCommitSha } : {}),
+        }),
+      });
+    }
+    return { ...assignment, ...outcome };
+  }
+
+  async syncCiEvidence(actor = CI_EVIDENCE_SYNC_ACTOR): Promise<{
+    imported: number;
+    versions: Array<{
+      productId: string;
+      versionId: string;
+      imported?: number;
+      alreadyRecorded?: number;
+      skipped?: string;
+    }>;
+  }> {
+    const outcome: Awaited<ReturnType<ComposerService['syncCiEvidence']>> = {
+      imported: 0,
+      versions: [],
+    };
+    const pageSize = 200;
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await this.repository.listProducts(pageSize, offset);
+      for (const product of page.items) {
+        if (!product.repositoryUrl) continue;
+        const drafts = (await this.repository.listProductVersions(product.id))
+          .filter(v => v.status === 'DRAFT')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const version = drafts[0];
+        if (!version) continue;
+        try {
+          const result = await this.importTestEvidence(version.id, actor);
+          outcome.imported += result.imported;
+          outcome.versions.push({
+            productId: product.id,
+            versionId: version.id,
+            imported: result.imported,
+            alreadyRecorded: result.alreadyRecorded,
+          });
+        } catch (error) {
+          outcome.versions.push({
+            productId: product.id,
+            versionId: version.id,
+            skipped: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (offset + pageSize >= page.total) break;
+    }
+    return outcome;
+  }
+
+  /**
+   * What each open pull request would verify (NXD-152). Its own CI run's
+   * evidence is counted as the newest run, through the same coverage rule
+   * the release gate uses, and compared with coverage as recorded. Nothing
+   * is written: a pull request's tests are not the version's evidence
+   * (NXD-151). Only whether the coverage part of the gate would pass is
+   * answered; the gate has other conditions.
+   */
+  async previewPullRequestEvidence(productVersionId: string): Promise<{
+    available: boolean;
+    reason?: string;
+    current: { verified: number; total: number };
+    pullRequests: Array<{
+      number: number;
+      title: string;
+      url: string;
+      headRef: string;
+      draft: boolean;
+      author?: string;
+      stale?: boolean;
+      run?: { id: number; url: string; commit: string; conclusion: string | null };
+      available: boolean;
+      reason?: string;
+      coverage?: {
+        verified: number;
+        total: number;
+        wouldPassCoverage: boolean;
+        newlyVerified: string[];
+        newlyUnverified: string[];
+        byRequirement: Record<string, { passed: number; failed: number }>;
+        unknownRequirements: string[];
+      };
+    }>;
+  }> {
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) throw new NotFoundError(`Product version ${productVersionId} not found`);
+    const product = await this.repository.getProduct(version.productId);
+    const requirements = await this.repository.listProductRequirements(productVersionId);
+    const current = await this.getRequirementCoverage(productVersionId);
+    const counts = { verified: current.verified, total: current.total };
+    if (!product?.repositoryUrl) {
+      return { available: false, reason: 'no-repository', current: counts, pullRequests: [] };
+    }
+    if (requirements.length === 0) {
+      return { available: false, reason: 'no-requirements-bound', current: counts, pullRequests: [] };
+    }
+    if (!this.ciEvidenceClient?.getPullRequestEvidence) {
+      return { available: false, reason: 'unavailable', current: counts, pullRequests: [] };
+    }
+    const listing = await this.ciEvidenceClient.getPullRequestEvidence(product.repositoryUrl);
+    if (!listing.available) {
+      return { available: false, reason: listing.reason, current: counts, pullRequests: [] };
+    }
+    const byRef = new Map(requirements.map(r => [r.requirementRef, r]));
+    const wasVerified = new Set(
+      current.byRequirement.filter(row => row.verified).map(row => row.requirementRef),
+    );
+    const pullRequests = [];
+    for (const pr of listing.pullRequests) {
+      const base = {
+        number: pr.number,
+        title: pr.title,
+        url: pr.url,
+        headRef: pr.headRef,
+        draft: pr.draft,
+        ...(pr.author ? { author: pr.author } : {}),
+        ...(pr.stale !== undefined ? { stale: pr.stale } : {}),
+        ...(pr.run
+          ? { run: { id: pr.run.id, url: pr.run.url, commit: pr.run.commit, conclusion: pr.run.conclusion } }
+          : {}),
+      };
+      if (!pr.available || !pr.run || !pr.results) {
+        pullRequests.push({ ...base, available: false, ...(pr.reason ? { reason: pr.reason } : {}) });
+        continue;
+      }
+      const executedAt = new Date(pr.run.completedAt ?? Date.now());
+      const hypothetical: TestExecution[] = [];
+      const tally: Record<string, { passed: number; failed: number }> = {};
+      const unknown = new Set<string>();
+      for (const result of pr.results) {
+        if (result.outcome === 'skipped') continue;
+        for (const ref of result.requirements) {
+          const requirement = byRef.get(ref);
+          if (!requirement) {
+            unknown.add(ref);
+            continue;
+          }
+          const passed = result.outcome === 'passed';
+          hypothetical.push({
+            id: `preview:${pr.number}:${hypothetical.length}`,
+            requirementVersionId: requirement.ursRequirementVersionId,
+            testSuite: fitColumn(result.testCase.split('::')[0] || result.suite),
+            testCase: fitColumn(result.testCase),
+            status: passed ? 'PASSED' : 'FAILED',
+            executedAt,
+            executionArtifactUrl: pr.run.url,
+            correlationId: `preview:${pr.number}`,
+            createdBy: CI_EVIDENCE_SYNC_ACTOR,
+            createdAt: executedAt,
+          });
+          const t = (tally[ref] ??= { passed: 0, failed: 0 });
+          if (passed) t.passed++;
+          else t.failed++;
+        }
+      }
+      const preview = await this.getRequirementCoverage(productVersionId, {
+        hypotheticalExecutions: hypothetical,
+      });
+      const nowVerified = new Set(
+        preview.byRequirement.filter(row => row.verified).map(row => row.requirementRef),
+      );
+      pullRequests.push({
+        ...base,
+        available: true,
+        coverage: {
+          verified: preview.verified,
+          total: preview.total,
+          wouldPassCoverage: preview.verified === preview.total,
+          newlyVerified: [...nowVerified].filter(ref => !wasVerified.has(ref)).sort(),
+          newlyUnverified: [...wasVerified].filter(ref => !nowVerified.has(ref)).sort(),
+          byRequirement: tally,
+          unknownRequirements: [...unknown].sort(),
+        },
+      });
+    }
+    return { available: true, current: counts, pullRequests };
   }
 
   /**
@@ -2387,6 +3223,207 @@ export class ComposerService {
         .map(r => r.requirementRef)
         .filter(ref => !evidenced.has(ref)),
       unknownRequirements: [...unknown].sort(),
+    };
+  }
+
+  /**
+   * Record the commit and image digest of a version's release build, read
+   * from the GitHub Release the product's release workflow published (NXD-133;
+   * the workflow is NXD-132).
+   *
+   * Pull, as for test evidence (NXD-123): a person with product.manage
+   * presses the button, but every value comes from GitHub, never from them.
+   * The record is written to the version's APPROVED baseline through
+   * `recordBaselineProvenance`, so NXD-052's rules hold unchanged: same
+   * build again is a no-op, a different build is a 409. `provenanceRecordedBy`
+   * names the release, not the person — that field means "who asserted what
+   * was built", and a person must not be able to assert it. The person is the
+   * audit event's actor.
+   *
+   * Refused, each with the reason in the message:
+   * - no APPROVED baseline (the release build follows approval, NXD-052);
+   * - no release for the version, two releases for it, or no readable record;
+   * - a record whose version is not this version, whose tag is not the
+   *   release's tag, or whose commit is not the commit the tag points at.
+   */
+  async importReleaseProvenance(
+    productVersionId: string,
+    actor: string,
+    /**
+     * NXD-137. Registers the build in the Artifact Registry on the caller's
+     * behalf; the router binds it to their credentials. Absent, the import
+     * records provenance only.
+     */
+    register?: (request: ReleaseBuildRegistration) => Promise<RegisteredReleaseBuild>,
+  ): Promise<{
+    baseline: ProductBaseline;
+    release: { tag: string; url: string; commit: string };
+    image: { repository?: string; digest: string; reference?: string };
+    alreadyRecorded: boolean;
+    registration: ReleaseRegistrationOutcome;
+  }> {
+    if (!this.releaseRecordClient) {
+      throw new ConflictError('Release provenance import is not configured on this instance.');
+    }
+    const version = await this.repository.getProductVersion(productVersionId);
+    if (!version) {
+      throw new NotFoundError(`Product version ${productVersionId} not found`);
+    }
+    const product = await this.repository.getProduct(version.productId);
+    if (!product?.repositoryUrl) {
+      throw new ConflictError(
+        'This product has no repository URL, so there is no release to read.',
+      );
+    }
+    const baselines = await this.repository.listProductBaselines(productVersionId);
+    const baseline = baselines.find(b => b.status === 'APPROVED');
+    if (!baseline) {
+      throw new ConflictError(
+        `Version ${version.version} has no approved baseline. The release build ` +
+          'is recorded against the approved baseline it was built from; approve one first.',
+      );
+    }
+
+    const lookup = await this.releaseRecordClient.getReleaseRecord(
+      product.repositoryUrl,
+      version.version,
+    );
+    if (!lookup.available || !lookup.release || !lookup.record) {
+      const why: Record<string, string> = {
+        'no-release': `the repository has no published release v${version.version} (a tag v${version.version} runs the release workflow)`,
+        'ambiguous-release': `more than one release names this version (${(lookup.tags ?? []).join(', ')}); delete all but one`,
+        'no-release-record': `release ${lookup.release?.tag ?? ''} carries no nexora-release.json`,
+        'invalid-release-record': `the release's nexora-release.json is not a release record${lookup.problem ? ` (${lookup.problem})` : ''}`,
+        inaccessible: 'Nexora cannot read the repository’s releases',
+        'not-found': 'the repository was not found',
+      };
+      throw new ConflictError(
+        `No release provenance to import: ${why[lookup.reason ?? ''] ?? lookup.reason ?? 'unknown'}.`,
+      );
+    }
+
+    const { release, record } = lookup;
+    const tagCommit = release.commit ?? '';
+    const image = (record.image ?? {}) as Record<string, unknown>;
+    const problems: string[] = [];
+    if (!versionLabelsEquivalent(String(record.version ?? ''), version.version)) {
+      problems.push(
+        `the record is for version ${String(record.version)}, not ${version.version}`,
+      );
+    }
+    if (record.tag !== release.tag) {
+      problems.push(`the record names tag ${String(record.tag)}, the release is ${release.tag}`);
+    }
+    if (
+      !tagCommit ||
+      String(record.commitSha ?? '').toLowerCase() !== tagCommit.toLowerCase()
+    ) {
+      problems.push(
+        `the record names commit ${String(record.commitSha)}, but ${release.tag} points at ${tagCommit || 'an unknown commit'}`,
+      );
+    }
+    if (problems.length > 0) {
+      throw new ConflictError(
+        `The release record of ${release.tag} does not describe this version: ${problems.join('; ')}.`,
+      );
+    }
+
+    const before = baseline.provenance;
+    const updated = await this.recordBaselineProvenance(
+      baseline.id,
+      { releaseCommitSha: record.commitSha, artifactDigest: image.digest },
+      actor,
+      {
+        recordedBy: fitColumn(`github-release:${release.url}`),
+        reason: `Imported from ${release.url}`,
+      },
+    );
+    const registration = await this.registerReleaseBuild(
+      version,
+      actor,
+      lookup,
+      {
+        imageRepository: typeof image.repository === 'string' ? image.repository : undefined,
+        imageDigest: String(image.digest),
+        commitSha: tagCommit,
+        releaseUrl: release.url,
+      },
+      register,
+    );
+    return {
+      baseline: updated,
+      release: { tag: release.tag, url: release.url, commit: tagCommit },
+      image: {
+        repository: typeof image.repository === 'string' ? image.repository : undefined,
+        digest: String(image.digest),
+        reference: typeof image.reference === 'string' ? image.reference : undefined,
+      },
+      alreadyRecorded: before !== undefined,
+      registration,
+    };
+  }
+
+  /**
+   * NXD-137. After the provenance is recorded, the build becomes a DRAFT
+   * version in the Artifact Registry, from the manifest at the tagged commit.
+   *
+   * A failure here does not undo the provenance — it is true whether or not
+   * the registry took the build — so it is reported, not thrown, and the
+   * import can be re-run: provenance answers already recorded, the registry
+   * answers already registered.
+   */
+  private async registerReleaseBuild(
+    version: ProductVersion,
+    actor: string,
+    lookup: ReleaseRecordLookup,
+    release: ReleaseBuildRegistration['release'],
+    register?: (request: ReleaseBuildRegistration) => Promise<RegisteredReleaseBuild>,
+  ): Promise<ReleaseRegistrationOutcome> {
+    if (!register) {
+      return { status: 'skipped', reason: 'Registry registration is not configured on this instance.' };
+    }
+    if (!lookup.manifest) {
+      const why: Record<string, string> = {
+        'no-manifest': `the tagged commit has no nexora.yaml`,
+        'manifest-too-large': 'the nexora.yaml at the tagged commit is too large',
+      };
+      return {
+        status: 'skipped',
+        reason: `Not registered: ${why[lookup.manifestReason ?? ''] ?? `the manifest could not be read (${lookup.manifestReason ?? 'unknown'})`}.`,
+      };
+    }
+    let registered: RegisteredReleaseBuild;
+    try {
+      registered = await register({ manifest: lookup.manifest, release });
+    } catch (error) {
+      return {
+        status: 'failed',
+        reason: `The Artifact Registry refused the build: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    const linked = await this.repository.setProductVersionArtifactRef(
+      version.id,
+      registered.artifactRef,
+    );
+    if (linked && version.artifactRef !== registered.artifactRef) {
+      await this.audit(
+        this.beginAudit(actor),
+        'PRODUCT_VERSION',
+        version.id,
+        'ARTIFACT_VERSION_REGISTERED',
+        { newValue: registered.artifactRef, reason: `Registered from ${release.releaseUrl ?? 'a release'}` },
+      );
+    }
+    return {
+      status: registered.alreadyRegistered ? 'already-registered' : 'registered',
+      artifactRef: registered.artifactRef,
+      artifactVersionId: registered.artifactVersionId,
+      lifecycle: registered.lifecycle,
+      ...(linked
+        ? {}
+        : {
+            reason: `Version ${version.version} already points at ${version.artifactRef}; it was not re-pointed.`,
+          }),
     };
   }
 

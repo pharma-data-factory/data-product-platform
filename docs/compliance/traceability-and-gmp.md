@@ -1,7 +1,7 @@
 # Traceability and GMP position
 
 Owner: Platform Team
-Last reviewed: 2026-09-26
+Last reviewed: 2026-10-07
 Audience: INTERNAL ENGINEERING / QUALITY
 Status: AUTHORITATIVE for Nexora's compliance capability and its limits
 
@@ -52,6 +52,28 @@ rejecting the version and opening a new one, so both statements stay on record.
 
 `APPROVED` is reachable **only** through a valid QA signature, never through a
 status endpoint.
+
+**The second factor cannot be re-issued by the first**
+([`NXD-138`](../nexora-transformation/DECISIONS.md), deciding `NXD-136`).
+One PIN serves every signature on the platform: URS approvals, validation
+decisions (`NXD-119`), product approval and release (`NXD-128`).
+
+- **First enrolment** (`PUT /urs-composer/signing-pin`) needs only the
+  session; there is nothing to prove yet.
+- **Changing** a PIN needs the current one (`currentPin`). Without it the
+  request is refused with 400. A wrong one is refused with 403 and counted
+  as a failed attempt. A locked seat (5 failures, 15 minutes) cannot change
+  its PIN at all. The rule is in `SignaturePinReAuth.enroll`, so no caller
+  can enrol around it.
+- **Administrator reset** (`POST /urs-composer/signing-pin/reset`,
+  `platform.user.manage`). A platform administrator **clears** a seat's PIN,
+  failed attempts and lockout, and never sets one. A body carrying a PIN is
+  refused. A reason is required. The reset is written to the append-only
+  audit trail as `PIN_RESET` (who, whom, when, why, the lockout it lifted) in
+  the same transaction as the removal. The seat enrols again before its next
+  signature. An administrator cannot reset their own seat.
+- **Not yet:** re-authentication through the identity provider (OIDC
+  step-up) remains the target; `OidcStepUpReAuth` is a stub that refuses.
 
 ### 1.3 Database-level invariants
 

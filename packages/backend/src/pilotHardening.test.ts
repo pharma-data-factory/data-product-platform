@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { parse } from 'yaml';
+import { resolvePlatformRole } from '@internal/platform-common';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -76,6 +78,36 @@ describe('MVP 1.1 pilot hardening', () => {
     expect(read('app-config.guest-developer.yaml')).not.toContain(
       'group:default/platform-admins',
     );
+  });
+
+  // NXD-166. Each AUTH_GUEST_ROLE gives the tier it is named for. "developer"
+  // gave DATA_PRODUCT_OWNER until then, which can approve and release.
+  it.each([
+    ['app-config.guest-developer.yaml', 'DEVELOPER'],
+    ['app-config.guest-owner.yaml', 'DATA_PRODUCT_OWNER'],
+  ])('%s raises the Guest to %s and no further', (file, role) => {
+    const groups: string[] = parse(read(file)).users.guestGroups;
+    expect(resolvePlatformRole(groups.map(g => `group:default/${g}`))).toBe(role);
+    expect(groups).not.toContain('platform-admins');
+    // No URS approval role: a chain one identity walks alone proves nothing.
+    expect(groups.filter(g => /^urs-.*(reviewers|managers)$/.test(g))).toEqual([]);
+  });
+
+  // NXD-167. index.html paints the canvas navy before the app loads; on the
+  // light theme the canvas must become the light palette's background.default.
+  it('gives the light theme a light canvas over the navy of index.html', () => {
+    expect(read('packages/app/public/index.html')).toMatch(
+      /html,\s*body,\s*#root\s*{\s*background: #05101C;/,
+    );
+    expect(read('packages/app/src/index.tsx')).toContain(
+      "import './modules/theme/lightCanvas.css';",
+    );
+    expect(read('plugins/nexora-common/src/tokens.ts')).toContain(
+      "export const NEXORA_SURFACE = '#F4F6F8';",
+    );
+    const css = read('packages/app/src/modules/theme/lightCanvas.css');
+    expect(css).toContain("body[data-theme-mode='light'] #root {");
+    expect(css).toContain('background: #f4f6f8;');
   });
 
   it('labels AAS Control Plane persistence as an in-memory prototype', () => {

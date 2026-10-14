@@ -6982,3 +6982,4198 @@ they are why the image can say years later what was in it.
 never run; the next main run is their first.
 
 - Affected components: `.github/workflows/ci.yml`.
+
+### NXD-127 — A validation decision is for one product version
+
+- Date: 2026-10-05
+- Slice: validation + composer + context page — decided by the user after
+  NXD-124
+
+**Context.** Since NXD-119 a validation decision belonged to a validation
+context, and a context is unique per URS baseline. Since NXD-124 the
+evidence it rests on belongs to a product version. So a version bound later
+to an already-decided baseline was covered by a decision taken on another
+version's evidence. That had happened: `oee-e2e-test-20261005-d` rode on the
+approval signed for `-c`. GAMP 5 and EU GMP Annex 11 validate a system
+state, and a new version is validated again through change control.
+
+**Decision.**
+
+- **What stays per baseline:** the context — requirements, runs, coverage.
+- **What moves to the version:** the decision, its signatures and the
+  evidence review it rests on each carry `productVersionId`.
+- **Constraints, one decision per version:** at most one decision per
+  context and version, one signature per role and one per person per
+  version's decision. On PostgreSQL the per-baseline unique constraints are
+  swapped for per-version unique indexes; the migration is idempotent and
+  the append-only triggers stay.
+- **Signing**:
+  - requires `productVersionId`, and refuses a version not bound to the
+    baseline;
+  - GMP relevance is the version's own product's, not the strictest on the
+    baseline;
+  - Segregation of Duties keeps this version's creator out, and the context
+    creator as before;
+  - approval needs a complete evidence review of this version.
+- **Reading a decision:** `GET /contexts/:id/decision` now requires
+  `?productVersionId=`. Composer's resolver sends the version, so the release
+  gate asks for the decision of exactly the version it releases.
+  `decision-state` takes the version (default: the newest bound one).
+- **Panel:** a *Product version* picker; everything below it is for that
+  version. Decisions of other versions, and legacy ones, are listed apart.
+
+**Legacy decisions.** The decision signed in NXD-121 has no version. It was
+attested per baseline, and assigning it a version now would rewrite what
+was signed, so it covers no version. Consequence, verified: the gate of
+`oee-e2e-test-20261005-c` (already RELEASED) now reports
+`NO_APPROVED_VALIDATION_DECISION`. The release stands; a re-release would
+need its own decision.
+
+**Verified.**
+
+- Unit: decisions cover only their version; the next version needs its own
+  review; GMP comes from the version's own product; an unbound version is
+  refused; a legacy decision covers none.
+- A new PostgreSQL test against the test database: upgrade from the
+  pre-NXD-127 constraints, rerun, uniqueness per version, append-only
+  guard.
+- Live, dev stack, in `file` mode:
+  - `-d` was refused approval without its own review;
+  - review `EVIDENCE-RUN-0002` passed 5/5;
+  - `demo-validator`, then `demo-qa-lead`, signed with PIN;
+  - the gate of `-d` no longer reports a missing validation decision.
+
+**Not changed, named.** Reduced re-validation of a follow-up version,
+scoped by impact assessment, is not offered. Every version is reviewed in
+full.
+
+- Affected components: `plugins/validation-expert-backend/src/{service,router,repository,postgres-repository,types,db/migrations}.ts`
+  (+ tests, new `db/migrations.postgres.test.ts`),
+  `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx}` (+ test),
+  `plugins/composer-backend/src/{service,validation-decision-resolver}.ts` (+ test),
+  `packages/platform-common/src/validation-integration.ts`.
+
+### NXD-128 — Approving and releasing a GMP-relevant product is an electronic signature
+
+- Date: 2026-10-05
+- Slice: composer + product page — decided by the user (open item 3)
+
+**Context.** NXD-121's end-to-end run approved and released a GxP-DIRECT,
+CRITICAL product with one click each: version approval, baseline approval,
+release. No confirmation, no justification, no second factor. The URS chain
+and, since NXD-119, the validation decision were signed with a PIN; the
+three acts that put a product into use were not.
+
+**Decision (the user's choice).**
+
+- **GMP-relevant (INDIRECT, DIRECT or unanswered):** approving a version,
+  approving its baseline and releasing it need a justification and the
+  signer's PIN. The PIN is verified in the URS Composer on their behalf, so
+  it is the one signing credential and lockout of NXD-119.
+- **NONE:** a confirmation; the justification is optional.
+- **Recorded either way:** every act goes to the new table
+  `product_signatures` — meaning, justification, who, when, whether the
+  product counted as GMP-relevant, and the second factor (absent for a
+  confirmation). Append-only and no-TRUNCATE on PostgreSQL, through the
+  NXD-092 trigger function. `GET /products/:id/signatures` lists them, and
+  the product page shows them under *Approvals and releases*.
+- **Order.** Whether the act is allowed is checked first: valid transition,
+  release gate, Segregation of Duties. The extracted
+  `assertVersionTransition` is shared with the plain transition. A refused
+  act therefore costs no PIN attempt; then the PIN; then the change; then
+  the record.
+- **Where the rule lives.** In new signing service methods
+  (`signedVersionTransition`, `signedBaselineApproval`), which the HTTP
+  routes now call. The plain methods stay the state change, used by about
+  75 existing tests and no other entry point. A person can reach a
+  transition only through the routes.
+- **Not signed:** release candidate and revert to draft decide nothing.
+- **Product page:** *Approve*, *Release* and baseline *Approve* open a
+  dialog. For a GMP product it states the meaning of the act and asks for a
+  justification and the PIN; for NONE it is a confirmation. A refusal is
+  shown verbatim in the dialog.
+
+**Verified.**
+
+- Unit: GMP requires justification and PIN, and is recorded; no GxP answer
+  counts as GMP; a wrong PIN changes nothing; a refused act calls no PIN
+  check; NONE confirms without PIN and is recorded; release candidate is
+  not signed; a baseline approval is signed and its author is still
+  refused.
+- PostgreSQL: the signature table refuses UPDATE, DELETE and TRUNCATE.
+- Product page and dialog tests.
+- Live, on `oee-e2e-test-20261005-d` as `demo-reviewer`:
+  - no signature → 400 naming what is needed;
+  - wrong PIN → 403;
+  - signed → APPROVED, recorded with `signature-pin`.
+
+**Not changed, named.**
+
+- The record is written after the state change, without a shared
+  transaction: if that one insert fails, the change stands unrecorded.
+- The dialog points to the URS Composer to set a PIN; a person without
+  `urs.sign` cannot set one there.
+
+- Affected components: `plugins/composer-backend/src/{service,router,plugin,repository,repository-interface,types,pin-verifier,db/migrations}.ts`
+  (+ `productSignatures.test.ts`, `db/migrations.postgres.test.ts`),
+  `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/OverviewTab.tsx,tabs/ApprovalDialog.tsx}`
+  (+ tests).
+
+### NXD-129 — An installation is governed desired state; a runtime provider outside Core executes it
+
+- Date: 2026-10-06
+- Slice: target-architecture record, MVP1 step 2. No behaviour. Refines
+  `NXD-074` and opens the topology track's T6 to execution.
+- Decided by: the user (MVP1 assessment, 2026-10-06)
+
+**Context.** The MVP1 journey ends in *Install → Run*. The assessment of
+2026-10-06 (commit `62667a3`) found that no execution path exists anywhere:
+`plugins/` and `packages/` contain no container, Compose or Kubernetes client.
+Generated products are started by hand from their own `docker-compose.yml`.
+"Installation" in code means only the identity of a Nexora instance
+(`GET /installation`, `NXD-078`). `NXD-074` recorded *"Nexora governs; it
+does not deploy"* so that "Deployment — MISSING" would stop reading as work
+to be done. Read literally, that sentence ends MVP1 at the Catalog.
+
+**Decision.**
+
+- **Nexora owns the Installation; it does not execute it.**
+  - An Installation is a governed record in a Nexora plugin. It holds:
+    - the artifact coordinate at a released version, and with it the image
+      digest recorded at release (`NXD-130`);
+    - the target it is meant for;
+    - configuration values validated against the manifest's `spec.config`,
+      with secrets held by reference and never by value;
+    - a desired state and an observed state;
+    - an append-only audit trail.
+  - Installing, upgrading and removing are changes to desired state. They are
+    permissioned like every other registry act.
+- **A runtime provider executes.** It is a separate process **outside the
+  Backstage backend**, so the backend gains no container client, no host
+  credentials and no new dependency.
+  - The provider *pulls*. It authenticates as a service principal: one
+    `backend.auth.externalAccess` entry, with its own `subject`, per provider
+    or target. This is the `NXD-087` pattern, and the same channel CI already
+    uses for provenance.
+  - It reads the desired installations for its target, renders them for its
+    own technology, runs them, and reports observed state back.
+- **The first provider is Docker Compose on one host.** Kubernetes, edge
+  agents and cloud runtimes are further providers. None of them changes Core.
+  `TARGET_ARCHITECTURE.md` already lists *Runtime* under PROVIDERS. This
+  record gives that word a seam.
+- **What the provider may rely on.**
+  - Only the manifest's `spec.runtime`, `spec.interfaces` and `spec.config`
+    (`NXD-130`), plus the installation's values and the release's digest.
+  - Nothing provider-specific is authored in a manifest. A broker topic, a
+    host port or a namespace is a property of the target, bound at
+    installation.
+
+**What `NXD-074` keeps, and what changes.**
+
+- **Kept:** Nexora runs no workload in its own process. GitHub still builds
+  the image and may still deploy for anyone who prefers it; a GitHub-driven
+  rollout can itself be a provider. Release provenance (`NXD-052`) remains
+  the way Nexora learns what was built.
+- **Changed:** "Deployment" is no longer out of scope. Taking up a *released
+  artifact* onto a target is in scope through a provider. "Nexora does not
+  deploy" now reads "Nexora does not execute".
+
+**Why pull, not push.**
+
+- An OT network or a site seldom accepts inbound connections from a central
+  platform, but it can almost always reach out.
+- Nexora holds no credentials to any host.
+- A provider that cannot reach Nexora keeps running what it last ran.
+  Nothing restarts because the control plane is down.
+
+**Alternatives considered.**
+
+- *The backend runs `docker` / `kubectl` itself.* Rejected:
+  - Core would hold credentials to every host.
+  - Core would grow one client per runtime, against "Core stays small".
+  - A Docker or Kubernetes client is a dependency that `AGENTS.md` places
+    behind approval for a capability that does not belong in Core.
+- *GitHub Actions deploys, as the only path.* Rejected as the only path:
+  - It needs runner reachability into OT networks.
+  - It makes GitHub the store of what is installed where. Per
+    `NEXORA_STRATEGY.md`, GitHub is a provider, not domain truth.
+  - It stays possible as one provider.
+- *Keep `NXD-074` unchanged.* Rejected: MVP1 would stop at the Catalog, and
+  the topology track's T6 would be a verb with nothing behind it.
+
+**Consequences.**
+
+- Nothing is built by this record. Three slices follow, in this order:
+  1. the installations store and its routes;
+  2. the provider API (read desired state, post observed state);
+  3. the Docker Compose provider.
+- **Which plugin owns installations** — `artifact-registry-backend` or a new
+  `installations-backend` — is decided in the first slice, on the evidence of
+  which routes it needs.
+  **Decided 2026-10-07 in [`NXD-139`](DECISIONS.md):** a new
+  `installations-backend`, because slice 2 needs a write route for a service
+  principal, which the registry refuses by design (`NXD-087`).
+- **A runtime target is not an installation identity.** `NXD-078` identifies
+  a *Nexora instance*. A target is a place a provider runs workloads. The two
+  must not share a table or a name.
+- **Open, not technical:**
+  - Whether installing a GMP-relevant product is a signed act, as releasing
+    one is since `NXD-128`.
+  - Whether an installation needs its own qualification record (IQ). These
+    are QA decisions and must be taken before the first slice reaches a GxP
+    product.
+  - **Both decided by the user 2026-10-07, in [`NXD-139`](DECISIONS.md):**
+    installing, upgrading and removing a GMP-relevant product is a signed act
+    (justification and PIN, the `NXD-128` rule). A GMP installation is
+    qualified only when QA signs an IQ record built from the provider's
+    evidence. The schema and states exist since `NXD-139`; evidence intake
+    and the sign-off are later slices.
+- `TARGET_OPERATING_MODEL.md` §6.3 and `PHASE_CLOSURE_PLAN.md` §9.6 are
+  annotated, not rewritten (`NXD-084`).
+
+- Affected components: none in code. `docs/nexora-transformation/DECISIONS.md`,
+  `docs/nexora-transformation/STATUS.md`,
+  `docs/architecture/TARGET_OPERATING_MODEL.md` (§6.3 annotation),
+  `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.6 annotation).
+
+### NXD-130 — `nexora.yaml` is the canonical Data Product manifest, and it states how it runs
+
+- Date: 2026-10-06
+- Slice: MVP1 step 1 — the schema, enforced at the registry's gate.
+- Decided by: the user (MVP1 assessment, 2026-10-06). `ajv` approved as a
+  direct dependency of `platform-common` (`DEPENDENCY_CHANGE_REQUIRED`,
+  2026-10-06).
+
+**Context.** A Data Product had four descriptions, linked only by
+`catalogEntityRef`, with nothing keeping them in step:
+
+1. the catalog `Component` with about thirty flat `dataprod.platform/*`
+   annotations, parsed by two different TypeScript parsers;
+2. `dataproduct.yaml` in four templates, which **no code reads**, in two
+   incompatible shapes (`platform.nexora.io/v1alpha1` and `dataprod.platform/v1`).
+   The OEE copy contradicts its own `catalog-info.yaml` (websocket vs SSE);
+3. the `nexora.yaml` ArtifactManifest, validated and loaded by the registry,
+   but a listing rather than a runtime description;
+4. the Composer `Product` / `ProductVersion` record.
+
+None of them could state a license, a container, a port, an event channel or
+an install-time configuration. `NXD-129` needs exactly those.
+
+**Decision.**
+
+- **`nexora.yaml` is the canonical descriptor.** It is the existing
+  `ArtifactManifest`, `apiVersion: nexora.dev/v1alpha1`, kind `DATA_PRODUCT`
+  (or `CONNECTOR`). It lives at the root of the product repository.
+  - The catalog entity becomes a projection of it.
+  - The ArtifactVersion holds it as published.
+  - The Composer record governs its versions.
+  - Making the projections real is later work. This record fixes which
+    description wins.
+- **Its contract is a JSON Schema (draft 2020-12):**
+  `packages/platform-common/src/nexora-manifest.schema.json`, exported as
+  `NEXORA_MANIFEST_SCHEMA`. It states the whole manifest, not only the new
+  parts, so a product repository, a community publisher or a runtime provider
+  can check a manifest without running Nexora. The TypeScript types in
+  `artifact.ts` gain the same fields.
+- **Additive under `v1alpha1`.** Nothing is removed or tightened, so no
+  apiVersion bump is needed. A bump would also have left every registered
+  version on the old one (`NXD-030`). All 21 manifests in `catalog/artifacts/`
+  stay valid; this was checked, see *Verified*.
+
+**The new fields.**
+
+- `metadata.license`: an SPDX expression.
+- `spec.runtime` (`kind: container`):
+  - `image.repository`;
+  - named `ports`;
+  - `health` (`http` with a path, or `tcp`);
+  - `resources.limits` (`cpu`, `memory` as Kubernetes quantities).
+- `spec.interfaces[]`:
+  - `name`, `type` (`api` | `event`) and `direction` (`provides` |
+    `consumes`);
+  - an optional DataContract `contract` coordinate (`NXD-048`);
+  - an optional `document`, typed by `DATA_CONTRACT_SCHEMA_TYPES`;
+  - an api carries `port` (required to provide one, forbidden to consume one)
+    and `basePath`;
+  - an event carries `channel` and `mechanisms`, both required.
+- `spec.config[]`: `ConfigKeySchema` from W2-2, reused rather than restated.
+
+**The choices that are not obvious.**
+
+- **The image digest is never authored.** The repository is written without
+  tag or digest. The tag is `metadata.version`. The digest is a fact of the
+  release, recorded when CI builds it; `ReleaseProvenance` already carries a
+  `sha256` digest. This is `NXD-019`'s rule again: the thing being released
+  may not state the outcome of its own release. The schema has no field for
+  it, and a test says so.
+- **The repository must be fully qualified.** `nginx` and `library/nginx`
+  are refused. A short name resolves against whoever reads it, which is the
+  non-portable coordinate `NXD-074` named as T1's constraint.
+- **Channels are logical, not topics.**
+  - `equipment/{equipmentId}/state` uses AsyncAPI's parameter syntax.
+  - Broker wildcards (`+`, `#`) are refused, because what a channel maps to
+    on a broker is bound at installation (`NXD-129`).
+- **`mechanisms` is required for every event.** Every template today speaks
+  MQTT through paho directly, and the platform has no event abstraction. A
+  manifest that left the transport out would claim a neutrality the code does
+  not have. Requiring `mechanisms: [mqtt]` states the coupling that exists, and
+  tells an installation which bindings it may choose from. The vocabulary is
+  open and kebab-case, as for `deliveryMechanism` (`NXD-049`).
+- **The new sections are closed (`additionalProperties: false`).** That keeps
+  `restart: always`, a Compose network or a Kubernetes annotation from
+  creeping into a provider-neutral description. `spec` itself stays open,
+  because `spec.marketplace` and similar blocks belong to their own adapters
+  (`NXD-018`).
+- **Only `DATA_PRODUCT` and `CONNECTOR` may declare runtime, interfaces or
+  config** (`RUNNABLE_ARTIFACT_KINDS`). A policy pack that "runs" is a
+  category error. Adding a kind is a one-line, reviewed change.
+- **A secret carries no value.** A `secret` key may not have a
+  `defaultValue` or an `example`. Anything written in a manifest is published
+  with it. The value arrives at installation, by reference.
+- **An api's document is OpenAPI; an event's document is anything but.**
+  This keeps the two document families from being swapped silently.
+
+**Alternatives considered.**
+
+- *Keep `dataproduct.yaml` as the descriptor.* Rejected: it has no reader,
+  two shapes, and contradicts the files it sits beside.
+- *Make the catalog entity canonical.* Rejected:
+  - Annotations are flat strings with no schema.
+  - The catalog is the topology and discovery layer, while Nexora's stores
+    are authoritative for lifecycle (`TARGET_ARCHITECTURE.md`).
+- *A new kind or apiVersion for runnable products.* Rejected: it would be a
+  second manifest family with its own loader, and every listing would have to
+  move.
+- *AsyncAPI as the manifest.* Rejected: it describes messaging only, not a
+  container, its configuration or its APIs. AsyncAPI and OpenAPI are what
+  `interfaces[].document` points at.
+
+**Enforcement: where, and why not everywhere.**
+
+- **The registry's registration gate evaluates the new sections.**
+  `registerArtifactVersion` runs `validateArtifactManifest` and then
+  `validateRunnableManifestSections` (new, `manifestSchemaValidator.ts`).
+  The manifest loader registers through the same method, so it is one gate
+  for API and disk alike. A refusal names every field, for example
+  `spec.runtime.restart is not a known field` or
+  `spec.config[1].defaultValue is not allowed here`.
+- **Not inside `validateArtifactManifest`.** That function also runs in the
+  browser: the Marketplace calls it through `marketplaceViewOfManifest`.
+  ajv compiles schemas into functions at runtime, which the Marketplace page
+  should not do. Every manifest the Marketplace reads has passed the gate.
+  The compiler is built lazily on the first call, so importing
+  `platform-common` costs nothing.
+- **The rule "only runnable kinds" is hand-written** in
+  `validateArtifactManifest`, beside the GOLDEN_PATH `components` rule. It
+  needs no schema engine, so it holds wherever a manifest is read.
+  `RUNNABLE_ARTIFACT_KINDS` and the schema's list are held equal by test.
+- **The older fields stay with the hand-written validator.** Evaluating the
+  whole schema at the gate would report each of their problems twice, in two
+  wordings. Instead, a test checks every shipped manifest against both.
+- **The schema could be read the same way it is enforced.** A forbidden field
+  is a `false` subschema, not a `not` clause, so a refusal names the field
+  rather than reading "must NOT be valid". The sections the gate evaluates
+  are top-level `$defs` (`license`, `runtime`, `interfaces`, `config`),
+  because ajv resolves a subschema by pointer only there.
+- **The `$id` is `urn:nexora:schema:manifest:v1alpha1`.** It is a URN
+  because no hosted copy exists, and an `https:` id would claim one. The
+  first draft had a `/` inside the URN. ajv then resolves no fragment against
+  it; the validator's guard for an unresolvable pointer caught this in the
+  first test run.
+- **Rules JSON Schema cannot state** are code in the same module:
+  - a health check's or interface's `port` must name a declared port, which
+    also means a provided api needs a `runtime` with ports;
+  - port names, interface names and config keys must each be unique.
+
+**Verified.**
+
+- `manifestSchema.test.ts` (new, 128 tests):
+  - **Vocabularies:** every enum in the schema equals its constant in code:
+    kinds, distribution, usage kinds, runtime kinds, protocols, health types,
+    interface types and directions, document types, config types, runnable
+    kinds.
+  - **Grammars:** the segment, version and coordinate patterns agree with
+    `isNameSegment`, `parseVersionLabel` and `parseArtifactRef` on accepted
+    and refused samples.
+  - **New patterns:** image, channel, path, quantities and config keys
+    behave as stated; every `$ref` resolves.
+  - **Whole manifests, with ajv:**
+    - all 21 shipped manifests are valid against the full schema, against
+      `validateArtifactManifest` and against the gate;
+    - a complete Data Product passes all three;
+    - 17 malformed variants are refused by the schema *and* by the gate with
+      a message naming the field;
+    - runtime on a TEMPLATE is refused by the hand-written rule;
+    - the three cross-field rules each refuse what the schema accepts.
+- `service.test.ts` (artifact-registry-backend), three new tests: a runnable
+  manifest registers and is stored verbatim; a malformed one is refused at
+  the gate with all four broken fields named; runtime on a POLICY_PACK is
+  refused.
+- **Lockfile:** three lines, the workspace entry and the existing
+  `ajv@npm:^8.20.0` range. No new package; 8.20.0 was already resolved.
+- **Gates:** `yarn tsc` clean; lint clean in both workspaces;
+  `guard:platform` reports `GUARDRAILS_OK`.
+- **Repo-wide, `CI=true`, PostgreSQL up:** 2749 of 2750 pass. The one failure
+  is `compatibilityPolicyParity`'s Python leg. This container has no
+  interpreter with `pydantic`, and the test refuses to skip under CI, as
+  designed; CI provides one. Untouched by this change.
+
+**Not done, named.**
+
+- The four `dataproduct.yaml` files are not deleted yet. They go in the slice
+  in which the OEE template ships a `nexora.yaml` (MVP1 step 3).
+  **Done 2026-10-06 in [`NXD-131`](DECISIONS.md):** all four removed, and the
+  OEE template ships a `nexora.yaml`.
+- **Not modelled yet:** permissions a product needs (they belong with the
+  installation grant of `NXD-129`), persistent storage, and a command or
+  arguments.
+  **Persistent storage modelled 2026-10-07 in [`NXD-142`](DECISIONS.md):**
+  `spec.runtime.storage`.
+- The catalog annotations still duplicate version, domain and contracts.
+  Deriving them from the manifest is a later slice.
+- The Marketplace and anything else reading a manifest outside the registry
+  sees the new sections unchecked unless it calls the gate's function.
+
+- Affected components: `packages/platform-common/` —
+  `src/nexora-manifest.schema.json` (new), `src/manifestSchema.ts` (new),
+  `src/manifestSchemaValidator.ts` (new), `src/manifestSchema.test.ts` (new),
+  `src/artifact.ts`, `src/index.ts`, `package.json` (`ajv`);
+  `yarn.lock`; `plugins/artifact-registry-backend/src/service.ts`
+  (+ `service.test.ts`).
+
+### NXD-131 — The OEE Golden Path ships `nexora.yaml`, and the unread `dataproduct.yaml` leaves every template
+
+- Date: 2026-10-06
+- Slice: MVP1 step 3. Decided by the user. Open choices E1–E6 of the
+  preparation were taken at their proposed defaults, except E5 (all four
+  files go) and E3 (see below).
+
+**Context.** `NXD-130` made `nexora.yaml` canonical but no template produced
+one. Meanwhile four templates still shipped a `dataproduct.yaml` that no code
+reads. The preparation also found:
+
+- `contracts/asyncapi.yaml` declared AsyncAPI `2.6.0` while using 3.0's
+  `address`, so it was valid under neither version. Its `subscribe` also
+  meant, in 2.x, that the product *publishes*, while the product in fact
+  receives both streams.
+- `contracts/openapi.yaml` describes 4 of about 20 routes.
+
+**Decision.**
+
+- **`templates/oee-data-product/content/nexora.yaml`** contains:
+  - `metadata`: namespace and image owner are the GitHub organisation,
+    lowercased (`${{ values.destination.owner | lower }}`; E1). A coordinate
+    segment and an OCI path are lowercase, an organisation need not be.
+  - `runtime`: `ghcr.io/<org>/<name>` (E2), port `http` 8080, health
+    `GET /health`. These are the values the Dockerfile already exposes and
+    probes.
+  - `interfaces`: four.
+    - The provided REST API `oee` under `/api/v1`.
+    - Two consumed MQTT events, `equipment/{equipmentId}/state` and
+      `equipment/{equipmentId}/count`, as logical channels with
+      `mechanisms: [mqtt]`.
+    - The consumed REST source `production-context`.
+  - `config`: every variable the Compose file passes, except `SERVICE_NAME`,
+    `SERVICE_VERSION` and `TIMESERIES_SQLITE_PATH`, which the manifest or the
+    image fixes. `MQTT_PASSWORD` and `SOURCE_API_TOKEN` are secrets without
+    values. `MQTT_HOST` is optional because an empty host disables MQTT and
+    ingest stays available over REST.
+- **Topics stay configuration (E4).** `MACHINE_STATE_TOPIC`,
+  `COUNTER_TOPIC` and `MQTT_TOPIC` are config keys whose defaults are the
+  topics chosen at Create. How an installation binds a channel to a broker
+  topic and hands it to the container is the provider slice's question
+  (`NXD-129`). Answering it here, before a provider exists, would fix a
+  contract nobody has used.
+- **License (E3): a literal, not a form field.** The skeleton says
+  `license: LicenseRef-Proprietary`, with a comment to replace it. A new
+  template parameter would have touched `template.yaml`, which this slice
+  did not include.
+- **No `contract:` coordinates.** They would name DataContracts that
+  `product:create` never registers in Composer. A dangling coordinate is
+  worse than none.
+- **No schema change (E6).** Domain and owner team stay in
+  `catalog-info.yaml`. A consumed API whose payload is described only by a
+  JSON Schema declares no document.
+- **All four `dataproduct.yaml` files are deleted (E5):** aas, mqtt-temperature,
+  oee, rest-equipment. Nothing referenced them: no code, no test, no
+  Dockerfile, no workflow. What they said that anything reads (quality
+  targets, presentation) is already in the catalog annotations;
+  `validation.status` belongs in no manifest (`NXD-019`). Three templates
+  now have neither file until they get a `nexora.yaml`.
+- **`asyncapi.yaml` is AsyncAPI 3.0.0.**
+  - Channels carry `address` (the topics from Create) and `messages`.
+  - Two `operations` with `action: receive`.
+  - Messages under `components`.
+  - The payload schemas are unchanged, field for field.
+- **Documents:**
+  - `docs/data-product-framework/DATA-PRODUCT-MODEL.md`,
+    `GOLDEN-PATH-INTEGRATION.md` and `ARCHITECTURE.md` now name `nexora.yaml`
+    as canonical.
+  - `docs/aas-golden-path-implementation.md` drops the file from its trees.
+  - `NXD-130`'s "not deleted yet" line is annotated, not rewritten
+    (`NXD-084`).
+
+**Verified.**
+
+- `templateRendering.test.ts` gains a block that renders the OEE Golden Path
+  through Backstage's real `fetch:template` with realistic form values. The
+  organisation is in mixed case (`Pharma-Data-Factory`), so the test proves
+  the lowercasing. It asserts 12 things:
+  - the rendered manifest is valid against the published schema,
+    `validateArtifactManifest` and the registry gate;
+  - name, version, description and title agree with `catalog-info.yaml`;
+  - namespace and image are lowercase;
+  - the Dockerfile exposes the declared port and probes the declared health
+    path;
+  - every interface document exists;
+  - the config keys equal the Compose variables less the three internal ones;
+  - `asyncapi.yaml` is 3.x, every `$ref` resolves, it receives exactly as
+    many streams as the manifest consumes and sends none, and its addresses
+    are the topics from Create;
+  - no `dataproduct.yaml` is rendered.
+- **Mutation check:** with `| lower` removed from the image path, three of
+  the twelve fail (schema, gate, lowercase).
+- `oeeGoldenPath.test.ts` lists `nexora.yaml` among the required skeleton
+  files.
+- See the commit body for the gates and the repo-wide run.
+
+**Not done, named.**
+
+- `contracts/openapi.yaml` still covers 4 of about 20 routes. Generating it
+  from FastAPI's `/openapi.json` in CI is the honest fix and belongs with
+  step 4, the CI release job.
+- The AsyncAPI document is checked structurally, not by an AsyncAPI parser.
+  That would be a new dependency.
+- The OEE product keeps state in a volume (`/app/data`, SQLite) that
+  `NXD-130` cannot express. It must be modelled before the Compose provider
+  reinstalls anything.
+  **Done 2026-10-07 in [`NXD-142`](DECISIONS.md):** the template declares
+  `data` at `/app/data`.
+- The other three data-product templates do not ship a `nexora.yaml` yet.
+
+- Affected components: `templates/oee-data-product/content/nexora.yaml`
+  (new), `templates/oee-data-product/content/contracts/asyncapi.yaml`,
+  `templates/{aas-data-product,mqtt-temperature-product,oee-data-product,rest-equipment-product}/content/dataproduct.yaml`
+  (deleted), `packages/backend/src/{templateRendering,oeeGoldenPath}.test.ts`,
+  `packages/platform-common/src/{index,manifestSchemaValidator}.ts`
+  (`nexoraManifestSchemaValidator` exported), the four documents above.
+
+### NXD-132 — A version tag builds, pushes and records one image; the product repository holds no Nexora credential
+
+- Date: 2026-10-06
+- Slice: MVP1 step 4a. Decided by the user: R1–R8 as proposed, with one
+  refinement to R4 recorded below.
+
+**Context.**
+
+- The OEE product CI tested and built an image, then discarded it: it pushed
+  nothing, tagged nothing and released nothing.
+- `NXD-052` lets CI *push* provenance to a baseline, but only with a service
+  token, which means a Nexora secret in every product repository.
+- `NXD-123` chose *pull* for test evidence for exactly that reason.
+- Two smaller findings:
+  - Composer names a first version `1.0` (`nextMajorVersionLabel`), while the
+    template writes `1.0.0`.
+  - `contracts/openapi.yaml` documented 4 of the app's 24 operations.
+
+**Decision.**
+
+- **`.github/workflows/release.yml` in the OEE skeleton**, triggered by `v*`
+  tags. It is copied, not templated, and is listed in `copyWithoutTemplating`.
+  1. **The same gate as every pull request.** `ci.yml` gains `workflow_call`,
+     and the release job `needs` it. Nothing builds on a red gate.
+  2. **`scripts/nexora_release.py check`.** The tag must be `v` +
+     `nexora.yaml` `metadata.version`. The manifest's image repository must
+     be `ghcr.io/<owner/repo lowercased>`. Every mismatch is named at once.
+  3. **Buildx, GHCR login with `GITHUB_TOKEN`, `docker/build-push-action`.**
+     The push carries an SBOM and `provenance: mode=max`, and is tagged
+     `:<version>` and `:sha-<commit>`. The Buildx step is there because of
+     `NXD-126`.
+  4. **`scripts/nexora_release.py record` writes `nexora-release.json`.**
+     It contains the artifact coordinate, version, tag, full commit SHA, the
+     image repository, digest and reference, the run URL and the build time.
+     It refuses an abbreviated SHA or a malformed digest, with the grammars
+     `NXD-052` applies.
+  5. **`gh release create <tag> nexora-release.json --verify-tag`.**
+- **Pull, not push (R1).** The workflow references no secret but
+  `GITHUB_TOKEN`. Nexora reads the record from the release (step 4b). The
+  GitHub App already has *Contents: read*, which covers releases and their
+  assets.
+- **A GitHub Release, not an Actions artifact, carries the record (R2).** An
+  artifact expires after at most 90 days, which is too short for the evidence
+  behind a released GxP version.
+- **Least privilege:**
+  - the workflow itself has `contents: read`;
+  - the release job has `contents: write` (the release) and
+    `packages: write` (GHCR);
+  - every step output reaches a `run` script through `env`, never through
+    interpolation.
+- **Actions on major tags (R5)**, as in the rest of the skeleton.
+- **The tag-to-version matching (R3)** is semantic (`1.0` ≡ `1.0.0`) and is
+  implemented where it is used, in 4b. Nothing in 4a compares against a
+  Composer label.
+
+**R4, refined: route coverage instead of equality.** R4 said to generate the
+document once and check for drift. Generated from the app, it is OpenAPI
+3.1 with 24 operations and almost no response shapes, because the routes
+return plain dicts. The hand-written file carries what the app does not
+declare: the typed `OeeResult`, the query parameters, and 400/404/503.
+Equality would have traded that for less.
+
+- The file stays hand-written, and remains OpenAPI 3.0.3, because it uses
+  `nullable` 17 times.
+- The 20 missing operations were added once, from the app's generated schema
+  translated to 3.0 (`anyOf`/`null` → `nullable`), together with the
+  `HTTPValidationError` and `ValidationError` schemas they reference. The
+  insertion is textual: the original 73 lines are unchanged.
+- The result validates with `openapi-spec-validator`, as did the original.
+- `tests/test_openapi_coverage.py` now fails when the app serves an undocumented
+  route or the file documents one that no longer exists. Path parameter
+  names are normalised, so `{equipmentId}` and `{equipment_id}` count as one
+  route.
+
+**Also in the skeleton.**
+
+- `tests/test_release.py`, 10 tests: check and record logic, and the shipped
+  manifest releasing under its own version.
+- Both new test files are listed in `ci.yml`'s unit tests. `scripts/` is
+  linted and compiled.
+- `pyyaml` is declared in the `dev` extras. It previously arrived only through
+  `uvicorn[standard]`.
+- `docs/ci-cd.md` explains how to release. It also says that a GitHub Release
+  is a build, not a Nexora release.
+
+**Verified.**
+
+- **Platform:** `templateRendering.test.ts`, under the real `fetch:template`
+  with realistic values, gains 8 assertions on the rendered workflow:
+  - GitHub expressions arrive intact;
+  - tag trigger, gate via `ci.yml` with `workflow_call`, `needs`;
+  - exact permissions, and `secrets.GITHUB_TOKEN` as the only secret;
+  - the check runs before the build;
+  - push, SBOM, provenance and version tag, with Buildx before the build;
+  - release with `nexora-release.json` and `--verify-tag`;
+  - no `${{ }}` inside any `run`;
+  - the new tests are listed in the gate and exist.
+- **Mutation check:** without `workflow_call` in `ci.yml`, the gate
+  assertion fails.
+- **Product, outside the repository:** the skeleton was rendered with
+  realistic values into `/tmp` and installed in a throwaway virtualenv.
+  - `ruff check app tests dataprod scripts` is clean.
+  - The tests are **86 of 86** green: 76 existing and 10 new.
+  - The script, run as the workflow runs it, prints the outputs on a matching
+    tag. It refuses `v2.0.0` against `other/repo`, naming both problems, with
+    exit 1. It writes a well-formed record.
+
+**Not done, named.**
+
+- **No live run yet.** A real tag needs a repository with this workflow.
+  `oee-e2e-test-20261005-d` predates it, so a live proof means committing
+  `release.yml`, the scripts and `nexora.yaml` there before tagging. That is
+  an outward-facing act, awaiting the user's go.
+  **Done 2026-10-06 in [`NXD-135`](DECISIONS.md):** the release run is green,
+  and the image is on GHCR.
+- **Step 4b:** Nexora reading `nexora-release.json` and writing commit SHA and
+  digest to the approved baseline.
+- `actionlint` is not run; the workflow is checked structurally.
+- The release workflow is in the OEE skeleton only.
+
+- Affected components: `templates/oee-data-product/template.yaml`
+  (`copyWithoutTemplating`), `templates/oee-data-product/content/` —
+  `.github/workflows/release.yml` (new), `.github/workflows/ci.yml`,
+  `scripts/nexora_release.py` (new), `tests/test_release.py` (new),
+  `tests/test_openapi_coverage.py` (new), `contracts/openapi.yaml`,
+  `pyproject.toml`, `docs/ci-cd.md`;
+  `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-133 — Nexora reads the release record and writes it to the approved baseline; the values come from GitHub, never from the person who presses the button
+
+- Date: 2026-10-06
+- Slice: MVP1 step 4b. Decided by the user (R1–R3, R6 of the step 4
+  preparation).
+
+**Context.** Since `NXD-132`, a version tag publishes `nexora-release.json` on
+a GitHub Release. Nexora did not read it. `NXD-052`'s
+`POST /baselines/:id/provenance` would accept the same values, but only from a
+service principal, and R1 chose pull so that no product repository holds a
+Nexora secret. `NXD-123` set the pattern for that: `data-products-backend`
+talks to GitHub, Composer asks it, and a person triggers the import.
+
+**Decision.**
+
+- **`data-products-backend`: `GET /release-record?repoUrl=&version=`.**
+  Authorisation is the same as `/ci-evidence`: a service, or a person with
+  `data-product.view`. That check is now one helper, `authorizeViewOrService`,
+  shared by both routes.
+  - It lists the repository's releases and picks the published one (no
+    drafts, no pre-releases) whose tag is `v` + a label **equivalent** to the
+    version (R3). Two matching releases (`v1.0` and `v1.0.0`) are refused as
+    `ambiguous-release` rather than chosen between.
+  - It downloads `nexora-release.json`. The asset endpoint needs
+    `Accept: application/octet-stream`, so `authorizedFetch` takes the Accept
+    header as a parameter. An asset over 64 KiB is refused without
+    downloading it.
+  - It resolves the commit the tag points at (`GET /commits/<tag>`, which
+    resolves annotated tags too).
+  - It judges shape only: a bounded JSON object, `nexora.dev/v1alpha1`
+    `ReleaseRecord`. Every "nothing there" answers a reason: `no-release`,
+    `ambiguous-release`, `no-release-record`, `invalid-release-record`, or
+    the GitHub failure.
+  - The GitHub App's existing *Contents: read* covers releases and assets.
+    No new permission.
+- **Composer: `POST /versions/:id/release-provenance/import`,
+  `product.manage`, user principals only.** Services keep their own route,
+  `/baselines/:id/provenance`. `importReleaseProvenance`:
+  - requires an **approved** baseline on the version, because the release
+    build follows approval (`NXD-052`);
+  - refuses a record whose `version` is not equivalent to the version, whose
+    `tag` is not the release's tag, or whose `commitSha` is not the commit
+    the tag points at. The asset is a file in a repository, so it is checked
+    against what GitHub says about the tag, not taken on its word;
+  - writes through `recordBaselineProvenance`, so `NXD-052`'s grammars,
+    write-once rule and refusal of superseded baselines hold unchanged. The
+    same build again answers `alreadyRecorded: true` and writes nothing;
+  - says why in every refusal, in words a product manager can act on.
+- **Who recorded it.** `ReleaseProvenance.provenanceRecordedBy` is
+  documented as "Service principal that posted it. Never a human." A person
+  presses the button, so `recordBaselineProvenance` gains optional
+  `recordedBy` and `reason`:
+  - `provenanceRecordedBy` is `github-release:<release URL>`, the source of
+    the values;
+  - the person is the audit event's actor, with reason
+    `Imported from <release URL>`.
+
+  The person can cause the record to be read; they cannot choose what it says.
+- **`versionLabelsEquivalent`** in `platform-common`: an absent patch counts
+  as 0, and an unparseable label matches nothing, itself included. It is for
+  matching a build to a version only; it does not make `1.0` and `1.0.0` one
+  row.
+- **UI.** On the Tests tab, *Build evidence* gains *Import release
+  provenance*, shown only once a baseline is approved. The result links the
+  release, names the commit and the baseline, says *already recorded* when
+  nothing was written, and shows a refusal verbatim.
+- **Docs:** `docs/github-setup.md` names release reading under Contents;
+  the OEE skeleton's `docs/ci-cd.md` names the button and the checks.
+
+**Verified.**
+
+- `platform-common`: `versionLabelsEquivalent`, 10 cases.
+- `data-products-backend`, 131 tests green:
+  - `releaseRecord.test.ts` (new): equivalence both ways; drafts,
+    pre-releases and tags without `v` excluded; the ambiguous case; four
+    malformed records;
+  - client tests: listing, asset download with the octet-stream Accept,
+    tag-commit resolution, 404;
+  - five route tests: success, no release, no record, oversized asset,
+    missing parameters, and a person without `data-product.view` refused
+    with 403.
+- `composer-backend`: `releaseProvenanceImport.test.ts` (new), 16 tests:
+  - written to the approved baseline with the release as recorder and the
+    person as audit actor;
+  - re-import is a no-op with one audit event;
+  - a different build on a baseline is refused, write-once;
+  - no approved baseline is refused before GitHub is asked;
+  - four reasons for "nothing to import";
+  - other version, other tag and other commit are each refused and write
+    nothing;
+  - a malformed digest is refused;
+  - an unconfigured instance is refused;
+  - over HTTP: `product.manage` gives 200, without it 403, and a service
+    principal 401.
+- `packages/app`: four new Tests-tab tests; products module 43/43.
+- **Repository-wide:** see the commit body.
+
+**Not done, named.**
+
+- **No live run.** No product repository has published a release yet; that
+  waits on the `NXD-132` live tag.
+  **Done 2026-10-06 in [`NXD-135`](DECISIONS.md):** imported live, and
+  write-once was confirmed.
+- **The digest is not checked against GHCR.** That would need *Packages: read*
+  on the GitHub App. Today the digest is as trustworthy as the repository's
+  release assets, cross-checked against the tag's commit.
+- **Provenance stays optional for release (R8).** It becomes required with
+  step 5, which needs the digest to publish an artifact.
+
+- Affected components: `packages/platform-common/src/{product,index}.ts`
+  (+ `product.test.ts`); `plugins/data-products-backend/src/` —
+  `releaseRecord.ts` (new, + test), `githubActions.ts`, `router.ts`,
+  `types.ts` (+ tests); `plugins/composer-backend/src/` —
+  `release-record-client.ts` (new), `service.ts`, `router.ts`, `plugin.ts`,
+  `releaseProvenanceImport.test.ts` (new);
+  `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/TestsTab.tsx}`
+  (+ `TestsTab.test.tsx`); `docs/github-setup.md`;
+  `templates/oee-data-product/content/docs/ci-cd.md`.
+
+### NXD-134 — NXD-128 shipped a lint error the gate it claimed did not run
+
+- Date: 2026-10-06
+- Slice: defect, found while landing `NXD-133`
+
+**What happened.** `signedVersionTransition` (`NXD-128`, `62667a3`) chose its
+signature meaning with a nested ternary, which `no-nested-ternary` forbids.
+`NXD-128`'s commit says "tsc and lint clean", but lint was evidently run only
+on the changed lines' workspace slice, not with `lint:all`, which is what CI
+runs. So every push since `62667a3` has had a red lint step. It was found
+when `yarn lint` in `composer-backend` refused `NXD-133`'s first gate run, and
+confirmed on an untouched checkout of `HEAD`.
+
+**Fix.** The two signed transitions are a lookup
+(`APPROVED → VERSION_APPROVED`, `RELEASED → VERSION_RELEASED`). Anything else
+is unsigned, exactly as before. No behaviour change.
+
+**Verified.**
+
+- `yarn lint:all` is clean repo-wide.
+- `productSignatures.test.ts` passes 7/7, and `composer-backend` 393/393.
+- `yarn tsc` is clean.
+
+**Lesson, stated once.** A gate claimed in a commit message is the gate CI
+runs, not a narrower local one. The gates for `NXD-129`…`NXD-133` were
+per-workspace `yarn lint` runs, and composer's run is the one that caught
+this.
+
+- Affected components: `plugins/composer-backend/src/service.ts`.
+
+### NXD-135 — The live run NXD-132 and NXD-133 deferred, and what it found
+
+- Date: 2026-10-06
+- Slice: live verification of MVP1 step 4, on the user's go, in
+  `pharma-data-factory/oee-e2e-test-20261005-d`.
+
+**What was done.**
+
+1. **Credentials checked.** No GitHub App is configured in this environment
+   (`GITHUB_APP_ID` and the private key are absent). Nexora reads GitHub
+   through the integration's token fallback, `GITHUB_TOKEN` in `.env`: a
+   personal token of `schmeckm` with `repo`, `workflow` and `write:org`,
+   expiring 2026-11-04.
+2. **Product repository brought up to the Golden Path.** The current
+   template was rendered with the repository's own values and compared with
+   its tree. It differed only in `NXD-131`/`NXD-132` files. Committed as
+   `431fd71`: `release.yml`, `scripts/nexora_release.py`, `nexora.yaml`,
+   `ci.yml`, the two new tests, `contracts/openapi.yaml` and `pyproject.toml`.
+   The AsyncAPI fix, the docs and the `dataproduct.yaml` deletion were left
+   out as not needed for the run. Locally beforehand: ruff clean, 86/86
+   tests.
+3. **Version and baseline.** Version `1.0` was already APPROVED, but had
+   **no product baseline**.
+   - `demo-author` created baseline `1.0`.
+   - `demo-pm` approved it with a justification and PIN (`signature-pin`,
+     recorded in `product_signatures`). `demo-pm` is not the author, so
+     Segregation of Duties holds.
+   - `demo-pm` had no signing PIN, so one was enrolled for that test seat.
+     No existing PIN was changed.
+4. **Tag `v1.0.0` pushed** (annotated, on `431fd71`).
+   - Release run `37492608570`: quality gate ✅, release ✅.
+   - CI on `main`, run `37492605890`: ✅.
+5. **Import.** `POST /versions/:id/release-provenance/import` as `demo-pm`,
+   the route the Tests-tab button calls, answered 200.
+
+**What was verified.**
+
+- **GitHub Release `v1.0.0`**: published, not a draft. It carries
+  `nexora-release.json` (704 bytes):
+  - artifact `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0`;
+  - commit `431fd71d0fcb5c9c56773f58fb451435db8f1c87`, which equals the
+    commit GitHub resolves for the tag;
+  - digest `sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810`.
+- **GHCR**: the release job's buildx log shows the manifest list exported,
+  and `:1.0.0` and `:sha-431fd71` pushed, both at that digest, with the SBOM
+  and provenance attestations. **Checked through the log only:** the
+  packages API answers 403 without `read:packages`, which neither token
+  has.
+- **Nexora**:
+  - version label `1.0` matched tag `v1.0.0` (R3);
+  - baseline `1.0` carries that commit and digest, with
+    `provenanceRecordedBy` set to `github-release:<release URL>`, re-read from
+    the API;
+  - `composer_audit_events` shows `PROVENANCE_RECORDED` by `demo-pm`, with
+    reason `Imported from <release URL>`;
+  - a second import answered `alreadyRecorded: true` with the original
+    timestamp.
+
+**What it found.**
+
+1. **The GitHub App path is still unproven.** Everything ran on a personal
+   token. Whether the App's documented *Contents: read* suffices for
+   releases is a claim, not a measurement, until an installation with the
+   App runs this. The token also makes every GitHub read attributable to one
+   person, which a shared installation should not do.
+2. **Two personal tokens with different reach.** Git's credential store
+   holds a token that cannot see `pharma-data-factory` product repositories,
+   while `.env` holds one that can. The clone failed with *Repository not
+   found* until the `.env` token was used, passed as a transient header and
+   persisted nowhere.
+3. **An approved version without a baseline is a normal state, and import
+   rightly refuses it.** A live operator meets "approve a baseline first"
+   before anything else. That is the designed order (`NXD-052`), but it is
+   one more step than the journey suggests.
+4. **`PUT /signing-pin` sets a PIN without asking for the current one.**
+   Anyone holding a seat's session can replace that seat's second factor and
+   then sign as it. For a Part 11 signature, that weakens the second factor
+   to the session. Found while deciding not to overwrite an existing PIN.
+   Named here, **not fixed**: changing it is a decision about re-enrolment
+   (old PIN, admin reset, lockout) for the user to take.
+
+- Affected components: none in code. External:
+  `pharma-data-factory/oee-e2e-test-20261005-d` (commit `431fd71`, tag
+  `v1.0.0`, GitHub Release, GHCR package). Nexora test database: baseline
+  `1.0` of `oee-e2e-test-20261005-d`, a `demo-pm` signing PIN.
+
+### NXD-136 — A signing PIN must not be replaceable by the session it protects (proposed, not in force)
+
+- Date: 2026-10-06
+- Status: **proposed.** Recorded as a follow-up ticket at the user's
+  direction. Ranked in `PHASE_CLOSURE_PLAN.md` §9.4 (rank 10). Nothing is
+  changed by this record.
+- **Decided 2026-10-07 by the user: options 1 and 2. In force through
+  `NXD-138`, which supersedes this record's proposal.** The title's
+  "(proposed, not in force)" and the text below are kept as written on
+  2026-10-06.
+
+**Finding (`NXD-135`).** `PUT /urs-composer/signing-pin` enrols the caller's
+PIN through `SignaturePinReAuth.enroll`, and it does so **whether or not a PIN
+already exists, without asking for the current one**. Anyone holding a seat's
+session, whether a stolen token or an unlocked workstation, can set a new PIN
+and then sign as that seat. Every electronic signature on the platform depends
+on that PIN: URS approvals, validation decisions (`NXD-119`), and product
+approval and release (`NXD-128`). So the second factor is no stronger than
+the first. 21 CFR Part 11 §11.200(a)(1) expects two distinct components; today
+one of them can be re-issued by the other.
+
+**Options for the decision.**
+
+1. **First enrolment free, change needs the current PIN.** The fewest moving
+   parts. A forgotten PIN then needs a reset path, which is option 2.
+2. **Administrator reset.** A platform admin clears a seat's credential.
+   The act is audited with a reason, and the seat must enrol again before its
+   next signature. The admin cannot set the PIN; they can only clear it, so
+   they cannot sign as the seat.
+3. **Re-authentication for re-enrolment.** A fresh sign-in, or OIDC step-up,
+   which `OidcStepUpReAuth` stubs and which always throws today. It is
+   stronger, but blocked on an identity provider that supports step-up.
+
+**Recommendation.** Options 1 and 2 together. Option 3 stays the long-term
+target once an IdP with step-up exists.
+
+**Also to settle in the same slice.**
+
+- What a lockout (`failed_attempts`, `locked_until`) means for a reset.
+- Whether demo seats in test installations are exempt.
+- Whether `NXD-135`'s enrolment of a PIN for `demo-pm` should be cleared
+  afterwards.
+
+- Affected components (when decided):
+  `plugins/urs-composer-backend/src/{router,service,domain/reauth}.ts`, the
+  URS Composer's PIN page, and `docs/compliance/traceability-and-gmp.md`.
+
+### NXD-137 — A recorded release becomes a registry version, and only a version with a build may be certified or published
+
+- Date: 2026-10-06
+- Slice: MVP1 step 5, Release → Publish. Asked for by the user on the data
+  of the `NXD-135` live run. (The user named it NXD-135; that number was
+  already the live run.)
+
+**Context.** After `NXD-133`, a product version's approved baseline carries
+the commit and image digest of its release, but nothing reached the Artifact
+Registry. The registry is what a consuming installation, and later
+*Install*, reads. Its versions held a manifest and a `sourceRef`, never an
+image. Its lifecycle (submit → review → certify → publish) had no rule
+about builds at all.
+
+**Decision.**
+
+- **Recording a release registers it.** When *Import release provenance*
+  has written the provenance, Composer registers the build as a **DRAFT**
+  ArtifactVersion in the same request.
+  - The call goes **on behalf of the importing person** (the
+    `pinVerifierFor` pattern of `NXD-128`). The registry therefore applies
+    *their* `artifact.create` and the publisher's namespace; the Composer
+    holds no registry authority of its own.
+  - A refusal does not undo the provenance, which is true either way. It is
+    reported as `registration: { status: 'failed', reason }`, and a re-import
+    completes it.
+  - The CI push path (`NXD-052`, a service principal) does not register: it
+    has no person to act for.
+- **From the real manifest.** `data-products-backend` reads `nexora.yaml`
+  **at the commit the tag points at** (Contents API, raw, up to 256 KiB),
+  not at the default branch, which may have moved since. Its absence does not
+  hide the record; it answers `manifestReason`.
+  - The text travels unparsed to the registry, the one plugin that already
+    has a YAML library. No dependency was added.
+- **The build lives on the version.** `artifact_versions` gains
+  `release_image_repository`, `release_image_digest`, `release_commit_sha`
+  and `release_url`. In the model this is `ArtifactVersion.releaseBuild`.
+  - It is written once, at registration, like everything else on a version
+    (`NXD-030`).
+  - `validateArtifactReleaseBuild` (platform-common) refuses a build for a
+    non-runnable kind, an image other than the manifest's
+    `spec.runtime.image.repository`, and commit or digest grammars `NXD-052`
+    refuses.
+- **`POST /artifacts/release-builds`** (`artifact.create`, users).
+  `registerReleaseBuild` parses the text and registers with the build. The
+  same coordinate with the same digest answers `alreadyRegistered` (200).
+  A different digest is a 409: a rebuilt image is a new version.
+- **R8 in the registry.** `certify` and `publish` refuse a **runnable**
+  version (its manifest declares `spec.runtime`) that has no release build.
+  - Publish checks again, so a version certified before the rule cannot slip
+    through.
+  - The test is the manifest, not the kind: the shipped DATA_PRODUCT
+    listings without `spec.runtime` are unaffected.
+- **The product version remembers its registry version.**
+  `product_versions.artifact_ref` (`ProductVersion.artifactRef`) is
+  write-once, set at registration, and audited as
+  `ARTIFACT_VERSION_REGISTERED` by the importing person with the release
+  URL.
+- **The registry workflow on the product page.** Under *Build evidence*:
+  - the import says what happened in the registry;
+  - an *Artifact Registry* card shows coordinate, lifecycle, image and
+    digest, commit and release, and offers exactly the next act: *Submit for
+    testing*, *Record review*, *Certify* or *Publish*;
+  - each act goes to the registry's own route with the signed-in person's
+    token, and a refusal, R8 included, is shown in the registry's words.
+
+**Verified.**
+
+- **Unit and integration, about 120 new or extended tests:**
+  - platform-common: release-build validation and the runnable test, 4;
+  - registry, 135 green: on the live manifest and digest, registers DRAFT
+    with the build; idempotent; 409 on another digest; refuses another
+    image and non-manifest text; walks the full lifecycle with a build; R8
+    refuses certify without one; R8 refuses publish of one certified before
+    the rule; non-runnable versions unaffected; route 201/200/403;
+  - data-products, 134: manifest read at the tag commit; no-manifest answer;
+    raw-text client;
+  - composer, 400: registration hand-off with the live values; artifactRef
+    and audit; already-registered audits once; a refusal keeps the
+    provenance; no manifest means no call; unconfigured; registrar client
+    passes `onBehalfOf` and the registry's message;
+  - app, 53: card actions per lifecycle; act and refresh; R8 refusal
+    verbatim; registration line; card after import.
+- **Live, against the running instance, on the `NXD-135` release:**
+  1. Re-import: `alreadyRecorded: true`, and registration `failed` with
+     *No publisher owns namespace "pharma-data-factory"*. The provenance
+     stayed.
+  2. `demo-pm` self-registered publisher `pharma-data-factory`
+     (COMMUNITY).
+  3. Re-import: `registered`.
+     `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0` is DRAFT, with
+     `releaseBuild` set to image
+     `ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d`, digest
+     `sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810`,
+     commit `431fd71…` and the release URL. The stored manifest is the one at
+     `431fd71`.
+  4. Submit → TESTING; review → TESTED; certify → CERTIFIED; publish →
+     **RELEASED**.
+  5. Product version `1.0` carries `artifactRef`; the audit shows
+     `ARTIFACT_VERSION_REGISTERED` by `demo-pm`.
+
+**Found, named, not fixed.**
+
+1. **No segregation of duties in the registry.** One person submitted,
+   reviewed, certified and published. The URS chain and product approvals
+   forbid that (`NXD-057`, `NXD-072`); the registry's review and
+   certification currently mean nothing more than "someone with the
+   permission clicked".
+2. **A claim the code does not keep.** Self-registration answers "Artifacts
+   can be submitted but not published until a PLATFORM_ADMIN promotes this
+   publisher to PARTNER status". `publishArtifactVersion` checks no trust
+   level, and the COMMUNITY publisher's version was published.
+3. **Publish does not ask the Nexora release gate.** The artifact is
+   RELEASED in the registry while product version `1.0` is APPROVED, not
+   RELEASED. Whether publishing must follow the governed release is a
+   decision for the next slice. For a GxP product it should.
+4. Registry refusals reach the page prefixed with the error type
+   (`NotFoundError: …`). Cosmetic.
+
+- Affected components: `packages/platform-common/src/{artifact,product,index}.ts`
+  (+ `artifact.test.ts`);
+  `plugins/artifact-registry-backend/src/{db/migrations,repository,service,router}.ts`
+  (+ tests, `__fixtures__/oee-e2e-test-20261005-d.nexora.yaml`);
+  `plugins/data-products-backend/src/{githubActions,releaseRecord,router,types}.ts`
+  (+ tests);
+  `plugins/composer-backend/src/{db/migrations,repository,repository-interface,release-record-client,release-registrar,service,router,plugin}.ts`
+  (+ tests);
+  `packages/app/src/modules/products/{api.ts,ProductDetailPage.tsx,tabs/TestsTab.tsx,tabs/RegistryPublication.tsx}`
+  (+ tests).
+
+### NXD-138 — Changing a signing PIN needs the current one, and an administrator can clear a PIN but never set one
+
+- Date: 2026-10-07
+- Decided by: the user, on `NXD-136` (options 1 and 2), which this record
+  puts in force.
+- Slice: the closure plan's §9.4 rank 10.
+
+**Context.** `NXD-135` found, and `NXD-136` recorded, that
+`PUT /urs-composer/signing-pin` replaced a PIN without asking for the current
+one. Whoever held a seat's session could therefore re-issue the seat's second
+factor and sign as the seat. That one PIN serves every signature on the
+platform: URS approvals, validation decisions (`NXD-119`), and product
+approval and release (`NXD-128`).
+
+**Decision (the user's choice).**
+
+1. **A first enrolment is free; a change needs the current PIN.**
+   - The rule is in `SignaturePinReAuth.enroll`, the one place a PIN is
+     written, so no caller can enrol around it. It returns `ENROLLED` or
+     `CHANGED`; the audit says `PIN_SET` or `PIN_CHANGED`.
+   - The current PIN goes through `verify`, the same path and lockout as a
+     signature. A wrong one counts as a failed attempt. A locked seat cannot
+     change its PIN, not even with the right one.
+   - **Status codes.** A change without `currentPin` is **400**, because the
+     request lacks what the change requires (a signature without a PIN is 400
+     too, `NXD-128`), and no attempt is counted. A wrong current PIN is
+     **403**, and so is a locked seat, which names the time it is locked
+     until.
+   - On a first enrolment `currentPin` is ignored, so a caller that always
+     sends it works on a fresh seat and on a rerun. The e2e spec now does.
+2. **An administrator can clear a PIN, never set one.**
+   `POST /urs-composer/signing-pin/reset` with `{ userEntityRef, reason }`.
+   - **Who may.** `platform.user.manage`, the existing user-management
+     permission of PLATFORM_ADMIN, which already authorizes
+     `users-backend`. No new permission and no new role.
+   - **What it does.** It removes the credential: PIN, `failed_attempts`
+     and `locked_until` together, so the reset lifts a lockout, as the user
+     chose. The seat must enrol again, as a first enrolment, before its next
+     signature.
+   - **Never set.** A body that carries `pin`, `newPin` or `currentPin` is
+     refused with 400. `PUT /signing-pin` takes the user from the token only,
+     as before.
+   - **Reason and audit.** A reason is required (400 without one, at most
+     1000 characters). The reset writes `PIN_RESET` on the seat's
+     `SIGNATURE_CREDENTIAL` to the append-only audit trail: actor (who),
+     entity (whom), timestamp (when), `newValue.reason` (why), and in
+     `oldValue` the attempts and lockout it lifted.
+   - **Order.** The audit event and the removal run in one transaction, with
+     the event first (`SignaturePinReAuth.clear` calls the recorder before it
+     deletes). A failed audit write leaves the credential where it was.
+   - **Errors.** A seat without a PIN is 404, and nothing is audited. A
+     malformed reference is 400.
+3. **No exemption for demo seats.** Live runs use an administrator reset.
+   `demo-pm`'s PIN from `NXD-135` is left as it is.
+4. **OIDC step-up stays the long-term target.** `OidcStepUpReAuth` remains a
+   stub that refuses.
+
+**Decided here, beyond the user's four points, and named for review: an
+administrator cannot reset their own seat (403).** A reset followed by the free
+first enrolment would let an administrator's session replace that
+administrator's own PIN, which is exactly the bypass `NXD-136` closes. Another
+administrator resets it. This is stricter than the decision, never looser. If
+the user wants self-reset, it is a one-line removal in
+`URSService.resetSigningPin`.
+
+**Pages.**
+
+- **URS Composer, *Set signing PIN*.** The dialog reads the new
+  `GET /signing-pin`, which answers `{ enrolled, lockedUntil? }`, the
+  caller's own and never the hash.
+  - With a PIN, it is titled *Change signing PIN* and asks for the current
+    PIN; Save stays disabled without it.
+  - A locked seat is told that its PIN is locked until when, that a locked
+    PIN cannot be changed, and that it can wait or ask an administrator.
+    It is offered no Save.
+- **Admin → Users & Roles.** Every user gains *Reset signing PIN*. It opens
+  a dialog with a required reason and no PIN field, and shows a refusal in
+  the server's words.
+- **Validation Expert's PIN dialog** (`DecisionPanel`) gains an optional
+  *Current PIN (only when changing)* and sends it. Without it, a change is
+  refused with the server's message.
+- **Product `ApprovalDialog`.** The "No PIN yet?" hint now adds that an
+  administrator resets a forgotten or locked PIN.
+  `composer-backend/src/pin-verifier.ts` is unchanged: it calls
+  `/signing-pin/verify`, whose behaviour did not change, and already passes
+  the refusal through.
+
+**Verified.**
+
+- **Domain** (`domain/reauth.test.ts`, 21 tests, +9 and 1 replaced):
+  - a first enrolment needs no current PIN;
+  - a change without one is refused, the hash is unchanged, and no attempt
+    is counted;
+  - the right current PIN changes the PIN;
+  - a wrong one is refused and counted, and five lock the seat;
+  - a locked seat cannot change, even with the right PIN;
+  - `clear` removes PIN and lockout, records before it deletes, leaves the
+    credential when the record fails, and calls nothing for a seat without
+    a PIN;
+  - after `clear`, a free enrolment works.
+
+  The old test "re-enrolling lifts a lockout" asserted the behaviour this
+  record removes, and is replaced by the locked-seat test.
+- **HTTP** (`signing-pin-change-reset-http.test.ts`, 14 tests, real
+  router over a socket):
+  - first enrol 204 and status `enrolled`;
+  - change without the current PIN 400 (PIN kept), wrong 403 (counted),
+    right 204 (`PIN_SET`, `PIN_CHANGED`), locked 403 `Locked until … cannot
+    be changed`;
+  - `PUT` sets only the token's own PIN, whatever the body names;
+  - reset authorized by `platform.user.manage`; non-admin 403 with nothing
+    changed;
+  - no or blank reason 400;
+  - a body with `pin`, `newPin` or `currentPin` 400;
+  - reset 204 clears PIN and lockout, with `PIN_RESET` by the admin, about
+    the seat, reason trimmed, lockout in `oldValue`, correlation id set;
+  - after reset, verify answers "No signing PIN", a free enrolment is 204
+    and signs (`PIN_SET`, `PIN_RESET`, `PIN_SET`);
+  - own seat 403 while another admin succeeds;
+  - no PIN 404 and nothing audited; malformed reference 400.
+- **PostgreSQL** (`signing-pin-reset.postgres.test.ts`, 2 tests, against
+  the test container on :5435):
+  - the row is gone and exactly one `PIN_RESET` row holds the reason;
+  - that row refuses UPDATE and DELETE (`URS_APPEND_ONLY`);
+  - re-enrolment verifies;
+  - a failing audit write rolls the reset back, and the row and its lockout
+    stay.
+- **Existing contract:** `signing-pin-verify-http.test.ts` passes unchanged
+  (4 tests). `urs-composer-backend` 36 suites, 491 tests green.
+- **Frontend:**
+  - `SigningPinDialog.test.tsx` (4): no current field for a first PIN;
+    current field required and sent for a change; a refusal verbatim;
+    locked message and no Save;
+  - `ursComposerApi.test.ts` (+2): `currentPin` sent; status read;
+  - `SigningPinResetDialog.test.tsx` (2): reason required, body is
+    `{ userEntityRef, reason }` with no PIN, refusal verbatim.
+  - `plugins/urs-composer`: 109 tests, of which 9 fail, all in
+    `CreateWizard.test.tsx`. These are the pre-existing failures of §9.4
+    rank 8, and no new one.
+- **Gates.**
+  - `yarn tsc` clean; `yarn lint:all` exit 0 with no warnings;
+    `yarn guard:platform` `FAIL: 0`, `GUARDRAILS_OK`;
+    `node scripts/check-doc-links.mjs` all links resolve.
+  - `CI=true yarn test:all` with PostgreSQL: 2877 of 2878 tests, 286 of 287
+    suites. The one failure is `compatibilityPolicyParity`'s Python leg,
+    because this container has no `pydantic`. It is pre-existing.
+- **Not run live.** No running stack in this slice. The first live use will
+  be an administrator reset before a signature, per point 3.
+
+**Not changed, named.**
+
+- `signature_credentials` has no history of its own. The audit trail is the
+  history: `PIN_SET`, `PIN_CHANGED`, `PIN_RESET`.
+- The admin page addresses a seat as `user:default/<name>`, as the catalog
+  users it lists are all in `default`. The route takes any user reference.
+- The admin page does not show whether a seat has a PIN. A reset of a seat
+  without one answers 404, shown in the dialog. Showing the state would need
+  an admin read of other seats' credential status, which is not added.
+- A first enrolment still rests on the session alone. That is the decision
+  (option 1); option 3, a fresh sign-in or OIDC step-up for (re-)enrolment,
+  would close it.
+- `demo-pm`'s PIN from `NXD-135` stays enrolled (point 3).
+
+- Affected components:
+  `plugins/urs-composer-backend/src/{domain/reauth,service,router,repository,repository-interface,postgres-repository}.ts`
+  (+ `domain/reauth.test.ts`, `signing-pin-change-reset-http.test.ts`,
+  `signing-pin-reset.postgres.test.ts`);
+  `plugins/urs-composer/src/{api/ursComposerApi.ts,api/types.ts,components/SigningPinDialog/SigningPinDialog.tsx}`
+  (+ `SigningPinDialog.test.tsx`, `ursComposerApi.test.ts`);
+  `plugins/validation-expert/src/{api.ts,components/DecisionPanel.tsx}`;
+  `packages/app/src/modules/admin/{UsersRolesPage.tsx,SigningPinResetDialog.tsx}`
+  (+ `SigningPinResetDialog.test.tsx`);
+  `packages/app/src/modules/products/tabs/ApprovalDialog.tsx`;
+  `packages/app/e2e-tests/urs-approval-chain.spec.ts`;
+  `docs/compliance/traceability-and-gmp.md`.
+
+### NXD-139 — An installation is a record Nexora keeps; installing a GMP product is signed, and qualified only when QA signs its IQ
+
+- Date: 2026-10-07
+- Slice: MVP1 step 6, slice 1 of [`NXD-129`](DECISIONS.md): the
+  installations store and its routes. Not the provider API (slice 2), not
+  the Compose provider (slice 3), not the Marketplace *Install* page (MVP1
+  step 7).
+- Decided by: the user (QA decisions, 2026-10-07) + slice 1 of `NXD-129`.
+
+**Context.** After `NXD-137` a released, built version sits in the registry
+with its image digest, and nothing can say where it is meant to run.
+`NXD-129` defined the Installation as governed desired state and left three
+questions to this slice: which plugin owns it, whether installing a GMP
+product is a signed act, and whether an installation needs an IQ.
+
+**Decision: which plugin owns installations.** A new
+`plugins/installations-backend` (pluginId `installations`), not
+`artifact-registry-backend`. The evidence is the routes each slice needs:
+
+- **Slice 2 needs a write route for a service principal.** The provider
+  posts observed state with its `externalAccess` token. In the registry, *no
+  write route admits a service principal*, and a test pins it (`NXD-087`):
+  a consuming installation reads and never writes. Putting the provider's
+  write into the registry would break that rule for one route. In its own
+  plugin the rule stays whole.
+- **The registry already uses the word.** `GET /installation` and
+  `installation.ts` there are `NXD-078`'s instance identity. `NXD-129` says
+  the two must not share a name. `/installations` beside `/installation` in
+  one router would do just that.
+- **What the store needs from the registry is one read.** It needs a
+  version's lifecycle, manifest and `releaseBuild`. The registry's public
+  `GET /artifacts/:ns/:name/versions/:version` gives exactly that, on behalf
+  of the person acting. No private database is read (AGENTS.md).
+- **No new npm dependency.** The plugin uses only packages the other
+  backend plugins already declare. `yarn.lock` gains 19 lines: the workspace
+  entry and the backend's dependency on it.
+
+**Decision: the data model.** Five tables, all in the new plugin. Named so
+they cannot be confused with `NXD-078`: `runtime_targets` and
+`artifact_installations`. The types are `RuntimeTarget` and
+`ArtifactInstallation`, in `platform-common/src/artifact-installation.ts`.
+
+- **`runtime_targets`.** A place a provider runs workloads. It holds a unique
+  name, `provider_kind` (for example `docker-compose`) and
+  `provider_subject`. The subject is the `externalAccess` subject that may
+  act as this target's provider in slice 2; it may be empty until a provider
+  is bound. Registering one needs `installation.target.manage` (admin) and
+  is audited.
+- **`artifact_installations`.** One row per installation. The installation
+  name is unique on its target and defaults to the artifact name.
+  - **Desired:** state `PRESENT | ABSENT`; the coordinate, version and
+    registry version id; `image_repository` and `image_digest`, copied from
+    the version's `releaseBuild` and never taken from the request; the
+    configuration; its hash; `desired_revision`; who changed it and when.
+  - **Observed:** state, the desired revision it answers, image digest,
+    config hash, message, who reported and when. All nullable. **Only the
+    provider API writes them (slice 2).** No route in this slice does, so
+    slice 2 adds a route and no migration.
+  - **Classification and qualification:** `gmp_relevant` and
+    `gmp_classification_source` as of the last act, and
+    `qualification_status`.
+- **`installation_acts`.** Every install, upgrade and removal as attested.
+  It has the `product_signatures` shape (`NXD-128`): act, desired revision,
+  coordinate, digest, config hash, justification, who, when, whether GMP
+  and why, and the second factor (empty for a confirmation). Append-only.
+- **`installation_audit_events`.** What changed: the desired state before
+  and after, with the act id. Append-only.
+- **`installation_qualifications`.** The IQ record, one per desired
+  revision of a GMP installation. It holds the expected digest, config hash
+  and target. The columns for the provider's observed facts, for who
+  recorded the evidence, and for QA's sign-off and its act are there, but
+  empty. This table is not append-only: evidence and sign-off fill one row
+  in later slices. Each such change will be guarded by revision and written
+  to the audit trail.
+- **Append-only on PostgreSQL** through `installations_append_only()`, this
+  plugin's own trigger function in the `NXD-092` shape. Row triggers refuse
+  UPDATE and DELETE; a statement trigger refuses TRUNCATE. No foreign key
+  points into either trail.
+- **One transaction per act.** The desired state, the act record, the audit
+  event and the IQ record are written together. The row update is guarded
+  by revision, and a concurrent writer gets a 409 with nothing written.
+  This closes, for installations, the gap `NXD-128` named for product
+  signatures: there, the record is written after the change.
+
+**Decision: what may be installed, and with which configuration.**
+
+- **Only a RELEASED version with a release build.** Any other lifecycle is
+  a 409. A RELEASED version without `releaseBuild` is a 409 as well: only a
+  version registered from a release can be run (`NXD-137`). The digest
+  installed is the one recorded at release.
+- **Configuration is validated against that version's `spec.config`.**
+  `validateInstallationConfig` in platform-common refuses:
+  - an undeclared key;
+  - a required key with neither a value nor a `defaultValue`;
+  - a `number`, `boolean` or `url` value that is not one. Accepted values
+    are stored as environment-variable strings;
+  - all issues are named in one refusal. Defaults are not copied in: the
+    stored configuration is what the installer chose.
+- **Secrets by reference, never by value.**
+  - A `secret` key takes `{ "secretRef": "<name>" }`. A literal value is
+    refused, and the refusal does not echo it.
+  - A reference must be a lowercase secret name
+    (`[a-z0-9]+([-._/][a-z0-9]+)*`, at most 253 characters), so most pasted
+    passwords fail the grammar. That refusal does not echo the value either.
+  - A non-secret key cannot take a reference.
+  - The provider resolves references on its target (slice 3).
+- **The configuration hash** (`sha256:` over the canonical form, keys
+  sorted) is computed in platform-common, so a provider can compute the same
+  hash over what it applied. An IQ compares the two.
+
+**Decision: installing, upgrading, removing.** Each is a change of desired
+state under `installation.manage` (owner tier, beside `artifact.publish`).
+Each increments `desired_revision`.
+
+- **Install** (`POST /installations`): target, `artifactRef`, optional
+  name, config, signature. A second installation with the same name on a
+  target is a 409, including one already desired ABSENT. Reviving a removed
+  name is not offered.
+- **Upgrade** (`POST /installations/:id/upgrade`): another version of the
+  same artifact, or a new configuration, or both. Each is checked as at
+  install. An omitted config keeps the current one, re-validated against the
+  new manifest. An upgrade that changes neither is a 409.
+- **Remove** (`POST /installations/:id/remove`): desired `ABSENT`. The row
+  and its trail stay.
+
+**The user's QA decisions (2026-10-07), part of this record.**
+
+1. **Installing, upgrading or removing a GMP-relevant product is an
+   electronic signature.**
+   - GMP-relevant means INDIRECT, DIRECT or unanswered, the `NXD-128` rule.
+     Such an act needs a justification and the actor's PIN. The PIN is
+     verified in the URS Composer on the actor's behalf (`POST
+     /signing-pin/verify`), so it is the one credential and the one lockout
+     of `NXD-119`. This plugin holds no copy of either.
+   - The client, `createHttpPinVerifier`, has the same contract as
+     composer's and validation-expert's. Each plugin owns its client, as
+     each owns its schema (`NXD-092`).
+   - **Not GMP-relevant:** permission, audit and a confirmation
+     (`signature.confirmed: true`, refused without it). No PIN.
+   - Every act is recorded in `installation_acts`.
+   - **Order, as in `NXD-128`:**
+     1. Is the act allowed? Permission, target, released and built version,
+        config, state.
+     2. The classification.
+     3. Justification and PIN present.
+     4. The PIN check.
+     5. One transaction.
+
+     A refused act therefore costs no PIN attempt. A test pins the call
+     order `read → classify → pin`.
+2. **IQ from provider evidence.**
+   - For a GMP installation, every install or upgrade opens an IQ record
+     for that desired revision: `PENDING_EVIDENCE`, with the digest, config
+     hash and target it must show.
+   - The states are `NOT_REQUIRED` (not GMP-relevant), `PENDING_EVIDENCE`,
+     `EVIDENCE_RECORDED` (the provider's observed facts are on the record
+     and match) and `QUALIFIED` (QA signed). Only `QUALIFIED` means the
+     installation is qualified.
+   - **This slice writes only `NOT_REQUIRED` and `PENDING_EVIDENCE`.**
+     Evidence intake (from the provider's observed state, slice 2 or after)
+     and QA's sign-off route (a signed act in `installation_acts`) are later
+     slices. Their columns are in the schema now.
+   - Removal opens no IQ and leaves the last one as it was. A
+     decommissioning record is not modelled.
+
+**Where the GMP classification comes from.**
+
+- **The Composer product record**, not the registry. The manifest and the
+  ArtifactVersion hold no GxP field. The link is `NXD-137`'s
+  `product_versions.artifact_ref`: a product governs an artifact when one of
+  its versions was registered as any version of it.
+- The new composer route `GET /artifacts/:namespace/:name/gmp-classification`
+  (`product.read` for a person, or a service) answers `governed`,
+  `gmpRelevant` and the products. The store asks it on the actor's behalf.
+  - A governing product decides by its `gxpRelevance`; only NONE is not
+    GMP-relevant (`PRODUCT`).
+  - **No governing product** — a community or listing artifact — is not
+    GMP-relevant (`NO_PRODUCT`). This is the user's "non-GMP / community
+    products".
+  - **A Composer that cannot answer** (refusal, error, unreadable answer)
+    makes the act GMP-relevant (`UNAVAILABLE`). An outage asks for the
+    signature; it never waives it.
+- The source is recorded on every act and on the installation.
+
+**Routes** (all `user` credentials only; none admits a service principal
+until the provider API exists, pinned by test):
+
+| Route | Permission |
+| --- | --- |
+| `GET /targets`, `GET /targets/:id` | `installation.read` |
+| `POST /targets` | `installation.target.manage` |
+| `GET /installations[?targetId]`, `GET /installations/:id` | `installation.read` |
+| `GET /installations/:id/{acts,audit,qualifications}` | `installation.read` |
+| `POST /installations`, `…/:id/upgrade`, `…/:id/remove` | `installation.manage` |
+
+The three permissions are new in platform-common: read for VIEWER, manage
+for owners, target management for admins. A refused permission asks no
+other plugin anything. Statuses: 400 for correctable input (config, secret,
+missing justification or PIN, missing confirmation), 403 for a wrong PIN or
+permission, 404 for an unknown target, installation or version, 409 for a
+version not RELEASED or not built, a name taken, an empty upgrade or a
+concurrent change.
+
+**Verified.**
+
+- `installations-backend`, 42 tests, 4 suites, `CI=true` with PostgreSQL:
+  - **service, 24:**
+    - a target registers once and is audited;
+    - a RELEASED version installs at its recorded digest;
+    - CERTIFIED, unbuilt and unknown versions, a malformed coordinate and an
+      unknown target are refused;
+    - config is validated against the version's `spec.config`, and a
+      literal secret is refused while a reference is stored;
+    - an installation name is taken once per target;
+    - a GMP act needs justification and PIN and records both; a wrong PIN
+      changes nothing;
+    - four refused acts and a name clash cost no PIN attempt, and the call
+      order is `read → classify → pin`;
+    - `UNAVAILABLE` counts as GMP; an IQ is opened `PENDING_EVIDENCE` with
+      the expected facts;
+    - a non-GMP act needs a confirmation, asks no PIN, is recorded and
+      opens no IQ (`NOT_REQUIRED`);
+    - an upgrade moves to the new version's digest, or to a new config alone,
+      and an empty upgrade is refused at no PIN cost;
+    - removal desires ABSENT, keeps the trail and opens no IQ; a removed
+      installation cannot be upgraded or removed again; a GMP removal is
+      signed;
+    - the audit records before and after; a concurrent change writes
+      nothing; the repository has no update or delete for the trails;
+  - **router, 7:** permission per route; the caller's own credentials
+    reach registry, classifier and PIN check; a refused permission asks
+    nothing; 400, 403, 404 and 409 per refusal; **no route admits a service
+    principal** (11 routes, all 403); 401 without credentials; `/health` is
+    open;
+  - **clients, 7:** on-behalf-of tokens and URLs for all three; 404, 403 and
+    5xx mapping; the classifier never weakens (403, 500 and an unreadable
+    answer all give `UNAVAILABLE`, GMP); the URS Composer's lockout message
+    is passed through verbatim;
+  - **PostgreSQL, 4:**
+    - applies twice; names are unique case-insensitively; the installation
+      row stays editable, observed columns included;
+    - `installation_acts` and `installation_audit_events` refuse UPDATE,
+      DELETE and TRUNCATE (matched on the trigger's message), and insert
+      still works;
+    - one IQ per desired revision.
+- `platform-common`, +12: config validation (types, every issue at once,
+  literal secret refused and not echoed, bad reference not echoed,
+  reference on a non-secret refused, defaults), the secret-name grammar, the
+  order-independent hash, and the three permission tiers. 618 tests green.
+- `composer-backend`, +5: ungoverned, governing product (case-insensitive,
+  any version), NONE against unanswered, no prefix false match; the route
+  for a person with `product.read`, for a service, and 403 without. The
+  `substr` lookup was checked on PostgreSQL as well.
+- **Gates:** `yarn tsc` clean; `yarn lint:all` exit 0; `yarn
+  guard:platform` `FAIL: 0`, `GUARDRAILS_OK`; `check-doc-links` clean.
+  Repo-wide `CI=true` with PostgreSQL: 2910 of 2911 pass, 290 suites, which
+  is 59 more than `NXD-137`. The one failure is `compatibilityPolicyParity`'s
+  Python leg: there is no `pydantic` here, as before. It is untouched by this
+  change.
+
+**Not changed, named.**
+
+- **No provider API, no provider, no UI.** No route writes observed state,
+  takes in IQ evidence or records QA's sign-off. Nothing executes anything.
+  The Marketplace *Install* page is MVP1 step 7.
+- **No live run.** The plugin is wired into `packages/backend` but was not
+  exercised against the running instance.
+- **Installing does not ask the Nexora release gate.** A RELEASED registry
+  version is installable even when its product version is not RELEASED in
+  the Composer: the `NXD-137` finding, now one step further on. For a GxP
+  product it should be asked; this is a decision for the next slice.
+- **"No governing product" means not GMP-relevant**, as the user decided for
+  community products. An internal artifact that no Composer product governs
+  is therefore installed with a confirmation. If that is too wide, the rule
+  belongs with the publisher's trust level.
+- **No segregation of duties between installer and IQ signer** yet; it
+  belongs with the sign-off route.
+- The PIN client is the third copy of the same 40 lines (composer,
+  validation-expert, installations). Extracting them into one node-library
+  is named, not done.
+- `permissions-inventory.md` in platform-common was already stale (it
+  counts 45). It is not updated here.
+
+- Affected components: `plugins/installations-backend/` (new:
+  `package.json`, `.eslintrc.js`,
+  `src/{index,plugin,router,service,repository,clients}.ts`,
+  `src/db/migrations.ts`, `src/__testUtils__/fixtures.ts`, and tests
+  `service`, `router`, `clients`, `db/migrations.postgres`);
+  `packages/platform-common/src/{artifact-installation,permissions,index}.ts`
+  (+ `artifact-installation.test.ts`, `artifactPermissions.test.ts`);
+  `plugins/composer-backend/src/{repository,repository-interface,service,router}.ts`
+  (+ `artifactGmpClassification.test.ts`);
+  `packages/backend/{package.json,src/index.ts}`; `yarn.lock` (workspace
+  entry only).
+
+### NXD-140 — An artifact no product governs is installed as GMP; an administrator cannot reset their own PIN
+
+- Date: 2026-10-07
+- Slice: follow-up to [`NXD-138`](DECISIONS.md) and [`NXD-139`](DECISIONS.md),
+  before either is pushed.
+- Decided by: the user (2026-10-07), accepting both recommendations.
+
+**Context.** `NXD-138` and `NXD-139` each named one rule for review that the
+user had not asked for or had only decided in outline:
+
+1. `NXD-138` refuses an administrator's reset of their own seat (403).
+2. `NXD-139` classified an artifact that no Composer product governs as not
+   GMP-relevant (`NO_PRODUCT`), which installed it with a confirmation.
+
+**Decision 1: the self-reset refusal stays.** It is confirmed as the rule,
+no longer a proposal. A reset followed by the free first enrolment would let
+an administrator's session replace that administrator's PIN, which is the
+bypass `NXD-136` closes. Another administrator resets it. A single-admin
+installation needs a second administrator for this one act.
+
+**Decision 2: no governing product means GMP-relevant (fail-closed).**
+`NO_PRODUCT` now gives `gmpRelevant: true`. Install, upgrade and remove need
+a justification and the PIN, and an install or upgrade opens an IQ record
+`PENDING_EVIDENCE`.
+
+- **Why.** Nobody has answered the GxP question for such an artifact. On a
+  product an unanswered `gxpRelevance` already counts as GMP (`NXD-128`),
+  and a Composer that cannot answer counts as GMP (`UNAVAILABLE`,
+  `NXD-139`). The old rule was the one place where *no answer* waived the
+  signature. In a GxP environment, an internal artifact that nobody
+  registered as a product would have been installed on a confirmation.
+- **What waives it now.** Only a governing product whose `gxpRelevance` is
+  NONE (`PRODUCT`, `gmpRelevant: false`).
+- **Cost.** Community and listing artifacts carry the full GMP ceremony
+  until something answers for them. The way to relieve that is a rule on the
+  publisher's trust level or a target that declares itself non-GxP, as a
+  later decision. It is not done here.
+- The source is still recorded as `NO_PRODUCT`, so the act shows *why* it
+  counted as GMP.
+
+**Verified.** `CI=true` with PostgreSQL: `installations-backend` 42 tests
+and `platform-common` `artifact-installation` pass (51 in 5 suites). The
+classifier test now expects `NO_PRODUCT` to be GMP-relevant. The service's
+non-GMP case is now a governing product answering NONE (`PRODUCT`), the only
+input that still waives the signature.
+
+**Not changed, named.** No publisher-trust or target-level waiver. The
+`NXD-139` note "No governing product means not GMP-relevant" is superseded
+by this record.
+
+- Affected components: `plugins/installations-backend/src/clients.ts`
+  (+ `clients.test.ts`, `service.test.ts`);
+  `packages/platform-common/src/artifact-installation.ts` (doc comment).
+
+### NXD-141 — A released, built Data Product is listed in the Marketplace and installed from it
+
+- Date: 2026-10-07
+- Slice: MVP1 step 7 of [`NXD-129`](DECISIONS.md): *Install* in the
+  Marketplace, on the store [`NXD-139`](DECISIONS.md) built, with the rule
+  [`NXD-140`](DECISIONS.md) fixed.
+- Decided by: the user ("next: step 7", 2026-10-07); the listing rule below
+  was decided here and is named for review.
+
+**Context.** After `NXD-139` the installations store accepts an install, and
+nothing in the UI can send one. A first look found a second gap in front of
+the first: **the product `NXD-137` released was not in the Marketplace at
+all.** The Marketplace read only manifests carrying a `spec.marketplace`
+block, and `nexora.yaml` (`NXD-130`) states how a product runs, not which
+shelf it sits on. An *Install* button would have had no page to sit on.
+
+**Decision 1: a runnable Data Product with an installable version is listed
+without a Marketplace block.**
+
+- *Installable* means what the store checks (`NXD-139`): RELEASED, declares
+  `spec.runtime`, has a release build. `installableVersions()` in
+  platform-common computes it, newest first, with each version's digest and
+  `spec.config`. The store re-checks; this only keeps the dialog from
+  offering a version it would refuse.
+- The card is read from the manifest and the registry: name, description,
+  version, provider (the namespace), category *Data Products* (what its kind
+  already names), and the release page as documentation. Nothing else is
+  invented.
+- **Why this rule.** RELEASED is the registry's word for "approved for
+  consumption", and a build is what an installation runs. A product that has
+  both and still could not be found would make the release meaningless to a
+  consumer. A manifest that has a Marketplace block keeps it; this rule only
+  fills the gap.
+- Every offering now carries its registry coordinate
+  (`artifactNamespace`, `artifactName`) and `installableVersions`.
+
+**Decision 2: the dialog asks what the store will ask, before anyone types.**
+
+- New read route in `installations-backend`:
+  `GET /artifacts/:namespace/:name/gmp-classification`, under
+  `installation.read`, user credentials only. It runs the classifier the act
+  uses, on the caller's behalf, so the dialog shows a signature or a
+  confirmation by the same rule (`NXD-140`). The act classifies again and
+  decides.
+- If the route cannot answer, the dialog asks for the signature, as the
+  store would.
+
+**Decision 3: what the Marketplace shows and offers.**
+
+- On the detail page of an installable product, an *Install* card:
+  - the artifact's installations, with target, version, desired state,
+    observed state ("no provider has reported" until one does) and
+    qualification status;
+  - **Install** for a role holding `installation.manage` (owners, admins),
+    computed with `permissionsForRole`. It is a hint for the button only, not
+    a new dependency, and the store checks the permission itself. Without a
+    registered target the card says so instead.
+- The dialog offers a version (with its digest), a target, a name (default:
+  the artifact name) and one field per `spec.config` key. A secret field
+  takes a secret *name* and is sent as `{ secretRef }`. An empty field is
+  left unset, so the manifest default applies. The configuration is
+  validated with the store's own `validateInstallationConfig` as the person
+  types, and every problem is named before anyone signs.
+- GMP-relevant: the meaning, why it is signed (governing product, no
+  governing product, or classification unreadable), the note that an IQ is
+  opened and QA signs it, a required justification and the PIN. Otherwise:
+  a confirmation box and an optional justification.
+- A refusal is shown in the store's words; the PIN field is cleared.
+- **The Entry card of an installable product drops three create-time rows**
+  (*Owner: Assigned during create*, *GitHub Repository: Created in this
+  installation's configured organisation*, the *Golden Path documentation*
+  link). They describe a Golden Path and were false for a released build.
+  The card shows the release page instead.
+
+**Verified.**
+
+- `platform-common` `marketplace-artifact`, +4: a released, built product
+  without a Marketplace block is listed with coordinate, digest and config;
+  a runnable product with no installable version is not; only RELEASED,
+  built, runnable versions are offered, newest first (`1.10.0` before
+  `1.0.0`); a Marketplace offering carries its coordinate and no installable
+  version.
+- `installations-backend` router, +1, and the service-principal test now
+  covers the new route: 200 with the classifier's answer and the caller's
+  own credentials, 400 for a bad coordinate, 403 without `installation.read`
+  (classifier not asked), 403 for a service principal.
+- `marketplace`, +11: `installConfigFromForm` (empty unset, secret as a
+  reference, every problem named, a pasted secret not echoed) and the card
+  and dialog (only this artifact's installations; Install only with the
+  permission and a target; a failed load says so; a GMP install sends the
+  justification, the PIN and the configuration; a refusal is shown verbatim
+  and clears the PIN; a literal secret blocks signing; a non-GMP install
+  asks only for a confirmation; an unreadable classification asks for the
+  signature).
+- `CI=true` with PostgreSQL: `marketplace`, `installations-backend` and
+  `platform-common` 708 tests in 43 suites pass. `yarn lint:all` and `tsc`
+  are clean.
+- **Live, against the running instance** (demo mode, local PostgreSQL):
+  - the registry listing now yields the `NXD-137` product
+    `pharma-data-factory/oee-e2e-test-20261005-d`, as *Data Products*,
+    version `1.0.0` at `sha256:6e696d5f…`, 14 configuration keys, its GitHub
+    release as documentation (13 offerings from 22 artifacts);
+  - the classification route answers `{ gmpRelevant: true, source: PRODUCT }`
+    for it as `demo-pm`;
+  - the detail page, as `demo-pm`, shows the *Install* card with "Not
+    installed on any target" and "No runtime target is registered yet", and
+    the reduced Entry card.
+
+**Not changed, named.**
+
+- **No install was performed live.** There is no runtime target, and none
+  could be registered: `POST /targets` needs `installation.target.manage`,
+  which only the admin tier holds, and no demo seat is an administrator.
+  Seeding one into the database by hand was refused by this session's
+  permission check and was not attempted another way. The dialog's install
+  path is verified by tests only.
+- **No UI to register a runtime target.** Only the API. It belongs with the
+  provider (step 8), which defines what a target is.
+- **No upgrade or removal in the UI.** The store has both routes.
+- **The listing rule is wider than "GMP-ready".** A COMMUNITY publisher's
+  released build is now listed too, with the existing community warning.
+  Installing it is signed (`NXD-140`). Whether publish should check the
+  Nexora release gate is still the open `NXD-137` finding.
+- The other three templates still ship no `nexora.yaml`, so only OEE
+  products can reach this page.
+
+- Affected components:
+  `packages/platform-common/src/{marketplace-artifact,index}.ts`
+  (+ `marketplace-artifact.test.ts`);
+  `plugins/installations-backend/src/router.ts` (+ `router.test.ts`);
+  `plugins/marketplace/src/{installationsApi,install,plugin,data}.ts(x)`,
+  `src/components/{InstallCard,MarketplaceDetailPage}.tsx`
+  (+ `install.test.ts`, `components/InstallCard.test.tsx`,
+  `offeringSource.test.ts`).
+
+### NXD-142 — A Data Product declares the state it keeps; where that state lives is the installation's
+
+- Date: 2026-10-07
+- Slice: MVP1, the precondition `NXD-131` named for step 8: storage must be
+  modelled before the Compose provider runs anything.
+- Decided by: the user ("ja" to "storage in the schema first", 2026-10-07);
+  the shape below was chosen here and is named for review.
+
+**Context.** The OEE product keeps its time series and reason codes in
+SQLite at `/app/data/oee.db` (`TIMESERIES_SQLITE_PATH` in the Dockerfile).
+Its hand-written `docker-compose.yml` mounts a named volume there. `nexora.yaml`
+(`NXD-130`) could not say so: `spec.runtime` is closed, and `NXD-130` listed
+persistent storage under *Not modelled yet*. A provider that ran the product
+from its manifest alone would have written the database into the container
+layer, and the first upgrade, which replaces the container, would have
+deleted it. For a GMP product that is lost data, not an inconvenience.
+
+**Decision.**
+
+- **`spec.runtime.storage` is a list of persistent areas.** Each entry has:
+  - `name`: a coordinate segment, unique in the list;
+  - `mountPath`: an absolute container path. Not `/`, no `.` or `..`
+    segments, no trailing slash, no spaces;
+  - `size` (optional): a Kubernetes quantity (`1Gi`). It is the space the
+    workload expects. A provider that cannot reserve space may ignore it;
+  - `description` (optional).
+  The entry is closed (`additionalProperties: false`), like the rest of
+  `spec.runtime`.
+- **What the declaration promises.** The provider supplies each area per
+  installation. Its content survives a restart and an upgrade of that
+  installation. Two installations never share an area.
+- **What a manifest cannot say.**
+  - What backs the area: a host directory, a Docker volume, a
+    PersistentVolumeClaim or a cloud disk. That is the target's.
+  - Whether the data is kept, archived or deleted when the installation is
+    removed. That is the installation's, and for a GMP product a retention
+    decision. A product author cannot decide it for every site that runs
+    the product.
+  - Read-only mounts, sharing between products, and access modes. Nothing
+    needs them yet.
+- **Rules JSON Schema cannot state** are in `validateRunnableManifestSections`.
+  Two areas with the same name or the same `mountPath` are refused, and so
+  is an area inside another (`/app/data/cache` inside `/app/data`). With
+  nested areas, the provider would decide which one a file lands in, and so
+  which one survives.
+- **The OEE template declares `data` at `/app/data`.** A rendering test
+  holds the manifest, the Dockerfile and the Compose file in step. The
+  database path must lie inside a declared area, and the Compose file must
+  mount exactly the declared paths.
+
+**Alternatives considered.**
+
+- *A `volumes` block in Compose's vocabulary.* Rejected. `NXD-129` permits
+  nothing provider-specific in a manifest, and `hostPath` or a volume driver
+  would bind the product to one runtime.
+- *A boolean `stateful: true` plus a data directory in `spec.config`.*
+  Rejected. The provider would have to guess which configuration value is a
+  path. A product with two stores could not say so.
+- *Leave it to the installation.* Rejected. The person installing would
+  have to know the image's internal paths. Forgetting one would lose data
+  silently, on the first upgrade.
+
+**Verified.**
+
+- `platform-common` `manifestSchema.test.ts`, +18:
+  - which `mountPath` and `size` values are accepted;
+  - the entry is closed;
+  - the complete Data Product fixture now carries storage;
+  - three refusals through schema and gate: a relative path, a missing
+    path, a `hostPath`;
+  - one cross-field case naming a duplicate name, a duplicate path and a
+    nested path. A sibling with a shared prefix (`/app/database` beside
+    `/app/data`) is not refused.
+- `packages/backend` `templateRendering.test.ts`, +1: the rendered OEE
+  manifest declares the directory of the image's database, and its Compose
+  file mounts the same paths. The schema and gate tests that already exist
+  pass on the rendered manifest with storage.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- No consumer reads `storage` yet. The Compose provider (step 8) is the
+  first, and the installations store does not record a backing or a
+  retention choice. Retention on removal must be decided before a GMP
+  installation can be removed without losing its records. It belongs with
+  the removal flow and is a QA decision.
+- Already-registered versions (the `NXD-137` product `…@1.0.0`) carry no
+  storage. A provider must treat their state as unprotected. Only a new
+  release from the updated template fixes that.
+- The other three data-product templates still ship no `nexora.yaml`.
+
+- Affected components: `packages/platform-common/src/` —
+  `nexora-manifest.schema.json`, `artifact.ts` (`ArtifactRuntimeStorage`),
+  `index.ts`, `manifestSchemaValidator.ts` (+ `manifestSchema.test.ts`);
+  `templates/oee-data-product/content/nexora.yaml`;
+  `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-143 — A runtime provider reads its target's desired state and reports what runs; a matching report is IQ evidence
+
+- Date: 2026-10-08
+- Slice: MVP1 step 8, part 1 — slice 2 of [`NXD-129`](DECISIONS.md), the
+  provider API. Part 2, the Docker Compose provider, is `NXD-144`.
+- Decided by: the user ("ja", 2026-10-08) to the recommendation to build the
+  provider API first, with IQ evidence intake in the same slice. The shape
+  below was chosen here and is named for review.
+
+**Context.** `NXD-139` built the installations store with desired state, an
+IQ record per GMP desired revision, and observed-state columns that no route
+wrote. `NXD-129` sequenced the provider API second. It is the half that lets
+something outside Core run an installation without Core deploying anything.
+Reading the store for this slice found a defect that had no effect yet: every
+act wrote the whole installation row back, observed columns included, as it
+had read them. Once a provider reports, an act that reads just before a
+report and writes just after it would have erased the report.
+
+**Decision.**
+
+- **Two routes, under `/provider/targets/:targetId`.**
+  - `GET …/desired` returns every installation on the target, PRESENT and
+    ABSENT (an ABSENT one is still something the provider must act on).
+    Each item carries its desired state and the released manifest's
+    `spec.runtime`: ports, health, resources and `NXD-142`'s storage. The
+    provider therefore needs no second credential for the registry.
+  - `POST …/installations/:id/observed` takes `ObservedStateReport`:
+    `state`, `desiredRevision`, optional `imageDigest`, `configHash` and
+    `message`. Both shapes, and `validateObservedStateReport`, live in
+    `platform-common`. The Compose provider will import them, as it already
+    must import `computeInstallationConfigHash`.
+- **Who may call them.**
+  - The routes accept only a service principal. The person routes accept
+    only a user. Both halves are pinned by test.
+  - The caller's `externalAccess` subject must equal the target's
+    `providerSubject`. A service principal has no catalog identity, so
+    `NXD-087`'s rule holds and the permission framework is not consulted.
+    Here the binding on the target, not the token alone, is the
+    authorization. A token issued for `release-pipeline` reaches none of
+    these routes.
+  - An unknown target and a target bound to someone else get the same 403.
+    A token holder learns nothing about targets that are not theirs.
+- **The runtime is read when the provider asks, never copied in advance.**
+  The installations plugin reads the version from the registry on the
+  provider's behalf, once per pinned version per request. If the registry
+  no longer answers for the pin with the same `ArtifactVersion` id, the
+  installation is listed as `blocked`, with the reason and without a
+  runtime. A provider can report it, but it cannot apply a desire that has
+  lost its version. The installation is not hidden.
+- **What a report changes.**
+  - The observed columns, every time.
+  - Never the installation's `revision`. A provider that polls every few
+    seconds must not make a person's act fail as stale.
+  - A report for a revision above the desired one is refused (409). A report
+    for an installation on another target is refused (404).
+  - An act no longer writes the observed columns. This fixes the defect
+    named in the context.
+- **What the audit trail records.** It records `OBSERVED_STATE_CHANGED` when
+  state, revision, digest or configuration hash change, not on every poll.
+  The provider's subject is the actor. The record holds the facts before and
+  after, and whether they match the desire.
+- **IQ evidence.**
+  - A report counts as evidence when it shows the current desired revision
+    `RUNNING`, at the desired digest and with the desired configuration
+    hash, and the installation is PRESENT and `PENDING_EVIDENCE`.
+  - In one transaction, the evidence then fills the IQ record of that
+    revision (observed digest, hash, target, recorded by, at) and moves both
+    the record and the installation to `EVIDENCE_RECORDED`.
+  - The update is guarded on the desired revision. A report of the old
+    revision after an upgrade qualifies nothing.
+  - The update does move the installation's revision, because the
+    qualification status is also an act's column. An act that read the
+    installation before the evidence arrived is therefore refused as stale,
+    and does not write back `PENDING_EVIDENCE`.
+  - A report that differs from the desire records no evidence. The IQ is
+    made from facts that match.
+- **A local provider token.** `app-config.service-token.yaml` gains a second
+  static token, subject `provider:local-compose`. It is local only and
+  loaded only by naming the file (`NXD-087`). Production configures no
+  provider token yet.
+
+**Alternatives considered.**
+
+- *Snapshot the runtime into the desired state at install time.* Rejected
+  for now. It needs a migration, and the pin check already catches a version
+  that changed under an installation. If registry availability starts to
+  matter on a provider's poll path, a snapshot becomes the stronger choice.
+- *Let the permission framework decide for the provider, with a role for
+  service principals.* Rejected. A service principal has no catalog identity
+  to hold a role (`NXD-087`). A binding per target is narrower than any role
+  could be: one provider, one target.
+- *Audit every report.* Rejected. It turns the trail into a heartbeat log in
+  which the real changes are hard to find. `reportedAt` already shows the
+  last contact.
+- *Record evidence from any `RUNNING` report and let QA compare.* Rejected.
+  `NXD-139` defines `EVIDENCE_RECORDED` as facts that are on the record *and
+  match*. Mismatching facts are visible in the observed state and in the
+  audit trail (`matchesDesired: false`). They are not evidence.
+
+**Verified.**
+
+- `provider.test.ts` (new, 11 tests): reading desired state, including
+  ABSENT and storage; a blocked pin, for a changed id and for a missing
+  version; one registry read per version; refusing malformed, foreign and
+  future-revision reports; auditing a change but not a repeat; evidence
+  recorded once; no evidence from four kinds of mismatch, from the old
+  revision after an upgrade, or for a non-GMP installation; an act keeps a
+  report; a stale act after evidence is refused.
+- `router.test.ts`: the old "no service principal anywhere" test is now
+  "none on a person's route". Two new tests: the provider routes refuse a
+  user, an unbound subject, an unknown target and a target without a
+  provider, never consult the permission framework, hand the provider's own
+  credentials to the registry, and map refusals to 400, 404 and 409.
+- `migrations.postgres.test.ts`, +1, against real PostgreSQL (`CI=true`):
+  the service takes a report and its evidence through the append-only
+  triggers, with timestamps read back as dates.
+- `platform-common` `artifact-installation.test.ts`, +2: the report
+  validator normalises, truncates the message, and names every issue at
+  once.
+- See the commit body for the gates and the repo-wide run. Nothing was run
+  live: there is still no registered target, and no provider exists yet.
+
+**Not changed, named.**
+
+- **Drift after evidence.** A later report that differs from the desire
+  (another digest, for example) is recorded and audited. It does not revoke
+  `EVIDENCE_RECORDED` or a later `QUALIFIED`. Whether drift reopens the IQ
+  is a QA decision, and it belongs with the sign-off.
+- **QA's sign-off**, the only way to `QUALIFIED`, still has no route. Its
+  columns exist.
+- **Binding a provider to an existing target.** `providerSubject` can only
+  be set when the target is registered. No route changes it.
+- **Production** has no provider token, and no rule for which subjects may
+  be bound.
+- **Rate.** Reports are not rate-limited, and a read of desired state is
+  not audited.
+- **The UI** already showed `observed.state` and the qualification status on
+  the Marketplace Install card (`NXD-141`). It is unchanged.
+
+- Affected components: `packages/platform-common/src/artifact-installation.ts`
+  (`ProviderDesiredState`, `ProviderDesiredInstallation`,
+  `ObservedStateReport`, `validateObservedStateReport`), `index.ts`
+  (+ `artifact-installation.test.ts`); `plugins/installations-backend/src/`
+  — `router.ts`, `service.ts`, `repository.ts` (`recordObserved`; the act
+  patch no longer writes observed columns), comments in `plugin.ts` and
+  `db/migrations.ts` (+ `provider.test.ts` new, `router.test.ts`,
+  `db/migrations.postgres.test.ts`); `app-config.service-token.yaml`.
+
+### NXD-144 — The Docker Compose provider runs what a target desires, outside Nexora, and never deletes a volume
+
+- Date: 2026-10-08
+- Slice: MVP1 step 8, part 2 — slice 3 of [`NXD-129`](DECISIONS.md).
+- Decided by: the user ("ja", 2026-10-08) to the recommendation that a
+  provider never deletes a storage area on removal, for GMP and non-GMP
+  installations alike, until QA decides retention. The rest of the shape
+  was chosen here and is named for review.
+
+**Context.** `NXD-143` gave a provider a way to read its target's desired
+state and to report what runs. Nothing ran yet. `NXD-129` says Nexora does
+not deploy. A provider outside the Backstage backend executes, with a pull
+model and a token bound to one target. Docker Compose is the first provider,
+because it needs nothing but a Docker host. That fits a pilot line, a lab,
+or a developer machine.
+
+**Decision.**
+
+- **A workspace package, `packages/runtime-provider-compose`.**
+  - It is a Node process that runs beside Docker, never inside the backend.
+  - It depends on `@internal/platform-common` only. It has no Docker SDK
+    and no YAML library. It calls the `docker` CLI through `execFile`, with
+    no shell, and writes the Compose file as JSON, which Compose reads as
+    YAML.
+  - `yarn.lock` gains only the workspace entry.
+  - It is started with `yarn workspace @internal/runtime-provider-compose
+    start [--once]`, through Backstage's own Node transform. Configuration
+    comes from the environment:
+    - `NEXORA_URL`, `NEXORA_PROVIDER_TOKEN`, `NEXORA_TARGET_ID`;
+    - optional: `NEXORA_PROVIDER_WORKDIR`, `NEXORA_PROVIDER_SECRETS_DIR`,
+      `NEXORA_PROVIDER_NETWORK`, `NEXORA_PROVIDER_INTERVAL_SECONDS`
+      (default 15).
+- **One Compose project per installation**, named
+  `nexora-<target>-<installation>`, with one service.
+  - The image is pinned by digest (`repository@sha256:…`) from the desired
+    state, never by tag.
+  - Configuration becomes environment variables. A manifest default fills
+    a key the installer left out.
+  - Secrets are resolved by reference from the target's secret store. For
+    this provider that is one file per reference under a directory, as
+    Docker and Kubernetes mount secrets. The values go into a `secrets.env`
+    file written with mode 0600, never into the Compose file. Nexora never
+    sees them.
+  - Each `NXD-142` storage area becomes a named volume of the project.
+  - Each port is published on an ephemeral host port. The port Docker
+    chooses is reported in the observation's message.
+  - `resources.limits` map to `deploy.resources.limits`.
+  - Labels on the container carry the installation id, the desired
+    revision, the configuration hash and the target.
+- **The reconcile rules.**
+  - **PRESENT** is applied (`docker compose up -d`) in three cases: nothing
+    runs, what runs answers another desired revision, or what runs has
+    stopped. A container running the current revision is left alone,
+    healthy or not. The provider reports DEGRADED; it does not restart its
+    way out of an unhealthy product.
+  - **ABSENT** is `docker compose down` without `-v`, and the volumes stay.
+    The secrets file is deleted. The report names the volumes kept.
+  - **Blocked** (`NXD-143`): nothing is applied, and what runs is reported
+    with the reason. A removal still happens, because taking a project down
+    needs no version.
+  - **A project that holds a container of another installation** is left
+    alone and reported FAILED.
+  - **A secret the store does not hold, or a failed apply** (a denied pull,
+    for example), is reported FAILED for the desired revision. The message
+    names the reference, never a value. The old container keeps running.
+  - One installation's failure does not stop the pass.
+- **What is reported is read back from Docker.**
+  - The revision and the configuration hash come from the running
+    container's labels.
+  - The digest comes from the image's `RepoDigests`, for the desired
+    repository only.
+  - The state comes from Docker's state and its HEALTHCHECK status:
+    running+healthy or running without a healthcheck is RUNNING; starting is
+    PENDING; unhealthy or restarting is DEGRADED; exited or dead is STOPPED.
+  - So `NXD-143`'s IQ evidence is what runs, not what the provider meant to
+    run. A failed upgrade leaves the old labels and the old digest, and they
+    match nothing.
+- **A correction to `NXD-143`.** The provider payload now carries the
+  released manifest's `spec.config` as `configSchema`. The store holds only
+  the configuration the installer chose (`NXD-139`), so without the schema
+  a provider could not have known a default such as `MQTT_PORT=1883`.
+  Defaults are applied, not hashed: the IQ compares the configuration as
+  stored.
+
+**Alternatives considered.**
+
+- *Run the provider inside the backend.* Rejected by `NXD-129` and
+  `NXD-074`. The backend would then hold a host credential: Docker socket
+  access, which is root on the host.
+- *dockerode or a YAML library.* Rejected for now. They would be two new
+  dependencies (`AGENTS.md`), for what `execFile` and JSON already do. If
+  the CLI's output format becomes a problem, dockerode is the candidate.
+- *Publish fixed host ports from the manifest.* Rejected. Two installations
+  of one product on one host would collide, and the manifest cannot know
+  the host.
+- *Restart an unhealthy container.* Rejected. Docker's restart policy
+  already handles a crash. A loop of re-applies would hide a defect that
+  the report should show.
+
+**Verified.**
+
+- `compose.test.ts` (8) and `reconcile.test.ts` (16), against a fake Docker
+  and a fake Nexora: the image by digest; defaults applied but not hashed;
+  secrets out of the Compose file and into a 0600 file; volume, ports and
+  limits; an external network; a missing secret refused without its value;
+  apply, leave alone (healthy and unhealthy), re-apply on another revision
+  and on a stopped container; removal keeping volumes and deleting the
+  secrets file; a blocked pin that applies nothing but still removes;
+  FAILED for a missing secret, a failed apply and a foreign container; one
+  failure not stopping the pass; no digest reported for another repository;
+  the state mapping.
+- `provider.test.ts` in `installations-backend`: `configSchema` is served,
+  and is absent for a blocked pin.
+- **Against real Docker** (Compose v2.40.3, `nginx:alpine` by digest), with
+  Nexora faked:
+  - install reported RUNNING with the real digest and an ephemeral host
+    port; a second pass left it alone;
+  - an upgrade to revision 2 recreated the container, and a file written
+    into the storage volume survived;
+  - removal took the container down and kept the volume, and `down` worked
+    without the Compose file.
+  - The smoke volume was removed afterwards.
+- See the commit body for the gates and the repo-wide run. **Not run
+  against Nexora yet.** That is the live run, `NXD-145`.
+
+**Not changed, named.**
+
+- **Orphans.** A project carrying this target's label that the desired
+  state no longer lists is neither removed nor reported. Nexora never
+  deletes an installation record, so this happens only if someone removes
+  one behind Nexora's back.
+- **Private images.** Pulling from a private GHCR repository needs `docker
+  login` on the host. The provider holds no registry credential.
+- **Networks.** An installation reaches a broker only through
+  `NEXORA_PROVIDER_NETWORK`, a single external network for the whole
+  target. No network is modelled per installation.
+- **`runtime.health` is not probed.** The image's own HEALTHCHECK is used
+  (the OEE image has one). An image without one reports RUNNING as soon as
+  it runs.
+- **Retention.** Volumes are never deleted, so disk use only grows. A
+  deliberate delete act, and QA's retention rule for GMP, are still open
+  (`NXD-142`).
+- **No production packaging.** There is no image and no service unit. The
+  provider runs from the repository.
+
+- Affected components: `packages/runtime-provider-compose/` (new: `api.ts`,
+  `compose.ts`, `config.ts`, `docker.ts`, `reconcile.ts`, `secrets.ts`,
+  `main.ts`, `index.ts`, tests); `yarn.lock` (the workspace entry);
+  `packages/platform-common/src/artifact-installation.ts` (`configSchema`);
+  `plugins/installations-backend/src/service.ts` (+ `provider.test.ts`).
+
+### NXD-145 — A URS baseline is required only of a GMP product, and "is GMP" has one answer
+
+- Date: 2026-10-08
+- Slice: §9.7 S1 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track (added with this record).
+- Decided by: the user (2026-10-08). The supplier-side gaps are to be closed
+  before more consumer features, in the order S1 → S6, and the URS-for-every-
+  product friction is S1. The predicate rule is `NXD-119`'s and `NXD-140`'s,
+  applied here.
+
+**Context.** The release gate's `NO_URS_BASELINE` blocked every product
+whose approved baseline bound no URS baseline, whether the product was GxP
+relevant or not. The ecosystem assessment (2026-10-06) named this as
+friction for community and analytics products. A URS is a GxP instrument,
+and requiring one of a product that answers NONE made the gate a formality.
+The GxP-only policy pack already has the obligation `urs-baseline-bound`
+with `appliesTo: gxp`. `NO_URS_BASELINE` repeated it for everyone.
+
+Making the block conditional exposed a worse problem. The composer backend
+had **three** answers to "is this product GMP":
+
+- the signature path (`attest`, the validation-decision check and the GMP
+  classification served to installations): anything but an explicit NONE,
+  the `NXD-119` rule;
+- the policy-pack evaluation: set and not NONE, so a product with no answer
+  was *not* GxP;
+- the platform policy (`isGxpRelevant`): DIRECT or INDIRECT only, with a
+  comment that said the opposite ("GxP relevant unless it says otherwise").
+
+So a product that left the field empty was GMP for signatures, but escaped
+the GxP-only obligations of both policies. The platform policy already
+blocked it for not answering. It did not also ask for the criticality that
+a GMP product owes.
+
+**Decision.**
+
+- **One predicate.** Every check in `composer-backend` now uses
+  `isGmpRelevant` from `platform-common` (`NXD-119`): only an explicit
+  `NONE` is exempt. That covers `attest`, the policy pack, the platform
+  policy, the validation-decision check, the GMP classification route
+  (`NXD-139`) and the new URS condition. The Governance card's list of
+  outstanding obligations uses it too, so the page and the gate agree.
+- **`NO_URS_BASELINE` applies to GMP products only.** A product that answers
+  NONE may be released without a URS binding. A product with no answer, or
+  an unknown one, still may not.
+- **Consequence, accepted.** A product that has not answered is now also
+  asked for its criticality (`gxp-criticality-declared`), as GxP-only policy
+  pack obligations now apply to it. Answering the GxP question clears both:
+  NONE removes the criticality obligation, and anything else needs a
+  criticality.
+- **Case.** The platform policy upper-cased the value before comparing; the
+  shared predicate compares exactly. New writes are validated against
+  `GXP_RELEVANCE_LEVELS` (upper case), so this only affects a legacy row
+  holding `none`, which now counts as GMP. That is fail-closed, as
+  `NXD-140` decided for the unknown case.
+
+**Alternatives considered.**
+
+- *Drop `NO_URS_BASELINE` and leave it to the policy pack.* Rejected. The
+  pack applies only to a product that declares it. A GMP product that
+  declares no pack would then release with no requirements bound at all.
+- *Exempt "no answer" as well.* Rejected. It reverses `NXD-119` and
+  `NXD-140`: an unanswered GxP question counts as GMP everywhere else in
+  Nexora. The platform policy blocks the unanswered product regardless.
+
+**Verified.**
+
+- `productRequirements.test.ts`, +4: `NO_URS_BASELINE` for NONE (not
+  raised), INDIRECT, DIRECT and unanswered (raised).
+- `platform-policy.test.ts`, +1: an unanswered product is held to the
+  criticality obligation. One assertion updated: "every unmet obligation at
+  once" now lists four.
+- Updated because the rule moved, not because behaviour regressed:
+  - `versioning.test.ts`: the two `NO_URS_BASELINE` tests used a NONE
+    fixture and now reclassify the product as INDIRECT before asking the
+    gate. The "no platform obligation met" count is now 4.
+  - `releaseGateProgress.test.ts`: the starting count is 7 blockers, 4 of
+    them policy.
+  - `productUpdate.test.ts`: the count before is 4.
+- `composer-backend`: 410/410. See the commit body for the gates and the
+  repo-wide run.
+
+**Not changed, named.**
+
+- `urs-composer-backend` (`service.ts`, the workflow choice
+  `standard-gxp-urs` / `non-gxp-urs`) and the frontend's `ApprovalDialog`
+  and Governance form still spell the rule out locally. They agree with it
+  or only shape a form, and none decides a release.
+- The `ReleaseReadinessCard` label for `NO_URS_BASELINE` is unchanged. The
+  file holds the user's uncommitted work and was not touched.
+
+**Also in this commit, for the paused live run.** `app-config.demo.yaml`
+gains a seventh demo seat, `demo-admin` (`platform-admins`, no `urs-*`
+group). No demo seat could register a runtime target
+(`installation.target.manage`) or clear another seat's signing PIN
+(`NXD-138`). The live run used it for both through the API: the target
+`local-compose`, and resetting `demo-pm`'s PIN, which was held only in
+`/tmp` and lost on restart. `startup.test.ts` pins the seat.
+
+- Affected components: `plugins/composer-backend/src/service.ts`,
+  `platform-policy.ts` (+ `productRequirements.test.ts`,
+  `platform-policy.test.ts`, `versioning.test.ts`,
+  `releaseGateProgress.test.ts`, `productUpdate.test.ts`);
+  `packages/app/src/modules/products/tabs/GovernanceCard.tsx`
+  (+ `ProductDetailPage.test.tsx`, now "4 unanswered");
+  `app-config.demo.yaml` (+ `packages/backend/src/startup.test.ts`);
+  `docs/nexora-transformation/PHASE_CLOSURE_PLAN.md` (§9.7 added, §9.6 note).
+
+### NXD-146 — The registry records who moved a version, keeps the submitter from certifying it, and publishes a governed version only after its product release
+
+- Date: 2026-10-08
+- Slice: §9.7 S2 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track.
+- Decided by: the user (2026-10-08).
+  - Segregation of duties as recommended: the submitter may not review or
+    certify, the reviewer may not certify, the submitter may publish.
+  - A COMMUNITY publisher may not certify or publish.
+  - Publish requires the Nexora release of the governing product version,
+    for GMP and NONE products alike.
+  - An artifact no product governs needs no product release; its
+    publisher's trust and the certification decide.
+
+**Context.** `NXD-137` found three things wrong with the registry and fixed
+none:
+
+1. One person submitted, reviewed, certified and published.
+2. Self-registration promised that a COMMUNITY publisher could not publish
+   until promoted, and the COMMUNITY publisher's version was published.
+3. Publish never asked whether the governing product had been released in
+   Nexora.
+
+Building this found a fourth, underneath the first: **the registry recorded
+no transition at all.** `applyTransition` stored the new lifecycle and
+revision. A RELEASED version could not say who reviewed, certified or
+published it. That is why segregation of duties had nothing to be decided
+from.
+
+**Decision.**
+
+- **A transition trail.**
+  - `artifact_version_transitions` records act, from/to lifecycle, from/to
+    certification status, actor, time and details. It is append-only in
+    PostgreSQL through this plugin's own trigger function
+    (`artifact_registry_append_only()`, the `NXD-092` shape).
+  - It is written in the same transaction as the version's update, so no
+    version reaches a state without a record of who moved it there.
+  - `GET /artifact-versions/:id/transitions` reads it, under
+    `artifact.read` or as a service.
+- **Segregation of duties**, decided from the trail.
+  - The submitter (actor of the last SUBMIT) may not review or certify.
+  - The reviewer (last REVIEW) may not certify.
+  - A version submitted before the trail existed takes its creator as
+    submitter: the creator registered it.
+  - The refusal is a 403 and names the rule.
+  - Publish and deprecate are not restricted. Publishing makes available
+    what someone else certified.
+- **Trust.** Certify and publish are refused while the artifact's
+  publisher is COMMUNITY. This is the promise self-registration always
+  made. Submit and review stay open, so a community version can be readied
+  while promotion is pending.
+- **The release gate at publish.**
+  - The registry asks the Composer through a new route,
+    `GET /artifacts/:ns/:name/versions/:version/release-status` (service,
+    or a person with `product.read`). The call uses the registry's own
+    service credentials, because publishing is the registry's rule and not
+    a view of the person who presses the button.
+  - If any Composer product governs the artifact, at any version, publish
+    needs a product version registered as exactly this coordinate to be
+    RELEASED. Otherwise the request is refused (409), naming the product
+    versions and their status.
+  - An artifact no product governs is published on trust and certification
+    alone.
+  - If the Composer cannot answer, or no reader is configured, nothing is
+    published (503). An unasked gate is not a passed one.
+  - The PUBLISH record holds what the gate answered.
+
+**Alternatives considered.**
+
+- *Actor columns on `artifact_versions` (`reviewed_by`, `certified_by`).*
+  Rejected. They are overwritten by the next cycle and hold no history. A
+  trail answers every later question.
+- *Ask the Composer on behalf of the publishing person.* Rejected. A
+  publisher without `product.read` would then be refused for reasons
+  unrelated to the release, and the gate's answer would depend on who
+  asked.
+- *Require a product release only for GMP products.* Rejected by the user,
+  for one rule across products.
+
+**Verified.**
+
+- `service.test.ts`, +7:
+  - submitter and reviewer refused at each step, the submitter allowed to
+    publish;
+  - a legacy TESTING version takes its creator as submitter;
+  - five transitions recorded in order with actors and the gate's answer;
+  - a refused transition records nothing;
+  - COMMUNITY refused at certify;
+  - publish refused while the product version is APPROVED, and refused
+    when nothing is registered as the version; allowed once RELEASED;
+  - nothing published when the gate errors or is not configured.
+- Updated tests: the namespace walk and the NXD-137 build walks now use
+  three people.
+- `router.test.ts`: the lifecycle walk uses three people and reads the
+  trail. A segregation refusal is a 403.
+- `releaseStatusClient.test.ts` (new): the registry's own credentials
+  reach the Composer route, and a refusal is an error, not an answer.
+- `migrations.postgres.test.ts`, +1, against PostgreSQL: the trail refuses
+  UPDATE, DELETE and TRUNCATE, and re-applying recreates the triggers.
+- `artifactGmpClassification.test.ts` (composer), +2: the release status,
+  case-insensitive, for exact and other versions, and the route for a
+  service and for a person.
+- **Live**, against the running instance after a hot reload:
+  - The new Composer route answers for the `NXD-137` artifact
+    `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0`: governed, **not
+    released**. Product version 1.0 is APPROVED.
+  - The registry's trail for that version is empty, because it was
+    published before the trail existed.
+- See the commit body for the gates and the repo-wide run.
+
+**Found, named.**
+
+- **The released OEE version would not pass this rule.** `…@1.0.0` was
+  published in the `NXD-137` run while its product version was APPROVED,
+  which is NXD-137 finding 3, now measured. It stays RELEASED: the rule is
+  not retroactive, and it is the version installed in the paused live run.
+  The next OEE release has to go through the product release first.
+- **The registry's call to the Composer with its own credentials** was not
+  exercised live: no certified, governed version was there to publish. It
+  will be exercised in the resumed live run.
+
+**Not changed, named.**
+
+- Group membership is not resolved: an actor is compared by entity ref.
+  Two seats of one person count as two people. That limit is `NXD-014`'s
+  and was already there.
+- The Tests tab's registry card (`NXD-137`) shows the refusals but not the
+  trail.
+- A refusal still reaches the page with its error-type prefix
+  (`NotAllowedError: …`, NXD-137 finding 4).
+
+- Affected components: `plugins/artifact-registry-backend/src/` —
+  `db/migrations.ts`, `repository.ts`, `service.ts`, `router.ts`,
+  `plugin.ts`, `releaseStatusClient.ts` (new) (+ `service.test.ts`,
+  `router.test.ts`, `releaseStatusClient.test.ts` (new),
+  `db/migrations.postgres.test.ts`); `plugins/composer-backend/src/` —
+  `service.ts`, `router.ts` (+ `artifactGmpClassification.test.ts`);
+  `packages/platform-common/src/artifact.ts`, `index.ts`.
+
+### NXD-147 — A runtime target names the registry credentials its provider pulls with, by reference only
+
+- Date: 2026-10-08
+- Slice: §9.7 S3 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track.
+- Decided by: the user (2026-10-08). The paused live run is to resume
+  without a manual `docker login`. The shape is chosen here and named for
+  review.
+
+**Context.** The live run of 2026-10-08 installed the released OEE product
+and stopped at the pull: product images are pushed to GHCR as private
+packages (`release.yml`, `NXD-132`), and the provider held no credential
+(`NXD-144`, "private images"). The only workaround was a `docker login` on
+the host, which puts a person's token into the host user's Docker config,
+for every target on that host, with no record in Nexora. Neither available
+GitHub token had `read:packages`.
+
+**Decision.**
+
+- **A target holds registry credential references.**
+  - `registryCredentials` is a list of `{ registry, username?, secretRef }`.
+    The `secretRef` names a secret in the target's own store, as a
+    configuration secret does (`NXD-139`). Nexora never holds the value.
+  - `validateRegistryCredentials` (platform-common) normalises the host,
+    allows one entry per registry, and refuses any other key (a `password`
+    or `token` is refused, and its value is not echoed).
+  - The list is set at registration, or replaced through
+    `PUT /targets/:id/registry-credentials` under
+    `installation.target.manage`.
+  - A change is guarded by the target's revision and audited as
+    `TARGET_REGISTRY_CREDENTIALS_CHANGED`, before and after.
+  - The provider receives the list with the target in its desired state.
+- **The provider logs in, isolated per target.**
+  - Before `compose up`, it finds the credential for the image's registry
+    (`registryHostOf`, as Docker resolves a repository) and resolves the
+    secret from its store.
+  - It runs `docker --config <workdir>/.docker/<target> login
+    --password-stdin`, then `compose up` with that `DOCKER_CONFIG`.
+  - The password never appears on a command line. The host user's Docker
+    configuration is not touched. One target's credentials are not another
+    target's.
+  - With no credential for the registry, the host's own configuration is
+    used, as before.
+  - A missing secret or a refused login is reported FAILED for the desired
+    revision, naming the reference and never the value.
+
+**Alternatives considered.**
+
+- *Make product images public.* Possible per product, but it is not a
+  default: a GxP product's image is not necessarily public. Changing GHCR
+  visibility also needs a token with package admin rights, which the
+  product workflow's `GITHUB_TOKEN` does not have. Not built.
+- *Write the Docker `config.json` directly instead of `docker login`.*
+  Rejected. `login` checks the credential against the registry, so a wrong
+  token fails as a login error and not as a misleading pull error.
+- *Store the credential in Nexora and hand it to the provider.* Rejected.
+  Nexora would hold a registry secret for every site, and the provider API
+  would carry it on every poll.
+
+**Verified.**
+
+- `platform-common` `artifact-installation.test.ts`, +3: references
+  accepted and normalised; a value refused without echo; malformed hosts,
+  references and duplicates named at once; `registryHostOf` as Docker
+  resolves it.
+- `installations-backend`:
+  - `provider.test.ts` +2: references held, served to the provider,
+    replaced, cleared, audited before and after; a target registered with
+    a value refused.
+  - `router.test.ts` +1: the PUT route under
+    `installation.target.manage` only, 400 for a value, 403 for a service
+    principal.
+  - The repository guard test now names the one allowed `update…` method
+    (a target is a mutable record) instead of allowing none.
+  - The PostgreSQL suite: 5/5 with `CI=true`.
+- `runtime-provider-compose` `reconcile.test.ts`, +3: login for the
+  image's registry into the isolated config, then `up` with it; no login
+  when no credential matches; FAILED naming the reference for a missing
+  secret and for a refused login, without the value.
+- **Against real Docker**, with a password-protected local registry
+  (`registry:2`, htpasswd) holding an image:
+  - without a credential, the provider reported FAILED with "no basic
+    auth credentials";
+  - with the target's reference to a secret file, it logged in, ran the
+    image and reported RUNNING with the pushed digest;
+  - removal reported ABSENT;
+  - the isolated config is mode 0700/0600, and the host user's
+    `~/.docker/config.json` gained no entry.
+  - Registry, images and files were removed afterwards.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- **The live run still needs a token** with `read:packages` for the
+  `pharma-data-factory` packages. It is placed once as a file in the
+  target's secret store. S3 makes that a governed reference instead of a
+  host login; it cannot create the token.
+- The isolated Docker config holds the credential as Docker stores it
+  (base64), on the provider host, as any `docker login` does. A credential
+  helper is not used.
+- There is no UI for registry credentials yet; the API sets them.
+
+- Affected components: `packages/platform-common/src/artifact-installation.ts`
+  (`RegistryCredentialRef`, `validateRegistryCredentials`, `registryHostOf`),
+  `index.ts` (+ test); `plugins/installations-backend/src/` —
+  `db/migrations.ts`, `repository.ts`, `service.ts`, `router.ts`
+  (+ `provider.test.ts`, `router.test.ts`, `service.test.ts`);
+  `packages/runtime-provider-compose/src/` — `docker.ts`, `reconcile.ts`
+  (+ `reconcile.test.ts`).
+
+### NXD-148 — The live run: a released product installed in Nexora runs on a target, and what runs becomes IQ evidence
+
+- Date: 2026-10-08
+- Slice: MVP1 step 8, the live run deferred by `NXD-143` and `NXD-144`,
+  resumed after §9.7 S3 (`NXD-147`).
+- Decided by: the user approved each environment step: the app restart
+  with `app-config.service-token.yaml`, the `demo-admin` seat, the PIN
+  reset, and a token with `read:packages`, stored by the user as a secret
+  file.
+
+**What ran.** Against the running development instance (PostgreSQL,
+`AUTH_DEMO_ENABLED`, the service-token overlay):
+
+1. **Target.** `demo-admin` registered `local-compose` through
+   `POST /targets`, bound to `provider:local-compose`.
+2. **PIN.** `demo-admin` cleared `demo-pm`'s signing PIN with a reason.
+   `NXD-138`'s audited reset was used for real for the first time; the PIN
+   from `NXD-135` had been held only in `/tmp`. `demo-pm` enrolled a new
+   one.
+3. **Install.** `demo-pm` installed
+   `pharma-data-factory/oee-e2e-test-20261005-d@1.0.0` (the `NXD-137`
+   version) as `oee-filler-01`. The Composer classified the product as
+   governing and GMP-relevant, so it was a signed act (justification and
+   PIN). The response was 201, with `qualificationStatus:
+   PENDING_EVIDENCE` and an IQ record for revision 1.
+4. **First provider pass**, with no registry credential: the provider read
+   desired state and reported FAILED r1 with GHCR's "token does not match
+   expected scopes". Neither the `.env` PAT (`repo, workflow, write:org`)
+   nor the credential-store token had `read:packages`. The run stopped
+   here, and the user ordered the supplier track (§9.7) first.
+5. **After S3.** The target's `registryCredentials` were set through the
+   new PUT, as a reference to `ghcr/pull-token`. The user wrote the token
+   into the target's secret directory.
+   - The first attempt was refused by GHCR at login. The file held five
+     tokens back to back, because the hidden input had been pasted several
+     times. Found by inspecting the shape only (prefix, length, count). The
+     value was never read out.
+   - Re-stored once, with a length check. The login succeeded.
+6. **Run.**
+   - The provider logged in, in its isolated config, and pulled the image
+     by digest. It reported `applied → PENDING r1` while the image's
+     HEALTHCHECK started.
+   - 30 s later the container was `healthy`, on host port 1026.
+     `GET /health` answered `{"status":"UP","version":"1.0.0"}`.
+   - The second pass reported `unchanged → RUNNING r1`.
+7. **Evidence.**
+   - Nexora holds `observed`: RUNNING, revision 1, digest
+     `sha256:6e696d5f…fd810`, config hash `sha256:11f8e298…8594`, reported
+     by `provider:local-compose`. Both values equal the desired state.
+   - The installation and its IQ record moved to `EVIDENCE_RECORDED`. The
+     record carries observed digest, hash and target and
+     `evidenceRecordedBy: provider:local-compose`.
+   - The audit trail reads `INSTALLATION_REQUESTED` (demo-pm), three
+     `OBSERVED_STATE_CHANGED` and `IQ_EVIDENCE_RECORDED` (all
+     provider:local-compose).
+8. **Route authorization, live.** The provider token got 200 on its
+   target. The consumer token (`installation:plant-basel`) got 403, demo-pm
+   (a user) 403, and no token 401.
+
+**Found.**
+
+- **Repeated failures are not audited, by design, and that held.** The
+  three FAILED r1 reports (wrong scope, unauthorized, refused login)
+  carried the same facts (state, revision, no digest), so only the first
+  was audited. `reportedAt` and the message moved each time. Whether a
+  changed *message* should count as a change is open.
+- **The pulled version declares no storage.** `…@1.0.0` predates
+  `NXD-142`, so the provider created no volume, and the OEE database lives
+  in the container layer until a release from the updated template.
+  `NXD-142` already named this.
+- **The installed version would not be publishable today.** `NXD-146`
+  measured it: its product version is APPROVED, not RELEASED.
+
+**Not shown.** QA's sign-off to `QUALIFIED`: no route exists (`NXD-143`).
+An upgrade and a removal through Nexora were not run live. The provider's
+own tests and the `NXD-144` smoke test cover them.
+
+**State left running.** The container
+`nexora-local-compose-oee-filler-01-app-1` keeps running. The target,
+installation and records stay in the development database. The token file
+is `/tmp/live/secrets/ghcr/pull-token` (0600) and will be gone after a
+workspace restart.
+
+- Affected components: none. This is a record of a run. Code and tests are
+  in `NXD-143`, `NXD-144` and `NXD-147`.
+
+### NXD-149 — Every data-product Golden Path is releasable and runnable, and the AAS one is named for repair
+
+- Date: 2026-10-08
+- Slice: §9.7 S4 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), the
+  supplier track.
+- Decided by: the user ("ok S4", 2026-10-08). What each manifest declares
+  was chosen here from each template's own code and is named for review.
+
+**Context.** Five Golden Paths create a data product. Only the OEE path
+shipped a `nexora.yaml` (`NXD-131`), a release workflow (`NXD-132`) and the
+test evidence hooks (`NXD-122`). A product created from the other four
+could not be registered as runnable (R8, `NXD-137`), built into a recorded
+image, installed (`NXD-139`) or run (`NXD-144`). Three of the four had no
+HEALTHCHECK, so a provider would have reported RUNNING for a container that
+answered nothing.
+
+**Decision.** `mqtt-temperature-product`, `rest-equipment-product`,
+`machine-state-consumer` and `aas-data-product` each ship the following.
+
+- **`nexora.yaml`**, built from the template's own code.
+  - Runtime: `ghcr.io/<owner>/<name>`, port `http` 8080, an HTTP health
+    route (`/health`; `/api/v1/health` for AAS).
+  - Storage: one area where the template's SQLite database already lives,
+    `/app/data` (`/app/.data` for AAS).
+  - Interfaces: the REST API it provides, the MQTT events it consumes, with
+    a logical channel and its JSON Schema contract, and the REST source it
+    reads.
+  - Config: exactly the variables its Compose file passes, except the
+    internal ones (service name and version, the database path, host and
+    port). AAS also declares `AAS_DB_URL` as a secret, because it carries a
+    password.
+- **`release.yml`, `scripts/nexora_release.py` and `tests/test_release.py`**
+  are OEE's, byte for byte. `release.yml` is copied without templating. Each
+  `ci.yml` is callable by the release (`workflow_call`), lints `scripts/`,
+  and runs the release test.
+- **The evidence hooks** of OEE's `conftest.py`, verbatim. `test-evidence/`
+  is in `.gitignore`. AAS, which does not use the shared quality workflow,
+  uploads the artifact from its own `ci.yml`.
+- **A HEALTHCHECK** in the three Dockerfiles that lacked one, the OEE line.
+- **`docs/ci-cd.md`** (three templates, and OEE) explains how to release a
+  version. It also notes that publishing waits for the product release
+  (`NXD-146`) and that a target needs a pull credential (`NXD-147`).
+
+**Found and fixed.** The AAS template's `ci.yml` went through the template
+engine, which renders every GitHub expression to an empty string. Every
+generated AAS repository therefore had `tags: :` in its build step, and the
+quality gate `if [ "" != "success" ]; then exit 1` failed **every run**.
+`ci.yml` holds no template value and is now copied without templating.
+
+**Found, named, not fixed: the AAS template needs a repair slice.**
+
+- `requirements.txt` pins `aas-http-client==1.0.0`, a version PyPI does not
+  have, so `pip install` fails, and with it the CI and the Docker build. No
+  code imports it. `basyx-python-sdk`, `sqlalchemy`, `psycopg2-binary`,
+  `aiofiles` and `python-dotenv` are not imported either.
+- With that pin removed, three of its own tests still fail, because their
+  sample data violates the template's own contract (`'eventId' is a
+  required property`).
+- Its lint never fails (`--exit-zero`, `|| true`). It is not on the shared
+  `data-product-quality.yml` gate and has no `dataprod/` package.
+- Its `ci.yml` writes `${{ needs.build.result }}` into a `run` script. The
+  release workflow forbids that.
+
+These need decisions: which dependencies to drop, and whether to move AAS
+onto the shared gate. The manifest, release files and hooks it now ships
+are correct, and `test_release.py` passes there (8/8). The release cannot
+pass until its gate does.
+
+**Alternatives considered.**
+
+- *Generate each manifest from the Compose file at Create.* Rejected. The
+  manifest is the product's declaration and is reviewed as code. The
+  rendering test holds it and the Compose file in step instead.
+- *One shared `release.yml` referenced from a central repository.*
+  Rejected for now. Each product repository must build without a call into
+  another repository the product does not control. Byte-identity is tested
+  instead.
+
+**Verified.**
+
+- `templateRendering.test.ts`: a new block parameterised over the four
+  templates, 9 checks each, rendering through the real `fetch:template`
+  with realistic values:
+  - schema, validator and registry gate;
+  - identity with catalog-info, and a lowercase image;
+  - HEALTHCHECK on the declared port and path;
+  - the database inside a declared storage area, mounted by Compose;
+  - config equal to what Compose passes;
+  - interface documents exist;
+  - release files equal to OEE's;
+  - the CI gate is callable, runs the release test, and has intact
+    expressions;
+  - evidence hooks equal to OEE's, gitignored, and uploaded.
+  - 67/67 in the file.
+- **Each rendered product, in a fresh Python 3.12 venv:**
+
+  | Product | ruff + compileall | CI unit-test command | Full `pytest` |
+  | --- | --- | --- | --- |
+  | mqtt-temperature | clean | 25 passed | 52 passed |
+  | rest-equipment | clean | 31 passed | 56 passed |
+  | machine-state-consumer | clean | 24 passed | 36 passed |
+
+  Each wrote `test-evidence/*.json`.
+- **Each of the three images built and run with Docker:** all reported
+  `healthy` within 30 s, with their database file in `/app/data`.
+  Containers and images were removed afterwards.
+- **AAS:** rendered, and the manifest passed schema, validator and gate.
+  Its CI expressions arrive intact. `pip install -r requirements.txt` fails
+  as described, and with the pin removed in a scratch copy, 18 passed and 3
+  failed (the pre-existing tests above).
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- The marketplace listings in `catalog/artifacts/nexora/*` describe the
+  *templates* and are not runnable products, so they gain no runtime.
+- No test of the three templates names a URS requirement yet. The hooks
+  record every test, and a product adds `@pytest.mark.urs(...)` against
+  its own URS.
+- The catalog-info comment "The release gate refuses to release an unbound
+  product" predates `NXD-145` (it is true for GMP products only). It is in
+  all templates and unchanged here.
+
+- Affected components: `templates/{mqtt-temperature-product,
+  rest-equipment-product,machine-state-consumer,aas-data-product}/` —
+  `template.yaml`; `content/nexora.yaml`, `.github/workflows/release.yml`
+  and `ci.yml`, `scripts/nexora_release.py`, `tests/test_release.py`,
+  `tests/conftest.py`, `Dockerfile` (three), `pyproject.toml` (three, +
+  pyyaml), `.gitignore`, `docs/ci-cd.md` (three);
+  `templates/oee-data-product/content/docs/ci-cd.md`;
+  `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-150 — The AAS Golden Path installs, accepts its own contract and has a lint that can fail; its manifest says it keeps no state
+
+- Date: 2026-10-08
+- Slice: §9.7 S4a of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md),
+  found by `NXD-149`.
+- Decided by: the user ("ja weiter", 2026-10-08) to the recommendation to
+  drop the unused dependencies and move AAS onto the shared gate. The second
+  half turned out to be the whole official data-product standard, not a
+  workflow switch. It is split off as S4a-2, and this record is S4a-1.
+
+**Context.** `NXD-149` found that a product generated from the AAS Golden
+Path could not install its dependencies, that three of its tests failed,
+and that its lint never failed. Repairing those found two more defects, one
+of which `NXD-149` itself had introduced.
+
+**Found.**
+
+1. **The product could not ingest a single event.**
+   - The model's fields are snake_case (`event_id`). The published
+     contract, `contracts/asset-event.schema.json`, is camelCase
+     (`eventId`).
+   - `validate_asset_event` checked `event.dict()`, the snake_case form,
+     against the camelCase contract, so every event failed with
+     "'eventId' is a required property". `POST /api/v1/assets` answered
+     every call with a validation error.
+   - The three failing tests were this defect, not bad test data, and one
+     of them could not have passed: it built an invalid event outside its
+     `pytest.raises`.
+2. **The product keeps no state, and `NXD-149`'s manifest said it did.**
+   - Assets live in `AASService.assets`, an in-memory dict.
+   - `AAS_PERSISTENCE`, `AAS_SQLITE_PATH` and `AAS_DB_URL` are settings
+     that no code reads.
+   - `NXD-149` declared a storage area for `aas.sqlite` and offered
+     `AAS_PERSISTENCE` and `AAS_DB_URL` as configuration: a promise and two
+     switches with nothing behind them.
+
+**Decision.**
+
+- **The model follows the contract.** `AssetEvent` has a camelCase alias
+  generator with `populate_by_name`, so the API accepts the contract's form
+  and the Python names alike. `to_contract()` returns the camelCase dump
+  that validation checks. The example in the OpenAPI schema is camelCase.
+- **The test checks what it says.** An empty `event_id` is refused when the
+  event is built. A contract violation is refused by the service.
+- **Dependencies are only what is installed and used.**
+  - Dropped: `aas-http-client==1.0.0` (does not exist on PyPI),
+    `sqlalchemy`, `psycopg2-binary`, `aiofiles`, `python-multipart` (none
+    imported).
+  - Kept: `basyx-python-sdk`, the product's domain and the prepared code
+    path, which installs; `python-dotenv`, which `pydantic-settings` needs
+    for `.env`.
+  - Added: `ruff`.
+  - Removed: the Dockerfile's `gcc` layer, which only `psycopg2` source
+    builds needed.
+  - No remaining version was changed.
+- **A lint that can fail.** `ci.yml` runs `ruff check app tests scripts`
+  and `compileall` instead of `pylint --exit-zero`, `black || true` and
+  `mypy || true`. Ruff's six findings (unused imports) were fixed.
+  `needs.build.result` reaches the quality gate's script through `env`
+  rather than inside `run`.
+- **The manifest says what the product does.** No storage, with a comment
+  that assets are held in memory until BaSyx persistence is built. The two
+  configuration keys nobody reads are removed. The rendering test now
+  requires storage exactly where a template keeps a database, and none
+  where it keeps none.
+
+**Verified.**
+
+- Rendered through the real `fetch:template`, then in a fresh venv:
+  - `pip install -r requirements.txt` succeeded;
+  - `pytest tests/` 21/21, including `test_release.py`, and evidence
+    written;
+  - the CI lint command was clean.
+- Docker: the image built without `gcc` and was `healthy` within 25 s.
+  - `GET /api/v1/health` answered UP.
+  - `POST /api/v1/assets` with the contract's camelCase event answered
+    **201**; before, every event was refused.
+  - The container and image were removed.
+- `templateRendering.test.ts` 67/67, with the storage check rewritten for
+  both cases.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named (S4a-2).**
+
+- AAS is still not an official data product
+  (`OFFICIAL_DATA_PRODUCT_TEMPLATES`): no vendored `dataprod/` SDK, no
+  quality, compatibility or platform-metadata tests, not on the shared
+  `data-product-quality.yml` gate.
+- Persistence is not built, so a restart loses every asset.
+- The security scan (`bandit`, `detect-secrets`) stays non-blocking
+  (`|| true`).
+- The pinned FastAPI/Pydantic versions are from 2023 and were not upgraded.
+
+- Affected components: `templates/aas-data-product/` — `content/app/models.py`,
+  `app/aas_service.py`, `app/main.py`, `tests/test_asset_ingestion.py`,
+  `tests/test_contract.py`, `requirements.txt`, `Dockerfile`,
+  `.github/workflows/ci.yml`, `nexora.yaml`;
+  `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-151 — CI evidence is the default branch's, and Nexora imports it without a button
+
+- Date: 2026-10-08
+- Slice: §9.7 S5 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md), part
+  a. The pull request preview is S5b.
+- Decided by: the user ("S5", 2026-10-08). The rules below (which runs
+  count, which version receives them) were chosen here and are named for
+  review.
+
+**Context.** `NXD-123` built *Import CI evidence*. A person presses it, and
+Nexora pulls the newest CI run's `nexora-test-evidence` and records one
+test execution per matched requirement. The user expects validation evidence
+to arrive on its own once code is created, as the base for AI-assisted
+build (S6).
+
+**Found.** **The import could record a pull request's tests as the
+version's evidence.**
+- `getLatestCompletedRun` asked GitHub for the newest completed run of
+  `ci.yml`, of any branch and any event. `ci.yml` runs on every pull
+  request.
+- Pressing the button while a pull request had the newest run recorded
+  tests of code that was never merged, possibly never reviewed, as
+  verification of the version's requirements.
+
+**Decision.**
+
+- **Evidence is what was merged.**
+  - `GET /ci-evidence` (data-products) resolves the repository's default
+    branch and takes the newest completed run of `ci.yml` for that branch
+    and `event=push`.
+  - `branch=` names another branch explicitly, still push runs only.
+  - If the default branch cannot be read, the answer is `available: false`
+    with the reason, not a guess.
+  - The run's `branch` and `event` are in the answer.
+- **Nexora imports on its own.**
+  - A scheduled task in composer-backend (`composer-ci-evidence-sync`,
+    every `composer.ciEvidence.syncIntervalMinutes`, default 15, `0`
+    disables) runs `importTestEvidence` for each product that has a
+    repository.
+  - It imports into the product's newest DRAFT version that has
+    requirements bound. The actor is `system:ci-evidence-sync`, in the
+    audit trail.
+  - It is idempotent, because a run is recorded once (`NXD-123`).
+  - A product it cannot serve (no repository, no run, no artifact, no
+    bound requirement) is reported in the pass result, not raised. One
+    product does not stop the pass.
+- **A version past DRAFT is not touched.** Under approval, a release
+  candidate, or released, a version keeps the evidence it has unless a
+  person imports more. An approval must not change underneath the approver.
+
+**Alternatives considered.**
+
+- *A GitHub webhook on `workflow_run`.* Rejected for now. Nexora would have
+  to be reachable from GitHub, and `NXD-123` chose pull so that it need not
+  be. The interval bounds the delay at 15 minutes.
+- *Import into every open version.* Rejected. An execution belongs to the
+  *requirement version* (`NXD-123`), so versions bound to one baseline
+  already share it. Importing per version would only repeat the GitHub
+  call. A version under approval is excluded on purpose (above).
+- *Count pull-request runs as evidence.* Rejected: that is the defect.
+  What a pull request would verify is S5b's preview, never recorded.
+
+**Verified.**
+
+- `data-products-backend`:
+  - `ciEvidenceRoute.test.ts` (new, 4): default branch, push only; a named
+    branch, push only; unknown default → unavailable, no guess; branch and
+    event in the answer.
+  - `githubActions.test.ts` +2: the run query carries `branch` and `event`;
+    the default branch is read from the repository.
+  - 140/140.
+- `composer-backend` `testEvidenceImport.test.ts` +2:
+  - the newest bound DRAFT is chosen, imported once as the sync actor, and
+    the same run again records nothing;
+  - an APPROVED version is left alone;
+  - products without a repository or a binding are skipped without
+    stopping the pass.
+- **Live**, against the running instance:
+  - `GET /api/data-products/ci-evidence` for
+    `pharma-data-factory/oee-e2e-test-20261005-d` answered run
+    `37492605890`, `branch: main`, `event: push`, commit `431fd71`, with 86
+    results;
+  - the scheduler registered the task (PT15M) and its first pass ran
+    after one minute: 0 imported across 0 draft versions. The development
+    database has no DRAFT version with a repository and a bound baseline.
+    The `NXD-137` product's version is APPROVED and was, correctly, not
+    touched.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- **Commit linkage.** Evidence of the default branch's head is attached to
+  the draft whatever commit the draft will be built from. Tying a version
+  to a commit before its release is not modelled.
+- **No UI change.** The Tests tab shows the imported executions as before.
+  It does not say when the last sync ran.
+- **Pull requests (S5b):** a read-only preview, per open pull request, of
+  which bound requirements its run would verify and whether the coverage
+  part of the release gate would pass.
+
+- Affected components: `plugins/data-products-backend/src/` — `types.ts`,
+  `githubActions.ts`, `router.ts` (+ `ciEvidenceRoute.test.ts` (new),
+  `githubActions.test.ts`); `plugins/composer-backend/src/` — `service.ts`
+  (`syncCiEvidence`, `CI_EVIDENCE_SYNC_ACTOR`), `plugin.ts` (scheduled
+  task) (+ `testEvidenceImport.test.ts`).
+
+### NXD-152 — A pull request shows what it would verify before anyone merges it, and nothing it shows is recorded
+
+- Date: 2026-10-08
+- Slice: §9.7 S5b of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md).
+- Decided by: the user ("ok S5b", 2026-10-08). The shape below was chosen
+  here and is named for review.
+
+**Context.** `NXD-151` made recorded evidence the default branch's only. A
+pull request's tests still matter before the merge, when a person decides
+whether to merge. S6 (AI-assisted build) depends on it: an AI's pull request
+has to show what it verifies before a person judges it.
+
+**Decision.**
+
+- **`GET /ci-evidence/pull-requests`** (data-products, read or service):
+  - lists the open pull requests, at most ten, most recently updated first;
+  - for each, takes the newest completed `ci.yml` run with
+    `event=pull_request` on its head branch, plus that run's evidence;
+  - a run that tested an older head than the pull request now has is
+    marked `stale`;
+  - a pull request without a run or an artifact says which is missing.
+- **`GET /versions/:id/pull-request-evidence`** (Composer, `product.read`):
+  - for each pull request, its results are mapped to the version's bound
+    requirements and passed to `getRequirementCoverage` as
+    `hypotheticalExecutions`, newest by the run's completion time;
+  - the coverage rule is therefore the one the release gate uses, including
+    "a later failing run of the same test case revokes";
+  - the answer per pull request is verified of total, whether the gate's
+    **coverage** part would pass, newly verified, newly unverified, a tally
+    per requirement, and ids the version does not carry;
+  - nothing is written, and the recorded coverage is unchanged afterwards
+    (tested).
+- **The Tests tab** gains *Check open pull requests*. It loads on click,
+  not on opening the tab, because each pull request costs GitHub calls. Each
+  pull request is linked with its lines. The import card's text now says the
+  default branch's run is read, and read automatically for drafts.
+
+**Alternatives considered.**
+
+- *A second coverage computation for previews.* Rejected. Two rules drift.
+  The gate's function takes hypothetical executions instead, and the preview
+  cannot disagree with the gate on coverage.
+- *Post the preview to GitHub as a commit status or check.* Rejected for
+  now. Nexora would need write access to product repositories, which
+  `NXD-132` kept out. The GitHub App could do it later, as a decision of
+  its own.
+
+**Verified.**
+
+- data-products:
+  - `ciEvidenceRoute.test.ts` +2: each pull request's own `pull_request`
+    run on its head branch; missing run or artifact named; stale marked;
+  - `githubActions.test.ts` +1: open pull requests parsed, query bounded;
+  - 143/143.
+- composer `testEvidenceImport.test.ts` +2:
+  - a pull request that adds a passing test for an unverified requirement
+    would verify it and pass coverage, with unknown ids named;
+  - a pull request whose run fails a test that passes on the default branch
+    would revoke it;
+  - one without evidence has no coverage;
+  - `test_executions` and recorded coverage are unchanged;
+  - an unavailable listing says why.
+- app `TestsTab.test.tsx` +2: the lines per pull request; loads on click
+  only, links the pull request.
+- **Live**, against the running instance and the `NXD-137` repository:
+  - data-products answered `pullRequests: []`;
+  - the Composer preview for version 1.0 answered `current: 5 of 5`,
+    `pullRequests: []`, with 200.
+  - The repository has no open pull request. One was not opened for the
+    check, because that is a write to the user's product repository. The
+    first real case will be S6's.
+- See the commit body for the gates and the repo-wide run.
+
+**Not changed, named.**
+
+- Only the gate's coverage part is previewed. Approvals, baselines and
+  policy are not.
+- Forks: a fork's pull request is found by head-branch name, so two forks
+  with the same branch name are not told apart.
+- Ten pull requests at most per call.
+
+- Affected components: `plugins/data-products-backend/src/` — `types.ts`,
+  `githubActions.ts`, `router.ts` (+ tests); `plugins/composer-backend/src/`
+  — `ci-evidence-client.ts`, `service.ts` (`previewPullRequestEvidence`,
+  `getRequirementCoverage`'s `hypotheticalExecutions`), `router.ts`
+  (+ `testEvidenceImport.test.ts`); `packages/app/src/modules/products/` —
+  `api.ts`, `ProductDetailPage.tsx`, `tabs/TestsTab.tsx` (+ test).
+
+### NXD-153 — Nexora assigns requirements to Claude Code in the product repository, records what it was told and what was merged, and writes no code
+
+- Date: 2026-10-08
+- Slice: §9.7 S6 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md).
+- Decided by: the user ("Ok dann bauen S6", 2026-10-08). The user's
+  decisions of 2026-10-08 hold: the key is the organisation secret
+  `ANTHROPIC_API_KEY`, a person merges, and the validation decision stays
+  human (`NXD-003`). The shape below was chosen here and is named for
+  review.
+
+**Context.** A product's code must become buildable with AI once its
+repository is on GitHub. `NXD-152` shows what a pull request would verify
+before anyone merges it. `NXD-132` keeps every Nexora credential out of
+product repositories. `NXD-064` C-3 requires an AI's output to be stored
+with the model and what it was given.
+
+**Decision.**
+
+- **An assignment** (Composer, `POST /versions/:id/ai-builds`,
+  `product.manage`):
+  - covers the bound requirements of a **DRAFT** version, all by default
+    or a subset by id, at most 25, plus an optional note of up to 2000
+    characters;
+  - is refused without a repository or a URS binding, and when
+    `composer.aiBuild.enabled` is off (501). It is off by default, because
+    each assignment is a paid model run.
+- **Recorded before it is dispatched.** The new table
+  `ai_build_assignments` stores:
+  - the requirement refs with their URS requirement version ids and
+    content hashes, and the note;
+  - the model and the sha256 of the payload as sent;
+  - who issued it and when;
+  - the outcome: run, pull request, head commit, merge time and **merge
+    commit**.
+
+  The requirement text is not copied. `product_requirements` is the
+  immutable snapshot it came from. The assignment columns are written once.
+  Only the outcome columns are updated.
+- **Audit events:** `AI_BUILD_ASSIGNED`, then `AI_BUILD_DISPATCHED` or
+  `AI_BUILD_NOT_DISPATCHED` (with a reason), then one event per status
+  change: `RUNNING`, `RUN_FAILED`, `NO_CHANGE`, `PR_OPEN`, `MERGED` or
+  `CLOSED`.
+- **The dispatch is a `repository_dispatch` event** of type
+  `nexora-ai-build`, sent by data-products, the one plugin that talks to
+  GitHub (`NXD-123`):
+  - The App's existing *Contents: write* covers it. **No new write
+    permission.**
+  - Only a service may call `POST /ai-build/dispatch`. A person goes
+    through the Composer, which records the assignment first.
+  - Before it dispatches, data-products checks that the default branch has
+    `.github/workflows/nexora-ai-build.yml`. GitHub accepts a dispatch that
+    nothing listens for, so without the check such an assignment would
+    wait for ever.
+  - The payload limits are GitHub's: at most 10 top-level keys, and here at
+    most 60 kB.
+- **Status.** `GET /ai-build/status` finds two things, read-only:
+  - the run, by the assignment id in its `run-name`;
+  - the pull request from `nexora/ai-<id>`, in any state. It searches
+    `head=owner:branch`, so a fork's branch of the same name is never
+    taken.
+
+  `POST /ai-builds/:id/refresh` (`product.manage`) records what it found.
+  A pull request decides the status. Without one, the run decides.
+- **The workflow**, shipped in all five data-product Golden Paths,
+  copied without templating:
+  1. Runs on the dispatch only. Top-level `contents: read`. The job asks for
+     `contents`, `pull-requests` and `actions` write.
+  2. `scripts/nexora_ai_build.py prepare` validates the payload, naming
+     every problem at once:
+     - a UUID assignment id;
+     - a model id matching `claude-…`, so a payload cannot smuggle CLI
+       flags;
+     - 1 to 25 requirements with requirement ids.
+
+     It writes the prompt to `.nexora-ai-build/`, which is kept out of git.
+     The prompt points at `agent-instructions.md` and tells the AI to tag
+     tests with `@pytest.mark.urs`. It quotes the requirements as JSON
+     *data* and names what may not change.
+  3. `anthropics/claude-code-action@v1` runs with the organisation key:
+     - the model comes from the validated step output, never from the raw
+       payload;
+     - tools: Read, Edit, Write, Glob and Grep, plus Bash for `pytest` and
+       `ruff` only;
+     - no git, no `gh`, and no credential: the checkout does not persist
+       one.
+  4. `check` refuses the whole change if the AI touched any of these:
+     - a controlled artefact of `agent-instructions.md` §1 or
+       `catalog-info.yaml`;
+     - anything under `.github/`;
+     - `tests/conftest.py`, the evidence hooks;
+     - the Nexora scripts;
+     - a **new test file that `ci.yml` would never run**.
+
+     A change must not be able to judge itself. Lint and test leftovers are
+     neither refused nor committed. Exactly the paths `check` passed are
+     committed.
+  5. The workflow pushes `nexora/ai-<id>` and opens the pull request, with
+     the assignment, model, requirements, changed files and the AI's notes
+     in its description. It then runs `gh workflow run ci.yml` on the
+     branch. Nothing merges.
+- **`ci.yml` gains `workflow_dispatch`, and the PR preview accepts a
+  `workflow_dispatch` run on the head branch.** The newer of that run and
+  any `pull_request` run counts. A pull request opened with `GITHUB_TOKEN`
+  starts no `pull_request` run, so without this the AI's pull request would
+  have shown no evidence in `NXD-152`. The default branch's evidence stays
+  `push`-only (`NXD-151`).
+- **`agent-instructions.md` corrected in all five Golden Paths:**
+  - its traceability section named a `# Satisfies:` comment; the evidence
+    hooks read `@pytest.mark.urs`, and a comment is not evidence;
+  - it listed `.github/workflows/` as freely editable; the AI build may not
+    touch it.
+- **The Development tab** gains *AI build*: assign with an optional note,
+  list with status, pull request, run and merge commit, and refresh.
+  It says why a version that is not a draft cannot be assigned.
+
+**Alternatives considered.**
+
+- *`workflow_dispatch`.* Rejected. It needs *Actions: write* for the App, a
+  new write permission. Its inputs are flat strings, whereas
+  `client_payload` carries the requirements as JSON.
+- *Let the action open the pull request.* Rejected. `claude-code-action`
+  does not open pull requests in automation mode. Letting the AI run git
+  would put the commit before the check.
+- *A GitHub App token in the workflow, so its pull request triggers CI
+  normally.* Rejected. That is a Nexora credential in the product
+  repository (`NXD-132`).
+- *Replace the listed test files in `ci.yml` with `pytest tests/`.* Not
+  done here. The four list-based templates name their files on purpose, so
+  the AI is told to extend listed files and a new file is refused. A
+  decision of its own.
+- *Store the prompt.* Rejected, as for spec drafts (`NXD-064` C-3). The
+  payload hash plus the requirement snapshot reconstruct it.
+
+**Verified.**
+
+- data-products:
+  - `aiBuildRoute.test.ts` (8) covers four things:
+    - dispatch with the workflow present;
+    - no dispatch without the workflow;
+    - GitHub's refusal passed on, oversized or malformed payloads refused,
+      and a person refused (403);
+    - status by run title and branch, and the PR preview taking a newer
+      `workflow_dispatch` run.
+  - `githubActions.test.ts` +4: the POST body, a refusal as a reason,
+    finding the pull request with its merge commit, and finding the run by
+    marker.
+- composer `aiBuildAssignment.test.ts` (6):
+  - recorded then dispatched, with exactly the payload;
+  - a subset, and an unknown id refused;
+  - NOT_DISPATCHED kept, with its reason, including when data-products is
+    down;
+  - refused when off, unbound or not a draft;
+  - RUNNING → PR_OPEN → MERGED with the merge commit, one audit event per
+    change and none for an unchanged refresh;
+  - RUN_FAILED, NO_CHANGE, and an unreadable GitHub as 503.
+- Templates:
+  - `tests/test_ai_build.py` (7) in each of the five, run with each
+    template's own `ci.yml`.
+  - `prepare`, `check` and the commit step were run against a scratch git
+    copy of the OEE template. Changed, deleted and new files were
+    committed; a cache directory and the prompt were not; a new unlisted
+    test file was refused.
+- backend `templateRendering.test.ts` +20 (four per Golden Path, all five
+  rendered):
+  - workflow, script and test identical to OEE's, uninterpreted;
+  - the trigger, the permissions, and `ANTHROPIC_API_KEY` as the only
+    secret;
+  - no persisted credential, and no git or `gh` for the AI;
+  - check before commit, and no merge;
+  - no expression interpolated into a `run`;
+  - `ci.yml` dispatchable and running the test;
+  - the instructions corrected.
+- app `AiBuildCard.test.tsx` (3), `ProductDetailPage.test.tsx` +1 (the
+  selected draft is assigned).
+- **Live**, against the running instance, read-only on GitHub:
+  - `POST /ai-build/dispatch` for `oee-e2e-test-20261005-c` answered
+    `dispatched: false, reason: no-ai-build-workflow`, and nothing was
+    sent: the repository predates this record;
+  - status and the PR preview answered;
+  - a person's token was refused (403);
+  - the Composer refused an assignment with 501, because the AI build is
+    off there.
+- See the commit body for the gates.
+
+**Not changed, named.**
+
+- **Not run end to end.** That needs four things:
+  - a repository with the workflow (a new product, or the workflow added
+    to an existing one, which is a write to the user's repository);
+  - `ANTHROPIC_API_KEY` set as an organisation secret;
+  - "Allow GitHub Actions to create and approve pull requests";
+  - `NEXORA_AI_BUILD_ENABLED=true`.
+
+  The first real run will show whether the action's tool list suffices.
+- **The App needs *Pull requests: Read*** for private repositories. It is
+  now documented; `NXD-152` already needed it, without saying so.
+- *Who* merged is GitHub's to show. Nexora records when and as which
+  commit; the list endpoint does not carry `merged_by`.
+- Status is refreshed by a person's click, not on a schedule.
+- The AI could write a test that asserts nothing and tag it. The check
+  cannot see that. The reviewer can, and the pull request names every
+  changed file.
+- One assignment runs at a time per repository (`concurrency`). The UI
+  assigns all bound requirements; choosing a subset is API-only.
+- Functional specification items (Stage 3) are not yet part of the
+  assignment, only requirements.
+
+- Affected components:
+  - `plugins/data-products-backend/src/`: `types.ts`, `githubActions.ts`,
+    `router.ts`, `aiBuildRoute.test.ts`, `githubActions.test.ts`.
+  - `plugins/composer-backend/src/`: `ai-build-client.ts`, `types.ts`,
+    `db/migrations.ts`, `repository*.ts`, `service.ts`, `router.ts`,
+    `plugin.ts`, `aiBuildAssignment.test.ts`.
+  - `packages/app/src/modules/products/`: `api.ts`,
+    `ProductDetailPage.tsx`, `tabs/DevelopmentTab.tsx`,
+    `tabs/AiBuildCard.tsx` (+ tests).
+  - The five data-product templates: `nexora-ai-build.yml`,
+    `scripts/nexora_ai_build.py`, `tests/test_ai_build.py`, `ci.yml`,
+    `template.yaml`, `agent-instructions.md`, and AAS `.gitignore`.
+  - `packages/backend/src/templateRendering.test.ts`, `app-config.yaml`,
+    `.env.example`, `docs/github-setup.md`.
+
+### NXD-154 — The AI build runs Claude Code or OpenAI Codex, chosen per assignment, and records which
+
+- Date: 2026-10-09
+- Slice: follows §9.7 S6 of [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) (`NXD-153`).
+- Decided by: the user ("kann man auch mit Chatgpt arbeiten", then "oder
+  beides flexibel" and "Es sollte flexible sein", 2026-10-09). This amends
+  `NXD-153`'s decision that the key is `ANTHROPIC_API_KEY` alone: either
+  organisation secret may now be the one a run uses. A person still merges,
+  and the validation decision stays human (`NXD-003`). The shape below was
+  chosen here and is named for review.
+
+**Context.** `NXD-153` ran Claude Code only: the workflow had one agent
+step, the script accepted only `claude-*` model ids, and the record had no
+field for the agent. The organisation may hold an OpenAI key instead of, or
+as well as, an Anthropic one. The Composer's spec generation
+(`composer.ai.provider`) could already use either. The AI build could not.
+
+**Decision.**
+
+- **An assignment names its agent**, `claude-code` or `codex`, in the
+  optional `agent` field of `POST /versions/:id/ai-builds`. Without one,
+  `composer.aiBuild.defaultAgent` is used. An agent not offered is refused
+  (400), and nothing is recorded or sent.
+- **What is offered is configured**, under `composer.aiBuild.agents.<agent>`
+  with `enabled` and `model`:
+  - Claude Code is on unless switched off. Its model is still
+    `composer.aiBuild.model` when `agents.claude-code.model` is unset
+    (default `claude-opus-5-5`).
+  - Codex is off unless switched on (default model `gpt-6.1-sol`, OpenAI's
+    recommended Codex model as of 2026-10-09).
+  - A default that is not offered, or an AI build that offers nothing,
+    stops the backend at start.
+  - Environment: `NEXORA_AI_BUILD_CODEX_ENABLED`,
+    `NEXORA_AI_BUILD_CLAUDE_ENABLED`, `NEXORA_AI_BUILD_DEFAULT_AGENT`.
+- **Recorded:** the new nullable column `ai_build_assignments.agent`, the
+  `agent` in the dispatched payload (and so in its hash), and `agent` in the
+  `AI_BUILD_ASSIGNED` audit event. A row from before this record reads as
+  `claude-code`, which is what it ran.
+- **`GET /ai-build/agents`** (`product.read`) says what is offered, with
+  each agent's model and the default, or `enabled: false`.
+- **The workflow in all five data-product Golden Paths:**
+  - the script reads `agent`, falling back to `claude-code` for a dispatch
+    that names none, and checks the model id per agent: `claude-*` for
+    Claude Code, `gpt-*`, `codex-*` or `o<n>*` for Codex;
+  - *Check the agent's key* fails the run naming the missing organisation
+    secret, before any model runs;
+  - exactly one of *Claude Code* (`anthropics/claude-code-action@v1`,
+    unchanged) or *OpenAI Codex* (`openai/codex-action@v1`) runs. Codex runs
+    with `permission-profile: ':workspace'` and `safety-strategy:
+    drop-sudo`, from the prompt file, with the validated model. It gets no
+    GitHub token;
+  - the change check, the commit of exactly the checked paths, and the pull
+    request are unchanged and run after either agent;
+  - the pull request names the agent and the model.
+- **The AI build card** offers a choice of agent, with each agent's model,
+  when more than one is offered. With one agent, it shows no choice and the
+  backend's default runs. Each assignment's line names its agent.
+
+**Alternatives considered.**
+
+- *Replace Claude Code with Codex.* Rejected. The user asked for both.
+- *One agent per product, fixed at creation.* Rejected. The choice is
+  cheap per assignment, and the record already holds one row per
+  assignment.
+- *Pass `--allowedTools` to Codex as Claude Code gets it.* Not available.
+  Codex has no per-command allowlist; its sandbox profile confines writes to
+  the checkout. The guard that decides what is committed is the change
+  check after either agent, as in `NXD-153`.
+- *Let Codex choose its model (empty `model`).* Rejected. The record must
+  name the model that ran (`NXD-064` C-3).
+
+**Verified.**
+
+- composer `aiBuildAssignment.test.ts` +2:
+  - Codex chosen, its model dispatched, recorded and audited;
+  - `gemini`, `42` and `toString` refused without a dispatch;
+  - what is offered;
+  - a row without an agent reads as Claude Code.
+- composer `aiBuildAgents.test.ts` (3):
+  - Claude Code alone by default, with the legacy model key;
+  - Codex enabled, with either agent as the default;
+  - a default not offered, and nothing offered, refused.
+- Templates: `tests/test_ai_build.py` +2 (9 in each of the five):
+  - no agent means Claude Code;
+  - Codex with an OpenAI model accepted;
+  - each agent's model refused for the other agent;
+  - an unknown or non-text agent refused.
+- backend `templateRendering.test.ts`, per Golden Path:
+  - the two secrets, and each agent step conditional on the assignment;
+  - Codex sandboxed to the checkout, with no GitHub token;
+  - the check after both agents.
+- app `AiBuildCard.test.tsx` +2: the choice issues with the chosen agent;
+  one agent shows no choice. `ProductDetailPage.test.tsx` is unchanged
+  except for the client mock.
+
+**Not changed, named.**
+
+- **Neither agent has run end to end** (`NXD-153` still holds). For Codex,
+  the first run must also show whether `allow-bot-users: ${{ github.actor }}`
+  lets the Nexora App's dispatch through Codex's write-access check, and
+  whether `:workspace` lets `pytest` and `ruff` run.
+- A repository generated before this record has the `NXD-153` workflow. It
+  runs Claude Code whatever the assignment says, and refuses a Codex model
+  id: *Run failed*. Bringing an existing repository up to date is a write
+  to it, and is not done here.
+- Nexora cannot see which organisation secrets exist. Offer only agents
+  whose key is set; otherwise the run fails at *Check the agent's key*,
+  naming the missing secret.
+- **Found on 2026-10-09, in the first setup:** on GitHub Free, private
+  repositories cannot use organisation secrets, and the Golden Paths create
+  private repositories. The `pharma-data-factory` organisation is on Free,
+  so the key must be set as a repository secret in each new product
+  repository. `docs/github-setup.md` (*Help → Installation → GitHub setup*)
+  now says so. A paid plan, or the move to Roche's organisation, makes one
+  organisation secret enough again. Nexora writing the secret into each
+  repository was considered and not done: Nexora would then hold the model
+  key, and the App would need *Secrets: write*.
+
+- Affected components:
+  - `plugins/composer-backend/src/`: `types.ts`, `db/migrations.ts`,
+    `repository.ts`, `service.ts`, `router.ts`, `plugin.ts`,
+    `aiBuildAssignment.test.ts`, `aiBuildAgents.test.ts`.
+  - `packages/app/src/modules/products/`: `api.ts`,
+    `ProductDetailPage.tsx`, `tabs/AiBuildCard.tsx` (+ tests).
+  - The five data-product templates: `nexora-ai-build.yml`,
+    `scripts/nexora_ai_build.py`, `tests/test_ai_build.py`,
+    `agent-instructions.md`.
+  - `packages/backend/src/templateRendering.test.ts`, `app-config.yaml`,
+    `.env.example`, `docs/github-setup.md`.
+
+### NXD-155 — The first AI build ran end to end: Claude Code wrote requirement-tagged tests, a person merged them, and Nexora recorded the merge commit
+
+- Date: 2026-10-09
+- Slice: the live run of `NXD-153` and `NXD-154`, as `NXD-148` was for `NXD-147`.
+- Decided by: the user, who ran it ("ok geamcht und jetzt wie weiter
+  testen", 2026-10-09) and merged the pull request. This record decides
+  nothing new. It records what the run showed and names what follows from
+  it.
+
+**What ran.**
+
+- Product `oee-ai-build-test-1`, created from the OEE Golden Path into
+  `pharma-data-factory`, private. Version 1.0 (DRAFT) was bound to the
+  approved URS baseline *Equipment Performance Management 1.0* (five
+  requirements).
+- Assignment `d00e3ce3-…`, agent Claude Code, model `claude-opus-5-5`, with
+  the note "Start with URS-EPM-003 and URS-EPM-001. Keep changes small."
+  - Dispatched at 18:56:27Z.
+  - The run succeeded in 2 min 20 s and opened pull request #1. Claude
+    added three tests to `tests/test_api.py` (+113 lines, no application
+    code), tagged `URS-EPM-003` and `URS-EPM-001`.
+  - The CI run started on the branch was green. *Check open pull requests*
+    showed 5 of 5 requirements would stay verified, none newly unverified.
+  - The user reviewed and merged it (merge commit `0a0b80b`, 19:08:58Z).
+  - *Refresh* recorded `MERGED` with the merge commit.
+- Assignment `a20f7609-…` was issued again by mistake five minutes later. It
+  ran and opened #2, which the user closed. *Refresh* recorded `CLOSED`.
+- The AI's notes in the pull request named, without changing them, three
+  test files that carry URS markers but are not in the CI test list, and
+  that one deployment serves one equipment asset.
+
+**What the run settled (open in `NXD-153`).**
+
+- The `--allowedTools` list sufficed. Claude read, edited, ran `pytest`
+  and `ruff`, and needed no git, no `gh`, and no `id-token`.
+- `gh pr create` with `GITHUB_TOKEN` works once the organisation allows
+  Actions to create pull requests.
+- The change check passed a test-only change.
+
+**Found, and what follows.**
+
+1. **GitHub Free.** Private repositories cannot use organisation secrets,
+   so the key had to be a repository secret. This is documented in
+   `docs/github-setup.md` and noted in `NXD-154`.
+2. **A second assignment can be issued while one is open.** The card
+   allowed it, and it produced a duplicate pull request. To do: refuse, or
+   ask for confirmation, while the version has an assignment that is
+   `DISPATCHED`, `RUNNING` or `PR_OPEN`.
+3. **The pull request showed "Checks 0"**, and GitHub held one workflow
+   for approval because the pull request came from `github-actions[bot]`.
+   The CI run Nexora reads was started by `workflow_dispatch` and is not
+   attached to the pull request. To do: say so in the pull request body,
+   with a link to that run.
+4. **Golden Path CI test lists.** The OEE template's `ci.yml` omits three
+   tagged test files (`test_quality.py`, `test_contract.py`,
+   `test_compatibility.py`), so they produce no evidence. This is the
+   `NXD-153` open item ("ci.yml test lists vs `pytest tests/`"), now with a
+   concrete case. To do: a decision, then the template change.
+5. **UI.** The baseline picker on the Requirements tab shows the baseline id,
+   not its name. The OEE template's *Default Calculation Window* field
+   showed `0` before a value was chosen.
+6. **Operating the dev workspace through the Ona gateway** needs
+   `scripts/ona-dev.sh serve` with a built frontend. The `control-plane-dev`
+   service runs container-local `start`, which shows "Failed to fetch" in
+   the browser. The database container had to be started by hand. This is
+   operational, not a product change.
+
+**Not run.** Codex. It needs an `OPENAI_API_KEY` in the repository; the
+`allow-bot-users` question in `NXD-154` stays open until then.
+
+### NXD-156 — One open AI build per version, its CI linked from the pull request, and every requirement-tagged test run in CI
+
+- Date: 2026-10-09
+- Slice: follow-ups 2–5 of [`NXD-155`](#nxd-155--the-first-ai-build-ran-end-to-end-claude-code-wrote-requirement-tagged-tests-a-person-merged-them-and-nexora-recorded-the-merge-commit), the first live run.
+- Decided by: the user ("ja 1-4 umsetzen", 2026-10-09). The shapes below
+  were chosen here and are named for review.
+
+**Decision.**
+
+- **One open assignment per version.** `POST /versions/:id/ai-builds`
+  answers 409 while the version has an assignment that is `DISPATCHED`,
+  `RUNNING` or `PR_OPEN`. The message names the assignment and what to do:
+  merge or close its pull request, or wait for its run.
+  - Each assignment that looks open is refreshed from GitHub first, as a
+    *Refresh* would, so a pull request merged or closed since the last
+    refresh does not block.
+  - If GitHub cannot be read, the recorded status stands and still refuses.
+  - The card says so above the button while an assignment is open. The
+    button stays, because the backend asks GitHub before it refuses.
+- **The pull request links its CI run.** The body gains a *CI* line: the
+  `ci.yml` runs on the assignment's branch. It also says that GitHub may
+  list no checks on the pull request, or hold a workflow for approval
+  because a bot opened it, and that approving it runs the same CI. The URL
+  reaches the script through `env`, like every other expression.
+- **The OEE Golden Path's CI runs every test file that names a
+  requirement.** `test_quality.py`, `test_contract.py` and
+  `test_compatibility.py` are added to its `ci.yml` list. They pass (95
+  tests across `tests/`, run in a scratch copy of the template). The other
+  four Golden Paths had no such gap.
+  - A rendering test for all five now fails when a test file with a
+    `pytest.mark.urs` marker is not run by `ci.yml`, unless CI runs
+    `pytest tests/`. With the old OEE `ci.yml` it fails and names exactly
+    those three files.
+  - This settles the `NXD-153` open item ("ci.yml test lists vs
+    `pytest tests/`") the narrow way: the lists stay, and a tagged file may
+    not be missing from them.
+
+**Not changed, named.**
+
+- `NXD-155` item 5 (UI) needs no change. The baseline picker's entries read
+  "<set> v1.0 — Equipment Performance Management (5 requirements)". What
+  appeared as an id, as `claude-code`, and as `0` for *Default Calculation
+  Window* is each select's hidden form value, included when the page's text
+  was copied: the Scaffolder form stores an enum by its index (0 = `HOUR`).
+  This is to be confirmed on screen with the user.
+- Repositories created before this record keep their workflow and their
+  `ci.yml`. `oee-ai-build-test-1` still omits the three files from CI; adding
+  them there is a change under `.github/`, and it is the user's.
+
+**Verified.**
+
+- composer `aiBuildAssignment.test.ts` +1:
+  - refused while GitHub shows the pull request open, and recorded
+    `PR_OPEN` on the way;
+  - refused when GitHub is unreadable;
+  - allowed once it is closed, recorded `CLOSED`.
+  Composer total 428/428.
+- backend `templateRendering.test.ts` +5 (one per Golden Path), 92/92. It
+  was also run against the old OEE `ci.yml`, where it fails.
+- templates: `tests/test_ai_build.py` +1 (10 in each of five), the CI link
+  and its absence.
+- app: `AiBuildCard.test.tsx` +1 (6/6); `ProductDetailPage.test.tsx` 25/25.
+- `yarn tsc`, `yarn lint:all` and `ruff check scripts tests` are clean.
+
+- Affected components:
+  - `plugins/composer-backend/src/service.ts`, `aiBuildAssignment.test.ts`;
+  - `packages/app/src/modules/products/tabs/AiBuildCard.tsx` (+ test);
+  - the five data-product templates' `nexora-ai-build.yml`,
+    `scripts/nexora_ai_build.py` and `tests/test_ai_build.py`;
+  - the OEE template's `ci.yml`;
+  - `packages/backend/src/templateRendering.test.ts`.
+
+### NXD-157 — A DRAFT version's component can be removed, with its links, and the Architecture tab says what each component is and implements
+
+- Date: 2026-10-09
+- Slice: found in the lifecycle walkthrough after [`NXD-155`](DECISIONS.md), at step 6 (architecture).
+- Decided by: the user ("ja so lange im Draft modus sollte man löschen
+  können... ebenso ist die Darstellung ... sehr wenig", 2026-10-09). The
+  shapes below were chosen here and are named for review.
+
+**Context.** A component could be added to a DRAFT version but never
+removed, through the UI or the API, so a typo stayed on the version. The
+API could delete a traceability link (`NXD-072`), but the UI offered no
+way to. A component card showed only its name, type and ref. Links were
+listed as raw ids (`URS-EPM-003 —IMPLEMENTS→ 4f1c…`), and included every
+version's links.
+
+**Decision.**
+
+- **`DELETE /components/:id`** (`product.manage`, 204) removes a component
+  while its version is DRAFT. This is the rule that lets it be added, and
+  the refusal says so in the same words.
+  - Every traceability link to or from the component is removed first. Each
+    removal is its own `TRACEABILITY_LINK_DELETED` audit event, with the
+    link as `oldValue` and the reason "component <name> removed", so no link
+    points at nothing.
+  - The removal itself is `PRODUCT_COMPONENT_DELETED`, with the component
+    as `oldValue`.
+  - A component that provides a data contract is refused (409), because
+    other products may consume that contract.
+- **The Architecture tab:**
+  - Each component card shows its type as a chip, its interface, its ref,
+    who added it and when, its description, and the requirements it
+    implements, by id and title.
+  - The link list is narrowed to the selected version's components and
+    reads `URS-EPM-003 Equipment event ingestion —IMPLEMENTS→
+    event-ingestion`.
+  - While the version is DRAFT, components and links have **Remove**, which
+    asks in place, naming what goes, and removes only on *Confirm removal*.
+    After DRAFT nothing is offered.
+  - The link route keeps its `NXD-072` rule (no status guard); the UI simply
+    does not offer removal outside DRAFT.
+
+**Alternatives considered.** *Refuse a component with links.* Rejected: the
+links are the component's own and mean nothing without it; removing them
+with it, each audited, is what a person removing it intends. *`window.confirm`.*
+Rejected by the lint rule `no-alert`; the in-place confirmation also states
+the consequence where the button was.
+
+**Verified.**
+
+- composer `componentRemoval.test.ts` (3):
+  - removed with the links into and out of it, each audited, an unrelated
+    link kept;
+  - refused once the version is APPROVED, changing nothing;
+  - refused while it provides a contract; an unknown id is 404.
+  Composer total 431/431.
+- app `ArchitectureTab.test.tsx` (3):
+  - details, implements line and link by name, another version's link not
+    shown;
+  - removal only after *Confirm removal*, and nothing on *Cancel*;
+  - no removal outside DRAFT.
+  `ProductDetailPage.test.tsx` 25/25.
+- `yarn tsc` and `yarn lint:all` are clean.
+
+- Affected components: `plugins/composer-backend/src/` (`repository*.ts`,
+  `service.ts`, `router.ts`, `componentRemoval.test.ts`);
+  `packages/app/src/modules/products/` (`api.ts`, `ProductDetailPage.tsx`,
+  `tabs/ArchitectureTab.tsx` + test).
+
+### NXD-158 — The Validation Expert's pages take their surfaces and text from the theme, so they are readable on the dark theme
+
+- Date: 2026-10-09
+- Slice: found in the lifecycle walkthrough at step 10 (validation).
+- Decided by: the user ("die Farben sind nicht gut … weisser Hintergrund und
+  graue oder weisse Schrift", "die anderen Seiten haben das richtige Format",
+  2026-10-09).
+
+**Context.** The Validation Expert pages set 15 surface and text colours to
+fixed light-theme values (`NEXORA_CARD`, `NEXORA_SURFACE`, `NEXORA_TEXT`,
+`NEXORA_MUTED`, `NEXORA_BORDER`). The rest of their text uses MUI's theme
+colours. On the dark theme, that text turned light while the cards stayed
+white, so it was unreadable. The other pages follow the theme.
+
+**Decision.** Page background, cards, borders, titles and secondary text in
+`shared.tsx`, `OverviewPage.tsx`, `ContextPages.tsx` and `DecisionPanel.tsx`
+come from `theme.palette` (`background.default`, `background.paper`,
+`divider`, `text.primary`, `text.secondary`). Brand fills (status chips, the
+primary button gradient) keep their fixed colours, because each carries its
+own text colour.
+
+**Verified.** `plugins/validation-expert` 37/37; `yarn tsc` and the plugin's
+ESLint are clean. The page layout itself (named in the walkthrough as hard
+to read) is not changed here.
+
+### NXD-159 — One product went from approved URS to RELEASED in the UI, every approval signed by someone other than its author; what the walk found
+
+- Date: 2026-10-09
+- Slice: the lifecycle walkthrough the user asked for ("der ganze Lifecycle
+  muss aufgezeigt werden von den URS bis zur Freigabe", 2026-10-09), after
+  [`NXD-155`](DECISIONS.md).
+- Decided by: the user, who did every step in the UI. This record decides
+  nothing. It records what ran and names the follow-ups the user asked to
+  have done.
+
+**What ran**, product `oee-ai-build-test-1`, version 1.0. Roles are demo
+identities.
+
+| Step | Who | Result |
+| --- | --- | --- |
+| URS baseline *Equipment Performance Management 1.0* | (approved 2026-10-01) | 5 requirements |
+| Product from the OEE Golden Path, version 1.0 bound to it | demo-author | DRAFT, 5 requirements |
+| AI build (`NXD-155`) | Claude Code + user merge | 3 tagged tests, CI green, Verified 5/5 |
+| Architecture: 4 components, 5 `IMPLEMENTS` links | demo-author | Implemented 5/5 |
+| Governance: owner, INDIRECT, INTERNAL, MEDIUM | guest / demo-author | policy obligations met |
+| Product baseline 1.0 created, then approved with PIN | guest, then demo-pm | APPROVED |
+| Version approved with PIN, then marked release candidate | demo-pm | RELEASE_CANDIDATE |
+| Product evidence review | demo-author | EVIDENCE-RUN-0007: 5/5 passed |
+| Validation decision: validation expert, then QA, each with PIN | demo-validator, demo-qa-lead | APPROVED |
+| Release gate | — | passed |
+| Release with PIN | demo-pm | RELEASED 20:37:37Z |
+
+Segregation of duties held: no one approved what they had created. Two PINs
+were unknown to the user; they were reset by `demo-admin` rather than
+guessed.
+
+**Found, and what follows.** Items 1–9 are the UI batch the user asked to
+have done after the walk. 10–14 are named, not yet decided.
+
+1. **Traceability** reads as a flat list. Make it tiles, one per requirement.
+2. The **owner field's placeholder** looks like a value. The user believed
+   the owner was set.
+3. **Release readiness** does not reload after *Save governance*. Its
+   refresh key holds no governance field. After an approval it does reload,
+   but a cleared check and a newly revealed one leave the count unchanged,
+   so it looks stale. It should say what changed.
+4. **The Golden Path asks for an owner but does not pass it** to
+   `nexora:product:create`, so a new product starts without one.
+5. **A validation expert cannot start the product evidence review.** It
+   needs `validation.run.start` (DEVELOPER); the validator seat is a VIEWER.
+   A developer had to start it.
+6. **The validation context page** is one long column, and what to do next
+   and who signs is buried. Make it a three-step decision (review → expert
+   → QA) above collapsible reference data.
+7. **The product's Validation tab** should link to its context and version.
+   The Validation Expert landing page shows Nexora's own platform validation
+   status, which reads as the product's.
+8. **The review button** can be pressed repeatedly: runs 0003–0007 came
+   from one intent. Disable it while a review runs. The coverage table lists
+   every run per requirement; show the newest.
+9. **A signature justification** of one word ("freigabe") was accepted for a
+   GMP decision. Require a meaningful one.
+10. **The version's `approvedBy`/`approvedAt` are overwritten by the
+    release.** The version record now shows the release time as its approval
+    time. The signature trail keeps both acts, so nothing is lost, but the
+    record misleads.
+11. **One person** (demo-pm) approved the product baseline, the version and
+    the release. That is allowed (the rule is only "not your own work"),
+    and it is to be decided whether release needs a second person.
+12. The validation decision lives on a context **shared by every product on
+    the URS baseline** (three here). It is recorded per version (`NXD-127`),
+    which held, but the page lists the other products' decisions next to
+    this one's.
+13. A component could not be removed (fixed in `NXD-157`). The validation
+    pages were unreadable on the dark theme (fixed in `NXD-158`).
+14. The selects (version, baseline, agent, calculation window) were
+    reported as showing ids or `0`. Those are the hidden form values in
+    copied page text (`NXD-156`); the visible labels were not checked with
+    the user.
+
+**Not run.** Step 12: publish, install and run the released version. It
+needs a release tag build in the product repository and a target, as
+`NXD-148` did for another product.
+
+### NXD-160 — A signature's justification is a reason in words, a Golden Path's owner reaches the product, and a validation expert can start the review they sign on
+
+- Date: 2026-10-12
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, items 4, 5 and 9,
+  and one defect the walk showed on the released version.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**A justification is a reason, not a token (item 9).** One rule,
+`justificationProblem` in `platform-common`: at least two words and ten
+characters. It is a floor, not a judgement of content. Composer's signed
+version transition and baseline approval, and the validation decision
+signature, refuse anything shorter, before any PIN is checked, so a refused
+signature changes nothing and spends no PIN attempt. The approval dialog
+runs the same function while the user types and keeps *Confirm* disabled.
+Tests that signed with `ok`, `x` or `mine` now sign with sentences.
+
+**The Golden Path's owner reaches the product (item 4).** Every template
+that runs `nexora:product:create` passes `owner: ${{ parameters.owner }}`.
+Before, the form asked for an owner and dropped it, the product started
+with none, and the release gate refused it. `templateContract.test.ts`
+asserts the input for every product-creating template.
+
+**A validation expert can start the product evidence review (item 5).**
+`POST /contexts/:id/evidence-review` still accepts `validation.run.start`;
+when that is denied, it also accepts anyone who holds a validation
+signature role (validation-experts, urs-quality-reviewers). The review
+reads recorded CI evidence and writes a review run; it decides nothing, and
+whoever may sign the decision may start the review it rests on. Nobody else
+gains it; `evidenceReviewAuthorization.test.ts` covers allowed, signer and
+neither.
+
+**A released version is past the gate.** The Release readiness card asked
+the gate about a RELEASED version and listed "Version must be
+RELEASE_CANDIDATE, got RELEASED" as a blocker. A RELEASED or SUPERSEDED
+version is no longer sent to the gate; the card says who released it and
+when.
+
+**Not in this record.** Items 1–3 and 6–8 of the batch remain open; so do
+the decisions 10–12. Item 10 matters to the card above: it shows
+`approvedBy`/`approvedAt`, which the release overwrites, so on a released
+version these are the release's, which is what the card claims.
+
+### NXD-161 — An unset owner reads as unset, release readiness says what a re-check changed, and unchanged evidence makes no second review
+
+- Date: 2026-10-13
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, items 2, 3 and 8.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**The owner field has no placeholder (item 2).** The grey
+`group:default/platform-team` inside the empty field read as a stored value,
+and the walk believed the owner was set. The example moves into the helper
+text, which says "Not set" and is shown as an error while the field is
+empty.
+
+**Release readiness follows governance and names what moved (item 3).** The
+card's `refreshKey` now holds owner, GxP relevance, data classification,
+criticality and lifecycle, the fields the gate's policy obligations read, so
+*Save governance* re-checks the gate. The card keeps the previous answer for
+the same version and, after a re-check, says "Since the last check: cleared
+…; new …" or "nothing changed". A blocker is the same blocker when its code
+and message are; a version switch starts over, because another version's
+blockers are not new.
+
+**A review of unchanged evidence is the review on record (item 8).** The
+button was already disabled while a request ran; runs 0003–0007 came from
+pressing it again after each one finished. `runProductEvidenceReview` now
+computes the verdict first and, when the newest EVIDENCE run of that version
+on that context has the same candidate and the same status and result for
+every requirement, returns that run with `reused: true` and records nothing.
+The route answers 200 instead of 201, and the panel says "No new evidence
+since EVIDENCE-RUN-nnnn; that review stands." Any changed result makes a new
+run as before. Runs already recorded stay; nothing is deleted. The context's
+coverage table shows the newest run per requirement and counts the earlier
+ones.
+
+**Not in this record.** Items 1, 6 and 7 of the batch and the decisions
+10–12 remain open.
+
+### NXD-162 — Traceability is a tile per requirement, and a product's validation is not confused with Nexora's own
+
+- Date: 2026-10-13
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, items 1 and 7.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**One tile per requirement (item 1).** The Architecture tab listed links as
+lines, `URS-EPM-003 … —IMPLEMENTS→ event-ingestion`, which repeated the
+requirement on every line and showed nothing for a requirement with no
+link, the case a reviewer is looking for. Each requirement of the bound
+baseline now has a tile: reference, title, its links (removable while
+DRAFT, as in `NXD-157`) and its stages in words, `Implemented` /
+`Not implemented`, `Verified` / `Not verified`, `Validated` /
+`Not validated` / `Validation unknown`. The stages come from the version's
+requirement coverage, the same source as the readiness meters; unknown
+stays unknown (`NXD-056`). A link that starts at no requirement of the
+version is still listed below the tiles.
+
+**A product's Validation tab opens its own decision (item 7).** The link
+went to the context, which opens on the newest version bound to the URS
+baseline, not necessarily the one being looked at. It now carries
+`?version=`, the context page passes it to the decision panel, and the link
+says which version it opens.
+
+**The landing page says whose validation it shows (item 7).** The Validation
+Expert overview began with Nexora's own candidate and `NOT_VALIDATED`, which
+read as the product's state. It now has two sections. *Data-product
+validation* comes first, with the contexts and how a version is decided.
+*Nexora platform validation* holds the platform's candidate, status, IQ, OQ,
+UAT, risks, findings and evidence, and says that it says nothing about any
+data product. No figure changed.
+
+**Not in this record.** Item 6 (the context page as a three-step decision)
+and the decisions 10–12 remain open.
+
+### NXD-163 — The validation context page leads with the decision as three steps, and folds what it rests on
+
+- Date: 2026-10-13
+- Slice: the UI batch [`NXD-159`](DECISIONS.md) named, item 6, the last of
+  items 1–9.
+- Decided by: the user, who asked for items 1–9 after the walkthrough.
+
+**The decision as its steps.** The page was one long column: context data,
+then the decision panel with the GMP rule, the review, a sentence on who
+signs next, a signature table and the sign buttons, then four sections of
+reference data. What to do next and who signs was in the middle of it. The
+decision panel now shows an ordered list, *1. Product evidence review*,
+*2. Validation expert signs*, *3. QA approves*, or, for a product that is not
+GMP-relevant, the review and *Validation expert or QA signs*. Each step
+carries a status in words (Done, Next, Waiting, Rejected), who signed,
+when and with what justification, or who is to sign; the review button and
+the sign buttons sit in their step. `decisionSteps` in `DecisionPanel.tsx`
+derives the steps from the decision state, purely; the rule itself is still
+`validationDecisionProgress` (`NXD-119`), and the server re-checks every
+signature as before.
+
+**What it rests on is folded.** The signature table and the other versions'
+decisions on the same baseline move into one collapsed section under the
+steps. The approved URS reference, the baseline requirements, the
+requirement coverage and the linked runs become four collapsed sections
+under *Reference*. Nothing was removed; the status chip learns `Done`,
+`Next` and `Rejected`.
+
+**Checked live.** After a rebuild, as `demo-validator` on
+`VALIDATION-CTX-MUPNNM25?version=…`: the three steps show Done with
+demo-validator and demo-qa-lead as signers, the reference sections are
+folded. The Architecture tab shows five requirement tiles, the product's
+Validation tab links to version 1.0's decision, and the landing page shows
+the two sections (`NXD-162`). A second evidence review of the released
+version answered `200` with `EVIDENCE-RUN-0007` and `reused: true`, and
+recorded no run (`NXD-161`).
+
+**Still open from NXD-159.** The decisions 10 (`approvedBy` overwritten by
+the release), 11 (a second person for the release) and 12 (the context is
+shared by the products on one baseline; its other decisions are now folded,
+not separated). Step 12 of the lifecycle, publish, install and run, was not
+run.
+
+### NXD-164 — A version is released by someone other than its approver, and a release keeps its own who and when
+
+- Date: 2026-10-13
+- Slice: the decisions [`NXD-159`](DECISIONS.md) left open, items 10–12.
+- Decided by: the user, on item 11: "ja, zweite Person sollte nötig sein"
+  (2026-10-13). Items 10 and 12 as proposed in the plan of the same day.
+
+**Release needs a second person (item 11).** In the walk one person,
+demo-pm, approved the product baseline, approved the version and released
+it. That was allowed: the only rule was "not your own work". Now
+`assertVersionTransition` refuses a release by the version's approver with
+403, the same Segregation of Duties refusal the approval gives its author.
+It applies to the plain and the signed transition alike, before any PIN is
+checked, so a refused release spends no PIN attempt and changes nothing. The
+Overview tab says it before the click: on a release candidate it names the
+approver who may not release. Not decided, so not enforced: whether the
+version's *author* may release it, and whether the product baseline's
+approver may. Both are one condition each in the same place.
+
+**A release has its own who and when (item 10).** The release wrote
+`approvedBy`/`approvedAt`, so a released version showed its release as its
+approval, and the rule above could not have been checked at all: the
+approver was gone. `ProductVersion` gains `releasedBy`/`releasedAt`
+(columns `released_by`/`released_at`); APPROVED writes the one pair,
+RELEASED the other. The migration adds the columns and backfills once:
+every RELEASED or SUPERSEDED version's `approved_*` move to `released_*`, and
+its approval is read back from its `VERSION_APPROVED` signature (`NXD-128`).
+A version approved before signatures existed keeps what it had, because the
+record holds nothing else. The release readiness card reads the release
+pair. The test that asserted `approvedBy` equal to the releaser after a
+release asserted the defect; it now asserts both pairs.
+
+**One version's decision, the others apart (item 12).** The validation
+context belongs to the URS baseline and is shared by every product bound to
+it; the decision is per version (`NXD-127`) and that held. But the panel
+said "Products on this baseline: …" next to the GMP rule, and listed the
+other versions' decisions under the steps. It now states the GMP relevance
+of the shown version's own product, and lists every other version on the
+baseline, with its own decision or "no decision", in a folded section that
+says none of them is part of the decision shown. Decisions recorded per
+baseline before `NXD-127` are listed there too.
+
+**Checked live.** After a restart the migration ran on the workspace
+database: `oee-ai-build-test-1` 1.0 now shows approved 20:13:14 (from its
+signature) and released 20:37:37, both by demo-pm, which was allowed when it
+happened. A release refused for its approver was not tried live, because it
+needs a release candidate the demo data does not have without moving one;
+`versioning.test.ts` covers it, and the version stays RELEASE_CANDIDATE.
+
+### NXD-165 — The release also excludes the version's author and the product baseline's approver
+
+- Date: 2026-10-13
+- Slice: the two questions [`NXD-164`](DECISIONS.md) left undecided.
+- Decided by: the user, "ja" to both (2026-10-13): the author of a version
+  and the approver of its product baseline may not release it either.
+
+**The rule.** `assertVersionTransition` refuses a release, with 403 and
+before any PIN is checked, when the actor is the version's approver
+(`NXD-164`), the version's author (`createdBy`), or the approver of an
+APPROVED product baseline of the version. The message names which of the
+three the actor is. The author rule completes the existing pair, *the
+author may not approve*: the author may now neither approve nor release.
+The baseline rule closes the case the walk showed (`NXD-159` item 11),
+where one person approved the baseline and could otherwise release after
+someone else approved the version. A release of a GMP product therefore
+takes at least three people: the author, an approver of version and
+baseline, and a releaser; the baseline and the version may be approved by
+different people.
+
+**Said before the click.** On a release candidate the Overview tab lists
+everyone excluded with the reason, one entry per person,
+`releaseExclusionText` in `OverviewTab.tsx`.
+
+**Tests.** `versioning.test.ts` refuses the approver and the author in the
+full lifecycle and releases with a third identity; a second test approves
+the baseline and the version by different people and refuses the baseline
+approver. The lifecycle test released as the author until now, which this
+record makes inadmissible.
+
+**Not changed.** Who may mark a version RELEASE_CANDIDATE, revert it, or
+supersede a released one. Records released before today are not revisited;
+`oee-ai-build-test-1` 1.0 was approved and released by one person under
+the rules of its time.
+
+
+### NXD-166 — Roles say what they grant: an in-app roles page, a release seat, and no product-owner stand-in for the product manager
+
+- Date: 2026-10-13
+- Slice: after [`NXD-164`](DECISIONS.md)/[`NXD-165`](DECISIONS.md), whose
+  three-person release had no seat to walk it with, and whose rules nobody
+  could read in the app.
+
+**No stand-in for step 2.** `GROUP_TO_APPROVAL_ROLE` in
+`plugins/urs-composer-backend/src/service.ts` no longer maps
+`data-product-owners` to `PRODUCT_MANAGER`. The alias made every product
+owner — all four demo seats with the owner tier, and the Guest set to
+`developer` — able to approve URS workflow step 2, so one identity could
+take steps 1 and 2. Step 2 is `urs-product-managers` only. The
+`business-capability-leads` alias for step 1 stays. `GET /approval-roles/me`
+answers `demo-author` with `AUTHOR` alone; the E2E approval chain takes
+step 2 as `demo-pm` instead of the reviewer.
+
+**Guest tiers named for what they give.** `AUTH_GUEST_ROLE=developer`
+(`app-config.guest-developer.yaml`) granted `data-product-owners`, so a
+"developer" Guest could approve and release product versions. It now gives
+DEVELOPER only. The owner tier is its own opt-in, `AUTH_GUEST_ROLE=owner`
+and `app-config.guest-owner.yaml`, loaded by `scripts/ona-dev.sh`. Neither
+grants a `urs-*` approval role. `pilotHardening.test.ts` resolves each
+file's groups with `resolvePlatformRole` and holds it to its tier.
+
+**A release seat.** `demo-release` (Rhea Release Manager) in
+`app-config.demo.yaml`: `data-product-owners` and nothing else. It writes and
+approves nothing, so the release's segregation of duties never excludes it,
+and the three-person release of NXD-165 can be walked with demo seats.
+
+**Roles & permissions page.** `/developer/roles`, under Help & Docs in the
+sidebar (`RolesHelpPage.tsx`). It shows the signed-in person's platform tier
+and approval roles, every platform role with what it may do, the approval
+and signature groups, the segregation-of-duties rules, the sign-in options
+and the demo seats. The words live in `packages/platform-common/src/rolesHelp.ts`;
+the groups and permissions come from `roles.ts` and `permissions.ts`.
+`rolesHelp.test.ts` checks that every permission a highlight names is held
+by that role, and `startup.test.ts` that the demo seats listed match
+`app-config.demo.yaml`, so the page cannot claim a right the code does not
+grant. The page brings its own surface from the theme (`background.default`,
+`text.primary`): `index.html` paints the canvas navy, so on the light theme
+bare MUI text was black on navy, the case `NXD-158` fixed for the
+Validation Expert pages. Checked live as `demo-release` on both themes.
+
+**Not changed.** The platform-role mapping and the permission sets
+themselves; signatures already given under the alias are not revisited.
+
+### NXD-167 — On the light theme the canvas is light
+
+- Date: 2026-10-13
+- Slice: the light-theme defect noticed while checking [`NXD-166`](DECISIONS.md):
+  the page header was dark text on navy. The user: "fix it Light Theme".
+
+**Context.** `packages/app/public/index.html` paints `html`, `body` and
+`#root` `#05101C`, so that nothing flashes white while the app loads.
+Material UI v4 injects its `CssBaseline` above that inline style, so the
+theme's `background.default` never reached the canvas: it stayed navy on
+both themes. On the dark theme that is the theme's own colour. On the light
+theme every page without a surface of its own drew the light palette's
+dark text on navy. A contrast scan of the 19 sidebar routes as `demo-admin`
+found it on 15 of them: the BUI page header everywhere, the product list
+on Home, the section headings on Build, the intro lines on My Products,
+Validate and Admin, the tabs on every Data Product page, the Notifications
+filters, the Platform Architecture page. Pages that had met it before gave
+themselves a surface one by one (`NXD-158`, `NXD-166`, `ProductsPage`).
+
+**Decision.** `packages/app/src/modules/theme/lightCanvas.css`, imported in
+`packages/app/src/index.tsx` after the BUI styles. When BUI marks `<body>`
+`data-theme-mode='light'`, `html`, `body` and `#root` take `#F4F6F8`, the
+light theme's `background.default` (`NEXORA_SURFACE`). The dark theme, the
+load-time canvas and the sign-in landing page are unchanged. The heroes
+(Welcome, Build a Data Product, Developer Hub, Model Pharma) paint their own
+navy and keep it.
+
+**Rejected.** Pinning the BUI header to dark tokens on the light theme, and
+fixing the pages one at a time. Both leave the cause in place, and the
+header alone was a quarter of what the scan found.
+
+**Checked.** After the change the scan finds no dark-on-dark and no
+light-on-light text on 17 of the 19 routes. The two left are the same on
+the dark theme and deliberate: the dimmed footer version label and Model
+Company's disabled Start button while a simulation runs. Screenshots of Home,
+Build, Marketplace, Developer Hub, Model Company and Roles & permissions on
+the light theme. `pilotHardening.test.ts` holds the navy of `index.html`, the
+import and the light value together.
+
+### NXD-168 — The AI-built product runs: oee-ai-build-test-1 1.0.0 from tag to IQ evidence
+
+- Date: 2026-10-13
+- Slice: Phase 3 of the user's plan of 2026-10-13, step 12 of the lifecycle
+  walk ([`NXD-159`](DECISIONS.md)): publish, install, run.
+- Decided by: the user approved the tag push, stored a `read:packages`
+  token, chose to run the signed acts through the API with the demo
+  seats, and ran the publisher promotion themselves (see "Found").
+
+**What ran.** Against the development instance, on the product the AI
+build produced ([`NXD-155`](DECISIONS.md)) and the walk released
+([`NXD-159`](DECISIONS.md), [`NXD-164`](DECISIONS.md)):
+
+1. **Tag.** `v1.0.0` on `0a0b80b` (the merge of PR #1) in
+   `pharma-data-factory/oee-ai-build-test-1`. `release.yml` ran green, quality
+   gate included, and pushed
+   `ghcr.io/pharma-data-factory/oee-ai-build-test-1@sha256:f13662fb…dd1c7`
+   with SBOM and provenance attestation. The GitHub Release carries
+   `nexora-release.json`.
+2. **Import.** `demo-pm` imported the release provenance onto the approved
+   product baseline 1.0 (commit and digest, recorded by
+   `github-release:<url>`). The registry took it as DRAFT version
+   `608504c3…` of `pharma-data-factory/oee-ai-build-test-1@1.0.0`.
+3. **Registry.** SUBMIT `demo-pm`, REVIEW `demo-reviewer`, CERTIFY
+   `demo-quality`, PUBLISH `demo-release`: four people, as `NXD-146` demands.
+   The publish gate read the product version as RELEASED.
+4. **Install.** `demo-release` (PIN newly enrolled) installed it as
+   `oee-ai-filler-02`, `EQUIPMENT_ID=filler-02`, on `local-compose`. GMP
+   from the product's governance, so a signed act: 201,
+   `PENDING_EVIDENCE`.
+5. **Run.** The Compose provider logged in to GHCR with the stored token,
+   pulled by digest and reported `applied → PENDING r1`. The container was
+   healthy on host port 1025 (`GET /health` →
+   `{"status":"UP","service":"oee-ai-build-test-1","version":"1.0.0"}`); the
+   second pass reported `RUNNING r1`.
+6. **Evidence.** Observed digest and config hash equal the desired ones,
+   reported by `provider:local-compose`; installation and IQ are
+   `EVIDENCE_RECORDED`. Audit: `INSTALLATION_REQUESTED` (demo-release), two
+   `OBSERVED_STATE_CHANGED` and `IQ_EVIDENCE_RECORDED` (provider). The
+   Marketplace page shows the entry CERTIFIED and the installation RUNNING
+   with evidence recorded.
+
+With this, the walk from URS to a running, IQ-evidenced installation is done
+end to end on one product, its code written by the AI build.
+
+**Found.**
+
+- **The publisher had to be promoted, and the promotion leaves no trace.**
+  `pharma-data-factory` was COMMUNITY with `demo-pm` as its only member, so
+  nothing could be certified, and no second person could review. The user
+  ran `PATCH /publishers/:id/promote` (PARTNER, members demo-pm,
+  demo-reviewer, demo-quality, demo-release) as `demo-admin`; the
+  assistant's own call was refused by its permission classifier as a grant
+  of rights. `promotePublisher` records no actor, writes no audit event and
+  keeps `revision` at 1. Open: a promotion is an attributable, audited act.
+- **The Marketplace overclaims.** It says the artifact "has passed the
+  partner onboarding review". There is no such review; there was one admin
+  call. Open: say what happened, or build the review.
+- **QA's sign-off to `QUALIFIED` still has no route** (`NXD-143`,
+  `NXD-148`). The IQ stops at `EVIDENCE_RECORDED`.
+- **`scripts/ona-dev.sh serve` cannot load `app-config.service-token.yaml`.**
+  Two restarts for `NXD-166`/`NXD-167` dropped it unnoticed, and the
+  provider got 401 "Illegal token" until the instance was restarted with
+  it. Open: an `.env` switch for it, as for guest and demo.
+
+**State left running.** `oee-ai-filler-02` (port 1025) beside
+`oee-filler-01` (port 1026). The pull token is
+`/home/vscode/.nexora-secrets/ghcr/pull-token`, `demo-release`'s PIN
+`/home/vscode/.nexora-secrets/pins/demo-release.pin`; both survive a
+workspace restart.
+
+- Affected components: none. This is a record of a run.
+
+### NXD-169 — On the light theme the page banner and the page hero are light too
+
+- Date: 2026-10-13
+- Slice: after [`NXD-167`](DECISIONS.md). The user switched Settings →
+  Appearance to Light and found pages "sometimes with green headers,
+  sometimes dark"; they chose "everything light".
+
+**Context.** `NXD-167` made the canvas light but left two things that were
+the same on both themes:
+
+- **The page banner.** Both themes used one `pageThemes` map in
+  `packages/app/src/modules/theme/theme.ts`, navy into cyan with white type.
+  About 58 pages open under it (Home, Marketplace, URS Composer, Data
+  Products, Release & Governance, My Access, Users & Roles, …).
+- **The page hero.** Fourteen landing pages and `NexoraToolPage` hard-coded
+  the same navy gradient with light type, eyebrow and ghost buttons (Home,
+  Build, Admin, Developer Hub, Validate, My Products, Releases, Compose,
+  Platform Components, Assets, the two architecture pages, Model Company).
+
+`NXD-167` was checked against the operating system's colour scheme. The
+in-app switch was not checked; this record checks both.
+
+**Decision.**
+
+- **Banner.** The light theme gets its own page themes: white into
+  `NEXORA_SECTION`, navy type. The dark theme keeps `pageThemes`.
+- **Hero.** `NEXORA_HERO` in `plugins/nexora-common/src/tokens.ts` holds one
+  set per theme: dark is exactly the old gradient and colours; light is a
+  white card, navy type, `NEXORA_MUTED` copy, `NEXORA_CYAN_FG` eyebrow, a
+  cyan rule on the left edge and a navy-tinted ghost border. Components use
+  `NEXORA_HERO_VAR`, CSS custom properties that fall back to the dark value.
+  The theme provider (`packages/app/src/modules/theme/index.tsx`) sets them
+  from the theme the user picked, so the Settings switch decides, not the
+  operating system.
+- **Not changed.** The public landing page (`EcosystemPage`, sign-in) stays
+  dark, as does any diagram (Developer Hub and Compose architecture
+  pictures): they are illustrations, not page chrome.
+
+**Checked.** `tokens.contrast.test.ts` holds title, copy and eyebrow of
+both hero sets at ≥ 4.5:1 (both ends of the dark gradient), and that every
+part has a declaration per theme and a dark fallback. Screenshots of all 30
+sidebar routes with the app theme Light under a dark operating system
+scheme, and Home, Marketplace and Model Company on both themes: the light
+theme has no navy or cyan slab left; the dark theme is unchanged. Model
+Company's Stop and Reset buttons hard-coded white type and are on the hero
+colours now, after a first pass left them white on white.
+
+**Found, not fixed.** On the dark theme Model Company's white panels carry
+light-grey text ("Scenario …", the value-stream description): low contrast,
+older than this record.
+
+### NXD-170 — PR #14's failing checks: the release test uses a releaser, and three flagged regexes are linear
+
+- Date: 2026-10-14
+- Slice: after [`NXD-169`](DECISIONS.md). Pull request #14 (this branch into
+  `main`, NXD-127…169) had two failing checks: `test` and CodeQL.
+
+**Context.**
+
+- **`test`.** `e2eProductReleaseFlow.test.ts` still released the version as
+  its approver. `NXD-164` forbids that, so the test failed on the
+  segregation-of-duties error instead of releasing. The commit for
+  `NXD-164` ran the tests it touched, not the full suite.
+- **CodeQL.** It raised three high alerts, "polynomial regular expression
+  on uncontrolled data":
+  - the trailing-slash strip of the provider's `baseUrl` in
+    `packages/runtime-provider-compose/src/api.ts`;
+  - the slug trim `/^-+|-+$/` in `createBusinessCapability` and
+    `createBusinessRole` (`plugins/urs-composer-backend/src/service.ts`).
+
+**Decision.**
+
+- **Releaser.** The test releases as `user:default/releaser`, who neither
+  wrote nor approved the version. The rule is unchanged; the test now
+  follows it.
+- **Trailing slashes.** The provider strips them with a loop, not a regex.
+- **Slug trim.** It trims a single `-` at each end. The replace before it
+  already collapses every run of non-alphanumerics to one `-`, so the
+  result is the same and the regex is linear.
+- **Not changed.** About twenty other copies of these two patterns elsewhere
+  in the tree. CodeQL raised no alert for them in this pull request.
+
+**Checked.** Full `yarn test:all`: 3195 of 3197 tests pass locally. The two
+failures were the release test, which now passes, and the Python SDK parity
+test, which fails locally with `CI=true` only because no SDK is installed
+here. CI installs the SDK. `runtime-provider-compose`: 27 of 27 tests pass.
+`urs-composer-backend`: 491 of 491 tests pass. ESLint is clean on the
+changed files.

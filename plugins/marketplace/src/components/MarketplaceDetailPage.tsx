@@ -28,11 +28,13 @@ import {
   isOfficialGoldenPath,
   isUnauthorizedError,
   builtWithSummary,
+  permissionsForRole,
   releasesForTemplate,
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { marketplaceCatalogSources } from '../catalog';
 import { OeeBuiltWith } from './OeeBuiltWith';
+import { InstallCard } from './InstallCard';
 import { useGoldenPathCompositions } from '../useGoldenPathCompositions';
 import { artifactRegistryApiRef } from '../artifactRegistryApi';
 import { entitlementApiRef } from '../entitlementApi';
@@ -53,6 +55,16 @@ export function MarketplaceDetailPage() {
   const { role } = usePlatformRole();
   const canCreate = canCreateDataProduct(role);
   const [item, setItem] = useState<MarketplaceItem | undefined>(undefined);
+  // A hint for the button only; the installations store checks the
+  // permission itself (NXD-141).
+  const canInstall = permissionsForRole(role).has('installation.manage');
+  // A released build of a product someone else created, not a Golden Path.
+  const installable = Boolean(
+    item?.artifactNamespace &&
+      item.artifactName &&
+      (item.installableVersions?.length ?? 0) > 0 &&
+      !item.templateReference,
+  );
   const createAllowed = item
     ? marketplaceCreateAllowed(
         item,
@@ -186,7 +198,19 @@ export function MarketplaceDetailPage() {
             <Grid item xs={12} md={8}>
               <InfoCard title="Entry">
                 <StructuredMetadataTable
-                  metadata={{
+                  metadata={installable ? {
+                    // NXD-141: the create-time rows below describe a Golden
+                    // Path and would be false for a released build.
+                    Name: item.name,
+                    Offering: marketplaceOfferingKind(item) || item.category,
+                    Version: item.version,
+                    Certification: item.certificationStatus,
+                    Release: item.documentation || 'No release page recorded',
+                    Provider: item.externalPublisher
+                      ? `${item.provider} (${item.publisherTrustLevel === 'PARTNER' ? '✓ Nexora Partner' : '⚠ Community — not Nexora-certified'})`
+                      : item.provider,
+                    Status: item.status,
+                  } : {
                     Name: item.name,
                     Offering: marketplaceOfferingKind(item) || item.category,
                     Category: item.category,
@@ -327,6 +351,15 @@ export function MarketplaceDetailPage() {
               )}
             </Grid>
             <Grid item xs={12} md={4}>
+              {installable && (
+                <InstallCard
+                  namespace={item.artifactNamespace ?? ''}
+                  name={item.artifactName ?? ''}
+                  displayName={item.name}
+                  versions={item.installableVersions ?? []}
+                  canInstall={canInstall}
+                />
+              )}
               <InfoCard title="Status">
                 {item.qualityStatus && (
                   <>
@@ -361,11 +394,13 @@ export function MarketplaceDetailPage() {
                     </Link>
                   </Typography>
                 )}
-                <Typography variant="body2" style={{ marginTop: 12 }}>
-                  <Link to={goldenPathDocumentationHref(item.id)}>
-                    Golden Path documentation
-                  </Link>
-                </Typography>
+                {!installable && (
+                  <Typography variant="body2" style={{ marginTop: 12 }}>
+                    <Link to={goldenPathDocumentationHref(item.id)}>
+                      Golden Path documentation
+                    </Link>
+                  </Typography>
+                )}
                 {item.templateReference && createAllowed && (
                   <Typography variant="body2" style={{ marginTop: 12 }}>
                     <Link to={item.documentation}>Create Data Product</Link>

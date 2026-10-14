@@ -279,6 +279,11 @@ function PlatformSidebar() {
                 title="Developer Hub"
               />
               <SidebarSubmenuItem
+                icon={VerifiedUserIcon}
+                to="/developer/roles"
+                title="Roles & permissions"
+              />
+              <SidebarSubmenuItem
                 icon={DescriptionIcon}
                 to={PLATFORM_DOCS_BASE}
                 title="Platform documentation"

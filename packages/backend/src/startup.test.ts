@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
+import { DEMO_SEAT_HELP } from '@internal/platform-common';
 
 const backendIndex = fs.readFileSync(path.join(__dirname, 'index.ts'), 'utf8');
 const appConfig = fs.readFileSync(
@@ -190,7 +191,22 @@ describe('Backstage foundation', () => {
       [],
       // NXD-121: a second QA person, without the owner tier.
       ['urs-quality-reviewers'],
+      // NXD-166: the release seat, an owner with no URS role.
+      [],
+      // The platform administrator: registers runtime targets and can clear
+      // another seat's signing PIN; signs nothing in the URS chain.
+      [],
     ]);
+    expect(identities.find(i => i.name === 'demo-admin')?.memberOf).toEqual([
+      'platform-admins',
+    ]);
+    expect(identities.find(i => i.name === 'demo-release')?.memberOf).toEqual([
+      'data-product-owners',
+    ]);
+    // NXD-166. The in-app roles help lists the seats as they are configured.
+    expect(DEMO_SEAT_HELP.map(s => ({ name: s.name, memberOf: s.memberOf }))).toEqual(
+      identities.map(i => ({ name: i.name, memberOf: i.memberOf })),
+    );
     expect(identities.find(i => i.name === 'demo-validator')?.memberOf).toEqual([
       'platform-viewers',
       'validation-experts',

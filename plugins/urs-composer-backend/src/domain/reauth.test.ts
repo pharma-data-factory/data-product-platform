@@ -34,6 +34,10 @@ class FakeStore implements SignatureCredentialStore {
     });
   }
 
+  async deleteSignatureCredential(userRef: string) {
+    this.credentials.delete(userRef);
+  }
+
   peek(userRef: string) {
     return this.credentials.get(userRef);
   }
@@ -137,25 +141,140 @@ describe('Lockout', () => {
     expect(store.peek(USER)!.failedAttempts).toBe(0);
   });
 
-  test('re-enrolling lifts a lockout', async () => {
+  test('re-enrolling keeps the original creation date', async () => {
+    const before = store.peek(USER)!.createdAt;
+    await reAuth.enroll(USER, 'a-different-pin', PIN);
+
+    expect(store.peek(USER)!.createdAt).toEqual(before);
+    expect(store.peek(USER)!.updatedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe('Changing a PIN (NXD-138)', () => {
+  let store: FakeStore;
+  let reAuth: SignaturePinReAuth;
+
+  beforeEach(() => {
+    store = new FakeStore();
+    reAuth = new SignaturePinReAuth(store);
+  });
+
+  test('a first enrolment needs no current PIN', async () => {
+    await expect(reAuth.enroll(USER, PIN)).resolves.toBe('ENROLLED');
+    await expect(reAuth.verify(USER, PIN)).resolves.toEqual({ ok: true });
+  });
+
+  test('a change without the current PIN is refused, and the PIN stays', async () => {
+    await reAuth.enroll(USER, PIN);
+    const before = store.peek(USER)!.pinHash;
+
+    await expect(reAuth.enroll(USER, 'a-different-pin')).rejects.toThrow(
+      InputError,
+    );
+    await expect(reAuth.enroll(USER, 'a-different-pin')).rejects.toThrow(
+      /requires the current PIN/,
+    );
+    expect(store.peek(USER)!.pinHash).toBe(before);
+    // Not an attempt: nothing was guessed.
+    expect(store.peek(USER)!.failedAttempts).toBe(0);
+  });
+
+  test('a change with the current PIN replaces it', async () => {
+    await reAuth.enroll(USER, PIN);
+
+    await expect(reAuth.enroll(USER, 'a-different-pin', PIN)).resolves.toBe(
+      'CHANGED',
+    );
+    await expect(reAuth.verify(USER, 'a-different-pin')).resolves.toEqual({
+      ok: true,
+    });
+    await expect(reAuth.verify(USER, PIN)).resolves.toMatchObject({ ok: false });
+  });
+
+  test('a wrong current PIN is refused and counted as a failed attempt', async () => {
+    await reAuth.enroll(USER, PIN);
+
+    await expect(
+      reAuth.enroll(USER, 'a-different-pin', 'wrong-pin'),
+    ).rejects.toThrow(NotAllowedError);
+    expect(store.peek(USER)!.failedAttempts).toBe(1);
+    await expect(reAuth.verify(USER, PIN)).resolves.toEqual({ ok: true });
+  });
+
+  test('wrong current PINs lock the seat like wrong signing PINs', async () => {
+    await reAuth.enroll(USER, PIN);
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
+      await expect(
+        reAuth.enroll(USER, 'a-different-pin', 'wrong-pin'),
+      ).rejects.toThrow(NotAllowedError);
+    }
+    expect(store.peek(USER)!.lockedUntil).toBeInstanceOf(Date);
+  });
+
+  test('a locked seat cannot change its PIN, not even with the right one', async () => {
+    await reAuth.enroll(USER, PIN);
     for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
       await reAuth.verify(USER, 'nope');
     }
+    const before = store.peek(USER)!.pinHash;
 
-    await reAuth.enroll(USER, 'a-different-pin');
+    await expect(reAuth.enroll(USER, 'a-different-pin', PIN)).rejects.toThrow(
+      /Locked until .*cannot be changed/,
+    );
+    expect(store.peek(USER)!.pinHash).toBe(before);
+    expect(store.peek(USER)!.lockedUntil).toBeInstanceOf(Date);
+  });
+});
 
-    expect(store.peek(USER)!.lockedUntil).toBeUndefined();
-    await expect(reAuth.verify(USER, 'a-different-pin')).resolves.toEqual({
+describe('Clearing a PIN (NXD-138)', () => {
+  let store: FakeStore;
+  let reAuth: SignaturePinReAuth;
+
+  beforeEach(async () => {
+    store = new FakeStore();
+    reAuth = new SignaturePinReAuth(store);
+    await reAuth.enroll(USER, PIN);
+  });
+
+  test('clears the PIN with its lockout, records first, and the seat enrols again freely', async () => {
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
+      await reAuth.verify(USER, 'nope');
+    }
+    const recorded: SignatureCredential[] = [];
+
+    await expect(
+      reAuth.clear(USER, async removed => {
+        // Called while the credential still exists.
+        expect(store.peek(USER)).toBeDefined();
+        recorded.push(removed);
+      }),
+    ).resolves.toBe(true);
+
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0].failedAttempts).toBe(MAX_FAILED_ATTEMPTS);
+    expect(store.peek(USER)).toBeUndefined();
+    await expect(reAuth.verify(USER, PIN)).rejects.toThrow(/No signing PIN/);
+    await expect(reAuth.enroll(USER, 'a-fresh-pin')).resolves.toBe('ENROLLED');
+    await expect(reAuth.verify(USER, 'a-fresh-pin')).resolves.toEqual({
       ok: true,
     });
   });
 
-  test('re-enrolling keeps the original creation date', async () => {
-    const before = store.peek(USER)!.createdAt;
-    await reAuth.enroll(USER, 'a-different-pin');
+  test('a failed record leaves the credential in place', async () => {
+    await expect(
+      reAuth.clear(USER, async () => {
+        throw new Error('audit unavailable');
+      }),
+    ).rejects.toThrow('audit unavailable');
+    expect(store.peek(USER)).toBeDefined();
+  });
 
-    expect(store.peek(USER)!.createdAt).toEqual(before);
-    expect(store.peek(USER)!.updatedAt).toBeInstanceOf(Date);
+  test('nothing to clear answers false and records nothing', async () => {
+    const record = jest.fn();
+    await expect(reAuth.clear('user:default/nobody', record)).resolves.toBe(
+      false,
+    );
+    expect(record).not.toHaveBeenCalled();
   });
 });
 

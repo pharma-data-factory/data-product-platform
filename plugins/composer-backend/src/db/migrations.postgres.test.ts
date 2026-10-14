@@ -536,6 +536,37 @@ describe('composer migration on PostgreSQL', () => {
     expect(Number(count[0].count)).toBe(2);
   }, 60000);
 
+  it('makes product signatures append-only (NXD-128)', async () => {
+    if (!available) {
+      console.warn('Skipping product signature append-only test: no database.');
+      return;
+    }
+    const database = db as Knex;
+    await up(database);
+    await up(database);
+    await database('product_signatures').insert({
+      id: 'sig-pg-1',
+      product_id: 'p-1',
+      entity_type: 'PRODUCT_VERSION',
+      entity_id: 'v-1',
+      meaning: 'VERSION_RELEASED',
+      justification: 'gate green',
+      signed_by: 'user:default/releaser',
+      signed_at: '2026-10-05T00:00:00Z',
+      gmp_relevant: true,
+      reauth_method: 'signature-pin',
+    });
+    await expect(
+      database('product_signatures').where({ id: 'sig-pg-1' }).update({ justification: 'edited' }),
+    ).rejects.toThrow(/COMPOSER_APPEND_ONLY: product_signatures .* UPDATE/);
+    await expect(
+      database('product_signatures').where({ id: 'sig-pg-1' }).delete(),
+    ).rejects.toThrow(/COMPOSER_APPEND_ONLY: product_signatures .* DELETE/);
+    await expect(database.raw('truncate product_signatures')).rejects.toThrow(
+      /COMPOSER_APPEND_ONLY: product_signatures .* TRUNCATE/,
+    );
+  }, 60000);
+
   it('indexes link lookups by id on either end (NXD-093)', async () => {
     if (!available) {
       console.warn('Skipping composer lookup index test: no database.');

@@ -52,6 +52,7 @@ import {
   GithubSyncStatusResponse,
   syncRowsFor,
 } from './GithubSyncStatus';
+import { SigningPinResetDialog } from './SigningPinResetDialog';
 
 const USER_KIND = 'User';
 const BLOCKED = '__blocked__';
@@ -90,6 +91,8 @@ export function UsersRolesPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null);
+  // NXD-138: the seat whose signing PIN is being reset.
+  const [pinResetTarget, setPinResetTarget] = useState<string | null>(null);
 
   const [newLogin, setNewLogin] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
@@ -489,6 +492,16 @@ export function UsersRolesPage() {
                           </TextField>
                           <Button
                             variant="outlined"
+                            disabled={saving}
+                            onClick={() => {
+                              setNotice(null);
+                              setPinResetTarget(user.metadata.name);
+                            }}
+                          >
+                            Reset signing PIN
+                          </Button>
+                          <Button
+                            variant="outlined"
                             color="secondary"
                             disabled={saving}
                             onClick={() => confirmDelete(user)}
@@ -536,6 +549,12 @@ export function UsersRolesPage() {
           {error ? <ErrorPanel error={error} /> : null}
         </div>
       </Content>
+
+      <SigningPinResetDialog
+        userName={pinResetTarget}
+        onClose={() => setPinResetTarget(null)}
+        onReset={setNotice}
+      />
 
       <Dialog
         open={!!deleteTarget}

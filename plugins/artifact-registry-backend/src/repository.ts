@@ -13,6 +13,7 @@ import type {
   ArtifactLifecycle,
   ArtifactManifest,
   ArtifactVersion,
+  ArtifactVersionTransition,
   Publisher,
 } from '@internal/platform-common';
 import type { DistributionChannel } from '@internal/platform-common';
@@ -172,6 +173,10 @@ export class ArtifactRegistryRepository {
       distribution: version.distribution ? toJson(version.distribution) : null,
       dependencies: toJson(version.dependencies ?? []),
       release_notes: version.releaseNotes ?? null,
+      release_image_repository: version.releaseBuild?.imageRepository ?? null,
+      release_image_digest: version.releaseBuild?.imageDigest ?? null,
+      release_commit_sha: version.releaseBuild?.commitSha ?? null,
+      release_url: version.releaseBuild?.releaseUrl ?? null,
       created_by: version.createdBy,
       created_at: version.createdAt,
       revision: version.revision,
@@ -217,6 +222,12 @@ export class ArtifactRegistryRepository {
    * Without the guard two callers can both read CERTIFIED and both proceed.
    * Returns false when the row moved underneath the caller.
    */
+  /**
+   * Moves a version and records the transition, in one transaction (NXD-146):
+   * there is no lifecycle state a version reached without a record of who
+   * moved it there. Returns false, writing nothing, when the version moved
+   * since it was read.
+   */
   async updateArtifactVersion(
     id: string,
     patch: {
@@ -224,6 +235,7 @@ export class ArtifactRegistryRepository {
       certificationStatus?: ArtifactCertificationStatus;
     },
     expectedRevision: number,
+    transition: ArtifactVersionTransition,
   ): Promise<boolean> {
     const update: Record<string, unknown> = { revision: expectedRevision + 1 };
     if (patch.lifecycle !== undefined) {
@@ -232,10 +244,43 @@ export class ArtifactRegistryRepository {
     if (patch.certificationStatus !== undefined) {
       update.certification_status = patch.certificationStatus;
     }
-    const updated = await this.db('artifact_versions')
-      .where({ id, revision: expectedRevision })
-      .update(update);
-    return updated > 0;
+    return this.db.transaction(async trx => {
+      const updated = await trx('artifact_versions')
+        .where({ id, revision: expectedRevision })
+        .update(update);
+      if (updated === 0) return false;
+      await trx('artifact_version_transitions').insert({
+        id: transition.id,
+        artifact_version_id: transition.artifactVersionId,
+        act: transition.act,
+        from_lifecycle: transition.fromLifecycle,
+        to_lifecycle: transition.toLifecycle,
+        from_certification_status: transition.fromCertificationStatus ?? null,
+        to_certification_status: transition.toCertificationStatus ?? null,
+        actor: transition.actor,
+        occurred_at: transition.occurredAt,
+        details: JSON.stringify(transition.details),
+      });
+      return true;
+    });
+  }
+
+  async listTransitions(artifactVersionId: string): Promise<ArtifactVersionTransition[]> {
+    const rows = await this.db('artifact_version_transitions')
+      .where({ artifact_version_id: artifactVersionId })
+      .orderBy('occurred_at', 'asc');
+    return rows.map((row: any) => ({
+      id: row.id,
+      artifactVersionId: row.artifact_version_id,
+      act: row.act,
+      fromLifecycle: row.from_lifecycle,
+      toLifecycle: row.to_lifecycle,
+      fromCertificationStatus: row.from_certification_status ?? undefined,
+      toCertificationStatus: row.to_certification_status ?? undefined,
+      actor: row.actor,
+      occurredAt: typeof row.occurred_at === 'number' ? new Date(row.occurred_at) : toDate(row.occurred_at),
+      details: fromJson<Record<string, unknown>>(row.details, {}),
+    }));
   }
 
   // -- mapping -------------------------------------------------------------
@@ -292,6 +337,16 @@ export class ArtifactRegistryRepository {
       ),
       dependencies: fromJson<string[]>(row.dependencies, []),
       releaseNotes: row.release_notes ?? undefined,
+      ...(row.release_image_digest
+        ? {
+            releaseBuild: {
+              imageRepository: row.release_image_repository,
+              imageDigest: row.release_image_digest,
+              commitSha: row.release_commit_sha,
+              ...(row.release_url ? { releaseUrl: row.release_url } : {}),
+            },
+          }
+        : {}),
       createdBy: row.created_by,
       createdAt: toDate(row.created_at),
       revision: row.revision,

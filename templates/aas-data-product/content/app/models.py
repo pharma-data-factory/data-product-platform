@@ -3,7 +3,8 @@
 from typing import Any, Dict, Optional, List
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic.alias_generators import to_camel
 
 
 class AssetTypeEnum(str, Enum):
@@ -60,15 +61,25 @@ class AssetEvent(BaseModel):
             raise ValueError("asset_id must be between 1 and 255 characters")
         return v
 
-    class Config:
-        schema_extra = {
+    def to_contract(self) -> Dict[str, Any]:
+        """The event as contracts/asset-event.schema.json names it: camelCase."""
+        return self.model_dump(by_alias=True, exclude_none=True, mode="json")
+
+    # The published contract is camelCase (eventId, assetId, ...). The model
+    # accepts it, and the Python names as well, and validates the contract's
+    # form: before NXD-149 it dumped snake_case and every event failed the
+    # contract it was checked against.
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        json_schema_extra={
             "example": {
-                "event_id": "550e8400-e29b-41d4-a716-446655440000",
-                "asset_id": "pump-unit-001",
+                "eventId": "550e8400-e29b-41d4-a716-446655440000",
+                "assetId": "pump-unit-001",
                 "timestamp": "2026-08-24T14:30:00Z",
-                "asset_type": "equipment",
-                "source_system": "mqtt",
-                "submodel_elements": {
+                "assetType": "equipment",
+                "sourceSystem": "mqtt",
+                "submodelElements": {
                     "manufacturer": "Bosch Rexroth",
                     "serialNumber": "BR-2024-001",
                     "status": "operational",
@@ -82,7 +93,8 @@ class AssetEvent(BaseModel):
                     "batch": "BATCH-2024-0815",
                 },
             }
-        }
+        },
+    )
 
 
 class AssetResponse(BaseModel):

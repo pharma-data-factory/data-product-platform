@@ -521,6 +521,7 @@ Two constraints, both learned from this plan's own history:
 | 7 | ~~Slice 4 remainder~~ · ~~Slice 5 — Federation~~ | — | **Re-ranked 2026-09-28 — moved to §9.6** |
 | 8 | **Return `urs-composer` to the gate**, with its 9 pre-existing `CreateWizard` failures | ? | unknown cost |
 | 9 | **Slice 8 spike** — conditional permissions | L | stop condition |
+| 10 | **Done 2026-10-07** (`NXD-138`): the user chose options 1 + 2; a change needs the current PIN, and a platform administrator can clear a PIN, with a reason and audited, never set one. **Signing-PIN re-enrolment** ([`NXD-136`](DECISIONS.md), added 2026-10-06). `PUT /signing-pin` replaces a PIN without the current one, so a session alone can reset the second factor of a Part 11 signature. Found in the `NXD-135` live run. | M | one decision: the re-enrolment policy |
 
 Out of scope here, as §7 already implies: the AI Test Coordinator, the AI GMP
 Impact Agent, Kubernetes and platform observability, Marketplace
@@ -623,6 +624,27 @@ deploys; Nexora governs and records (`NXD-074`,
 `TARGET_OPERATING_MODEL.md` §6.3). The audit's "Deployment — MISSING" stays
 closed rather than worked off.
 
+> **Refined 2026-10-06 ([`NXD-129`](DECISIONS.md)).** Execution stays out of
+> Core, but not out of scope. T6's verb now writes governed desired state that
+> a runtime provider outside the Backstage backend executes, Docker Compose
+> first. Three slices follow in order: the installations store, the provider
+> API, and the Compose provider. The manifest those slices rely on is
+> [`NXD-130`](DECISIONS.md).
+>
+> **Slice 1 done 2026-10-07 ([`NXD-139`](DECISIONS.md)).** The installations
+> store is `installations-backend`: targets, desired and observed state,
+> signed acts for GMP products, and an IQ record awaiting provider evidence.
+> The provider API and the Compose provider remain.
+>
+> **Slices 2 and 3 built 2026-10-08 ([`NXD-143`](DECISIONS.md),
+> [`NXD-144`](DECISIONS.md)).** The live run against the released OEE product
+> stopped at the image pull: the GHCR package is private and no credential
+> on the host may read it. It resumes after §9.7 S3, without a manual login.
+>
+> **Live run done 2026-10-08 ([`NXD-148`](DECISIONS.md)), after S3.** The
+> installed product ran healthy, and its IQ record reached
+> `EVIDENCE_RECORDED` from the provider's report. QA sign-off remains.
+
 **Relation to §9.4.** T1 is already ranked there and closes Phase 7; the rest is
 new work that did not exist as a plan. Whether the topology track runs before,
 after or interleaved with the §9.4 backlog is a product decision — it is stated
@@ -649,3 +671,32 @@ defect:**
   version's lineage a consumer is asking about. Fixed alongside it: the view
   rendered "no lineage data" for a failed request, so a statement about the
   platform was being read as a statement about the product.
+
+### 9.7 The supplier track, then AI-assisted build
+
+Added 2026-10-08. The user's decision: the supplier side (building,
+releasing and offering a Data Product) must be closed **before** more
+consumer features, and a product's code must become buildable with AI once
+its repository is on GitHub. Gaps measured on 2026-10-08 at `f200775`; the
+NXD-137 findings and NXD-144's "private images" are the sources.
+
+Strictly ordered. Each row is one NXD record.
+
+| # | Step | Size | What closes it |
+| --- | --- | --- | --- |
+| S1 | **A URS baseline is required only of a GMP product** | S | `NO_URS_BASELINE` (`composer-backend` `checkReleaseGate`) fires for `gxpRelevance: NONE` as well, duplicating the policy pack's GxP-only `urs-baseline-bound`. First one shared "is GMP" predicate. Three disagree today: the signature path treats unset as GMP, the policy pack treats unset as not GxP, and `isGxpRelevant` counts DIRECT/INDIRECT only. The NXD-140 convention applies: only an explicit NONE is exempt. Then the block becomes conditional. |
+| S2 | **Registry governance** | L | Three parts. (a) An actor and an append-only audit event for every lifecycle transition; today none is recorded. (b) Segregation of duties: whoever submitted may not review, certify or publish, as NXD-057/072 already require for the URS chain. (c) Certify and publish refused to a COMMUNITY publisher (the claim self-registration already makes), and publish refused unless the governing Composer product version is RELEASED (NXD-137 finding 3). |
+| S3 | **A consumer can pull what it installs** | M | A runtime target gains a *reference* to a registry credential, never the value, as `secretRef` does for configuration. The provider logs in with it in an isolated Docker config per target. Optionally a product may release a public image. Unblocks the paused MVP1 live run. |
+| S4 | **Every data-product template is releasable and runnable** | L | `mqtt-temperature-product`, `rest-equipment-product`, `machine-state-consumer` and `aas-data-product` gain `nexora.yaml` (runtime, storage, config), `release.yml`, the release script, a HEALTHCHECK where missing, and the requirement-tagged test hooks. The OEE rendering tests are parametrised over all five. |
+| S4a | **Done 2026-10-08 ([`NXD-150`](DECISIONS.md)). Repair the AAS Golden Path** | M | It installs, accepts its own camelCase contract (before, it accepted no event at all), lints for real, and its manifest declares no storage it does not have. |
+| S4a-2 | **AAS becomes an official data product** | L | Vendored `dataprod/` SDK; quality, compatibility and platform-metadata tests; the shared `data-product-quality.yml` gate; persistence (assets are in memory); a blocking security scan. |
+| S5 | **Done 2026-10-08 ([`NXD-151`](DECISIONS.md)). CI evidence reaches Nexora without a button** | M | A scheduled sync imports the default branch's push-run evidence into each product's newest bound DRAFT. Found and fixed: the import took the newest run of any branch, so a pull request's tests could become a version's evidence. |
+| S5b | **Done 2026-10-08 ([`NXD-152`](DECISIONS.md)). What a pull request would verify** | M | Per open pull request, a read-only preview of which bound requirements its run verifies and whether the gate's coverage part would pass. Nothing is recorded. S6 needs it, because an AI's pull request has to show its evidence before a person merges it. |
+| S6 | **Built 2026-10-08 ([`NXD-153`](DECISIONS.md)), not yet run end to end. AI-assisted build in the product repository** | L | Nexora issues an assignment from approved requirements of a product version. A Claude Code workflow shipped in each template, driven by the existing `agent-instructions.md`, writes code and requirement-tagged tests and opens a pull request. S5 shows its evidence, a person merges, and Nexora records provenance (model, assignment, PR), as NXD-064 C-3 does for spec drafts. The API key is an organisation secret (`ANTHROPIC_API_KEY`) of the GitHub organisation, the user's decision of 2026-10-08. Nexora gains no write access to product code; the workflow is dispatched through the existing GitHub App. |
+
+**Why this order.** S1 and S2 are rules. Templates built after them (S4)
+are built against the rules that will judge them. S3 is independent of S1,
+S2 and S4 but finishes the consumer run already under way. S5 needs S4's
+test tagging in every template. S6 is worth little without S5: an AI's pull
+request has to show its evidence before a person can judge it.
+

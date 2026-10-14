@@ -11,9 +11,11 @@ import {
   TestExecution,
   ProductBaseline,
   ProductRequirement,
+  AIBuildAssignment,
   AISpecDraft,
   AISpecDraftStatus,
   FunctionalSpecification,
+  ProductSignature,
 } from './types';
 
 export interface ComposerAuditEvent {
@@ -77,10 +79,19 @@ export interface IComposerRepository {
     ursBaselineId: string,
   ): Promise<ProductVersion[]>;
   updateProductVersion(version: ProductVersion): Promise<void>;
+  /** NXD-137. Write-once; true when the version now carries this ref. */
+  setProductVersionArtifactRef(id: string, artifactRef: string): Promise<boolean>;
+  /** NXD-139. Versions registered as any version of `namespace/name`. */
+  listProductVersionsForArtifact(
+    namespace: string,
+    name: string,
+  ): Promise<ProductVersion[]>;
 
   createProductComponent(component: ProductComponent): Promise<ProductComponent>;
   getProductComponent(id: string): Promise<ProductComponent | undefined>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
+  /** NXD-157. Removes the row only; the service removes its links first. */
+  deleteProductComponent(id: string): Promise<void>;
 
   createDataContract(contract: DataContract): Promise<DataContract>;
   getDataContract(id: string): Promise<DataContract | undefined>;
@@ -168,6 +179,9 @@ export interface IComposerRepository {
   createProductBaseline(baseline: ProductBaseline): Promise<ProductBaseline>;
   getProductBaseline(id: string): Promise<ProductBaseline | null>;
   listProductBaselines(productVersionId: string): Promise<ProductBaseline[]>;
+  /** NXD-128: approvals and releases as attested. Append-only. */
+  addProductSignature(signature: ProductSignature): Promise<void>;
+  listProductSignatures(productId: string): Promise<ProductSignature[]>;
   updateProductBaseline(baseline: ProductBaseline): Promise<void>;
 
   // Functional Specifications — Stage 3 (MVP1 item 11)
@@ -178,6 +192,28 @@ export interface IComposerRepository {
   ): Promise<FunctionalSpecification[]>;
 
   // AI Spec Drafts (MVP1 item 6 / NXD-064 C-3)
+  /** NXD-153. */
+  createAiBuildAssignment(assignment: AIBuildAssignment): Promise<void>;
+  getAiBuildAssignment(id: string): Promise<AIBuildAssignment | null>;
+  listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]>;
+  /** Only the outcome columns; the assignment itself is never updated. */
+  updateAiBuildOutcome(
+    id: string,
+    outcome: Pick<
+      AIBuildAssignment,
+      | 'status'
+      | 'dispatchReason'
+      | 'runUrl'
+      | 'runConclusion'
+      | 'pullRequestNumber'
+      | 'pullRequestUrl'
+      | 'pullRequestHeadSha'
+      | 'mergedAt'
+      | 'mergeCommitSha'
+      | 'closedAt'
+      | 'updatedAt'
+    >,
+  ): Promise<void>;
   createSpecDraft(draft: AISpecDraft): Promise<void>;
   getSpecDraft(id: string): Promise<AISpecDraft | null>;
   listSpecDraftsForBaseline(ursBaselineId: string): Promise<AISpecDraft[]>;

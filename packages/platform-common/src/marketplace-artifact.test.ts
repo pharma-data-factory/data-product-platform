@@ -2,6 +2,7 @@ import {
   MARKETPLACE_CATEGORY_KINDS,
   MARKETPLACE_SPEC_KEY,
   UNCERTIFIED_STATUS,
+  installableVersions,
   marketplaceOfferingsFromRegistry,
   marketplaceViewOfManifest,
   representativeVersion,
@@ -220,5 +221,131 @@ describe('offerings from a registry listing', () => {
         }),
       ]),
     ).toEqual([]);
+  });
+});
+
+describe('installable runnable products (NXD-141)', () => {
+  const DIGEST = `sha256:${'a'.repeat(64)}`;
+
+  function runnable(version = '1.0.0'): ArtifactManifest {
+    return {
+      apiVersion: ARTIFACT_MANIFEST_API_VERSION,
+      kind: 'DATA_PRODUCT',
+      metadata: {
+        namespace: 'pharma',
+        name: 'oee-line-3',
+        version,
+        displayName: 'OEE Line 3',
+        description: 'OEE for line 3.',
+      },
+      spec: {
+        runtime: {
+          kind: 'container',
+          image: { repository: 'ghcr.io/pharma/oee-line-3' },
+          ports: [{ name: 'http', containerPort: 8080 }],
+        },
+        config: [{ key: 'EQUIPMENT_ID', type: 'string', required: true }],
+      },
+    } as ArtifactManifest;
+  }
+
+  function product(
+    versions: RegistryArtifactWithVersions['versions'],
+  ): RegistryArtifactWithVersions {
+    return { namespace: 'pharma', name: 'oee-line-3', versions };
+  }
+
+  it('lists a released, built product without a Marketplace block', () => {
+    const [offering] = marketplaceOfferingsFromRegistry([
+      product([
+        {
+          version: '1.0.0',
+          lifecycle: 'RELEASED',
+          manifest: runnable(),
+          releaseBuild: { imageDigest: DIGEST, releaseUrl: 'https://example.test/r' },
+        },
+      ]),
+    ]);
+    expect(offering).toEqual(
+      expect.objectContaining({
+        id: 'oee-line-3',
+        name: 'OEE Line 3',
+        category: 'Data Products',
+        provider: 'pharma',
+        documentation: 'https://example.test/r',
+        artifactNamespace: 'pharma',
+        artifactName: 'oee-line-3',
+        installableVersions: [
+          {
+            version: '1.0.0',
+            imageDigest: DIGEST,
+            config: [{ key: 'EQUIPMENT_ID', type: 'string', required: true }],
+          },
+        ],
+      }),
+    );
+  });
+
+  it('does not list a runnable product that has no installable version', () => {
+    expect(
+      marketplaceOfferingsFromRegistry([
+        product([
+          { version: '1.0.0', lifecycle: 'RELEASED', manifest: runnable() },
+          {
+            version: '1.1.0',
+            lifecycle: 'CERTIFIED',
+            manifest: runnable('1.1.0'),
+            releaseBuild: { imageDigest: DIGEST },
+          },
+        ]),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('offers only released, built, runnable versions, newest first', () => {
+    expect(
+      installableVersions(
+        product([
+          {
+            version: '1.0.0',
+            lifecycle: 'RELEASED',
+            manifest: runnable(),
+            releaseBuild: { imageDigest: DIGEST },
+          },
+          {
+            version: '1.10.0',
+            lifecycle: 'RELEASED',
+            manifest: runnable('1.10.0'),
+            releaseBuild: { imageDigest: DIGEST },
+          },
+          { version: '2.0.0', lifecycle: 'RELEASED', manifest: runnable('2.0.0') },
+          {
+            version: '3.0.0',
+            lifecycle: 'DEPRECATED',
+            manifest: runnable('3.0.0'),
+            releaseBuild: { imageDigest: DIGEST },
+          },
+          {
+            version: '1.2.0',
+            lifecycle: 'RELEASED',
+            manifest: manifest(),
+            releaseBuild: { imageDigest: DIGEST },
+          },
+        ]),
+      ).map(entry => entry.version),
+    ).toEqual(['1.10.0', '1.0.0']);
+  });
+
+  it('gives a Marketplace offering its coordinate and no installable version', () => {
+    const [offering] = marketplaceOfferingsFromRegistry([
+      {
+        namespace: 'acme',
+        name: 'acme-connector',
+        versions: [{ version: '1.2.0', lifecycle: 'DRAFT', manifest: manifest() }],
+      },
+    ]);
+    expect(offering.artifactNamespace).toBe('acme');
+    expect(offering.artifactName).toBe('acme-connector');
+    expect(offering.installableVersions).toEqual([]);
   });
 });

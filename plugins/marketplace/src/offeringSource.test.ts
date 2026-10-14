@@ -167,6 +167,9 @@ describe('offeringViewToItem', () => {
       documentation: '/docs',
       publisherTrustLevel: 'INTERNAL',
       externalPublisher: false,
+      artifactNamespace: 'nexora',
+      artifactName: 'x',
+      installableVersions: [],
     };
     expect(offeringViewToItem(view)?.category).toBe('Connectors');
   });
@@ -185,6 +188,9 @@ describe('offeringViewToItem', () => {
       documentation: '/docs',
       publisherTrustLevel: 'INTERNAL',
       externalPublisher: false,
+      artifactNamespace: 'nexora',
+      artifactName: 'x',
+      installableVersions: [],
     };
     expect(offeringViewToItem(view)).toBeUndefined();
   });

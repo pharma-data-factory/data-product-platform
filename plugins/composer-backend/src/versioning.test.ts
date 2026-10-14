@@ -45,6 +45,8 @@ describe('Phase 1: Versioning Foundation', () => {
   const actor = 'user:default/test-user';
   // Phase 5 (P5-S2): the approver must differ from the creator.
   const approver = 'user:default/approver-user';
+  // NXD-165: the release needs someone who neither wrote nor approved.
+  const releaser = 'user:default/release-manager';
 
   async function createFullSetup() {
     const product = await service.createProduct(
@@ -271,15 +273,19 @@ describe('Phase 1: Versioning Foundation', () => {
       const result = await service.checkReleaseGate(version.id);
 
       expect(result.passed).toBe(false);
+      // Four since NXD-145: a product that has not answered the GxP question
+      // is held to the GxP-only criticality obligation as well.
       expect(
         result.blockers.filter(b => b.code === 'POLICY_OBLIGATION_UNMET'),
-      ).toHaveLength(3);
+      ).toHaveLength(4);
     });
 
     it('blocks a product that references no URS baseline', async () => {
       // The agreed rule: free to create, bound to release. Without this the
-      // platform can ship a product nobody can trace to a requirement.
-      const { version, component } = await createFullSetup();
+      // platform can ship a product nobody can trace to a requirement. Since
+      // NXD-145 the rule is a GMP product's; a NONE product is exempt, so the
+      // fixture is reclassified before the gate is asked.
+      const { product, version, component } = await createFullSetup();
       await service.createTraceabilityLink(
         {
           sourceType: 'URS_REQUIREMENT',
@@ -294,6 +300,7 @@ describe('Phase 1: Versioning Foundation', () => {
       await service.approveProductBaseline(baseline.id, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      await service.updateProduct(product.id, { gxpRelevance: 'INDIRECT', criticality: 'HIGH' }, actor);
 
       const result = await service.checkReleaseGate(version.id);
 
@@ -422,15 +429,82 @@ describe('Phase 1: Versioning Foundation', () => {
       const gate = await service.checkReleaseGate(version.id);
       expect(gate.passed).toBe(true);
 
+      // NXD-164/165. Neither the approver (of version and baseline) nor the
+      // author may release.
+      await expect(
+        service.transitionProductVersionStatus(
+          version.id,
+          { targetStatus: 'RELEASED' },
+          approver,
+        ),
+      ).rejects.toThrow(/the approver cannot release it/);
+      await expect(
+        service.transitionProductVersionStatus(
+          version.id,
+          { targetStatus: 'RELEASED' },
+          actor,
+        ),
+      ).rejects.toThrow(/the author cannot release it/);
+      expect((await service.getProductVersion(version.id))?.status).toBe(
+        'RELEASE_CANDIDATE',
+      );
+
       const released = await service.transitionProductVersionStatus(
         version.id,
         { targetStatus: 'RELEASED', releaseCommitSha: 'abc123', artifactDigest: 'sha256:def456' },
-        actor,
+        releaser,
       );
       expect(released.status).toBe('RELEASED');
       expect(released.releaseCommitSha).toBe('abc123');
       expect(released.artifactDigest).toBe('sha256:def456');
-      expect(released.approvedBy).toBe(actor);
+      // NXD-164. The release keeps the approval's who; it has its own.
+      expect(released.approvedBy).toBe(approver);
+      expect(released.releasedBy).toBe(releaser);
+      expect(released.releasedAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('Release by a further person (NXD-165)', () => {
+    it('refuses the release to whoever approved the product baseline', async () => {
+      const baselineApprover = 'user:default/baseline-approver';
+      const { version, component } = await createFullSetup();
+      await service.addDataContract(
+        component.id,
+        { namespace: 'test-ns', name: 'sod-release-contract', schemaType: 'JSON_SCHEMA', version: '1.0' },
+        actor,
+      );
+      await service.createTraceabilityLink(
+        {
+          sourceType: 'URS_REQUIREMENT',
+          sourceId: 'urs-wd-001',
+          relationshipType: 'IMPLEMENTS',
+          targetType: 'PRODUCT_COMPONENT',
+          targetId: component.id,
+        },
+        actor,
+      );
+      const baseline = await service.createProductBaseline(
+        version.id,
+        { ursBaselineIds: ['urs-baseline-1'] },
+        actor,
+      );
+      await service.approveProductBaseline(baseline.id, baselineApprover);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
+      await service.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+
+      await expect(
+        service.transitionProductVersionStatus(
+          version.id,
+          { targetStatus: 'RELEASED' },
+          baselineApprover,
+        ),
+      ).rejects.toThrow(/the approver of the product baseline cannot release it/);
+      const released = await service.transitionProductVersionStatus(
+        version.id,
+        { targetStatus: 'RELEASED' },
+        releaser,
+      );
+      expect(released.releasedBy).toBe(releaser);
     });
   });
 
@@ -526,7 +600,7 @@ describe('Phase 1: Versioning Foundation', () => {
       // a failed lookup. The two blockers answer different questions: "you
       // named no requirements" versus "the ones you named are not approved".
       (mockResolver.resolveApprovedBaseline as jest.Mock).mockClear();
-      const { version, component } = await createFullSetupWithResolver();
+      const { product, version, component } = await createFullSetupWithResolver();
       await serviceWithResolver.createTraceabilityLink(
         { sourceType: 'URS_REQUIREMENT', sourceId: 'urs-3', relationshipType: 'IMPLEMENTS', targetType: 'PRODUCT_COMPONENT', targetId: component.id },
         actor,
@@ -535,6 +609,8 @@ describe('Phase 1: Versioning Foundation', () => {
       await serviceWithResolver.approveProductBaseline(baseline.id, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'APPROVED' }, approver);
       await serviceWithResolver.transitionProductVersionStatus(version.id, { targetStatus: 'RELEASE_CANDIDATE' }, actor);
+      // NXD-145: the binding is a GMP product's obligation.
+      await serviceWithResolver.updateProduct(product.id, { gxpRelevance: 'INDIRECT', criticality: 'HIGH' }, actor);
 
       const result = await serviceWithResolver.checkReleaseGate(version.id);
 

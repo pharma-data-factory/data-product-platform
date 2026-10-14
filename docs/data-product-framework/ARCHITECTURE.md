@@ -35,7 +35,7 @@ Backstage Catalog         data-products-backend /consume/*
 
 | Concept | Representation |
 | --- | --- |
-| Data Product (business) | Catalog `Component` `spec.type: data-product` + annotations / optional `dataproduct.yaml` |
+| Data Product (business) | `nexora.yaml` in the repository (canonical, NXD-130); Catalog `Component` `spec.type: data-product` + annotations for discovery |
 | Component (implementation) | Service / vendor components via `dependsOn` |
 | API / Contract | Catalog `API` + contract schemas |
 | Visualization extension | Registered platform extension id (e.g. `oee-dashboard`) |

@@ -25,21 +25,23 @@ import {
   toRelatedPlatformComponents,
 } from '@internal/platform-common';
 import { useGoldenPathCompositions } from '@internal/plugin-marketplace';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import {
   NEXORA_GREY,
+  NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
-    background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
+    background: NEXORA_HERO_VAR.bg,
+    boxShadow: NEXORA_HERO_VAR.frame,
     borderRadius: 16,
-    color: NEXORA_GREY[50],
+    color: NEXORA_HERO_VAR.fg,
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
   eyebrow: {
-    color: PHARMA_TEAL_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     fontWeight: 600,
@@ -56,13 +58,13 @@ const useStyles = makeStyles({
     margin: 0,
   },
   principle: {
-    color: PHARMA_TEAL_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontSize: 18,
     fontWeight: 600,
     marginTop: 10,
   },
   copy: {
-    color: NEXORA_GREY[300],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 15,
     lineHeight: 1.65,
     marginBottom: 0,
@@ -70,7 +72,7 @@ const useStyles = makeStyles({
     maxWidth: 720,
   },
   secondary: {
-    color: NEXORA_GREY[400],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 14,
     lineHeight: 1.6,
     marginBottom: 0,

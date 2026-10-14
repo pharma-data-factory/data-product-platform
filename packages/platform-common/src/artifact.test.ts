@@ -11,6 +11,8 @@ import {
   parseArtifactRef,
   validateArtifactManifest,
   type ArtifactManifest,
+  isRunnableArtifactVersion,
+  validateArtifactReleaseBuild,
 } from './artifact';
 import {
   DISTRIBUTION_CHANNELS,
@@ -252,5 +254,57 @@ describe('artifact manifest', () => {
       );
       expect(issues).toHaveLength(2);
     });
+  });
+});
+
+describe('release builds (NXD-137)', () => {
+  const runnable = {
+    apiVersion: 'nexora.dev/v1alpha1',
+    kind: 'DATA_PRODUCT',
+    metadata: { namespace: 'acme', name: 'oee', version: '1.0.0' },
+    spec: {
+      runtime: { kind: 'container', image: { repository: 'ghcr.io/acme/oee' } },
+    },
+  } as any;
+  const build = {
+    imageRepository: 'ghcr.io/acme/oee',
+    imageDigest: `sha256:${'a'.repeat(64)}`,
+    commitSha: 'b'.repeat(40),
+    releaseUrl: 'https://github.com/acme/oee/releases/tag/v1.0.0',
+  };
+
+  it('accepts the build of the image the manifest runs', () => {
+    expect(validateArtifactReleaseBuild(build, runnable)).toEqual([]);
+  });
+
+  it('refuses another image, a malformed digest or commit, and a non-https release', () => {
+    const issues = validateArtifactReleaseBuild(
+      {
+        imageRepository: 'ghcr.io/acme/other',
+        imageDigest: 'sha256:short',
+        commitSha: 'abc123',
+        releaseUrl: 'http://x',
+      },
+      runnable,
+    );
+    expect(issues.join('\n')).toMatch(/is not the manifest's spec\.runtime\.image\.repository/);
+    expect(issues.join('\n')).toMatch(/release build imageDigest/);
+    expect(issues.join('\n')).toMatch(/release build commitSha/);
+    expect(issues.join('\n')).toMatch(/not an https URL/);
+  });
+
+  it('refuses a build for something that does not run', () => {
+    const template = { ...runnable, kind: 'TEMPLATE', spec: {} };
+    expect(validateArtifactReleaseBuild(build, template).join('\n')).toMatch(
+      /a TEMPLATE has no release build/,
+    );
+  });
+
+  it('calls a version runnable by its manifest, not its kind', () => {
+    expect(isRunnableArtifactVersion({ manifest: runnable })).toBe(true);
+    expect(
+      isRunnableArtifactVersion({ manifest: { ...runnable, spec: { sourceRef: 'x' } } }),
+    ).toBe(false);
+    expect(isRunnableArtifactVersion({})).toBe(false);
   });
 });

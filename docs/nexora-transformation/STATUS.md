@@ -198,6 +198,305 @@ four quick wins F1–F4, one commit and one record each.
 - **CI image job, third link.** Past *Set up job* at last, the build failed:
   SBOM/provenance attestations need a Buildx builder. Added
   `docker/setup-buildx-action`. See [`NXD-126`](DECISIONS.md).
+- **Validation decision per product version.** Decision, signatures and
+  evidence review carry the version; the gate asks for exactly the version it
+  releases; the panel has a version picker. The pre-NXD-127 decision covers no
+  version. See [`NXD-127`](DECISIONS.md).
+- **Signed approval and release.** For a GMP-relevant product, version
+  approval, baseline approval and release need a justification and the PIN;
+  NONE confirms. Every act is recorded append-only and listed on the product
+  page. See [`NXD-128`](DECISIONS.md).
+- **MVP1 step 2, decided: the runtime provider seam.** An Installation is
+  governed desired state in Nexora. A runtime provider outside the Backstage
+  backend pulls it with a service token and executes it, Docker Compose
+  first. This refines NXD-074's "does not deploy" to "does not execute".
+  Record only, no code. See [`NXD-129`](DECISIONS.md).
+- **MVP1 step 1, the schema: `nexora.yaml` is the canonical Data Product
+  manifest.** `nexora-manifest.schema.json` (JSON Schema 2020-12) in
+  `platform-common` adds `metadata.license`, `spec.runtime`,
+  `spec.interfaces` and `spec.config` to `nexora.dev/v1alpha1`, additively;
+  21 of 21 shipped manifests stay valid. **Enforced** at the registry's
+  registration gate through `validateRunnableManifestSections` (ajv,
+  approved). Not in `validateArtifactManifest`, because the browser runs
+  that. Cross-field port and uniqueness rules are code beside it. See [`NXD-130`](DECISIONS.md).
+- **MVP1 step 3: the OEE Golden Path ships `nexora.yaml`.** It renders valid
+  against the schema, `validateArtifactManifest` and the registry gate, and
+  agrees with `catalog-info.yaml`; a test renders it through the real
+  `fetch:template`. All four unread `dataproduct.yaml` files are gone.
+  `asyncapi.yaml` is now valid AsyncAPI 3.0 and says *receive*. Topics stay
+  config until a provider binds them. See [`NXD-131`](DECISIONS.md).
+- **MVP1 step 4a: a version tag builds, pushes and records one image.** The
+  OEE skeleton gains `release.yml`. A `v*` tag runs the same gate, checks the
+  tag against `nexora.yaml`, pushes to GHCR with SBOM and provenance, and
+  publishes `nexora-release.json` on a GitHub Release. No Nexora secret:
+  Nexora will pull it (4b). `openapi.yaml` now documents all 24 operations,
+  and a route-coverage test keeps it so. Not yet run live. See
+  [`NXD-132`](DECISIONS.md).
+- **MVP1 step 4b: Nexora reads the release record into the approved
+  baseline.** *Import release provenance* on the Tests tab. data-products
+  finds the version's GitHub Release (`1.0` ≡ `v1.0.0`) and reads
+  `nexora-release.json` and the tag's commit. Composer refuses a record for
+  another version, tag or commit, and writes through NXD-052's write-once
+  path. The release, not the person, is the recorder; the person is the
+  audit actor. See [`NXD-133`](DECISIONS.md).
+- **Defect: a lint error since NXD-128.** A nested ternary in
+  `signedVersionTransition` kept CI's `lint:all` red from `62667a3` on. It is
+  now a lookup, with no behaviour change, and `lint:all` is clean. See
+  [`NXD-134`](DECISIONS.md).
+- **MVP1 step 4, live.** In `oee-e2e-test-20261005-d`, tag `v1.0.0` ran the
+  gate, pushed `ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d@sha256:6e696d5f…`,
+  and published `nexora-release.json`. *Import release provenance* recorded
+  commit and digest on the approved baseline `1.0`; a re-import was a no-op.
+  This ran on a personal token, not a GitHub App. Open finding:
+  `PUT /signing-pin` needs no current PIN. See [`NXD-135`](DECISIONS.md).
+- **Follow-up recorded: signing-PIN re-enrolment.** A PIN can be replaced
+  without the current one, so a session alone resets a Part 11 second factor.
+  Proposed fix: change needs the current PIN, plus an audited admin reset. Not
+  in force; ranked in the closure plan. See [`NXD-136`](DECISIONS.md).
+  _Decided 2026-10-07 and in force since `NXD-138`, the last item below._
+- **MVP1 step 5: a recorded release becomes a registry version.** The import
+  registers the build as a DRAFT ArtifactVersion on the importer's behalf,
+  from the `nexora.yaml` at the tagged commit, with image, digest, commit and
+  release on the version. The registry refuses to certify or publish a
+  runnable version without a build (R8). An *Artifact Registry* card on the
+  Tests tab walks submit → review → certify → publish. Live: `…@1.0.0`
+  reached RELEASED with digest `sha256:6e696d5f…`. Found: no SoD in the
+  registry; COMMUNITY publishers can publish despite the claim; publish does
+  not ask the release gate. See [`NXD-137`](DECISIONS.md).
+- **A signing PIN can no longer be replaced by the session it protects.**
+  The user decided `NXD-136` (options 1 + 2). A first PIN is free. A change
+  needs the current PIN: missing → 400, wrong → 403 and counted, locked →
+  403. A platform administrator (`platform.user.manage`) can clear a seat's
+  PIN, failed attempts and lockout, with a reason, audited append-only as
+  `PIN_RESET`, never set one, and never their own. The URS Composer's PIN
+  dialog asks for the current PIN only when one exists and tells a locked
+  seat why it cannot change it. *Reset signing PIN* is on Admin → Users &
+  Roles. No demo-seat exemption; `demo-pm`'s PIN is left as it is. OIDC
+  step-up remains the target. See [`NXD-138`](DECISIONS.md).
+- **MVP1 step 6, slice 1 of NXD-129: the installations store.** A new
+  `installations-backend` holds runtime targets and installations: a
+  RELEASED, built registry version at its recorded digest, on one target,
+  with configuration validated against `spec.config`; a secret is a
+  reference only. Desired and observed state are separate columns; only the
+  provider API (slice 2) will write the observed ones. Installing, upgrading
+  and removing a GMP-relevant product needs a justification and the PIN
+  (the user's QA decision); otherwise a confirmation. Every act is recorded
+  in one transaction, in append-only trails. A GMP install opens an IQ
+  record `PENDING_EVIDENCE`; evidence intake and QA sign-off come later.
+  The GMP classification comes from the Composer product that governs the
+  artifact. No provider, no UI, no live run yet. See [`NXD-139`](DECISIONS.md).
+- **Two rules confirmed by the user.** An artifact that no Composer
+  product governs is now installed as GMP-relevant: justification, PIN and
+  an IQ record. Only a governing product answering NONE waives the
+  signature. An administrator still cannot reset their own signing PIN; that
+  rule from NXD-138 is now decided, not proposed. See [`NXD-140`](DECISIONS.md).
+- **MVP1 step 7: Install in the Marketplace.** A released, built Data
+  Product is now listed in the Marketplace even without a `spec.marketplace`
+  block. Before this, the product released in NXD-137 was not listed at all.
+  Its page has an *Install* card: where it is installed, and for owners and
+  admins a dialog with version, target, name, the `spec.config` fields
+  (secrets by reference) and the signature or confirmation the store will
+  ask for, read in advance from a new classification route. Verified live up
+  to the dialog. No install was run live, because there is no runtime target
+  and no demo seat may register one. See [`NXD-141`](DECISIONS.md).
+- **MVP1, before step 8: storage in the manifest.** `nexora.yaml` can now
+  declare the state a product keeps (`spec.runtime.storage`: name, absolute
+  `mountPath`, optional size). The provider supplies each area per
+  installation, and it survives restart and upgrade. What backs it and
+  whether it is kept on removal belong to the target and the installation.
+  The OEE template declares `/app/data`, where its SQLite database lives.
+  A test keeps the manifest, Dockerfile and Compose file in step. See
+  [`NXD-142`](DECISIONS.md).
+- **MVP1 step 8, part 1: the provider API.** A runtime provider reads its
+  target's desired state, each installation with its released runtime
+  (ports, health, storage), and reports what runs. Only the service
+  principal named as the target's `providerSubject` may call either route,
+  and no person may. A report updates the observed state without moving the
+  installation's revision. The audit trail records changes, not polls. A
+  report showing the desired revision RUNNING at the desired digest and
+  configuration records the IQ evidence (`EVIDENCE_RECORDED`). Found and
+  fixed: every act wrote the observed columns back as it had read them,
+  which would have erased a report that arrived in between. Not yet: QA
+  sign-off, drift handling, rebinding a provider. See
+  [`NXD-143`](DECISIONS.md).
+- **MVP1 step 8, part 2: the Docker Compose provider.** A new package,
+  `runtime-provider-compose`, runs beside Docker, never in the backend. It
+  pulls its target's desired state and runs each installation as a Compose
+  project: the image by digest, a named volume per storage area, ephemeral
+  host ports, and secrets resolved from files into a 0600 env file. It
+  reports what Docker shows: labels, RepoDigests and health. Removal keeps
+  the volumes. Proven against real Docker with a public image: install,
+  leave alone, upgrade with the data surviving, removal keeping the volume.
+  It has not yet run against Nexora; that is the live run. See
+  [`NXD-144`](DECISIONS.md).
+- **The live run paused at the image pull; the supplier track comes first.**
+  The released OEE product was installed (a signed GMP act) on a registered
+  target. The provider read it and reported FAILED: the GHCR package is
+  private, and no available token has `read:packages`. The user decided to
+  close the supplier-side gaps first, then automatic CI evidence, then
+  AI-assisted build (`PHASE_CLOSURE_PLAN.md` §9.7, S1–S6). The run resumes
+  after S3.
+- **S1: a URS baseline is required only of a GMP product.** A product
+  answering NONE may now be released without a URS binding. Making that
+  conditional exposed three different "is GMP" rules in the composer. All
+  of them now use the shared one, under which only an explicit NONE is
+  exempt. As a result, a product that has not answered is now also asked
+  for its criticality. See [`NXD-145`](DECISIONS.md).
+- **S2: registry governance.** Every lifecycle transition is now recorded,
+  append-only, with its actor; before this the registry recorded none. The
+  submitter may not review or certify, and the reviewer may not certify.
+  A COMMUNITY publisher may not certify or publish. A version of a
+  governed artifact is published only once its product version is
+  RELEASED in Nexora; if the Composer cannot answer, nothing is published.
+  Live finding: the OEE version published on 2026-10-07 would not pass
+  this rule. It stays published, because the rule is not retroactive. See
+  [`NXD-146`](DECISIONS.md).
+- **S3: a consumer can pull private images.** A runtime target names, for
+  each registry, a reference to a secret in its own store, never the
+  credential itself. The provider logs in with it in an isolated Docker
+  configuration per target, then pulls. Proven against a password-protected
+  local registry: refused without the credential, running with it. The
+  live run now needs only a token with `read:packages`, placed as a secret
+  file. See [`NXD-147`](DECISIONS.md).
+- **MVP1 live: install → run → IQ evidence.** The released OEE product,
+  installed in Nexora as a signed GMP act, was pulled from private GHCR
+  through the target's credential reference. It ran healthy on the local
+  Docker host and was reported RUNNING. The provider's facts (digest,
+  configuration hash, target) matched the desire, so the IQ record moved to
+  `EVIDENCE_RECORDED` without anyone typing a value. QA sign-off is the
+  open step. See [`NXD-148`](DECISIONS.md).
+- **S4: every data-product Golden Path is releasable and runnable.** The
+  four that lacked it now ship `nexora.yaml` (runtime, health, storage,
+  interfaces, config), OEE's release workflow and script verbatim, the test
+  evidence hooks, and a HEALTHCHECK. Three were rendered, tested, built and
+  run healthy. The fourth, AAS, had a quality gate that failed every run
+  (its GitHub expressions were rendered empty); that is fixed. It still
+  needs a repair slice: a dependency version that does not exist, three of
+  its own tests broken, a lint that never fails. See
+  [`NXD-149`](DECISIONS.md).
+- **S4a: the AAS Golden Path works.** It now installs (one pinned
+  dependency did not exist, five were unused), lints for real, and accepts
+  its own contract. Before, its model was snake_case and its contract
+  camelCase, so the ingestion API refused every event; it now answers 201.
+  Its manifest no longer claims storage: assets are kept in memory, and the
+  persistence settings were read by no code. Making AAS a full official data
+  product is S4a-2. See [`NXD-150`](DECISIONS.md).
+- **S5: CI evidence arrives on its own.** Every 15 minutes Nexora imports
+  each product's newest default-branch CI evidence into its newest DRAFT
+  version with requirements bound, as `system:ci-evidence-sync`. Versions
+  under approval are not touched. Found and fixed: the manual import took
+  the newest run of any branch, so a pull request's unmerged tests could
+  count as the version's verification. The pull request preview is S5b. See
+  [`NXD-151`](DECISIONS.md).
+- **S5b: a pull request shows what it would verify.** On the Tests tab,
+  *Check open pull requests* takes each open PR's own CI run. It runs the
+  results through the release gate's own coverage rule, as hypothetical
+  newest runs, and says whether coverage would pass, what becomes verified
+  and what a failing test would revoke. Nothing is recorded. Live: the
+  route chain answers; the product repository has no open PR yet. See
+  [`NXD-152`](DECISIONS.md).
+- **S6: requirements go to Claude Code in the product repository.** On the
+  Development tab, *Assign to AI build* sends a draft version's bound
+  requirements to the product repository as a `repository_dispatch`. No new
+  App permission is needed. The repository's `nexora-ai-build.yml`, now in
+  all five data-product Golden Paths, runs Claude Code with the
+  organisation's `ANTHROPIC_API_KEY`. It refuses any change to controlled
+  files, workflows, the evidence hooks or the CI test list, then opens a
+  pull request and starts CI on it. Nexora records the model, the
+  requirement hashes, the payload hash, who and when, then the run, the
+  pull request and the merge commit, each step as an audit event. It
+  writes no code and merges nothing. Off by default
+  (`NEXORA_AI_BUILD_ENABLED`). Not yet run end to end, because no
+  repository has the workflow yet. See [`NXD-153`](DECISIONS.md).
+- **S6 follow-up: Claude Code or OpenAI Codex, per assignment.** The AI build
+  card lets a person choose the agent when both are offered. The workflow
+  runs `anthropics/claude-code-action` with `ANTHROPIC_API_KEY`, or
+  `openai/codex-action` (sandboxed to the checkout) with `OPENAI_API_KEY`,
+  and checks the model id per agent. Nexora records the agent with the
+  model. Codex is off by default (`NEXORA_AI_BUILD_CODEX_ENABLED`). Neither
+  agent has run end to end yet. See [`NXD-154`](DECISIONS.md).
+- **S6 live run: Claude Code, end to end.** In `oee-ai-build-test-1`, Claude
+  Code added three requirement-tagged tests (URS-EPM-003, -001) in 2 min 20 s.
+  CI was green, the preview showed 5/5 still verified, a person merged the
+  pull request, and Nexora recorded `MERGED` with the merge commit. Follow-ups
+  are named in [`NXD-155`](DECISIONS.md): no second open assignment per
+  version, checks visible on the pull request, CI test lists, two UI labels.
+  Codex has not run yet.
+- **S6 follow-ups.** A version takes one open AI build at a time: Nexora
+  asks GitHub, then refuses a second while a run or pull request is open.
+  The pull request links its CI run, which GitHub does not list as a check.
+  The OEE Golden Path's CI now runs three requirement-tagged test files it
+  had skipped, and a rendering test keeps every Golden Path from skipping
+  one again. See [`NXD-156`](DECISIONS.md).
+- **Architecture, editable while DRAFT.** A component can be removed while
+  its version is DRAFT, with its links, each audited; one that provides a
+  data contract stays. The Architecture tab shows each component's type,
+  interface, ref, author and the requirements it implements, and lists links
+  by name. See [`NXD-157`](DECISIONS.md).
+- **The whole lifecycle, once, in the UI.** `oee-ai-build-test-1` 1.0 went
+  from the approved EPM URS through AI-built tests, architecture, governance,
+  a signed product baseline, a signed version approval, an evidence review,
+  a two-signature validation decision and a signed release, to RELEASED.
+  Segregation of duties held. Fourteen findings are named, nine of them a UI
+  batch to do next. See [`NXD-159`](DECISIONS.md).
+- **UI batch, first part.** A one-word signature justification is refused,
+  in the dialog and on the server; the Golden Paths pass the owner their
+  form asks for; a validation expert can start the evidence review they
+  sign on; a released version's readiness card stops listing its own
+  status as a blocker. NXD-159 items 1–3 and 6–8 remain. See
+  [`NXD-160`](DECISIONS.md).
+- **UI batch, second part.** An unset owner reads as unset, with the example
+  beside the field instead of in it. Release readiness re-checks after a
+  governance save and says which blocker cleared and which appeared. A
+  review of unchanged evidence answers with the review on record instead of
+  making another run, and the coverage table names the newest run. See
+  [`NXD-161`](DECISIONS.md).
+- **UI batch, third part.** Traceability is one tile per requirement, with
+  its components and, in words, whether it is implemented, verified and
+  validated; a requirement without a component says so. The product's
+  Validation tab opens the selected version's decision, and the Validation
+  Expert landing page puts data-product validation first and Nexora's own
+  validation under its own heading. See [`NXD-162`](DECISIONS.md).
+- **UI batch, last part.** The validation context page leads with the
+  decision as its steps (review → validation expert → QA), each saying who
+  did it or who is next, with its action in place; the signature record and
+  the URS reference, requirements, coverage and runs are folded below.
+  NXD-159 items 1–9 are done; checked live on `oee-ai-build-test-1`.
+  Decisions 10–12 remain. See [`NXD-163`](DECISIONS.md).
+- **Release is a second person's act.** Whoever approved a version may not
+  release it (the user's decision on NXD-159 item 11). A release records its
+  own `releasedBy`/`releasedAt` instead of overwriting the approval's, and
+  released versions were backfilled from their approval signatures. The
+  validation decision names its own product version only; the others on
+  the same URS baseline are listed apart, folded. See
+  [`NXD-164`](DECISIONS.md).
+- **Release excludes the author and the baseline approver too.** A version
+  is released by someone who neither wrote it, nor approved it, nor approved
+  its product baseline; the Overview tab names them on a release candidate.
+  See [`NXD-165`](DECISIONS.md).
+- **Roles say what they grant.** A product owner is no longer a stand-in
+  for the product manager on URS step 2; the Guest set to `developer` is a
+  developer, with `AUTH_GUEST_ROLE=owner` as its own tier; `demo-release`
+  is a seat for the three-person release; and a Roles & permissions page
+  under Help & Docs shows who may do what, checked against the code. See
+  [`NXD-166`](DECISIONS.md).
+- **The light theme has a light canvas.** The canvas stayed the navy of
+  `index.html` on the light theme, so the page header and every page without
+  a surface of its own drew dark text on navy, 15 of 19 sidebar routes. It
+  now takes the light theme's background. See [`NXD-167`](DECISIONS.md).
+- **The AI-built product runs.** `oee-ai-build-test-1` 1.0.0 went from tag
+  to GHCR image, through import and a four-person registry lifecycle, to a
+  signed GMP installation the Compose provider runs, with IQ evidence
+  recorded. Open: an audited publisher promotion, an honest Marketplace
+  partner notice, QA sign-off to QUALIFIED, the service-token overlay in
+  `ona-dev.sh serve`. See [`NXD-168`](DECISIONS.md).
+- **The light theme is light at the top too.** Page banners and the page
+  heroes of fifteen pages follow the theme chosen under Settings →
+  Appearance: light on the light theme, as before on the dark. See
+  [`NXD-169`](DECISIONS.md).
+- **PR #14's failing checks are fixed.** The release test releases as a third person, as
+  `NXD-164` requires. Three regexes CodeQL flagged as polynomial are linear
+  now. See [`NXD-170`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

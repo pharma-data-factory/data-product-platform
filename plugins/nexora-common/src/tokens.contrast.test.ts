@@ -9,7 +9,12 @@
 import {
   NEXORA_CARD,
   NEXORA_GREY,
+  NEXORA_HERO,
+  NEXORA_HERO_VAR,
+  NEXORA_NAVY,
+  NEXORA_NAVY_DARK,
   NEXORA_TONE,
+  nexoraHeroDeclarations,
   NexoraToneName,
 } from './tokens';
 
@@ -80,5 +85,30 @@ describe('semantic tone contrast', () => {
     // Sanity check on the maths itself, against hand-verified values.
     expect(contrastRatio('#FFFFFF', '#000000')).toBeCloseTo(21, 1);
     expect(contrastRatio('#00C2D9', '#FFFFFF')).toBeCloseTo(2.16, 1);
+  });
+});
+
+// NXD-169. The hero's type on its own surface, on both themes. The dark hero
+// is a gradient; both of its ends are checked.
+describe('page hero contrast', () => {
+  const surfaces = {
+    light: [NEXORA_HERO.light.bg],
+    dark: [NEXORA_NAVY_DARK, NEXORA_NAVY],
+  } as const;
+  it.each(['light', 'dark'] as const)('%s: title, copy and eyebrow are readable', variant => {
+    const set = NEXORA_HERO[variant];
+    for (const surface of surfaces[variant]) {
+      for (const text of [set.fg, set.muted, set.accent]) {
+        expect(contrastRatio(text, surface)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      }
+    }
+  });
+
+  it('falls back to the dark hero without a theme, and sets every part per theme', () => {
+    expect(NEXORA_HERO_VAR.fg).toBe(`var(--nx-hero-fg, ${NEXORA_HERO.dark.fg})`);
+    expect(nexoraHeroDeclarations('light')).toContain(`--nx-hero-bg: ${NEXORA_HERO.light.bg};`);
+    for (const part of Object.keys(NEXORA_HERO.dark)) {
+      expect(nexoraHeroDeclarations('dark')).toContain(`--nx-hero-${part}:`);
+    }
   });
 });

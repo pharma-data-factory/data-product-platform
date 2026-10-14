@@ -2,17 +2,17 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { Grid, Typography, makeStyles } from '@material-ui/core';
+import { Grid, Theme, Typography, makeStyles } from '@material-ui/core';
 import { validationExpertApiRef, ValidationContext, ValidationOverview } from '../api';
 import { NX, PageShell, StatusChip } from './shared';
 import {
   NEXORA_GREY,
 } from '@internal/plugin-nexora-common';
 
-const useStyles = makeStyles({
+const useStyles = makeStyles((theme: Theme) => ({
   tile: {
-    background: NX.card,
-    border: `1px solid ${NX.border}`,
+    background: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: 16,
     boxSizing: 'border-box',
     display: 'flex',
@@ -44,7 +44,7 @@ const useStyles = makeStyles({
     },
   },
   title: {
-    color: NX.muted,
+    color: theme.palette.text.secondary,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 12,
     fontWeight: 600,
@@ -53,7 +53,7 @@ const useStyles = makeStyles({
     textTransform: 'uppercase',
   },
   value: {
-    color: NX.text,
+    color: theme.palette.text.primary,
     fontFamily: "'Space Grotesk', Inter, Segoe UI, sans-serif",
     fontSize: 22,
     fontWeight: 600,
@@ -63,7 +63,7 @@ const useStyles = makeStyles({
     wordBreak: 'break-word',
   },
   detail: {
-    color: NX.muted,
+    color: theme.palette.text.secondary,
     fontSize: 13,
     lineHeight: 1.45,
     marginTop: 'auto',
@@ -75,7 +75,7 @@ const useStyles = makeStyles({
     gap: 10,
     marginTop: 2,
   },
-});
+}));
 
 function MetricCard({
   title,
@@ -173,103 +173,141 @@ export function OverviewPage() {
   return (
     <PageShell
       title="Validation Expert"
-      subtitle={`${data.product} ${data.candidate} — controlled validation workbench (v0.1). Not an AI agent. Not validated.`}
+      subtitle="Controlled validation workbench (v0.1): data products per URS baseline, and Nexora itself. Not an AI agent."
     >
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Candidate"
-            value={data.candidate}
-            detail={`Tag ${data.candidateTag} · Baseline ${data.baselineId}`}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Validation Status"
-            detail={`Part 11: ${data.part11Status} · GxP: ${data.gxpStatus}`}
-          >
-            <div className={classes.statusBody}>
-              <StatusChip value={data.validationStatus} />
-            </div>
-          </MetricCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Contexts"
-            value={String(contexts.length)}
-            detail="Anchored to approved URS baselines"
-            to="/validation-expert/contexts"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Requirements"
-            value={`${data.requirementsBaselined.active} / ${data.requirementsBaselined.total}`}
-            detail="Baselined active requirements"
-            to="/validation-expert/requirements"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Traceability"
-            value={`${data.traceabilityPlanned.covered} / ${data.traceabilityPlanned.total}`}
-            detail="Planned formal coverage"
-            to="/validation-expert/traceability"
-          />
-        </Grid>
-        {contexts.length > 0 && (
+      {/*
+        NXD-162. Two things are validated here, and the page showed only one
+        of them on top: Nexora's own IQ/OQ/UAT status read as the product's
+        (NXD-159 item 7). Data products come first, the platform below,
+        each under a heading that says what it is about.
+      */}
+      <section aria-label="Data-product validation">
+        <Typography variant="h6" gutterBottom>
+          Data-product validation
+        </Typography>
+        <Typography variant="body2" color="textSecondary" paragraph>
+          A data product version is validated on the context of its URS
+          baseline: the product evidence review, then the validation expert,
+          then QA. Open a context to see one product version's decision.
+        </Typography>
+        <Grid container spacing={2}>
           <Grid item xs={12} sm={6} md={4} lg={3}>
             <MetricCard
-              title="Latest source URS"
-              value={
-                contexts[0].source.requirementSetTitle ||
-                contexts[0].source.requirementSetId
-              }
-              detail={`Baseline ${contexts[0].source.baselineVersion} · ${contexts[0].source.approvalStatus}`}
-              to={`/urs-composer/${encodeURIComponent(
-                contexts[0].source.requirementSetId,
-              )}`}
+              title="Contexts"
+              value={String(contexts.length)}
+              detail="Anchored to approved URS baselines"
+              to="/validation-expert/contexts"
             />
           </Grid>
-        )}
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard title="IQ" value={data.iqStatus} to="/validation-expert/iq" />
+          {contexts.length > 0 && (
+            <Grid item xs={12} sm={6} md={4} lg={3}>
+              <MetricCard
+                title="Latest source URS"
+                value={
+                  contexts[0].source.requirementSetTitle ||
+                  contexts[0].source.requirementSetId
+                }
+                detail={`Baseline ${contexts[0].source.baselineVersion} · ${contexts[0].source.approvalStatus}`}
+                to={`/urs-composer/${encodeURIComponent(
+                  contexts[0].source.requirementSetId,
+                )}`}
+              />
+            </Grid>
+          )}
         </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="OQ"
-            value={data.oqStatus}
-            detail="Protocol ready; formal OQ not product validation"
-            to="/validation-expert/oq"
-          />
+      </section>
+
+      <section
+        aria-label="Nexora platform validation"
+        style={{ marginTop: 32 }}
+      >
+        <Typography variant="h6" gutterBottom>
+          Nexora platform validation
+        </Typography>
+        <Typography variant="body2" color="textSecondary" paragraph>
+          {`The validation of Nexora itself, ${data.product} ${data.candidate}, from the platform's validation package. It says nothing about any data product.`}
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Candidate"
+              value={data.candidate}
+              detail={`Tag ${data.candidateTag} · Baseline ${data.baselineId}`}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Validation Status"
+              detail={`Part 11: ${data.part11Status} · GxP: ${data.gxpStatus}`}
+            >
+              <div className={classes.statusBody}>
+                <StatusChip value={data.validationStatus} />
+              </div>
+            </MetricCard>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Requirements"
+              value={`${data.requirementsBaselined.active} / ${data.requirementsBaselined.total}`}
+              detail="Baselined active requirements"
+              to="/validation-expert/requirements"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Traceability"
+              value={`${data.traceabilityPlanned.covered} / ${data.traceabilityPlanned.total}`}
+              detail="Planned formal coverage"
+              to="/validation-expert/traceability"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="IQ"
+              value={data.iqStatus}
+              to="/validation-expert/iq"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="OQ"
+              value={data.oqStatus}
+              detail="Protocol ready; formal OQ not product validation"
+              to="/validation-expert/oq"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="UAT"
+              value={data.uatStatus}
+              to="/validation-expert/uat"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Open Risks"
+              value={String(data.openRisks)}
+              detail="Acceptance not available in v0.1"
+              to="/validation-expert/risks"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Open Findings"
+              value={String(data.openFindings)}
+              to="/validation-expert/findings"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={3}>
+            <MetricCard
+              title="Evidence"
+              value={String(data.evidenceCount)}
+              detail="Indexed artifact references"
+              to="/validation-expert/evidence"
+            />
+          </Grid>
         </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard title="UAT" value={data.uatStatus} to="/validation-expert/uat" />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Open Risks"
-            value={String(data.openRisks)}
-            detail="Acceptance not available in v0.1"
-            to="/validation-expert/risks"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Open Findings"
-            value={String(data.openFindings)}
-            to="/validation-expert/findings"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <MetricCard
-            title="Evidence"
-            value={String(data.evidenceCount)}
-            detail="Indexed artifact references"
-            to="/validation-expert/evidence"
-          />
-        </Grid>
-      </Grid>
+      </section>
       <Typography variant="body2" color="textSecondary" style={{ marginTop: 24 }}>
         {data.notes.join(' ')}
       </Typography>

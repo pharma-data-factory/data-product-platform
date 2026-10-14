@@ -1,10 +1,24 @@
 import { Link } from '@backstage/core-components';
 import { NEXORA_CARD, NEXORA_GREY, NEXORA_TONE } from '@internal/plugin-nexora-common';
 import { Box, Chip, Typography } from '@material-ui/core';
-import type { ProductRequirementCoverage } from '@internal/platform-common';
+import type {
+  ProductRequirementCoverage,
+  ProductVersion,
+} from '@internal/platform-common';
 
 interface ValidationTabProps {
   coverage: ProductRequirementCoverage | null;
+  /** NXD-162. The link opens this version's decision, not the newest one. */
+  selectedVersion?: ProductVersion;
+}
+
+/** The context page, opened on one product version's decision. */
+export function validationContextHref(
+  contextId: string,
+  versionId?: string,
+): string {
+  const base = `/validation-expert/contexts/${encodeURIComponent(contextId)}`;
+  return versionId ? `${base}?version=${encodeURIComponent(versionId)}` : base;
 }
 
 /**
@@ -28,7 +42,7 @@ function validationChip(validated: boolean | undefined) {
     : { label: 'NOT VALIDATED', background: NEXORA_TONE.danger.bg };
 }
 
-export function ValidationTab({ coverage }: ValidationTabProps) {
+export function ValidationTab({ coverage, selectedVersion }: ValidationTabProps) {
   if (!coverage || coverage.byRequirement.length === 0) {
     return (
       <Typography variant="body2" color="textSecondary">
@@ -63,9 +77,16 @@ export function ValidationTab({ coverage }: ValidationTabProps) {
               } validated`
             : 'Validation status unknown'}
         </Typography>
-        {contextResolved && (
-          <Link to={`/validation-expert/contexts/${coverage.validationContextId}`}>
-            Open validation context
+        {coverage.validationContextId && (
+          <Link
+            to={validationContextHref(
+              coverage.validationContextId,
+              selectedVersion?.id,
+            )}
+          >
+            {selectedVersion
+              ? `Open the validation decision for version ${selectedVersion.version}`
+              : 'Open validation context'}
           </Link>
         )}
       </Box>

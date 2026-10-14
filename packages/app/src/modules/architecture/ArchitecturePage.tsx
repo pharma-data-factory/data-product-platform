@@ -20,7 +20,7 @@ import {
 } from './storyDiagrams';
 import { LandingFooter, LandingNav, LandingStyles } from '../identity/PublicLanding';
 import { LandingI18nProvider } from '../identity/landingI18n';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../identity/landingTokens';
+import { C, PHARMA_NAVY, PHARMA_TEAL } from '../identity/landingTokens';
 import {
   AUTHENTICATED_ARCHITECTURE_LINKS,
   LAYER_COMPARISON,
@@ -30,6 +30,7 @@ import {
   NEXORA_CARD,
   NEXORA_GREY,
   NEXORA_NAVY_DARK,
+  NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 
 const archTh = {
@@ -222,15 +223,16 @@ function OverviewHero() {
       aria-label="Architecture overview"
       style={{
         padding: '128px 24px 72px',
-        background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
-        color: NEXORA_GREY[50],
+        background: NEXORA_HERO_VAR.bg,
+        boxShadow: NEXORA_HERO_VAR.frame,
+        color: NEXORA_HERO_VAR.fg,
       }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <p
           className="pdf-mono"
           style={{
-            color: PHARMA_TEAL_LIGHT,
+            color: NEXORA_HERO_VAR.accent,
             fontSize: 12,
             letterSpacing: '0.16em',
             textTransform: 'uppercase',
@@ -253,7 +255,7 @@ function OverviewHero() {
           <br />
           Innovate Through Data Products.
         </h1>
-        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: NEXORA_GREY[300], maxWidth: 720 }}>
+        <p style={{ marginTop: 20, fontSize: 18, lineHeight: 1.65, color: NEXORA_HERO_VAR.muted, maxWidth: 720 }}>
           <strong>Nexora</strong> is the Internal Developer Platform for industrial Data
           Products, built on Backstage. It does not replace ERP, MES, LIMS, EWM, Historians
           or other IT/OT systems of record — it is the control plane

@@ -119,13 +119,13 @@ describe('GET /approval-roles/me (NXD-104)', () => {
     decision = AuthorizeResult.ALLOW;
   });
 
-  it('answers the author with AUTHOR and the data-product-owners alias, not BUSINESS_REVIEWER', async () => {
+  it('answers the author with AUTHOR only: data-product-owners is no approval role (NXD-166)', async () => {
     actor = 'user:default/demo-author';
     const res = await get(port, '/approval-roles/me');
 
     expect(res.status).toBe(200);
     expect(res.body.userEntityRef).toBe('user:default/demo-author');
-    expect(res.body.roles.sort()).toEqual(['AUTHOR', 'PRODUCT_MANAGER']);
+    expect(res.body.roles.sort()).toEqual(['AUTHOR']);
   });
 
   it('answers the reviewer with BUSINESS_REVIEWER', async () => {

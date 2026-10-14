@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { parse as parseYaml } from 'yaml';
 /**
  * Artifact Registry rules.
  *
@@ -15,6 +18,9 @@ import { ArtifactRegistryRepository } from './repository';
 import { ArtifactRegistryService } from './service';
 
 const actor = 'user:default/publisher';
+// NXD-146: segregation of duties needs three people for a full walk.
+const reviewer = 'user:default/reviewer';
+const certifier = 'user:default/certifier';
 
 function manifest(overrides: {
   namespace?: string;
@@ -79,6 +85,7 @@ async function expectRefusedByDatabase(
 describe('ArtifactRegistryService', () => {
   let db: Knex;
   let service: ArtifactRegistryService;
+  let releaseStatus: jest.Mock;
 
   beforeEach(async () => {
     db = knex({
@@ -90,7 +97,13 @@ describe('ArtifactRegistryService', () => {
     const repository = await ArtifactRegistryRepository.create({
       getClient: () => db,
     });
-    service = new ArtifactRegistryService(repository);
+    releaseStatus = jest.fn(async (c: { namespace: string; name: string; version: string }) => ({
+      ...c,
+      governed: false,
+      released: false,
+      productVersions: [],
+    }));
+    service = new ArtifactRegistryService(repository, undefined, releaseStatus);
     await service.createPublisher(
       { namespace: 'acme', displayName: 'Acme Industrial' },
       actor,
@@ -173,6 +186,61 @@ describe('ArtifactRegistryService', () => {
           actor,
         ),
       ).rejects.toThrow(/Invalid artifact manifest/);
+    });
+
+    describe('runtime, interfaces and config (NXD-130)', () => {
+      const runnable = {
+        runtime: {
+          kind: 'container',
+          image: { repository: 'ghcr.io/acme/sap-odata' },
+          ports: [{ name: 'http', containerPort: 8080 }],
+          health: { type: 'http', port: 'http', path: '/health' },
+        },
+        interfaces: [
+          { name: 'orders', type: 'api', direction: 'provides', port: 'http' },
+        ],
+        config: [{ key: 'SAP_URL', type: 'url', required: true }],
+      };
+
+      it('registers a manifest that says how it runs, and keeps it', async () => {
+        const { version } = await service.registerArtifactVersion(
+          manifest({ spec: runnable }),
+          actor,
+        );
+        expect(version.manifest?.spec?.runtime).toEqual(runnable.runtime);
+      });
+
+      it('refuses malformed sections at the gate, naming every field', async () => {
+        const broken = {
+          ...runnable,
+          runtime: {
+            ...runnable.runtime,
+            image: { repository: 'ghcr.io/acme/sap-odata:1.0' },
+            restart: 'always',
+          },
+          interfaces: [
+            { name: 'orders', type: 'api', direction: 'provides', port: 'grpc' },
+          ],
+          config: [{ key: 'SAP_TOKEN', type: 'secret', required: true, defaultValue: 'x' }],
+        };
+        const refusal = service.registerArtifactVersion(
+          manifest({ spec: broken }),
+          actor,
+        );
+        await expect(refusal).rejects.toThrow(/spec\.runtime\.image\.repository/);
+        await expect(refusal).rejects.toThrow(/spec\.runtime\.restart is not a known field/);
+        await expect(refusal).rejects.toThrow(/spec\.interfaces\[0\]\.port "grpc" names no port/);
+        await expect(refusal).rejects.toThrow(/spec\.config\[0\]\.defaultValue is not allowed here/);
+      });
+
+      it('refuses runtime on a kind that does not run', async () => {
+        await expect(
+          service.registerArtifactVersion(
+            manifest({ kind: 'POLICY_PACK', spec: { runtime: runnable.runtime } }),
+            actor,
+          ),
+        ).rejects.toThrow(/spec\.runtime is only meaningful for kinds DATA_PRODUCT, CONNECTOR/);
+      });
     });
 
     it('refuses a namespace no publisher owns', async () => {
@@ -375,7 +443,7 @@ describe('ArtifactRegistryService', () => {
         {
           namespace: 'locked',
           displayName: 'Locked Namespace',
-          memberGroups: [member],
+          memberGroups: [member, reviewer, certifier],
         },
         actor,
       );
@@ -392,21 +460,23 @@ describe('ArtifactRegistryService', () => {
       // Walked in order by the member, with the outsider refused at each step.
       // A single-step test would pass against the old code for certify and
       // publish and tell us nothing about the other three.
-      const steps: Array<[string, (actor: string) => Promise<unknown>]> = [
-        ['submit', a => service.submitArtifactVersion(version.id, a)],
-        ['review', a => service.reviewArtifactVersion(version.id, a)],
-        ['certify', a => service.certifyArtifactVersion(version.id, a)],
-        ['publish', a => service.publishArtifactVersion(version.id, a)],
-        ['deprecate', a => service.deprecateArtifactVersion(version.id, a)],
+      // Each step by the member whose turn it is (NXD-146 keeps the
+      // submitter from reviewing or certifying).
+      const steps: Array<[string, string, (actor: string) => Promise<unknown>]> = [
+        ['submit', member, a => service.submitArtifactVersion(version.id, a)],
+        ['review', reviewer, a => service.reviewArtifactVersion(version.id, a)],
+        ['certify', certifier, a => service.certifyArtifactVersion(version.id, a)],
+        ['publish', member, a => service.publishArtifactVersion(version.id, a)],
+        ['deprecate', member, a => service.deprecateArtifactVersion(version.id, a)],
       ];
 
-      for (const [name, act] of steps) {
+      for (const [name, insider, act] of steps) {
         await expect(act(outsider)).rejects.toThrow(
           new RegExp(`is not a member of publisher "locked".*cannot ${name}`),
         );
         // The member may proceed, which is what makes the refusal a
         // restriction rather than a block.
-        await expect(act(member)).resolves.toBeDefined();
+        await expect(act(insider)).resolves.toBeDefined();
       }
 
       const stored = await service.getArtifactVersionById(version.id);
@@ -423,6 +493,279 @@ describe('ArtifactRegistryService', () => {
       await expect(
         service.submitArtifactVersion(version.id, outsider),
       ).resolves.toBeDefined();
+    });
+  });
+
+  /**
+   * NXD-137, on the data of the NXD-135 live run: the nexora.yaml read from
+   * oee-e2e-test-20261005-d at tag v1.0.0, and the image GHCR answered for it.
+   */
+  describe('release builds (NXD-137)', () => {
+    const LIVE_MANIFEST = readFileSync(
+      join(__dirname, '__fixtures__', 'oee-e2e-test-20261005-d.nexora.yaml'),
+      'utf8',
+    );
+    const LIVE_BUILD = {
+      imageRepository: 'ghcr.io/pharma-data-factory/oee-e2e-test-20261005-d',
+      imageDigest:
+        'sha256:6e696d5fc0b22f352bd5980c906f34d3af9c72e9a34ba70adc99453f752fd810',
+      commitSha: '431fd71d0fcb5c9c56773f58fb451435db8f1c87',
+      releaseUrl:
+        'https://github.com/pharma-data-factory/oee-e2e-test-20261005-d/releases/tag/v1.0.0',
+    };
+
+    beforeEach(async () => {
+      await service.createPublisher(
+        { namespace: 'pharma-data-factory', displayName: 'Pharma Data Factory' },
+        actor,
+      );
+    });
+
+    const register = () =>
+      service.registerReleaseBuild({ manifest: LIVE_MANIFEST, release: LIVE_BUILD }, actor);
+
+    it('registers the live build as a DRAFT version carrying its digest', async () => {
+      const result = await register();
+      expect(result.alreadyRegistered).toBe(false);
+      expect(result.artifact).toMatchObject({
+        namespace: 'pharma-data-factory',
+        name: 'oee-e2e-test-20261005-d',
+        kind: 'DATA_PRODUCT',
+      });
+      expect(result.version).toMatchObject({ version: '1.0.0', lifecycle: 'DRAFT' });
+      const stored = await service.resolveRef(
+        'pharma-data-factory/oee-e2e-test-20261005-d@1.0.0',
+      );
+      expect(stored?.releaseBuild).toEqual(LIVE_BUILD);
+      expect(stored?.manifest?.spec?.runtime?.image.repository).toBe(
+        LIVE_BUILD.imageRepository,
+      );
+    });
+
+    it('answers the same build again as already registered', async () => {
+      const first = await register();
+      const second = await register();
+      expect(second.alreadyRegistered).toBe(true);
+      expect(second.version.id).toBe(first.version.id);
+    });
+
+    it('refuses a different image under the same version', async () => {
+      await register();
+      await expect(
+        service.registerReleaseBuild(
+          {
+            manifest: LIVE_MANIFEST,
+            release: { ...LIVE_BUILD, imageDigest: `sha256:${'0'.repeat(64)}` },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(/already registered as sha256:6e696d5f.*bump metadata\.version/);
+    });
+
+    it('refuses a build of an image the manifest does not run', async () => {
+      await expect(
+        service.registerReleaseBuild(
+          {
+            manifest: LIVE_MANIFEST,
+            release: { ...LIVE_BUILD, imageRepository: 'ghcr.io/someone/else' },
+          },
+          actor,
+        ),
+      ).rejects.toThrow(/Invalid release build: .*is not the manifest's spec\.runtime\.image\.repository/);
+    });
+
+    it('refuses text that is not a manifest', async () => {
+      await expect(
+        service.registerReleaseBuild({ manifest: '', release: LIVE_BUILD }, actor),
+      ).rejects.toThrow(/nexora\.yaml text/);
+      await expect(
+        service.registerReleaseBuild({ manifest: 'a: [', release: LIVE_BUILD }, actor),
+      ).rejects.toThrow(/not YAML/);
+    });
+
+    async function walkToTesting(id: string) {
+      await service.submitArtifactVersion(id, actor);
+      await service.reviewArtifactVersion(id, reviewer);
+    }
+
+    it('walks submit, review, certify and publish for a version with a build', async () => {
+      const { version } = await register();
+      await walkToTesting(version.id);
+      await service.certifyArtifactVersion(version.id, certifier);
+      const released = await service.publishArtifactVersion(version.id, actor);
+      expect(released.lifecycle).toBe('RELEASED');
+    });
+
+    it('refuses to certify a runnable version registered without a build (R8)', async () => {
+      const { version } = await service.registerArtifactVersion(parseYaml(LIVE_MANIFEST), actor);
+      await walkToTesting(version.id);
+      await expect(service.certifyArtifactVersion(version.id, certifier)).rejects.toThrow(
+        /declares spec\.runtime but has no recorded release build/,
+      );
+    });
+
+    it('refuses to publish one certified before the rule existed (R8)', async () => {
+      const { version } = await service.registerArtifactVersion(parseYaml(LIVE_MANIFEST), actor);
+      await walkToTesting(version.id);
+      // Certified under the old rules: written behind the service.
+      await db('artifact_versions')
+        .where({ id: version.id })
+        .update({ lifecycle: 'CERTIFIED', certification_status: 'CERTIFIED' });
+      await expect(service.publishArtifactVersion(version.id, actor)).rejects.toThrow(
+        /cannot be published: it declares spec\.runtime/,
+      );
+    });
+
+    it('leaves versions that do not run alone', async () => {
+      const { version } = await service.registerArtifactVersion(manifest(), actor);
+      await walkToTesting(version.id);
+      await service.certifyArtifactVersion(version.id, certifier);
+      expect((await service.publishArtifactVersion(version.id, actor)).lifecycle).toBe(
+        'RELEASED',
+      );
+    });
+  });
+
+  // NXD-146. The NXD-137 findings: one person walked a version from submit
+  // to publish, a COMMUNITY publisher published, and publish never asked
+  // whether the governing product was released.
+  describe('registry governance (NXD-146)', () => {
+    async function submitted() {
+      const { version } = await service.registerArtifactVersion(manifest(), actor);
+      await service.submitArtifactVersion(version.id, actor);
+      return version.id;
+    }
+
+    async function certified() {
+      const id = await submitted();
+      await service.reviewArtifactVersion(id, reviewer);
+      await service.certifyArtifactVersion(id, certifier);
+      return id;
+    }
+
+    it('keeps the submitter from reviewing or certifying, and the reviewer from certifying', async () => {
+      const id = await submitted();
+      await expect(service.reviewArtifactVersion(id, actor)).rejects.toThrow(
+        /submitted artifact version .* cannot review it: segregation of duties/,
+      );
+      await service.reviewArtifactVersion(id, reviewer);
+      await expect(service.certifyArtifactVersion(id, actor)).rejects.toThrow(
+        /submitted .* cannot certify it/,
+      );
+      await expect(service.certifyArtifactVersion(id, reviewer)).rejects.toThrow(
+        /reviewed artifact version .* cannot certify it/,
+      );
+      await service.certifyArtifactVersion(id, certifier);
+      // The submitter may publish what someone else certified.
+      expect((await service.publishArtifactVersion(id, actor)).lifecycle).toBe('RELEASED');
+    });
+
+    it('treats the creator as the submitter of a version submitted before transitions were recorded', async () => {
+      const { version } = await service.registerArtifactVersion(manifest(), actor);
+      await db('artifact_versions').where({ id: version.id }).update({ lifecycle: 'TESTING' });
+      await expect(service.reviewArtifactVersion(version.id, actor)).rejects.toThrow(
+        /segregation of duties/,
+      );
+    });
+
+    it('records every transition with its actor, in order', async () => {
+      const id = await certified();
+      await service.publishArtifactVersion(id, actor);
+      await service.deprecateArtifactVersion(id, actor);
+      const transitions = await service.listTransitions(id);
+      expect(transitions.map(t => [t.act, t.actor, t.fromLifecycle, t.toLifecycle])).toEqual([
+        ['SUBMIT', actor, 'DRAFT', 'TESTING'],
+        ['REVIEW', reviewer, 'TESTING', 'TESTING'],
+        ['CERTIFY', certifier, 'TESTING', 'CERTIFIED'],
+        ['PUBLISH', actor, 'CERTIFIED', 'RELEASED'],
+        ['DEPRECATE', actor, 'RELEASED', 'DEPRECATED'],
+      ]);
+      expect(transitions[1]).toEqual(
+        expect.objectContaining({ toCertificationStatus: 'TESTED' }),
+      );
+      expect(transitions[3].details).toEqual({
+        releaseGate: { governed: false, releasedProductVersions: [] },
+      });
+      expect(transitions[0].occurredAt).toBeInstanceOf(Date);
+    });
+
+    it('records nothing for a refused transition', async () => {
+      const id = await submitted();
+      await expect(service.reviewArtifactVersion(id, actor)).rejects.toThrow();
+      expect((await service.listTransitions(id)).map(t => t.act)).toEqual(['SUBMIT']);
+    });
+
+    it('refuses certify and publish to a COMMUNITY publisher until it is promoted', async () => {
+      await service.createPublisher(
+        { namespace: 'hobby', displayName: 'Hobby', trustLevel: 'COMMUNITY' },
+        actor,
+      );
+      const { version } = await service.registerArtifactVersion(
+        manifest({ namespace: 'hobby', name: 'thing' }),
+        actor,
+      );
+      await service.submitArtifactVersion(version.id, actor);
+      await service.reviewArtifactVersion(version.id, reviewer);
+      await expect(service.certifyArtifactVersion(version.id, certifier)).rejects.toThrow(
+        /publisher "hobby" is COMMUNITY.*promote it to PARTNER/,
+      );
+    });
+
+    it('publishes a governed version only once its product version is RELEASED', async () => {
+      const id = await certified();
+      releaseStatus.mockResolvedValueOnce({
+        namespace: 'acme',
+        name: 'x',
+        version: '1.0.0',
+        governed: true,
+        released: false,
+        productVersions: [
+          { id: 'pv-1', productId: 'p-1', productName: 'OEE', version: '1.0', status: 'APPROVED' },
+        ],
+      });
+      await expect(service.publishArtifactVersion(id, actor)).rejects.toThrow(
+        /a Composer product governs it.*OEE 1\.0 is APPROVED.*Release the product version first/,
+      );
+      releaseStatus.mockResolvedValueOnce({
+        namespace: 'acme',
+        name: 'x',
+        version: '1.0.0',
+        governed: true,
+        released: false,
+        productVersions: [],
+      });
+      await expect(service.publishArtifactVersion(id, actor)).rejects.toThrow(
+        /no product version is registered as this version/,
+      );
+      releaseStatus.mockResolvedValueOnce({
+        namespace: 'acme',
+        name: 'x',
+        version: '1.0.0',
+        governed: true,
+        released: true,
+        productVersions: [
+          { id: 'pv-1', productId: 'p-1', productName: 'OEE', version: '1.0', status: 'RELEASED' },
+        ],
+      });
+      expect((await service.publishArtifactVersion(id, actor)).lifecycle).toBe('RELEASED');
+      const publish = (await service.listTransitions(id)).find(t => t.act === 'PUBLISH');
+      expect(publish?.details).toEqual({
+        releaseGate: { governed: true, releasedProductVersions: ['pv-1'] },
+      });
+    });
+
+    it('publishes nothing when the release gate cannot be asked', async () => {
+      const id = await certified();
+      releaseStatus.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+      await expect(service.publishArtifactVersion(id, actor)).rejects.toThrow(
+        /release gate did not answer \(connect ECONNREFUSED\)/,
+      );
+      const repository = await ArtifactRegistryRepository.create({ getClient: () => db });
+      const ungated = new ArtifactRegistryService(repository);
+      await expect(ungated.publishArtifactVersion(id, actor)).rejects.toThrow(
+        /release gate cannot be asked on this instance/,
+      );
+      expect((await service.getArtifactVersionById(id))?.lifecycle).toBe('CERTIFIED');
     });
   });
 });

@@ -6,6 +6,7 @@ import {
   useApi,
 } from '@backstage/core-plugin-api';
 import type {
+  ArtifactVersion,
   DataContract,
   Product,
   ProductBaseline,
@@ -17,6 +18,25 @@ import type {
   TraceabilityLink,
 } from '@internal/platform-common';
 
+/** NXD-128. A justification, and the PIN for a GMP-relevant product. */
+export interface SignatureInput {
+  justification?: string;
+  pin?: string;
+}
+
+/** NXD-128. One approval or release, as recorded. */
+export interface ProductSignatureRecord {
+  id: string;
+  entityType: 'PRODUCT_VERSION' | 'PRODUCT_BASELINE';
+  entityId: string;
+  meaning: 'VERSION_APPROVED' | 'VERSION_RELEASED' | 'BASELINE_APPROVED';
+  justification: string;
+  signedBy: string;
+  signedAt: string;
+  gmpRelevant: boolean;
+  reauthMethod?: string;
+}
+
 /** What an import of CI test evidence recorded (NXD-123). */
 export interface TestEvidenceImport {
   run: { id: number; url: string; commit: string; conclusion: string | null };
@@ -26,6 +46,106 @@ export interface TestEvidenceImport {
   byRequirement: Record<string, { passed: number; failed: number }>;
   uncoveredRequirements: string[];
   unknownRequirements: string[];
+}
+
+/** NXD-154: the coding agents the AI build can run. */
+export type AiBuildAgent = 'claude-code' | 'codex';
+
+/** NXD-154: what the AI build offers, and its default. */
+export interface AiBuildAgents {
+  enabled: boolean;
+  defaultAgent?: AiBuildAgent;
+  agents: Array<{ agent: AiBuildAgent; model: string }>;
+}
+
+/** NXD-153: an AI build assignment and what GitHub shows of it. */
+export interface AiBuildAssignment {
+  id: string;
+  productVersionId: string;
+  versionLabel: string;
+  status:
+    | 'DISPATCHED'
+    | 'NOT_DISPATCHED'
+    | 'RUNNING'
+    | 'RUN_FAILED'
+    | 'NO_CHANGE'
+    | 'PR_OPEN'
+    | 'MERGED'
+    | 'CLOSED';
+  requirements: Array<{ requirementRef: string; ursRequirementVersionId: string; contentHash: string }>;
+  note?: string;
+  /** NXD-154. Absent from a backend before the choice existed. */
+  agent?: AiBuildAgent;
+  modelId: string;
+  payloadHash: string;
+  branch: string;
+  issuedBy: string;
+  issuedAt: string;
+  dispatchReason?: string;
+  runUrl?: string;
+  runConclusion?: string;
+  pullRequestNumber?: number;
+  pullRequestUrl?: string;
+  pullRequestHeadSha?: string;
+  mergedAt?: string;
+  mergeCommitSha?: string;
+  closedAt?: string;
+  updatedAt: string;
+}
+
+/** NXD-152: what each open pull request would verify; nothing recorded. */
+export interface PullRequestEvidencePreview {
+  available: boolean;
+  reason?: string;
+  current: { verified: number; total: number };
+  pullRequests: Array<{
+    number: number;
+    title: string;
+    url: string;
+    headRef: string;
+    draft: boolean;
+    author?: string;
+    stale?: boolean;
+    run?: { id: number; url: string; commit: string; conclusion: string | null };
+    available: boolean;
+    reason?: string;
+    coverage?: {
+      verified: number;
+      total: number;
+      wouldPassCoverage: boolean;
+      newlyVerified: string[];
+      newlyUnverified: string[];
+      byRequirement: Record<string, { passed: number; failed: number }>;
+      unknownRequirements: string[];
+    };
+  }>;
+}
+
+/** NXD-133: what importing a version's release provenance recorded. */
+export interface ReleaseProvenanceImport {
+  baseline: ProductBaseline;
+  release: { tag: string; url: string; commit: string };
+  image: { repository?: string; digest: string; reference?: string };
+  /** The same build was already on the baseline; nothing was written. */
+  alreadyRecorded: boolean;
+  /** NXD-137: what became of the build in the Artifact Registry. */
+  registration: {
+    status: 'registered' | 'already-registered' | 'failed' | 'skipped';
+    artifactRef?: string;
+    artifactVersionId?: string;
+    lifecycle?: string;
+    reason?: string;
+  };
+}
+
+/** NXD-137: the four producer acts of the registry lifecycle. */
+export type RegistryAction = 'submit' | 'review' | 'certify' | 'publish';
+
+export interface RegistryClient {
+  /** One version by its coordinate, `namespace/name@version`. */
+  getVersion(artifactRef: string): Promise<ArtifactVersion>;
+  /** Applies one lifecycle act, with the caller's own permission. */
+  transition(versionId: string, action: RegistryAction): Promise<ArtifactVersion>;
 }
 
 export interface ProductTraceability {
@@ -67,15 +187,22 @@ export interface ComposerClient {
     input: Record<string, unknown>,
   ): Promise<ProductComponent>;
   listProductComponents(versionId: string): Promise<ProductComponent[]>;
+  /** NXD-157: remove a DRAFT version's component, with its links. */
+  deleteProductComponent(componentId: string): Promise<void>;
   createTraceabilityLink(
     input: Record<string, unknown>,
   ): Promise<TraceabilityLink>;
+  deleteTraceabilityLink(linkId: string): Promise<void>;
   getProductTraceability(productId: string): Promise<ProductTraceability>;
   checkReleaseGate(versionId: string): Promise<ReleaseGateResult>;
   transitionVersionStatus(
     versionId: string,
     targetStatus: string,
+    /** NXD-128: approval and release of a GMP product are signed. */
+    signature?: SignatureInput,
   ): Promise<ProductVersion>;
+  /** NXD-128: approvals and releases of a product, as attested. */
+  listProductSignatures(productId: string): Promise<ProductSignatureRecord[]>;
   /**
    * Baselines of one version, newest first (`created_at` descending).
    *
@@ -96,7 +223,10 @@ export interface ComposerClient {
     versionId: string,
     input?: Record<string, unknown>,
   ): Promise<ProductBaseline>;
-  approveProductBaseline(baselineId: string): Promise<ProductBaseline>;
+  approveProductBaseline(
+    baselineId: string,
+    signature?: SignatureInput,
+  ): Promise<ProductBaseline>;
   bindUrsBaseline(
     versionId: string,
     ursBaselineId: string,
@@ -107,6 +237,21 @@ export interface ComposerClient {
   ): Promise<ProductRequirementCoverage>;
   /** NXD-123: record the newest CI run's test evidence for this version. */
   importTestEvidence(versionId: string): Promise<TestEvidenceImport>;
+  /** NXD-133: record the version's release build on its approved baseline. */
+  importReleaseProvenance(versionId: string): Promise<ReleaseProvenanceImport>;
+  /** NXD-152: what open pull requests would verify. Read-only. */
+  getPullRequestEvidence(versionId: string): Promise<PullRequestEvidencePreview>;
+  /** NXD-153: the version's AI build assignments, newest first. */
+  listAiBuilds(versionId: string): Promise<AiBuildAssignment[]>;
+  /** NXD-153: assign bound requirements (all by default) to the AI build. */
+  issueAiBuild(
+    versionId: string,
+    input: { requirementRefs?: string[]; note?: string; agent?: AiBuildAgent },
+  ): Promise<AiBuildAssignment>;
+  /** NXD-154: the coding agents the AI build offers. */
+  getAiBuildAgents(): Promise<AiBuildAgents>;
+  /** NXD-153: record what GitHub shows of an assignment. */
+  refreshAiBuild(assignmentId: string): Promise<AiBuildAssignment>;
   /** Contracts this component provides. Keyed by component, listed by coordinate. */
   listComponentContracts(componentId: string): Promise<DataContract[]>;
   /** Contracts this version consumes — the other side of the exchange. */
@@ -121,13 +266,13 @@ export interface ComposerClient {
   getContract(contractId: string): Promise<DataContract>;
 }
 
-export function useComposerClient(): ComposerClient {
+function usePluginRequest(pluginId: string) {
   const fetchApi = useApi(fetchApiRef);
   const discovery = useApi(discoveryApiRef);
   const identityApi = useApi(identityApiRef);
 
   const request = async (method: string, path: string, body?: unknown) => {
-    const baseUrl = await discovery.getBaseUrl('composer');
+    const baseUrl = await discovery.getBaseUrl(pluginId);
     const { token } = await identityApi.getCredentials();
     const response = await fetchApi.fetch(`${baseUrl}${path}`, {
       method,
@@ -150,6 +295,11 @@ export function useComposerClient(): ComposerClient {
     }
     return response.json();
   };
+  return request;
+}
+
+export function useComposerClient(): ComposerClient {
+  const request = usePluginRequest('composer');
 
   return {
     createProduct: input => request('POST', '/products', input),
@@ -164,20 +314,28 @@ export function useComposerClient(): ComposerClient {
       request('POST', `/versions/${versionId}/components`, input),
     listProductComponents: versionId =>
       request('GET', `/versions/${versionId}/components`),
+    deleteProductComponent: componentId =>
+      request('DELETE', `/components/${componentId}`),
+    deleteTraceabilityLink: linkId =>
+      request('DELETE', `/traceability-links/${linkId}`),
     createTraceabilityLink: input =>
       request('POST', '/traceability-links', input),
     getProductTraceability: productId =>
       request('GET', `/products/${productId}/traceability`),
     checkReleaseGate: versionId =>
       request('GET', `/versions/${versionId}/release-gate`),
-    transitionVersionStatus: (versionId, targetStatus) =>
-      request('POST', `/versions/${versionId}/transition`, { targetStatus }),
+    transitionVersionStatus: (versionId, targetStatus, signature) =>
+      request('POST', `/versions/${versionId}/transition`, { targetStatus, signature }),
+    listProductSignatures: productId =>
+      request('GET', `/products/${productId}/signatures`).then(
+        (body: { items: ProductSignatureRecord[] }) => body.items,
+      ),
     listProductBaselines: versionId =>
       request('GET', `/versions/${versionId}/baselines`),
     createProductBaseline: (versionId, input) =>
       request('POST', `/versions/${versionId}/baselines`, input ?? {}),
-    approveProductBaseline: baselineId =>
-      request('POST', `/baselines/${baselineId}/approve`, {}),
+    approveProductBaseline: (baselineId, signature) =>
+      request('POST', `/baselines/${baselineId}/approve`, { signature }),
     bindUrsBaseline: (versionId, ursBaselineId) =>
       request('POST', `/versions/${versionId}/urs-baseline`, { ursBaselineId }),
     listProductRequirements: versionId =>
@@ -188,10 +346,44 @@ export function useComposerClient(): ComposerClient {
       request('GET', `/versions/${versionId}/requirement-coverage`),
     importTestEvidence: versionId =>
       request('POST', `/versions/${versionId}/test-evidence/import`, {}),
+    importReleaseProvenance: versionId =>
+      request('POST', `/versions/${versionId}/release-provenance/import`, {}),
+    getPullRequestEvidence: versionId =>
+      request('GET', `/versions/${versionId}/pull-request-evidence`),
+    listAiBuilds: versionId =>
+      request('GET', `/versions/${versionId}/ai-builds`).then(
+        (body: { items: AiBuildAssignment[] }) => body.items,
+      ),
+    issueAiBuild: (versionId, input) =>
+      request('POST', `/versions/${versionId}/ai-builds`, input),
+    getAiBuildAgents: () => request('GET', '/ai-build/agents'),
+    refreshAiBuild: assignmentId =>
+      request('POST', `/ai-builds/${assignmentId}/refresh`, {}),
     listComponentContracts: componentId =>
       request('GET', `/components/${componentId}/contracts`),
     listVersionDependencies: versionId =>
       request('GET', `/versions/${versionId}/dependencies`),
     getContract: contractId => request('GET', `/contracts/${contractId}`),
+  };
+}
+
+/**
+ * NXD-137. The Artifact Registry, as the product page needs it: one version
+ * by coordinate and the producer acts. Every act carries the signed-in
+ * person's own token, so the registry's permissions decide, not this page.
+ */
+export function useRegistryClient(): RegistryClient {
+  const request = usePluginRequest('artifact-registry');
+  return {
+    getVersion: artifactRef => {
+      const match = /^([^/@]+)\/([^/@]+)@(.+)$/.exec(artifactRef);
+      if (!match) {
+        return Promise.reject(new Error(`Not an artifact coordinate: ${artifactRef}`));
+      }
+      const [, namespace, name, version] = match.map(encodeURIComponent);
+      return request('GET', `/artifacts/${namespace}/${name}/versions/${version}`);
+    },
+    transition: (versionId, action) =>
+      request('POST', `/artifact-versions/${encodeURIComponent(versionId)}/${action}`, {}),
   };
 }

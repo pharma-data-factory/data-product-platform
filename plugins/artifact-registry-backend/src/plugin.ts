@@ -17,6 +17,7 @@ import {
 } from './manifestLoader';
 import { ArtifactRegistryRepository } from './repository';
 import { ArtifactRegistryService } from './service';
+import { createHttpReleaseStatusReader } from './releaseStatusClient';
 import {
   loadEditionCatalogue,
   resolveInstallation,
@@ -37,6 +38,8 @@ export const artifactRegistryPlugin = createBackendPlugin({
         permissions: coreServices.permissions,
         database: coreServices.database,
         config: coreServices.rootConfig,
+        discovery: coreServices.discovery,
+        auth: coreServices.auth,
       },
       async init({
         httpRouter,
@@ -45,6 +48,8 @@ export const artifactRegistryPlugin = createBackendPlugin({
         permissions,
         database,
         config,
+        discovery,
+        auth,
       }) {
         const repository = await ArtifactRegistryRepository.create(database);
 
@@ -80,6 +85,7 @@ export const artifactRegistryPlugin = createBackendPlugin({
         const service = new ArtifactRegistryService(
           repository,
           installation.edition,
+          createHttpReleaseStatusReader({ discovery, auth }),
         );
 
         httpRouter.use(

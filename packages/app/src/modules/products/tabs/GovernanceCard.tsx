@@ -13,6 +13,7 @@ import {
   GXP_RELEVANCE_LEVELS,
   PRODUCT_CRITICALITIES,
   PRODUCT_LIFECYCLES,
+  isGmpRelevant,
 } from '@internal/platform-common';
 import type { Product } from '@internal/platform-common';
 
@@ -97,8 +98,9 @@ export function GovernanceCard({ product, onSave }: GovernanceCardProps) {
     unmetLabel(product.owner) && 'owner',
     unmetLabel(product.dataClassification) && 'data classification',
     unmetLabel(product.gxpRelevance) && 'GxP relevance',
-    Boolean(product.gxpRelevance) &&
-      product.gxpRelevance !== 'NONE' &&
+    // The gate's rule (NXD-145): an unanswered product counts as GxP, so
+    // criticality is outstanding until the answer is NONE.
+    isGmpRelevant(product.gxpRelevance) &&
       unmetLabel(product.criticality) &&
       'criticality',
   ].filter((v): v is string => typeof v === 'string');
@@ -168,8 +170,14 @@ export function GovernanceCard({ product, onSave }: GovernanceCardProps) {
         <TextField
           id="product-owner"
           label="Owner"
-          placeholder="group:default/platform-team"
-          helperText="Who is answerable for this product"
+          // No placeholder: a grey example in the field read as a stored
+          // value, and the walk (NXD-159 item 2) believed the owner was set.
+          helperText={
+            owner.trim()
+              ? 'Who is answerable for this product'
+              : 'Not set. Who is answerable, e.g. group:default/platform-team'
+          }
+          error={!owner.trim()}
           value={owner}
           onChange={e => setOwner(e.target.value)}
           style={{ minWidth: 280 }}

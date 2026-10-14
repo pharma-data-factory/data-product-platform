@@ -10,18 +10,16 @@ Domain: manufacturing, asset management, semantic integration
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from app.config import Settings
-from app.health import health_router, HealthStatus
+from app.health import health_router
 from app.observability import observability_router
 from app.aas_service import AASService
-from app.models import AssetEvent, AssetResponse, HealthResponse
+from app.models import AssetEvent, AssetResponse
 
 logger = logging.getLogger(__name__)
 settings = Settings()

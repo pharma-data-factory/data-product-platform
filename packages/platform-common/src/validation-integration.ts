@@ -102,6 +102,11 @@ export interface ValidationDecision {
   decidedBy: string;
   decidedAt: string;
   /**
+   * NXD-127. The product version this decision is for. Absent on decisions
+   * recorded per baseline before NXD-127; those cover no version.
+   */
+  productVersionId?: string;
+  /**
    * True when the decision carries the validation expert's and QA's approval
    * (NXD-119). The release gate requires it for a GMP-relevant product, so a
    * product cannot ride on a baseline approved under the one-signature rule.
@@ -132,6 +137,8 @@ export type ValidationSignatureVerdict = 'APPROVED' | 'REJECTED';
 export interface ValidationDecisionSignature {
   id: string;
   contextId: string;
+  /** NXD-127. The product version signed for; absent before NXD-127. */
+  productVersionId?: string;
   role: ValidationSignatureRole;
   verdict: ValidationSignatureVerdict;
   justification: string;
@@ -143,6 +150,8 @@ export interface ValidationDecisionSignature {
 
 /** Body of `POST /contexts/:id/signatures`. */
 export interface ValidationSignatureRequest {
+  /** NXD-127. The product version whose validation is signed. */
+  productVersionId: string;
   role: ValidationSignatureRole;
   verdict: ValidationSignatureVerdict;
   justification: string;
@@ -199,6 +208,10 @@ export interface ValidationGmpProduct {
 /** `GET /contexts/:id/decision-state`: everything the decision panel shows. */
 export interface ValidationDecisionState {
   contextId: string;
+  /** NXD-127. The product version the state is for; absent when none chosen. */
+  productVersionId?: string;
+  /** NXD-127. Decisions of other versions on this context, and legacy ones. */
+  otherDecisions?: ValidationDecision[];
   /** True when any dependent product is INDIRECT or DIRECT, or unknown. */
   gmpRelevant: boolean;
   products: ValidationGmpProduct[];

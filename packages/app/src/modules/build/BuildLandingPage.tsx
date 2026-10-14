@@ -12,23 +12,24 @@ import {
   resolvePlatformRole,
   documentationHref,
 } from '@internal/platform-common';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_DARK, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import { C, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../theme/tokens';
 import {
   NEXORA_CARD,
-  NEXORA_GREY,
   NEXORA_SECURITY_FG,
+  NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 
 const useStyles = makeStyles({
   hero: {
-    background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
+    background: NEXORA_HERO_VAR.bg,
+    boxShadow: NEXORA_HERO_VAR.frame,
     borderRadius: 16,
-    color: NEXORA_GREY[50],
+    color: NEXORA_HERO_VAR.fg,
     marginBottom: 28,
     padding: '32px 28px',
   },
   eyebrow: {
-    color: PHARMA_TEAL_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     fontWeight: 600,
@@ -45,7 +46,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   copy: {
-    color: NEXORA_GREY[300],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 16,
     lineHeight: 1.7,
     marginBottom: 0,
@@ -78,9 +79,9 @@ const useStyles = makeStyles({
   },
   ghostAction: {
     background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.28)',
+    border: `1px solid ${NEXORA_HERO_VAR.ghostBorder}`,
     borderRadius: 10,
-    color: `${NEXORA_GREY[50]} !important`,
+    color: `${NEXORA_HERO_VAR.fg} !important`,
     display: 'inline-flex',
     alignItems: 'center',
     fontSize: 13,
@@ -90,7 +91,7 @@ const useStyles = makeStyles({
     textTransform: 'none',
     '&:hover': {
       background: 'rgba(0,194,217,0.14)',
-      borderColor: PHARMA_TEAL_LIGHT,
+      borderColor: NEXORA_HERO_VAR.accent,
       textDecoration: 'none',
     },
   },

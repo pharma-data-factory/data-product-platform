@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { NEXORA_GREY } from '@internal/plugin-nexora-common';
-import { Button, MenuItem, TextField, Typography } from '@material-ui/core';
+import {
+  Box,
+  Button,
+  Chip,
+  MenuItem,
+  TextField,
+  Typography,
+} from '@material-ui/core';
 import {
   COMPONENT_TYPES,
   INTERFACE_TYPES,
@@ -9,7 +16,10 @@ import {
 import type {
   ProductComponent,
   ProductRequirement,
+  ProductRequirementCoverage,
+  ProductRequirementCoverageRow,
   ProductVersion,
+  TraceabilityLink,
 } from '@internal/platform-common';
 import type { ProductTraceability } from '../api';
 
@@ -18,8 +28,74 @@ interface ArchitectureTabProps {
   components: ProductComponent[];
   requirements: ProductRequirement[];
   traceability: ProductTraceability | null;
+  /** NXD-162. Each requirement tile shows its verified and validated state. */
+  coverage?: ProductRequirementCoverage | null;
   onAddComponent: (input: Record<string, unknown>) => Promise<void>;
   onAddLink: (input: Record<string, unknown>) => Promise<void>;
+  /** NXD-157. Offered while the version is DRAFT. */
+  onRemoveComponent?: (componentId: string) => Promise<void>;
+  onRemoveLink?: (linkId: string) => Promise<void>;
+}
+
+/**
+ * NXD-157. Remove, then confirm in place: the question names what goes,
+ * and nothing is removed until the second click.
+ */
+function RemoveControl(props: {
+  label: string;
+  question: string;
+  onConfirm: () => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <Button
+        size="small"
+        aria-label={props.label}
+        onClick={() => setAsking(true)}
+      >
+        Remove
+      </Button>
+    );
+  }
+  return (
+    <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+      <Typography variant="body2" color="textSecondary">
+        {props.question}
+      </Typography>
+      <Button
+        size="small"
+        color="secondary"
+        onClick={() => {
+          setAsking(false);
+          props.onConfirm();
+        }}
+      >
+        Confirm removal
+      </Button>
+      <Button size="small" onClick={() => setAsking(false)}>
+        Cancel
+      </Button>
+    </Box>
+  );
+}
+
+/** What a component card says beneath its name; exported for the test. */
+export function componentDetails(component: ProductComponent): string[] {
+  const parts = [
+    component.interfaceType
+      ? `Interface ${component.interfaceType}`
+      : undefined,
+    component.ref ? `Ref ${component.ref}` : undefined,
+    component.createdBy
+      ? `added by ${component.createdBy}${
+          component.createdAt
+            ? ` on ${new Date(component.createdAt).toISOString().slice(0, 10)}`
+            : ''
+        }`
+      : undefined,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? [parts.join(' · ')] : [];
 }
 
 /**
@@ -44,16 +120,38 @@ function componentHelperText(version?: ProductVersion): string | undefined {
   return undefined;
 }
 
+/**
+ * NXD-162. What a requirement tile says about its stages, in words: a chip's
+ * colour alone would carry the meaning (NXD-095). Without coverage only the
+ * mapping, which the links show, is known.
+ */
+export function requirementStages(
+  linked: boolean,
+  row: ProductRequirementCoverageRow | undefined,
+): string[] {
+  const stages = [linked ? 'Implemented' : 'Not implemented'];
+  if (!row) return stages;
+  stages.push(row.verified ? 'Verified' : 'Not verified');
+  if (row.validated === undefined) stages.push('Validation unknown');
+  else stages.push(row.validated ? 'Validated' : 'Not validated');
+  return stages;
+}
+
 export function ArchitectureTab({
   selectedVersion,
   components,
   requirements,
   traceability,
+  coverage,
   onAddComponent,
   onAddLink,
+  onRemoveComponent,
+  onRemoveLink,
 }: ArchitectureTabProps) {
   const [componentName, setComponentName] = useState('');
-  const [componentType, setComponentType] = useState<string>(COMPONENT_TYPES[0]);
+  const [componentType, setComponentType] = useState<string>(
+    COMPONENT_TYPES[0],
+  );
   const [componentRef, setComponentRef] = useState('');
   const [interfaceType, setInterfaceType] = useState('');
 
@@ -64,6 +162,31 @@ export function ArchitectureTab({
   const componentsLocked =
     !selectedVersion || selectedVersion.status !== 'DRAFT';
   const lockReason = componentHelperText(selectedVersion);
+  const editable = !componentsLocked;
+
+  // NXD-157. Names instead of ids: a link reads as requirement → component.
+  const nameOfComponent = (id: string) =>
+    components.find(c => c.id === id)?.name;
+  const requirementTitle = (ref: string) =>
+    requirements.find(r => r.requirementRef === ref)?.title;
+  const endpoint = (id: string) => {
+    const name = nameOfComponent(id);
+    if (name) return name;
+    const title = requirementTitle(id);
+    return title ? `${id} ${title}` : id;
+  };
+  // The product's links, narrowed to the selected version's components.
+  const ids = new Set(components.map(c => c.id));
+  const versionLinks: TraceabilityLink[] = (traceability?.links ?? []).filter(
+    link => ids.has(link.targetId) || ids.has(link.sourceId),
+  );
+  const implementedBy = (componentId: string) =>
+    versionLinks.filter(
+      link =>
+        link.targetId === componentId &&
+        link.relationshipType === 'IMPLEMENTS' &&
+        !ids.has(link.sourceId),
+    );
 
   const addComponent = async () => {
     if (!componentName.trim() || componentsLocked) {
@@ -188,17 +311,46 @@ export function ArchitectureTab({
                 marginBottom: 8,
               }}
             >
-              <Typography variant="subtitle1">
-                {component.name}{' '}
-                <span style={{ color: NEXORA_GREY[500] }}>
-                  {component.componentType}
-                </span>
-              </Typography>
-              {component.ref ? (
-                <Typography variant="body2" color="textSecondary">
-                  ref: {component.ref}
-                </Typography>
+              <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+                <Typography variant="subtitle1">{component.name}</Typography>
+                <Chip size="small" label={component.componentType} />
+                <span style={{ flex: 1 }} />
+                {editable && onRemoveComponent ? (
+                  <RemoveControl
+                    label={`Remove ${component.name}`}
+                    question={(() => {
+                      const links = versionLinks.filter(
+                        l =>
+                          l.targetId === component.id ||
+                          l.sourceId === component.id,
+                      ).length;
+                      return `Remove ${component.name}${
+                        links > 0
+                          ? ` and its ${links} traceability link${
+                              links === 1 ? '' : 's'
+                            }`
+                          : ''
+                      }? The removal is recorded in the audit trail.`;
+                    })()}
+                    onConfirm={() => onRemoveComponent(component.id)}
+                  />
+                ) : null}
+              </Box>
+              {component.description ? (
+                <Typography variant="body2">{component.description}</Typography>
               ) : null}
+              {componentDetails(component).map(line => (
+                <Typography key={line} variant="body2" color="textSecondary">
+                  {line}
+                </Typography>
+              ))}
+              <Typography variant="body2" color="textSecondary">
+                {implementedBy(component.id).length > 0
+                  ? `Implements ${implementedBy(component.id)
+                      .map(l => endpoint(l.sourceId))
+                      .join(', ')}`
+                  : 'Implements no requirement yet.'}
+              </Typography>
             </section>
           ))
         )}
@@ -284,13 +436,124 @@ export function ArchitectureTab({
             Link requirement
           </Button>
         </div>
-        {traceability && traceability.links.length > 0
-          ? traceability.links.map(link => (
-              <Typography key={link.id} variant="body2" style={{ marginTop: 4 }}>
-                {link.sourceId} —{link.relationshipType}→ {link.targetId}
+        {/*
+          NXD-162. One tile per requirement (NXD-159 item 1): the flat list
+          of links named the requirement on every line and showed nothing
+          for a requirement without one, which is the case that matters.
+        */}
+        <Box
+          aria-label="Requirement traceability"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: 12,
+            marginTop: 16,
+          }}
+        >
+          {requirements.map(requirement => {
+            const links = versionLinks.filter(
+              link => link.sourceId === requirement.requirementRef,
+            );
+            const row = coverage?.byRequirement.find(
+              r => r.requirementRef === requirement.requirementRef,
+            );
+            return (
+              <Box
+                key={requirement.id}
+                component="section"
+                aria-label={requirement.requirementRef}
+                p={1.5}
+                border={1}
+                borderColor="divider"
+                borderRadius={12}
+                bgcolor="background.paper"
+              >
+                <Typography variant="subtitle2">
+                  {requirement.requirementRef}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {requirement.title}
+                </Typography>
+                <Box
+                  display="flex"
+                  flexWrap="wrap"
+                  style={{ gap: 4, margin: '8px 0' }}
+                >
+                  {requirementStages(links.length > 0, row).map(stage => (
+                    <Chip
+                      key={stage}
+                      size="small"
+                      variant="outlined"
+                      label={stage}
+                    />
+                  ))}
+                </Box>
+                {links.length === 0 ? (
+                  <Typography variant="body2" color="textSecondary">
+                    No component linked yet.
+                  </Typography>
+                ) : (
+                  links.map(link => (
+                    <Box
+                      key={link.id}
+                      display="flex"
+                      alignItems="center"
+                      style={{ gap: 8 }}
+                    >
+                      <Typography variant="body2">
+                        {link.relationshipType}→ {endpoint(link.targetId)}
+                      </Typography>
+                      {editable && onRemoveLink ? (
+                        <RemoveControl
+                          label={`Remove link ${endpoint(
+                            link.sourceId,
+                          )} to ${endpoint(link.targetId)}`}
+                          question={`Remove the link ${endpoint(
+                            link.sourceId,
+                          )} —${link.relationshipType}→ ${endpoint(
+                            link.targetId,
+                          )}? The removal is recorded in the audit trail.`}
+                          onConfirm={() => onRemoveLink(link.id)}
+                        />
+                      ) : null}
+                    </Box>
+                  ))
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+        {/* Links that start at no requirement of this version, if any. */}
+        {versionLinks
+          .filter(
+            link => !requirements.some(r => r.requirementRef === link.sourceId),
+          )
+          .map(link => (
+            <Box
+              key={link.id}
+              display="flex"
+              alignItems="center"
+              style={{ gap: 8, marginTop: 4 }}
+            >
+              <Typography variant="body2">
+                {endpoint(link.sourceId)} —{link.relationshipType}→{' '}
+                {endpoint(link.targetId)}
               </Typography>
-            ))
-          : null}
+              {editable && onRemoveLink ? (
+                <RemoveControl
+                  label={`Remove link ${endpoint(link.sourceId)} to ${endpoint(
+                    link.targetId,
+                  )}`}
+                  question={`Remove the link ${endpoint(link.sourceId)} —${
+                    link.relationshipType
+                  }→ ${endpoint(
+                    link.targetId,
+                  )}? The removal is recorded in the audit trail.`}
+                  onConfirm={() => onRemoveLink(link.id)}
+                />
+              ) : null}
+            </Box>
+          ))}
       </section>
     </>
   );

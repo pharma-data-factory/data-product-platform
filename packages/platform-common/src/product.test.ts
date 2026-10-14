@@ -7,6 +7,7 @@ import {
   isProductVersionStatus,
   nextMajorVersionLabel,
   parseVersionLabel,
+  versionLabelsEquivalent,
   PRODUCT_VERSION_STATUSES,
   validateBaselineLabel,
   validateDataContractSchemaType,
@@ -427,5 +428,22 @@ describe('product model', () => {
         expect(latestExecutionPerCase([])).toEqual([]);
       });
     });
+  });
+});
+
+describe('versionLabelsEquivalent (NXD-133)', () => {
+  it.each([
+    ['1.0', '1.0.0', true],
+    ['1.0.0', '1.0', true],
+    ['1.2', '1.2.0', true],
+    ['1.2.3', '1.2.3', true],
+    ['1.0', '1.0.1', false],
+    ['1.0', '1.1', false],
+    ['2.0', '1.0.0', false],
+    ['v1.0.0', '1.0.0', false],
+    ['01.0', '1.0', false],
+    ['x', 'x', false],
+  ])('%p ≡ %p → %p', (a, b, expected) => {
+    expect(versionLabelsEquivalent(a, b)).toBe(expected);
   });
 });

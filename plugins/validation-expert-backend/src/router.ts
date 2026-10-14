@@ -294,7 +294,22 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
    */
   router.post('/contexts/:id/evidence-review', async (req, res) => {
     try {
-      await authorize(permissions, httpAuth, req, validationRunStartPermission);
+      // NXD-160. A product evidence review reads recorded CI evidence and
+      // writes a review run; it decides nothing. Whoever may sign the
+      // decision may also start the review it signs on, so a validation
+      // expert does not need a developer to start it.
+      try {
+        await authorize(permissions, httpAuth, req, validationRunStartPermission);
+      } catch (denied) {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user'],
+          allowLimitedAccess: true,
+        });
+        const info = userInfo ? await userInfo.getUserInfo(credentials) : undefined;
+        if (signatureRoles(info?.ownershipEntityRefs ?? []).length === 0) {
+          throw denied;
+        }
+      }
       const executor = await resolveExecutor(httpAuth, userInfo, req);
       const productVersionId = String(req.body?.productVersionId ?? '').trim();
       if (!productVersionId) {
@@ -305,7 +320,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
         productVersionId,
         executor,
       );
-      res.status(201).json(run);
+      // NXD-161. Unchanged evidence answers with the review on record.
+      res.status(run.reused ? 200 : 201).json(run);
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -508,7 +524,12 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
           // Unknown roles offer nothing; the state itself is still answered.
         }
       }
-      res.json({ ...(await service.getDecisionState(req.params.id)), myRoles });
+      const productVersionId =
+        String(req.query.productVersionId ?? '').trim() || undefined;
+      res.json({
+        ...(await service.getDecisionState(req.params.id, productVersionId)),
+        myRoles,
+      });
     } catch (error) {
       respondError(res, logger, error);
     }
@@ -562,7 +583,12 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
     try {
       // Service-callable: the Composer's release gate reads the verdict.
       await authorizeReadOrService(permissions, httpAuth, req, validationReadPermission);
-      const decision = await service.getValidationDecision(req.params.id);
+      // NXD-127: a decision is for one product version.
+      const productVersionId = String(req.query.productVersionId ?? '').trim();
+      if (!productVersionId) {
+        throw new InputError('productVersionId is required');
+      }
+      const decision = await service.getValidationDecision(req.params.id, productVersionId);
       if (!decision) {
         res.status(404).json({ error: `No decision recorded for context ${req.params.id}` });
         return;

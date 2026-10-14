@@ -9,7 +9,9 @@ import {
 import {
   GithubActionsClient,
   GithubFetchFailure,
+  GithubRelease,
   GithubFetchResult,
+  GithubPullRequestState,
   GithubRepoRef,
   GithubWorkflowRun,
   QualityStage,
@@ -34,6 +36,8 @@ export function createGithubActionsClient(options: {
   async function authorizedFetch(
     repo: GithubRepoRef,
     path: string,
+    accept = 'application/vnd.github+json',
+    init?: { method: 'POST'; body: unknown },
   ): Promise<GithubFetchResult<Response>> {
     const integration = integrations.github.byUrl(repo.url);
     if (!integration) {
@@ -56,7 +60,7 @@ export function createGithubActionsClient(options: {
       '',
     );
     const headers: Record<string, string> = {
-      Accept: 'application/vnd.github+json',
+      Accept: accept,
       'X-GitHub-Api-Version': '2022-11-28',
       ...(creds.headers ?? {}),
     };
@@ -65,7 +69,16 @@ export function createGithubActionsClient(options: {
     }
 
     try {
-      const response = await fetchFn(`${apiBase}${path}`, { headers });
+      const response = await fetchFn(
+        `${apiBase}${path}`,
+        init
+          ? {
+              method: init.method,
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify(init.body),
+            }
+          : { headers },
+      );
       if (response.status === 401 || response.status === 403 || response.status === 404) {
         return { ok: false, reason: statusToReason(response.status) };
       }
@@ -126,12 +139,109 @@ export function createGithubActionsClient(options: {
       return { ok: true, value: firstRun(allRuns.value) };
     },
 
-    async getLatestCompletedRun(repo) {
+    async getLatestCompletedRun(repo, filter) {
+      const query = [
+        'status=completed',
+        ...(filter?.branch ? [`branch=${encodeURIComponent(filter.branch)}`] : []),
+        ...(filter?.event ? [`event=${encodeURIComponent(filter.event)}`] : []),
+        'per_page=1',
+      ].join('&');
       const runs = await authorizedRequest(
         repo,
-        `${repoPath(repo)}/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=completed&per_page=1`,
+        `${repoPath(repo)}/actions/workflows/${CI_WORKFLOW_FILE}/runs?${query}`,
       );
       return runs.ok ? { ok: true, value: firstRun(runs.value) } : runs;
+    },
+
+    async listOpenPullRequests(repo, limit) {
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/pulls?state=open&sort=updated&direction=desc&per_page=${Math.max(1, Math.min(limit, 100))}`,
+      );
+      if (!listing.ok) return listing;
+      const rows = Array.isArray(listing.value) ? (listing.value as Array<Record<string, any>>) : [];
+      return {
+        ok: true,
+        value: rows
+          .filter(pr => typeof pr.number === 'number' && pr.head && typeof pr.head.ref === 'string')
+          .map(pr => ({
+            number: pr.number,
+            title: typeof pr.title === 'string' ? pr.title : '',
+            htmlUrl: typeof pr.html_url === 'string' ? pr.html_url : '',
+            headRef: pr.head.ref,
+            headSha: typeof pr.head.sha === 'string' ? pr.head.sha : '',
+            ...(typeof pr.user?.login === 'string' ? { author: pr.user.login } : {}),
+            draft: pr.draft === true,
+          })),
+      };
+    },
+
+    async dispatchRepositoryEvent(repo, eventType, clientPayload) {
+      const sent = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/dispatches`,
+        'application/vnd.github+json',
+        { method: 'POST', body: { event_type: eventType, client_payload: clientPayload } },
+      );
+      return sent.ok ? { ok: true, value: undefined } : sent;
+    },
+
+    async findPullRequestByHead(repo, branch) {
+      // `head` takes `owner:branch`: only the repository's own branch, never
+      // a fork's of the same name.
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/pulls?state=all&head=${encodeURIComponent(
+          `${repo.owner}:${branch}`,
+        )}&per_page=1`,
+      );
+      if (!listing.ok) return listing;
+      const pr = Array.isArray(listing.value)
+        ? (listing.value[0] as Record<string, any> | undefined)
+        : undefined;
+      if (!pr || typeof pr.number !== 'number' || pr.head?.ref !== branch) {
+        return { ok: true, value: undefined };
+      }
+      const state: GithubPullRequestState = {
+        number: pr.number,
+        title: typeof pr.title === 'string' ? pr.title : '',
+        htmlUrl: typeof pr.html_url === 'string' ? pr.html_url : '',
+        headRef: pr.head.ref,
+        headSha: typeof pr.head.sha === 'string' ? pr.head.sha : '',
+        ...(typeof pr.user?.login === 'string' ? { author: pr.user.login } : {}),
+        draft: pr.draft === true,
+        state: pr.state === 'closed' ? 'closed' : 'open',
+        merged: typeof pr.merged_at === 'string',
+        ...(typeof pr.merged_at === 'string' ? { mergedAt: pr.merged_at } : {}),
+        ...(typeof pr.merged_at === 'string' && typeof pr.merge_commit_sha === 'string'
+          ? { mergeCommitSha: pr.merge_commit_sha }
+          : {}),
+        ...(typeof pr.closed_at === 'string' ? { closedAt: pr.closed_at } : {}),
+      };
+      return { ok: true, value: state };
+    },
+
+    async findWorkflowRun(repo, workflowFile, marker) {
+      const runs = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/actions/workflows/${encodeURIComponent(workflowFile)}/runs?per_page=30`,
+      );
+      if (!runs.ok) {
+        return runs.reason === 'not-found' ? { ok: true, value: undefined } : runs;
+      }
+      return {
+        ok: true,
+        value: parseRuns(runs.value).find(run => run.displayTitle?.includes(marker)),
+      };
+    },
+
+    async getDefaultBranch(repo) {
+      const info = await authorizedRequest(repo, repoPath(repo));
+      if (!info.ok) return info;
+      const branch = (info.value as { default_branch?: unknown }).default_branch;
+      return typeof branch === 'string' && branch
+        ? { ok: true, value: branch }
+        : { ok: false, reason: 'unavailable' };
     },
 
     async downloadArtifact(repo, runId, name) {
@@ -160,6 +270,91 @@ export function createGithubActionsClient(options: {
       }
       try {
         return { ok: true, value: Buffer.from(await zip.value.arrayBuffer()) };
+      } catch {
+        return { ok: false, reason: 'unavailable' };
+      }
+    },
+
+    async listReleases(repo) {
+      const listing = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/releases?per_page=100`,
+      );
+      if (!listing.ok) {
+        return listing;
+      }
+      const releases = Array.isArray(listing.value) ? listing.value : [];
+      return {
+        ok: true,
+        value: releases.map(
+          (release: Record<string, any>): GithubRelease => ({
+            tag: String(release.tag_name ?? ''),
+            url: String(release.html_url ?? ''),
+            publishedAt:
+              typeof release.published_at === 'string'
+                ? release.published_at
+                : undefined,
+            draft: release.draft === true,
+            prerelease: release.prerelease === true,
+            assets: (Array.isArray(release.assets) ? release.assets : []).map(
+              (asset: Record<string, any>) => ({
+                id: Number(asset.id),
+                name: String(asset.name ?? ''),
+                size: Number(asset.size ?? 0),
+              }),
+            ),
+          }),
+        ),
+      };
+    },
+
+    async downloadReleaseAsset(repo, assetId) {
+      // The asset endpoint answers JSON metadata unless asked for the bytes;
+      // with octet-stream it redirects to short-lived storage, which fetch
+      // follows (and, crossing origins, without the Authorization header).
+      const asset = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/releases/assets/${assetId}`,
+        'application/octet-stream',
+      );
+      if (!asset.ok) {
+        return asset;
+      }
+      try {
+        return { ok: true, value: Buffer.from(await asset.value.arrayBuffer()) };
+      } catch {
+        return { ok: false, reason: 'unavailable' };
+      }
+    },
+
+    async getCommitSha(repo, ref) {
+      const commit = await authorizedRequest(
+        repo,
+        `${repoPath(repo)}/commits/${encodeURIComponent(ref)}`,
+      );
+      if (!commit.ok) {
+        return commit;
+      }
+      const sha = (commit.value as { sha?: unknown }).sha;
+      return typeof sha === 'string'
+        ? { ok: true, value: sha }
+        : { ok: false, reason: 'unavailable' };
+    },
+
+    async getFileAtRef(repo, path, ref) {
+      const file = await authorizedFetch(
+        repo,
+        `${repoPath(repo)}/contents/${path
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}?ref=${encodeURIComponent(ref)}`,
+        'application/vnd.github.raw',
+      );
+      if (!file.ok) {
+        return file.reason === 'not-found' ? { ok: true, value: undefined } : file;
+      }
+      try {
+        return { ok: true, value: await file.value.text() };
       } catch {
         return { ok: false, reason: 'unavailable' };
       }
@@ -212,11 +407,20 @@ function statusToReason(status: number): GithubFetchFailure {
 }
 
 function firstRun(body: unknown): GithubWorkflowRun | undefined {
+  return parseRuns(body)[0];
+}
+
+function parseRuns(body: unknown): GithubWorkflowRun[] {
   const runs =
     body && typeof body === 'object' && Array.isArray((body as { workflow_runs?: unknown }).workflow_runs)
       ? (body as { workflow_runs: unknown[] }).workflow_runs
       : [];
-  const raw = runs[0];
+  return runs
+    .map(parseRun)
+    .filter((run): run is GithubWorkflowRun => run !== undefined);
+}
+
+function parseRun(raw: unknown): GithubWorkflowRun | undefined {
   if (!raw || typeof raw !== 'object') {
     return undefined;
   }
@@ -233,6 +437,8 @@ function firstRun(body: unknown): GithubWorkflowRun | undefined {
     headBranch: typeof run.head_branch === 'string' ? run.head_branch : '',
     headSha: typeof run.head_sha === 'string' ? run.head_sha : '',
     htmlUrl: typeof run.html_url === 'string' ? run.html_url : '',
+    ...(typeof run.event === 'string' ? { event: run.event } : {}),
+    ...(typeof run.display_title === 'string' ? { displayTitle: run.display_title } : {}),
     startedAt: [run.run_started_at, run.created_at].find(
       (value): value is string => typeof value === 'string',
     ),

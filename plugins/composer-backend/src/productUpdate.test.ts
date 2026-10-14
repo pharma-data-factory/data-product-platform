@@ -98,7 +98,9 @@ describe('updateProduct', () => {
     const policyCodesBefore = before.blockers
       .filter(b => b.code === 'POLICY_OBLIGATION_UNMET')
       .map(b => b.message);
-    expect(policyCodesBefore).toHaveLength(3);
+    // Owner, classification, GxP answer, and — because an unanswered
+    // product counts as GxP (NXD-145) — criticality.
+    expect(policyCodesBefore).toHaveLength(4);
 
     await service.updateProduct(
       created.id,

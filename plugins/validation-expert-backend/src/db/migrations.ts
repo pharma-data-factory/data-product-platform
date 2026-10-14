@@ -137,7 +137,58 @@ export async function up(knex: Knex): Promise<void> {
     });
   }
 
+  await scopeDecisionsToProductVersions(knex);
   await makeSignaturesAppendOnly(knex);
+}
+
+/**
+ * NXD-127. A validation decision, its signatures and the evidence review it
+ * rests on belong to one product version, not to the URS baseline: several
+ * versions of several products can be bound to one baseline, and approving
+ * one must not cover the others. The context (one per baseline) stays.
+ *
+ * Rows written before keep a null product_version_id: they were decided per
+ * baseline, and assigning them a version afterwards would be rewriting what
+ * the signers attested. They cover no version.
+ */
+async function scopeDecisionsToProductVersions(knex: Knex): Promise<void> {
+  for (const table of [
+    'validation_runs',
+    'validation_decisions',
+    'validation_decision_signatures',
+  ]) {
+    if (!(await knex.schema.hasColumn(table, 'product_version_id'))) {
+      await knex.schema.alterTable(table, t => {
+        t.string('product_version_id', 255).nullable().index();
+      });
+    }
+  }
+  if (knex.client.config.client !== 'pg') {
+    return;
+  }
+  await knex.raw(
+    'ALTER TABLE validation_decisions DROP CONSTRAINT IF EXISTS validation_decisions_context_id_unique',
+  );
+  await knex.raw(
+    'CREATE UNIQUE INDEX IF NOT EXISTS validation_decisions_context_version_unique ' +
+      'ON validation_decisions (context_id, product_version_id)',
+  );
+  await knex.raw(
+    'ALTER TABLE validation_decision_signatures DROP CONSTRAINT IF EXISTS ' +
+      'validation_decision_signatures_context_id_role_unique',
+  );
+  await knex.raw(
+    'ALTER TABLE validation_decision_signatures DROP CONSTRAINT IF EXISTS ' +
+      'validation_decision_signatures_context_id_signed_by_unique',
+  );
+  await knex.raw(
+    'CREATE UNIQUE INDEX IF NOT EXISTS validation_decision_signatures_version_role_unique ' +
+      'ON validation_decision_signatures (context_id, product_version_id, role)',
+  );
+  await knex.raw(
+    'CREATE UNIQUE INDEX IF NOT EXISTS validation_decision_signatures_version_signer_unique ' +
+      'ON validation_decision_signatures (context_id, product_version_id, signed_by)',
+  );
 }
 
 /**

@@ -238,6 +238,17 @@ export async function up(knex: Knex): Promise<void> {
     }
   }
 
+  // NXD-137: the registry version a release build was registered as. Written
+  // once by the release provenance import; nullable, because most versions
+  // are never built and every version before this was not registered.
+  if (await knex.schema.hasTable('product_versions')) {
+    if (!(await knex.schema.hasColumn('product_versions', 'artifact_ref'))) {
+      await knex.schema.alterTable('product_versions', table => {
+        table.string('artifact_ref', 255).nullable();
+      });
+    }
+  }
+
   // Slice 1a: Product Requirements — the snapshot of an approved URS baseline
   // that a Product Version implements.
   //
@@ -633,7 +644,112 @@ export async function up(knex: Knex): Promise<void> {
   await createFunctionalSpecIndexes(knex);
   await addTraceabilityIntegrity(knex);
   await createTraceabilityLookupIndexes(knex);
+  // NXD-128. Approvals and releases, as attested: meaning, justification,
+  // who, when, and whether a PIN was verified. Never changed, never removed.
+  if (!(await knex.schema.hasTable('product_signatures'))) {
+    await knex.schema.createTable('product_signatures', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255).notNullable().index();
+      table.string('entity_type', 32).notNullable();
+      table.string('entity_id', 255).notNullable().index();
+      table.string('meaning', 32).notNullable();
+      table.text('justification').notNullable();
+      table.string('signed_by', 255).notNullable();
+      table.string('signed_at', 64).notNullable();
+      table.boolean('gmp_relevant').notNullable();
+      table.string('reauth_method', 64).nullable();
+    });
+  }
+
+  // NXD-153. An AI build assignment and what became of it, as NXD-064 C-3
+  // keeps a spec draft: the model, what it was given (as a hash), who issued
+  // it and when, then the run and the pull request. `requirements` is the
+  // assigned refs with their content hashes, not their text: the text is in
+  // `product_requirements`, a snapshot that does not change.
+  if (!(await knex.schema.hasTable('ai_build_assignments'))) {
+    await knex.schema.createTable('ai_build_assignments', table => {
+      table.string('id', 255).primary();
+      table.string('product_id', 255).notNullable().index();
+      table.string('product_version_id', 255).notNullable().index();
+      table.string('version_label', 64).notNullable();
+      table.string('status', 32).notNullable();
+      table.text('requirements').notNullable();
+      table.text('note').nullable();
+      table.string('model_id', 255).notNullable();
+      table.string('payload_hash', 128).notNullable();
+      table.string('repository_url', 1024).notNullable();
+      table.string('branch', 255).notNullable();
+      table.string('issued_by', 255).notNullable();
+      table.string('issued_at', 64).notNullable();
+      table.string('dispatch_reason', 255).nullable();
+      table.string('run_url', 1024).nullable();
+      table.string('run_conclusion', 64).nullable();
+      table.integer('pull_request_number').nullable();
+      table.string('pull_request_url', 1024).nullable();
+      table.string('pull_request_head_sha', 64).nullable();
+      table.string('merged_at', 64).nullable();
+      table.string('merge_commit_sha', 64).nullable();
+      table.string('closed_at', 64).nullable();
+      table.string('updated_at', 64).notNullable();
+    });
+  }
+  // NXD-154. Which coding agent the assignment ran. Nullable: rows from
+  // before the choice existed ran Claude Code, and are read as such.
+  if (!(await knex.schema.hasColumn('ai_build_assignments', 'agent'))) {
+    await knex.schema.alterTable('ai_build_assignments', table => {
+      table.string('agent', 32).nullable();
+    });
+  }
+
+  await addVersionReleaseColumns(knex);
+
   await makeAuditTrailAppendOnly(knex);
+}
+
+/**
+ * NXD-164. A release has its own who and when. Until now the release wrote
+ * `approved_by`/`approved_at`, so a released version showed its releaser as
+ * its approver (NXD-159 item 10) and no rule could compare the two.
+ *
+ * Backfilled once, when the columns are added: a released or superseded
+ * version's `approved_*` become its `released_*`, and the approval is read
+ * back from its VERSION_APPROVED signature (NXD-128). A version approved
+ * before signatures existed keeps what it had; the record holds no other.
+ */
+async function addVersionReleaseColumns(knex: Knex): Promise<void> {
+  if (!(await knex.schema.hasTable('product_versions'))) return;
+  if (await knex.schema.hasColumn('product_versions', 'released_by')) return;
+  // A partial schema (older test fixtures) has nothing to backfill from.
+  if (!(await knex.schema.hasColumn('product_versions', 'approved_by'))) return;
+  await knex.schema.alterTable('product_versions', table => {
+    table.string('released_by', 255).nullable();
+    table.timestamp('released_at').nullable();
+  });
+  const released = await knex('product_versions')
+    .whereIn('status', ['RELEASED', 'SUPERSEDED'])
+    .select('id', 'approved_by', 'approved_at');
+  const hasSignatures = await knex.schema.hasTable('product_signatures');
+  for (const row of released) {
+    const update: Record<string, unknown> = {
+      released_by: row.approved_by,
+      released_at: row.approved_at,
+    };
+    const approval = hasSignatures
+      ? await knex('product_signatures')
+          .where({
+            entity_type: 'PRODUCT_VERSION',
+            entity_id: row.id,
+            meaning: 'VERSION_APPROVED',
+          })
+          .orderBy('signed_at', 'desc')
+          .first()
+      : undefined;
+    if (approval) {
+      update.approved_by = approval.signed_by;
+      update.approved_at = new Date(approval.signed_at);
+    }
+    await knex('product_versions').where({ id: row.id }).update(update);
+  }
 }
 
 /**
@@ -702,9 +818,19 @@ async function makeAuditTrailAppendOnly(knex: Knex): Promise<void> {
       'composer_audit_events_no_truncate',
       'BEFORE TRUNCATE ON composer_audit_events FOR EACH STATEMENT',
     ],
+    // NXD-128.
+    [
+      'product_signatures_append_only',
+      'BEFORE UPDATE OR DELETE ON product_signatures FOR EACH ROW',
+    ],
+    [
+      'product_signatures_no_truncate',
+      'BEFORE TRUNCATE ON product_signatures FOR EACH STATEMENT',
+    ],
   ];
   for (const [name, definition] of triggers) {
-    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON composer_audit_events`);
+    const table = definition.split(' ON ')[1].split(' ')[0];
+    await knex.raw(`DROP TRIGGER IF EXISTS ${name} ON ${table}`);
     await knex.raw(
       `CREATE TRIGGER ${name} ${definition} EXECUTE FUNCTION composer_append_only()`,
     );
@@ -1114,6 +1240,7 @@ async function createIdentityIndexes(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('ai_build_assignments');
   await knex.schema.dropTableIfExists('ai_spec_drafts');
   // Before product_versions: functional_specifications carries a foreign key
   // into it.

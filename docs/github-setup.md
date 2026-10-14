@@ -21,7 +21,9 @@ without any of them; Guest sign-in needs no GitHub at all.
 | People sign in with GitHub | OAuth App | 1, 5, 6 |
 | *Create* publishes repositories | GitHub App, installed on the organization | 2, 3, 5, 6 |
 | CI status on the product page | GitHub App with Actions read | 2 |
+| Release provenance on the product page (NXD-133) | GitHub App with Contents read — already granted for *Create* | 2 |
 | Team membership follows Nexora roles (NXD-108) | GitHub App with Members read & write, plus teams | 2, 4, 5 |
+| Pull request previews and the AI build (NXD-152, NXD-153) | GitHub App with Pull requests read; Contents write is already granted | 2, [AI build](#ai-build-nxd-153) |
 
 **Prerequisites:**
 
@@ -49,10 +51,11 @@ Field by field: [OAuth App settings](#oauth-app-settings-field-by-field).
    | Section | Permission | Access | Needed for |
    | --- | --- | --- | --- |
    | Repository | Administration | Read and write | *Create* makes the repository |
-   | Repository | Contents | Read and write | Pushing the generated source |
+   | Repository | Contents | Read and write | Pushing the generated source; reading a product's releases and `nexora-release.json` (NXD-133) |
    | Repository | Metadata | Read-only (mandatory) | — |
    | Repository | Workflows | Read and write | Pushing `.github/workflows/ci.yml` |
    | Repository | Actions | Read-only | CI status on the product page |
+   | Repository | Pull requests | Read-only | What open pull requests would verify (NXD-152); finding an AI build's pull request and its merge (NXD-153) |
    | **Organization** | **Members** | **Read and write** | Team sync only (NXD-108) |
 
    **Organization permissions** is a separate, **collapsed** section below the
@@ -276,12 +279,72 @@ Minimum permissions for this Golden Path:
 | Permission | Access | Why |
 | --- | --- | --- |
 | Administration | Read and write | Create the repository |
-| Contents | Read and write | Push generated source |
+| Contents | Read and write | Push generated source; read releases for *Import release provenance* |
 | Metadata | Read-only | Repository metadata |
 | Workflows | Read and write | Push `.github/workflows/ci.yml` |
 | Actions | Read-only | Read latest workflow run status on Data Product detail. If this permission is missing or GitHub is unavailable, the CI Quality Gate stays `UNKNOWN`. Do not treat that as a product failure. |
+| Pull requests | Read-only | Pull request previews (NXD-152) and the AI build's pull request (NXD-153). Without it a private repository's pull requests read as `inaccessible`. |
 
 Do not grant organization admin, delete-repo, or unrelated write permissions.
+
+### AI build (NXD-153, NXD-154)
+
+Nexora can assign a draft version's requirements to a coding agent in the
+product repository: Claude Code or OpenAI Codex, chosen per assignment
+(NXD-154). Nexora sends a `repository_dispatch` event, which the App's
+existing *Contents: write* covers. The repository's own workflow,
+`.github/workflows/nexora-ai-build.yml`, which every data-product Golden Path
+ships, writes the code and opens a pull request. Nexora holds no model key,
+writes no code and merges nothing.
+
+1. **Organization secret for each agent you offer.** Organization →
+   **Settings** → *Secrets and variables* → **Actions** → **New organization
+   secret**. Give access to the product repositories.
+   - Claude Code: `ANTHROPIC_API_KEY`, from console.anthropic.com.
+   - OpenAI Codex: `OPENAI_API_KEY`, an API key from platform.openai.com. A
+     ChatGPT subscription is not an API key.
+   A run whose agent has no key fails at *Check the agent's key*, naming the
+   secret.
+
+   > **GitHub Free: set the key in every product repository.** On the Free
+   > plan, private repositories cannot use organization secrets. GitHub says
+   > so on the secrets page: *"Organization secrets cannot be used by private
+   > repositories with your plan."* The Golden Paths create private
+   > repositories, so an organization secret is never seen there. Until the
+   > organization is on a paid plan (Team or Enterprise), set the same secret
+   > in **each** product repository after creating it: repository →
+   > **Settings** → *Secrets and variables* → **Actions** → **New repository
+   > secret** (direct link:
+   > `https://github.com/<org>/<repo>/settings/secrets/actions`). Each new
+   > product needs this step. On a paid plan, one organization secret with
+   > access to *Private repositories* or *All repositories* covers every
+   > product, and nothing is needed per repository.
+2. **Allow the actions.** If the organization restricts actions, allow
+   `anthropics/claude-code-action` and/or `openai/codex-action`
+   (*Actions* → *General* → *Actions permissions*).
+3. **Let workflows open pull requests.** Organization → **Settings** →
+   *Actions* → *General* → *Workflow permissions* → tick **Allow GitHub
+   Actions to create and approve pull requests**. A repository can only use
+   this setting when the organization allows it. Without it,
+   `gh pr create` fails and the assignment shows *Run failed*.
+4. **Enable it in Nexora:** `NEXORA_AI_BUILD_ENABLED=true`, then restart.
+   - Claude Code is offered by default; `composer.aiBuild.agents.claude-code.model`
+     picks its model (default `claude-opus-5-5`).
+   - `NEXORA_AI_BUILD_CODEX_ENABLED=true` also offers Codex;
+     `composer.aiBuild.agents.codex.model` picks its model (default
+     `gpt-6.1-sol`).
+   - `NEXORA_AI_BUILD_DEFAULT_AGENT` (`claude-code` or `codex`) runs when an
+     assignment names none. `NEXORA_AI_BUILD_CLAUDE_ENABLED=false` offers
+     Codex alone.
+   Each assignment is a paid model run.
+
+**Per new product (GitHub Free only):** create the product, then set
+`ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` as a repository secret in its new
+repository before the first *Assign to AI build*.
+
+A repository created before NXD-153 has no such workflow. Nexora then
+records the assignment as *Not dispatched* with that reason, and sends
+nothing.
 
 ### Optional: GitHub team sync (NXD-108)
 

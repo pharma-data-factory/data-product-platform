@@ -1,0 +1,98 @@
+# The canonical manifest of this Data Product (NXD-130).
+#
+# Schema: NEXORA_MANIFEST_SCHEMA in @internal/platform-common
+# (nexora-manifest.schema.json). The Nexora registry checks this file when a
+# version is registered and refuses it with every problem named.
+#
+# What this file deliberately does not say:
+# - the image tag or digest: the tag is metadata.version, the digest is
+#   recorded when CI builds the release;
+# - certification or validation status: those are outcomes of review, not
+#   declarations (NXD-019);
+# - where it runs, which broker it uses, or a host port: those belong to an
+#   installation (NXD-129).
+apiVersion: nexora.dev/v1alpha1
+kind: DATA_PRODUCT
+metadata:
+  namespace: ${{ values.destination.owner | lower }}
+  name: ${{ values.name }}
+  version: '${{ values.version }}'
+  displayName: ${{ values.title }}
+  description: ${{ values.description }}
+  # SPDX expression. Replace with the license this repository is published
+  # under, e.g. Apache-2.0.
+  license: LicenseRef-Proprietary
+  tags:
+    - temperature
+    - mqtt
+    - manufacturing
+spec:
+  runtime:
+    kind: container
+    image:
+      repository: ghcr.io/${{ values.destination.owner | lower }}/${{ values.name }}
+    ports:
+      - name: http
+        containerPort: 8080
+    health:
+      type: http
+      port: http
+      path: /health
+    # The SQLite store (SQLITE_PATH in the Dockerfile) must survive a restart
+    # and an upgrade. What backs it, and whether it is kept when the
+    # installation is removed, is decided by the target and the installation
+    # (NXD-142).
+    storage:
+      - name: data
+        mountPath: /app/data
+        description: Temperature readings (temperatures.db).
+  interfaces:
+    - name: temperatures
+      type: api
+      direction: provides
+      description: Temperature readings, quality and platform metadata over REST.
+      port: http
+      basePath: /api/v1
+    - name: temperature-events
+      type: event
+      direction: consumes
+      description: Temperature readings published by devices.
+      channel: temperature/{deviceId}
+      mechanisms:
+        - mqtt
+      document:
+        type: JSON_SCHEMA
+        path: contracts/temperature-event.schema.json
+  # Until an installation binds channels to broker topics (NXD-129), the
+  # topics are configuration like any other value.
+  config:
+    - key: MQTT_HOST
+      description: Broker host. Empty disables MQTT; the REST ingest still works.
+      type: string
+      required: false
+      example: mosquitto
+    - key: MQTT_PORT
+      type: number
+      required: false
+      defaultValue: '1883'
+    - key: MQTT_USERNAME
+      type: string
+      required: false
+    - key: MQTT_PASSWORD
+      type: secret
+      required: false
+    - key: MQTT_TOPIC
+      description: Subscription; + is a single-level wildcard.
+      type: string
+      required: false
+      defaultValue: '${{ values.mqttTopic }}'
+    - key: TEMPERATURE_MIN
+      description: Lowest plausible reading; lower is a quality violation.
+      type: number
+      required: false
+      defaultValue: '-50'
+    - key: TEMPERATURE_MAX
+      description: Highest plausible reading.
+      type: number
+      required: false
+      defaultValue: '150'

@@ -19,7 +19,20 @@ const developerHubPage = PageBlueprint.make({
   },
 });
 
+// NXD-166. Roles & permissions, under Help & Docs.
+const rolesHelpRouteRef = createRouteRef();
+
+const rolesHelpPage = PageBlueprint.make({
+  name: 'roles-help',
+  params: {
+    path: '/developer/roles',
+    routeRef: rolesHelpRouteRef,
+    title: 'Roles & permissions',
+    loader: () => import('./RolesHelpPage').then(m => <m.RolesHelpPage />),
+  },
+});
+
 export const developerHubModule = createFrontendModule({
   pluginId: 'app',
-  extensions: [developerHubPage],
+  extensions: [developerHubPage, rolesHelpPage],
 });

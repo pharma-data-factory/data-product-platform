@@ -152,4 +152,34 @@ describe('artifact registry migration on PostgreSQL', () => {
       })(),
     ).rejects.toThrow(/unique/i);
   }, 60000);
+
+  // NXD-146: the transition trail is append-only in the database, not only
+  // in the repository's choice of statements.
+  it('makes the transition trail append-only', async () => {
+    if (!available) {
+      return;
+    }
+    await up(db!);
+    await db!('artifact_version_transitions').insert({
+      id: 'tr-1',
+      artifact_version_id: 'v-1',
+      act: 'SUBMIT',
+      from_lifecycle: 'DRAFT',
+      to_lifecycle: 'TESTING',
+      actor,
+      occurred_at: new Date(),
+      details: '{}',
+    });
+    await expect(
+      db!('artifact_version_transitions').where({ id: 'tr-1' }).update({ actor: 'someone-else' }),
+    ).rejects.toThrow(/ARTIFACT_REGISTRY_APPEND_ONLY: artifact_version_transitions .* UPDATE/);
+    await expect(db!('artifact_version_transitions').where({ id: 'tr-1' }).delete()).rejects.toThrow(
+      /ARTIFACT_REGISTRY_APPEND_ONLY: artifact_version_transitions .* DELETE/,
+    );
+    await expect(db!.raw('truncate artifact_version_transitions')).rejects.toThrow(
+      /ARTIFACT_REGISTRY_APPEND_ONLY: artifact_version_transitions .* TRUNCATE/,
+    );
+    // Applying again recreates the triggers rather than failing on them.
+    await up(db!);
+  }, 60000);
 });

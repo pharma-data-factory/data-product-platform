@@ -218,9 +218,13 @@ export interface ValidationExpertApi {
     contextId: string,
   ): Promise<ValidationContextRequirementsResponse>;
   /** NXD-119: classification, signatures, next role, the caller's roles. */
-  getDecisionState(contextId: string): Promise<DecisionStateView>;
+  getDecisionState(contextId: string, productVersionId?: string): Promise<DecisionStateView>;
   /** NXD-124: review a product version's CI evidence; answers the run. */
-  startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun>;
+  /** `reused` when the evidence is unchanged and the review on record stands (NXD-161). */
+  startEvidenceReview(
+    contextId: string,
+    productVersionId: string,
+  ): Promise<ValidationRun & { reused?: boolean }>;
   /** NXD-119: sign the decision; answers the new state. */
   signDecision(
     contextId: string,
@@ -228,9 +232,10 @@ export interface ValidationExpertApi {
   ): Promise<ValidationDecisionState>;
   /**
    * Set the caller's own signing PIN. It lives in the URS Composer: one
-   * signing credential for every signature on the platform.
+   * signing credential for every signature on the platform. Changing an
+   * existing PIN needs the current one (NXD-138).
    */
-  setSigningPin(pin: string): Promise<void>;
+  setSigningPin(pin: string, currentPin?: string): Promise<void>;
 }
 
 export const validationExpertApiRef = createApiRef<ValidationExpertApi>({
@@ -393,14 +398,20 @@ export class ValidationExpertClient implements ValidationExpertApi {
     );
   }
 
-  getDecisionState(contextId: string): Promise<DecisionStateView> {
+  getDecisionState(contextId: string, productVersionId?: string): Promise<DecisionStateView> {
+    const query = productVersionId
+      ? `?productVersionId=${encodeURIComponent(productVersionId)}`
+      : '';
     return this.json<DecisionStateView>(
-      `/contexts/${encodeURIComponent(contextId)}/decision-state`,
+      `/contexts/${encodeURIComponent(contextId)}/decision-state${query}`,
     );
   }
 
-  startEvidenceReview(contextId: string, productVersionId: string): Promise<ValidationRun> {
-    return this.json<ValidationRun>(
+  startEvidenceReview(
+    contextId: string,
+    productVersionId: string,
+  ): Promise<ValidationRun & { reused?: boolean }> {
+    return this.json<ValidationRun & { reused?: boolean }>(
       `/contexts/${encodeURIComponent(contextId)}/evidence-review`,
       { method: 'POST', body: JSON.stringify({ productVersionId }) },
     );
@@ -416,12 +427,12 @@ export class ValidationExpertClient implements ValidationExpertApi {
     );
   }
 
-  async setSigningPin(pin: string): Promise<void> {
+  async setSigningPin(pin: string, currentPin?: string): Promise<void> {
     const base = await this.options.discoveryApi.getBaseUrl('urs-composer');
     const response = await this.options.fetchApi.fetch(`${base}/signing-pin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin }),
+      body: JSON.stringify(currentPin ? { pin, currentPin } : { pin }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));

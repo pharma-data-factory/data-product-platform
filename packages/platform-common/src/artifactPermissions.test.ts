@@ -17,6 +17,9 @@ import {
   artifactReadPermission,
   artifactReviewPermission,
   artifactSubmitPermission,
+  installationManagePermission,
+  installationReadPermission,
+  installationTargetManagePermission,
   platformPermissions,
   publisherManagePermission,
 } from './permissions';
@@ -101,6 +104,32 @@ describe('artifact registry permissions', () => {
       'deny',
     );
     expect(decidePermission(publisherManagePermission, 'PLATFORM_ADMIN')).toBe(
+      'allow',
+    );
+  });
+});
+
+describe('installation permissions (NXD-139)', () => {
+  it('lets viewers read installations and change none', () => {
+    expect(installationReadPermission.name).toBe('installation.read');
+    expect(decidePermission(installationReadPermission, 'VIEWER')).toBe('allow');
+    expect(decidePermission(installationManagePermission, 'VIEWER')).toBe('deny');
+  });
+
+  it('puts installing beside publishing, not with the people who build', () => {
+    expect(installationManagePermission.name).toBe('installation.manage');
+    expect(decidePermission(installationManagePermission, 'DEVELOPER')).toBe('deny');
+    expect(decidePermission(installationManagePermission, 'DATA_PRODUCT_OWNER')).toBe(
+      'allow',
+    );
+  });
+
+  it('keeps registering a runtime target an admin act', () => {
+    expect(installationTargetManagePermission.name).toBe('installation.target.manage');
+    expect(
+      decidePermission(installationTargetManagePermission, 'DATA_PRODUCT_OWNER'),
+    ).toBe('deny');
+    expect(decidePermission(installationTargetManagePermission, 'PLATFORM_ADMIN')).toBe(
       'allow',
     );
   });

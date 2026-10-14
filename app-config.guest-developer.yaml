@@ -23,20 +23,10 @@ users:
     - data-product-developers
     # Author and baseline a URS. Without this the Define journey is read-only.
     - urs-authors
-    # DATA_PRODUCT_OWNER, which /products needs past its first screen.
-    #
-    # `product.create` is a developer permission and `product.manage` is an
-    # owner one, and every route on the Product page except "create product"
-    # takes the latter — versions, governance, baselines, transitions. That
-    # split is deliberate: a developer may start a product, governing its
-    # lifecycle is an owner's call. It does mean a Guest with only
-    # data-product-developers can create a product and then do nothing with it.
-    #
-    # This also opens the coarse `urs.approve` and `urs.sign` permissions. It
-    # does not defeat segregation of duties: which step a person may approve is
-    # decided by their `urs-*` approval role, checked separately in
-    # `approveApprovalStep`, and none is granted here.
-    - data-product-owners
+    # NXD-166. Not data-product-owners: this file is called "developer" and
+    # gave DATA_PRODUCT_OWNER, so a Guest set to developer could approve and
+    # release product versions. The owner tier is AUTH_GUEST_ROLE=owner,
+    # app-config.guest-owner.yaml.
 
     # Approving a baseline is deliberately NOT granted above.
     #

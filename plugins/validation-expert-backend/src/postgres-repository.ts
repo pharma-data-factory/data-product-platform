@@ -44,6 +44,9 @@ function mapRun(row: Record<string, unknown>): ValidationRun {
       : undefined,
     baselineId: String(row.baseline_id),
     contextId: row.context_id ? String(row.context_id) : undefined,
+    productVersionId: row.product_version_id
+      ? String(row.product_version_id)
+      : undefined,
     type: String(row.type) as ProtocolType,
     status: String(row.status) as ValidationRun['status'],
     createdAt: String(row.created_at),
@@ -142,6 +145,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
     candidateCommit?: string;
     baselineId: string;
     contextId?: string;
+    productVersionId?: string;
     createdBy: ExecutorIdentity;
   }): Promise<ValidationRun> {
     return this.db.transaction(async trx => {
@@ -167,6 +171,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         candidateCommit: input.candidateCommit,
         baselineId: input.baselineId,
         contextId: input.contextId,
+        productVersionId: input.productVersionId,
         type: input.type,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
@@ -180,6 +185,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         candidate_commit: run.candidateCommit ?? null,
         baseline_id: run.baselineId,
         context_id: run.contextId ?? null,
+        product_version_id: run.productVersionId ?? null,
         type: run.type,
         status: run.status,
         created_at: run.createdAt,
@@ -209,6 +215,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
         candidate_commit: run.candidateCommit ?? null,
         baseline_id: run.baselineId,
         context_id: run.contextId ?? null,
+        product_version_id: run.productVersionId ?? null,
         type: run.type,
         status: run.status,
         created_at: run.createdAt,
@@ -321,15 +328,15 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       decided_by: decision.decidedBy,
       decided_at: decision.decidedAt,
       gmp_rule: decision.gmpRule ?? null,
+      product_version_id: decision.productVersionId ?? null,
     });
   }
 
-  async getDecisionByContextId(contextId: string): Promise<ValidationDecision | undefined> {
-    const row = await this.db('validation_decisions')
+  async listDecisions(contextId: string): Promise<ValidationDecision[]> {
+    const rows = await this.db('validation_decisions')
       .where({ context_id: contextId })
-      .first();
-    if (!row) return undefined;
-    return {
+      .orderBy('decided_at', 'asc');
+    return rows.map((row: any) => ({
       id: row.id,
       contextId: row.context_id,
       status: row.status,
@@ -340,7 +347,8 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       gmpRule: row.gmp_rule === null || row.gmp_rule === undefined
         ? undefined
         : Boolean(row.gmp_rule),
-    };
+      productVersionId: row.product_version_id ?? undefined,
+    }));
   }
 
   async addSignature(signature: ValidationDecisionSignature): Promise<void> {
@@ -353,6 +361,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       signed_by: signature.signedBy,
       signed_at: signature.signedAt,
       reauth_method: signature.reauthMethod,
+      product_version_id: signature.productVersionId ?? null,
     });
   }
 
@@ -369,6 +378,7 @@ export class PostgresValidationRunRepository implements ValidationRunRepository 
       signedBy: row.signed_by,
       signedAt: row.signed_at,
       reauthMethod: row.reauth_method,
+      productVersionId: row.product_version_id ?? undefined,
     }));
   }
 }

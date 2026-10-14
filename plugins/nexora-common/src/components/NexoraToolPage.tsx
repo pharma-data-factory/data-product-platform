@@ -3,14 +3,13 @@ import { makeStyles } from '@material-ui/core/styles';
 import {
   NEXORA_CYAN,
   NEXORA_GREY,
+  NEXORA_HERO_VAR,
 } from '../tokens';
 import {
   NEXORA_BORDER,
   NEXORA_CARD,
-  NEXORA_CYAN_LIGHT,
   NEXORA_MUTED,
   NEXORA_NAVY,
-  NEXORA_NAVY_DARK,
   NEXORA_TEXT,
 } from '../tokens';
 
@@ -25,14 +24,15 @@ const useStyles = makeStyles({
     padding: 24,
   },
   hero: {
-    background: `linear-gradient(180deg, ${NEXORA_NAVY_DARK} 0%, ${NEXORA_NAVY} 100%)`,
+    background: NEXORA_HERO_VAR.bg,
+    boxShadow: NEXORA_HERO_VAR.frame,
     borderRadius: 16,
-    color: NEXORA_GREY[50],
+    color: NEXORA_HERO_VAR.fg,
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
   eyebrow: {
-    color: NEXORA_CYAN_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     fontWeight: 600,
@@ -49,13 +49,13 @@ const useStyles = makeStyles({
     margin: 0,
   },
   principle: {
-    color: NEXORA_CYAN_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontSize: 18,
     fontWeight: 600,
     marginTop: 10,
   },
   copy: {
-    color: NEXORA_GREY[300],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 15,
     lineHeight: 1.65,
     marginBottom: 0,
@@ -63,7 +63,7 @@ const useStyles = makeStyles({
     maxWidth: 720,
   },
   secondary: {
-    color: NEXORA_GREY[400],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 14,
     lineHeight: 1.6,
     marginBottom: 0,

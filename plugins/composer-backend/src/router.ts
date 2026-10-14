@@ -33,6 +33,8 @@ import {
 } from '@internal/platform-common';
 import { ComposerService } from './service';
 import type { PublishReadiness } from './scm-publish-readiness';
+import type { PinVerifier } from './pin-verifier';
+import type { ReleaseRegistrar } from './release-registrar';
 import type { AvailableComponentSummary } from './llm-client';
 import {
   BindUrsBaselineRequest,
@@ -48,6 +50,10 @@ import {
 } from './types';
 
 export interface RouterOptions {
+  /** NXD-128. Verifies a signer's PIN in the URS Composer. */
+  pinVerifier?: PinVerifier;
+  /** NXD-137. Registers release builds in the Artifact Registry. */
+  releaseRegistrar?: ReleaseRegistrar;
   logger: LoggerService;
   httpAuth: HttpAuthService;
   permissions?: PermissionsService;
@@ -179,6 +185,26 @@ export async function createRouter(
   const { logger, httpAuth, permissions, service, llmEnabled, publishReadiness } =
     options;
   const router = Router();
+
+  /** A PIN check bound to the caller's own credentials (NXD-128). */
+  const pinVerifierFor = async (req: express.Request) => {
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+    return (pin: string) => {
+      if (!options.pinVerifier) {
+        throw new NotAllowedError('Signing is not configured on this instance.');
+      }
+      return options.pinVerifier(credentials, pin);
+    };
+  };
+  /** Release-build registration bound to the caller's credentials (NXD-137). */
+  const registrarFor = async (req: express.Request) => {
+    if (!options.releaseRegistrar) {
+      return undefined;
+    }
+    const registrar = options.releaseRegistrar;
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+    return (request: Parameters<ReleaseRegistrar>[1]) => registrar(credentials, request);
+  };
   router.use(express.json());
 
   router.get('/health', (_req: express.Request, res: express.Response) => {
@@ -273,6 +299,74 @@ export async function createRouter(
           await authorize(permissions, httpAuth, req, productReadPermission);
         }
         res.json(await service.getVersionTestEvidence(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /artifacts/:namespace/:name/gmp-classification (NXD-139)
+   *
+   * Whether the products governing a registry artifact are GMP-relevant.
+   * Read by the installations store, on behalf of the person installing, to
+   * decide whether the act is an electronic signature; by a service or by a
+   * person with product.read.
+   */
+  router.get(
+    '/artifacts/:namespace/:name/gmp-classification',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        res.json(
+          await service.getArtifactGmpClassification(
+            req.params.namespace,
+            req.params.name,
+          ),
+        );
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /artifacts/:namespace/:name/versions/:version/release-status (NXD-146)
+   *
+   * Whether a product version registered as this registry version is
+   * RELEASED. Read by the Artifact Registry before it publishes, as a
+   * service; by a person with product.read.
+   */
+  router.get(
+    '/artifacts/:namespace/:name/versions/:version/release-status',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user', 'service'],
+        });
+        if (credentials.principal.type === 'user') {
+          await authorize(permissions, httpAuth, req, productReadPermission);
+        }
+        const { namespace, name, version } = req.params;
+        res.json(await service.getArtifactReleaseStatus(namespace, name, version));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /** GET /products/:id/signatures (NXD-128): approvals and releases as attested. */
+  router.get(
+    '/products/:id/signatures',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({ items: await service.listProductSignatures(req.params.id) });
       } catch (err) {
         respondError(res, logger, err);
       }
@@ -888,6 +982,25 @@ export async function createRouter(
     },
   );
 
+  /**
+   * DELETE /components/:id (NXD-157)
+   * Remove a component of a DRAFT version, with its traceability links.
+   * product.manage. 409 for a version that is not DRAFT, or a component that
+   * provides a data contract.
+   */
+  router.delete(
+    '/components/:id',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        await service.deleteProductComponent(req.params.id, actor);
+        res.status(204).end();
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
   router.delete(
     '/traceability-links/:id',
     async (req: express.Request, res: express.Response) => {
@@ -920,10 +1033,12 @@ export async function createRouter(
           req,
           productManagePermission,
         );
-        const version = await service.transitionProductVersionStatus(
+        // NXD-128: approval and release are signed acts for a GMP product.
+        const version = await service.signedVersionTransition(
           req.params.versionId,
           req.body as TransitionProductVersionRequest,
           actor,
+          await pinVerifierFor(req),
         );
         res.json(version);
       } catch (err) {
@@ -1009,9 +1124,11 @@ export async function createRouter(
           req,
           productManagePermission,
         );
-        const baseline = await service.approveProductBaseline(
+        const baseline = await service.signedBaselineApproval(
           req.params.id,
+          (req.body ?? {}).signature,
           actor,
+          await pinVerifierFor(req),
         );
         res.json(baseline);
       } catch (err) {
@@ -1075,6 +1192,111 @@ export async function createRouter(
       try {
         const actor = await authorize(permissions, httpAuth, req, productManagePermission);
         res.status(201).json(await service.importTestEvidence(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /versions/:id/pull-request-evidence (NXD-152)
+   * What each open pull request's CI run would verify of this version's
+   * requirements, and whether the gate's coverage part would then pass.
+   * Read-only; nothing is recorded.
+   */
+  router.get(
+    '/versions/:id/pull-request-evidence',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json(await service.previewPullRequestEvidence(req.params.id));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /versions/:id/ai-builds (NXD-153)
+   * Assign bound requirements of a DRAFT version to the AI build in the
+   * product's repository: recorded, then dispatched. Body: optional
+   * `requirementRefs` (default all bound), `note` and `agent` (NXD-154,
+   * default composer.aiBuild.defaultAgent). product.manage.
+   */
+  router.post(
+    '/versions/:id/ai-builds',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res
+          .status(201)
+          .json(await service.issueAiBuildAssignment(req.params.id, req.body ?? {}, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * GET /ai-build/agents (NXD-154)
+   * The coding agents the AI build offers, each with its model, and the
+   * default. `enabled: false` when the AI build is off.
+   */
+  router.get('/ai-build/agents', async (req: express.Request, res: express.Response) => {
+    try {
+      await authorize(permissions, httpAuth, req, productReadPermission);
+      res.json(service.getAiBuildAgents());
+    } catch (err) {
+      respondError(res, logger, err);
+    }
+  });
+
+  /** GET /versions/:id/ai-builds (NXD-153): the version's assignments, newest first. */
+  router.get(
+    '/versions/:id/ai-builds',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        await authorize(permissions, httpAuth, req, productReadPermission);
+        res.json({ items: await service.listAiBuildAssignments(req.params.id) });
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /ai-builds/:id/refresh (NXD-153)
+   * Record what GitHub shows of the assignment: run, pull request, merge.
+   * product.manage, because it writes the outcome and its audit events.
+   */
+  router.post(
+    '/ai-builds/:id/refresh',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res.json(await service.refreshAiBuildAssignment(req.params.id, actor));
+      } catch (err) {
+        respondError(res, logger, err);
+      }
+    },
+  );
+
+  /**
+   * POST /versions/:id/release-provenance/import (NXD-133)
+   * Read the release record the product's release workflow published for
+   * this version and write its commit and image digest to the approved
+   * baseline. A person with product.manage presses the button; the values
+   * come from GitHub, not from them, which is why this is not the
+   * service-only `/baselines/:id/provenance`.
+   */
+  router.post(
+    '/versions/:id/release-provenance/import',
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const actor = await authorize(permissions, httpAuth, req, productManagePermission);
+        res.json(
+          await service.importReleaseProvenance(req.params.id, actor, await registrarFor(req)),
+        );
       } catch (err) {
         respondError(res, logger, err);
       }

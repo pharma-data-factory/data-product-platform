@@ -54,6 +54,7 @@
     "@internal/plugin-data-products-backend": "workspace:^",
     "@internal/plugin-directory-backend": "workspace:^",
     "@internal/plugin-entitlements-backend": "workspace:^",
+    "@internal/plugin-installations-backend": "workspace:^",
     "@internal/plugin-model-company-backend": "workspace:^",
     "@internal/plugin-nexora-backend": "workspace:^",
     "@internal/plugin-urs-composer-backend": "workspace:^",

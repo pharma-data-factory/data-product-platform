@@ -59,8 +59,33 @@ export interface GithubWorkflowRun {
   headBranch: string;
   headSha: string;
   htmlUrl: string;
+  /** `push`, `pull_request`, `workflow_call`, … (NXD-151). */
+  event?: string;
+  /** The run's title; NXD-153 puts the assignment id into it (`run-name`). */
+  displayTitle?: string;
   startedAt?: string;
   completedAt?: string;
+}
+
+/** NXD-152. An open pull request, as far as evidence needs it. */
+export interface GithubPullRequest {
+  number: number;
+  title: string;
+  htmlUrl: string;
+  headRef: string;
+  headSha: string;
+  author?: string;
+  draft: boolean;
+}
+
+/** NXD-153. A pull request in any state, found by its head branch. */
+export interface GithubPullRequestState extends GithubPullRequest {
+  state: 'open' | 'closed';
+  merged: boolean;
+  mergedAt?: string;
+  /** The commit the merge put on the base branch: the AI's code, as merged. */
+  mergeCommitSha?: string;
+  closedAt?: string;
 }
 
 export type GithubFetchFailure = 'inaccessible' | 'unavailable' | 'not-found';
@@ -77,9 +102,41 @@ export interface GithubActionsClient {
     repo: GithubRepoRef,
     runId: number,
   ): Promise<QualityStage[]>;
-  /** NXD-123. The newest completed run of the CI workflow. */
+  /**
+   * NXD-123. The newest completed run of the CI workflow; NXD-151 narrows it
+   * to a branch and an event, so a pull request's run is not taken for the
+   * default branch's.
+   */
   getLatestCompletedRun?(
     repo: GithubRepoRef,
+    filter?: { branch?: string; event?: string },
+  ): Promise<GithubFetchResult<GithubWorkflowRun | undefined>>;
+  /** NXD-151. The repository's default branch. */
+  getDefaultBranch?(repo: GithubRepoRef): Promise<GithubFetchResult<string>>;
+  /** NXD-152. Open pull requests, newest first, at most `limit`. */
+  listOpenPullRequests?(
+    repo: GithubRepoRef,
+    limit: number,
+  ): Promise<GithubFetchResult<GithubPullRequest[]>>;
+  /**
+   * NXD-153. Fires a `repository_dispatch` event. The App's existing
+   * *Contents: write* covers it; nothing is written to the repository.
+   */
+  dispatchRepositoryEvent?(
+    repo: GithubRepoRef,
+    eventType: string,
+    clientPayload: Record<string, unknown>,
+  ): Promise<GithubFetchResult<void>>;
+  /** NXD-153. The repository's own pull request whose head is `branch`, in any state. */
+  findPullRequestByHead?(
+    repo: GithubRepoRef,
+    branch: string,
+  ): Promise<GithubFetchResult<GithubPullRequestState | undefined>>;
+  /** NXD-153. The newest run of `workflowFile` whose title contains `marker`. */
+  findWorkflowRun?(
+    repo: GithubRepoRef,
+    workflowFile: string,
+    marker: string,
   ): Promise<GithubFetchResult<GithubWorkflowRun | undefined>>;
   /** NXD-123. A run's artifact by name, as the zip GitHub serves. */
   downloadArtifact?(
@@ -87,6 +144,33 @@ export interface GithubActionsClient {
     runId: number,
     name: string,
   ): Promise<GithubFetchResult<Buffer | undefined>>;
+  /** NXD-133. The repository's published releases, newest first. */
+  listReleases?(repo: GithubRepoRef): Promise<GithubFetchResult<GithubRelease[]>>;
+  /** NXD-133. One release asset's bytes. */
+  downloadReleaseAsset?(
+    repo: GithubRepoRef,
+    assetId: number,
+  ): Promise<GithubFetchResult<Buffer>>;
+  /** NXD-133. The commit a ref (a tag) points at, annotated tags resolved. */
+  getCommitSha?(
+    repo: GithubRepoRef,
+    ref: string,
+  ): Promise<GithubFetchResult<string>>;
+  /** NXD-137. A file's text at a ref; `undefined` when there is no such file. */
+  getFileAtRef?(
+    repo: GithubRepoRef,
+    path: string,
+    ref: string,
+  ): Promise<GithubFetchResult<string | undefined>>;
+}
+
+export interface GithubRelease {
+  tag: string;
+  url: string;
+  publishedAt?: string;
+  draft: boolean;
+  prerelease: boolean;
+  assets: Array<{ id: number; name: string; size: number }>;
 }
 
 export function unknownCiStatus(

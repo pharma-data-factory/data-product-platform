@@ -51,12 +51,13 @@ import {
 import { useGoldenPathCompositions } from '@internal/plugin-marketplace';
 import { usePlatformRole } from '@internal/plugin-data-products';
 import { CompositionArchitectureVisual } from './CompositionArchitectureVisual';
-import { C, PHARMA_NAVY, PHARMA_NAVY_DARK, PHARMA_TEAL, PHARMA_TEAL_LIGHT } from '../theme/tokens';
+import { C, PHARMA_NAVY, PHARMA_TEAL } from '../theme/tokens';
 import { BuildingBlocksVisual } from '../platform-components/BuildingBlocksVisual';
 import {
   NEXORA_CARD,
   NEXORA_GREY,
   NEXORA_TONE,
+  NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 import {
   suggestComponents,
@@ -69,14 +70,15 @@ import {
 
 const useStyles = makeStyles(theme => ({
   hero: {
-    background: `linear-gradient(180deg, ${PHARMA_NAVY_DARK} 0%, ${PHARMA_NAVY} 100%)`,
+    background: NEXORA_HERO_VAR.bg,
+    boxShadow: NEXORA_HERO_VAR.frame,
     borderRadius: 16,
-    color: NEXORA_GREY[50],
+    color: NEXORA_HERO_VAR.fg,
     marginBottom: 24,
     padding: '28px 28px 24px',
   },
   eyebrow: {
-    color: PHARMA_TEAL_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 12,
     fontWeight: 600,
@@ -92,20 +94,20 @@ const useStyles = makeStyles(theme => ({
     margin: 0,
   },
   principle: {
-    color: PHARMA_TEAL_LIGHT,
+    color: NEXORA_HERO_VAR.accent,
     fontSize: 18,
     fontWeight: 600,
     marginTop: 10,
   },
   copy: {
-    color: NEXORA_GREY[300],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 15,
     lineHeight: 1.65,
     marginTop: 10,
     maxWidth: 720,
   },
   note: {
-    color: NEXORA_GREY[400],
+    color: NEXORA_HERO_VAR.muted,
     fontSize: 13,
     marginTop: 12,
   },

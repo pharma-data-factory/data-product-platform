@@ -556,6 +556,16 @@ export interface MyApprovalRoles {
   roles: string[];
 }
 
+/**
+ * GET /signing-pin — whether the caller has a signing PIN (NXD-138). Present
+ * `lockedUntil` means too many failed attempts: the PIN cannot be changed
+ * until then, and a platform administrator can reset it.
+ */
+export interface SigningPinStatus {
+  enrolled: boolean;
+  lockedUntil?: string;
+}
+
 export interface QualityCheckRequest {
   requirementId?: string;
   title?: string;

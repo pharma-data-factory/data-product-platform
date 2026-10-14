@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import { Progress } from '@backstage/core-components';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import {
@@ -7,6 +7,9 @@ import {
   resolvePlatformRole,
 } from '@internal/platform-common';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Table,
   TableBody,
@@ -22,8 +25,21 @@ import {
   ValidationContextRequirement,
   ValidationRun,
 } from '../api';
-import { NX, PageShell, StatusChip } from './shared';
+import { PageShell, StatusChip } from './shared';
 import { DecisionPanel } from './DecisionPanel';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+
+/** NXD-163. A folded section of reference data on the context page. */
+function Reference(props: { title: string; children: React.ReactNode }) {
+  return (
+    <Accordion variant="outlined">
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="subtitle1">{props.title}</Typography>
+      </AccordionSummary>
+      <AccordionDetails style={{ display: 'block' }}>{props.children}</AccordionDetails>
+    </Accordion>
+  );
+}
 
 function formatWhen(value?: string) {
   if (!value) {
@@ -34,6 +50,14 @@ function formatWhen(value?: string) {
     return value;
   }
   return new Date(parsed).toLocaleString();
+}
+
+/** The most recently created of `runIds`; the last one when runs are not loaded. */
+export function newestRunId(runIds: string[], runs: ValidationRun[] | null): string {
+  const created = new Map((runs ?? []).map(run => [run.id, run.createdAt]));
+  return [...runIds].sort((a, b) =>
+    (created.get(a) ?? '').localeCompare(created.get(b) ?? ''),
+  )[runIds.length - 1];
 }
 
 export function ContextsPage() {
@@ -128,6 +152,9 @@ export function ContextsPage() {
 
 export function ContextDetailPage() {
   const { contextId = '' } = useParams<{ contextId: string }>();
+  // NXD-162. `?version=` opens the decision of one product version.
+  const [searchParams] = useSearchParams();
+  const requestedVersion = searchParams.get('version') ?? undefined;
   const api = useApi(validationExpertApiRef);
   const identityApi = useApi(identityApiRef);
   const [context, setContext] = useState<ValidationContext | null>(null);
@@ -259,22 +286,18 @@ export function ContextDetailPage() {
       <DecisionPanel
         contextId={context.id}
         canStartReview={canStart}
+        initialVersionId={requestedVersion}
         onRunCreated={() => setRunsVersion(n => n + 1)}
       />
 
-      <Box
-        mt={3}
-        mb={2}
-        p={2}
-        style={{
-          border: `1px solid ${NX.border}`,
-          borderRadius: 8,
-          background: NX.card,
-        }}
-      >
-        <Typography variant="h6" gutterBottom>
-          Approved URS reference
-        </Typography>
+      {/*
+        NXD-163. What to do is the decision above; what it rests on is
+        reference, folded until wanted (NXD-159 item 6).
+      */}
+      <Typography variant="h6" style={{ marginTop: 24, marginBottom: 8 }}>
+        Reference
+      </Typography>
+      <Reference title="Approved URS reference">
         <Typography paragraph>
           <strong>Requirement set</strong>
           <br />
@@ -322,12 +345,9 @@ export function ContextDetailPage() {
           <br />
           {(source.businessCapabilityIds || []).join(', ') || '—'}
         </Typography>
-      </Box>
+      </Reference>
 
-      <Box mt={3}>
-        <Typography variant="h6" gutterBottom>
-          Baseline requirements (read-through)
-        </Typography>
+      <Reference title="Baseline requirements (read-through)">
         <Typography variant="body2" color="textSecondary" paragraph>
           {requirementsNote ||
             'Pinned URS baseline content via Validation Expert → URS Composer. Not a GxP validation claim.'}
@@ -381,12 +401,9 @@ export function ContextDetailPage() {
             </TableBody>
           </Table>
         ) : null}
-      </Box>
+      </Reference>
 
-      <Box mt={4}>
-        <Typography variant="h6" gutterBottom>
-          Requirement coverage (lite)
-        </Typography>
+      <Reference title="Requirement coverage (lite)">
         <Typography variant="body2" color="textSecondary" paragraph>
           {coverage?.note ||
             'Joins context requirement IDs to protocol tests via linked run executions and findings. Not a GxP validation claim.'}
@@ -433,20 +450,24 @@ export function ContextDetailPage() {
                         {row.testIds.length ? row.testIds.join(', ') : '—'}
                       </TableCell>
                       <TableCell>
-                        {row.runIds.length
-                          ? row.runIds.map((runId, index) => (
-                              <span key={runId}>
-                                {index > 0 ? ', ' : null}
-                                <RouterLink
-                                  to={`/validation-expert/runs/${encodeURIComponent(
-                                    runId,
-                                  )}`}
-                                >
-                                  {runId}
-                                </RouterLink>
-                              </span>
-                            ))
-                          : '—'}
+                        {row.runIds.length ? (
+                          // NXD-161. The newest run decides; the earlier
+                          // ones are counted, not listed (NXD-159 item 8).
+                          <>
+                            <RouterLink
+                              to={`/validation-expert/runs/${encodeURIComponent(
+                                newestRunId(row.runIds, runs),
+                              )}`}
+                            >
+                              {newestRunId(row.runIds, runs)}
+                            </RouterLink>
+                            {row.runIds.length > 1
+                              ? ` (+${row.runIds.length - 1} earlier)`
+                              : null}
+                          </>
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -455,12 +476,9 @@ export function ContextDetailPage() {
             )}
           </>
         ) : null}
-      </Box>
+      </Reference>
 
-      <Box mt={4}>
-        <Typography variant="h6" gutterBottom>
-          Linked runs
-        </Typography>
+      <Reference title="Linked runs">
         <Typography variant="body2" color="textSecondary" paragraph>
           A product evidence review (EVIDENCE) checks the recorded CI test
           evidence of a product version against this baseline's requirements;
@@ -509,7 +527,7 @@ export function ContextDetailPage() {
             </TableBody>
           </Table>
         ) : null}
-      </Box>
+      </Reference>
     </PageShell>
   );
 }

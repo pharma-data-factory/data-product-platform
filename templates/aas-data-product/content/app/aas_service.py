@@ -73,7 +73,8 @@ class AASService:
             return True
 
         try:
-            event_dict = event.dict() if hasattr(event, "dict") else event
+            # The contract's own form (camelCase), not the Python field names.
+            event_dict = event.to_contract() if hasattr(event, "to_contract") else event
             jsonschema.validate(instance=event_dict, schema=self.contract_schema)
             logger.debug(f"Asset event {event.event_id if hasattr(event, 'event_id') else 'unknown'} validated")
             return True

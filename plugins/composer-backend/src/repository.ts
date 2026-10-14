@@ -20,9 +20,11 @@ import {
   TestExecution,
   ProductBaseline,
   ProductRequirement,
+  AIBuildAssignment,
   AISpecDraft,
   AISpecDraftStatus,
   FunctionalSpecification,
+  ProductSignature,
 } from './types';
 import { IComposerRepository, ComposerAuditEvent } from './repository-interface';
 import { up } from './db/migrations';
@@ -180,6 +182,23 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToProductVersion(r));
   }
 
+  /**
+   * NXD-139. The product versions whose registry version (NXD-137) is any
+   * version of `namespace/name`. Compared case-insensitively, as the
+   * registry compares coordinates.
+   */
+  async listProductVersionsForArtifact(
+    namespace: string,
+    name: string,
+  ): Promise<ProductVersion[]> {
+    const prefix = `${namespace}/${name}@`.toLowerCase();
+    const rows = await this.db('product_versions')
+      .whereNotNull('artifact_ref')
+      .whereRaw('substr(lower(artifact_ref), 1, ?) = ?', [prefix.length, prefix])
+      .select();
+    return rows.map((r: any) => this.rowToProductVersion(r));
+  }
+
   async updateProductVersion(version: ProductVersion): Promise<void> {
     await this.db('product_versions').where({ id: version.id }).update({
       status: version.status,
@@ -191,8 +210,23 @@ export class ComposerRepository implements IComposerRepository {
       urs_baseline_id: version.ursBaselineId || null,
       approved_by: version.approvedBy || null,
       approved_at: version.approvedAt || null,
+      released_by: version.releasedBy || null,
+      released_at: version.releasedAt || null,
       revision: (version.revision || 1) + 1,
     });
+  }
+
+  /**
+   * NXD-137. Write-once: only a version with no artifact ref takes one.
+   * Answers whether the ref is now the one given.
+   */
+  async setProductVersionArtifactRef(id: string, artifactRef: string): Promise<boolean> {
+    await this.db('product_versions')
+      .where({ id })
+      .whereNull('artifact_ref')
+      .update({ artifact_ref: artifactRef });
+    const row = await this.db('product_versions').where({ id }).first();
+    return row?.artifact_ref === artifactRef;
   }
 
   async createProductComponent(
@@ -219,6 +253,10 @@ export class ComposerRepository implements IComposerRepository {
   async getProductComponent(id: string): Promise<ProductComponent | undefined> {
     const row = await this.db('product_components').where({ id }).first();
     return row ? this.rowToProductComponent(row) : undefined;
+  }
+
+  async deleteProductComponent(id: string): Promise<void> {
+    await this.db('product_components').where({ id }).del();
   }
 
   async listProductComponents(versionId: string): Promise<ProductComponent[]> {
@@ -646,6 +684,47 @@ export class ComposerRepository implements IComposerRepository {
     return rows.map((r: any) => this.rowToFunctionalSpecification(r));
   }
 
+  // ── AI build assignments (NXD-153) ────────────────────────────────────────
+
+  async createAiBuildAssignment(a: AIBuildAssignment): Promise<void> {
+    await this.db('ai_build_assignments').insert({
+      id: a.id,
+      product_id: a.productId,
+      product_version_id: a.productVersionId,
+      version_label: a.versionLabel,
+      requirements: JSON.stringify(a.requirements),
+      note: a.note ?? null,
+      agent: a.agent,
+      model_id: a.modelId,
+      payload_hash: a.payloadHash,
+      repository_url: a.repositoryUrl,
+      branch: a.branch,
+      issued_by: a.issuedBy,
+      issued_at: a.issuedAt,
+      ...aiBuildOutcomeColumns(a),
+    });
+  }
+
+  async getAiBuildAssignment(id: string): Promise<AIBuildAssignment | null> {
+    const row = await this.db('ai_build_assignments').where({ id }).first();
+    return row ? rowToAiBuildAssignment(row) : null;
+  }
+
+  async listAiBuildAssignments(productVersionId: string): Promise<AIBuildAssignment[]> {
+    const rows = await this.db('ai_build_assignments')
+      .where({ product_version_id: productVersionId })
+      .orderBy('issued_at', 'desc')
+      .select();
+    return rows.map(rowToAiBuildAssignment);
+  }
+
+  async updateAiBuildOutcome(
+    id: string,
+    outcome: Parameters<IComposerRepository['updateAiBuildOutcome']>[1],
+  ): Promise<void> {
+    await this.db('ai_build_assignments').where({ id }).update(aiBuildOutcomeColumns(outcome));
+  }
+
   // ── AI Spec Drafts (MVP1 item 6 / NXD-064 C-3) ────────────────────────────
 
   async createSpecDraft(draft: AISpecDraft): Promise<void> {
@@ -756,6 +835,39 @@ export class ComposerRepository implements IComposerRepository {
     return row ? this.rowToProductBaseline(row) : null;
   }
 
+  async addProductSignature(signature: ProductSignature): Promise<void> {
+    await this.db('product_signatures').insert({
+      id: signature.id,
+      product_id: signature.productId,
+      entity_type: signature.entityType,
+      entity_id: signature.entityId,
+      meaning: signature.meaning,
+      justification: signature.justification,
+      signed_by: signature.signedBy,
+      signed_at: signature.signedAt,
+      gmp_relevant: signature.gmpRelevant,
+      reauth_method: signature.reauthMethod ?? null,
+    });
+  }
+
+  async listProductSignatures(productId: string): Promise<ProductSignature[]> {
+    const rows = await this.db('product_signatures')
+      .where({ product_id: productId })
+      .orderBy('signed_at', 'asc');
+    return rows.map((row: any) => ({
+      id: row.id,
+      productId: row.product_id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      meaning: row.meaning,
+      justification: row.justification,
+      signedBy: row.signed_by,
+      signedAt: row.signed_at,
+      gmpRelevant: Boolean(row.gmp_relevant),
+      reauthMethod: row.reauth_method ?? undefined,
+    }));
+  }
+
   async listProductBaselines(productVersionId: string): Promise<ProductBaseline[]> {
     const rows = await this.db('product_baselines')
       .where({ product_version_id: productVersionId })
@@ -824,10 +936,13 @@ export class ComposerRepository implements IComposerRepository {
       artifactDigest: row.artifact_digest || undefined,
       baselineId: row.baseline_id || undefined,
       ursBaselineId: row.urs_baseline_id || undefined,
+      artifactRef: row.artifact_ref || undefined,
       createdBy: row.created_by,
       createdAt: row.created_at,
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
+      releasedBy: row.released_by || undefined,
+      releasedAt: row.released_at || undefined,
       revision: row.revision,
     };
   }
@@ -1029,4 +1144,51 @@ function toIsoString(value: unknown): string {
     return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
   }
   return '';
+}
+
+function aiBuildOutcomeColumns(o: Parameters<IComposerRepository['updateAiBuildOutcome']>[1]) {
+  return {
+    status: o.status,
+    dispatch_reason: o.dispatchReason ?? null,
+    run_url: o.runUrl ?? null,
+    run_conclusion: o.runConclusion ?? null,
+    pull_request_number: o.pullRequestNumber ?? null,
+    pull_request_url: o.pullRequestUrl ?? null,
+    pull_request_head_sha: o.pullRequestHeadSha ?? null,
+    merged_at: o.mergedAt ?? null,
+    merge_commit_sha: o.mergeCommitSha ?? null,
+    closed_at: o.closedAt ?? null,
+    updated_at: o.updatedAt,
+  };
+}
+
+function rowToAiBuildAssignment(row: any): AIBuildAssignment {
+  const optional = <T>(value: T | null | undefined) => (value === null || value === undefined ? undefined : value);
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productVersionId: row.product_version_id,
+    versionLabel: row.version_label,
+    status: row.status,
+    requirements: JSON.parse(row.requirements),
+    note: optional(row.note),
+    // NXD-154. Assignments issued before the choice existed ran Claude Code.
+    agent: row.agent ?? 'claude-code',
+    modelId: row.model_id,
+    payloadHash: row.payload_hash,
+    repositoryUrl: row.repository_url,
+    branch: row.branch,
+    issuedBy: row.issued_by,
+    issuedAt: row.issued_at,
+    dispatchReason: optional(row.dispatch_reason),
+    runUrl: optional(row.run_url),
+    runConclusion: optional(row.run_conclusion),
+    pullRequestNumber: optional(row.pull_request_number) === undefined ? undefined : Number(row.pull_request_number),
+    pullRequestUrl: optional(row.pull_request_url),
+    pullRequestHeadSha: optional(row.pull_request_head_sha),
+    mergedAt: optional(row.merged_at),
+    mergeCommitSha: optional(row.merge_commit_sha),
+    closedAt: optional(row.closed_at),
+    updatedAt: row.updated_at,
+  };
 }

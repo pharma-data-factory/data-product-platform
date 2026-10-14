@@ -121,4 +121,42 @@ describe('ReleaseReadinessCard (NXD-100)', () => {
     rerenderWithKey('b');
     await waitFor(() => expect(loadGate).toHaveBeenCalledTimes(2));
   });
+
+  it('says which blocker cleared and which appeared when the count stays the same (NXD-159 item 3)', async () => {
+    const loadGate = jest
+      .fn()
+      .mockResolvedValueOnce({
+        passed: false,
+        blockers: [{ code: 'POLICY_OBLIGATION_UNMET', message: 'owner is required.' }],
+      })
+      .mockResolvedValueOnce({
+        passed: false,
+        blockers: [{ code: 'NO_APPROVED_BASELINE', message: 'Approve a product baseline.' }],
+      });
+    const { rerenderWithKey } = renderCard(loadGate);
+    expect(await screen.findByText('Blocked by 1 check')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Since the last check')).toBeNull();
+    rerenderWithKey('b');
+    expect(await screen.findByLabelText('Since the last check')).toHaveTextContent(
+      'cleared A policy obligation is not met; new No approved product baseline.',
+    );
+    expect(screen.getByText('Blocked by 1 check')).toBeInTheDocument();
+  });
+
+  it('says nothing changed when a re-check returns the same blockers', async () => {
+    const result = {
+      passed: false,
+      blockers: [{ code: 'NO_COMPONENTS', message: 'Add a component.' }],
+    };
+    const loadGate = jest
+      .fn()
+      .mockResolvedValueOnce(result)
+      .mockResolvedValueOnce({ ...result, blockers: [...result.blockers] });
+    const { rerenderWithKey } = renderCard(loadGate);
+    await screen.findByText('Blocked by 1 check');
+    rerenderWithKey('b');
+    expect(await screen.findByLabelText('Since the last check')).toHaveTextContent(
+      'nothing changed.',
+    );
+  });
 });

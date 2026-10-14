@@ -33,21 +33,21 @@
 # holds QUALITY_REVIEWER, and `verifySegregationOfDuties` refuses a signature
 # from the version's author regardless of role.
 #
-# One wart, pre-existing and worth naming rather than hiding: GROUP_TO_APPROVAL_ROLE
-# maps data-product-owners to PRODUCT_MANAGER as a retained alias, so all four
-# hold PRODUCT_MANAGER too. demo-pm exists anyway, in urs-product-managers, so
-# the seat a tester looks for is on the sign-in page by its own name. Step 2 of the workflow is therefore satisfiable by
-# any of them. Steps 1 and 3 are not, and those are the ones under test.
-#
+# Until NXD-166 GROUP_TO_APPROVAL_ROLE mapped data-product-owners to
+# PRODUCT_MANAGER as a retained alias, so all four held PRODUCT_MANAGER and any
+# of them could take workflow step 2. That alias is gone: step 2 is demo-pm's.
+
 # ## Walking it
 #
 #   demo-author    author the set, add requirements, advance the review chain,
 #                  create the baseline and submit it, create the Product
-#   demo-reviewer  approve workflow step 1 (BUSINESS_REVIEWER) and step 2,
+#   demo-reviewer  approve workflow step 1 (BUSINESS_REVIEWER),
 #                  approve the Product version the author raised
-#   demo-pm        the product-manager seat (workflow step 2) under its own name
+#   demo-pm        approve workflow step 2 (PRODUCT_MANAGER)
 #   demo-quality   apply the APPROVED_QA signature that releases the requirement
 #                  versions, then approve workflow step 3 (QUALITY_REVIEWER)
+#   demo-release   release a Product version: a product owner who neither wrote
+#                  nor approved it, nor its product baseline (NXD-164/165)
 
 auth:
   # Never loaded in the production image. The provider refuses to resolve any
@@ -66,6 +66,8 @@ auth:
         - demo-quality
         - demo-validator
         - demo-qa-lead
+        - demo-release
+        - demo-admin
 
 users:
   # Written into platform_users on every non-production start, which the
@@ -110,6 +112,22 @@ users:
       memberOf:
         - platform-viewers
         - urs-quality-reviewers
+    # NXD-166. The release seat. A product owner (product.manage) in no urs-*
+    # group: it approves nothing in the URS chain, and because it authors and
+    # approves nothing, the release's segregation of duties (NXD-164/165)
+    # never excludes it.
+    - name: demo-release
+      displayName: Rhea Release Manager (demo)
+      memberOf:
+        - data-product-owners
+    # The MVP1 live run. The platform administrator: registers runtime targets
+    # (installation.target.manage) and can clear another seat's signing PIN
+    # (NXD-138). In no urs-* group, so it signs nothing in the approval chain,
+    # and ADMIN does not bypass the approval checks anyway.
+    - name: demo-admin
+      displayName: Ada Admin (demo)
+      memberOf:
+        - platform-admins
 
 ursComposer:
   persistence:

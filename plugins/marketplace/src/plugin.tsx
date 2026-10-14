@@ -11,6 +11,7 @@ import {
   artifactRegistryApiRef,
 } from './artifactRegistryApi';
 import { EntitlementClient, entitlementApiRef } from './entitlementApi';
+import { InstallationsClient, installationsApiRef } from './installationsApi';
 import { detailRouteRef, rootRouteRef } from './routes';
 
 const artifactRegistryApi = ApiBlueprint.make({
@@ -38,6 +39,20 @@ const entitlementApi = ApiBlueprint.make({
       },
       factory: ({ discoveryApi, fetchApi }) =>
         new EntitlementClient({ discoveryApi, fetchApi }),
+    }),
+});
+
+const installationsApi = ApiBlueprint.make({
+  name: 'installations',
+  params: defineParams =>
+    defineParams({
+      api: installationsApiRef,
+      deps: {
+        discoveryApi: discoveryApiRef,
+        fetchApi: fetchApiRef,
+      },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new InstallationsClient({ discoveryApi, fetchApi }),
     }),
 });
 
@@ -69,6 +84,7 @@ export const marketplacePlugin = createFrontendPlugin({
   extensions: [
     artifactRegistryApi,
     entitlementApi,
+    installationsApi,
     marketplacePage,
     marketplaceDetailPage,
   ],
