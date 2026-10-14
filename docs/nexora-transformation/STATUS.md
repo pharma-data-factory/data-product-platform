@@ -506,6 +506,9 @@ four quick wins F1–F4, one commit and one record each.
   platform's and the templates' 23 workflow files use current action majors
   (Node 24) and run on `ubuntu-26.04` instead of `ubuntu-latest`;
   Dependabot #5–#7 are superseded. See [`NXD-172`](DECISIONS.md).
+- **knex moves only with Backstage.** Dependabot groups `knex` with
+  `@backstage/*`, so no second copy splits its types, and it is asked to
+  watch the templates' workflows too. See [`NXD-173`](DECISIONS.md).
 
 ## Previous Vertical Slices
 

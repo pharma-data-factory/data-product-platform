@@ -20,16 +20,22 @@ updates:
     open-pull-requests-limit: 5
     groups:
       # One PR, reviewed as a platform upgrade. Never auto-merge this group.
+      # knex too (NXD-173): @backstage/backend-plugin-api brings its own knex,
+      # and our plugins type their repositories against Backstage's
+      # DatabaseService. Raising our knex alone puts a second copy in the
+      # tree whose types do not match Backstage's, and `yarn tsc` fails.
       backstage:
         patterns:
           - '@backstage/*'
           - '@backstage-community/*'
+          - 'knex'
       # Everything else, split by risk so a patch sweep does not need the same
       # scrutiny as a major.
       non-backstage-minor-patch:
         exclude-patterns:
           - '@backstage/*'
           - '@backstage-community/*'
+          - 'knex'
         update-types:
           - minor
           - patch
@@ -46,8 +52,13 @@ updates:
       - dependency-name: '@mui/*'
         update-types: [version-update:semver-major]
 
+  # The templates' workflows too (NXD-172/173): they are copied into every
+  # generated product repository, and with `directory: /` alone Dependabot
+  # never saw them, so they fell three majors behind the platform's own.
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /templates/*/content
     schedule:
       interval: weekly
       day: tuesday
