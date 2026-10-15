@@ -11685,3 +11685,69 @@ the same component the passing tests mount; no test named the buttons.
 
 **Not verified live.** Provoking a failing signature route in the running
 stack would mean breaking it; the unit test drives the same component.
+
+### NXD-178 — `urs-composer` is back inside the test gate: its nine failures were a missing mock and a renamed step
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track, its last item. It also
+  closes [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.4 rank 8,
+  which was ranked "unknown cost".
+
+**Context.**
+
+- `plugins/urs-composer` ran its tests through `bin/test.js` with
+  `BACKSTAGE_OLD_TESTS=true`. So `backstage-cli repo test`, which is what
+  `yarn test` and CI's `yarn test:all` run, never reached it.
+- `NXD-073` made the exclusion visible through `TEST_GATE_COVERAGE`, with
+  the stated reason "the current repo runner cannot execute this package",
+  plus nine `CreateWizard` failures ("A component suspended while
+  responding to synchronous input"). They were recorded as pre-existing and
+  never explained.
+
+**What the measurement found.**
+
+1. **The runner reason was out of date.** Under `backstage-cli package
+   test` the package runs: 13 suites, and everything passes except the same
+   nine cases.
+2. **Eight of the nine were one missing mock.** `BusinessCapabilityStep`
+   calls `listRequirementSets()` on mount. `CreateWizard.test.tsx`'s API
+   mock lacked it, and its two sibling test files have it. The call threw
+   inside the step's effect, and React reported the error as a suspension.
+   That message pointed everyone at Suspense and `startTransition`, which
+   had nothing to do with it.
+3. **The ninth was a renamed step.** Commit `2517e4e` renamed the last step
+   "Review & Submit" → "Review & Save", because it saves a draft and does
+   not submit for approval. The test kept the old name.
+
+**Decision.**
+
+- The mock gains `listRequirementSets`, and the stepper test expects
+  "Review & Save".
+- The package's `test` script is `backstage-cli package test`, and
+  `bin/test.js` is deleted.
+- `TEST_GATE_EXEMPT_WORKSPACES` is empty. The guard fails a stale entry,
+  so the exemption had to go in the same change.
+
+**Verified.**
+
+- `plugins/urs-composer`: 13 suites / 109 tests pass. Lint is clean.
+- **The repo runner reaches it.** `CI=true yarn test
+  plugins/urs-composer/src` runs 13 suites and 109 tests. On 2026-09-28
+  zero of its files appeared in a root run.
+- `yarn guard:platform`: `TEST_GATE_COVERAGE` passes, "every workspace with
+  tests runs inside the repo-wide gate". The totals are 12 PASS, 8 WARNING,
+  0 FAIL, against 11 / 9 / 0 before.
+- **Full `CI=true yarn test`: 327 of 328 suites, 3326 of 3327 tests.** The
+  one failure is `compatibilityPolicyParity.test.ts`. This container has no
+  Python interpreter that can import the data-product SDK (pydantic is
+  missing); CI installs one. It is an environmental failure of this
+  container, not of the code. `ProductDetailPage.test.tsx`, flaky under load in the
+  audit, passed in this full run. One run proves no absence of flakiness.
+
+**Phase 1 is complete** with `NXD-175`…`NXD-178`. D11 (the Composer name)
+stays open.
+
+**Left as found.** The package still declares `jest` ~30.2 and
+`@jest/environment-jsdom-abstract`, which only the old runner needed.
+Removing them changes `yarn.lock`, so it goes through the dependency
+governance of `AGENTS.md`, not this change.

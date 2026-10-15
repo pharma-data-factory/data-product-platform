@@ -57,9 +57,15 @@ documents defined "MVP 1.0" in three ways. The track is in
   on a GMP product. It is now its own error with *Try again*. This record
   also corrects `NXD-175`, whose "tsc clean" was false. See
   [`NXD-177`](DECISIONS.md).
+- **Phase 1 — `urs-composer` back inside the gate.** Its nine
+  `CreateWizard` failures were a missing API mock, which React reported as
+  a suspension, and a renamed step. It runs on the standard runner, and the
+  exemption is gone. A full `yarn test` now counts 3326 of 3327; the one
+  failure is the container's missing Python SDK interpreter. **Phase 1 is
+  complete.** See [`NXD-178`](DECISIONS.md).
 
-**Next:** the last of Phase 1: `CreateWizard` green and `urs-composer`
-back in the test gate.
+**Next:** Phase 2, closing the handover. It needs decision D5, when the
+URS baseline is bound at creation.
 
 ## Previous Vertical Slices
 
@@ -2166,6 +2172,10 @@ The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
 
+> **Resolved 2026-10-15 ([`NXD-178`](DECISIONS.md)).** The workspace runs on
+> the standard runner and is inside the repo-wide figure. The paragraph below
+> is the 2026-09-28 record.
+
 **`plugins/urs-composer` is not in that figure, and never has been.** The
 workspace runs `BACKSTAGE_OLD_TESTS=true` through its own `bin/test.js`
 wrapper, so `backstage-cli repo test` skips it entirely — zero of its files
@@ -2717,9 +2727,9 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-177): approvals that could not be read are not approvals that do
-not exist, and nxd-175's tsc claim is corrected", 2026-10-15, on
-`ms/mvp-1.0-scope`. See [`NXD-177`](DECISIONS.md).
+"test(nxd-178): urs-composer is back inside the test gate, its nine failures
+a missing mock and a renamed step", 2026-10-15, on `ms/mvp-1.0-scope`. See
+[`NXD-178`](DECISIONS.md).
 
 > **Corrected 2026-10-15.** From 2026-09-29 until today this section named
 > NXD-086 while eighty-seven later records landed. It is the fourth note in

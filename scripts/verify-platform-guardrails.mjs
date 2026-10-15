@@ -742,14 +742,10 @@ function checkDocumentationLinks() {
  * entry — if a workspace returns to the standard runner the exemption must go
  * with it, or the list starts describing a repository that no longer exists.
  */
-const TEST_GATE_EXEMPT_WORKSPACES = {
-  'plugins/urs-composer':
-    'Runs jest through bin/test.js with BACKSTAGE_OLD_TESTS=true; the current ' +
-    'repo runner cannot execute this package. Its own `yarn test` is green ' +
-    'except for 9 pre-existing CreateWizard failures ("A component suspended ' +
-    'while responding to synchronous input"). Re-inclusion is ranked work, ' +
-    'not a forgotten exclusion.',
-};
+// Empty since NXD-178 (2026-10-15): `plugins/urs-composer` returned to the
+// standard runner once its nine CreateWizard failures were traced to a
+// missing API mock and a stale step label.
+const TEST_GATE_EXEMPT_WORKSPACES = {};
 
 const STANDARD_TEST_SCRIPT = 'backstage-cli package test';
 
