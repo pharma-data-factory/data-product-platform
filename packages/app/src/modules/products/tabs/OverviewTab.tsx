@@ -1,4 +1,5 @@
 import { Box, Button, Typography } from '@material-ui/core';
+import { LoadError } from '@internal/plugin-nexora-common';
 import type {
   Product,
   ProductBaseline,
@@ -76,6 +77,9 @@ interface OverviewTabProps {
   onApproveBaseline: (baselineId: string) => Promise<void>;
   /** NXD-128: approvals and releases of this product, as attested. */
   signatures?: ProductSignatureRecord[];
+  /** NXD-177: the signatures could not be read; not the same as none. */
+  signaturesError?: Error | null;
+  onRetrySignatures?: () => void;
 }
 
 export function OverviewTab({
@@ -95,6 +99,8 @@ export function OverviewTab({
   onCreateBaseline,
   onApproveBaseline,
   signatures = [],
+  signaturesError = null,
+  onRetrySignatures,
 }: OverviewTabProps) {
   return (
     <>
@@ -208,7 +214,18 @@ export function OverviewTab({
               onApprove={onApproveBaseline}
             />
 
-            {signatures.length > 0 ? (
+            {signaturesError ? (
+              <section aria-label="Approvals and releases" style={{ marginTop: 16 }}>
+                <Typography variant="subtitle1">Approvals and releases</Typography>
+                <LoadError
+                  error={signaturesError}
+                  what="the approvals and releases"
+                  onRetry={onRetrySignatures}
+                />
+              </section>
+            ) : null}
+
+            {!signaturesError && signatures.length > 0 ? (
               <section aria-label="Approvals and releases" style={{ marginTop: 16 }}>
                 <Typography variant="subtitle1">Approvals and releases</Typography>
                 {signatures.map(sig => (

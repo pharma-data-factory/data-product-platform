@@ -743,3 +743,35 @@ describe('ProductDetailPage — approved baselines that could not be loaded (NXD
     ).toBeInTheDocument();
   });
 });
+
+describe('ProductDetailPage — signatures that could not be loaded (NXD-177)', () => {
+  const SIGNED = {
+    id: 's1',
+    entityType: 'PRODUCT_VERSION' as const,
+    entityId: VERSION_RELEASED.id,
+    meaning: 'VERSION_RELEASED' as const,
+    justification: 'Released after QA review',
+    signedBy: 'user:default/release',
+    signedAt: '2026-10-09T20:37:37Z',
+    gmpRelevant: true,
+    reauthMethod: 'PIN',
+  };
+
+  it('says the approvals could not be read, not that there are none, and recovers on retry', async () => {
+    client.listProductSignatures
+      .mockRejectedValueOnce(new Error('Service Unavailable (503)'))
+      .mockResolvedValueOnce([SIGNED]);
+    await renderPage();
+
+    expect(
+      await screen.findByText('Could not load the approvals and releases'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText(/Released after QA review/)).toBeInTheDocument();
+    expect(
+      screen.queryByText('Could not load the approvals and releases'),
+    ).not.toBeInTheDocument();
+  });
+});

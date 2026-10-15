@@ -52,9 +52,14 @@ documents defined "MVP 1.0" in three ways. The track is in
   now answer 400, 404 or 409 with their message, and three genuine faults
   stay 500. Two buttons that led to routes that do not exist are gone.
   See [`NXD-176`](DECISIONS.md).
+- **Phase 1 — unreadable approvals say so.** A failed signature load on
+  the product page became an empty list, which reads as "nothing approved"
+  on a GMP product. It is now its own error with *Try again*. This record
+  also corrects `NXD-175`, whose "tsc clean" was false. See
+  [`NXD-177`](DECISIONS.md).
 
-**Next:** the rest of Phase 1: the swallowed signature-load failure, then
-returning `urs-composer` to the test gate.
+**Next:** the last of Phase 1: `CreateWizard` green and `urs-composer`
+back in the test gate.
 
 ## Previous Vertical Slices
 
@@ -2712,9 +2717,9 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-176): a urs refusal says what kind of refusal it is, and the
-requirement-set page loses two buttons to nowhere", 2026-10-15, on
-`ms/mvp-1.0-scope`. See [`NXD-176`](DECISIONS.md).
+"fix(nxd-177): approvals that could not be read are not approvals that do
+not exist, and nxd-175's tsc claim is corrected", 2026-10-15, on
+`ms/mvp-1.0-scope`. See [`NXD-177`](DECISIONS.md).
 
 > **Corrected 2026-10-15.** From 2026-09-29 until today this section named
 > NXD-086 while eighty-seven later records landed. It is the fourth note in

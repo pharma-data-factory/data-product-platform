@@ -11639,3 +11639,49 @@ DRAFT. Delete it if wanted; nothing depends on it.
 
 **Not verified.** The removed buttons in a browser. The page renders from
 the same component the passing tests mount; no test named the buttons.
+
+### NXD-177 — Approvals that could not be read are not approvals that do not exist; and NXD-175's "tsc clean" was false
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track, after
+  [`NXD-176`](DECISIONS.md). Found by the 2026-10-15 audit
+  ([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+  §13.2, check 10).
+
+**Context.**
+
+- **A failed signature load read as "none".**
+  `ProductDetailPage` loaded the product's signatures with
+  `listProductSignatures(...).catch(() => [])`, twice. A failure became an
+  empty list, and the Overview tab then showed no *Approvals and releases*
+  section. On a GMP product that reads as "nothing here was approved or
+  released", which is a statement about a regulated record made on no
+  evidence. It is the failure mode `NXD-094` removed from six pages.
+- **`NXD-175` claimed `yarn tsc` clean, and it was not.** Its new test
+  typed `fetchApi.fetch` with `url: string`, and `FetchApi` takes
+  `RequestInfo | URL`. Jest does not type-check, so the test passed.
+  `yarn tsc` printed the error. The output was read through `tail` and
+  taken for a lint error that was fixed in the same minute. The record and
+  the commit body of `c913998` say "tsc clean". They were wrong, and this
+  is the correction.
+
+**Decision.**
+
+- **Signatures carry their own error state.** A failure sets
+  `signaturesError`. The Overview tab then shows the section heading and
+  `LoadError` ("Could not load the approvals and releases", with *Try
+  again*) in place of the list. The rest of the page keeps working. Both
+  load sites share `reloadSignatures`.
+- **The test's `fetch` takes `RequestInfo | URL`**, as `FetchApi` does.
+
+**Verified.**
+
+- `ProductDetailPage.test.tsx` has a new case: a 503, then the error with
+  *Try again*, then the signature on retry. 26 / 26 pass. On the old code
+  the case fails, because no error text appears.
+- `yarn tsc`: no output, exit 0. This time the whole output was read.
+- Lint is clean for `packages/app`.
+- `ComposePage.test.tsx`: 8 / 8 pass.
+
+**Not verified live.** Provoking a failing signature route in the running
+stack would mean breaking it; the unit test drives the same component.

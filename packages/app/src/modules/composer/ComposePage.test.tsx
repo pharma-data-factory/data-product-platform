@@ -52,7 +52,8 @@ const AI_RESPONSES: Record<string, unknown> = {
   '/ai/spec-drafts/draft-1/apply': { id: 'product-1' },
 };
 const fetchApi = {
-  fetch: async (url: string, init?: RequestInit) => {
+  fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
     fetchCalls.push({ url, init });
     const path = url.replace('http://localhost:7007/api/composer', '');
     const body = AI_RESPONSES[path];
