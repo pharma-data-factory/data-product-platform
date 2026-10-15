@@ -221,6 +221,38 @@ describe('AI spec draft: approved URS baseline -> product', () => {
     expect((await service.getSpecDraft(draft.id))?.status).toBe('APPLIED');
   });
 
+  // NXD-175. The review form offers name, description and domain for
+  // correction, and apply used to ignore them: the product took the model's
+  // values and the person's edits vanished without a word.
+  it("creates the product from the reviewer's corrections, and keeps what the model said", async () => {
+    const draft = await service.generateProductSpec(URS_BASELINE_ID, actor);
+
+    const product = await service.applySpecDraft(draft.id, actor, {
+      productName: '  Dispensing Weighing Events  ',
+      description: 'Weighing events from the dispensing booth balances',
+      domain: '',
+    });
+
+    expect(product.name).toBe('Dispensing Weighing Events');
+    expect(product.description).toBe(
+      'Weighing events from the dispensing booth balances',
+    );
+    // Blank keeps the draft's value rather than erasing it.
+    expect(product.domain).toBe(draft.domain);
+
+    const stored = await service.getSpecDraft(draft.id);
+    expect(stored?.productName).toBe(draft.productName);
+    expect(stored?.description).toBe(draft.description);
+
+    const [event] = await db('composer_audit_events')
+      .where({ entity_id: draft.id, event_type: 'AI_SPEC_APPLIED' })
+      .select('new_value');
+    expect(JSON.parse(event.new_value).reviewerChanged).toEqual([
+      'productName',
+      'description',
+    ]);
+  });
+
   // U2 — the applied draft records its origin only in the version changelog,
   // as prose. Nothing machine-readable ties the product back to the URS
   // baseline, so the release gate's URS check never fires for AI-built

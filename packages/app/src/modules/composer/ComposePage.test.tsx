@@ -3,7 +3,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TestApiProvider, mockApis } from '@backstage/frontend-test-utils';
 import { artifactRegistryApiEntry } from '../__testUtils__/artifactRegistry';
-import { configApiRef, discoveryApiRef, identityApiRef } from '@backstage/core-plugin-api';
+import {
+  configApiRef,
+  discoveryApiRef,
+  fetchApiRef,
+  identityApiRef,
+} from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import { UnifiedThemeProvider } from '@backstage/theme';
@@ -19,8 +24,47 @@ jest.mock('@backstage/core-components', () => {
   };
 });
 
+/**
+ * NXD-175. The Composer's AI calls, recorded. Only `/ai/...` on the composer
+ * base URL answers; anything else, such as the doubled `/composer/ai/...`
+ * the client used to build, is a 404 here as it was against the backend.
+ */
+const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+const AI_DRAFT = {
+  id: 'draft-1',
+  ursBaselineId: 'urs-baseline-1',
+  status: 'PENDING_REVIEW',
+  productName: 'Weighing Events',
+  description: 'Weighing events from balances',
+  domain: 'dispensing',
+  suggestedComponents: [],
+  suggestedContracts: [],
+  generatedBy: 'mock-model',
+  generatedAt: '2026-10-15T08:00:00Z',
+};
+const AI_RESPONSES: Record<string, unknown> = {
+  '/ai/suggest-components': {
+    suggestions: [
+      { name: 'timeseries', reason: 'Stores the readings.', priority: 'required' },
+    ],
+  },
+  '/ai/generate-product-spec': AI_DRAFT,
+  '/ai/spec-drafts/draft-1/apply': { id: 'product-1' },
+};
+const fetchApi = {
+  fetch: async (url: string, init?: RequestInit) => {
+    fetchCalls.push({ url, init });
+    const path = url.replace('http://localhost:7007/api/composer', '');
+    const body = AI_RESPONSES[path];
+    return body === undefined
+      ? new Response(JSON.stringify({ error: { message: 'Not found' } }), { status: 404 })
+      : new Response(JSON.stringify(body), { status: 200 });
+  },
+};
+
 afterEach(() => {
   cleanup();
+  fetchCalls.length = 0;
 });
 
 jest.setTimeout(20000);
@@ -141,9 +185,11 @@ async function renderCompose(path = '/compose', groups = ['data-product-develope
                   scaffold: async () => ({ taskId: 'test-task' }),
                 } as never,
               ],
+              [fetchApiRef, fetchApi],
               [
                 identityApiRef,
                 {
+                  getCredentials: async () => ({ token: 'dev-token' }),
                   getBackstageIdentity: async () => ({
                     type: 'user' as const,
                     userEntityRef: 'user:default/dev',
@@ -302,5 +348,48 @@ describe('Composition Builder', () => {
     await renderCompose('/compose?component=../secret');
     await screen.findByRole('heading', { name: 'Compose Data Product' });
     expect(screen.getByText(/invalid component query was ignored/i)).toBeInTheDocument();
+  });
+
+  // NXD-175. Every AI call on this page went to `/api/composer/composer/ai/…`
+  // with no token, and no test asked where it went.
+  it('asks the composer backend for suggestions, with the signed-in token', async () => {
+    await renderCompose();
+    fireEvent.click(screen.getByTestId('ai-suggest-components'));
+
+    expect(await screen.findByText('Stores the readings.')).toBeInTheDocument();
+    const [call] = fetchCalls;
+    expect(call.url).toBe('http://localhost:7007/api/composer/ai/suggest-components');
+    expect(call.init?.method).toBe('POST');
+    expect((call.init?.headers as Record<string, string>).Authorization).toBe(
+      'Bearer dev-token',
+    );
+  });
+
+  it("applies an AI spec draft with the reviewer's corrections", async () => {
+    await renderCompose();
+    fireEvent.change(screen.getByPlaceholderText('Paste an approved URS baseline ID'), {
+      target: { value: 'urs-baseline-1' },
+    });
+    fireEvent.click(screen.getByTestId('ai-generate-spec'));
+
+    const name = await screen.findByDisplayValue('Weighing Events');
+    fireEvent.change(name, { target: { value: 'Dispensing Weighing Events' } });
+    fireEvent.click(screen.getByTestId('ai-apply-spec'));
+
+    expect(
+      await screen.findByText(
+        'Product "Dispensing Weighing Events" created from AI spec draft.',
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    const apply = fetchCalls.find(c => c.url.endsWith('/apply'));
+    expect(apply?.url).toBe(
+      'http://localhost:7007/api/composer/ai/spec-drafts/draft-1/apply',
+    );
+    expect(JSON.parse(String(apply?.init?.body))).toEqual({
+      productName: 'Dispensing Weighing Events',
+      description: 'Weighing events from balances',
+      domain: 'dispensing',
+    });
   });
 });

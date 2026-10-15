@@ -1557,7 +1557,17 @@ export async function createRouter(
           req,
           productCreatePermission,
         );
-        const product = await service.applySpecDraft(req.params.id, actor);
+        // NXD-175. The reviewer's corrections to name, description, domain.
+        const { productName, description, domain } = (req.body ?? {}) as {
+          productName?: unknown;
+          description?: unknown;
+          domain?: unknown;
+        };
+        const product = await service.applySpecDraft(req.params.id, actor, {
+          productName: typeof productName === 'string' ? productName : undefined,
+          description: typeof description === 'string' ? description : undefined,
+          domain: typeof domain === 'string' ? domain : undefined,
+        });
         res.json(product);
       } catch (err) {
         respondError(res, logger, err);

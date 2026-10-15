@@ -20,16 +20,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { LineageDAGView } from './LineageDAGView';
 
-const getBaseUrl = jest.fn(async () => 'http://composer.test');
+const getBaseUrl = jest.fn(async () => 'http://composer.test/api/composer');
+const fetchMock = jest.fn();
 
+// One stand-in serves both refs: discovery's getBaseUrl and fetchApi's fetch.
 jest.mock('@backstage/core-plugin-api', () => ({
   ...jest.requireActual('@backstage/core-plugin-api'),
-  useApi: () => ({ getBaseUrl }),
+  useApi: () => ({ getBaseUrl, fetch: fetchMock }),
   discoveryApiRef: { id: 'discovery' },
+  fetchApiRef: { id: 'fetch' },
 }));
-
-const fetchMock = jest.fn();
-global.fetch = fetchMock as unknown as typeof fetch;
 
 const EMPTY_IMPACT = {
   artifactName: 'cold-room-temperature',
@@ -45,6 +45,19 @@ describe('LineageDAGView', () => {
   beforeEach(() => {
     fetchMock.mockReset();
     getBaseUrl.mockClear();
+  });
+
+  // NXD-175. It asked for `/api/composer/composer/impact/artifact`, bare and
+  // unauthenticated, so the failure state below was all it ever showed.
+  it('asks the composer for the impact through fetchApi, at the mounted path', async () => {
+    fetchMock.mockResolvedValue(answer(EMPTY_IMPACT));
+
+    render(<LineageDAGView productName="cold-room-temperature" />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://composer.test/api/composer/impact/artifact?name=cold-room-temperature',
+    );
   });
 
   it('does not advertise an endpoint no page calls', async () => {

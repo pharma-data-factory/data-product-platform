@@ -11484,3 +11484,97 @@ without a validation decision when the product is GMP.
 **Next.** Phase 1, fixing what is broken (`PHASE_CLOSURE_PLAN.md` §9.8). It
 needs no open decision except whether the `/compose` AI features are fixed
 or hidden.
+
+### NXD-175 — The Composer's AI calls reach the routes they name, with the signed-in person's token, and the reviewer's corrections reach the product
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track
+  ([`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8), after
+  [`NXD-174`](DECISIONS.md). The user chose to fix the `/compose` AI
+  features rather than hide them ("Phase 1 fix AI", 2026-10-15).
+
+**Context.** Two defects, found by the 2026-10-15 audit
+([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+§13.2, check 5).
+
+- **Every AI call on `/compose` failed.** `composerApi.ts` built
+  `${baseUrl}/composer/ai/...` on a base URL that already ends in
+  `/api/composer`. The routes are mounted at `/ai/...`, so each request
+  went to `/api/composer/composer/ai/...` and answered 404. The calls used
+  bare `fetch` with no token, and the routes demand a user credential. That
+  covered suggest components, generate spec, apply and reject. No test
+  asked where a call went.
+- **`LineageDAGView` had the same doubled prefix**, on
+  `/composer/impact/artifact`, also bare. Every product page's lineage card
+  showed "could not be loaded". `NXD-085` had made that state honest, but it
+  was the only state the card ever reached.
+
+A third defect turned up while fixing the first two.
+
+- **The review form's corrections were discarded.** After *Generate from
+  URS* the page lets a person edit the product name, description and domain
+  before *Apply*. Apply sent no body, and `applySpecDraft` created the
+  product from the stored draft. A reviewer who corrected the model's name
+  got the model's name, with no word.
+
+**Decision.**
+
+- **The AI client is a hook, `useComposerAiClient`**, on the products
+  module's request helper (`usePluginRequest`, now exported). It uses
+  `fetchApi`, the signed-in token and the mounted paths, the way every
+  other Composer call already worked. The bare functions taking a base URL
+  are gone.
+- **`LineageDAGView` uses `fetchApi` and `/impact/artifact`**, as its
+  sibling `useGoverningProduct` does.
+- **Apply carries the reviewer's corrections.** `POST
+  /ai/spec-drafts/:id/apply` takes optional `productName`, `description`
+  and `domain`; a blank or absent field keeps the draft's value.
+  - The draft row keeps what the model said (`NXD-064` C-3).
+  - The `AI_SPEC_APPLIED` audit event names the fields the reviewer changed
+    (`reviewerChanged`).
+
+**Verified.**
+
+- **Unit tests.** `ComposePage.test.tsx` has two new cases:
+  - suggestions go to `…/api/composer/ai/suggest-components` with
+    `Bearer`;
+  - apply posts the edited name.
+
+  The test `fetchApi` answers 404 for anything else, as the backend did.
+  `LineageDAGView.test.tsx` asserts the impact URL.
+  `ai-spec-draft.test.ts` proves the reviewer's values win, a blank keeps
+  the draft's, the draft keeps the model's text, and the audit names the
+  changed fields.
+- **Live, in a browser** (Playwright, `ona-dev.sh serve`, PostgreSQL, seat
+  `demo-author`):
+
+  | Call | Answer |
+  | --- | --- |
+  | `POST /api/composer/ai/suggest-components` | 200, with a token |
+  | `POST /api/composer/ai/generate-product-spec` | 201, from approved URS baseline `URS-EPM` 1.0 |
+  | `POST /api/composer/ai/spec-drafts/77f9bfbe…/apply` | 200 |
+
+  The product name was typed over as `nxd-175-live-check`. The product
+  exists under that name; the draft still says
+  `equipment-performance-management`. The audit row reads
+  `"reviewerChanged":["productName"]`.
+
+**Not verified.**
+
+- **A real model.** No `composer.ai.apiKey` is configured, so the backend
+  answered from `MockComposerLLMClient` (it logs "Falling back to mock").
+  The run proves the wiring, not a model's answer.
+- **The lineage card in a browser.** It is covered by unit test only.
+
+**Left as found.**
+
+- The baseline is still pasted as an id; a picker exists in the scaffolder
+  (`UrsBaselinePicker`).
+- The success notice links to nothing.
+- These `TextField`s carry no `id`, so their labels are not associated
+  (the tests query by placeholder and value for that reason).
+- A product created this way still has no repository (D4).
+
+**Live-check residue.** Product `nxd-175-live-check` (`7aa1eccd…`) remains
+in the development database. The trail is append-only and the product is
+DRAFT. Delete it if wanted; nothing depends on it.

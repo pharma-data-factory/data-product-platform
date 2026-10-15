@@ -41,11 +41,16 @@ documents defined "MVP 1.0" in three ways. The track is in
   Product Composer enter scope. Readiness is 5.5 of 10, and all four gates
   are open. The scope classification and decisions D2–D12 await the
   product owner. See [`NXD-174`](DECISIONS.md).
+- **Phase 1 — the Composer's AI calls arrive.** Every AI call on
+  `/compose` went to `/api/composer/composer/ai/…` without a token, and
+  the lineage card's impact call did the same. Both now use `fetchApi` and
+  the mounted paths. The review form's corrections, which apply discarded,
+  now become the product, and the audit names the changed fields. Checked
+  live in a browser against the mock model. See [`NXD-175`](DECISIONS.md).
 
-**Next:** Phase 1, fixing what is broken. That is the `/compose` AI client
-(wrong path, no token), the lineage impact URL, the dead URS links, URS
-conflicts answering 500, and a swallowed signature-load failure. It also
-returns `urs-composer` to the test gate.
+**Next:** the rest of Phase 1. That is the dead URS links, URS conflicts
+answering 500, and a swallowed signature-load failure. It also returns
+`urs-composer` to the test gate.
 
 ## Previous Vertical Slices
 
@@ -2703,9 +2708,9 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"docs(nxd-174): mvp 1.0 is the product lifecycle from urs to github, and the
-technical baseline becomes its precondition", 2026-10-15, on
-`ms/mvp-1.0-scope`. See [`NXD-174`](DECISIONS.md).
+"fix(nxd-175): the composer's ai calls reach the routes they name with the
+signed-in token, and the reviewer's corrections reach the product",
+2026-10-15, on `ms/mvp-1.0-scope`. See [`NXD-175`](DECISIONS.md).
 
 > **Corrected 2026-10-15.** From 2026-09-29 until today this section named
 > NXD-086 while eighty-seven later records landed. It is the fourth note in

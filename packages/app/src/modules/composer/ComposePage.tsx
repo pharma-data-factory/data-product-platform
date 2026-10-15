@@ -7,7 +7,7 @@ import {
   Page,
   Progress,
 } from '@backstage/core-components';
-import { useApi, discoveryApiRef } from '@backstage/core-plugin-api';
+import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import {
@@ -60,12 +60,9 @@ import {
   NEXORA_HERO_VAR,
 } from '@internal/plugin-nexora-common';
 import {
-  suggestComponents,
   SuggestedComponent,
-  generateProductSpec,
-  applySpecDraft,
-  rejectSpecDraft,
   AISpecDraft,
+  useComposerAiClient,
 } from './composerApi';
 
 const useStyles = makeStyles(theme => ({
@@ -270,12 +267,7 @@ export function ComposePage() {
   const classes = useStyles();
   const catalogApi = useApi(catalogApiRef);
   const scaffolderApi = useApi(scaffolderApiRef);
-  const discoveryApi = useApi(discoveryApiRef);
-  const [backendBaseUrl, setBackendBaseUrl] = useState('');
-
-  useEffect(() => {
-    discoveryApi.getBaseUrl('composer').then(url => setBackendBaseUrl(url));
-  }, [discoveryApi]);
+  const composerAi = useComposerAiClient();
   const { role } = usePlatformRole();
   const canEdit = canCreateDataProduct(role);
   const [params] = useSearchParams();
@@ -526,7 +518,7 @@ export function ComposePage() {
         purpose: c.profile.purpose || c.description || '',
         certificationStatus: c.certificationStatus,
       }));
-      const results = await suggestComponents(backendBaseUrl, {
+      const results = await composerAi.suggestComponents({
         productName: draft.name,
         description: draft.description || draft.name,
         domain: draft.domain || 'manufacturing',
@@ -571,7 +563,7 @@ export function ComposePage() {
     setSpecError(undefined);
     setSpecDraft(null);
     try {
-      const productSpec = await generateProductSpec(backendBaseUrl, specBaselineId.trim());
+      const productSpec = await composerAi.generateProductSpec(specBaselineId.trim());
       setSpecDraft(productSpec);
     } catch (err) {
       setSpecError(err instanceof Error ? err.message : String(err));
@@ -585,7 +577,12 @@ export function ComposePage() {
     setSpecApplying(true);
     setSpecError(undefined);
     try {
-      await applySpecDraft(backendBaseUrl, specDraft.id);
+      // NXD-175. The reviewer's corrections travel with the apply.
+      await composerAi.applySpecDraft(specDraft.id, {
+        productName: specDraft.productName,
+        description: specDraft.description,
+        domain: specDraft.domain,
+      });
       setNotice(`Product "${specDraft.productName}" created from AI spec draft.`);
       setSpecDraft(prev => prev ? { ...prev, status: 'APPLIED' } : null);
     } catch (err) {
@@ -599,7 +596,7 @@ export function ComposePage() {
     if (!specDraft || !canEdit) return;
     setSpecError(undefined);
     try {
-      await rejectSpecDraft(backendBaseUrl, specDraft.id);
+      await composerAi.rejectSpecDraft(specDraft.id);
       setSpecDraft(prev => prev ? { ...prev, status: 'REJECTED' } : null);
     } catch (err) {
       setSpecError(err instanceof Error ? err.message : String(err));
