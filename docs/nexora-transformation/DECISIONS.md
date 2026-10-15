@@ -11578,3 +11578,64 @@ A third defect turned up while fixing the first two.
 **Live-check residue.** Product `nxd-175-live-check` (`7aa1eccd…`) remains
 in the development database. The trail is append-only and the product is
 DRAFT. Delete it if wanted; nothing depends on it.
+
+### NXD-176 — A URS refusal says what kind of refusal it is, and the requirement-set page loses two buttons to nowhere
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track, after
+  [`NXD-175`](DECISIONS.md). The defects were found by the 2026-10-15 audit
+  ([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+  §13.2, check 1).
+
+**Context.**
+
+- **Twenty-one paths in `URSService` threw a plain `Error`.** `respondError`
+  maps a plain error to 500 "Internal server error" and drops the message.
+  So every one of these told the person that the platform was broken,
+  without saying why:
+  - editing a requirement set that is no longer DRAFT
+  - submitting a baseline twice
+  - a duplicate business role
+  - an unknown baseline
+  - a rejection without a reason
+
+  `NXD-072` and Slice B-1 had already typed the approval lookups and the
+  resolver; these were the rest.
+- **The requirement-set page offered two dead buttons.** *Change Requests*
+  went to `/urs-composer/change-requests` and *Portfolio* to
+  `/urs-composer/portfolio`. Neither route exists, so both fell into
+  `/urs-composer/:id` and tried to load a requirement set called
+  "change-requests" or "portfolio".
+
+**Decision.**
+
+- **The error class carries the meaning; the messages are unchanged.**
+
+  | Class | Answer | Paths |
+  | --- | --- | --- |
+  | `InputError` | 400 | missing name or domain, a requirement missing fields, an invalid set key, an invalid capability reference, a rejection without a reason |
+  | `ConflictError` | 409 | a duplicate capability, role or set key; editing a set that is not DRAFT; submitting a baseline that is not DRAFT; cancelling an approval that is neither NOT_STARTED nor IN_PROGRESS |
+  | `NotFoundError` | 404 | an unknown capability, role, set or baseline that the caller named |
+
+- **Three stay plain on purpose**, because they are faults, not refusals:
+  - a missing approval-workflow seed
+  - a baseline that vanishes inside the approval transaction
+  - "AI is not configured", which its route already maps to 501
+- **The two buttons are removed.** *Change Requests* returns with its page
+  in Phase 3 (`NXD-174` D9). There is no portfolio concept anywhere.
+
+**Verified.**
+
+- `typed-refusals.test.ts`: 9 cases covering duplicates, blanks, a
+  non-DRAFT edit and unknown ids.
+- `urs-composer-backend`: 37 suites / 500 tests pass on PostgreSQL. The
+  existing assertions on message text still hold.
+- Lint is clean for both URS packages.
+- Live against the running backend, seat `demo-author`:
+  - `PUT /api/urs-composer/requirement-sets/seed:urs-epm` (an approved set)
+    answers **409** "Only DRAFT requirement sets can be updated".
+  - `POST /baselines/no-such-baseline/submit` answers **404** "Baseline not
+    found".
+
+**Not verified.** The removed buttons in a browser. The page renders from
+the same component the passing tests mount; no test named the buttons.

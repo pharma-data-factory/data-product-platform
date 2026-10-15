@@ -47,10 +47,14 @@ documents defined "MVP 1.0" in three ways. The track is in
   the mounted paths. The review form's corrections, which apply discarded,
   now become the product, and the audit names the changed fields. Checked
   live in a browser against the mock model. See [`NXD-175`](DECISIONS.md).
+- **Phase 1 — URS refusals say what they are.** Twenty-one URS service
+  paths answered 500 "Internal server error" for an ordinary refusal. They
+  now answer 400, 404 or 409 with their message, and three genuine faults
+  stay 500. Two buttons that led to routes that do not exist are gone.
+  See [`NXD-176`](DECISIONS.md).
 
-**Next:** the rest of Phase 1. That is the dead URS links, URS conflicts
-answering 500, and a swallowed signature-load failure. It also returns
-`urs-composer` to the test gate.
+**Next:** the rest of Phase 1: the swallowed signature-load failure, then
+returning `urs-composer` to the test gate.
 
 ## Previous Vertical Slices
 
@@ -2708,9 +2712,9 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-175): the composer's ai calls reach the routes they name with the
-signed-in token, and the reviewer's corrections reach the product",
-2026-10-15, on `ms/mvp-1.0-scope`. See [`NXD-175`](DECISIONS.md).
+"fix(nxd-176): a urs refusal says what kind of refusal it is, and the
+requirement-set page loses two buttons to nowhere", 2026-10-15, on
+`ms/mvp-1.0-scope`. See [`NXD-176`](DECISIONS.md).
 
 > **Corrected 2026-10-15.** From 2026-09-29 until today this section named
 > NXD-086 while eighty-seven later records landed. It is the fourth note in

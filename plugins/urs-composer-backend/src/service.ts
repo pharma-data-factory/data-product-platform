@@ -234,7 +234,7 @@ export class URSService {
     const name = data.name?.trim();
     const domain = data.domain?.trim();
     if (!name || !domain) {
-      throw new Error('name and domain are required');
+      throw new InputError('name and domain are required');
     }
     const slug = name
       .toLowerCase()
@@ -243,7 +243,7 @@ export class URSService {
     const id = `business-capability:${domain}/${slug}`;
     const existing = await this.repository.getBusinessCapability(id);
     if (existing) {
-      throw new Error(`Business capability ${id} already exists`);
+      throw new ConflictError(`Business capability ${id} already exists`);
     }
     const now = new Date();
     const cap: BusinessCapabilityPersisted = {
@@ -281,7 +281,7 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessCapability(id);
     if (!existing) {
-      throw new Error(`Business capability ${id} not found`);
+      throw new NotFoundError(`Business capability ${id} not found`);
     }
     const updated: BusinessCapabilityPersisted = {
       ...existing,
@@ -319,7 +319,7 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessCapability(id);
     if (!existing) {
-      throw new Error(`Business capability ${id} not found`);
+      throw new NotFoundError(`Business capability ${id} not found`);
     }
     const retired = await this.repository.retireBusinessCapability(id, actor);
     await this.writeAudit(audit, this.repository, {
@@ -369,7 +369,7 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const name = data.name?.trim();
     if (!name) {
-      throw new Error('name is required');
+      throw new InputError('name is required');
     }
     const slug = name
       .toLowerCase()
@@ -378,7 +378,7 @@ export class URSService {
     const id = `role:${slug}`;
     const existing = await this.repository.getBusinessRole(id);
     if (existing) {
-      throw new Error(`Business role ${id} already exists`);
+      throw new ConflictError(`Business role ${id} already exists`);
     }
     const role: BusinessRolePersisted = {
       id,
@@ -410,7 +410,7 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessRole(id);
     if (!existing) {
-      throw new Error(`Business role ${id} not found`);
+      throw new NotFoundError(`Business role ${id} not found`);
     }
     const updated: BusinessRolePersisted = {
       ...existing,
@@ -444,7 +444,7 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const existing = await this.repository.getBusinessRole(id);
     if (!existing) {
-      throw new Error(`Business role ${id} not found`);
+      throw new NotFoundError(`Business role ${id} not found`);
     }
     const retired = await this.repository.retireBusinessRole(id, actor);
     await this.writeAudit(audit, this.repository, {
@@ -563,11 +563,11 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const existing = await this.repository.getRequirementSet(requirementSetId);
     if (!existing) {
-      throw new Error('Requirement set not found');
+      throw new NotFoundError('Requirement set not found');
     }
 
     if (existing.status !== URSStatus.DRAFT) {
-      throw new Error('Only DRAFT requirement sets can be updated');
+      throw new ConflictError('Only DRAFT requirement sets can be updated');
     }
 
     if (data.businessCapabilityRefs) {
@@ -575,7 +575,7 @@ export class URSService {
         data.businessCapabilityRefs,
       );
       if (!isValid) {
-        throw new Error('Invalid business capability reference');
+        throw new InputError('Invalid business capability reference');
       }
     }
 
@@ -611,7 +611,7 @@ export class URSService {
     for (let index = 0; index < requirements.length; index++) {
       const reqData = requirements[index];
       if (!reqData.title || !reqData.statement || !reqData.priority) {
-        throw new Error(`Requirement ${index + 1} is missing required fields`);
+        throw new InputError(`Requirement ${index + 1} is missing required fields`);
       }
 
       const requirementId =
@@ -1115,14 +1115,14 @@ export class URSService {
     }
 
     if (!STABLE_REQUIREMENT_SET_KEY.test(requested)) {
-      throw new Error(
+      throw new InputError(
         `Invalid requirement set key "${requested}": expected URS-<CODE> with 2-12 uppercase letters or digits (e.g. URS-WD)`,
       );
     }
 
     const existing = await this.repository.findRequirementSetByKey(requested);
     if (existing) {
-      throw new Error(`Requirement set key "${requested}" is already in use`);
+      throw new ConflictError(`Requirement set key "${requested}" is already in use`);
     }
 
     return requested;
@@ -2723,7 +2723,7 @@ export class URSService {
   ): Promise<ChangeSet> {
     const baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
-      throw new Error(`Baseline ${baselineId} not found`);
+      throw new NotFoundError(`Baseline ${baselineId} not found`);
     }
 
     // Find previous baseline for the same requirement set
@@ -2868,7 +2868,7 @@ export class URSService {
     const audit = this.beginAudit(actor);
     let baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
-      throw new Error('Baseline not found');
+      throw new NotFoundError('Baseline not found');
     }
 
     // A baseline is released by completing its approval chain, which is what
@@ -3019,11 +3019,11 @@ export class URSService {
     const audit = this.beginAudit(actor);
     const baseline = await this.repository.getBaseline(baselineId);
     if (!baseline) {
-      throw new Error('Baseline not found');
+      throw new NotFoundError('Baseline not found');
     }
 
     if (baseline.status !== 'DRAFT') {
-      throw new Error(
+      throw new ConflictError(
         `Cannot submit baseline in ${baseline.status} status. Must be DRAFT.`,
       );
     }
@@ -3399,7 +3399,7 @@ export class URSService {
   ): Promise<ApprovalInstance> {
     const audit = this.beginAudit(actor);
     if (!reason) {
-      throw new Error('Rejection reason is required');
+      throw new InputError('Rejection reason is required');
     }
 
     const instance = await this.repository.getApprovalInstance(
@@ -3501,7 +3501,7 @@ export class URSService {
       instance.status !== ApprovalInstanceStatus.NOT_STARTED &&
       instance.status !== ApprovalInstanceStatus.IN_PROGRESS
     ) {
-      throw new Error(
+      throw new ConflictError(
         `Cannot cancel approval in ${instance.status} status. Only NOT_STARTED or IN_PROGRESS can be cancelled.`,
       );
     }
@@ -3550,7 +3550,7 @@ export class URSService {
 
     const set = await this.repository.getRequirementSet(requirementSetId);
     if (!set) {
-      throw new Error(`Requirement set not found: ${requirementSetId}`);
+      throw new NotFoundError(`Requirement set not found: ${requirementSetId}`);
     }
 
     const existingRequirements = await this.repository.getRequirements(

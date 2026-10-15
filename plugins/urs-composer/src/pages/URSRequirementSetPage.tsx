@@ -872,12 +872,10 @@ export const URSRequirementSetPage: FC = () => {
       <Content>
         <ContentHeader title="Requirement Set Detail">
           <Box display="flex" style={{ gap: 8, flexWrap: 'wrap' }}>
-            <Button onClick={() => navigate('/urs-composer/change-requests')}>
-              Change Requests
-            </Button>
-            <Button onClick={() => navigate('/urs-composer/portfolio')}>
-              Portfolio
-            </Button>
+            {/* NXD-176. "Change Requests" and "Portfolio" led to routes that
+                do not exist and fell into /urs-composer/:id, which tried to
+                load a requirement set with that id. Change requests get a
+                page in Phase 3 (NXD-174 D9); there is no portfolio. */}
             <Button onClick={() => setSigningPinOpen(true)}>
               Set signing PIN
             </Button>
