@@ -27,7 +27,8 @@ Products run independently of the Control Plane.
 | Product line            | Nexora                                                                               |
 | Brand mark              | Hexagonal N mark (`docs/brand/nexora-lockup.svg`, `packages/app/public/favicon.svg`) |
 | Baseline                | MVP 1.0                                                                              |
-| Technical status        | TECHNICAL_MVP_COMPLETE                                                               |
+| MVP 1.0 (lifecycle)     | IN PROGRESS: URS → Approval → Product → Development → GitHub (`NXD-174`)             |
+| Technical status        | TECHNICAL_MVP_COMPLETE: the technical baseline, a precondition of MVP 1.0            |
 | Commercial distribution | BLOCKED pending counsel-approved LICENSE / NOTICE                                    |
 | GxP / CSV               | Not validated. CERTIFIED is technical conformance only.                              |
 

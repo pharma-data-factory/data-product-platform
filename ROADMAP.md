@@ -20,15 +20,44 @@ It is not the authority on implementation state. For that:
 AAS was CERTIFIED / RELEASED while the Catalog and this roadmap both said
 DEVELOPMENT. Do not reintroduce a second status table.
 
-MVP 1.0 freeze: [mvp-1.0-baseline.md](docs/mvp-1.0-baseline.md).
+MVP 1.0 definition: [`NXD-174`](docs/nexora-transformation/DECISIONS.md).
+Technical baseline freeze: [mvp-1.0-baseline.md](docs/mvp-1.0-baseline.md).
 Status dimensions: [status-model.md](docs/status-model.md).
 Control Plane subsystems outside Golden Paths (URS Composer, Validation
 Expert, e-sign GxP position, AAS honesty):
 [subsystem-status.md](docs/subsystem-status.md).
 
-## MVP 1.0 — TECHNICAL BASELINE
+## MVP 1.0 — PRODUCT LIFECYCLE
 
-Status: **COMPLETE** (`TECHNICAL_MVP_COMPLETE`)
+Status: **IN PROGRESS** (defined 2026-10-15, `NXD-174`)
+
+MVP 1.0 is the governed lifecycle **URS → Approval → Product Creation →
+Development → GitHub Publishing**. It runs through URS Composer and the
+Product Composer. Both are now in scope, and both stay DRAFT and NOT
+VALIDATED until the gates below pass.
+
+| Gate | Passes when | Status (2026-10-15, `d16972f`) |
+| --- | --- | --- |
+| G1 Functional lifecycle | All ten lifecycle checks COMPLETE, with no manual workaround between stages | OPEN — 1 of 10 COMPLETE, 9 PARTIAL |
+| G2 GxP integrity | URS approval segregation of duties as decided; approved requirements revisable under change control; no regulated state misdisplayed on a failed load | OPEN |
+| G3 Operability | No governance state lost when the container is recreated; no unlabelled mock or in-memory backend in production | OPEN |
+| G4 Automated proof | One E2E spec URS → Product → Release in CI; all suites green inside the test gate | OPEN |
+
+Readiness is **5.5 / 10**: COMPLETE scores 1, PARTIAL 0.5, otherwise 0,
+over the ten checks. The measurement is in
+[`TARGET_CONFORMANCE_AUDIT.md`](docs/audits/TARGET_CONFORMANCE_AUDIT.md) §13
+and the plan to close it in
+[`PHASE_CLOSURE_PLAN.md`](docs/nexora-transformation/PHASE_CLOSURE_PLAN.md)
+§9.8. The scope classification and eleven decisions (D2–D12) await the
+product owner.
+
+The technical baseline below is this release's **precondition**. It is not
+the MVP 1.0 claim.
+
+## MVP 1.0 — TECHNICAL BASELINE (precondition)
+
+Status: **COMPLETE** (`TECHNICAL_MVP_COMPLETE`, measured 2026-08-21). This
+does not mean MVP 1.0 is complete; see `NXD-174`.
 
 Shipped Control Plane, foundation, Wave 1, and three official Golden Paths:
 
@@ -153,3 +182,7 @@ AAS certification, UNS certification, Kafka, Knowledge Graph, RAG, AI,
 Grafana, TimescaleDB, Kubernetes, multi-tenancy, SaaS, AWS public
 Marketplace listing, SAP Golden Path, Snowflake, Cold Chain, additional
 Golden Paths, plant shift calendar, GxP validation.
+
+"AI" here means RAG, a knowledge graph or an AI data analyst. The
+AI-assisted build (`NXD-153`, `NXD-154`) is a development provider inside
+the MVP 1.0 Development stage (`NXD-174`), not a separate capability.

@@ -27,7 +27,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useApi, discoveryApiRef } from '@backstage/core-plugin-api';
+import { useApi, discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import { Box, CircularProgress, Typography } from '@material-ui/core';
 
 interface ImpactResult {
@@ -186,6 +186,7 @@ function SVGGraph({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }) 
 
 export function LineageDAGView({ productName }: { productName: string }) {
   const discoveryApi = useApi(discoveryApiRef);
+  const fetchApi = useApi(fetchApiRef);
   const [graph, setGraph] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null);
   const [loading, setLoading] = useState(false);
   // "Nothing to show" and "the request failed" used to render identically:
@@ -201,7 +202,10 @@ export function LineageDAGView({ productName }: { productName: string }) {
     setFailed(false);
     discoveryApi.getBaseUrl('composer').then(async base => {
       try {
-        const res = await fetch(`${base}/composer/impact/artifact?name=${encodeURIComponent(productName)}`);
+        // NXD-175. The route is `/impact/artifact` on the composer plugin and
+        // sits behind product.read. This used to add a second `/composer` and
+        // send no token, so every product page showed "could not be loaded".
+        const res = await fetchApi.fetch(`${base}/impact/artifact?name=${encodeURIComponent(productName)}`);
         if (!active) return;
         if (res.ok) {
           const impact = await res.json() as ImpactResult;
@@ -215,7 +219,7 @@ export function LineageDAGView({ productName }: { productName: string }) {
       if (active) setLoading(false);
     }).catch(() => { if (active) { setFailed(true); setLoading(false); } });
     return () => { active = false; };
-  }, [discoveryApi, productName]);
+  }, [discoveryApi, fetchApi, productName]);
 
   if (loading) return <CircularProgress size={24} />;
 

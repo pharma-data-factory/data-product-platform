@@ -332,6 +332,22 @@ export interface ComposerServiceOptions {
  * A value for a varchar(255) column, kept unique: longer values are cut and
  * given a hash of the whole, so two long test ids never collapse into one.
  */
+/**
+ * NXD-175. What a person changed on an AI spec draft before applying it.
+ * Absent or blank fields keep the draft's value.
+ */
+export interface SpecDraftReviewEdits {
+  productName?: string;
+  description?: string;
+  domain?: string;
+}
+
+function reviewedText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function fitColumn(value: string, max = 255): string {
   if (value.length <= max) {
     return value;
@@ -3887,6 +3903,7 @@ export class ComposerService {
   async applySpecDraft(
     draftId: string,
     actor: string,
+    reviewed: SpecDraftReviewEdits = {},
   ): Promise<Product> {
     const audit = this.beginAudit(actor);
     const draft = await this.repository.getSpecDraft(draftId);
@@ -3897,6 +3914,20 @@ export class ComposerService {
       throw new ConflictError(`Cannot apply draft in status ${draft.status}`);
     }
 
+    // NXD-175. The review form lets a person correct the name, description
+    // and domain before applying, and those corrections were discarded: the
+    // product was created from the stored draft. The person's values win;
+    // the draft row keeps what the model said (NXD-064 C-3), and the audit
+    // records which fields the reviewer changed.
+    const productName = reviewedText(reviewed.productName) ?? draft.productName;
+    const description = reviewedText(reviewed.description) ?? draft.description;
+    const domain = reviewedText(reviewed.domain) ?? draft.domain;
+    const reviewerChanged = [
+      productName !== draft.productName ? 'productName' : undefined,
+      description !== draft.description ? 'description' : undefined,
+      domain !== draft.domain ? 'domain' : undefined,
+    ].filter((field): field is string => field !== undefined);
+
     // The actor who reviewed and applied the draft becomes the product owner.
     // This satisfies the `owner-declared` platform policy obligation, so the
     // product is not blocked at the release gate for a missing owner. The actor
@@ -3904,10 +3935,10 @@ export class ComposerService {
     // still require a deliberate manual choice before release.
     const product = await this.createProduct(
       {
-        name: draft.productName,
-        description: draft.description,
+        name: productName,
+        description,
         productType: 'DATA_PRODUCT',
-        domain: draft.domain,
+        domain,
         owner: actor,
       },
       actor,
@@ -3998,7 +4029,11 @@ export class ComposerService {
     });
 
     await this.audit(audit, 'AI_SPEC_DRAFT', draftId, 'AI_SPEC_APPLIED', {
-      newValue: JSON.stringify({ productId: product.id, versionId: version.id }),
+      newValue: JSON.stringify({
+        productId: product.id,
+        versionId: version.id,
+        ...(reviewerChanged.length > 0 ? { reviewerChanged } : {}),
+      }),
     });
 
     return product;

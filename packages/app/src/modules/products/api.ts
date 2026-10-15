@@ -266,7 +266,11 @@ export interface ComposerClient {
   getContract(contractId: string): Promise<DataContract>;
 }
 
-function usePluginRequest(pluginId: string) {
+/**
+ * A request to one backend plugin, with the signed-in person's token.
+ * Exported for the Composer's AI client (NXD-175).
+ */
+export function usePluginRequest(pluginId: string) {
   const fetchApi = useApi(fetchApiRef);
   const discovery = useApi(discoveryApiRef);
   const identityApi = useApi(identityApiRef);

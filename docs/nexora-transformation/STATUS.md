@@ -27,6 +27,48 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**MVP 1.0 completion track (from 2026-10-15).** A read-only architecture and
+completion audit at `d16972f` measured the lifecycle URS → Approval →
+Product Creation → Development → GitHub Publishing. It found that three
+documents defined "MVP 1.0" in three ways. The track is in
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8, the measurement in
+[`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §13.
+
+- **Phase 0 — one MVP 1.0 definition.** MVP 1.0 is the lifecycle, measured
+  by ten checks and released through four gates (functional, GxP integrity,
+  operability, automated proof). `TECHNICAL_MVP_COMPLETE` stays true of the
+  technical baseline, which becomes a precondition. URS Composer and the
+  Product Composer enter scope. Readiness is 5.5 of 10, and all four gates
+  are open. The scope classification and decisions D2–D12 await the
+  product owner. See [`NXD-174`](DECISIONS.md).
+- **Phase 1 — the Composer's AI calls arrive.** Every AI call on
+  `/compose` went to `/api/composer/composer/ai/…` without a token, and
+  the lineage card's impact call did the same. Both now use `fetchApi` and
+  the mounted paths. The review form's corrections, which apply discarded,
+  now become the product, and the audit names the changed fields. Checked
+  live in a browser against the mock model. See [`NXD-175`](DECISIONS.md).
+- **Phase 1 — URS refusals say what they are.** Twenty-one URS service
+  paths answered 500 "Internal server error" for an ordinary refusal. They
+  now answer 400, 404 or 409 with their message, and three genuine faults
+  stay 500. Two buttons that led to routes that do not exist are gone.
+  See [`NXD-176`](DECISIONS.md).
+- **Phase 1 — unreadable approvals say so.** A failed signature load on
+  the product page became an empty list, which reads as "nothing approved"
+  on a GMP product. It is now its own error with *Try again*. This record
+  also corrects `NXD-175`, whose "tsc clean" was false. See
+  [`NXD-177`](DECISIONS.md).
+- **Phase 1 — `urs-composer` back inside the gate.** Its nine
+  `CreateWizard` failures were a missing API mock, which React reported as
+  a suspension, and a renamed step. It runs on the standard runner, and the
+  exemption is gone. A full `yarn test` now counts 3326 of 3327; the one
+  failure is the container's missing Python SDK interpreter. **Phase 1 is
+  complete.** See [`NXD-178`](DECISIONS.md).
+
+**Next:** Phase 2, closing the handover. It needs decision D5, when the
+URS baseline is bound at creation.
+
+## Previous Vertical Slices
+
 **Maturity-audit remediation, wave 4 — frontend (2026-09-30).** Waves 1–3
 barely touched the frontend, and a recount at `7fb817b` found it where the
 re-audit left it: six failed loads rendered as empty states, one retry
@@ -506,6 +548,9 @@ four quick wins F1–F4, one commit and one record each.
   platform's and the templates' 23 workflow files use current action majors
   (Node 24) and run on `ubuntu-26.04` instead of `ubuntu-latest`;
   Dependabot #5–#7 are superseded. See [`NXD-172`](DECISIONS.md).
+- **knex moves only with Backstage.** Dependabot groups `knex` with
+  `@backstage/*`, so no second copy splits its types, and it is asked to
+  watch the templates' workflows too. See [`NXD-173`](DECISIONS.md).
 
 ## Previous Vertical Slices
 
@@ -1925,8 +1970,16 @@ actor` so the `owner-declared` platform policy obligation is met at apply
 
 ## In Progress
 
-Nothing in flight. Batch 1 is committed (`b7378b0`) and the live walk that
-followed it is recorded in [`NXD-059`](DECISIONS.md).
+**The MVP 1.0 completion track** ([`NXD-174`](DECISIONS.md),
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8). Phase 0 is done;
+Phase 1 is next.
+
+> **Corrected 2026-10-15.** This section said "Nothing in flight" from
+> 2026-09-25 until today, through NXD-060…173. The text below is the record
+> of the 2026-09-25 walk and stays as history.
+
+Batch 1 is committed (`b7378b0`) and the live walk that followed it is
+recorded in [`NXD-059`](DECISIONS.md).
 
 **From the walk, in the order they matter.** Four of the five are closed; the
 strikethroughs stay so the record shows what was found, not only what remains:
@@ -2118,6 +2171,10 @@ reach. See [`NXD-073`](DECISIONS.md).
 The doc-link checker is listed separately because it has no yarn script — it
 runs standalone as above and again inside `guard:platform` as
 `DOC_LINK_INTEGRITY`.
+
+> **Resolved 2026-10-15 ([`NXD-178`](DECISIONS.md)).** The workspace runs on
+> the standard runner and is inside the repo-wide figure. The paragraph below
+> is the 2026-09-28 record.
 
 **`plugins/urs-composer` is not in that figure, and never has been.** The
 workspace runs `BACKSTAGE_OLD_TESTS=true` through its own `bin/test.js`
@@ -2670,10 +2727,15 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-086): the name NXD-043 declared gone, and the guard that only read two
-files", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — Welle 3
-item 3.3. `pharma-data-factory:mvp-1.0` survived in the three production-path
-files the old guard never read. See [`NXD-086`](DECISIONS.md).
+"test(nxd-178): urs-composer is back inside the test gate, its nine failures
+a missing mock and a renamed step", 2026-10-15, on `ms/mvp-1.0-scope`. See
+[`NXD-178`](DECISIONS.md).
+
+> **Corrected 2026-10-15.** From 2026-09-29 until today this section named
+> NXD-086 while eighty-seven later records landed. It is the fourth note in
+> this file found describing a past state. The paragraph below about
+> commits ahead of `main` is from 2026-09-29 and is history: the branch
+> has since reached `main` through PRs #13–#16.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the

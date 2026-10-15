@@ -1,3 +1,5 @@
+import { usePluginRequest } from '../products/api';
+
 export interface AvailableComponentSummary {
   name: string;
   title: string;
@@ -53,102 +55,56 @@ export interface AISpecDraft {
   appliedAt?: string;
 }
 
-export async function suggestComponents(
-  baseUrl: string,
-  request: ComponentSuggestionRequest,
-): Promise<SuggestedComponent[]> {
-  const response = await fetch(`${baseUrl}/composer/ai/suggest-components`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'unknown error');
-    throw new Error(`AI suggestion failed (${response.status}): ${text}`);
-  }
-
-  const data = (await response.json()) as { suggestions: SuggestedComponent[] };
-  return data.suggestions ?? [];
-}
-
-export async function generateProductSpec(
-  baseUrl: string,
-  ursBaselineId: string,
-): Promise<AISpecDraft> {
-  const response = await fetch(`${baseUrl}/composer/ai/generate-product-spec`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ursBaselineId }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'unknown error');
-    throw new Error(`AI product spec generation failed (${response.status}): ${text}`);
-  }
-
-  return (await response.json()) as AISpecDraft;
-}
-
-export async function getSpecDraft(baseUrl: string, id: string): Promise<AISpecDraft> {
-  const response = await fetch(`${baseUrl}/composer/ai/spec-drafts/${encodeURIComponent(id)}`);
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'unknown error');
-    throw new Error(`Failed to load spec draft (${response.status}): ${text}`);
-  }
-
-  return (await response.json()) as AISpecDraft;
-}
-
-export async function applySpecDraft(baseUrl: string, id: string): Promise<unknown> {
-  const response = await fetch(
-    `${baseUrl}/composer/ai/spec-drafts/${encodeURIComponent(id)}/apply`,
-    { method: 'POST' },
-  );
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'unknown error');
-    throw new Error(`Failed to apply spec draft (${response.status}): ${text}`);
-  }
-
-  return response.json();
-}
-
-export async function rejectSpecDraft(baseUrl: string, id: string): Promise<void> {
-  const response = await fetch(
-    `${baseUrl}/composer/ai/spec-drafts/${encodeURIComponent(id)}/reject`,
-    { method: 'POST' },
-  );
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'unknown error');
-    throw new Error(`Failed to reject spec draft (${response.status}): ${text}`);
-  }
-}
-
 /**
- * Ask the Governed AI Data Analyst a question about a data product.
- *
- * The `productContext` is the product descriptor — the LLM answers from
- * that context only, never from raw data rows. Phase 6 (P6-S2).
+ * NXD-175. The Composer's AI routes, called the way every other Composer
+ * call is: through the products module's request helper, with the signed-in
+ * person's token. The routes are mounted at `/ai/...` on the `composer`
+ * plugin; the client used to add a second `/composer` to the base URL and
+ * send no token, so every call answered 404 (or 401) and none was tested.
  */
-export async function analyzeDataProduct(
-  baseUrl: string,
-  question: string,
-  productContext: Record<string, unknown>,
-): Promise<string> {
-  const response = await fetch(`${baseUrl}/composer/ai/analyze-product`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, productContext }),
-  });
+export interface SpecDraftReviewEdits {
+  productName?: string;
+  description?: string;
+  domain?: string;
+}
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'unknown error');
-    throw new Error(`AI analysis failed (${response.status}): ${text}`);
-  }
+export interface ComposerAiClient {
+  suggestComponents(request: ComponentSuggestionRequest): Promise<SuggestedComponent[]>;
+  generateProductSpec(ursBaselineId: string): Promise<AISpecDraft>;
+  getSpecDraft(id: string): Promise<AISpecDraft>;
+  /** The reviewer's corrections win over the draft's values (NXD-175). */
+  applySpecDraft(id: string, reviewed?: SpecDraftReviewEdits): Promise<unknown>;
+  rejectSpecDraft(id: string): Promise<void>;
+  /**
+   * Ask the Governed AI Data Analyst a question about a data product.
+   *
+   * The `productContext` is the product descriptor — the LLM answers from
+   * that context only, never from raw data rows. Phase 6 (P6-S2).
+   */
+  analyzeDataProduct(
+    question: string,
+    productContext: Record<string, unknown>,
+  ): Promise<string>;
+}
 
-  const data = (await response.json()) as { answer: string };
-  return data.answer;
+export function useComposerAiClient(): ComposerAiClient {
+  const request = usePluginRequest('composer');
+  const draftPath = (id: string) => `/ai/spec-drafts/${encodeURIComponent(id)}`;
+
+  return {
+    suggestComponents: suggestionRequest =>
+      request('POST', '/ai/suggest-components', suggestionRequest).then(
+        (body: { suggestions?: SuggestedComponent[] }) => body.suggestions ?? [],
+      ),
+    generateProductSpec: ursBaselineId =>
+      request('POST', '/ai/generate-product-spec', { ursBaselineId }),
+    getSpecDraft: id => request('GET', draftPath(id)),
+    applySpecDraft: (id, reviewed) =>
+      request('POST', `${draftPath(id)}/apply`, reviewed ?? {}),
+    rejectSpecDraft: id => request('POST', `${draftPath(id)}/reject`, {}),
+    analyzeDataProduct: (question, productContext) =>
+      request('POST', '/ai/analyze-product', { question, productContext }).then(
+        (body: { answer: string }) => body.answer,
+      ),
+  };
 }

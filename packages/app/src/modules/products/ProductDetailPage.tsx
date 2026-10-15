@@ -123,6 +123,19 @@ export function ProductDetailPage() {
     baselineId?: string;
   } | null>(null);
   const [signatures, setSignatures] = useState<ProductSignatureRecord[]>([]);
+  // NXD-177. A failed signature load used to become `[]`, which reads as
+  // "nothing was approved or released" on a GMP product. It is its own error,
+  // shown in place of the list, and the rest of the page still works.
+  const [signaturesError, setSignaturesError] = useState<Error | null>(null);
+  const reloadSignatures = async () => {
+    try {
+      setSignatures(await client.listProductSignatures(productId));
+      setSignaturesError(null);
+    } catch (e) {
+      setSignatures([]);
+      setSignaturesError(e as Error);
+    }
+  };
 
   /**
    * Everything scoped to one version: components, requirements, coverage.
@@ -171,7 +184,7 @@ export function ProductDetailPage() {
 
       setActionError(null);
       setTraceability(await client.getProductTraceability(productId));
-      setSignatures(await client.listProductSignatures(productId).catch(() => []));
+      await reloadSignatures();
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -425,7 +438,7 @@ export function ProductDetailPage() {
       await client.approveProductBaseline(pendingAct.baselineId, signature);
       setPendingAct(null);
       await refreshBaselines(selectedVersionId);
-      setSignatures(await client.listProductSignatures(productId).catch(() => []));
+      await reloadSignatures();
       return;
     }
     await client.transitionVersionStatus(
@@ -575,6 +588,8 @@ export function ProductDetailPage() {
             <OverviewTab
               product={product}
               signatures={signatures}
+              signaturesError={signaturesError}
+              onRetrySignatures={reloadSignatures}
               versions={versions}
               selectedVersion={selectedVersion}
               loadGate={loadGate}

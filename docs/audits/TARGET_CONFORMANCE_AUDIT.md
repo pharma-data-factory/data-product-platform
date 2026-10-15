@@ -6,6 +6,8 @@ Commit: **`d68308f`** (branch `ms/composer-ai-spec-and-ci-quality-gate`)
 Method: repository inspection + executed test suite + executed guardrail check
 Audience: INTERNAL ENGINEERING / PRODUCT / QUALITY
 Status: AUTHORITATIVE measured current-state baseline as of the date above
+Addendum: **§13, 2026-10-15 at `d16972f`** — the MVP 1.0 lifecycle
+measurement (`NXD-174`). It carries its own date and does not re-date §1–§12.
 
 Supersedes `docs/assessment/CURRENT-IMPLEMENTATION-STATUS.md` (2026-08-23) and
 `docs/audits/platform-vision-implementation-audit.md` (2026-09-07). Both are
@@ -446,3 +448,83 @@ runtime operation, OIDC step-up, Hybrid GMP classification.
     its traceability and does not own a backlog, and `NEXORA_VISION.md` lists
     an issue tracker among the things Nexora will not build. Recorded as
     `NXD-071`.
+
+---
+
+## 13. MVP 1.0 lifecycle measurement — 2026-10-15
+
+Commit **`d16972f`** (branch `ms/dependabot-config`). Method: repository
+inspection, executed test suites and executed guardrail check. **No runtime
+walk:** the application was not running and was not started, because a walk
+writes to the development database. Sections 1–12 above keep their own date.
+This section measures the lifecycle that [`NXD-174`](../nexora-transformation/DECISIONS.md)
+makes MVP 1.0: **URS → Approval → Product Creation → Development → GitHub
+Publishing**.
+
+### 13.1 Measured facts
+
+```
+yarn guard:platform     GUARDRAILS_OK (FAIL 0)       yarn tsc   clean
+urs-composer-backend    491 / 491 pass  (PostgreSQL on 5435, none skipped)
+composer-backend        435 / 435 pass  (PostgreSQL on 5435)
+data-products-backend   155 / 155 pass
+packages/backend        143 / 143 pass  (template, GitHub, release suites)
+packages/app modules    279 tests; ProductDetailPage.test.tsx times out under
+                        load (24), passes alone (flaky, not broken)
+plugins/urs-composer    12 of 109 fail; CreateWizard.test.tsx fails 9 / 9 every
+                        time (§9.4 rank 8 of PHASE_CLOSURE_PLAN, outside the gate)
+E2E in CI               urs-approval-chain.spec.ts only
+```
+
+### 13.2 The ten checks
+
+Score: COMPLETE 1, PARTIAL 0.5, MISSING, BROKEN or UNKNOWN 0. **5.5 / 10.**
+
+| # | Check | Status | Evidence | Gap |
+| --- | --- | --- | --- | --- |
+| 1 | URS create, edit, version, approve | PARTIAL | `urs-composer-backend` approval chain with PIN and step role; E2E in CI | `approveApprovalStep` checks only the step role (`service.ts:3164-3166`): one person in two URS groups can approve steps 1 and 2 alone. IN_REVIEW → REVIEWED is an unsigned status change. Revising a released requirement from the UI answers 409, because no page raises a change request (`URSRequirementSetPage.tsx:548`). Several conflicts answer 500 (plain `Error`). Dead links `/urs-composer/change-requests` and `/portfolio` (`:875,878`) |
+| 2 | Role-based permissions | PARTIAL | `platform-common/src/roles.ts`, `permissions.ts` | No "Capability Manager" anywhere. The `business-capability-leads` alias grants BUSINESS_REVIEWER, but that tier lacks `urs.approve`. DATA_PRODUCT_OWNER holds approve and sign with no approval role. `urs.admin` is checked by no route |
+| 3 | Approved URS → product | PARTIAL | `urs-baseline-resolver.ts`; `bindUrsBaseline` (`composer-backend/src/service.ts:1307-1408`) | `nexora:product:create` has no `ursBaselineId` input and creates no version (`scaffolderModule.ts:246-300`). The Golden Path verifies the baseline, then a person binds it again by hand. An approved URS has no "create product" action. `/compose` passes no baseline |
+| 4 | URS → product → component mapping | COMPLETE | snapshots, components, `IMPLEMENTS` links, coverage tiles; NXD-159 walk | Functional specs, traceability matrix, evidence package and baseline delta are API-only (not a check failure) |
+| 5 | Product Composer | PARTIAL | version governance, release gate and release SoD: 435 tests, NXD-159/164/165 | **Every AI call on `/compose` is broken.** `composerApi.ts:60-141` prefixes `/composer` onto a base URL that already ends in it, and sends no token. A custom composition cannot be generated. `ComposePage.tsx:481-497` hard-codes OEE values. `LineageDAGView.tsx:204` has the same doubled prefix |
+| 6 | Developer workflow | PARTIAL | AI build, PR evidence preview, 15-minute evidence sync; live run NXD-155 | Four templates (`node-service`, `python-service`, `mqtt-connector`, `unified-namespace`) create governed products with no AI-build, release or evidence workflow. The dispatch carries requirement text only. Codex has never run live |
+| 7 | GitHub publishing | PARTIAL | `publish:github` with the GitHub App; org resolved server-side (NXD-079) | A product created without a repository (the `/products` form, an applied AI spec draft) can never get one. Publish readiness checks configuration, not credentials. Re-running a failed task is unproven |
+| 8 | Metadata, ownership, traceability | PARTIAL | owner passed (NXD-160); append-only trails | Two sources for "which URS": the gate reads the composer binding, impact analysis reads a catalog annotation written once (`urs-composer-backend/src/service.ts:2137-2141`) |
+| 9 | Navigation | PARTIAL | `packages/app/src/modules/nav/Sidebar.tsx` | The success page links `/data-products/:name`, not the governed `/products/:id` (`create/creationSuccess.ts:37-67`). No link from the Requirements tab to the URS. `/releases` is the template catalog while "Release" is `/products` |
+| 10 | Status tracking, error handling | PARTIAL | `useLoadable`/`LoadError` in 8 files | 45 files handle errors ad hoc. A failed signature load reads as "no signatures" (`ProductDetailPage.tsx:174,428`) |
+
+### 13.3 Proposed scope classification (awaiting the product owner)
+
+| Class | Capabilities |
+| --- | --- |
+| MVP 1.0 Required | the ten checks; a change-request UI (D9); SoD in the URS chain (D3); one E2E spec URS → Product → Release |
+| MVP 1.0 Optional | `/compose` AI features (fix or hide); FS, matrix and evidence-package screens; Codex live run; a credential probe in publish readiness |
+| MVP 2.0 | Publish → Install → Run (D7); QA sign-off of IQ; federation T4–T6; Hybrid GMP; product-side change control; event bus, MQTT and REST integration |
+| Technical debt | the findings in §13.4; versioned migrations; duplicated surfaces and enums; the Composer name; the root `Dockerfile`; flaky tests |
+| Out of scope | AAS, UNS, Model Company, Kubernetes, multi-tenancy, AWS public listing, GxP validation of Nexora itself (per `ROADMAP.md`) |
+
+### 13.4 Architecture findings that bear on release
+
+| # | Finding | Evidence |
+| --- | --- | --- |
+| A1 | Certification and Golden-Path release overrides are JSON files in the container's writable layer, not on the volume. They are lost when the container is recreated, and a corrupt file reads as empty with no log line | `app-config.yaml:342`; `releaseCatalog.ts:25-29`; only `/app/.runtime` is mounted (`docker-compose.production.yml:80-81`); `certificationOverlay.ts:71` |
+| A2 | `nexora-backend` answers from mock fixtures in production; `mode: mock` is the default and production does not override it | `app-config.yaml:331`; `nexora-backend/src/router.ts:30` |
+| A3 | `aas-backend` keeps assets and its audit trail in memory and is registered in production | `aas-backend/src/repository.ts:29-31`; `packages/backend/src/index.ts:54` |
+| A4 | TechDocs builds locally in production, and the image has no MkDocs | `app-config.production.yaml:76-81` |
+| A5 | `GET /subscribe/notifications` authorizes nothing, and its clients live in process memory | `composer-backend/src/router.ts:670-690` |
+| A6 | Migrations are hand-rolled `hasTable`/`hasColumn` code with no ledger, in all six database plugins | `*/src/db/migrations.ts` |
+
+### 13.5 The lifecycle, traced
+
+Representative subject: URS baseline *Equipment Performance Management 1.0*
+→ `oee-ai-build-test-1`.
+
+- **Every transition has backend code and passing tests.** Covered:
+  set → baseline → three signed steps → Golden Path (verify-baseline,
+  `publish:github`, catalog, `product:create`) → bind → components → AI build
+  → evidence → product baseline → version → validation → release.
+- **The chain as a whole has one documented manual walk** (NXD-159,
+  2026-10-09), with no automated end-to-end spec.
+- **It was not run in this measurement**, so at runtime it is
+  **NOT VERIFIED**.
+- **The bind step is a known break.** It is manual, not automatic.

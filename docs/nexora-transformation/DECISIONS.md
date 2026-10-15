@@ -11329,3 +11329,425 @@ repository. That was already so before this record, with v3.
 - The platform jobs on `ubuntu-26.04` are proven by this pull request's
   own CI run.
 
+### NXD-173 — knex moves only with Backstage, and Dependabot watches the templates' workflows
+
+- Date: 2026-10-14
+- Slice: after [`NXD-172`](DECISIONS.md), the Dependabot triage.
+
+**Context.**
+
+- **Dependabot #9 fails `yarn tsc`.** The "non-backstage-minor-patch" group
+  raised `knex` from `^3.0.0` to `^3.3.0` in our plugins.
+  `@backstage/backend-plugin-api` keeps its own `knex` 3.1.0, so the tree
+  held two copies. Six `plugin.ts` files pass Backstage's `DatabaseService`
+  to a repository typed against our `knex`, and `Knex.Value` differs between
+  3.1 and 3.3: artifact-registry, composer, installations, urs-composer,
+  users and validation-expert. A `yarn dedupe` would move Backstage's own
+  dependency, which AGENTS.md routes through the Backstage upgrade gate.
+- **Dependabot never saw `templates/`.** The github-actions entry had
+  `directory: /`, which covers `/.github/workflows` only. That is how the
+  templates fell behind until `NXD-172`.
+
+**Decision.**
+
+- **`knex` belongs to the `backstage` group** and is excluded from the
+  minor/patch group. It moves when Backstage moves, through the same gate.
+- **The github-actions entry lists `/templates/*/content`** next to `/`.
+
+**Not verified.** GitHub's documentation confirms that `directories`
+accepts the `*` glob. It does not say whether Dependabot then reads
+`.github/workflows` inside each matched directory. Check after the merge:
+Insights → Dependency graph → Dependabot, "Check for updates".
+
+**Next.**
+
+- Dependabot #9 needs `@dependabot recreate` so that it is rebuilt without
+  `knex`. Its CI then shows whether the rest holds. That rest includes
+  `@types/jest` 29 → 30, a major inside a minor/patch group.
+- #10–#12 (jsdom, cross-env, node-gyp majors) are each to be judged on
+  their own.
+- #8 (Backstage, 62 packages) goes through the upgrade gate.
+
+
+### NXD-174 — MVP 1.0 is the product lifecycle from URS to GitHub, and the technical baseline becomes its precondition
+
+- Date: 2026-10-15
+- Slice: Phase 0 of the MVP 1.0 completion track
+  ([`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8), after the
+  read-only architecture and completion audit of 2026-10-15 at `d16972f`
+  ([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §13).
+- Decided by: the user ("complete Phase 0", 2026-10-15, which adopts the
+  audit's decision D1). Record and documentation change only. Exempt from
+  DoD point 2, because no path is executed.
+
+**Context.** Three documents each defined "MVP 1.0", and they disagreed.
+
+- `docs/mvp-1.0-baseline.md` and `ROADMAP.md` defined it as the Golden-Path
+  technical baseline (Control Plane, Wave 1, three Golden Paths), with the
+  verdict `TECHNICAL_MVP_COMPLETE`.
+- `docs/subsystem-status.md` placed URS Composer, Product Composer and
+  Validation Expert **outside** the MVP 1.0 value proposition.
+- `TARGET_CONFORMANCE_AUDIT.md` §11 drew a separate "MVP1" boundary around
+  traceability. The 2026-10-06 ecosystem plan drew a third, from Create to
+  Install to Run.
+
+The user's audit asked for something none of them covers: the governed
+lifecycle **URS → Approval → Product Creation → Development → GitHub
+Publishing**, which runs straight through the two subsystems the baseline
+excluded.
+
+**Decision.**
+
+1. **MVP 1.0 is that lifecycle.** It is measured by the ten checks of the
+   2026-10-15 audit:
+   1. URS creation, editing, versioning and approval
+   2. role-based permissions
+   3. handover of an approved URS into product creation
+   4. mapping from URS to product to components
+   5. the Product Composer and its workflow
+   6. the developer workflow and product configuration
+   7. GitHub repository creation and publishing
+   8. product metadata, ownership and traceability
+   9. navigation and workflow consistency
+   10. end-to-end status tracking and error handling
+2. **The technical baseline is not withdrawn. It is renamed in role.**
+   `TECHNICAL_MVP_COMPLETE` stays true of what it measured on 2026-08-21.
+   It is the *MVP 1.0 technical baseline*, a precondition, and no longer the
+   MVP 1.0 claim. Nothing may cite it as "MVP 1.0 complete".
+3. **URS Composer and Product Composer enter the MVP 1.0 scope.** Their
+   release status stays DRAFT until the release gates below pass. Their
+   validation status stays NOT VALIDATED. The e-signature position in
+   `subsystem-status.md` is unchanged.
+4. **MVP 1.0 is released through four gates, each judged on evidence:**
+
+   | Gate | Passes when |
+   | --- | --- |
+   | G1 Functional lifecycle | All ten checks are COMPLETE, with no manual workaround between stages |
+   | G2 GxP integrity | Approvals keep segregation of duties as decided (D3); approved requirements can be revised under change control; no regulated state is displayed wrongly on a failed load |
+   | G3 Operability | No governance state is lost when the container is recreated; no mock or in-memory backend answers in production unlabelled |
+   | G4 Automated proof | One end-to-end spec drives URS → Product → Release in CI, and the full frontend and backend suites are green inside the test gate |
+
+5. **Readiness is reported per check and per gate**, and as a percentage
+   only with this method: a COMPLETE check scores 1, a PARTIAL check 0.5,
+   and MISSING, BROKEN or UNKNOWN scores 0, out of 10. At `d16972f` that is
+   **5.5 / 10**: check 4 is COMPLETE and the other nine are PARTIAL. All four
+   gates were open.
+
+**The scope classification is proposed, not decided.** The audit sorted each
+capability into MVP 1.0 Required, MVP 1.0 Optional, MVP 2.0, technical debt,
+or out of scope (`TARGET_CONFORMANCE_AUDIT.md` §13.3). This record adopts the
+lifecycle and the gates. It does not adopt that classification, which waits
+for the product owner, with these decisions open:
+
+| # | Open decision | Gates |
+| --- | --- | --- |
+| D2 | "Capability Manager" exists nowhere in the code. Is it `BUSINESS_CAPABILITY_LEAD`, a new role, or not needed? | Phase 3 |
+| D3 | Must each URS approval step be signed by a different person, author excluded, and must REVIEWED be a signed act? `approveApprovalStep` checks only the step role today | Phase 3, G2 |
+| D4 | Keep product creation without a repository (the `/products` form, an applied AI spec draft) and add attach-or-create-repo, or remove those doors? | Phase 4 |
+| D5 | Bind the URS baseline at creation: read it at `fetch-base` time, or bind after `publish:github`? This is §9.5's step-3 ordering question | Phase 2 |
+| D6 | The four basic templates (`node-service`, `python-service`, `mqtt-connector`, `unified-namespace`): full governance wiring, or stop creating governed products? | Phase 4 |
+| D7 | Publish → Install → Run (NXD-139…148) is MVP 2.0, outside the lifecycle? | classification |
+| D8 | Hide or gate AAS, `/equipment`, `/contracts`, `/quality` and Model Company in production? | Phase 5, G3 |
+| D9 | Is the change-request UI in MVP 1.0? Without it a requirement cannot be revised once approved | Phase 3, G2 |
+| D10 | Certification and release overlays: into the database, or onto the volume? | Phase 5, G3 |
+| D11 | The "Composer" name collision (`TARGET_CONFORMANCE_AUDIT.md` §12.3): resolve now or later? | Phase 1 |
+| D12 | The release gate of a GMP product requires a Validation Expert decision (`VALIDATION_DECISION_*`). Is Validation Expert in MVP 1.0 scope as far as that gate needs it, or does MVP 1.0 end at GitHub publishing, leaving release out? | classification |
+
+D12 was found while writing this record, not by the audit. The user's
+lifecycle names no release stage, yet the product side is unreleasable
+without a validation decision when the product is GMP.
+
+**What changes in the record.**
+
+- `ROADMAP.md`: MVP 1.0 is IN PROGRESS, with the gates and the technical
+  baseline named as its precondition.
+- `docs/mvp-1.0-baseline.md` says it is the technical baseline, and what
+  that no longer means.
+- `docs/subsystem-status.md` moves the two subsystems into scope and names
+  D12 for the third.
+- `README.md`'s status table separates the two.
+- `TARGET_CONFORMANCE_AUDIT.md` gains §13, the dated measurement.
+- `PHASE_CLOSURE_PLAN.md` gains §9.8, the completion track.
+- `STATUS.md` gains a new current slice. Its *In Progress* and *Last Commit*
+  sections, stale since 2026-09-25 and 2026-09-29, are corrected.
+
+**Not changed, deliberately.**
+
+- `docs/pilot-exit-gate.md` and its `TECHNICAL_MVP_COMPLETE` stay, because
+  Pilot Exit is measured against the technical baseline.
+  `pilotHardening.test.ts` pins both files, and the pins still describe the
+  truth.
+- `docs/status-model.md` and `docs/capability-matrix.md` (deprecated) are
+  left alone.
+- No landing-page or sales copy is touched. None claims the lifecycle.
+
+**Next.** Phase 1, fixing what is broken (`PHASE_CLOSURE_PLAN.md` §9.8). It
+needs no open decision except whether the `/compose` AI features are fixed
+or hidden.
+
+### NXD-175 — The Composer's AI calls reach the routes they name, with the signed-in person's token, and the reviewer's corrections reach the product
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track
+  ([`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8), after
+  [`NXD-174`](DECISIONS.md). The user chose to fix the `/compose` AI
+  features rather than hide them ("Phase 1 fix AI", 2026-10-15).
+
+**Context.** Two defects, found by the 2026-10-15 audit
+([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+§13.2, check 5).
+
+- **Every AI call on `/compose` failed.** `composerApi.ts` built
+  `${baseUrl}/composer/ai/...` on a base URL that already ends in
+  `/api/composer`. The routes are mounted at `/ai/...`, so each request
+  went to `/api/composer/composer/ai/...` and answered 404. The calls used
+  bare `fetch` with no token, and the routes demand a user credential. That
+  covered suggest components, generate spec, apply and reject. No test
+  asked where a call went.
+- **`LineageDAGView` had the same doubled prefix**, on
+  `/composer/impact/artifact`, also bare. Every product page's lineage card
+  showed "could not be loaded". `NXD-085` had made that state honest, but it
+  was the only state the card ever reached.
+
+A third defect turned up while fixing the first two.
+
+- **The review form's corrections were discarded.** After *Generate from
+  URS* the page lets a person edit the product name, description and domain
+  before *Apply*. Apply sent no body, and `applySpecDraft` created the
+  product from the stored draft. A reviewer who corrected the model's name
+  got the model's name, with no word.
+
+**Decision.**
+
+- **The AI client is a hook, `useComposerAiClient`**, on the products
+  module's request helper (`usePluginRequest`, now exported). It uses
+  `fetchApi`, the signed-in token and the mounted paths, the way every
+  other Composer call already worked. The bare functions taking a base URL
+  are gone.
+- **`LineageDAGView` uses `fetchApi` and `/impact/artifact`**, as its
+  sibling `useGoverningProduct` does.
+- **Apply carries the reviewer's corrections.** `POST
+  /ai/spec-drafts/:id/apply` takes optional `productName`, `description`
+  and `domain`; a blank or absent field keeps the draft's value.
+  - The draft row keeps what the model said (`NXD-064` C-3).
+  - The `AI_SPEC_APPLIED` audit event names the fields the reviewer changed
+    (`reviewerChanged`).
+
+**Verified.**
+
+- **Unit tests.** `ComposePage.test.tsx` has two new cases:
+  - suggestions go to `…/api/composer/ai/suggest-components` with
+    `Bearer`;
+  - apply posts the edited name.
+
+  The test `fetchApi` answers 404 for anything else, as the backend did.
+  `LineageDAGView.test.tsx` asserts the impact URL.
+  `ai-spec-draft.test.ts` proves the reviewer's values win, a blank keeps
+  the draft's, the draft keeps the model's text, and the audit names the
+  changed fields.
+- **Live, in a browser** (Playwright, `ona-dev.sh serve`, PostgreSQL, seat
+  `demo-author`):
+
+  | Call | Answer |
+  | --- | --- |
+  | `POST /api/composer/ai/suggest-components` | 200, with a token |
+  | `POST /api/composer/ai/generate-product-spec` | 201, from approved URS baseline `URS-EPM` 1.0 |
+  | `POST /api/composer/ai/spec-drafts/77f9bfbe…/apply` | 200 |
+
+  The product name was typed over as `nxd-175-live-check`. The product
+  exists under that name; the draft still says
+  `equipment-performance-management`. The audit row reads
+  `"reviewerChanged":["productName"]`.
+
+**Not verified.**
+
+- **A real model.** No `composer.ai.apiKey` is configured, so the backend
+  answered from `MockComposerLLMClient` (it logs "Falling back to mock").
+  The run proves the wiring, not a model's answer.
+- **The lineage card in a browser.** It is covered by unit test only.
+
+**Left as found.**
+
+- The baseline is still pasted as an id; a picker exists in the scaffolder
+  (`UrsBaselinePicker`).
+- The success notice links to nothing.
+- These `TextField`s carry no `id`, so their labels are not associated
+  (the tests query by placeholder and value for that reason).
+- A product created this way still has no repository (D4).
+
+**Live-check residue.** Product `nxd-175-live-check` (`7aa1eccd…`) remains
+in the development database. The trail is append-only and the product is
+DRAFT. Delete it if wanted; nothing depends on it.
+
+### NXD-176 — A URS refusal says what kind of refusal it is, and the requirement-set page loses two buttons to nowhere
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track, after
+  [`NXD-175`](DECISIONS.md). The defects were found by the 2026-10-15 audit
+  ([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+  §13.2, check 1).
+
+**Context.**
+
+- **Twenty-one paths in `URSService` threw a plain `Error`.** `respondError`
+  maps a plain error to 500 "Internal server error" and drops the message.
+  So every one of these told the person that the platform was broken,
+  without saying why:
+  - editing a requirement set that is no longer DRAFT
+  - submitting a baseline twice
+  - a duplicate business role
+  - an unknown baseline
+  - a rejection without a reason
+
+  `NXD-072` and Slice B-1 had already typed the approval lookups and the
+  resolver; these were the rest.
+- **The requirement-set page offered two dead buttons.** *Change Requests*
+  went to `/urs-composer/change-requests` and *Portfolio* to
+  `/urs-composer/portfolio`. Neither route exists, so both fell into
+  `/urs-composer/:id` and tried to load a requirement set called
+  "change-requests" or "portfolio".
+
+**Decision.**
+
+- **The error class carries the meaning; the messages are unchanged.**
+
+  | Class | Answer | Paths |
+  | --- | --- | --- |
+  | `InputError` | 400 | missing name or domain, a requirement missing fields, an invalid set key, an invalid capability reference, a rejection without a reason |
+  | `ConflictError` | 409 | a duplicate capability, role or set key; editing a set that is not DRAFT; submitting a baseline that is not DRAFT; cancelling an approval that is neither NOT_STARTED nor IN_PROGRESS |
+  | `NotFoundError` | 404 | an unknown capability, role, set or baseline that the caller named |
+
+- **Three stay plain on purpose**, because they are faults, not refusals:
+  - a missing approval-workflow seed
+  - a baseline that vanishes inside the approval transaction
+  - "AI is not configured", which its route already maps to 501
+- **The two buttons are removed.** *Change Requests* returns with its page
+  in Phase 3 (`NXD-174` D9). There is no portfolio concept anywhere.
+
+**Verified.**
+
+- `typed-refusals.test.ts`: 9 cases covering duplicates, blanks, a
+  non-DRAFT edit and unknown ids.
+- `urs-composer-backend`: 37 suites / 500 tests pass on PostgreSQL. The
+  existing assertions on message text still hold.
+- Lint is clean for both URS packages.
+- Live against the running backend, seat `demo-author`:
+  - `PUT /api/urs-composer/requirement-sets/seed:urs-epm` (an approved set)
+    answers **409** "Only DRAFT requirement sets can be updated".
+  - `POST /baselines/no-such-baseline/submit` answers **404** "Baseline not
+    found".
+
+**Not verified.** The removed buttons in a browser. The page renders from
+the same component the passing tests mount; no test named the buttons.
+
+### NXD-177 — Approvals that could not be read are not approvals that do not exist; and NXD-175's "tsc clean" was false
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track, after
+  [`NXD-176`](DECISIONS.md). Found by the 2026-10-15 audit
+  ([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md)
+  §13.2, check 10).
+
+**Context.**
+
+- **A failed signature load read as "none".**
+  `ProductDetailPage` loaded the product's signatures with
+  `listProductSignatures(...).catch(() => [])`, twice. A failure became an
+  empty list, and the Overview tab then showed no *Approvals and releases*
+  section. On a GMP product that reads as "nothing here was approved or
+  released", which is a statement about a regulated record made on no
+  evidence. It is the failure mode `NXD-094` removed from six pages.
+- **`NXD-175` claimed `yarn tsc` clean, and it was not.** Its new test
+  typed `fetchApi.fetch` with `url: string`, and `FetchApi` takes
+  `RequestInfo | URL`. Jest does not type-check, so the test passed.
+  `yarn tsc` printed the error. The output was read through `tail` and
+  taken for a lint error that was fixed in the same minute. The record and
+  the commit body of `c913998` say "tsc clean". They were wrong, and this
+  is the correction.
+
+**Decision.**
+
+- **Signatures carry their own error state.** A failure sets
+  `signaturesError`. The Overview tab then shows the section heading and
+  `LoadError` ("Could not load the approvals and releases", with *Try
+  again*) in place of the list. The rest of the page keeps working. Both
+  load sites share `reloadSignatures`.
+- **The test's `fetch` takes `RequestInfo | URL`**, as `FetchApi` does.
+
+**Verified.**
+
+- `ProductDetailPage.test.tsx` has a new case: a 503, then the error with
+  *Try again*, then the signature on retry. 26 / 26 pass. On the old code
+  the case fails, because no error text appears.
+- `yarn tsc`: no output, exit 0. This time the whole output was read.
+- Lint is clean for `packages/app`.
+- `ComposePage.test.tsx`: 8 / 8 pass.
+
+**Not verified live.** Provoking a failing signature route in the running
+stack would mean breaking it; the unit test drives the same component.
+
+### NXD-178 — `urs-composer` is back inside the test gate: its nine failures were a missing mock and a renamed step
+
+- Date: 2026-10-15
+- Slice: Phase 1 of the MVP 1.0 completion track, its last item. It also
+  closes [`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.4 rank 8,
+  which was ranked "unknown cost".
+
+**Context.**
+
+- `plugins/urs-composer` ran its tests through `bin/test.js` with
+  `BACKSTAGE_OLD_TESTS=true`. So `backstage-cli repo test`, which is what
+  `yarn test` and CI's `yarn test:all` run, never reached it.
+- `NXD-073` made the exclusion visible through `TEST_GATE_COVERAGE`, with
+  the stated reason "the current repo runner cannot execute this package",
+  plus nine `CreateWizard` failures ("A component suspended while
+  responding to synchronous input"). They were recorded as pre-existing and
+  never explained.
+
+**What the measurement found.**
+
+1. **The runner reason was out of date.** Under `backstage-cli package
+   test` the package runs: 13 suites, and everything passes except the same
+   nine cases.
+2. **Eight of the nine were one missing mock.** `BusinessCapabilityStep`
+   calls `listRequirementSets()` on mount. `CreateWizard.test.tsx`'s API
+   mock lacked it, and its two sibling test files have it. The call threw
+   inside the step's effect, and React reported the error as a suspension.
+   That message pointed everyone at Suspense and `startTransition`, which
+   had nothing to do with it.
+3. **The ninth was a renamed step.** Commit `2517e4e` renamed the last step
+   "Review & Submit" → "Review & Save", because it saves a draft and does
+   not submit for approval. The test kept the old name.
+
+**Decision.**
+
+- The mock gains `listRequirementSets`, and the stepper test expects
+  "Review & Save".
+- The package's `test` script is `backstage-cli package test`, and
+  `bin/test.js` is deleted.
+- `TEST_GATE_EXEMPT_WORKSPACES` is empty. The guard fails a stale entry,
+  so the exemption had to go in the same change.
+
+**Verified.**
+
+- `plugins/urs-composer`: 13 suites / 109 tests pass. Lint is clean.
+- **The repo runner reaches it.** `CI=true yarn test
+  plugins/urs-composer/src` runs 13 suites and 109 tests. On 2026-09-28
+  zero of its files appeared in a root run.
+- `yarn guard:platform`: `TEST_GATE_COVERAGE` passes, "every workspace with
+  tests runs inside the repo-wide gate". The totals are 12 PASS, 8 WARNING,
+  0 FAIL, against 11 / 9 / 0 before.
+- **Full `CI=true yarn test`: 327 of 328 suites, 3326 of 3327 tests.** The
+  one failure is `compatibilityPolicyParity.test.ts`. This container has no
+  Python interpreter that can import the data-product SDK (pydantic is
+  missing); CI installs one. It is an environmental failure of this
+  container, not of the code. `ProductDetailPage.test.tsx`, flaky under load in the
+  audit, passed in this full run. One run proves no absence of flakiness.
+
+**Phase 1 is complete** with `NXD-175`…`NXD-178`. D11 (the Composer name)
+stays open.
+
+**Left as found.** The package still declares `jest` ~30.2 and
+`@jest/environment-jsdom-abstract`, which only the old runner needed.
+Removing them changes `yarn.lock`, so it goes through the dependency
+governance of `AGENTS.md`, not this change.

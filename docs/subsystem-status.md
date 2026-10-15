@@ -1,7 +1,7 @@
 # Subsystem status and GxP position
 
 Owner: Platform Team  
-Last reviewed: 2026-09-27  
+Last reviewed: 2026-10-15  
 Audience: INTERNAL ENGINEERING / PRODUCT / PILOT  
 Version: 1.1.0
 
@@ -9,9 +9,13 @@ Authoritative status for **Control Plane product subsystems** that are not
 Golden Paths or Wave 1 components. Use the four dimensions from
 [Status model](status-model.md). Do not collapse them into one badge.
 
-MVP 1.0 freeze remains [mvp-1.0-baseline.md](mvp-1.0-baseline.md).
-Anything in this document that is outside that freeze is **not** part of the
-MVP 1.0 customer value proposition until explicitly promoted.
+MVP 1.0 is the product lifecycle URS → Approval → Product Creation →
+Development → GitHub Publishing ([`NXD-174`](nexora-transformation/DECISIONS.md),
+2026-10-15). [mvp-1.0-baseline.md](mvp-1.0-baseline.md) is its technical
+baseline, a precondition. NXD-174 promoted **URS Composer** and the
+**Product Composer** into MVP 1.0 scope. Anything else in this document that
+is outside the technical baseline is **not** part of MVP 1.0 until promoted
+in the same way.
 
 ## How to read this table
 
@@ -29,9 +33,9 @@ CERTIFIED (implementation) never implies GxP VALIDATED.
 | Subsystem | Packages | Implementation | Release | Commercial | Validation | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Platform Core (Catalog, Create, Marketplace, Data Products, RBAC, TechDocs, Developer Hub) | `packages/app`, `packages/backend`, `plugins/data-products*`, `plugins/marketplace`, `plugins/entitlements-backend`, … | CERTIFIED (MVP 1.0 technical baseline) | RELEASED for pilot under conditions | Legal distribution **BLOCKED** | **NOT VALIDATED** | [mvp-1.0-baseline](mvp-1.0-baseline.md) |
-| URS Composer | `plugins/urs-composer`, `plugins/urs-composer-backend` | **TESTED** | **DRAFT** — not a released customer module | **FUTURE** (no SKU) | **NOT VALIDATED** | Requirements, baselines, approval chain, e-sign *mechanism*. Outside MVP 1.0 value proposition. |
-| Validation Expert | `plugins/validation-expert`, `plugins/validation-expert-backend` | **TESTED** | **DRAFT** | **FUTURE** | **NOT VALIDATED** | IQ/OQ/UAT run tooling and URS baseline HTTP seam. Not a validated CSV system. |
-| Product Composer | `packages/app` Compose UI, `plugins/composer-backend` | **TESTED** | **DRAFT** | n/a | **NOT VALIDATED** | Composition drafts and presets; not a Golden Path. |
+| URS Composer | `plugins/urs-composer`, `plugins/urs-composer-backend` | **TESTED** | **DRAFT** — in MVP 1.0 scope (`NXD-174`), released only when the MVP 1.0 gates pass | **FUTURE** (no SKU) | **NOT VALIDATED** | Requirements, baselines, approval chain, e-sign *mechanism*. The URS stage of MVP 1.0. |
+| Validation Expert | `plugins/validation-expert`, `plugins/validation-expert-backend` | **TESTED** | **DRAFT** | **FUTURE** | **NOT VALIDATED** | IQ/OQ/UAT run tooling and URS baseline HTTP seam. Not a validated CSV system. MVP 1.0 scope **open** (`NXD-174` D12): a GMP product's release gate requires its decision. |
+| Product Composer | `packages/app` Compose UI, `plugins/composer-backend` | **TESTED** | **DRAFT** — in MVP 1.0 scope (`NXD-174`), released only when the MVP 1.0 gates pass | n/a | **NOT VALIDATED** | Product record, versions, URS binding, components, AI build, release gate (`composer-backend`); composition drafts on `/compose`. The product stages of MVP 1.0. Not a Golden Path. |
 | Model Company | `plugins/model-company`, `plugins/model-company-backend` | **TESTED** | **DRAFT** (demo) | n/a | **NOT VALIDATED** | Demonstration / scenario plant only. |
 | Plugin Directory | `plugins/plugin-directory`, `plugins/plugin-directory-backend` | **TESTED** | **DRAFT** | n/a | **NOT VALIDATED** | Internal inventory UI. |
 | Users admin API | `plugins/users-backend` | **DEVELOPMENT** | **DRAFT** | n/a | **NOT VALIDATED** | Thin admin surface; not a complete IAM product. |
@@ -106,9 +110,9 @@ written position and this document is updated.
 
 ## Relationship to MVP 1.0
 
-| In MVP 1.0 value proposition | Outside MVP 1.0 (present in repo) |
-| --- | --- |
-| Platform Core, Wave 1, MQTT / REST / OEE Golden Paths | URS Composer, Validation Expert, Model Company, Plugin Directory, AAS adapter, UNS |
+| In MVP 1.0 | Scope open | Outside MVP 1.0 (present in repo) |
+| --- | --- | --- |
+| Technical baseline (Platform Core, Wave 1, MQTT / REST / OEE Golden Paths) as precondition; URS Composer and Product Composer (`NXD-174`) | Validation Expert (`NXD-174` D12) | Model Company, Plugin Directory, AAS adapter, UNS |
 
 Outside subsystems may be demonstrated in pilot **only** with the status
 labels above and the e-sign disclosure. They must not be silently folded into

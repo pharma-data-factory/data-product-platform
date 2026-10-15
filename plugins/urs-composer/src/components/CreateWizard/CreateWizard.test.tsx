@@ -13,8 +13,11 @@ import { screen, waitFor } from '@testing-library/react';
 import { CreateWizard } from './CreateWizard';
 import { ursComposerApiRef } from '../../api/ursComposerApi';
 
-// The wizard's Step 1 (BusinessCapabilityStep) loads capabilities asynchronously.
-// Provide a mock API via the ApiRef so Step 1 content resolves and renders.
+// The wizard's Step 1 (BusinessCapabilityStep) loads capabilities and the
+// existing requirement sets asynchronously. Provide both via the ApiRef.
+// NXD-178: without `listRequirementSets` the step's effect threw on mount,
+// and React reported it as "A component suspended while responding to
+// synchronous input" — the message that kept all nine cases red.
 const mockApi = {
   listCapabilities: jest.fn().mockResolvedValue({
     items: [
@@ -28,6 +31,7 @@ const mockApi = {
     ],
     total: 1,
   }),
+  listRequirementSets: jest.fn().mockResolvedValue({ items: [], total: 0 }),
   createRequirementSet: jest.fn(),
   updateRequirementSet: jest.fn(),
 };
@@ -60,7 +64,9 @@ describe('CreateWizard', () => {
       expect(screen.getByText('Acceptance Criteria')).toBeInTheDocument();
       expect(screen.getByText('Quality & GxP Review')).toBeInTheDocument();
       expect(screen.getByText('Traceability')).toBeInTheDocument();
-      expect(screen.getByText('Review & Submit')).toBeInTheDocument();
+      // Renamed in 2517e4e: the last step saves a draft, it does not submit
+      // for approval. The test kept the old name and has failed since.
+      expect(screen.getByText('Review & Save')).toBeInTheDocument();
     });
 
     test('renders Step 1 content on mount', async () => {
