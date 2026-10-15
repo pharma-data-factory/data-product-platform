@@ -6,7 +6,16 @@ Audience: INTERNAL ENGINEERING / PRODUCT
 Version: **1.0.0**  
 Verdict: **TECHNICAL_MVP_COMPLETE**
 
-This is the authoritative MVP 1.0 snapshot for Landing Page, Developer
+> **Re-scoped 2026-10-15 ([`NXD-174`](nexora-transformation/DECISIONS.md)).**
+> This document is the **MVP 1.0 technical baseline**, a precondition of
+> MVP 1.0, and no longer the MVP 1.0 claim. MVP 1.0 is now the governed
+> lifecycle URS → Approval → Product Creation → Development → GitHub
+> Publishing. It is IN PROGRESS, gated in [ROADMAP.md](../ROADMAP.md).
+> `TECHNICAL_MVP_COMPLETE` stays true of what was measured here on
+> 2026-08-21. Do not cite it as "MVP 1.0 complete". URS Composer and the
+> Product Composer, listed below as outside, are now in MVP 1.0 scope.
+
+This is the technical-baseline snapshot for Landing Page, Developer
 Hub, sales material, and architecture diagrams.
 
 It is not GxP validation, not legal approval, and not a commercial
@@ -27,9 +36,10 @@ distribution license. Status dimensions must not be collapsed. See
 | AWS Marketplace | Preparation / test integration only |
 | GxP | NOT VALIDATED |
 
-Subsystem modules present in the repo but **outside** this MVP 1.0 value
-proposition (URS Composer, Validation Expert, Model Company, Plugin
-Directory, AAS adapter, UNS) — including the written position that
+Subsystem modules present in the repo but **outside** this technical
+baseline (URS Composer and the Product Composer, both in MVP 1.0 scope
+since `NXD-174`; Validation Expert, Model Company, Plugin Directory, AAS
+adapter, UNS) — including the written position that
 electronic signatures are **not** a GxP / Part 11 claim — are listed in
 [Subsystem status and GxP position](subsystem-status.md).
 
@@ -201,6 +211,10 @@ AAS certification, UNS certification, Kafka, Knowledge Graph, RAG, AI,
 Grafana, TimescaleDB, Kubernetes, multi-tenancy, SaaS, AWS public
 Marketplace listing, SAP Golden Path, Snowflake, Cold Chain, additional
 Golden Paths, plant shift calendar, GxP validation.
+
+"AI" here means RAG, a knowledge graph or an AI data analyst. The
+AI-assisted build (`NXD-153`, `NXD-154`) is a development provider inside
+the MVP 1.0 Development stage (`NXD-174`), not a separate capability.
 
 ## Outstanding Pilot Exit conditions
 

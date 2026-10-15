@@ -27,6 +27,28 @@ criteria of their own.
 
 ## Current Vertical Slice
 
+**MVP 1.0 completion track (from 2026-10-15).** A read-only architecture and
+completion audit at `d16972f` measured the lifecycle URS → Approval →
+Product Creation → Development → GitHub Publishing. It found that three
+documents defined "MVP 1.0" in three ways. The track is in
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8, the measurement in
+[`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §13.
+
+- **Phase 0 — one MVP 1.0 definition.** MVP 1.0 is the lifecycle, measured
+  by ten checks and released through four gates (functional, GxP integrity,
+  operability, automated proof). `TECHNICAL_MVP_COMPLETE` stays true of the
+  technical baseline, which becomes a precondition. URS Composer and the
+  Product Composer enter scope. Readiness is 5.5 of 10, and all four gates
+  are open. The scope classification and decisions D2–D12 await the
+  product owner. See [`NXD-174`](DECISIONS.md).
+
+**Next:** Phase 1, fixing what is broken. That is the `/compose` AI client
+(wrong path, no token), the lineage impact URL, the dead URS links, URS
+conflicts answering 500, and a swallowed signature-load failure. It also
+returns `urs-composer` to the test gate.
+
+## Previous Vertical Slices
+
 **Maturity-audit remediation, wave 4 — frontend (2026-09-30).** Waves 1–3
 barely touched the frontend, and a recount at `7fb817b` found it where the
 re-audit left it: six failed loads rendered as empty states, one retry
@@ -1928,8 +1950,16 @@ actor` so the `owner-declared` platform policy obligation is met at apply
 
 ## In Progress
 
-Nothing in flight. Batch 1 is committed (`b7378b0`) and the live walk that
-followed it is recorded in [`NXD-059`](DECISIONS.md).
+**The MVP 1.0 completion track** ([`NXD-174`](DECISIONS.md),
+[`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8). Phase 0 is done;
+Phase 1 is next.
+
+> **Corrected 2026-10-15.** This section said "Nothing in flight" from
+> 2026-09-25 until today, through NXD-060…173. The text below is the record
+> of the 2026-09-25 walk and stays as history.
+
+Batch 1 is committed (`b7378b0`) and the live walk that followed it is
+recorded in [`NXD-059`](DECISIONS.md).
 
 **From the walk, in the order they matter.** Four of the five are closed; the
 strikethroughs stay so the record shows what was found, not only what remains:
@@ -2673,10 +2703,15 @@ migration fails loudly and remediation is manual. Implemented in P1-S3, see
 
 ## Last Commit
 
-"fix(nxd-086): the name NXD-043 declared gone, and the guard that only read two
-files", 2026-09-29, on `ms/composer-ai-spec-and-ci-quality-gate` — Welle 3
-item 3.3. `pharma-data-factory:mvp-1.0` survived in the three production-path
-files the old guard never read. See [`NXD-086`](DECISIONS.md).
+"docs(nxd-174): mvp 1.0 is the product lifecycle from urs to github, and the
+technical baseline becomes its precondition", 2026-10-15, on
+`ms/mvp-1.0-scope`. See [`NXD-174`](DECISIONS.md).
+
+> **Corrected 2026-10-15.** From 2026-09-29 until today this section named
+> NXD-086 while eighty-seven later records landed. It is the fourth note in
+> this file found describing a past state. The paragraph below about
+> commits ahead of `main` is from 2026-09-29 and is history: the branch
+> has since reached `main` through PRs #13–#16.
 
 **No hash here, deliberately.** A commit cannot record its own id, so writing
 one means either a stale value or a second commit whose only job is to name the

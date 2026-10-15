@@ -700,3 +700,37 @@ S2 and S4 but finishes the consumer run already under way. S5 needs S4's
 test tagging in every template. S6 is worth little without S5: an AI's pull
 request has to show its evidence before a person can judge it.
 
+
+### 9.8 The MVP 1.0 completion track
+
+Added 2026-10-15 with [`NXD-174`](DECISIONS.md), which makes MVP 1.0 the
+lifecycle URS → Approval → Product Creation → Development → GitHub
+Publishing. The gaps are measured in
+[`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §13.
+
+**Principle: finish what exists before building anything new.** No phase
+adds a domain concept. Each phase is one or more NXD records under §2's
+Definition of Done. Decision numbers refer to NXD-174's table. Effort is in
+engineer-days.
+
+| Phase | Objective and deliverables | Main files | Needs | Effort | Accepted when |
+| --- | --- | --- | --- | --- | --- |
+| 0 | **One MVP 1.0 definition.** NXD-174; ROADMAP, baseline, subsystem status and README aligned; stale STATUS sections corrected | docs only | D1 | 1 | **Done 2026-10-15** (`NXD-174`) |
+| 1 | **Fix what is broken.** The `/compose` AI client: path, `fetchApi`, tests. The lineage impact URL. The dead URS links. Plain `Error` → typed conflicts in the URS service. The signature-load failure shown, not swallowed. `CreateWizard` green and `urs-composer` back in the gate (§9.4 rank 8) | `packages/app/src/modules/composer/composerApi.ts`, `ComposePage.tsx`; `plugins/data-products/src/components/LineageDAGView.tsx`; `plugins/urs-composer/src/pages/URSRequirementSetPage.tsx`; `plugins/urs-composer-backend/src/service.ts`; `packages/app/src/modules/products/ProductDetailPage.tsx` | fix or hide `/compose` AI; D11 | 3–4 | Every suite green and none flaky; AI suggest and spec draft work from the browser against a live backend |
+| 2 | **Close the handover.** `nexora:product:create` takes `ursBaselineId` and creates a bound first version. Compose passes the baseline and drops the OEE hard-codes. An approved URS offers "create product from this baseline". The success page links `/products/:id`. The Requirements tab links back to the URS. Impact analysis reads the composer binding, not the annotation | `plugins/composer-backend/src/scaffolderModule.ts`, `service.ts`; nine `templates/*/template.yaml`; `ComposePage.tsx`; `packages/app/src/modules/create/creationSuccess.ts`; `plugins/urs-composer-backend/src/service.ts` | D5 | 4–5 | A Golden-Path product starts with version 1.0 bound to the chosen baseline, with no manual bind |
+| 3 | **URS integrity.** SoD across approval steps. REVIEWED signed or refused unsigned. A minimal change-request UI (raise, assess, approve, revise). Role clean-up | `plugins/urs-composer-backend/src/service.ts`, `domain/signature-service.ts`; `packages/platform-common/src/roles.ts`; a change-request page in `plugins/urs-composer` | D2, D3, D9 | 5–8 | A test proves one person cannot sign two steps; a released requirement is revised under an approved change request from the UI |
+| 4 | **Every governed product can be developed and published.** Attach or create a repository for an existing product, or remove the doors that create none. The four basic templates get the AI-build, release and evidence workflows, or stop creating governed products. Publish readiness probes the credential. The AI-build dispatch carries components and the FS | `plugins/composer-backend`; `packages/app/src/modules/products/tabs/DevelopmentTab.tsx`; `templates/{node-service,python-service,mqtt-connector,unified-namespace}`; `plugins/composer-backend/src/scm-publish-readiness.ts` | Phase 2, D4, D6 | 5–10 | No governed product is stranded before AI build, evidence import or release |
+| 5 | **Release hardening.** Overlays into the database or onto the volume, with a loud parse failure. Mock and in-memory backends gated in production. The SSE route authorized. TechDocs in production. **An E2E spec URS → Product → Release in CI.** Trivy blocking | `plugins/data-products-backend/src/certificationOverlay.ts`, `releaseCatalog.ts`; `app-config.production.yaml`; `plugins/nexora-backend`; `plugins/aas-backend`; `packages/backend/Dockerfile`; `.github/workflows/ci.yml`; `packages/app/e2e-tests/` | Phases 1–3, D8, D10 | 6–8 | Recreating the container loses nothing; the new spec is green in CI; G3 and G4 pass |
+| 6 | **Live acceptance.** A fresh environment, the lifecycle walked with a non-OEE template, recorded as an NXD | — | Phases 1–5 | 1–2 | One recorded walk from URS to RELEASED and a merged pull request, with no workaround; G1 and G2 pass |
+
+**Order:** 0 → 1 → 2 → 3 → 5 → 4 → 6. The E2E part of Phase 5 may start
+once Phase 2 lands. About five to seven engineer-weeks in total, depending
+on D4, D6 and D9.
+
+**Relation to §9.4–§9.7.**
+- §9.4 rank 8 (`urs-composer` back in the gate) is absorbed into Phase 1.
+- Rank 5 (URS→Product steps 3–5) overlaps Phase 2 and is re-judged there.
+- The topology track (§9.6) and Publish → Install → Run are MVP 2.0 if D7
+  is confirmed.
+- §9.7 is done except S4a-2 and the S6 Codex run, neither of which gates
+  MVP 1.0.

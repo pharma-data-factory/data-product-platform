@@ -11368,3 +11368,119 @@ Insights → Dependency graph → Dependabot, "Check for updates".
   their own.
 - #8 (Backstage, 62 packages) goes through the upgrade gate.
 
+
+### NXD-174 — MVP 1.0 is the product lifecycle from URS to GitHub, and the technical baseline becomes its precondition
+
+- Date: 2026-10-15
+- Slice: Phase 0 of the MVP 1.0 completion track
+  ([`PHASE_CLOSURE_PLAN.md`](PHASE_CLOSURE_PLAN.md) §9.8), after the
+  read-only architecture and completion audit of 2026-10-15 at `d16972f`
+  ([`TARGET_CONFORMANCE_AUDIT.md`](../audits/TARGET_CONFORMANCE_AUDIT.md) §13).
+- Decided by: the user ("complete Phase 0", 2026-10-15, which adopts the
+  audit's decision D1). Record and documentation change only. Exempt from
+  DoD point 2, because no path is executed.
+
+**Context.** Three documents each defined "MVP 1.0", and they disagreed.
+
+- `docs/mvp-1.0-baseline.md` and `ROADMAP.md` defined it as the Golden-Path
+  technical baseline (Control Plane, Wave 1, three Golden Paths), with the
+  verdict `TECHNICAL_MVP_COMPLETE`.
+- `docs/subsystem-status.md` placed URS Composer, Product Composer and
+  Validation Expert **outside** the MVP 1.0 value proposition.
+- `TARGET_CONFORMANCE_AUDIT.md` §11 drew a separate "MVP1" boundary around
+  traceability. The 2026-10-06 ecosystem plan drew a third, from Create to
+  Install to Run.
+
+The user's audit asked for something none of them covers: the governed
+lifecycle **URS → Approval → Product Creation → Development → GitHub
+Publishing**, which runs straight through the two subsystems the baseline
+excluded.
+
+**Decision.**
+
+1. **MVP 1.0 is that lifecycle.** It is measured by the ten checks of the
+   2026-10-15 audit:
+   1. URS creation, editing, versioning and approval
+   2. role-based permissions
+   3. handover of an approved URS into product creation
+   4. mapping from URS to product to components
+   5. the Product Composer and its workflow
+   6. the developer workflow and product configuration
+   7. GitHub repository creation and publishing
+   8. product metadata, ownership and traceability
+   9. navigation and workflow consistency
+   10. end-to-end status tracking and error handling
+2. **The technical baseline is not withdrawn. It is renamed in role.**
+   `TECHNICAL_MVP_COMPLETE` stays true of what it measured on 2026-08-21.
+   It is the *MVP 1.0 technical baseline*, a precondition, and no longer the
+   MVP 1.0 claim. Nothing may cite it as "MVP 1.0 complete".
+3. **URS Composer and Product Composer enter the MVP 1.0 scope.** Their
+   release status stays DRAFT until the release gates below pass. Their
+   validation status stays NOT VALIDATED. The e-signature position in
+   `subsystem-status.md` is unchanged.
+4. **MVP 1.0 is released through four gates, each judged on evidence:**
+
+   | Gate | Passes when |
+   | --- | --- |
+   | G1 Functional lifecycle | All ten checks are COMPLETE, with no manual workaround between stages |
+   | G2 GxP integrity | Approvals keep segregation of duties as decided (D3); approved requirements can be revised under change control; no regulated state is displayed wrongly on a failed load |
+   | G3 Operability | No governance state is lost when the container is recreated; no mock or in-memory backend answers in production unlabelled |
+   | G4 Automated proof | One end-to-end spec drives URS → Product → Release in CI, and the full frontend and backend suites are green inside the test gate |
+
+5. **Readiness is reported per check and per gate**, and as a percentage
+   only with this method: a COMPLETE check scores 1, a PARTIAL check 0.5,
+   and MISSING, BROKEN or UNKNOWN scores 0, out of 10. At `d16972f` that is
+   **5.5 / 10**: check 4 is COMPLETE and the other nine are PARTIAL. All four
+   gates were open.
+
+**The scope classification is proposed, not decided.** The audit sorted each
+capability into MVP 1.0 Required, MVP 1.0 Optional, MVP 2.0, technical debt,
+or out of scope (`TARGET_CONFORMANCE_AUDIT.md` §13.3). This record adopts the
+lifecycle and the gates. It does not adopt that classification, which waits
+for the product owner, with these decisions open:
+
+| # | Open decision | Gates |
+| --- | --- | --- |
+| D2 | "Capability Manager" exists nowhere in the code. Is it `BUSINESS_CAPABILITY_LEAD`, a new role, or not needed? | Phase 3 |
+| D3 | Must each URS approval step be signed by a different person, author excluded, and must REVIEWED be a signed act? `approveApprovalStep` checks only the step role today | Phase 3, G2 |
+| D4 | Keep product creation without a repository (the `/products` form, an applied AI spec draft) and add attach-or-create-repo, or remove those doors? | Phase 4 |
+| D5 | Bind the URS baseline at creation: read it at `fetch-base` time, or bind after `publish:github`? This is §9.5's step-3 ordering question | Phase 2 |
+| D6 | The four basic templates (`node-service`, `python-service`, `mqtt-connector`, `unified-namespace`): full governance wiring, or stop creating governed products? | Phase 4 |
+| D7 | Publish → Install → Run (NXD-139…148) is MVP 2.0, outside the lifecycle? | classification |
+| D8 | Hide or gate AAS, `/equipment`, `/contracts`, `/quality` and Model Company in production? | Phase 5, G3 |
+| D9 | Is the change-request UI in MVP 1.0? Without it a requirement cannot be revised once approved | Phase 3, G2 |
+| D10 | Certification and release overlays: into the database, or onto the volume? | Phase 5, G3 |
+| D11 | The "Composer" name collision (`TARGET_CONFORMANCE_AUDIT.md` §12.3): resolve now or later? | Phase 1 |
+| D12 | The release gate of a GMP product requires a Validation Expert decision (`VALIDATION_DECISION_*`). Is Validation Expert in MVP 1.0 scope as far as that gate needs it, or does MVP 1.0 end at GitHub publishing, leaving release out? | classification |
+
+D12 was found while writing this record, not by the audit. The user's
+lifecycle names no release stage, yet the product side is unreleasable
+without a validation decision when the product is GMP.
+
+**What changes in the record.**
+
+- `ROADMAP.md`: MVP 1.0 is IN PROGRESS, with the gates and the technical
+  baseline named as its precondition.
+- `docs/mvp-1.0-baseline.md` says it is the technical baseline, and what
+  that no longer means.
+- `docs/subsystem-status.md` moves the two subsystems into scope and names
+  D12 for the third.
+- `README.md`'s status table separates the two.
+- `TARGET_CONFORMANCE_AUDIT.md` gains §13, the dated measurement.
+- `PHASE_CLOSURE_PLAN.md` gains §9.8, the completion track.
+- `STATUS.md` gains a new current slice. Its *In Progress* and *Last Commit*
+  sections, stale since 2026-09-25 and 2026-09-29, are corrected.
+
+**Not changed, deliberately.**
+
+- `docs/pilot-exit-gate.md` and its `TECHNICAL_MVP_COMPLETE` stay, because
+  Pilot Exit is measured against the technical baseline.
+  `pilotHardening.test.ts` pins both files, and the pins still describe the
+  truth.
+- `docs/status-model.md` and `docs/capability-matrix.md` (deprecated) are
+  left alone.
+- No landing-page or sales copy is touched. None claims the lifecycle.
+
+**Next.** Phase 1, fixing what is broken (`PHASE_CLOSURE_PLAN.md` §9.8). It
+needs no open decision except whether the `/compose` AI features are fixed
+or hidden.
